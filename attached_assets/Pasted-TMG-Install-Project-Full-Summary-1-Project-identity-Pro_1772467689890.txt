@@ -1,0 +1,1083 @@
+TMG Install Project — Full Summary
+1) Project identity
+
+Project name: tmginstall project 1
+Business: TMG Install / The Moving Guy Pte Ltd
+Core service model:
+
+Furniture installation
+
+Furniture dismantling
+
+Furniture relocation / moving
+
+Mostly office + residential jobs
+
+Main goal:
+Build a real-world, production-safe AI-assisted furniture quoting and operations platform that allows customers to submit job requests, receive an estimated quote, pay a deposit, choose a booking slot, and then lets admin + staff manage the full job lifecycle.
+
+2) What the platform is meant to do
+
+This is not just a quote form. It is a full operational workflow system.
+
+Customer side
+
+Customer can:
+
+Enter contact details
+
+Enter service address
+
+Choose service type(s): install / dismantle / relocate
+
+Describe items in text
+
+Upload photos
+
+Add logistics info when needed
+
+Get an AI-estimated quote
+
+Submit request for admin review
+
+Receive deposit payment link
+
+Pay deposit
+
+Receive secure booking link
+
+Choose available date/time slot
+
+Receive confirmation email with full job details
+
+Later receive final payment link when applicable
+
+Admin side
+
+Admin can:
+
+View all submitted quotes
+
+Review AI-detected items + pricing
+
+Edit/approve quotes
+
+Request deposit
+
+Track deposit paid status
+
+Monitor booking slot selection
+
+Assign staff
+
+Track job progress
+
+Send/request final payment
+
+Monitor completed / closed jobs
+
+Receive system alerts by email
+
+Staff side
+
+Staff can:
+
+Access jobs only after deposit is paid
+
+View assigned job details
+
+View customer contact actions (call / WhatsApp)
+
+See scheduled date/time
+
+Upload arrival / completion proof
+
+Capture GPS location on status updates
+
+Mark job progress through controlled stages
+
+3) Core business workflow (confirmed)
+
+This is the workflow we have already defined as the correct one.
+
+Step 1: Customer submits quote request
+
+Customer fills quote form
+
+Provides service type, address, item details, photos, and logistics info
+
+AI parses the request and estimates pricing
+
+Quote is created in database
+
+Admin is notified of new quote request
+
+Step 2: Admin reviews quote
+
+AI quote is never fully final by default
+
+Admin reviews item detection, breakdown, and totals
+
+Admin approves / adjusts where needed
+
+Step 3: Deposit request
+
+After review, admin sends deposit payment request
+
+Customer receives payment link (Stripe)
+
+Step 4: Deposit paid
+
+Stripe webhook confirms payment
+
+Quote/job status updates automatically
+
+Step 5: Booking slot selection
+
+Booking is only confirmed after deposit is paid
+
+Customer receives a secure booking link
+
+Customer chooses a date/time from allowed slots
+
+Admin can block dates/times
+
+Rescheduling follows business rules
+
+Step 6: Staff job access
+
+Staff can only see the job after deposit payment
+
+Staff receives job details, contact options, and service info
+
+Step 7: Job execution
+
+Staff can mark:
+
+arrived
+
+in progress
+
+completed
+
+Arrival/completion requires photo + GPS evidence
+
+Step 8: Final payment (if needed)
+
+Final invoice / payment link sent when applicable
+
+Customer pays balance
+
+Job is marked closed
+
+4) Critical business rules already defined
+
+These are important because they shape both frontend and backend logic.
+
+Quote rules
+
+AI quote should be as accurate as possible
+
+Admin still reviews before money collection
+
+Quote should show itemised breakdown
+
+Quote should include:
+
+item lines
+
+quantities
+
+service type per item
+
+subtotals
+
+discounts if applied
+
+transport/logistics fees when applicable
+
+GST is not included in the customer estimate flow unless intentionally added later
+
+Service rules
+
+Install + dismantle only may not require transport pricing
+
+Relocation requires logistics calculations
+
+Distance/floor/lift/access complexity matter for relocation pricing
+
+Office and residential furniture must both be supported
+
+Booking rules
+
+Schedule is only confirmed after deposit paid
+
+Customer self-books through secure link
+
+Reschedule is self-serve only under rules:
+
+future-only
+
+not in-progress / not closed
+
+at least 24h before job
+
+1 free reschedule
+
+within 24h → contact admin
+
+Staff rules
+
+Staff jobs visible only after deposit
+
+Staff must be able to call / WhatsApp customer
+
+GPS capture required on arrived/completed submissions
+
+Photo evidence required on key milestones
+
+Notification rules
+
+Admin notifications go to: sales@tmginstall.com
+
+Customer emails must include:
+
+full quote/job details
+
+itemised line items
+
+totals
+
+address
+
+services
+
+current status
+
+requested vs confirmed slot
+
+WhatsApp number used in site/footer/contact links:
++6580880757
+
+5) Current technical architecture (already established)
+Frontend
+
+Built / intended with:
+
+Hostinger Horizon AI builder
+
+Mobile-first UI
+
+Premium monochrome / clean design
+
+Operationally focused interface
+
+Customer quote form
+
+Admin dashboard
+
+Staff dashboard
+
+Backend
+
+Built / intended with:
+
+Supabase
+
+PostgreSQL database
+
+RLS enabled
+
+Storage buckets
+
+Edge Functions
+
+Payments
+
+Stripe
+
+deposit payment
+
+final payment
+
+webhook-driven status changes
+
+Emails
+
+Transactional email flow integrated
+
+Admin alerts + customer lifecycle emails
+
+Messaging
+
+WhatsApp deep links for customer/admin communication
+
+6) Confirmed backend progress already completed
+
+From our saved project state, these are already established:
+
+New Supabase project created
+
+Phase 1 SQL migration applied
+
+Quote-centric schema created
+
+RLS enabled
+
+Admin profile inserted for your UUID
+
+Storage buckets created:
+
+quote-uploads (private)
+
+job-uploads (private)
+
+For TMG Install (SG) Supabase Edge Functions, secrets are named:
+
+SUPABASE_URL
+
+SUPABASE_ANON_KEY
+
+SUPABASE_SERVICE_ROLE_KEY
+
+You also asked for:
+
+strict step-by-step execution
+
+no drift
+
+no duplicate tables/functions
+
+no messy Horizon changes
+
+full-file replacements only for code edits
+
+copy-paste-safe prompts only
+
+That is now part of the project standard.
+
+7) Main data model direction
+
+Your project is clearly centered around a quote → schedule → job → payment pipeline.
+
+Core entities
+
+Likely/currently used:
+
+quotes
+
+quote_items
+
+customers
+
+catalog_items
+
+cases
+
+jobs
+
+schedule_events
+
+job_updates
+
+Important quote fields already referenced
+
+assigned_staff_id
+
+scheduled_at
+
+time_window
+
+status
+
+reference_no
+
+id
+
+customer_id
+
+Purpose of each area
+
+quotes = master commercial record
+
+quote_items = line-item breakdown
+
+customers = reusable customer identity/contact
+
+catalog_items = pricing library and detection source
+
+jobs = operational execution record
+
+schedule_events = booking slot data
+
+job_updates = timeline, proof photos, GPS, notes
+
+8) AI quote engine purpose
+
+Your quoting engine is designed to:
+
+Parse natural language item descriptions
+
+Detect likely furniture types
+
+Match against catalog_items
+
+Determine correct price by service type:
+
+install
+
+dismantle
+
+relocate
+
+Apply quantity logic
+
+Apply discounts
+
+Apply relocation logistics where needed
+
+Return itemised estimate
+
+Save quote + quote_items to backend
+
+This is a major part of your competitive advantage because the goal is:
+
+less manual quoting
+
+fast customer response
+
+realistic pricing
+
+reduced admin effort
+
+9) Problems / friction already encountered
+
+These are the main issues we’ve been solving:
+
+Search bar / CatalogItemPicker not working correctly
+
+Wrong endpoint wiring on frontend
+
+Dropdown not appearing
+
+AI detection and catalog price mismatch
+
+Quote total showing, but missing:
+
+customer info
+
+service details
+
+itemised breakdown
+
+Admin page became messy after fixes
+
+Approve/request deposit buttons broke after edits
+
+Customer photos not showing properly
+
+Staff/admin views missing important detail fields
+
+Horizon making changes outside scope
+
+Too many function variants causing confusion (v1, v2, etc.)
+
+This means the project doesn’t mainly need “more features” right now — it needs stabilization, standardization, and controlled upgrades.
+
+My Recommended Upgrades
+
+These are the upgrades I would add now to make your project much stronger and safer.
+
+Upgrade 1: Lock the architecture baseline
+
+Before adding more features, freeze a single approved structure.
+
+What to lock
+
+One final schema version
+
+One final function name per action
+
+One final status model
+
+One final email trigger map
+
+One final booking flow
+
+Why
+
+Right now, the biggest risk is not missing features.
+It is version confusion and accidental duplicate logic.
+
+My recommendation
+
+Create a “TMG Stable Baseline” and treat everything else as patches only.
+
+Example:
+
+create-quote = only quote creation
+
+admin-approve-quote = only approval
+
+request-deposit = only deposit request
+
+stripe-webhook = payment status only
+
+send-booking-link = booking invite only
+
+confirm-booking = booking confirmation only
+
+request-final-payment = final payment only
+
+No duplicate “v1/v2” unless absolutely necessary.
+
+Upgrade 2: Split quote logic into 3 layers
+
+Right now your quote engine is doing too much in one place.
+
+Better structure
+
+Detection layer
+
+parse text/photos
+
+identify services
+
+identify candidate items
+
+Pricing layer
+
+resolve final catalog match
+
+calculate unit rates
+
+logistics/transport
+
+discounts
+
+Persistence layer
+
+insert customer
+
+insert quote
+
+insert quote_items
+
+return frontend-safe response
+
+Why
+
+This makes debugging much easier:
+
+wrong detection?
+
+wrong pricing?
+
+wrong save?
+
+You’ll know exactly where the issue is.
+
+Upgrade 3: Add a quote confidence + review flag system
+
+Every AI quote should return more than just a price.
+
+Add fields like:
+
+ai_confidence_score
+
+requires_manual_review
+
+match_quality
+
+unmatched_items_count
+
+Logic
+
+If:
+
+too many weak matches
+
+too many custom items
+
+uncertain service detection
+
+Then:
+
+auto-flag for admin review
+
+show “estimate pending confirmation” more clearly
+
+Benefit
+
+Prevents bad automatic pricing from becoming an operations problem.
+
+Upgrade 4: Standardize the catalog search + picker
+
+Because your search bar/dropdown has been unstable, make it stricter.
+
+Improved behavior
+
+debounced search input
+
+minimum 2 characters before request
+
+dropdown shows:
+
+item name
+
+SKU
+
+service prices
+
+fallback “Add custom item”
+
+visible loading / error / empty states
+
+keyboard + mobile-friendly selection
+
+Backend rule
+
+Catalog search endpoint should return only:
+
+active items
+
+limited results
+
+normalized fields
+
+exact predictable JSON shape
+
+Benefit
+
+This fixes one of your biggest UI pain points and makes manual quote editing much faster.
+
+Upgrade 5: Add a true slot engine (not just date storage)
+
+Right now, storing scheduled_at is not enough.
+
+Proper scheduling should support
+
+admin blocked dates
+
+admin blocked time windows
+
+slot capacity
+
+service duration estimation
+
+public/holiday override if needed
+
+reschedule count tracking
+
+Add fields/tables
+
+schedule_rules
+
+blocked_slots
+
+booking_tokens
+
+reschedule_count
+
+Benefit
+
+This turns booking from “just a datetime” into a real operational system.
+
+Upgrade 6: Make admin dashboard operations-first
+
+Your admin page should feel like a dispatch console, not a generic CRUD page.
+
+Admin dashboard should show
+
+Quote reference
+
+Customer
+
+Service type badges
+
+Deposit status
+
+Booking status
+
+Assigned staff
+
+Scheduled time
+
+AI confidence / review warning
+
+Photos attached
+
+Last update timestamp
+
+Add filtered queues
+
+New submissions
+
+Needs review
+
+Awaiting deposit
+
+Deposit paid / awaiting booking
+
+Booked / upcoming
+
+In progress
+
+Awaiting final payment
+
+Closed
+
+Benefit
+
+Admin can manage the whole business faster with fewer clicks.
+
+Upgrade 7: Strengthen staff mobile workflow
+
+Staff page should be optimized for real on-site usage.
+
+Must-have upgrades
+
+big action buttons
+
+one-tap call customer
+
+one-tap WhatsApp customer
+
+map link to address
+
+upload photo with compression
+
+GPS auto-capture on status change
+
+required checklist before completion
+
+Add staff checklist
+
+Before marking completed:
+
+all furniture done?
+
+customer site checked?
+
+damage issue noted?
+
+completion photos uploaded?
+
+Benefit
+
+Reduces disputes and improves proof quality.
+
+Upgrade 8: Add proof-of-work timeline
+
+Create a full visible timeline for each job.
+
+Timeline events
+
+quote submitted
+
+admin reviewed
+
+deposit requested
+
+deposit paid
+
+booking sent
+
+slot confirmed
+
+staff assigned
+
+staff arrived
+
+in progress
+
+completed
+
+final payment requested
+
+final payment paid
+
+closed
+
+Each event should store:
+
+timestamp
+
+actor (system/admin/staff/customer)
+
+note
+
+optional photo/GPS
+
+Benefit
+
+This becomes your audit trail, customer support history, and operations log.
+
+Upgrade 9: Improve payment structure
+
+You already have deposit + final flow. Make it even safer.
+
+Add payment fields
+
+deposit_amount
+
+deposit_paid_at
+
+final_amount
+
+final_paid_at
+
+payment_status
+
+payment_stage
+
+Add states
+
+unpaid
+
+deposit_pending
+
+deposit_paid
+
+final_pending
+
+paid_in_full
+
+refunded / partial_refund (future-ready)
+
+Benefit
+
+Cleaner reporting and fewer broken button conditions.
+
+Upgrade 10: Harden email + WhatsApp communications
+
+Your emails are already important. They should be treated like part of the product.
+
+Every email should include
+
+reference number
+
+service address
+
+customer details
+
+itemised breakdown
+
+requested slot
+
+confirmed slot
+
+payment summary
+
+clear CTA button
+
+support WhatsApp link
+
+Add templates for:
+
+quote submitted
+
+admin reviewing
+
+deposit request
+
+deposit received
+
+booking invite
+
+booking confirmed
+
+booking updated
+
+job reminder
+
+final payment request
+
+payment received
+
+job closed
+
+Benefit
+
+Lower support load and more customer trust.
+
+Upgrade 11: Add internal safeguards and observability
+
+This is a major upgrade most people skip.
+
+Add:
+
+structured logs in every edge function
+
+request IDs
+
+error codes
+
+action audit table
+
+retry-safe webhooks
+
+status transition validation
+
+Example
+
+A job should not be able to go:
+
+from new → completed
+without:
+
+approved
+
+deposit paid
+
+booked
+
+staff assigned
+
+Benefit
+
+Prevents broken workflow and makes debugging much easier.
+
+Upgrade 12: Build a strict status machine
+
+This is one of the most important upgrades for production.
+
+Quote statuses
+
+submitted
+
+under_review
+
+approved
+
+deposit_requested
+
+deposit_paid
+
+booking_pending
+
+booked
+
+assigned
+
+in_progress
+
+completed
+
+final_payment_requested
+
+closed
+
+cancelled
+
+Rule
+
+Only allow valid transitions.
+
+Benefit
+
+This stops messy UI logic, broken buttons, and accidental invalid states.
+
+Upgrade 13: Add reporting-ready fields
+
+You will want reporting later, so prepare now.
+
+Add/report:
+
+lead source
+
+quote conversion rate
+
+average quote value
+
+average deposit turnaround time
+
+booking lag
+
+completion rate
+
+staff completion speed
+
+final payment collection rate
+
+Benefit
+
+This turns your site into a real business dashboard, not just a form system.
+
+Upgrade 14: Security tightening
+
+Because you are handling customer data, photos, payments, and staff activity:
+
+Improve
+
+strict RLS by role
+
+signed URLs for private uploads
+
+short-lived booking tokens
+
+one-time action links where appropriate
+
+webhook signature verification
+
+admin-only mutation endpoints
+
+staff-only scoped job access
+
+Benefit
+
+Safer production launch and less risk of unauthorized access.
+
+Best upgraded system design (recommended final direction)
+
+If I were locking this project as your production blueprint, I would position it like this:
+
+Customer experience
+
+Fast AI estimate + clear next steps + smooth payment + smooth booking
+
+Admin experience
+
+Queue-based operational dashboard with strong review tools and clean state transitions
+
+Staff experience
+
+Mobile-first, proof-based field workflow
+
+Backend
+
+Strict, modular functions with single-purpose responsibilities
+
+Data
+
+Quote-centric with timeline + payments + scheduling + proof records
+
+Business outcome
+
+Less manual quoting, fewer missed jobs, better payment control, better staff accountability, and a more premium customer experience
+
+My recommended next build priority (in order)
+
+To make this stable fast, I would do the next steps in this exact order:
+
+Freeze the schema + status model
+
+Freeze function naming and remove duplicate variants
+
+Fix catalog search/dropdown reliably
+
+Stabilize create-quote response shape
+
+Fix admin quote detail page
+
+Fix deposit request + approval buttons
+
+Implement proper booking slot engine
+
+Harden staff mobile flow with GPS/photo requirements
+
+Finalize email templates + trigger map
+
+Add logs, audits, and transition guards
+
+That order gives you the biggest operational stability first.
