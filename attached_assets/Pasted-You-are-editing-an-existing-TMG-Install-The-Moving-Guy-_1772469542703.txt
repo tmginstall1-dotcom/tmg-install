@@ -1,0 +1,385 @@
+You are editing an existing **TMG Install / The Moving Guy** project in Replit.
+
+Your task is to make the **current app fully operational end-to-end** for:
+
+* customer quote submission
+* correct quote calculation
+* admin review and processing
+* deposit payment
+* booking / scheduling
+* staff job updates
+* final payment
+* automatic email updates
+
+## HARD RULES (DO NOT BREAK THESE)
+
+* **Work on the existing codebase only.**
+* **Do not rebuild from scratch.**
+* **Do not change the framework.**
+* **Do not replace the backend.**
+* **This project must continue using Supabase.**
+* **Do not switch to Replit DB, local JSON, SQLite, or any other database.**
+* **Reuse existing Supabase tables, routes, and integrations where possible.**
+* **Do not create duplicate functions, duplicate pages, duplicate routes, or duplicate tables.**
+* **Do not create v2, new, copy, fixed, or duplicate versions of existing features.**
+* **Inspect first, then patch only what is necessary.**
+* Keep the current UI style unless a small functional fix is required.
+
+## BACKEND REQUIREMENT (MANDATORY)
+
+This project must use **Supabase** as the canonical backend.
+
+Reuse existing Supabase integration and support these env vars:
+
+* `SUPABASE_URL`
+* `SUPABASE_ANON_KEY`
+* `SUPABASE_SERVICE_ROLE_KEY`
+
+If payments are already integrated, reuse current provider (Stripe if present).
+If emails are already integrated, reuse the current email provider.
+
+Do **not** hardcode secrets.
+
+## FIRST: AUDIT THE EXISTING PROJECT
+
+Before editing, inspect the codebase and identify the current files/modules handling:
+
+* customer quote form
+* quote calculation
+* admin dashboard
+* payment link creation
+* payment webhook
+* email sending
+* booking / scheduling
+* staff job updates
+* Supabase client / queries / mutations
+
+Then patch the app in place.
+
+## REQUIRED BUSINESS FLOW
+
+### 1) CUSTOMER QUOTE FLOW
+
+Customer must be able to submit:
+
+* name
+* email
+* phone
+* address
+* service type(s): install / dismantle / relocate
+* free-text item description
+* optional item photos
+* logistics fields only when needed
+
+The quote result must show:
+
+* detected items
+* quantity
+* service type per line
+* unit price
+* line total
+* subtotal
+* discount if applicable
+* logistics / transport fee only when applicable
+* grand total
+* confidence / review flag
+
+Save the quote into Supabase:
+
+* customer record if needed
+* quote record
+* quote line items
+* uploaded photo references
+
+If item matching is uncertain, mark the quote as:
+
+* `under_review`
+  or
+* `requires_manual_review`
+  instead of pretending certainty.
+
+### 2) QUOTE CALCULATION RULES
+
+Use existing `catalog_items` (or current pricing table) in Supabase if already present.
+
+Pricing logic:
+
+* install → install price
+* dismantle → dismantle price
+* relocate → relocate price
+
+Rules:
+
+* Always return **itemized breakdown**
+* Never return only a total without line items
+* For install + dismantle only, do **not** add transport by default unless existing business logic already does
+* For relocation, include logistics adjustments such as:
+
+  * distance
+  * floor
+  * lift
+  * access difficulty
+* If price is uncertain, allow safe fallback but clearly flag for admin review
+
+### 3) ADMIN DASHBOARD
+
+Admin dashboard must show operational queues:
+
+* submitted
+* under_review
+* approved
+* deposit_requested
+* deposit_paid
+* booking_pending
+* booked
+* assigned
+* in_progress
+* completed
+* final_payment_requested
+* closed
+* cancelled
+
+Admin must be able to:
+
+* open full quote details
+* view customer info
+* view service details
+* view itemized lines
+* edit line items if needed
+* approve quote
+* request deposit payment
+* assign staff
+* request final payment
+* view uploaded photos
+* view payment status
+* view scheduled slot
+* view full job timeline
+
+### 4) DEPOSIT PAYMENT FLOW
+
+Implement one canonical deposit payment action.
+
+When admin clicks **Request Deposit**:
+
+* create payment link / checkout session
+* store payment session/reference in Supabase
+* email the customer the deposit payment link
+* update status to `deposit_requested`
+
+Payment webhook must:
+
+* verify signature
+* be idempotent
+* mark payment as successful only once
+* update quote/payment status to `deposit_paid`
+* save `deposit_paid_at`
+* trigger booking invitation email
+
+### 5) BOOKING / SCHEDULING FLOW
+
+Booking is only allowed after deposit is paid.
+
+Customer must receive a secure booking link/token and be able to choose an available date/time slot.
+
+Requirements:
+
+* admin can block dates/times
+* prevent double-booking
+* save:
+
+  * `scheduled_at`
+  * `time_window`
+  * booking token / booking record
+  * reschedule count
+* enforce reschedule rules:
+
+  * future only
+  * cannot reschedule in-progress or completed jobs
+  * minimum 24 hours before scheduled slot
+  * maximum 1 free reschedule
+
+After successful booking:
+
+* update status to `booked`
+* send booking confirmation email with full job details
+
+### 6) STAFF WORKFLOW
+
+Staff can only view jobs after deposit is paid.
+
+Staff page must show:
+
+* customer name
+* address
+* service details
+* assigned slot
+* call customer action
+* WhatsApp customer action
+
+Staff must be able to update job state:
+
+* arrived
+* in_progress
+* completed
+
+For **arrived** and **completed**, require:
+
+* photo upload
+* GPS capture if browser geolocation is available
+
+Save every update into a Supabase timeline / job updates record.
+
+### 7) FINAL PAYMENT FLOW
+
+Admin can trigger final payment request after completion (or current business logic equivalent).
+
+When admin clicks **Request Final Payment**:
+
+* create final payment link
+* store it in Supabase
+* email customer the payment link
+* update status to `final_payment_requested`
+
+Final payment confirmation must:
+
+* update status to `closed`
+* save `final_paid_at`
+* send payment received / job closed email
+
+## REQUIRED STATUS MACHINE
+
+Use one canonical status flow only:
+
+* submitted
+* under_review
+* approved
+* deposit_requested
+* deposit_paid
+* booking_pending
+* booked
+* assigned
+* in_progress
+* completed
+* final_payment_requested
+* closed
+* cancelled
+
+Do not allow invalid jumps.
+Example:
+
+* do not go from `submitted` directly to `completed`
+
+## DATA / SUPABASE RULES
+
+Inspect existing schema first and reuse it.
+
+Reuse and extend existing Supabase tables if already present.
+
+Only add missing columns/tables if necessary.
+
+Do not create duplicates.
+
+Ensure these concepts are represented:
+
+* customers
+* quotes
+* quote_items
+* payment fields
+* booking / schedule
+* staff job updates / timeline
+
+If auth/RLS already exists, preserve it.
+
+## EMAIL RULES
+
+Reuse existing email integration if present.
+
+Admin notification email:
+
+* `sales@tmginstall.com`
+
+Customer emails must include:
+
+* reference number
+* customer name
+* address
+* service type
+* itemized quote lines
+* totals
+* payment status
+* requested slot
+* confirmed slot
+* support contact
+
+Required email triggers:
+
+* quote submitted
+* deposit request
+* deposit paid
+* booking invite
+* booking confirmed / updated
+* final payment request
+* final payment received
+* job closed
+
+## UI / FUNCTIONAL FIXES
+
+Fix any broken UI wiring including:
+
+* broken search bar
+* broken catalog dropdown
+* missing itemized breakdown
+* missing customer details on quote/admin pages
+* broken action buttons
+* missing photo display
+* missing schedule display
+
+Ensure these buttons are correctly wired:
+
+* approve
+* request deposit
+* assign staff
+* request final payment
+
+Keep the UI clean and operational.
+
+## LOGGING / SAFETY
+
+Add defensive handling and logs for:
+
+* quote created
+* quote approval
+* deposit requested
+* deposit paid
+* booking created
+* staff arrived
+* staff completed
+* final payment requested
+* final payment paid
+
+## DONE ONLY WHEN THESE PASS
+
+1. Customer can submit quote
+2. Customer sees itemized estimate
+3. Quote saves correctly to Supabase
+4. Admin can review and approve
+5. Deposit request creates payment link and sends email
+6. Payment webhook marks deposit paid
+7. Booking link is sent and slot can be selected
+8. Scheduled slot is saved and visible to admin
+9. Staff can update arrived/completed with proof
+10. Final payment request works
+11. Final payment confirmation closes the job
+12. No duplicate functions/tables/routes are introduced
+13. Supabase remains the only backend
+
+## OUTPUT REQUIRED
+
+After making changes, print:
+
+* files changed
+* migrations added
+* env vars required
+* manual test checklist
+
+Do not claim success unless all flows are wired end-to-end.
