@@ -5,7 +5,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useState } from "react";
 import { 
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
-  DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle
+  DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -301,6 +301,19 @@ export default function AdminQuoteDetail() {
                   </div>
                 )}
               </div>
+
+              {/* AI photo scan thumbnail */}
+              {!isEditing && quote.detectionPhotoUrl && (
+                <div className="flex items-start gap-4 mb-5 p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <img src={quote.detectionPhotoUrl} alt="Customer submitted photo" className="w-20 h-20 rounded-xl object-cover border-2 border-emerald-300 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-emerald-800 flex items-center gap-1.5 mb-0.5">
+                      <Camera className="w-4 h-4" /> AI Photo Scan
+                    </p>
+                    <p className="text-xs text-emerald-700">Photo submitted by customer — items were auto-detected from this image. Verify quantities below match the actual order.</p>
+                  </div>
+                </div>
+              )}
 
               {isEditing ? (
                 <div className="space-y-2">

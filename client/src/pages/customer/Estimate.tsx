@@ -148,6 +148,8 @@ export default function EstimateWizard() {
   const [showPaste, setShowPaste] = useState(false);
   const [photoDetecting, setPhotoDetecting] = useState(false);
   const [photoError, setPhotoError] = useState("");
+  const [detectedPhotoUrl, setDetectedPhotoUrl] = useState<string>("");
+  const [detectedCount, setDetectedCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Step 4
   const [name, setName] = useState("");
@@ -261,42 +263,88 @@ export default function EstimateWizard() {
 
   // ── Photo AI detection ────────────────────────────────────────────────────
 
+  // Compress image via canvas and return { base64, thumbnail, mimeType }
+  async function compressImage(file: File, maxPx = 1024, thumbPx = 320): Promise<{ base64: string; thumbnail: string; mimeType: string }> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        // Full size for detection (max 1024px)
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const full = canvas.toDataURL("image/jpeg", 0.8);
+
+        // Thumbnail for storing in DB (max 320px)
+        const tScale = Math.min(1, thumbPx / Math.max(img.width, img.height));
+        const tCanvas = document.createElement("canvas");
+        tCanvas.width = Math.round(img.width * tScale);
+        tCanvas.height = Math.round(img.height * tScale);
+        tCanvas.getContext("2d")!.drawImage(img, 0, 0, tCanvas.width, tCanvas.height);
+        const thumb = tCanvas.toDataURL("image/jpeg", 0.7);
+
+        resolve({ base64: full.split(",")[1], thumbnail: thumb, mimeType: "image/jpeg" });
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
     setPhotoDetecting(true);
     setPhotoError("");
+
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = (reader.result as string).split(",")[1];
-        const mimeType = file.type;
-        const res = await fetch("/api/catalog/detect-items", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: base64, mimeType }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message);
-        const detected: { name: string; quantity: number }[] = data.detected || [];
+      const { base64, thumbnail, mimeType } = await compressImage(file);
+
+      const res = await fetch("/api/catalog/detect-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Detection failed");
+
+      const detected: { name: string; quantity: number }[] = data.detected || [];
+
+      if (detected.length === 0) {
+        setPhotoError("No furniture detected — try a clearer photo or add items manually.");
+      } else {
+        let matchCount = 0;
         detected.forEach(({ name, quantity }) => {
           const lc = name.toLowerCase();
-          const matched = catalogGroups.find(g => g.name.toLowerCase().includes(lc) || lc.includes(g.name.toLowerCase()));
-          if (matched) { addCatalogGroup(matched, quantity || 1); }
-          else {
+          const matched = catalogGroups.find(
+            g => g.name.toLowerCase().includes(lc) || lc.includes(g.name.toLowerCase())
+          );
+          if (matched) {
+            addCatalogGroup(matched, quantity || 1);
+            matchCount++;
+          } else {
             services.forEach(st => {
-              setItems(prev => [...prev, { id: uid(), sku: "", name, category: "Custom", serviceType: st, quantity: quantity || 1, unitPrice: 0, isCustom: true }]);
+              setItems(prev => [...prev, {
+                id: uid(), sku: "", name, category: "Custom",
+                serviceType: st, quantity: quantity || 1, unitPrice: 0, isCustom: true,
+              }]);
             });
+            matchCount++;
           }
         });
-        if (detected.length === 0) setPhotoError("No furniture detected. Please try a clearer photo.");
-        setPhotoDetecting(false);
-      };
-      reader.readAsDataURL(file);
-    } catch {
-      setPhotoError("Detection failed. Please add items manually.");
+        setDetectedPhotoUrl(thumbnail);
+        setDetectedCount(matchCount);
+      }
+    } catch (err: any) {
+      console.error("Photo detection error:", err);
+      setPhotoError(err.message || "Detection failed — please add items manually.");
+    } finally {
       setPhotoDetecting(false);
     }
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   // ── Submit ────────────────────────────────────────────────────────────────
@@ -327,6 +375,7 @@ export default function EstimateWizard() {
           quantity: i.quantity,
         })),
         transportFee,
+        detectedPhotoUrl: detectedPhotoUrl || undefined,
       };
       const res = await fetch("/api/quotes/wizard", {
         method: "POST",
@@ -580,16 +629,45 @@ export default function EstimateWizard() {
 
                 {/* Photo Upload */}
                 <div className="bg-card rounded-2xl border p-5">
-                  <p className="text-sm font-semibold mb-3 flex items-center gap-2"><Camera className="w-4 h-4 text-accent" /> Photo Detection <span className="text-muted-foreground font-normal text-xs">(optional)</span></p>
-                  <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-                  <button onClick={() => fileInputRef.current?.click()}
-                    disabled={photoDetecting}
-                    data-testid="button-upload-photo"
-                    className="w-full border-2 border-dashed border-border rounded-xl py-4 flex flex-col items-center gap-2 hover:border-accent hover:bg-accent/5 transition-all text-muted-foreground hover:text-accent disabled:opacity-50"
-                  >
-                    {photoDetecting ? <><Loader2 className="w-6 h-6 animate-spin" /><span className="text-sm font-medium">Detecting items…</span></> : <><Upload className="w-6 h-6" /><span className="text-sm font-medium">Upload photo to auto-detect items</span></>}
-                  </button>
-                  {photoError && <p className="text-sm text-destructive mt-2 flex items-center gap-1"><AlertCircle className="w-4 h-4" />{photoError}</p>}
+                  <p className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-accent" /> AI Photo Detection
+                    <span className="text-muted-foreground font-normal text-xs">(optional)</span>
+                  </p>
+                  <input type="file" ref={fileInputRef} accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} />
+
+                  {/* Success state — thumbnail + re-scan option */}
+                  {detectedPhotoUrl && !photoDetecting ? (
+                    <div className="flex items-start gap-4">
+                      <img src={detectedPhotoUrl} alt="detected" className="w-20 h-20 rounded-xl object-cover border-2 border-emerald-300 shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-emerald-700 flex items-center gap-1.5 mb-1">
+                          <Check className="w-4 h-4" /> {detectedCount} item{detectedCount !== 1 ? 's' : ''} detected
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-2">Items added below. Review and adjust quantities.</p>
+                        <button onClick={() => { setDetectedPhotoUrl(""); setDetectedCount(0); fileInputRef.current?.click(); }}
+                          className="text-xs font-semibold text-primary underline hover:no-underline">
+                          Scan another photo
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => fileInputRef.current?.click()}
+                      disabled={photoDetecting}
+                      data-testid="button-upload-photo"
+                      className="w-full border-2 border-dashed border-border rounded-xl py-5 flex flex-col items-center gap-2 hover:border-accent hover:bg-accent/5 transition-all text-muted-foreground hover:text-accent disabled:opacity-60"
+                    >
+                      {photoDetecting
+                        ? <><Loader2 className="w-6 h-6 animate-spin" /><span className="text-sm font-semibold">Scanning photo with AI…</span><span className="text-xs">This may take a few seconds</span></>
+                        : <><Camera className="w-7 h-7" /><span className="text-sm font-semibold">Take or upload a photo</span><span className="text-xs">AI will identify your furniture automatically</span></>
+                      }
+                    </button>
+                  )}
+
+                  {photoError && (
+                    <p className="text-sm text-destructive mt-3 flex items-center gap-1.5 bg-red-50 rounded-xl px-3 py-2 border border-red-200">
+                      <AlertCircle className="w-4 h-4 shrink-0" />{photoError}
+                    </p>
+                  )}
                 </div>
 
                 {/* Paste List */}

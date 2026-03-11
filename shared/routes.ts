@@ -116,6 +116,7 @@ export const api = {
           quantity: z.number().min(1),
         })).optional(),
         transportFee: z.number().min(0).optional(),
+        detectedPhotoUrl: z.string().optional(), // compressed thumbnail from AI photo scan
       }),
       responses: { 201: z.custom<QuoteResponse>(), 400: errorSchemas.validation }
     }

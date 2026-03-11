@@ -74,6 +74,7 @@ export const quotes = pgTable("quotes", {
   paymentStatus: text("payment_status").default("unpaid"), // unpaid, deposit_pending, deposit_paid, final_pending, paid_in_full
 
   notes: text("notes"), // admin internal notes
+  detectionPhotoUrl: text("detection_photo_url"), // thumbnail from AI photo scan at submission
 
   createdAt: timestamp("created_at").defaultNow(),
 });

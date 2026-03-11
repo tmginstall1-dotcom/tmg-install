@@ -843,6 +843,7 @@ export async function registerRoutes(
           status: "submitted",
           requiresManualReview: false,
           aiConfidenceScore: 100,
+          detectionPhotoUrl: input.detectedPhotoUrl || null,
         },
         allItems
       );
