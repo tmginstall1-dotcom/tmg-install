@@ -5,6 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { openai } from "./replit_integrations/audio/client"; // Use configured client
+import { sendEmail, depositRequestEmail, bookingConfirmationEmail, finalPaymentEmail } from "./email";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -194,6 +195,24 @@ export async function registerRoutes(
       );
       
       if (!quote) return res.status(404).json({ message: "Quote not found" });
+      
+      // Send email when deposit is requested
+      if (input.status === "deposit_requested" && quote.customer) {
+        const depositAmount = quote.depositAmount || quote.total;
+        const paymentLink = `${process.env.APP_URL || "http://localhost:5000"}/pay/deposit/${quote.id}`;
+        const emailHtml = depositRequestEmail(
+          quote.customer.name,
+          quote.referenceNo,
+          depositAmount.toString(),
+          paymentLink
+        );
+        await sendEmail({
+          to: quote.customer.email,
+          subject: `Deposit Payment Required - TMG Install (Ref: ${quote.referenceNo})`,
+          html: emailHtml,
+        });
+      }
+      
       res.json(quote);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -219,9 +238,71 @@ export async function registerRoutes(
       const input = api.quotes.updateBooking.input.parse(req.body);
       const quote = await storage.updateQuoteBooking(id, new Date(input.scheduledAt), input.timeWindow);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
+      
+      // Send booking confirmation email
+      if (quote.customer) {
+        const dateStr = new Date(quote.scheduledAt!).toLocaleDateString("en-US", { 
+          weekday: "long", 
+          year: "numeric", 
+          month: "long", 
+          day: "numeric" 
+        });
+        const emailHtml = bookingConfirmationEmail(
+          quote.customer.name,
+          quote.referenceNo,
+          quote.serviceAddress,
+          dateStr,
+          quote.timeWindow || "TBD"
+        );
+        await sendEmail({
+          to: quote.customer.email,
+          subject: `Booking Confirmed - TMG Install (Ref: ${quote.referenceNo})`,
+          html: emailHtml,
+        });
+      }
+      
       res.json(quote);
     } catch (err) {
       res.status(400).json({ message: "Invalid input" });
+    }
+  });
+
+  // Final payment request email
+  app.post("/api/quotes/:id/request-final-payment", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const quote = await storage.getQuote(id);
+      
+      if (!quote || !quote.customer) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+
+      const finalAmount = quote.finalAmount || quote.total;
+      const paymentLink = `${process.env.APP_URL || "http://localhost:5000"}/pay/final/${quote.id}`;
+      
+      const emailHtml = finalPaymentEmail(
+        quote.customer.name,
+        quote.referenceNo,
+        finalAmount.toString(),
+        paymentLink
+      );
+
+      const emailSent = await sendEmail({
+        to: quote.customer.email,
+        subject: `Final Payment Due - TMG Install (Ref: ${quote.referenceNo})`,
+        html: emailHtml,
+      });
+
+      // Update quote status
+      const updated = await storage.updateQuoteStatus(id, "final_payment_requested", {
+        actorType: "admin",
+        note: "Final payment request sent to customer"
+      });
+
+      res.json({ success: emailSent, quote: updated });
+    } catch (err) {
+      console.error("Error requesting final payment:", err);
+      res.status(500).json({ message: "Failed to request final payment" });
     }
   });
 
