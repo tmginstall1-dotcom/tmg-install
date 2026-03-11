@@ -1,192 +1,73 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { useCreateQuoteRequest as useCreateQuote } from "@/hooks/use-quotes";
 import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle2, ClipboardList, ChevronRight, MapPin, Zap, Shield } from "lucide-react";
+import { ArrowRight, CheckCircle2, ClipboardList, ChevronRight, Zap } from "lucide-react";
 
 export default function Landing() {
   const [, setLocation] = useLocation();
-  const createQuote = useCreateQuote();
-  const [isPending, setIsPending] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    companyName: "",
-    serviceAddress: "",
-    itemsDescription: ""
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsPending(true);
-    try {
-      const res = await createQuote.mutateAsync({
-        customer: {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          companyName: formData.companyName || undefined,
-        },
-        serviceAddress: formData.serviceAddress,
-        itemsDescription: formData.itemsDescription,
-      });
-      setLocation(`/quotes/${res.id}`);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to submit request");
-      setIsPending(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-white text-black pt-20">
       {/* Hero Section */}
-      <section className="px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
+      <section className="px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
         <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            
-            {/* Left Column */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              {/* Eyebrow */}
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-black/20 mb-8">
-                <Zap className="w-4 h-4 text-black" />
-                <span className="text-sm font-medium text-black">AI-Powered Instant Quotes</span>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-3xl"
+          >
+            {/* Eyebrow */}
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-black/20 mb-8">
+              <Zap className="w-4 h-4 text-black" />
+              <span className="text-sm font-medium text-black">AI-Powered Instant Quotes</span>
+            </div>
+
+            {/* H1 */}
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-black leading-tight mb-6 text-black">
+              Furniture installation, made effortless.
+            </h1>
+
+            {/* Subtext */}
+            <p className="text-lg text-gray-600 mb-8 leading-relaxed max-w-2xl">
+              Just tell us what you need built, moved, or dismantled. Our AI instantly understands your items and generates a precise quote in seconds.
+            </p>
+
+            {/* CTAs */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-12">
+              <Link 
+                href="/estimate" 
+                data-testid="hero-cta-guided"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white rounded-lg font-semibold hover:bg-gray-900 transition-colors"
+              >
+                Get a Guided Estimate <ChevronRight className="w-5 h-5" />
+              </Link>
+              <a 
+                href="https://wa.me/6580880757" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black text-black rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+              >
+                WhatsApp Us
+              </a>
+            </div>
+
+            {/* Trust Chips */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex items-center gap-3 text-sm">
+                <CheckCircle2 className="w-5 h-5 text-black flex-shrink-0" />
+                <span className="text-gray-700">Expert Installers</span>
               </div>
-
-              {/* H1 */}
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-black leading-tight mb-6 text-black">
-                Furniture installation, made effortless.
-              </h1>
-
-              {/* Subtext */}
-              <p className="text-lg text-gray-600 mb-8 leading-relaxed max-w-md">
-                Just tell us what you need built, moved, or dismantled. Our AI instantly understands your items and generates a precise quote in seconds.
-              </p>
-
-              {/* CTAs */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-12">
-                <Link 
-                  href="/estimate" 
-                  data-testid="hero-cta-guided"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white rounded-lg font-semibold hover:bg-gray-900 transition-colors"
-                >
-                  Get a Guided Estimate <ChevronRight className="w-5 h-5" />
-                </Link>
-                <a 
-                  href="https://wa.me/6580880757" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black text-black rounded-lg font-semibold hover:bg-gray-50 transition-colors"
-                >
-                  WhatsApp Us
-                </a>
+              <div className="flex items-center gap-3 text-sm">
+                <CheckCircle2 className="w-5 h-5 text-black flex-shrink-0" />
+                <span className="text-gray-700">Transparent Pricing</span>
               </div>
-
-              {/* Trust Chips */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex items-center gap-3 text-sm">
-                  <CheckCircle2 className="w-5 h-5 text-black flex-shrink-0" />
-                  <span className="text-gray-700">Expert Installers</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <CheckCircle2 className="w-5 h-5 text-black flex-shrink-0" />
-                  <span className="text-gray-700">Transparent Pricing</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <CheckCircle2 className="w-5 h-5 text-black flex-shrink-0" />
-                  <span className="text-gray-700">Fast Scheduling</span>
-                </div>
+              <div className="flex items-center gap-3 text-sm">
+                <CheckCircle2 className="w-5 h-5 text-black flex-shrink-0" />
+                <span className="text-gray-700">Fast Scheduling</span>
               </div>
-            </motion.div>
-
-            {/* Right Column - Form */}
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <div className="bg-white border border-gray-200 rounded-xl p-8 sm:p-10">
-                <h2 className="text-2xl font-bold text-black mb-2">Get an Instant Quote</h2>
-                <p className="text-gray-600 mb-8 text-sm">Describe your items and we'll handle the rest.</p>
-                
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-black">Full Name</label>
-                      <input 
-                        required 
-                        value={formData.name} 
-                        onChange={e=>setFormData({...formData, name: e.target.value})} 
-                        className="w-full px-4 py-3 rounded-lg bg-white border border-gray-300 text-black placeholder-gray-500 focus:border-black focus:ring-2 focus:ring-black/20 transition-all outline-none" 
-                        placeholder="John Doe" 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-black">Phone</label>
-                      <input 
-                        required 
-                        value={formData.phone} 
-                        onChange={e=>setFormData({...formData, phone: e.target.value})} 
-                        className="w-full px-4 py-3 rounded-lg bg-white border border-gray-300 text-black placeholder-gray-500 focus:border-black focus:ring-2 focus:ring-black/20 transition-all outline-none" 
-                        placeholder="+65 8080 0757" 
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-black">Email</label>
-                    <input 
-                      required 
-                      type="email" 
-                      value={formData.email} 
-                      onChange={e=>setFormData({...formData, email: e.target.value})} 
-                      className="w-full px-4 py-3 rounded-lg bg-white border border-gray-300 text-black placeholder-gray-500 focus:border-black focus:ring-2 focus:ring-black/20 transition-all outline-none" 
-                      placeholder="john@example.com" 
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-black">Service Address</label>
-                    <input 
-                      required 
-                      value={formData.serviceAddress} 
-                      onChange={e=>setFormData({...formData, serviceAddress: e.target.value})} 
-                      className="w-full px-4 py-3 rounded-lg bg-white border border-gray-300 text-black placeholder-gray-500 focus:border-black focus:ring-2 focus:ring-black/20 transition-all outline-none" 
-                      placeholder="123 Main St, Apt 4B, Singapore" 
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-black">Describe the job</label>
-                    <textarea 
-                      required 
-                      value={formData.itemsDescription} 
-                      onChange={e=>setFormData({...formData, itemsDescription: e.target.value})} 
-                      rows={4} 
-                      className="w-full px-4 py-3 rounded-lg bg-white border border-gray-300 text-black placeholder-gray-500 focus:border-black focus:ring-2 focus:ring-black/20 transition-all outline-none resize-none" 
-                      placeholder="E.g., I need 2 IKEA Pax wardrobes assembled, and 1 large sofa dismantled and moved to the new address." 
-                    />
-                  </div>
-
-                  <button 
-                    type="submit" 
-                    disabled={isPending}
-                    className="w-full bg-black text-white py-4 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isPending ? "Generating Quote..." : (
-                      <>Get Quote Now <ArrowRight className="w-5 h-5" /></>
-                    )}
-                  </button>
-                </form>
-              </div>
-            </motion.div>
-          </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
