@@ -1,0 +1,69 @@
+PROJECT: tmginstall project 1 (Replit)
+
+TASK: Restyle ONLY the public landing page to match our established “TMGInstall premium monochrome / Yeezy / Apple” vibe.
+
+STRICT SCOPE (NO DRIFT):
+- LANDING PAGE UI ONLY (the homepage / root route).
+- Do NOT change any backend, DB, auth, edge functions, Stripe, booking, schedule, staff/admin pages, routes, or business logic.
+- Do NOT rename routes or break existing navigation.
+- Do NOT delete components or functionality; only restyle + layout polish.
+- If you touch any file: output FULL-FILE REPLACEMENT ONLY.
+
+TARGET STYLE (MUST MATCH):
+- Monochrome: black/white/near-gray only. NO purple, no gradients, no bright accent colors.
+- Typography: Editorial, clean, high-contrast. Similar to “Yeezy minimal / Apple marketing”.
+- Spacing: generous whitespace, large headline, calm hierarchy.
+- Buttons: black primary button, subtle bordered secondary.
+- Cards: thin borders (1px), soft radius (12–16), minimal shadow (or none).
+- Icons: minimal line icons, monochrome only.
+
+PAGE LAYOUT (FINAL):
+1) Top nav (sticky optional):
+   - Left: TMG Install wordmark (simple text)
+   - Right: “My Jobs” (link), optional “Admin” (small text link)
+   - No colored logo badge. Keep it simple.
+
+2) Hero section:
+   - Left aligned on desktop, centered on mobile.
+   - Eyebrow pill: “AI-Powered Instant Quotes” (subtle outline pill, no fill color)
+   - H1 (very large): “Furniture installation, made effortless.”
+     - The word “effortless” must NOT be colored purple—keep black.
+   - Subtext: 1–2 lines max.
+   - Primary CTA: “Get a Guided Estimate” (solid black)
+   - Secondary CTA: “WhatsApp Us” (outline)
+   - Below CTAs: 2–3 trust chips (small, monochrome): “Expert Installers”, “Transparent Pricing”, “Fast Scheduling”
+
+3) Social proof strip:
+   - Simple row of text chips (no brand logos): “Office / Home / Commercial”, “Singapore-wide”, “Same-day slots (subject to availability)”
+
+4) How it works (3 steps):
+   - Step 1: Select service
+   - Step 2: Add address
+   - Step 3: Item list / AI parsing
+   - Minimal cards, consistent spacing.
+
+5) Footer:
+   - Monochrome small text
+   - WhatsApp number +6580880757
+   - “sales@tmginstall.com”
+   - Links: Privacy / Terms (placeholders ok)
+
+VISUAL SYSTEM (APPLY):
+- Background: #FFFFFF or #FAFAFA (very light)
+- Text: #0A0A0A primary, #444 secondary
+- Borders: #E6E6E6
+- Radius: 14px
+- Shadows: OFF or extremely subtle
+- Container max width: 1100–1200px
+- Section padding: 64–96px desktop, 40–56px mobile
+- Button height: 44–48px, font medium, slight letter spacing
+
+REMOVE CURRENT ISSUES:
+- Remove any purple highlight text, purple buttons, purple gradients, or purple badges.
+- Remove bulky shadows and “startup template” look.
+- Make the page look premium + minimal.
+
+DELIVERABLE:
+- Update the landing page components/styles to match above exactly.
+- Keep existing CTA link/route working (whatever it currently navigates to).
+- Output FULL-FILE REPLACEMENT for any changed files.

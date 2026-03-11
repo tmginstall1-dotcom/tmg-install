@@ -8,27 +8,43 @@ export function Navbar() {
   const [location] = useLocation();
 
   const isCustomerArea = !location.startsWith("/admin") && !location.startsWith("/staff");
+  const isHomePage = location === "/";
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass-card border-b-0 border-white/40">
+    <nav className={`fixed top-0 left-0 right-0 z-50 ${isHomePage ? 'bg-white border-b border-gray-200' : 'glass-card border-b-0 border-white/40'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
-            <Briefcase className="w-5 h-5 text-white" />
-          </div>
-          <span className="font-display font-bold text-2xl tracking-tight text-foreground">
-            TMG <span className="color-gradient-text">Install</span>
-          </span>
+          {isHomePage ? (
+            <span className="font-display font-bold text-xl tracking-tight text-black">
+              TMG Install
+            </span>
+          ) : (
+            <>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
+                <Briefcase className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-display font-bold text-2xl tracking-tight text-foreground">
+                TMG <span className="color-gradient-text">Install</span>
+              </span>
+            </>
+          )}
         </Link>
 
         <div className="flex items-center gap-4">
           {!user ? (
             isCustomerArea ? (
               <div className="flex items-center gap-4">
-                <Link href="/estimate" className="btn-primary-gradient px-5 py-2.5 rounded-xl text-sm font-bold" data-testid="nav-get-estimate">
+                <Link 
+                  href="/estimate" 
+                  className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${isHomePage ? 'bg-black text-white hover:bg-gray-900' : 'btn-primary-gradient'}`}
+                  data-testid="nav-get-estimate"
+                >
                   Get Estimate
                 </Link>
-                <Link href="/admin/login" className="text-sm font-semibold text-muted-foreground hover:text-primary transition-colors hidden sm:block">
+                <Link 
+                  href="/admin/login" 
+                  className={`text-sm font-semibold transition-colors hidden sm:block ${isHomePage ? 'text-gray-700 hover:text-black' : 'text-muted-foreground hover:text-primary'}`}
+                >
                   Staff Login
                 </Link>
               </div>
