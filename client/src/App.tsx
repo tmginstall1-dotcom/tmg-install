@@ -39,7 +39,7 @@ function StaffRoute({ component: Component }: { component: React.ComponentType }
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
   if (!user) {
-    setLocation('/admin/login');
+    setLocation('/staff/login');
     return null;
   }
   return <Component />;
@@ -56,8 +56,9 @@ function Router() {
         <Route path="/estimate" component={EstimateWizard} />
         <Route path="/quotes/:id" component={QuoteStatus} />
         
-        {/* Auth Route */}
+        {/* Auth Routes */}
         <Route path="/admin/login" component={Login} />
+        <Route path="/staff/login" component={Login} />
         
         {/* Admin Routes */}
         <Route path="/admin">

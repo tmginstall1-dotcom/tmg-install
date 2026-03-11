@@ -272,29 +272,41 @@ export default function JobDetail() {
         {/* Fixed Bottom Action Bar */}
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-xl border-t z-40">
           <div className="max-w-2xl mx-auto flex gap-3">
-            {job.status === 'assigned' && !actionType && (
-              <button onClick={() => setActionType('arrived')} data-testid="button-arrived"
-                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all">
-                <Navigation className="w-5 h-5" /> I've Arrived
-              </button>
-            )}
-            
-            {job.status === 'in_progress' && !actionType && (
-              <button onClick={() => setActionType('completed')} data-testid="button-complete-job"
-                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all">
-                <CheckCircle2 className="w-6 h-6" /> Mark Completed
-              </button>
-            )}
 
-            {job.status === 'completed' && (
-              <div className="w-full py-4 text-center font-bold text-emerald-600 bg-emerald-50 rounded-2xl border border-emerald-200">
-                ✅ Job Completed Successfully
+            {/* STEP 1 — Awaiting admin to confirm booking */}
+            {['deposit_paid', 'booking_requested'].includes(job.status) && !actionType && (
+              <div className="w-full py-3.5 px-4 text-center font-semibold text-amber-700 bg-amber-50 rounded-2xl border border-amber-200 text-sm">
+                ⏳ Awaiting admin to confirm your booking slot
               </div>
             )}
 
-            {['booked', 'booking_requested', 'deposit_paid'].includes(job.status) && (
-              <div className="w-full py-4 text-center font-semibold text-muted-foreground bg-secondary rounded-2xl border text-sm">
-                Awaiting confirmed schedule
+            {/* STEP 2 — Awaiting admin to assign staff */}
+            {job.status === 'booked' && !actionType && (
+              <div className="w-full py-3.5 px-4 text-center font-semibold text-blue-700 bg-blue-50 rounded-2xl border border-blue-200 text-sm">
+                📋 Booking confirmed — awaiting staff assignment
+              </div>
+            )}
+
+            {/* STEP 3 — Assigned: tap to check in with GPS + photo */}
+            {job.status === 'assigned' && !actionType && (
+              <button onClick={() => setActionType('arrived')} data-testid="button-arrived"
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all">
+                <Navigation className="w-5 h-5" /> Tap When Arrived (GPS + Photo Required)
+              </button>
+            )}
+
+            {/* STEP 4 — In progress: tap to complete with GPS + photo */}
+            {job.status === 'in_progress' && !actionType && (
+              <button onClick={() => setActionType('completed')} data-testid="button-complete-job"
+                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all">
+                <CheckCircle2 className="w-6 h-6" /> Job Done — Submit Completion (GPS + Photo Required)
+              </button>
+            )}
+
+            {/* Done */}
+            {['completed', 'final_payment_requested', 'final_paid', 'closed'].includes(job.status) && (
+              <div className="w-full py-4 text-center font-bold text-emerald-600 bg-emerald-50 rounded-2xl border border-emerald-200">
+                ✅ Job Completed & Submitted
               </div>
             )}
           </div>

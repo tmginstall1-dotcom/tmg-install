@@ -114,7 +114,7 @@ function JobCard({ job, priority }: { job: any; priority?: boolean }) {
 
       <Link href={`/staff/jobs/${job.id}`} data-testid={`view-job-${job.id}`}>
         <div className="px-5 py-3 flex items-center justify-between border-t hover:bg-secondary/50 transition-colors cursor-pointer">
-          <span className="text-sm font-bold text-muted-foreground">{job.items?.length || 0} items · ${Number(job.total || 0).toFixed(0)}</span>
+          <span className="text-sm font-bold text-muted-foreground">{job.items?.length || 0} item{job.items?.length !== 1 ? 's' : ''}</span>
           <div className="flex items-center gap-1 text-primary font-bold text-sm">
             View & Action <ChevronRight className="w-4 h-4" />
           </div>

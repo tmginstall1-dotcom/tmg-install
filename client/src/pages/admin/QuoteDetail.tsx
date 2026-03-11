@@ -379,34 +379,68 @@ export default function AdminQuoteDetail() {
             {/* Timeline */}
             <div className="bg-card p-6 rounded-3xl border shadow-sm">
               <h3 className="font-bold mb-5 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-muted-foreground" /> Job Timeline
+                <Clock className="w-5 h-5 text-muted-foreground" /> Job Timeline &amp; Field Proof
               </h3>
               <div className="space-y-4">
-                {quote.updates?.map((update: any) => (
-                  <div key={update.id} className="flex gap-3">
-                    <div className="w-5 h-5 rounded-full bg-primary/20 border-2 border-primary shrink-0 mt-1"></div>
-                    <div className="flex-1 pb-4 border-b last:border-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-bold text-sm capitalize">{update.statusChange.replace(/_/g, ' ')}</h4>
-                        <time className="text-xs text-muted-foreground">{format(new Date(update.createdAt), 'MMM d, HH:mm')}</time>
-                      </div>
-                      <p className="text-xs text-muted-foreground capitalize">{update.actorType}</p>
-                      {update.note && <p className="text-xs text-muted-foreground mt-1 italic">{update.note}</p>}
-                      {update.gpsLat && <p className="text-xs text-muted-foreground mt-1">📍 GPS: {Number(update.gpsLat).toFixed(4)}, {Number(update.gpsLng).toFixed(4)}</p>}
-                      {update.photoUrl && (() => {
-                        let photos: string[] = [];
-                        try { photos = JSON.parse(update.photoUrl); } catch { photos = [update.photoUrl]; }
-                        return photos.length > 0 ? (
-                          <div className="flex gap-2 mt-2">
-                            {photos.map((p: string, i: number) => (
-                              <img key={i} src={p} alt="proof" className="w-16 h-16 rounded-lg object-cover border" />
-                            ))}
+                {quote.updates?.map((update: any) => {
+                  const isFieldEvent = update.gpsLat || update.photoUrl;
+                  let photos: string[] = [];
+                  if (update.photoUrl) {
+                    try { photos = JSON.parse(update.photoUrl); } catch { photos = [update.photoUrl]; }
+                  }
+                  return (
+                    <div key={update.id} className={`flex gap-3 ${isFieldEvent ? 'items-start' : ''}`}>
+                      <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-1 ${
+                        update.statusChange === 'in_progress' ? 'bg-blue-100 border-blue-500' :
+                        update.statusChange === 'completed' ? 'bg-emerald-100 border-emerald-500' :
+                        'bg-primary/20 border-primary'
+                      }`}></div>
+                      <div className="flex-1 pb-4 border-b last:border-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="font-bold text-sm capitalize">{update.statusChange.replace(/_/g, ' ')}</h4>
+                          <time className="text-xs text-muted-foreground">{format(new Date(update.createdAt), 'MMM d, HH:mm')}</time>
+                        </div>
+                        <p className="text-xs text-muted-foreground capitalize">{update.actorType}</p>
+                        {update.note && <p className="text-xs text-muted-foreground mt-1 italic">"{update.note}"</p>}
+
+                        {/* GPS Proof */}
+                        {update.gpsLat && (
+                          <div className="mt-2 inline-flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+                            <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
+                            <span className="text-xs font-semibold text-blue-800">
+                              {Number(update.gpsLat).toFixed(5)}, {Number(update.gpsLng).toFixed(5)}
+                            </span>
+                            <a
+                              href={`https://maps.google.com/?q=${update.gpsLat},${update.gpsLng}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-bold text-blue-600 underline hover:text-blue-800 ml-1"
+                            >
+                              View on Maps ↗
+                            </a>
                           </div>
-                        ) : null;
-                      })()}
+                        )}
+
+                        {/* Photo Proof */}
+                        {photos.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-xs font-semibold text-muted-foreground mb-2">
+                              📷 Photo Proof ({photos.length} photo{photos.length !== 1 ? 's' : ''})
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {photos.map((p: string, i: number) => (
+                                <a key={i} href={p} target="_blank" rel="noreferrer">
+                                  <img src={p} alt={`proof-${i + 1}`}
+                                    className="w-24 h-24 rounded-xl object-cover border-2 border-border hover:border-primary transition-colors shadow-sm" />
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {(!quote.updates || quote.updates.length === 0) && (
                   <p className="text-sm text-muted-foreground text-center py-4">No updates yet.</p>
                 )}
