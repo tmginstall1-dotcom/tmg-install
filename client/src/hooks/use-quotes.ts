@@ -110,3 +110,22 @@ export function useUpdateQuoteBooking() {
     },
   });
 }
+
+export function useRequestFinalPayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number | string) => {
+      const res = await fetch(`/api/quotes/${id}/request-final-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to request final payment");
+      return res.json();
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: [api.quotes.get.path, id] });
+      queryClient.invalidateQueries({ queryKey: [api.quotes.list.path] });
+    },
+  });
+}

@@ -1,9 +1,9 @@
 import { useParams, Link } from "wouter";
-import { useQuote, useUpdateQuoteStatus } from "@/hooks/use-quotes";
+import { useQuote, useUpdateQuoteStatus, useRequestFinalPayment } from "@/hooks/use-quotes";
 import { useStaffList } from "@/hooks/use-staff";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useState } from "react";
-import { ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle } from "lucide-react";
+import { ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, Mail, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 
 export default function AdminQuoteDetail() {
@@ -13,6 +13,7 @@ export default function AdminQuoteDetail() {
   const { data: quote, isLoading } = useQuote(id);
   const { data: staffList } = useStaffList();
   const updateStatus = useUpdateQuoteStatus();
+  const requestFinalPayment = useRequestFinalPayment();
 
   const [selectedStaff, setSelectedStaff] = useState("");
 
@@ -29,6 +30,15 @@ export default function AdminQuoteDetail() {
   const handleAssign = async () => {
     if (!selectedStaff) return alert("Select staff");
     await updateStatus.mutateAsync({ id, status: 'assigned', assignedStaffId: parseInt(selectedStaff) });
+  };
+
+  const handleRequestFinalPayment = async () => {
+    try {
+      await requestFinalPayment.mutateAsync(parseInt(id));
+      alert("Final payment request sent to customer");
+    } catch (err) {
+      alert("Failed to send final payment email");
+    }
   };
 
   return (
@@ -105,7 +115,7 @@ export default function AdminQuoteDetail() {
           <div className="space-y-6">
             
             {/* Actions Panel */}
-            <div className="bg-card rounded-3xl p-6 border shadow-lg shadow-black/5">
+            <div className="bg-card rounded-3xl p-6 border shadow-lg shadow-black/5 space-y-3">
               <h3 className="font-bold mb-4">Admin Actions</h3>
               
               {quote.status === 'submitted' && (
@@ -118,8 +128,18 @@ export default function AdminQuoteDetail() {
                 </button>
               )}
 
+              {quote.status === 'completed' && (
+                <button 
+                  onClick={handleRequestFinalPayment}
+                  disabled={requestFinalPayment.isPending}
+                  className="w-full btn-primary-gradient py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+                >
+                  <DollarSign className="w-5 h-5" /> Request Final Payment
+                </button>
+              )}
+
               {['booked', 'assigned'].includes(quote.status) && (
-                <div className="mt-4 pt-4 border-t">
+                <div className="pt-4 border-t">
                   <label className="text-sm font-semibold mb-2 block">Assign Staff</label>
                   <select 
                     value={selectedStaff}
