@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { randomBytes } from "crypto";
+import Stripe from "stripe";
 import { openai } from "./replit_integrations/audio/client";
 import { 
   sendEmail, 
@@ -18,6 +19,42 @@ import {
 } from "./email";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
+
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY)
+  : null;
+
+async function createStripePaymentLink(
+  description: string,
+  amountSGD: number,
+  metadata: Record<string, string>,
+  successUrl: string
+): Promise<string | null> {
+  if (!stripe) return null;
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "sgd",
+            product_data: { name: description },
+            unit_amount: Math.round(amountSGD * 100),
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: successUrl,
+      cancel_url: successUrl,
+      metadata,
+    });
+    return session.url;
+  } catch (err) {
+    console.error("Stripe payment link error:", err);
+    return null;
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -213,7 +250,15 @@ export async function registerRoutes(
       
       // Send deposit request email when admin approves
       if (input.status === "deposit_requested" && quote.customer) {
-        const paymentLink = `${APP_URL}/quotes/${quote.id}`;
+        const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.3;
+        const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+        const stripeUrl = await createStripePaymentLink(
+          `Deposit for ${quote.referenceNo} — TMG Install`,
+          depositAmt,
+          { quoteId: String(quote.id), type: "deposit", referenceNo: quote.referenceNo },
+          quotePageUrl
+        );
+        const paymentLink = stripeUrl || quotePageUrl;
         const emailHtml = depositRequestEmail(quote, paymentLink);
         await sendEmail({
           to: quote.customer.email,
@@ -510,8 +555,15 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Quote not found" });
       }
 
-      const finalAmount = quote.finalAmount || quote.total;
-      const paymentLink = `${APP_URL}/quotes/${quote.id}`;
+      const finalAmount = parseFloat(quote.finalAmount || "0") || parseFloat(quote.total);
+      const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+      const stripeUrl = await createStripePaymentLink(
+        `Final Payment for ${quote.referenceNo} — TMG Install`,
+        finalAmount,
+        { quoteId: String(quote.id), type: "final", referenceNo: quote.referenceNo },
+        quotePageUrl
+      );
+      const paymentLink = stripeUrl || quotePageUrl;
       
       const emailHtml = finalPaymentEmail(quote, paymentLink);
       const emailSent = await sendEmail({
