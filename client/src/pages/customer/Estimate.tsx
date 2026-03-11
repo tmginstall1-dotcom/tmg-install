@@ -207,21 +207,25 @@ export default function EstimateWizard() {
 
   const addCatalogGroup = (group: CatalogGroup, qty: number = 1) => {
     const relevant = group.entries.filter(e => services.includes(e.serviceType));
-    if (relevant.length === 0) {
-      // Add as custom for each selected service
-      services.forEach(st => {
-        setItems(prev => [...prev, { id: uid(), sku: "", name: group.name, category: group.category, serviceType: st, quantity: qty, unitPrice: 0, isCustom: true }]);
-      });
-      return;
-    }
-    relevant.forEach(entry => {
-      setItems(prev => {
-        const existing = prev.find(i => i.catalogItemId === entry.id);
-        if (existing) {
-          return prev.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
-        }
-        return [...prev, { id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), isCustom: false }];
-      });
+    setItems(prev => {
+      let updated = [...prev];
+      if (relevant.length === 0) {
+        // Add as custom for each selected service
+        services.forEach(st => {
+          updated.push({ id: uid(), sku: "", name: group.name, category: group.category, serviceType: st, quantity: qty, unitPrice: 0, isCustom: true });
+        });
+      } else {
+        // Add each relevant entry
+        relevant.forEach(entry => {
+          const existing = updated.find(i => i.catalogItemId === entry.id);
+          if (existing) {
+            updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
+          } else {
+            updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), isCustom: false });
+          }
+        });
+      }
+      return updated;
     });
     setCatalogSearch("");
     setShowCatalogDropdown(false);
