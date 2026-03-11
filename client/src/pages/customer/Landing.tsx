@@ -138,7 +138,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-3 gap-12 mb-12">
             <div>
-              <h3 className="font-bold text-white mb-4">TMG Install</h3>
+              <h3 className="brand-title text-white mb-4">TMG INSTALL</h3>
               <p className="text-gray-400 text-sm">Furniture installation, relocation, and dismantling made simple.</p>
             </div>
             <div>

@@ -16,17 +16,7 @@ export function Navbar() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           <Link href="/">
-            <span
-              className="font-display font-bold text-foreground"
-              style={{
-                fontSize: "clamp(14px, 2.5vw, 17px)",
-                letterSpacing: "-0.03em",
-                lineHeight: 1,
-                textTransform: "uppercase",
-              }}
-            >
-              TMG INSTALL
-            </span>
+            <span className="brand-title text-foreground">TMG INSTALL</span>
           </Link>
           <div className="flex items-center gap-3">
             <a
