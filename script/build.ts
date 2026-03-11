@@ -50,10 +50,21 @@ async function buildAll() {
     entryPoints: ["server/index.ts"],
     platform: "node",
     bundle: true,
-    format: "cjs",
+    format: "esm",
     outfile: "dist/index.js",
     define: {
       "process.env.NODE_ENV": '"production"',
+    },
+    // Shims for CJS globals not available in ESM
+    banner: {
+      js: `
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+`.trim(),
     },
     minify: true,
     external: externals,
