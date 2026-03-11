@@ -362,7 +362,7 @@ export default function EstimateWizard() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen pt-20 pb-20 bg-secondary/30">
+    <div className="min-h-screen pt-16 pb-20 bg-secondary/30">
       {/* Step indicator */}
       <div className="sticky top-16 z-40 bg-background/90 backdrop-blur-md border-b">
         <div className="max-w-2xl mx-auto px-4 py-4">

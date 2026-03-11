@@ -7,7 +7,7 @@ export default function Landing() {
   const [, setLocation] = useLocation();
 
   return (
-    <div className="min-h-screen bg-white text-black pt-20">
+    <div className="min-h-screen bg-white text-black pt-16">
       {/* Hero Section */}
       <section className="px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
         <div className="max-w-6xl mx-auto">
