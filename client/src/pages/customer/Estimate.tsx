@@ -143,13 +143,12 @@ export default function EstimateWizard() {
   // Step 3
   const [items, setItems] = useState<LineItem[]>([]);
   const [catalogSearch, setCatalogSearch] = useState("");
-  const [showCatalogDropdown, setShowCatalogDropdown] = useState(false);
+  const [catalogFocused, setCatalogFocused] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [showPaste, setShowPaste] = useState(false);
   const [photoDetecting, setPhotoDetecting] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const catalogDropdownRef = useRef<HTMLDivElement>(null);
   // Step 4
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -168,20 +167,16 @@ export default function EstimateWizard() {
   const catalogGroups = useMemo(() => groupCatalog(catalogRaw || []), [catalogRaw]);
 
   const filteredGroups = useMemo(() => {
-    if (!catalogSearch.trim()) return catalogGroups.slice(0, 8);
+    if (!catalogSearch.trim()) return catalogGroups.slice(0, 10);
     const q = catalogSearch.toLowerCase();
     return catalogGroups.filter(g =>
       g.name.toLowerCase().includes(q) || g.category.toLowerCase().includes(q) ||
       g.entries.some(e => e.sku.toLowerCase().includes(q))
-    ).slice(0, 8);
+    );
   }, [catalogSearch, catalogGroups]);
 
-  // Close catalog dropdown on outside click
-  useEffect(() => {
-    function h(e: MouseEvent) { if (!catalogDropdownRef.current?.contains(e.target as Node)) setShowCatalogDropdown(false); }
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
+  const showCatalogResults = catalogFocused || catalogSearch.trim().length > 0;
+
 
   // ── Pricing math ──────────────────────────────────────────────────────────
 
@@ -227,7 +222,7 @@ export default function EstimateWizard() {
       return updated;
     });
     setCatalogSearch("");
-    setShowCatalogDropdown(false);
+    setCatalogFocused(false);
   };
 
   // ── Paste parsing ─────────────────────────────────────────────────────────
@@ -524,44 +519,63 @@ export default function EstimateWizard() {
                 {/* Catalog Search */}
                 <div className="bg-card rounded-2xl border p-5">
                   <p className="text-sm font-semibold mb-3 flex items-center gap-2"><Search className="w-4 h-4 text-primary" /> Search Catalog</p>
-                  <div ref={catalogDropdownRef} className="relative">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <input
-                        value={catalogSearch}
-                        onChange={e => { setCatalogSearch(e.target.value); setShowCatalogDropdown(true); }}
-                        onFocus={() => setShowCatalogDropdown(true)}
-                        placeholder="e.g. wardrobe, bed, sofa…"
-                        data-testid="input-catalog-search"
-                        className="w-full pl-9 pr-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none"
-                      />
-                    </div>
-                    {showCatalogDropdown && filteredGroups.length > 0 && (
-                      <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-card border rounded-xl shadow-xl overflow-hidden max-h-80 overflow-y-auto">
-                        {filteredGroups.map(group => (
-                          <button key={group.name} onMouseDown={e => { e.preventDefault(); addCatalogGroup(group, 1); }}
-                            data-testid={`catalog-item-${group.name.toLowerCase().replace(/\s+/g, "-")}`}
-                            className="w-full text-left px-4 py-3 hover:bg-secondary border-b last:border-0 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-semibold text-sm">{group.name}</p>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <input
+                      value={catalogSearch}
+                      onChange={e => setCatalogSearch(e.target.value)}
+                      onFocus={() => setCatalogFocused(true)}
+                      onBlur={() => { setTimeout(() => setCatalogFocused(false), 150); }}
+                      placeholder="Search items e.g. wardrobe, bed, sofa…"
+                      data-testid="input-catalog-search"
+                      autoComplete="off"
+                      className="w-full pl-9 pr-10 py-3 rounded-xl bg-secondary border-2 border-border focus:border-primary focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm"
+                    />
+                    {catalogSearch && (
+                      <button onClick={() => setCatalogSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {showCatalogResults && (
+                    <div className="mt-3 border rounded-xl overflow-hidden">
+                      {filteredGroups.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                          No items found for <strong>"{catalogSearch}"</strong>
+                        </div>
+                      ) : (
+                        <>
+                          {!catalogSearch.trim() && (
+                            <div className="px-4 py-2 bg-secondary/50 border-b">
+                              <p className="text-xs text-muted-foreground font-medium">Popular items — tap to add</p>
+                            </div>
+                          )}
+                          {filteredGroups.map(group => (
+                            <button
+                              key={group.name}
+                              onClick={() => { addCatalogGroup(group, 1); setCatalogSearch(""); setCatalogFocused(false); }}
+                              data-testid={`catalog-item-${group.name.toLowerCase().replace(/\s+/g, "-")}`}
+                              className="w-full text-left px-4 py-3 hover:bg-secondary active:bg-secondary border-b last:border-0 transition-colors flex items-center justify-between gap-3"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-semibold text-sm truncate">{group.name}</p>
                                 <p className="text-xs text-muted-foreground">{group.category}</p>
                               </div>
-                              <div className="text-right space-y-0.5">
+                              <div className="text-right shrink-0 space-y-0.5">
                                 {group.entries.filter(e => services.includes(e.serviceType)).map(e => (
                                   <div key={e.id} className="flex items-center gap-2 justify-end">
                                     {serviceBadge(e.serviceType)}
-                                    <span className="text-xs font-bold text-foreground">${e.basePrice}</span>
+                                    <span className="text-xs font-bold">${e.basePrice}</span>
                                   </div>
                                 ))}
                               </div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Photo Upload */}
