@@ -86,6 +86,38 @@ export const api = {
       path: '/api/quotes/:id/booking' as const,
       input: z.object({ scheduledAt: z.string(), timeWindow: z.string() }),
       responses: { 200: z.custom<QuoteResponse>() }
+    },
+    wizard: {
+      method: 'POST' as const,
+      path: '/api/quotes/wizard' as const,
+      input: z.object({
+        customer: z.object({
+          name: z.string().min(1),
+          email: z.string().email(),
+          phone: z.string().min(1),
+        }),
+        selectedServices: z.array(z.enum(['install', 'dismantle', 'relocate'])).min(1),
+        serviceAddress: z.string().min(1),
+        pickupAddress: z.string().optional(),
+        dropoffAddress: z.string().optional(),
+        accessDifficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+        floorsInfo: z.string().optional(),
+        items: z.array(z.object({
+          catalogItemId: z.number().optional(),
+          quantity: z.number().min(1),
+          serviceType: z.enum(['install', 'dismantle', 'relocate']),
+          unitPrice: z.number().min(0),
+          itemName: z.string().min(1),
+          sku: z.string().optional(),
+        })),
+        customItems: z.array(z.object({
+          description: z.string().min(1),
+          serviceType: z.enum(['install', 'dismantle', 'relocate']),
+          quantity: z.number().min(1),
+        })).optional(),
+        transportFee: z.number().min(0).optional(),
+      }),
+      responses: { 201: z.custom<QuoteResponse>(), 400: errorSchemas.validation }
     }
   },
   staff: {

@@ -11,6 +11,7 @@ import { Navbar } from "@/components/layout/Navbar";
 // Pages
 import Landing from "@/pages/customer/Landing";
 import QuoteStatus from "@/pages/customer/QuoteStatus";
+import EstimateWizard from "@/pages/customer/Estimate";
 import Login from "@/pages/admin/Login";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminQuoteDetail from "@/pages/admin/QuoteDetail";
@@ -52,6 +53,7 @@ function Router() {
       <Switch>
         {/* Customer Routes */}
         <Route path="/" component={Landing} />
+        <Route path="/estimate" component={EstimateWizard} />
         <Route path="/quotes/:id" component={QuoteStatus} />
         
         {/* Auth Route */}

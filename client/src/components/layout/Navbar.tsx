@@ -24,9 +24,14 @@ export function Navbar() {
         <div className="flex items-center gap-4">
           {!user ? (
             isCustomerArea ? (
-              <Link href="/admin/login" className="text-sm font-semibold text-muted-foreground hover:text-primary transition-colors">
-                Staff Login
-              </Link>
+              <div className="flex items-center gap-4">
+                <Link href="/estimate" className="btn-primary-gradient px-5 py-2.5 rounded-xl text-sm font-bold" data-testid="nav-get-estimate">
+                  Get Estimate
+                </Link>
+                <Link href="/admin/login" className="text-sm font-semibold text-muted-foreground hover:text-primary transition-colors hidden sm:block">
+                  Staff Login
+                </Link>
+              </div>
             ) : null
           ) : (
             <div className="flex items-center gap-6">

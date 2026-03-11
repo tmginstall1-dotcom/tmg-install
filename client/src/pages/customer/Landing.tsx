@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useCreateQuoteRequest } from "@/hooks/use-auth"; // wait, it's in use-quotes
 import { useCreateQuoteRequest as useCreateQuote } from "@/hooks/use-quotes";
 import { motion } from "framer-motion";
-import { ArrowRight, Sparkles, CheckCircle2, Box, Truck, Wrench } from "lucide-react";
+import { ArrowRight, Sparkles, CheckCircle2, Box, Truck, Wrench, ClipboardList, ChevronRight } from "lucide-react";
 
 export default function Landing() {
   const [, setLocation] = useLocation();
@@ -76,6 +76,12 @@ export default function Landing() {
                 Just tell us what you need built, moved, or dismantled. Our AI instantly understands your items and generates a precise quote in seconds.
               </p>
               
+              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+                <Link href="/estimate" data-testid="hero-cta-guided"
+                  className="btn-primary-gradient inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-lg">
+                  <ClipboardList className="w-5 h-5" /> Get a Guided Estimate <ChevronRight className="w-5 h-5" />
+                </Link>
+              </div>
               <div className="flex flex-col sm:flex-row gap-4 mb-12">
                 <div className="flex items-center gap-3 bg-card px-5 py-4 rounded-2xl shadow-sm border">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">

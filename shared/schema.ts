@@ -27,6 +27,7 @@ export const catalogItems = pgTable("catalog_items", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   sku: text("sku"),
+  category: text("category"),
   serviceType: text("service_type").notNull(), // 'install', 'dismantle', 'relocate'
   basePrice: numeric("base_price").notNull(),
   active: boolean("active").default(true),
@@ -49,6 +50,13 @@ export const quotes = pgTable("quotes", {
   aiConfidenceScore: integer("ai_confidence_score"),
   requiresManualReview: boolean("requires_manual_review").default(true),
   
+  // Relocation-specific fields
+  pickupAddress: text("pickup_address"),
+  dropoffAddress: text("dropoff_address"),
+  accessDifficulty: text("access_difficulty"), // 'easy' | 'medium' | 'hard'
+  floorsInfo: text("floors_info"), // JSON stringified array
+  selectedServices: text("selected_services"), // JSON stringified array
+
   assignedStaffId: integer("assigned_staff_id").references(() => users.id),
   scheduledAt: timestamp("scheduled_at"),
   timeWindow: text("time_window"), // e.g. "09:00-12:00"

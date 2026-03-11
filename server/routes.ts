@@ -267,6 +267,112 @@ export async function registerRoutes(
     }
   });
 
+  // Wizard-based quote creation (structured, no AI parsing needed)
+  app.post(api.quotes.wizard.path, async (req, res) => {
+    try {
+      const input = api.quotes.wizard.input.parse(req.body);
+
+      // Calculate subtotal from catalog items
+      const itemsSubtotal = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+      const subtotal = itemsSubtotal; // custom items are $0 (TBD by admin)
+      const transportFee = input.transportFee || 0;
+      const total = subtotal + transportFee;
+      const depositAmount = (total * 0.30).toFixed(2);
+      const finalAmount = (total * 0.70).toFixed(2);
+
+      const referenceNo = `TMG-${Date.now().toString(36).toUpperCase()}`;
+
+      const allItems = [
+        ...input.items.map(item => ({
+          catalogItemId: item.catalogItemId,
+          originalDescription: item.itemName,
+          detectedName: item.itemName,
+          serviceType: item.serviceType,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice.toFixed(2),
+          subtotal: (item.unitPrice * item.quantity).toFixed(2),
+        })),
+        ...(input.customItems || []).map(item => ({
+          catalogItemId: undefined as number | undefined,
+          originalDescription: item.description,
+          detectedName: item.description,
+          serviceType: item.serviceType,
+          quantity: item.quantity,
+          unitPrice: "0",
+          subtotal: "0",
+        })),
+      ];
+
+      const quote = await storage.createQuote(
+        input.customer,
+        {
+          referenceNo,
+          serviceAddress: input.serviceAddress,
+          pickupAddress: input.pickupAddress,
+          dropoffAddress: input.dropoffAddress,
+          accessDifficulty: input.accessDifficulty,
+          floorsInfo: input.floorsInfo,
+          selectedServices: JSON.stringify(input.selectedServices),
+          subtotal: subtotal.toFixed(2),
+          transportFee: transportFee.toFixed(2),
+          total: total.toFixed(2),
+          depositAmount,
+          finalAmount,
+          status: "submitted",
+          requiresManualReview: false,
+          aiConfidenceScore: 100,
+        },
+        allItems
+      );
+
+      res.status(201).json(quote);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      console.error("Wizard quote error:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // AI photo item detection
+  app.post("/api/catalog/detect-items", async (req, res) => {
+    try {
+      const { imageBase64, mimeType = "image/jpeg" } = req.body;
+      if (!imageBase64) return res.status(400).json({ message: "Image required" });
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Look at this image showing furniture or items that might need installation, dismantling, or relocation. List all distinct furniture items you can see. Return ONLY a valid JSON array (no markdown): [{\"name\": \"item name\", \"quantity\": 1}]. Be specific with furniture names (e.g. \"Queen Bed Frame\", \"3-Seater Sofa\"). Max 10 items."
+            },
+            {
+              type: "image_url",
+              image_url: { url: `data:${mimeType};base64,${imageBase64}` }
+            }
+          ]
+        }],
+        max_tokens: 400,
+      });
+
+      const content = response.choices[0]?.message?.content || "[]";
+      let detected: { name: string; quantity: number }[] = [];
+      try {
+        const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
+        detected = JSON.parse(cleaned);
+      } catch {
+        detected = [];
+      }
+
+      res.json({ detected });
+    } catch (err) {
+      console.error("Photo detection error:", err);
+      res.status(500).json({ message: "Failed to detect items from photo", detected: [] });
+    }
+  });
+
   // Final payment request email
   app.post("/api/quotes/:id/request-final-payment", async (req, res) => {
     try {
