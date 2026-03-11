@@ -210,20 +210,19 @@ export default function EstimateWizard() {
     setItems(prev => {
       let updated = [...prev];
       if (relevant.length === 0) {
-        // Add as custom for each selected service
+        // No matching service variants — add as custom for each selected service
         services.forEach(st => {
           updated.push({ id: uid(), sku: "", name: group.name, category: group.category, serviceType: st, quantity: qty, unitPrice: 0, isCustom: true });
         });
       } else {
-        // Add each relevant entry
-        relevant.forEach(entry => {
-          const existing = updated.find(i => i.catalogItemId === entry.id);
-          if (existing) {
-            updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
-          } else {
-            updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), isCustom: false });
-          }
-        });
+        // Add only the first matching entry (avoid duplicates for multi-service items)
+        const entry = relevant[0];
+        const existing = updated.find(i => i.catalogItemId === entry.id);
+        if (existing) {
+          updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
+        } else {
+          updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), isCustom: false });
+        }
       }
       return updated;
     });
