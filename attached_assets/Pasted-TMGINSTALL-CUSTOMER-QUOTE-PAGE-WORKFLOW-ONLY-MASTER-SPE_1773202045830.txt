@@ -1,0 +1,122 @@
+TMGINSTALL — CUSTOMER QUOTE PAGE (WORKFLOW ONLY) — MASTER SPEC
+
+ROUTE
+- /estimate  (customer quote wizard, 4 steps)
+
+GOAL
+Customer completes a guided quote request with:
+- services selection (install/dismantle/relocate)
+- Singapore address input (1 address unless relocation)
+- guided catalog item search (SKU + pricing guide) + optional paste list + optional photo AI
+- customer details + “Get Estimate”
+- result page shows quote number + itemised breakdown + totals
+
+========================================================
+STEP 1 — SELECT SERVICES (CLICK → NEXT)
+========================================================
+Customer selects one or more:
+- Installation
+- Dismantle
+- Relocation
+Rules:
+- Must select at least 1 service to continue.
+- These selections determine which prices/lines appear later.
+
+========================================================
+STEP 2 — ADDRESS (SINGAPORE)
+========================================================
+IF Relocation is NOT selected (Installation and/or Dismantle only):
+- Ask: “Where is the service location?”
+- Field: Service Address (required)
+- Must support Singapore dropdown suggestions while typing (postal code or address)
+- Save: service_address
+
+IF Relocation IS selected:
+- Ask: “Pickup address” (required) + Singapore dropdown suggestions
+- Ask: “Dropoff address” (required) + Singapore dropdown suggestions
+- Show relocation-only logistics:
+  - Floors (add multiple floors, each: level + lift yes/no)
+  - Access difficulty (easy/medium/hard)
+- Save: pickup_address, dropoff_address, floors, access_difficulty
+
+========================================================
+STEP 3 — ITEMS (GUIDED CATALOG + OPTIONAL AI INPUTS)
+========================================================
+Primary experience = guided catalog so customer can find correct item easily.
+
+3A) Guided Catalog Search (SKU + pricing guide)
+- Customer types item name (e.g., “queen bed”, “office chair”)
+- Dropdown shows closest catalog matches with:
+  - Item name
+  - SKU
+  - Category
+  - Pricing guide (unit prices for install/dismantle/relocate)
+- Customer selects a match
+- Customer sets Qty
+- Customer adds item to “Selected Items” list
+
+3B) Selected Items List (always visible)
+For each selected item show:
+- Name + SKU + category
+- Qty controls (+/−)
+- Remove item
+- Pricing guide preview based on chosen services:
+  - Install unit price × qty (if install selected)
+  - Dismantle unit price × qty (if dismantle selected)
+  - Relocate unit price × qty (if relocate selected)
+- Subtotal per item and running subtotal
+
+3C) Paste Item List (optional fast entry)
+- Customer pastes multi-line list:
+  “2 queen bed
+   6 office chair
+   1 swing door cabinet”
+- System parses and tries to match catalog SKUs
+- Matched items auto-add into Selected Items (with SKU + pricing guide)
+- Unmatched items add as “Custom Items” (no SKU) and will be AI-estimated
+
+3D) Photo Upload + AI Detect (optional day 1)
+- Customer uploads photos of items
+- System detects items and matches catalog where possible
+- Matched items auto-add into Selected Items (with SKU + pricing guide)
+- Unmatched items add as Custom Items (AI-estimated)
+
+Rules:
+- Must have at least 1 item before continuing.
+- Catalog pricing is the main guide; AI estimate is used only when unmatched.
+
+========================================================
+STEP 4 — CUSTOMER DETAILS + REVIEW + GET ESTIMATE
+========================================================
+Customer inputs (required):
+- Full name
+- Email
+- Phone
+
+Review screen must show:
+- Services selected
+- Address(es)
+- Item list (SKU items + custom items)
+- Itemised pricing preview (per item, per service kind)
+- Totals preview:
+  - services subtotal
+  - relocation logistics fee (only if relocation)
+  - discount (if any)
+  - grand total
+  - deposit amount + final amount
+
+Action:
+- Button: “Get Estimate”
+
+========================================================
+AFTER SUBMIT — RESULT PAGE
+========================================================
+Customer sees estimate result including:
+- Quote Number
+- Customer details
+- Services
+- Address(es)
+- Itemised breakdown (each item with service lines + totals)
+- Totals summary (grand total, deposit, final)
+
+END
