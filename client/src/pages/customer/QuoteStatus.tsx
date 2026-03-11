@@ -1,11 +1,13 @@
-import { useParams } from "wouter";
-import { useQuote, useUpdateQuotePayment, useRequestBooking, useRescheduleBooking } from "@/hooks/use-quotes";
+import { useParams, useLocation } from "wouter";
+import { useQuote, useRequestBooking, useRescheduleBooking } from "@/hooks/use-quotes";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { CheckCircle2, CreditCard, CalendarDays, Receipt, Clock, MapPin, RefreshCw, AlertCircle, MessageCircle } from "lucide-react";
+import { CheckCircle2, CreditCard, CalendarDays, Receipt, Clock, MapPin, RefreshCw, AlertCircle, MessageCircle, Loader2 } from "lucide-react";
 import { format, differenceInHours } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 
 function formatMoney(amount: string | number | null | undefined) {
   return new Intl.NumberFormat('en-SG', { style: 'currency', currency: 'SGD' }).format(Number(amount || 0));
@@ -19,11 +21,11 @@ function getTodayPlus1() {
 
 export default function QuoteStatus() {
   const params = useParams();
+  const [, setLocation] = useLocation();
   const id = params.id!;
   const { data: quote, isLoading } = useQuote(id);
   const { toast } = useToast();
   
-  const payMutation = useUpdateQuotePayment();
   const bookMutation = useRequestBooking();
   const rescheduleMutation = useRescheduleBooking();
   
@@ -32,6 +34,51 @@ export default function QuoteStatus() {
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [paymentVerified, setPaymentVerified] = useState(false);
+
+  // On mount: check if redirected back from Stripe with ?payment_success=1&session_id=xxx
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentSuccess = params.get("payment_success");
+    const sessionId = params.get("session_id");
+
+    if (paymentSuccess === "1" && sessionId) {
+      setVerifying(true);
+      // Clean the URL without reloading
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, "", cleanUrl);
+
+      apiRequest("POST", `/api/quotes/${id}/verify-payment`, { session_id: sessionId })
+        .then(() => {
+          setPaymentVerified(true);
+          queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
+          toast({ title: "Payment confirmed!", description: "Your payment has been received." });
+        })
+        .catch(() => {
+          toast({ title: "Could not confirm payment", description: "Please contact us on WhatsApp if your payment was charged.", variant: "destructive" });
+        })
+        .finally(() => setVerifying(false));
+    }
+  }, []);
+
+  const handleStripeCheckout = async (type: "deposit" | "final") => {
+    setCheckoutLoading(true);
+    try {
+      const res = await apiRequest("GET", `/api/quotes/${id}/checkout?type=${type}`);
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast({ title: "Payment unavailable", description: "Could not create payment link. Please contact us.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Could not start payment. Please try again.", variant: "destructive" });
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -50,23 +97,6 @@ export default function QuoteStatus() {
     );
   }
 
-  const handlePayDeposit = async () => {
-    try {
-      await payMutation.mutateAsync({ id, paymentType: 'deposit', amount: quote.depositAmount?.toString() || "0" });
-      toast({ title: "Deposit Paid!", description: "You'll receive a booking link via email." });
-    } catch (e: any) {
-      toast({ title: "Payment Failed", description: e.message, variant: "destructive" });
-    }
-  };
-
-  const handlePayFinal = async () => {
-    try {
-      await payMutation.mutateAsync({ id, paymentType: 'final', amount: quote.finalAmount?.toString() || "0" });
-      toast({ title: "Payment Complete!", description: "Your case is now closed. Thank you!" });
-    } catch (e: any) {
-      toast({ title: "Payment Failed", description: e.message, variant: "destructive" });
-    }
-  };
 
   const handleBookingRequest = async () => {
     if (!selectedDate || !selectedTime) return toast({ title: "Please select a date and time slot", variant: "destructive" });
@@ -126,7 +156,30 @@ export default function QuoteStatus() {
 
   return (
     <div className="min-h-screen pt-28 pb-20 bg-secondary/30">
+      {/* Payment verification overlay */}
+      {verifying && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-card rounded-2xl p-8 shadow-xl border text-center">
+            <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-4" />
+            <p className="font-bold text-lg">Confirming your payment…</p>
+            <p className="text-muted-foreground text-sm mt-1">Please wait a moment.</p>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
+
+        {/* Payment verified banner */}
+        {paymentVerified && (
+          <motion.div initial={{opacity:0, y:-16}} animate={{opacity:1, y:0}}
+            className="mb-6 flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+            <div>
+              <p className="font-bold text-emerald-800">Payment received!</p>
+              <p className="text-sm text-emerald-700">Your payment has been confirmed. You can now book your appointment below.</p>
+            </div>
+          </motion.div>
+        )}
         
         {/* Header */}
         <div className="mb-10 text-center">
@@ -316,10 +369,10 @@ export default function QuoteStatus() {
                 <div className="bg-white/10 rounded-2xl p-5 border border-white/20">
                   <p className="text-sm mb-1 text-white/80">Deposit Required</p>
                   <p className="text-2xl font-bold mb-4">{formatMoney(quote.depositAmount)}</p>
-                  <button onClick={handlePayDeposit} disabled={payMutation.isPending} data-testid="button-pay-deposit"
+                  <button onClick={() => handleStripeCheckout("deposit")} disabled={checkoutLoading} data-testid="button-pay-deposit"
                     className="w-full bg-white text-primary font-bold py-3 rounded-xl shadow-lg hover:scale-[1.02] active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-70">
-                    <CreditCard className="w-5 h-5" />
-                    {payMutation.isPending ? "Processing..." : "Pay Deposit Now"}
+                    {checkoutLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                    {checkoutLoading ? "Opening Checkout…" : "Pay Deposit Now"}
                   </button>
                 </div>
               )}
@@ -375,10 +428,10 @@ export default function QuoteStatus() {
                 <div className="bg-white/10 rounded-2xl p-5 border border-white/20">
                   <p className="text-sm mb-1 text-white/80">Balance Due</p>
                   <p className="text-2xl font-bold mb-4">{formatMoney(quote.finalAmount)}</p>
-                  <button onClick={handlePayFinal} disabled={payMutation.isPending} data-testid="button-pay-final"
+                  <button onClick={() => handleStripeCheckout("final")} disabled={checkoutLoading} data-testid="button-pay-final"
                     className="w-full bg-white text-primary font-bold py-3 rounded-xl shadow-lg hover:scale-[1.02] active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-70">
-                    <CreditCard className="w-5 h-5" />
-                    {payMutation.isPending ? "Processing..." : "Pay Final Balance"}
+                    {checkoutLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                    {checkoutLoading ? "Opening Checkout…" : "Pay Final Balance"}
                   </button>
                 </div>
               )}

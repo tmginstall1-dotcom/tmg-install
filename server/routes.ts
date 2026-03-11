@@ -32,6 +32,10 @@ async function createStripePaymentLink(
 ): Promise<string | null> {
   if (!stripe) return null;
   try {
+    // Embed session ID in success URL so the page can verify payment on return
+    const successWithSession = successUrl.includes("?")
+      ? `${successUrl}&payment_success=1&session_id={CHECKOUT_SESSION_ID}`
+      : `${successUrl}?payment_success=1&session_id={CHECKOUT_SESSION_ID}`;
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -45,7 +49,7 @@ async function createStripePaymentLink(
         },
       ],
       mode: "payment",
-      success_url: successUrl,
+      success_url: successWithSession,
       cancel_url: successUrl,
       metadata,
     });
@@ -373,6 +377,87 @@ export async function registerRoutes(
       res.json(quote);
     } catch (err) {
       res.status(400).json({ message: "Invalid input" });
+    }
+  });
+
+  // Create on-demand Stripe checkout session (for quote page button)
+  app.get("/api/quotes/:id/checkout", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const type = (req.query.type as string) || "deposit";
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+
+      const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+      let amount: number;
+      let description: string;
+
+      if (type === "deposit") {
+        amount = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.3;
+        description = `Deposit for ${quote.referenceNo} — TMG Install`;
+      } else {
+        amount = parseFloat(quote.finalAmount || "0") || parseFloat(quote.total) * 0.7;
+        description = `Final Payment for ${quote.referenceNo} — TMG Install`;
+      }
+
+      const stripeUrl = await createStripePaymentLink(
+        description,
+        amount,
+        { quoteId: String(quote.id), type, referenceNo: quote.referenceNo },
+        quotePageUrl
+      );
+
+      if (!stripeUrl) return res.status(500).json({ message: "Stripe not configured" });
+      res.json({ url: stripeUrl });
+    } catch (err) {
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  // Verify Stripe session and update quote status (webhook-free fallback)
+  app.post("/api/quotes/:id/verify-payment", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { session_id } = z.object({ session_id: z.string() }).parse(req.body);
+
+      if (!stripe) return res.status(500).json({ message: "Stripe not configured" });
+
+      const session = await stripe.checkout.sessions.retrieve(session_id);
+      if (session.payment_status !== "paid") {
+        return res.status(400).json({ message: "Payment not completed" });
+      }
+
+      const { type } = session.metadata || {};
+      if (!type) return res.status(400).json({ message: "Missing payment type" });
+
+      const amountPaid = ((session.amount_total ?? 0) / 100).toFixed(2);
+      const quote = await storage.updateQuotePayment(id, type as "deposit" | "final", amountPaid);
+
+      if (!quote || !quote.customer) return res.status(200).json({ status: "ok" });
+
+      if (type === "deposit") {
+        const bookingLink = `${APP_URL}/quotes/${quote.id}`;
+        await sendEmail({
+          to: quote.customer.email,
+          subject: `[${quote.referenceNo}] Deposit Received — Book Your Appointment`,
+          html: depositReceivedEmail(quote, bookingLink),
+        });
+        console.log(`Payment verified (no-webhook): deposit paid for ${quote.referenceNo}`);
+      }
+
+      if (type === "final") {
+        await sendEmail({
+          to: quote.customer.email,
+          subject: `[${quote.referenceNo}] Payment Received — Case Closed`,
+          html: caseClosedEmail(quote),
+        });
+        console.log(`Payment verified (no-webhook): final paid for ${quote.referenceNo}`);
+      }
+
+      res.json({ status: "ok", quote });
+    } catch (err: any) {
+      console.error("Payment verification error:", err);
+      res.status(400).json({ message: err.message || "Verification failed" });
     }
   });
 
