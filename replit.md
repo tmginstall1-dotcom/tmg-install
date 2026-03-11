@@ -4,11 +4,11 @@
 
 TMG Install is a full-stack furniture installation quoting and operations platform for **The Moving Guy Pte Ltd** (Singapore). It handles the complete workflow from customer quote submission through job completion:
 
-- **Customer side**: 4-step estimate wizard (`/estimate`) → quote submission → deposit payment → booking slot selection
-- **Admin side**: Review incoming requests, approve quotes, send deposit/payment links, assign staff
-- **Staff side**: View assigned jobs, submit progress updates, mark completion
+- **Customer side**: 4-step estimate wizard (`/estimate`) → quote status → deposit payment → booking slot request → confirmed appointment → final payment
+- **Admin side**: Review quotes, approve & request deposit, edit quotes before deposit, confirm booking slots, manage schedule, assign staff, request final payment
+- **Staff side**: View active jobs (deposit paid+), GPS check-in with photos (Arrived), GPS check-out with photos (Completed)
 
-The app is a monorepo with a React frontend (Vite), an Express backend, and a PostgreSQL database via Drizzle ORM. Email is sent via Resend. Stripe is integrated for payments. AI features (quote estimation, photo analysis) use OpenAI via Replit AI Integrations.
+The app is a monorepo with a React frontend (Vite), Express backend, and PostgreSQL database via Drizzle ORM. Email via Resend. AI features use OpenAI via Replit AI Integrations.
 
 ---
 
@@ -22,57 +22,74 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend (React + Vite)
 - **Framework**: React 18 with TypeScript, bundled by Vite
-- **Routing**: `wouter` (lightweight client-side routing)
-- **State / data fetching**: TanStack Query (`@tanstack/react-query`) with a centralized `queryClient`
-- **UI components**: shadcn/ui (New York style) on top of Radix UI primitives, styled with Tailwind CSS
-- **Forms**: React Hook Form + `@hookform/resolvers` with Zod validation
+- **Routing**: `wouter`
+- **State / data fetching**: TanStack Query (`@tanstack/react-query`)
+- **UI components**: shadcn/ui + Radix UI + Tailwind CSS
 - **Animations**: Framer Motion
-- **Font stack**: Plus Jakarta Sans (body), Outfit (display)
 - **Key pages**:
-  - `/` — Landing page
-  - `/estimate` — 4-step quote wizard (service selection → address → item catalog → customer details → result)
-  - `/quote-status` — Customer quote status lookup
-  - `/admin/login`, `/admin`, `/admin/quote/:id` — Admin dashboard & quote detail
-  - `/staff`, `/staff/job/:id` — Staff job list & detail
+  - `/` — Landing page with AI quote widget
+  - `/estimate` — 4-step quote wizard
+  - `/quotes/:id` — Customer quote status, booking, payment, reschedule
+  - `/admin/login` — Login for admin/staff
+  - `/admin` — Admin dashboard (6-section: New/Awaiting Deposit/Pending Booking/Upcoming/Active/Final Payment)
+  - `/admin/schedule` — Schedule Management (pending + confirmed bookings)
+  - `/admin/quotes/:id` — Quote detail with full editing, actions, timeline
+  - `/staff` — Staff job list (deposit_paid+ status only)
+  - `/staff/jobs/:id` — Staff job detail with GPS + photo check-in/checkout
 
 ### Backend (Express + Node.js)
-- **Server**: Express 5 running on Node.js with `tsx` for development
 - **Entry**: `server/index.ts` → `server/routes.ts` → `server/storage.ts`
-- **Build**: Custom `script/build.ts` using esbuild (server) + Vite (client) → `dist/`
-- **Session / auth**: Cookie-based sessions (express-session + connect-pg-simple). Route guards check `user.role` (`admin` | `staff`). Currently mock auth — passwords stored in plain text in DB (needs hardening before production).
-- **API routes**: Defined with typed contracts in `shared/routes.ts` using Zod schemas. Pattern: `api.<resource>.<action>.path` and `api.<resource>.<action>.method`
-- **Storage layer**: `server/storage.ts` — `DatabaseStorage` class implements `IStorage` interface; all DB calls go through here
-- **Email**: `server/email.ts` — Resend API via plain HTTP fetch. Templates for deposit request, booking confirmation, final payment
-- **AI integration**: OpenAI client configured via Replit AI Integrations env vars (`AI_INTEGRATIONS_OPENAI_API_KEY`, `AI_INTEGRATIONS_OPENAI_BASE_URL`). Used for quote estimation and photo analysis
-- **File uploads**: Multer (listed in build allowlist)
-- **Payments**: Stripe (listed in build allowlist)
+- **Auth**: Mock auth — simple password check. Credentials: admin/password123, staff1/password123. Login caches user client-side.
+- **Key API endpoints**:
+  - `POST /api/auth/login` — Login
+  - `GET /api/quotes` — List all quotes (optional ?status= filter)
+  - `GET /api/quotes/schedule` — Returns `{pending, confirmed}` for schedule management
+  - `GET /api/quotes/:id` — Quote detail with customer, items, updates
+  - `POST /api/quotes/wizard` — Submit wizard quote
+  - `PATCH /api/quotes/:id/status` — Generic status update (admin)
+  - `PATCH /api/quotes/:id/payment` — Record deposit or final payment
+  - `POST /api/quotes/:id/booking-request` — Customer requests booking slot
+  - `POST /api/quotes/:id/booking-confirm` — Admin confirms booking (sends email)
+  - `POST /api/quotes/:id/booking-reschedule` — Customer reschedules (max 1 free, 24hr cutoff)
+  - `PATCH /api/quotes/:id/edit` — Admin edit quote (customer, address, items — before deposit only)
+  - `POST /api/quotes/:id/arrived` — Staff check-in (GPS + photos required)
+  - `POST /api/quotes/:id/completed-checkout` — Staff check-out (GPS + photos required)
+  - `POST /api/quotes/:id/request-final-payment` — Admin sends final payment email
+  - `POST /api/quotes/:id/close` — Admin manual close
+  - `GET /api/catalog` — Catalog items (optional ?search=)
+  - `POST /api/catalog/detect-items` — GPT-4o vision photo item detection
 
-### Shared Layer
-- `shared/schema.ts` — All Drizzle table definitions and Zod insert schemas
-- `shared/routes.ts` — Typed API route contracts shared between client and server
-- `shared/models/chat.ts` — Conversation/message tables for AI chat feature
+### Email System (`server/email.ts`)
+All emails include full itemized breakdown + totals + addresses + WhatsApp contact:
+- `depositRequestEmail` — Deposit requested, full quote breakdown + payment link
+- `depositReceivedEmail` — Deposit paid, booking link + rules (1 reschedule, admin confirms)
+- `bookingRequestAdminEmail` — Admin notification of new booking request
+- `bookingConfirmationEmail` — Customer confirmation email (after admin confirms)
+- `rescheduleConfirmationEmail` — Reschedule request received
+- `finalPaymentEmail` — Final balance due + payment link
+- `caseClosedEmail` — Payment received, case closed
+
+### Status State Machine
+```
+submitted → deposit_requested → deposit_paid → booking_requested → booked → assigned → in_progress → completed → final_payment_requested → final_paid → closed
+                                                                                                                                      ↑ auto-close on final payment
+```
+Also: `cancelled` (any time via admin)
 
 ### Database (PostgreSQL + Drizzle ORM)
-- **Dialect**: PostgreSQL (configured in `drizzle.config.ts`)
-- **Connection**: `server/db.ts` uses `pg` Pool + `drizzle-orm/node-postgres`
-- **Migrations**: `drizzle-kit push` / migration files in `./migrations/`
-- **Schema tables**:
-  - `users` — Admin and staff accounts (role: `admin` | `staff`)
-  - `customers` — Customer contact records
-  - `catalog_items` — Furniture items with SKU, category, service type (`install` | `dismantle` | `relocate`), base price
-  - `quotes` — Core job record with status state machine, pricing fields, AI confidence score, payment tracking, scheduling
-  - `quote_items` — Line items linking catalog items to a quote
-  - `job_updates` — Staff progress notes/photo updates per job
-  - `conversations` / `messages` — AI chat history
-- **Quote status flow**: `submitted → under_review → approved → deposit_requested → deposit_paid → booking_pending → booked → assigned → in_progress → completed → final_payment_requested → closed` (also `cancelled`)
-- **Seeding**: `server/seed.ts` + `server/run-seed.ts` — seeds admin/staff users and full furniture catalog
+- **Schema**: `shared/schema.ts`
+- **Tables**: users, customers, catalog_items, quotes, quote_items, job_updates
+- **Key quote fields**: `status`, `rescheduledCount`, `bookingRequestedAt`, `scheduledAt`, `timeWindow`, `depositAmount`, `depositPaidAt`, `finalAmount`, `finalPaidAt`, `paymentStatus`, `notes`
+- **job_updates**: `photoUrl` stores JSON array of photo URLs for multiple proof photos
+- **Seeding**: `server/run-seed.ts` — run manually with `npx tsx server/run-seed.ts`
+- **217 catalog items** across 19 categories (IKEA, Beds, Wardrobes, Sofas, Office, Kids, etc.)
 
-### Replit AI Integrations
-Located in `server/replit_integrations/` and `client/replit_integrations/`:
-- **Chat** (`/chat`): Conversation storage + OpenAI chat completions
-- **Audio** (`/audio`): Voice recording (client MediaRecorder), SSE streaming playback (AudioWorklet), speech-to-text, TTS
-- **Image** (`/image`): Image generation and editing via `gpt-image-1`
-- **Batch** (`/batch`): Rate-limited, retrying batch processor for LLM calls
+### Booking Rules
+- Customer can only request booking after deposit is paid
+- A second request is blocked if one is already pending
+- Admin must confirm all bookings (sends confirmation email)
+- 1 free reschedule, blocked if <24 hours before appointment
+- `rescheduledCount` tracked on quote; incremented on reschedule
 
 ---
 
@@ -81,23 +98,11 @@ Located in `server/replit_integrations/` and `client/replit_integrations/`:
 | Service | Purpose | Env Var(s) |
 |---|---|---|
 | **PostgreSQL** | Primary database | `DATABASE_URL` |
-| **Resend** | Transactional email (deposit requests, booking confirmations, payment links) | `RESEND_API_KEY`, `FROM_EMAIL` |
-| **Stripe** | Payment link creation, deposit & final payment processing | `STRIPE_SECRET_KEY` (assumed) |
-| **OpenAI (via Replit AI)** | Quote AI estimation, photo analysis, voice chat, image generation | `AI_INTEGRATIONS_OPENAI_API_KEY`, `AI_INTEGRATIONS_OPENAI_BASE_URL` |
-| **Google Fonts** | Typography (Plus Jakarta Sans, Outfit, DM Sans, Geist Mono, Architects Daughter, Fira Code) | None — loaded via CDN |
-| **OneMap SG (Public API)** | Singapore address autocomplete in estimate wizard Step 2 | None — public API, no key required |
+| **Resend** | Transactional email | `RESEND_API_KEY`, `FROM_EMAIL` |
+| **OpenAI (via Replit AI)** | Quote estimation, photo analysis | Auto-configured via Replit AI Integrations |
+| **OneMap SG (Public API)** | Singapore address autocomplete | No key required |
 
-### Key npm packages
-- `drizzle-orm` + `drizzle-zod` + `pg` — Database ORM
-- `express` v5 — Backend server
-- `@tanstack/react-query` — Client data fetching
-- `wouter` — Client routing
-- `framer-motion` — Animations
-- `react-day-picker` — Booking calendar
-- `multer` — File/photo uploads
-- `stripe` — Payments
-- `nodemailer` — (in build allowlist; Resend is the active email provider)
-- `zod` — Schema validation throughout (shared between client and server)
-- `nanoid` — Reference number generation
-- `xlsx` — Report exports (in build allowlist)
-- `connect-pg-simple` — PostgreSQL session store
+### Company Info
+- Sales email: sales@tmginstall.com
+- WhatsApp: +65 8088 0757 (link: https://wa.me/6580880757)
+- Admin notifications to: sales@tmginstall.com

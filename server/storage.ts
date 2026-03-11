@@ -4,7 +4,7 @@ import {
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc, or, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -18,11 +18,20 @@ export interface IStorage {
 
   // Quotes
   getQuotes(status?: string): Promise<QuoteResponse[]>;
+  getQuotesByStatuses(statuses: string[]): Promise<QuoteResponse[]>;
   getQuote(id: number): Promise<QuoteResponse | undefined>;
   createQuote(customer: InsertCustomer, quote: Omit<InsertQuote, 'customerId'>, items: InsertQuoteItem[]): Promise<QuoteResponse>;
-  updateQuoteStatus(id: number, status: string, updateRecord?: InsertJobUpdate, assignedStaffId?: number): Promise<QuoteResponse | undefined>;
+  updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number): Promise<QuoteResponse | undefined>;
   updateQuotePayment(id: number, paymentType: 'deposit' | 'final', amount: string): Promise<QuoteResponse | undefined>;
-  updateQuoteBooking(id: number, scheduledAt: Date, timeWindow: string): Promise<QuoteResponse | undefined>;
+  requestBooking(id: number, scheduledAt: Date, timeWindow: string): Promise<QuoteResponse | undefined>;
+  confirmBooking(id: number): Promise<QuoteResponse | undefined>;
+  rescheduleBooking(id: number, scheduledAt: Date, timeWindow: string): Promise<QuoteResponse | undefined>;
+  editQuote(id: number, data: {
+    customerUpdates?: Partial<typeof customers.$inferInsert>;
+    quoteUpdates?: Partial<typeof quotes.$inferInsert>;
+    items?: Omit<InsertQuoteItem, 'quoteId'>[];
+  }): Promise<QuoteResponse | undefined>;
+  addJobUpdate(update: InsertJobUpdate): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -41,12 +50,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCatalogItems(search?: string) {
-    let query = db.select().from(catalogItems);
-    // Simple search implementation
-    const items = await query;
+    const items = await db.select().from(catalogItems).where(eq(catalogItems.active, true));
     if (search) {
       const lowerSearch = search.toLowerCase();
-      return items.filter(i => i.name.toLowerCase().includes(lowerSearch) || i.sku?.toLowerCase().includes(lowerSearch));
+      return items.filter(i => i.name.toLowerCase().includes(lowerSearch) || i.sku?.toLowerCase().includes(lowerSearch) || i.category?.toLowerCase().includes(lowerSearch));
     }
     return items;
   }
@@ -69,7 +76,7 @@ export class DatabaseStorage implements IStorage {
       return { ...item, catalogItem };
     }));
 
-    const updatesList = await db.select().from(jobUpdates).where(eq(jobUpdates.quoteId, quoteId));
+    const updatesList = await db.select().from(jobUpdates).where(eq(jobUpdates.quoteId, quoteId)).orderBy(desc(jobUpdates.createdAt));
 
     return {
       ...quote,
@@ -81,9 +88,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getQuotes(status?: string): Promise<QuoteResponse[]> {
-    let query = db.select().from(quotes);
-    const quotesList = status ? await db.select().from(quotes).where(eq(quotes.status, status)) : await query;
-    
+    const quotesList = status ? await db.select().from(quotes).where(eq(quotes.status, status)).orderBy(desc(quotes.createdAt)) : await db.select().from(quotes).orderBy(desc(quotes.createdAt));
+    const detailedQuotes = await Promise.all(quotesList.map(q => this.fetchQuoteDetails(q.id)));
+    return detailedQuotes.filter((q): q is QuoteResponse => q !== undefined);
+  }
+
+  async getQuotesByStatuses(statuses: string[]): Promise<QuoteResponse[]> {
+    const quotesList = await db.select().from(quotes).where(inArray(quotes.status, statuses)).orderBy(desc(quotes.createdAt));
     const detailedQuotes = await Promise.all(quotesList.map(q => this.fetchQuoteDetails(q.id)));
     return detailedQuotes.filter((q): q is QuoteResponse => q !== undefined);
   }
@@ -93,30 +104,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createQuote(customerData: InsertCustomer, quoteData: Omit<InsertQuote, 'customerId'>, itemsData: Omit<InsertQuoteItem, 'quoteId'>[]) {
-    // 1. Create customer
     const [customer] = await db.insert(customers).values(customerData).returning();
-
-    // 2. Create quote
-    const [quote] = await db.insert(quotes).values({
-      ...quoteData,
-      customerId: customer.id
-    }).returning();
-
-    // 3. Create items
+    const [quote] = await db.insert(quotes).values({ ...quoteData, customerId: customer.id }).returning();
     if (itemsData.length > 0) {
-      await db.insert(quoteItems).values(
-        itemsData.map(item => ({ ...item, quoteId: quote.id }))
-      );
+      await db.insert(quoteItems).values(itemsData.map(item => ({ ...item, quoteId: quote.id })));
     }
-
-    // 4. Create initial timeline update
     await db.insert(jobUpdates).values({
       quoteId: quote.id,
       statusChange: quoteData.status || 'submitted',
       actorType: 'customer',
-      note: 'Quote requested online'
+      note: 'Quote submitted online'
     });
-
     const detailedQuote = await this.fetchQuoteDetails(quote.id);
     if (!detailedQuote) throw new Error("Failed to fetch created quote");
     return detailedQuote;
@@ -127,9 +125,7 @@ export class DatabaseStorage implements IStorage {
     if (assignedStaffId !== undefined) {
       updateData.assignedStaffId = assignedStaffId;
     }
-
     await db.update(quotes).set(updateData).where(eq(quotes.id, id));
-
     await db.insert(jobUpdates).values({
       quoteId: id,
       statusChange: status,
@@ -140,7 +136,6 @@ export class DatabaseStorage implements IStorage {
       gpsLng: updateRecord?.gpsLng,
       actorId: updateRecord?.actorId,
     });
-
     return await this.fetchQuoteDetails(id);
   }
 
@@ -149,42 +144,142 @@ export class DatabaseStorage implements IStorage {
     const now = new Date();
 
     if (paymentType === 'deposit') {
-      updateData.depositAmount = amount;
       updateData.depositPaidAt = now;
       updateData.paymentStatus = 'deposit_paid';
+      updateData.status = 'deposit_paid';
     } else {
-      updateData.finalAmount = amount;
       updateData.finalPaidAt = now;
       updateData.paymentStatus = 'paid_in_full';
+      updateData.status = 'final_paid';
     }
 
     await db.update(quotes).set(updateData).where(eq(quotes.id, id));
+    await db.insert(jobUpdates).values({
+      quoteId: id,
+      statusChange: paymentType === 'deposit' ? 'deposit_paid' : 'final_paid',
+      actorType: 'customer',
+      note: `${paymentType === 'deposit' ? 'Deposit' : 'Final'} payment of $${amount} received`
+    });
+
+    // Auto-close if final payment received and job was completed
+    if (paymentType === 'final') {
+      const quote = await this.fetchQuoteDetails(id);
+      if (quote) {
+        // Auto-close
+        await db.update(quotes).set({ status: 'closed' }).where(eq(quotes.id, id));
+        await db.insert(jobUpdates).values({
+          quoteId: id,
+          statusChange: 'closed',
+          actorType: 'system',
+          note: 'Case automatically closed after final payment received'
+        });
+      }
+    }
+
+    return await this.fetchQuoteDetails(id);
+  }
+
+  async requestBooking(id: number, scheduledAt: Date, timeWindow: string) {
+    await db.update(quotes).set({
+      scheduledAt,
+      timeWindow,
+      status: 'booking_requested',
+      bookingRequestedAt: new Date(),
+    }).where(eq(quotes.id, id));
 
     await db.insert(jobUpdates).values({
       quoteId: id,
-      statusChange: `payment_${paymentType}_received`,
+      statusChange: 'booking_requested',
       actorType: 'customer',
-      note: `${paymentType === 'deposit' ? 'Deposit' : 'Final'} payment of $${amount} received`
+      note: `Customer requested booking for ${scheduledAt.toDateString()} ${timeWindow}`
     });
 
     return await this.fetchQuoteDetails(id);
   }
 
-  async updateQuoteBooking(id: number, scheduledAt: Date, timeWindow: string) {
+  async confirmBooking(id: number) {
+    await db.update(quotes).set({ status: 'booked' }).where(eq(quotes.id, id));
+    await db.insert(jobUpdates).values({
+      quoteId: id,
+      statusChange: 'booked',
+      actorType: 'admin',
+      note: 'Booking confirmed by admin'
+    });
+    return await this.fetchQuoteDetails(id);
+  }
+
+  async rescheduleBooking(id: number, scheduledAt: Date, timeWindow: string) {
+    const [quote] = await db.select().from(quotes).where(eq(quotes.id, id));
+    if (!quote) return undefined;
+
+    const newCount = (quote.rescheduledCount || 0) + 1;
     await db.update(quotes).set({
       scheduledAt,
       timeWindow,
-      status: 'booked'
+      status: 'booking_requested', // Goes back to pending admin confirm
+      bookingRequestedAt: new Date(),
+      rescheduledCount: newCount,
     }).where(eq(quotes.id, id));
 
     await db.insert(jobUpdates).values({
       quoteId: id,
-      statusChange: 'booked',
+      statusChange: 'booking_requested',
       actorType: 'customer',
-      note: `Booking confirmed for ${scheduledAt.toDateString()} ${timeWindow}`
+      note: `Customer requested reschedule to ${scheduledAt.toDateString()} ${timeWindow} (reschedule #${newCount})`
     });
 
     return await this.fetchQuoteDetails(id);
+  }
+
+  async editQuote(id: number, data: {
+    customerUpdates?: Partial<typeof customers.$inferInsert>;
+    quoteUpdates?: Partial<typeof quotes.$inferInsert>;
+    items?: Omit<InsertQuoteItem, 'quoteId'>[];
+  }) {
+    const quote = await this.fetchQuoteDetails(id);
+    if (!quote) return undefined;
+
+    if (data.customerUpdates && quote.customerId) {
+      await db.update(customers).set(data.customerUpdates).where(eq(customers.id, quote.customerId));
+    }
+
+    if (data.quoteUpdates) {
+      await db.update(quotes).set(data.quoteUpdates).where(eq(quotes.id, id));
+    }
+
+    if (data.items !== undefined) {
+      // Replace all items
+      await db.delete(quoteItems).where(eq(quoteItems.quoteId, id));
+      if (data.items.length > 0) {
+        await db.insert(quoteItems).values(data.items.map(item => ({ ...item, quoteId: id })));
+      }
+      // Recalculate totals
+      const subtotal = data.items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+      const existingQuote = await db.select().from(quotes).where(eq(quotes.id, id));
+      const transportFee = Number(existingQuote[0]?.transportFee || 0);
+      const total = subtotal + transportFee;
+      const depositAmount = (total * 0.30).toFixed(2);
+      const finalAmount = (total * 0.70).toFixed(2);
+      await db.update(quotes).set({
+        subtotal: subtotal.toFixed(2),
+        total: total.toFixed(2),
+        depositAmount,
+        finalAmount,
+      }).where(eq(quotes.id, id));
+    }
+
+    await db.insert(jobUpdates).values({
+      quoteId: id,
+      statusChange: 'edited',
+      actorType: 'admin',
+      note: 'Quote edited by admin'
+    });
+
+    return await this.fetchQuoteDetails(id);
+  }
+
+  async addJobUpdate(update: InsertJobUpdate) {
+    await db.insert(jobUpdates).values(update);
   }
 }
 

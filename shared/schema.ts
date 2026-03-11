@@ -34,22 +34,24 @@ export const catalogItems = pgTable("catalog_items", {
 });
 
 // Quotes / Jobs
+// Status machine:
+// submitted → deposit_requested → deposit_paid → booking_requested → booked → assigned → in_progress → completed → final_payment_requested → final_paid → closed
+// Also: cancelled (any time)
 export const quotes = pgTable("quotes", {
   id: serial("id").primaryKey(),
   referenceNo: text("reference_no").notNull().unique(),
   customerId: integer("customer_id").references(() => customers.id),
   serviceAddress: text("service_address").notNull(),
-  status: text("status").notNull().default("submitted"), 
-  // submitted, under_review, approved, deposit_requested, deposit_paid, booking_pending, booked, assigned, in_progress, completed, final_payment_requested, closed, cancelled
-  
+  status: text("status").notNull().default("submitted"),
+
   subtotal: numeric("subtotal").default("0"),
   discount: numeric("discount").default("0"),
   transportFee: numeric("transport_fee").default("0"),
   total: numeric("total").default("0"),
-  
+
   aiConfidenceScore: integer("ai_confidence_score"),
   requiresManualReview: boolean("requires_manual_review").default(true),
-  
+
   // Relocation-specific fields
   pickupAddress: text("pickup_address"),
   dropoffAddress: text("dropoff_address"),
@@ -60,13 +62,19 @@ export const quotes = pgTable("quotes", {
   assignedStaffId: integer("assigned_staff_id").references(() => users.id),
   scheduledAt: timestamp("scheduled_at"),
   timeWindow: text("time_window"), // e.g. "09:00-12:00"
-  
+
+  // Booking tracking
+  bookingRequestedAt: timestamp("booking_requested_at"), // when customer submitted request
+  rescheduledCount: integer("rescheduled_count").default(0), // # of times rescheduled (max 1 free)
+
   depositAmount: numeric("deposit_amount").default("0"),
   depositPaidAt: timestamp("deposit_paid_at"),
   finalAmount: numeric("final_amount").default("0"),
   finalPaidAt: timestamp("final_paid_at"),
   paymentStatus: text("payment_status").default("unpaid"), // unpaid, deposit_pending, deposit_paid, final_pending, paid_in_full
-  
+
+  notes: text("notes"), // admin internal notes
+
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -89,9 +97,9 @@ export const jobUpdates = pgTable("job_updates", {
   quoteId: integer("quote_id").references(() => quotes.id).notNull(),
   statusChange: text("status_change").notNull(),
   actorType: text("actor_type").notNull(), // 'system', 'admin', 'staff', 'customer'
-  actorId: integer("actor_id"), 
+  actorId: integer("actor_id"),
   note: text("note"),
-  photoUrl: text("photo_url"),
+  photoUrl: text("photo_url"), // JSON array of URLs for multiple photos
   gpsLat: numeric("gps_lat"),
   gpsLng: numeric("gps_lng"),
   createdAt: timestamp("created_at").defaultNow(),

@@ -71,8 +71,8 @@ export default function Login() {
 
         <div className="mt-6 text-center text-xs text-muted-foreground">
           Demo Accounts: <br/>
-          Admin: <code className="bg-secondary px-1 rounded">admin</code> / <code className="bg-secondary px-1 rounded">password</code><br/>
-          Staff: <code className="bg-secondary px-1 rounded">staff1</code> / <code className="bg-secondary px-1 rounded">password</code>
+          Admin: <code className="bg-secondary px-1 rounded">admin</code> / <code className="bg-secondary px-1 rounded">password123</code><br/>
+          Staff: <code className="bg-secondary px-1 rounded">staff1</code> / <code className="bg-secondary px-1 rounded">password123</code>
         </div>
       </div>
     </div>

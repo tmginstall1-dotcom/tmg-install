@@ -29,8 +29,9 @@ export function useAuth() {
       }
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.auth.me.path] });
+    onSuccess: (user) => {
+      // Directly set the user in the cache to avoid re-fetching the mock /me endpoint
+      queryClient.setQueryData([api.auth.me.path], user);
     },
   });
 

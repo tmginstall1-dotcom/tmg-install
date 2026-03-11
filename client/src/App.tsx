@@ -15,17 +15,17 @@ import EstimateWizard from "@/pages/customer/Estimate";
 import Login from "@/pages/admin/Login";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminQuoteDetail from "@/pages/admin/QuoteDetail";
+import AdminSchedule from "@/pages/admin/Schedule";
 import StaffDashboard from "@/pages/staff/Dashboard";
 import StaffJobDetail from "@/pages/staff/JobDetail";
 
 import { useAuth } from "@/hooks/use-auth";
 
-// Simple guard components
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
   if (!user || user.role !== 'admin') {
     setLocation('/admin/login');
     return null;
@@ -37,7 +37,7 @@ function StaffRoute({ component: Component }: { component: React.ComponentType }
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
   if (!user) {
     setLocation('/admin/login');
     return null;
@@ -62,6 +62,9 @@ function Router() {
         {/* Admin Routes */}
         <Route path="/admin">
           {() => <AdminRoute component={AdminDashboard} />}
+        </Route>
+        <Route path="/admin/schedule">
+          {() => <AdminRoute component={AdminSchedule} />}
         </Route>
         <Route path="/admin/quotes/:id">
           {() => <AdminRoute component={AdminQuoteDetail} />}

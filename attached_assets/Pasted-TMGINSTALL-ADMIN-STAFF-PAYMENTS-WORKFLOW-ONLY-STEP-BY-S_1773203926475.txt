@@ -1,0 +1,224 @@
+TMGINSTALL — ADMIN + STAFF + PAYMENTS (WORKFLOW ONLY, STEP-BY-STEP)
+
+SCOPE
+This is the operations workflow after a customer submits a quote. No backend/tech details, only steps and rules so Replit can build it correctly.
+
+========================================================
+1) ADMIN ONBOARDING (ONE TIME)
+========================================================
+1. Admin logs in to Admin Portal.
+2. Admin dashboard shows:
+   - New quotes (unprocessed)
+   - Quotes awaiting deposit request
+   - Jobs awaiting booking confirmation
+   - Upcoming confirmed bookings
+   - Jobs in progress / completed
+   - Jobs awaiting final payment / closed
+
+========================================================
+2) ADMIN — QUOTE INTAKE & REVIEW
+========================================================
+1. Admin opens “Quotes” list.
+2. Admin clicks a quote to open Quote Detail.
+3. Quote Detail MUST show:
+   - Quote Number
+   - Status
+   - Customer name, email, phone (with call/WhatsApp buttons)
+   - Service type(s): install / dismantle / relocate
+   - Address(es)
+   - Itemised item list (sku/name/qty) + pricing lines + totals
+   - Totals summary (grand total, deposit, final)
+4. Admin options:
+   A) Approve quote (optional step if you use approval)
+   B) Edit quote (before deposit):
+      - Edit customer details
+      - Edit services (install/dismantle/relocate)
+      - Edit address(es) (install/dismantle = 1 address; relocation = pickup+dropoff)
+      - Edit items (add/remove/change qty, replace sku)
+      - Recalculate totals
+      - Save changes
+
+RULES:
+- Editing is fully allowed before deposit is paid.
+- After deposit paid, editing is restricted (see section 6).
+
+========================================================
+3) ADMIN — REQUEST DEPOSIT (PAYMENT 1)
+========================================================
+1. Admin clicks “Request Deposit” on the quote.
+2. System generates a deposit payment link.
+3. System sends customer a “Deposit Requested” email containing:
+   - Quote number
+   - Full itemised breakdown
+   - All totals
+   - Address/service details
+   - Deposit amount
+   - Deposit payment link
+   - WhatsApp contact number
+4. Quote status becomes “Deposit Requested”.
+
+========================================================
+4) CUSTOMER — PAY DEPOSIT
+========================================================
+1. Customer clicks deposit link and pays.
+2. System updates quote status to “Deposit Paid”.
+3. System creates the job record for this quote (if not already).
+4. System sends customer an email:
+   - “Deposit Received — Booking Link”
+   - includes booking link
+   - includes rules: booking requires admin confirmation, one booking request, one free reschedule
+
+========================================================
+5) CUSTOMER — BOOKING REQUEST (ONE BOOKING ONLY)
+========================================================
+1. Customer opens booking link.
+2. Booking page displays:
+   - Quote number
+   - Address
+   - Service summary
+3. Customer selects a date/time slot and submits a booking request.
+4. System records booking request as “Pending Admin Confirmation”.
+
+BOOKING RULES:
+- Customer can only request a booking once at a time:
+  - If there is already a pending booking request, block a second request.
+  - If there is already a confirmed booking, block a new request.
+- Customer can reschedule only once for free (see next section).
+- Booking is NOT confirmed until admin confirms.
+
+========================================================
+6) ADMIN — CONFIRM BOOKING (ADMIN MUST CONFIRM ALL)
+========================================================
+1. Admin goes to “Schedule Management”.
+2. Admin sees two sections:
+   A) Pending Confirmations
+      - booking requests waiting admin confirm
+   B) Confirmed Bookings
+      - already confirmed schedule
+3. Admin opens a pending request and clicks “Confirm Booking”.
+4. System:
+   - Creates/updates the official schedule record
+   - Changes quote/job status to “Booking Confirmed / Scheduled”
+   - Sends customer “Booking Confirmed” email with:
+     - Quote number
+     - Confirmed date/time
+     - Address
+     - WhatsApp contact number
+5. Pending request disappears from “Pending” and appears in “Confirmed”.
+
+IMPORTANT RULE:
+- Admin confirmation sends the ONE official confirmation email.
+- Customer only considers the booking final after this email.
+
+========================================================
+7) RESCHEDULE (ONLY 1 FREE RESCHEDULE)
+========================================================
+Customer may reschedule only if ALL are true:
+- Booking is confirmed
+- Job is not in progress or closed
+- Reschedule is requested at least 24 hours before the confirmed slot
+- Customer has not used the free reschedule yet (reschedule_count < 1)
+
+Reschedule workflow:
+1. Customer clicks “Reschedule” (from a secure link or booking page).
+2. Customer picks new slot and submits.
+3. System sets booking back to “Pending Admin Confirmation” and increments reschedule_count.
+4. Admin sees it in “Pending Confirmations” again.
+5. Admin confirms → system sends customer updated booking confirmation email.
+
+If reschedule is within 24 hours:
+- Block self-serve reschedule and show:
+  “Please contact admin/WhatsApp to reschedule.”
+
+========================================================
+8) STAFF — JOB ACCESS RULE
+========================================================
+Staff can only see jobs when deposit has been paid:
+- Deposit Paid or later statuses: booking requested, booking confirmed, in progress, completed, final requested, final paid, closed.
+
+Staff portal must show:
+- Quote number
+- Customer name/phone
+- Address
+- Confirmed booking time (if confirmed)
+- Call / WhatsApp buttons
+
+========================================================
+9) STAFF — ARRIVED CHECK-IN (GPS + PHOTOS)
+========================================================
+1. Staff opens job detail.
+2. Staff clicks “Arrived”.
+3. System must require:
+   - GPS location capture
+   - Upload arrived photo(s)
+4. System records an update: “Arrived” with timestamp, GPS, photos.
+5. Job status becomes “In Progress” (or “Arrived” if you separate statuses).
+
+========================================================
+10) STAFF — COMPLETED CHECK-OUT (GPS + PHOTOS)
+========================================================
+1. Staff clicks “Completed”.
+2. System must require:
+   - GPS location capture
+   - Upload completed photo(s)
+3. System records update: “Completed” with timestamp, GPS, photos.
+4. Job status becomes “Completed”.
+5. Admin is notified (optional).
+
+========================================================
+11) ADMIN — REQUEST FINAL PAYMENT (PAYMENT 2)
+========================================================
+Trigger condition:
+- Usually after job is marked Completed (or admin can trigger manually if needed).
+
+Workflow:
+1. Admin opens the job/quote and clicks “Request Final Payment”.
+2. System generates final payment link for the remaining balance.
+3. System emails customer “Final Payment Requested” including:
+   - Quote number
+   - Itemised breakdown + totals
+   - Remaining balance amount
+   - Final payment link
+   - WhatsApp contact
+
+Quote status becomes “Final Requested”.
+
+========================================================
+12) CUSTOMER — PAY FINAL
+========================================================
+1. Customer pays final payment link.
+2. System updates status to “Final Paid”.
+
+========================================================
+13) CASE CLOSE
+========================================================
+1. System automatically closes the case when:
+   - Job is Completed AND Final is Paid
+2. Quote/job status becomes “Closed”.
+3. System sends customer “Payment Received — Case Closed” email including:
+   - Quote number
+   - Payment confirmation summary
+   - Final totals
+   - Contact info for support
+
+Admin manual close (optional):
+- Admin can close case if needed, but should warn and record reason.
+
+========================================================
+14) EMAIL RULES (MUST ALWAYS APPLY)
+========================================================
+Every customer email MUST include:
+- Quote number
+- Customer details (name/phone/email)
+- Service type(s)
+- Address(es)
+- Itemised breakdown (items + qty + line totals)
+- Totals summary (grand total, deposit, final)
+- Current status
+- Requested vs confirmed slot (when relevant)
+- WhatsApp contact number + link
+
+Admin notification emails go to:
+- sales@tmginstall.com
+
+END
