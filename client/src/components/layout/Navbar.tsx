@@ -16,7 +16,7 @@ export function Navbar() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/">
-            <span className="font-heading text-[24px] leading-none tracking-tight text-black uppercase">
+            <span className="brand-title text-black">
               TMG Install
             </span>
           </Link>

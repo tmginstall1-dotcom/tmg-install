@@ -24,12 +24,12 @@ export default function Landing() {
             </div>
 
             {/* H1 */}
-            <h1 className="text-[56px] sm:text-[72px] lg:text-[88px] leading-none tracking-tight mb-6 text-black uppercase">
-              Furniture installation,<br className="hidden sm:block" /> made effortless.
+            <h1 className="hero-title mb-6 text-black">
+              Furniture installation, made effortless.
             </h1>
 
             {/* Subtext */}
-            <p className="text-lg text-gray-600 mb-8 leading-relaxed max-w-2xl font-body">
+            <p className="text-base sm:text-lg text-gray-600 mb-8 leading-relaxed max-w-2xl font-body" style={{ lineHeight: 1.55 }}>
               Just tell us what you need built, moved, or dismantled. Our AI instantly understands your items and generates a precise quote in seconds.
             </p>
 
@@ -91,7 +91,7 @@ export default function Landing() {
       {/* How It Works */}
       <section className="px-4 sm:px-6 lg:px-8 py-24">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-[52px] lg:text-[68px] leading-none tracking-tight text-black mb-16 text-center uppercase">How it works</h2>
+          <h2 className="section-title text-black mb-16 text-center">How it works</h2>
           
           <div className="grid md:grid-cols-3 gap-8">
             {/* Step 1 */}
@@ -102,8 +102,8 @@ export default function Landing() {
               className="border border-gray-200 rounded-lg p-8 bg-white"
             >
               <div className="w-12 h-12 rounded-lg bg-black text-white flex items-center justify-center font-bold text-lg mb-4 font-body">1</div>
-              <h3 className="text-[28px] leading-none tracking-tight text-black mb-3 uppercase">Select Service</h3>
-              <p className="text-gray-600 font-body">Choose whether you need furniture installed, dismantled, or relocated.</p>
+              <h3 className="card-title text-black mb-3">Select Service</h3>
+              <p className="text-gray-600 font-body text-sm leading-relaxed">Choose whether you need furniture installed, dismantled, or relocated.</p>
             </motion.div>
 
             {/* Step 2 */}
@@ -114,8 +114,8 @@ export default function Landing() {
               className="border border-gray-200 rounded-lg p-8 bg-white"
             >
               <div className="w-12 h-12 rounded-lg bg-black text-white flex items-center justify-center font-bold text-lg mb-4 font-body">2</div>
-              <h3 className="text-[28px] leading-none tracking-tight text-black mb-3 uppercase">Add Address</h3>
-              <p className="text-gray-600 font-body">Tell us where the work needs to be done and confirm your location.</p>
+              <h3 className="card-title text-black mb-3">Add Address</h3>
+              <p className="text-gray-600 font-body text-sm leading-relaxed">Tell us where the work needs to be done and confirm your location.</p>
             </motion.div>
 
             {/* Step 3 */}
@@ -126,8 +126,8 @@ export default function Landing() {
               className="border border-gray-200 rounded-lg p-8 bg-white"
             >
               <div className="w-12 h-12 rounded-lg bg-black text-white flex items-center justify-center font-bold text-lg mb-4 font-body">3</div>
-              <h3 className="text-[28px] leading-none tracking-tight text-black mb-3 uppercase">Item List & Quote</h3>
-              <p className="text-gray-600 font-body">Describe your items and our AI generates an instant, transparent quote.</p>
+              <h3 className="card-title text-black mb-3">Item List & Quote</h3>
+              <p className="text-gray-600 font-body text-sm leading-relaxed">Describe your items and our AI generates an instant, transparent quote.</p>
             </motion.div>
           </div>
         </div>

@@ -1,15 +1,30 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Outfit:wght@100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&family=Oswald:wght@400;500;600;700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* TStar local font — graceful fallback if files are missing */
+@font-face {
+  font-family: "TStar";
+  src: url("/fonts/TStar-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "TStar";
+  src: url("/fonts/TStar-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
-    --font-heading: 'Bebas Neue', system-ui, sans-serif;
-    --font-body: 'Inter', system-ui, -apple-system, sans-serif;
-    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-    --font-display: 'Bebas Neue', system-ui, sans-serif;
+    --font-heading: "TStar", "Teko", "Oswald", "Arial Narrow", sans-serif;
+    --font-body: "Inter", system-ui, -apple-system, sans-serif;
+    --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
     /* Monochrome palette */
     --background: 0 0% 100%;
@@ -64,16 +79,17 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-body);
-    background-image: none;
   }
 
+  /* Heading font — applied globally, no forced uppercase */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
-    letter-spacing: -0.02em;
-    line-height: 1.0;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+    font-weight: 700;
   }
 
-  button, input, textarea, select, label {
+  button, input, textarea, select, label, nav {
     font-family: var(--font-body);
   }
 }
@@ -83,14 +99,55 @@
     text-wrap: balance;
   }
 
+  /* Hero H1 — largest, uppercase allowed */
+  .hero-title {
+    font-family: var(--font-heading);
+    font-size: clamp(44px, 5.2vw, 68px);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  /* Section headings H2 */
+  .section-title {
+    font-family: var(--font-heading);
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+  }
+
+  /* Step card subheads H3 */
+  .card-title {
+    font-family: var(--font-heading);
+    font-size: clamp(20px, 2vw, 26px);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+  }
+
+  /* Brand nav title */
+  .brand-title {
+    font-family: var(--font-heading);
+    font-size: clamp(18px, 1.8vw, 24px);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+  }
+
   .btn-primary-gradient {
     @apply bg-black text-white hover:bg-gray-900 transition-colors;
     font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
   }
 
   .btn-secondary-gradient {
     @apply bg-gray-100 text-black hover:bg-gray-200 transition-colors;
     font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
   }
 
   .glass-card {
@@ -103,7 +160,9 @@
 
   .font-heading {
     font-family: var(--font-heading) !important;
-    letter-spacing: -0.02em;
-    line-height: 1.0;
+  }
+
+  .font-body {
+    font-family: var(--font-body) !important;
   }
 }
