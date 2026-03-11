@@ -10,29 +10,48 @@ export function Navbar() {
   const isStaffArea = location.startsWith("/staff");
   const isCustomerArea = !isAdminArea && !isStaffArea;
 
-  // Public customer-facing navbar (landing, estimate, quotes)
-  if (isCustomerArea && !user) {
+  // Public customer-facing navbar — always clean, no user state exposed
+  if (isCustomerArea) {
     return (
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           <Link href="/">
-            <span className="brand-title text-black">
-              TMG Install
+            <span
+              className="font-display font-bold text-foreground"
+              style={{
+                fontSize: "clamp(14px, 2.5vw, 17px)",
+                letterSpacing: "-0.03em",
+                lineHeight: 1,
+                textTransform: "uppercase",
+              }}
+            >
+              TMG INSTALL
             </span>
           </Link>
-          <Link
-            href="/estimate"
-            data-testid="nav-get-estimate"
-            className="px-5 py-2.5 rounded-lg text-sm font-bold bg-black text-white hover:bg-gray-900 transition-colors"
-          >
-            Get Estimate
-          </Link>
+          <div className="flex items-center gap-3">
+            <a
+              href="https://wa.me/6500000000"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="nav-whatsapp"
+              className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              WhatsApp Us
+            </a>
+            <Link
+              href="/estimate"
+              data-testid="nav-get-estimate"
+              className="px-5 py-2 rounded-lg text-sm font-bold bg-black text-white hover:bg-gray-900 transition-colors"
+            >
+              Get Estimate
+            </Link>
+          </div>
         </div>
       </nav>
     );
   }
 
-  // Admin / Staff navbar (logged-in users)
+  // Admin / Staff navbar (logged-in users only)
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass-card border-b border-white/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -48,18 +67,27 @@ export function Navbar() {
         {user && (
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground hidden sm:flex">
-              {user.role === 'admin' && (
-                <Link href="/admin" className={`hover:text-primary transition-colors ${location === '/admin' ? 'text-primary' : ''}`}>
+              {user.role === "admin" && (
+                <Link
+                  href="/admin"
+                  className={`hover:text-primary transition-colors ${location === "/admin" ? "text-primary" : ""}`}
+                >
                   Dashboard
                 </Link>
               )}
-              {user.role === 'admin' && (
-                <Link href="/admin/schedule" className={`hover:text-primary transition-colors ${location === '/admin/schedule' ? 'text-primary' : ''}`}>
+              {user.role === "admin" && (
+                <Link
+                  href="/admin/schedule"
+                  className={`hover:text-primary transition-colors ${location === "/admin/schedule" ? "text-primary" : ""}`}
+                >
                   Schedule
                 </Link>
               )}
-              {user.role === 'staff' && (
-                <Link href="/staff" className={`hover:text-primary transition-colors ${location === '/staff' ? 'text-primary' : ''}`}>
+              {user.role === "staff" && (
+                <Link
+                  href="/staff"
+                  className={`hover:text-primary transition-colors ${location === "/staff" ? "text-primary" : ""}`}
+                >
                   My Jobs
                 </Link>
               )}

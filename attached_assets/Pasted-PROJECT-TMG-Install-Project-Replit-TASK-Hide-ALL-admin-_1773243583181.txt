@@ -1,0 +1,49 @@
+PROJECT: TMG Install Project (Replit)
+
+TASK: Hide ALL admin/staff entry points from the PUBLIC customer pages (landing + estimate/quote flow), and make the header brand “TMG INSTALL” text-only, all caps, same sizing, clean Yeezy typography.
+
+STRICT SCOPE (PUBLIC UI ONLY):
+- Only modify the PUBLIC header/navigation used by customer pages.
+- Do NOT change any backend/DB/Edge Functions/auth logic.
+- Do NOT change admin/staff pages themselves.
+- Do NOT remove routes; just remove links/entry points from the public UI.
+- For every file edited: output FULL-FILE REPLACEMENT.
+
+REQUIREMENTS:
+1) Remove admin/staff related links from PUBLIC header/nav:
+   - Remove any links/buttons like: “My Jobs”, “Admin”, “Staff”, “Login”, profile avatar/initial (e.g. “J”), or any dashboard shortcuts shown on public pages.
+   - Public header must show ONLY:
+     a) Brand text “TMG INSTALL” (left)
+     b) Primary CTA button “Get a Guided Estimate” (right) (optional but preferred)
+     c) Secondary “WhatsApp Us” button (optional)
+   - No other navigation items.
+
+2) Keep admin/staff access possible but not visible:
+   - Admin/staff routes remain accessible by typing URL manually.
+   - Do NOT add new security logic here; this is UI-only removal.
+
+3) Header brand styling:
+   - Replace any logo icon with TEXT ONLY.
+   - Brand text must be:
+     - “TMG INSTALL”
+     - ALL CAPS
+     - same sizing for both words (no mixed weights that change height)
+     - tight letter spacing, premium Yeezy look
+   - Use heading font (TStar / fallback already configured). If not configured, use the current heading font in project.
+   - Suggested style:
+     - font-weight: 700
+     - letter-spacing: -0.02em to -0.04em
+     - font-size: 16–18px on desktop, 14–16px on mobile
+     - line-height: 1
+   - Remove any extra padding/height so header is slim and clean.
+
+IMPLEMENTATION STEPS (DO):
+A) Locate the PUBLIC layout/header component used by landing + estimate pages.
+   - Typical files: src/components/Header.tsx, src/components/Nav.tsx, src/layouts/PublicLayout.tsx, src/App.tsx, src/routes/*, etc.
+B) Edit ONLY the public header component so it does not read session/user role or render user menu on public pages.
+   - If public header currently detects logged-in user and shows “My Jobs” or avatar, remove that behavior from PUBLIC header only.
+C) Ensure admin/staff layout header remains unchanged.
+
+DELIVERABLE:
+- Full-file replacements for the exact files changed.
+- After changes: on public landing/estimate pages, there is NO “My Jobs”, NO avatar, NO admin/staff links — only “TMG INSTALL” brand + CTAs.
