@@ -86,6 +86,9 @@ export default {
         sans: ["var(--font-sans)"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
+        heading: ['"Bebas Neue"', "system-ui", "sans-serif"],
+        body: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        display: ['"Bebas Neue"', "system-ui", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {

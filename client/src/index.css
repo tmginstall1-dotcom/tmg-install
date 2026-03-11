@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Outfit:wght@100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,46 +6,34 @@
 
 @layer base {
   :root {
-    --font-sans: 'Plus Jakarta Sans', sans-serif;
-    --font-display: 'Outfit', sans-serif;
+    --font-heading: 'Bebas Neue', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-display: 'Bebas Neue', system-ui, sans-serif;
 
     /* Monochrome palette */
     --background: 0 0% 100%;
     --foreground: 0 0% 5%;
-    
-    /* Black primary */
     --primary: 0 0% 0%;
     --primary-foreground: 0 0% 100%;
-    
-    /* Gray accent */
     --accent: 0 0% 20%;
     --accent-foreground: 0 0% 100%;
-
-    /* Crisp White cards */
     --card: 0 0% 100%;
     --card-foreground: 0 0% 5%;
     --card-border: 0 0% 90%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 5%;
     --popover-border: 0 0% 90%;
-
     --secondary: 0 0% 95%;
     --secondary-foreground: 0 0% 20%;
-
     --muted: 0 0% 95%;
     --muted-foreground: 0 0% 45%;
-
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-
     --border: 0 0% 90%;
     --input: 0 0% 90%;
     --ring: 0 0% 0%;
-
     --radius: 0.875rem;
-    
-    /* Status Colors */
     --status-success: 142 71% 45%;
     --status-warning: 38 92% 50%;
     --status-info: 217 91% 60%;
@@ -54,27 +42,20 @@
   .dark {
     --background: 0 0% 5%;
     --foreground: 0 0% 100%;
-    
     --primary: 0 0% 100%;
     --primary-foreground: 0 0% 0%;
-    
     --accent: 0 0% 80%;
     --accent-foreground: 0 0% 0%;
-
     --card: 0 0% 10%;
     --card-foreground: 0 0% 100%;
     --card-border: 0 0% 20%;
-
     --popover: 0 0% 10%;
     --popover-foreground: 0 0% 100%;
     --popover-border: 0 0% 20%;
-
     --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 100%;
-
     --muted: 0 0% 15%;
     --muted-foreground: 0 0% 65%;
-
     --border: 0 0% 20%;
     --input: 0 0% 20%;
     --ring: 0 0% 100%;
@@ -82,14 +63,18 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: var(--font-sans);
+    font-family: var(--font-body);
     background-image: none;
-    background-attachment: fixed;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
-    @apply tracking-tight;
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+    line-height: 1.0;
+  }
+
+  button, input, textarea, select, label {
+    font-family: var(--font-body);
   }
 }
 
@@ -100,10 +85,12 @@
 
   .btn-primary-gradient {
     @apply bg-black text-white hover:bg-gray-900 transition-colors;
+    font-family: var(--font-body);
   }
 
   .btn-secondary-gradient {
     @apply bg-gray-100 text-black hover:bg-gray-200 transition-colors;
+    font-family: var(--font-body);
   }
 
   .glass-card {
@@ -114,10 +101,9 @@
     @apply text-black;
   }
 
-  @supports (backdrop-filter: blur(1px)) {
-    .glass-card {
-      background-color: rgba(255, 255, 255, 0.8);
-      backdrop-filter: blur(8px);
-    }
+  .font-heading {
+    font-family: var(--font-heading) !important;
+    letter-spacing: -0.02em;
+    line-height: 1.0;
   }
 }

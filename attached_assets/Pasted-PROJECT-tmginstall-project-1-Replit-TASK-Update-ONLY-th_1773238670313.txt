@@ -1,0 +1,61 @@
+PROJECT: tmginstall project 1 (Replit)
+
+TASK: Update ONLY the PUBLIC SITE TYPOGRAPHY so the landing page headers + UI use “Yeezy-style” fonts (bold condensed headline + clean minimal body). Must apply consistently across:
+- Landing page (home)
+- Estimate flow pages (public quote wizard)
+Do NOT change admin/staff pages unless they share the same public layout/fonts automatically.
+
+STRICT SCOPE (NO DRIFT):
+- Typography + CSS/theme only.
+- Do NOT change routes, components structure, logic, Supabase, Stripe, Edge Functions, booking flow behavior.
+- Do NOT change colors beyond what’s required to make fonts look correct.
+- For every file you edit, output FULL-FILE REPLACEMENT only.
+
+FONT REQUIREMENTS (MUST DO):
+1) Headline font (“Yeezy headline”):
+   - Use a bold condensed sans-serif: "Bebas Neue" (Google Font) as primary for ALL H1/H2/H3 and hero headline.
+   - Apply letter spacing slightly tight (tracking: -0.02em to -0.04em) and strong weight.
+   - Headline line-height compact (0.95–1.05).
+
+2) Body/UI font (“Yeezy clean UI”):
+   - Use "Inter" (Google Font) for body text, buttons, inputs, labels.
+   - Body line-height comfortable (1.4–1.6).
+
+3) Global application:
+   - Define CSS variables:
+     --font-heading: 'Bebas Neue', system-ui, sans-serif;
+     --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+   - Apply:
+     body -> var(--font-body)
+     h1,h2,h3, .hero-title, .display-title -> var(--font-heading)
+   - Buttons, inputs, nav -> var(--font-body)
+
+4) Tailwind setup (if Tailwind is used):
+   - Add fonts to tailwind config:
+     fontFamily: { heading: ['"Bebas Neue"', 'sans-serif'], body: ['Inter', 'system-ui', 'sans-serif'] }
+   - Update classes so hero headline uses font-heading, body uses font-body.
+
+5) React Helmet / index.html:
+   - Ensure BOTH fonts are loaded correctly (no missing font fallback):
+     - Either add <link rel="preconnect" ...> + Google Fonts stylesheet in index.html
+       OR import in global CSS:
+       @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap');
+   - Must work in production build, not dev-only.
+
+VISUAL TUNING (IMPORTANT):
+- Make the hero headline look like “Yeezy poster”:
+  - H1 size: 68–84px desktop, 44–56px mobile
+  - Reduce letter spacing slightly (negative tracking)
+  - Keep monochrome (no colored emphasis)
+- Navigation brand text “TMG Install” also uses heading font but smaller (22–26px).
+- Section titles (How it works, etc.) use heading font.
+- Keep the existing minimal monochrome layout.
+
+ACCEPTANCE CHECK:
+- When refreshing the page, hero headline clearly switches to a condensed “Bebas Neue” look.
+- Body copy and form labels/inputs are clean Inter.
+- No purple/gradient colors reintroduced.
+- No functionality changes.
+
+DELIVERABLE:
+- Full-file replacements for the exact files changed (likely: index.html OR global.css AND tailwind.config if present).

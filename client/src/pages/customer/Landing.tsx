@@ -24,12 +24,12 @@ export default function Landing() {
             </div>
 
             {/* H1 */}
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-black leading-tight mb-6 text-black">
-              Furniture installation, made effortless.
+            <h1 className="text-[56px] sm:text-[72px] lg:text-[88px] leading-none tracking-tight mb-6 text-black uppercase">
+              Furniture installation,<br className="hidden sm:block" /> made effortless.
             </h1>
 
             {/* Subtext */}
-            <p className="text-lg text-gray-600 mb-8 leading-relaxed max-w-2xl">
+            <p className="text-lg text-gray-600 mb-8 leading-relaxed max-w-2xl font-body">
               Just tell us what you need built, moved, or dismantled. Our AI instantly understands your items and generates a precise quote in seconds.
             </p>
 
@@ -91,7 +91,7 @@ export default function Landing() {
       {/* How It Works */}
       <section className="px-4 sm:px-6 lg:px-8 py-24">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-4xl lg:text-5xl font-bold text-black mb-16 text-center">How it works</h2>
+          <h2 className="text-[52px] lg:text-[68px] leading-none tracking-tight text-black mb-16 text-center uppercase">How it works</h2>
           
           <div className="grid md:grid-cols-3 gap-8">
             {/* Step 1 */}
@@ -101,9 +101,9 @@ export default function Landing() {
               transition={{ duration: 0.5 }}
               className="border border-gray-200 rounded-lg p-8 bg-white"
             >
-              <div className="w-12 h-12 rounded-lg bg-black text-white flex items-center justify-center font-bold text-lg mb-4">1</div>
-              <h3 className="text-lg font-bold text-black mb-3">Select Service</h3>
-              <p className="text-gray-600">Choose whether you need furniture installed, dismantled, or relocated.</p>
+              <div className="w-12 h-12 rounded-lg bg-black text-white flex items-center justify-center font-bold text-lg mb-4 font-body">1</div>
+              <h3 className="text-[28px] leading-none tracking-tight text-black mb-3 uppercase">Select Service</h3>
+              <p className="text-gray-600 font-body">Choose whether you need furniture installed, dismantled, or relocated.</p>
             </motion.div>
 
             {/* Step 2 */}
@@ -113,9 +113,9 @@ export default function Landing() {
               transition={{ duration: 0.5, delay: 0.1 }}
               className="border border-gray-200 rounded-lg p-8 bg-white"
             >
-              <div className="w-12 h-12 rounded-lg bg-black text-white flex items-center justify-center font-bold text-lg mb-4">2</div>
-              <h3 className="text-lg font-bold text-black mb-3">Add Address</h3>
-              <p className="text-gray-600">Tell us where the work needs to be done and confirm your location.</p>
+              <div className="w-12 h-12 rounded-lg bg-black text-white flex items-center justify-center font-bold text-lg mb-4 font-body">2</div>
+              <h3 className="text-[28px] leading-none tracking-tight text-black mb-3 uppercase">Add Address</h3>
+              <p className="text-gray-600 font-body">Tell us where the work needs to be done and confirm your location.</p>
             </motion.div>
 
             {/* Step 3 */}
@@ -125,9 +125,9 @@ export default function Landing() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="border border-gray-200 rounded-lg p-8 bg-white"
             >
-              <div className="w-12 h-12 rounded-lg bg-black text-white flex items-center justify-center font-bold text-lg mb-4">3</div>
-              <h3 className="text-lg font-bold text-black mb-3">Item List & Quote</h3>
-              <p className="text-gray-600">Describe your items and our AI generates an instant, transparent quote.</p>
+              <div className="w-12 h-12 rounded-lg bg-black text-white flex items-center justify-center font-bold text-lg mb-4 font-body">3</div>
+              <h3 className="text-[28px] leading-none tracking-tight text-black mb-3 uppercase">Item List & Quote</h3>
+              <p className="text-gray-600 font-body">Describe your items and our AI generates an instant, transparent quote.</p>
             </motion.div>
           </div>
         </div>
