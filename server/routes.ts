@@ -60,7 +60,74 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  
+
+  // -- Stripe Webhook (must be before any body-parsing middleware for this route) --
+  app.post("/api/webhooks/stripe", async (req, res) => {
+    const sig = req.headers["stripe-signature"] as string;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!stripe) {
+      return res.status(500).json({ message: "Stripe not configured" });
+    }
+
+    let event: Stripe.Event;
+
+    if (webhookSecret) {
+      try {
+        event = stripe.webhooks.constructEvent(req.rawBody as Buffer, sig, webhookSecret);
+      } catch (err: any) {
+        console.error("Stripe webhook signature verification failed:", err.message);
+        return res.status(400).json({ message: `Webhook error: ${err.message}` });
+      }
+    } else {
+      // No secret configured — accept without verification (dev only)
+      event = req.body as Stripe.Event;
+    }
+
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const { quoteId, type } = session.metadata || {};
+
+      if (!quoteId || !type) {
+        return res.status(200).json({ received: true });
+      }
+
+      const id = parseInt(quoteId);
+      const amountPaid = ((session.amount_total ?? 0) / 100).toFixed(2);
+
+      try {
+        const quote = await storage.updateQuotePayment(id, type as "deposit" | "final", amountPaid);
+
+        if (!quote || !quote.customer) {
+          return res.status(200).json({ received: true });
+        }
+
+        if (type === "deposit") {
+          const bookingLink = `${APP_URL}/quotes/${quote.id}`;
+          await sendEmail({
+            to: quote.customer.email,
+            subject: `[${quote.referenceNo}] Deposit Received — Book Your Appointment`,
+            html: depositReceivedEmail(quote, bookingLink),
+          });
+          console.log(`Stripe webhook: deposit paid for ${quote.referenceNo} (SGD ${amountPaid})`);
+        }
+
+        if (type === "final") {
+          await sendEmail({
+            to: quote.customer.email,
+            subject: `[${quote.referenceNo}] Payment Received — Case Closed`,
+            html: caseClosedEmail(quote),
+          });
+          console.log(`Stripe webhook: final payment for ${quote.referenceNo} (SGD ${amountPaid})`);
+        }
+      } catch (err) {
+        console.error("Stripe webhook: error processing payment:", err);
+      }
+    }
+
+    res.status(200).json({ received: true });
+  });
+
   // -- Auth Routes --
   app.post(api.auth.login.path, async (req, res) => {
     try {
