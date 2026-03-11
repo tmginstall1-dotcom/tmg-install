@@ -792,16 +792,61 @@ export async function registerRoutes(
     }
   });
 
-  // Wizard-based quote creation
+  // ── Route distance calculation (OneMap geocode → OSRM route) ──────────────
+  app.post(api.distance.calculate.path, async (req, res) => {
+    try {
+      const { pickupAddress, dropoffAddress, pickupLat, pickupLng, dropoffLat, dropoffLng } =
+        api.distance.calculate.input.parse(req.body);
+
+      // Geocode address to lat/lng using OneMap (if not already provided)
+      async function geocode(address: string, hint?: { lat?: number; lng?: number }) {
+        if (hint?.lat && hint?.lng) return { lat: hint.lat, lng: hint.lng };
+        const url = `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(address)}&returnGeom=Y&getAddrDetails=N&pageNum=1`;
+        const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        const data = await r.json();
+        const first = data?.results?.[0];
+        if (!first) return null;
+        return { lat: parseFloat(first.LATITUDE), lng: parseFloat(first.LONGITUDE) };
+      }
+
+      const [from, to] = await Promise.all([
+        geocode(pickupAddress, { lat: pickupLat, lng: pickupLng }),
+        geocode(dropoffAddress, { lat: dropoffLat, lng: dropoffLng }),
+      ]);
+
+      if (!from || !to) {
+        return res.json({ distanceKm: 0, routeFound: false, error: "Could not geocode one or both addresses" });
+      }
+
+      // Route distance via OSRM (free, no API key, covers Singapore)
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
+      const routeRes = await fetch(osrmUrl, { signal: AbortSignal.timeout(8000) });
+      const routeData = await routeRes.json();
+
+      if (routeData.code !== "Ok" || !routeData.routes?.[0]) {
+        return res.json({ distanceKm: 0, routeFound: false, error: "Route calculation failed" });
+      }
+
+      const distanceKm = Math.round((routeData.routes[0].distance / 1000) * 10) / 10;
+      return res.json({ distanceKm, routeFound: true });
+    } catch (err: any) {
+      console.error("Distance calculation error:", err);
+      return res.json({ distanceKm: 0, routeFound: false, error: "Distance service unavailable" });
+    }
+  });
+
+  // ── Wizard-based quote creation ────────────────────────────────────────────
   app.post(api.quotes.wizard.path, async (req, res) => {
     try {
       const input = api.quotes.wizard.input.parse(req.body);
-      const itemsSubtotal = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-      const subtotal = itemsSubtotal;
-      const transportFee = input.transportFee || 0;
-      const total = subtotal + transportFee;
-      const depositAmount = (total * 0.30).toFixed(2);
-      const finalAmount = (total * 0.70).toFixed(2);
+
+      // Labor subtotal from item prices
+      const laborSubtotal = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+      const discount = input.discount || 0;
+      const logisticsFee = input.logisticsFee || 0;
+      const grandTotal = laborSubtotal - discount + logisticsFee;
+      const depositAmount = (grandTotal * 0.50).toFixed(2);
+      const finalAmount = (grandTotal * 0.50).toFixed(2);
       const referenceNo = `TMG-${Date.now().toString(36).toUpperCase()}`;
 
       const allItems = [
@@ -835,14 +880,16 @@ export async function registerRoutes(
           accessDifficulty: input.accessDifficulty,
           floorsInfo: input.floorsInfo,
           selectedServices: JSON.stringify(input.selectedServices),
-          subtotal: subtotal.toFixed(2),
-          transportFee: transportFee.toFixed(2),
-          total: total.toFixed(2),
+          subtotal: laborSubtotal.toFixed(2),
+          discount: discount.toFixed(2),
+          transportFee: logisticsFee.toFixed(2),
+          total: grandTotal.toFixed(2),
           depositAmount,
           finalAmount,
           status: "submitted",
           requiresManualReview: false,
           aiConfidenceScore: 100,
+          distanceKm: input.distanceKm != null ? input.distanceKm.toFixed(1) : null,
           detectionPhotoUrl: input.detectedPhotoUrl || null,
         },
         allItems

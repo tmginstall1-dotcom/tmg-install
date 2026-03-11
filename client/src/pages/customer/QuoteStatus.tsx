@@ -355,7 +355,7 @@ export default function QuoteStatus() {
                   <span>{formatMoney(quote.total)}</span>
                 </div>
                 <div className="flex justify-between text-white/70 text-xs">
-                  <span>30% Deposit</span>
+                  <span>50% Deposit</span>
                   <span className={quote.depositPaidAt ? 'line-through' : ''}>{formatMoney(quote.depositAmount)}</span>
                 </div>
                 <div className="flex justify-between text-white/70 text-xs">

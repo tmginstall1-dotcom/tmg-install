@@ -269,6 +269,11 @@ export default function AdminQuoteDetail() {
                         <p className="font-medium">{quote.dropoffAddress}</p>
                       </div>
                     )}
+                    {quote.distanceKm && Number(quote.distanceKm) > 0 && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 text-xs font-bold text-blue-700">
+                        <MapPin className="w-3 h-3" /> Route: {Number(quote.distanceKm).toFixed(1)} km
+                      </div>
+                    )}
                     {quote.scheduledAt && (
                       <div className="mt-3 p-3 rounded-xl bg-secondary/50 border">
                         <p className="text-xs text-muted-foreground font-semibold">Scheduled Slot</p>
@@ -346,7 +351,7 @@ export default function AdminQuoteDetail() {
                       <p className="text-xs text-muted-foreground">Subtotal: <strong>${editSubtotal.toFixed(2)}</strong></p>
                       <p className="text-xs text-muted-foreground">Transport: <strong>${editTransport.toFixed(2)}</strong></p>
                       <p className="text-base font-black text-foreground mt-1">Total: ${editTotal.toFixed(2)}</p>
-                      <p className="text-xs text-emerald-600 font-semibold">30% Deposit: ${(editTotal * 0.3).toFixed(2)}</p>
+                      <p className="text-xs text-emerald-600 font-semibold">50% Deposit: ${(editTotal * 0.5).toFixed(2)}</p>
                     </div>
                   </div>
                   <div className="flex gap-3 pt-2">
@@ -378,11 +383,20 @@ export default function AdminQuoteDetail() {
                   </div>
                   <div className="flex justify-end">
                     <div className="w-64 space-y-2 text-sm">
-                      <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{formatMoney(quote.subtotal)}</span></div>
-                      <div className="flex justify-between text-muted-foreground"><span>Transport</span><span>{formatMoney(quote.transportFee)}</span></div>
+                      <div className="flex justify-between text-muted-foreground"><span>Labor subtotal</span><span>{formatMoney(quote.subtotal)}</span></div>
+                      {Number(quote.discount || 0) > 0 && (
+                        <div className="flex justify-between text-emerald-700 font-medium">
+                          <span>Bulk discount</span><span>−{formatMoney(quote.discount)}</span>
+                        </div>
+                      )}
+                      {Number(quote.transportFee || 0) > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Logistics fees</span><span>{formatMoney(quote.transportFee)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between font-bold text-lg pt-2 border-t"><span>Total</span><span>{formatMoney(quote.total)}</span></div>
-                      <div className="flex justify-between text-emerald-600 font-semibold text-xs"><span>30% Deposit</span><span>{formatMoney(quote.depositAmount)}</span></div>
-                      <div className="flex justify-between text-muted-foreground text-xs"><span>Balance (70%)</span><span>{formatMoney(quote.finalAmount)}</span></div>
+                      <div className="flex justify-between text-emerald-600 font-semibold text-xs"><span>50% Deposit</span><span>{formatMoney(quote.depositAmount)}</span></div>
+                      <div className="flex justify-between text-muted-foreground text-xs"><span>Balance (50%)</span><span>{formatMoney(quote.finalAmount)}</span></div>
                     </div>
                   </div>
                 </>
@@ -576,7 +590,7 @@ export default function AdminQuoteDetail() {
                   <span className="font-bold">{formatMoney(quote.total)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Deposit (30%)</span>
+                  <span className="text-muted-foreground">Deposit (50%)</span>
                   <span className={`font-semibold ${quote.depositPaidAt ? 'text-emerald-600' : ''}`}>
                     {quote.depositPaidAt ? '✓ ' : ''}{formatMoney(quote.depositAmount)}
                   </span>

@@ -115,10 +115,29 @@ export const api = {
           serviceType: z.enum(['install', 'dismantle', 'relocate']),
           quantity: z.number().min(1),
         })).optional(),
-        transportFee: z.number().min(0).optional(),
+        logisticsFee: z.number().min(0).optional(),   // total of transport + floor + access surcharges
+        discount: z.number().min(0).optional(),       // bulk discount amount
+        distanceKm: z.number().min(0).optional(),     // auto-computed route distance (relocation only)
         detectedPhotoUrl: z.string().optional(), // compressed thumbnail from AI photo scan
       }),
       responses: { 201: z.custom<QuoteResponse>(), 400: errorSchemas.validation }
+    }
+  },
+  distance: {
+    calculate: {
+      method: 'POST' as const,
+      path: '/api/distance' as const,
+      input: z.object({
+        pickupAddress: z.string().min(1),
+        dropoffAddress: z.string().min(1),
+        pickupLat: z.number().optional(),
+        pickupLng: z.number().optional(),
+        dropoffLat: z.number().optional(),
+        dropoffLng: z.number().optional(),
+      }),
+      responses: {
+        200: z.object({ distanceKm: z.number(), routeFound: z.boolean(), error: z.string().optional() }),
+      }
     }
   },
   staff: {

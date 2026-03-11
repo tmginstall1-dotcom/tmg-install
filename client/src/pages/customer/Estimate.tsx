@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Wrench, Scissors, Truck, MapPin, Search, Plus, Minus, Trash2, 
   ChevronRight, ChevronLeft, Check, ClipboardList, Camera, X, 
-  Loader2, AlertCircle, Star, Package, ArrowRight, Upload
+  Loader2, AlertCircle, Star, Package, ArrowRight, Navigation, Tag
 } from "lucide-react";
 import type { CatalogItem } from "@shared/schema";
+import { computePricing, type PricingCatalogEntry } from "@shared/pricing";
 
 type ServiceType = "install" | "dismantle" | "relocate";
 
@@ -40,20 +41,30 @@ function uid() {
 
 // ── Singapore Address Autocomplete ──────────────────────────────────────────
 
+interface AddressSuggestion {
+  address: string;
+  lat: number;
+  lng: number;
+}
+
 function useAddressSuggestions(query: string) {
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     if (!query || query.length < 3) { setSuggestions([]); return; }
     setLoading(true);
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(query)}&returnGeom=N&getAddrDetails=Y&pageNum=1`);
-        const data = await res.json();
-        const addresses = (data.results || []).slice(0, 6).map((r: any) =>
-          `${r.ADDRESS}${r.BUILDING && r.BUILDING !== "NIL" ? ", " + r.BUILDING : ""} Singapore ${r.POSTAL}`
+        const res = await fetch(
+          `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(query)}&returnGeom=Y&getAddrDetails=Y&pageNum=1`
         );
-        setSuggestions(addresses);
+        const data = await res.json();
+        const results = (data.results || []).slice(0, 6).map((r: any) => ({
+          address: `${r.ADDRESS}${r.BUILDING && r.BUILDING !== "NIL" ? ", " + r.BUILDING : ""} Singapore ${r.POSTAL}`,
+          lat: parseFloat(r.LATITUDE),
+          lng: parseFloat(r.LONGITUDE),
+        }));
+        setSuggestions(results);
       } catch { setSuggestions([]); }
       setLoading(false);
     }, 350);
@@ -62,8 +73,10 @@ function useAddressSuggestions(query: string) {
   return { suggestions, loading };
 }
 
-function AddressInput({ value, onChange, placeholder, label, required }: {
-  value: string; onChange: (v: string) => void; placeholder?: string; label: string; required?: boolean;
+function AddressInput({ value, onSelect, placeholder, label, required }: {
+  value: string;
+  onSelect: (address: string, lat?: number, lng?: number) => void;
+  placeholder?: string; label: string; required?: boolean;
 }) {
   const [show, setShow] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -81,7 +94,7 @@ function AddressInput({ value, onChange, placeholder, label, required }: {
         <input
           required={required}
           value={value}
-          onChange={e => { onChange(e.target.value); setShow(true); }}
+          onChange={e => { onSelect(e.target.value); setShow(true); }}
           onFocus={() => setShow(true)}
           placeholder={placeholder || "Start typing an address…"}
           data-testid={`input-address-${label.toLowerCase().replace(/\s+/g, "-")}`}
@@ -92,9 +105,9 @@ function AddressInput({ value, onChange, placeholder, label, required }: {
       {show && suggestions.length > 0 && (
         <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-card border rounded-xl shadow-xl overflow-hidden">
           {suggestions.map((s, i) => (
-            <button key={i} type="button" onMouseDown={() => { onChange(s); setShow(false); }}
+            <button key={i} type="button" onMouseDown={() => { onSelect(s.address, s.lat, s.lng); setShow(false); }}
               className="w-full text-left px-4 py-3 hover:bg-secondary text-sm border-b last:border-0 transition-colors"
-            >{s}</button>
+            >{s.address}</button>
           ))}
         </div>
       )}
@@ -137,7 +150,12 @@ export default function EstimateWizard() {
   // Step 2
   const [serviceAddress, setServiceAddress] = useState("");
   const [pickupAddress, setPickupAddress] = useState("");
+  const [pickupLatLng, setPickupLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [dropoffAddress, setDropoffAddress] = useState("");
+  const [dropoffLatLng, setDropoffLatLng] = useState<{ lat: number; lng: number } | null>(null);
+  const [distanceKm, setDistanceKm] = useState(0);
+  const [distanceLoading, setDistanceLoading] = useState(false);
+  const [distanceError, setDistanceError] = useState("");
   const [floors, setFloors] = useState<Floor[]>([{ level: "1", hasLift: true }]);
   const [accessDifficulty, setAccessDifficulty] = useState<"easy" | "medium" | "hard">("easy");
   // Step 3
@@ -180,25 +198,68 @@ export default function EstimateWizard() {
   const showCatalogResults = catalogFocused || catalogSearch.trim().length > 0;
 
 
-  // ── Pricing math ──────────────────────────────────────────────────────────
+  // ── Auto-calculate route distance when both relocation addresses are set ──
 
-  const calcTransportFee = useCallback(() => {
-    if (!isRelocation) return 0;
-    let fee = 80;
-    floors.forEach(f => {
-      const lvl = parseInt(f.level) || 1;
-      if (!f.hasLift && lvl > 1) fee += (lvl - 1) * 20;
-    });
-    if (accessDifficulty === "medium") fee += 30;
-    if (accessDifficulty === "hard") fee += 80;
-    return fee;
-  }, [isRelocation, floors, accessDifficulty]);
+  useEffect(() => {
+    if (!isRelocation || !pickupAddress || !dropoffAddress) return;
+    setDistanceLoading(true);
+    setDistanceError("");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/distance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pickupAddress,
+            dropoffAddress,
+            pickupLat: pickupLatLng?.lat,
+            pickupLng: pickupLatLng?.lng,
+            dropoffLat: dropoffLatLng?.lat,
+            dropoffLng: dropoffLatLng?.lng,
+          }),
+        });
+        const data = await res.json();
+        setDistanceKm(data.distanceKm ?? 0);
+        if (!data.routeFound) setDistanceError(data.error || "Could not calculate distance");
+      } catch {
+        setDistanceKm(0);
+        setDistanceError("Distance service unavailable");
+      } finally {
+        setDistanceLoading(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [pickupAddress, dropoffAddress, pickupLatLng, dropoffLatLng, isRelocation]);
 
-  const subtotal = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
-  const transportFee = calcTransportFee();
-  const total = subtotal + transportFee;
-  const deposit = total * 0.3;
-  const finalAmt = total * 0.7;
+  // ── Pricing computation (central engine) ──────────────────────────────────
+
+  const catalogEntries = useMemo<PricingCatalogEntry[]>(() =>
+    (catalogRaw || []).map(c => ({
+      name: c.name,
+      serviceType: c.serviceType as "install" | "dismantle" | "relocate",
+      basePrice: parseFloat(c.basePrice),
+    })),
+    [catalogRaw]
+  );
+
+  const pricingResult = useMemo(() => computePricing({
+    items: items.map(i => ({
+      name: i.name,
+      serviceType: i.serviceType,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+    })),
+    needsRelocation: isRelocation,
+    floors: floors.map(f => ({ level: parseInt(f.level) || 0, hasLift: f.hasLift })),
+    accessDifficulty,
+    distanceKm,
+    catalogEntries,
+  }), [items, isRelocation, floors, accessDifficulty, distanceKm, catalogEntries]);
+
+  const subtotal = pricingResult.laborSubtotal;
+  const total = pricingResult.grandTotal;
+  const deposit = pricingResult.depositAmount;
+  const finalAmt = pricingResult.finalAmount;
 
   // ── Catalog add ───────────────────────────────────────────────────────────
 
@@ -353,6 +414,12 @@ export default function EstimateWizard() {
     setIsSubmitting(true);
     setSubmitError("");
     try {
+      // Use effective unit prices from pricing engine (includes fallbacks for unpriced items)
+      const effectivePriceMap = new Map<string, number>();
+      pricingResult.itemLines.forEach(line => {
+        effectivePriceMap.set(`${line.name}|${line.serviceType}`, line.unitPrice);
+      });
+
       const body = {
         customer: { name, email, phone },
         selectedServices: services,
@@ -361,20 +428,18 @@ export default function EstimateWizard() {
         dropoffAddress: isRelocation ? dropoffAddress : undefined,
         accessDifficulty: isRelocation ? accessDifficulty : undefined,
         floorsInfo: isRelocation ? JSON.stringify(floors) : undefined,
-        items: items.filter(i => !i.isCustom).map(i => ({
+        items: items.map(i => ({
           catalogItemId: i.catalogItemId,
           quantity: i.quantity,
           serviceType: i.serviceType,
-          unitPrice: i.unitPrice,
+          unitPrice: effectivePriceMap.get(`${i.name}|${i.serviceType}`) ?? i.unitPrice,
           itemName: i.name,
           sku: i.sku,
         })),
-        customItems: items.filter(i => i.isCustom).map(i => ({
-          description: i.name,
-          serviceType: i.serviceType,
-          quantity: i.quantity,
-        })),
-        transportFee,
+        customItems: [],
+        logisticsFee: pricingResult.logisticsSubtotal,
+        discount: pricingResult.discountAmount,
+        distanceKm: distanceKm > 0 ? distanceKm : undefined,
         detectedPhotoUrl: detectedPhotoUrl || undefined,
       };
       const res = await fetch("/api/quotes/wizard", {
@@ -501,8 +566,38 @@ export default function EstimateWizard() {
                 <div className="bg-card rounded-2xl border p-6 space-y-5">
                   {isRelocation ? (
                     <>
-                      <AddressInput required label="Pickup Address" value={pickupAddress} onChange={setPickupAddress} placeholder="e.g. 100 Beach Road Singapore 189702" />
-                      <AddressInput required label="Dropoff Address" value={dropoffAddress} onChange={setDropoffAddress} placeholder="e.g. 10 Bayfront Ave Singapore 018956" />
+                      <AddressInput required label="Pickup Address" value={pickupAddress}
+                        onSelect={(addr, lat, lng) => {
+                          setPickupAddress(addr);
+                          if (lat && lng) setPickupLatLng({ lat, lng });
+                          else setPickupLatLng(null);
+                        }}
+                        placeholder="e.g. 100 Beach Road Singapore 189702" />
+                      <AddressInput required label="Dropoff Address" value={dropoffAddress}
+                        onSelect={(addr, lat, lng) => {
+                          setDropoffAddress(addr);
+                          if (lat && lng) setDropoffLatLng({ lat, lng });
+                          else setDropoffLatLng(null);
+                        }}
+                        placeholder="e.g. 10 Bayfront Ave Singapore 018956" />
+
+                      {/* Route distance badge */}
+                      {pickupAddress && dropoffAddress && (
+                        <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium ${
+                          distanceLoading ? "bg-secondary text-muted-foreground" :
+                          distanceKm > 0 ? "bg-blue-50 text-blue-700 border border-blue-200" :
+                          distanceError ? "bg-red-50 text-red-700 border border-red-200" : "bg-secondary text-muted-foreground"
+                        }`}>
+                          {distanceLoading
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Calculating route distance…</>
+                            : distanceKm > 0
+                              ? <><Navigation className="w-4 h-4" /> Route distance: <strong>{distanceKm} km</strong> — transport fee will be calculated</>
+                              : distanceError
+                                ? <><AlertCircle className="w-4 h-4" /> {distanceError} — transport fee will be reviewed</>
+                                : null
+                          }
+                        </div>
+                      )}
                       <div>
                         <p className="text-sm font-semibold mb-3">Floor details <span className="text-muted-foreground font-normal">(affects pricing)</span></p>
                         {floors.map((floor, i) => (
@@ -551,7 +646,7 @@ export default function EstimateWizard() {
                       </div>
                     </>
                   ) : (
-                    <AddressInput required label="Service Address" value={serviceAddress} onChange={setServiceAddress} placeholder="e.g. 100 Beach Road Singapore 189702" />
+                    <AddressInput required label="Service Address" value={serviceAddress} onSelect={(addr) => setServiceAddress(addr)} placeholder="e.g. 100 Beach Road Singapore 189702" />
                   )}
                 </div>
               </div>
@@ -743,9 +838,21 @@ export default function EstimateWizard() {
                       ))}
                     </div>
                     <div className="px-5 py-4 bg-secondary/50 space-y-1.5 text-sm">
-                      <div className="flex justify-between text-muted-foreground"><span>Items subtotal</span><span>${subtotal.toFixed(2)}</span></div>
-                      {isRelocation && <div className="flex justify-between text-muted-foreground"><span>Relocation logistics fee</span><span>${transportFee.toFixed(2)}</span></div>}
-                      <div className="flex justify-between font-bold text-base pt-1 border-t border-border mt-2"><span>Estimated Total</span><span className="text-primary">${total.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-muted-foreground"><span>Labor subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                      {pricingResult.discountLine && (
+                        <div className="flex justify-between text-emerald-700 font-medium">
+                          <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5" />{pricingResult.discountLine.label}</span>
+                          <span>-${pricingResult.discountAmount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {pricingResult.feeLines.map((fee, i) => (
+                        <div key={i} className="flex justify-between text-muted-foreground">
+                          <span>{fee.label}</span><span>+${fee.amount.toFixed(2)}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between font-bold text-base pt-1.5 border-t border-border mt-2">
+                        <span>Estimated Total</span><span className="text-primary">${total.toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -830,11 +937,33 @@ export default function EstimateWizard() {
                       </div>
                     </div>
                     <div className="pt-4 space-y-2 text-sm">
-                      <div className="flex justify-between text-muted-foreground"><span>Items subtotal</span><span>${subtotal.toFixed(2)}</span></div>
-                      {isRelocation && <div className="flex justify-between text-muted-foreground"><span>Relocation logistics</span><span>${transportFee.toFixed(2)}</span></div>}
+                      <div className="flex justify-between text-muted-foreground"><span>Labor subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                      {pricingResult.discountLine && (
+                        <div className="flex justify-between text-emerald-700 font-medium">
+                          <span className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" />{pricingResult.discountLine.label}</span>
+                          <span>−${pricingResult.discountAmount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {pricingResult.feeLines.map((fee, i) => (
+                        <div key={i} className="flex justify-between text-muted-foreground">
+                          <span>{fee.label}</span><span>+${fee.amount.toFixed(2)}</span>
+                        </div>
+                      ))}
+                      {isRelocation && distanceKm > 0 && (
+                        <div className="flex justify-between text-blue-600 text-xs mt-1">
+                          <span className="flex items-center gap-1"><Navigation className="w-3 h-3" /> Route distance</span>
+                          <span>{distanceKm} km</span>
+                        </div>
+                      )}
                       <div className="flex justify-between font-bold text-base pt-2 border-t"><span>Grand Total (estimated)</span><span className="text-primary">${total.toFixed(2)}</span></div>
-                      <div className="flex justify-between text-muted-foreground"><span>Deposit (30%)</span><span>${deposit.toFixed(2)}</span></div>
-                      <div className="flex justify-between text-muted-foreground"><span>Balance on completion</span><span>${finalAmt.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-muted-foreground"><span>Deposit due now (50%)</span><span className="font-semibold">${deposit.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-muted-foreground"><span>Balance on completion (50%)</span><span>${finalAmt.toFixed(2)}</span></div>
+                      {pricingResult.requiresAdminReview && (
+                        <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                          <p className="text-xs text-amber-700">This quote includes items requiring admin review — final pricing may be adjusted.</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

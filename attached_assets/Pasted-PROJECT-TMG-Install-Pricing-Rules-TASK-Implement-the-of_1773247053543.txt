@@ -1,0 +1,176 @@
+PROJECT: TMG Install (Pricing Rules)
+
+TASK: Implement the official pricing rules used to compute an itemised estimate (and totals) for TMG Install.
+IMPORTANT UPDATE: For RELOCATION, distance_km must be auto-calculated from pickup + dropoff addresses (real route distance) similar to Lalamove.
+
+SCOPE:
+- Pricing logic only (the “pricing engine” / calculation rules).
+- Always output: itemised lines + fees + discounts + totals + deposit/final amounts.
+- Do NOT invent random prices inside UI. Base labor prices must come from Catalog when available.
+- NO PACKING. Do not add packing UI, flags, fees, or logic.
+
+INPUTS (calculator receives):
+1) Selected services flags:
+   - needs_installation (bool)
+   - needs_dismantling (bool)
+   - needs_relocation (bool)  // relocation means move to a new address
+   - needs_transport (bool)   // should be true whenever relocation is true
+
+2) Items list:
+   - each item: sku (optional), name, quantity (int)
+
+3) Logistics / addresses:
+   - pickup_address (string, required if needs_relocation)
+   - dropoff_address (string, required if needs_relocation)
+   - distance_km (number)  // MUST be computed automatically for relocation using route distance API (see Section D)
+   - floor_level (int, 0 = ground)
+   - has_lift (bool)
+   - access_difficulty: easy | medium | hard
+
+4) Catalog item fields (per SKU):
+   - install_price
+   - dismantle_price
+   - relocate_price
+   - active (bool)
+
+PRICING RULES (MUST FOLLOW):
+
+A) Catalog matching / fallback
+1) If item matches Catalog SKU and active=true:
+   - install unit price = catalog.install_price
+   - dismantle unit price = catalog.dismantle_price
+   - relocate unit price = catalog.relocate_price
+
+2) If dismantle/relocate price missing or 0, fallback from install_price:
+   - FALLBACK_DISMANTLE_MULT = 0.6
+   - FALLBACK_RELOCATE_MULT = 1.5
+   - dismantle_price = install_price * 0.6 (only if missing/0)
+   - relocate_price  = install_price * 1.5 (only if missing/0)
+
+3) If cannot match catalog OR install_price missing/0:
+   - GENERIC_FALLBACK = 150 per unit as install_price
+   - then apply multipliers for dismantle/relocate as above
+
+B) How to charge per item depending on service selection
+1) Installation only:
+   - install_price * quantity
+
+2) Dismantle only:
+   - dismantle_price * quantity
+
+3) Relocation:
+   - relocate_price * quantity
+   - Do NOT double-charge dismantle + install for the same item unless UI explicitly treats them as separate services.
+   - Transport fee rules apply (Section D).
+
+4) If multiple services are selected:
+   - Use separate line items per service type per item (clear breakdown).
+
+C) Bulk discount tiers (LABOR ONLY)
+1) TOTAL_QTY = sum(quantity) across ALL labor item lines (install/dismantle/relocate).
+2) Discount tiers:
+   - 1–9   : 0%
+   - 10–49 : 5%
+   - 50–99 : 10%
+   - 100+  : 15%
+3) Discount applies ONLY to labor subtotal.
+4) Show discount as its own negative line: “Bulk Discount (X%)”.
+
+D) RELOCATION DISTANCE + TRANSPORT FEE (LALAMOVE-STYLE)
+This section is mandatory.
+
+D1) When to calculate distance
+- If needs_relocation = true:
+  - pickup_address and dropoff_address are REQUIRED.
+  - distance_km MUST be computed automatically (not manually typed).
+
+D2) How to calculate distance_km (real route km)
+- Use a route distance API (Distance Matrix / Directions) and compute:
+  - distance_meters_route (from API) -> distance_km = distance_meters_route / 1000
+- Use “driving” mode.
+- Prefer backend/server call for API key safety.
+- If API fails or returns 0:
+  - set distance_km = 0
+  - set requires_admin_review = true with reason “Distance calculation failed”
+  - still compute labor; transport fee becomes 0 until admin review.
+
+D3) Address autocomplete (Singapore)
+- The address inputs for pickup/dropoff MUST use Places autocomplete restricted to Singapore (country=SG).
+- When user selects a suggestion, store:
+  - formatted_address
+  - place_id (if available)
+  - optionally lat/lng (if needed)
+
+D4) Transport fee formula (Lalamove-like: base + included km + tiered per km, with minimum)
+- Add a separate fee line ONLY when needs_transport = true:
+  - label: “Transport / Relocation Logistics”
+- Transport fee is computed from distance_km using ONE central config object.
+
+Required config (PricingConfig.transport):
+- min_fee
+- base_fee
+- included_km               // km included in base (e.g. 5km)
+- tiers[]                   // tiered per-km rates after included_km
+  Example tiers:
+  - 0–10km extra: rate_a per km
+  - 10–20km extra: rate_b per km
+  - 20km+ extra: rate_c per km
+
+Algorithm:
+1) billable_km = max(0, distance_km - included_km)
+2) tier_cost = apply tiers progressively to billable_km
+3) raw_fee = base_fee + tier_cost
+4) transport_fee = max(min_fee, raw_fee)
+5) Round to 2 decimals.
+
+Notes:
+- Transport is ONLY for relocation (new address). No transport fee for installation-only or dismantle-only.
+- Keep all constants in PricingConfig (no hardcoded numbers scattered in UI).
+
+E) Floor / access difficulty surcharges (LOGISTICS ONLY)
+- Add as separate fee lines:
+  - “Stairs / Floor Access”
+  - “Access Difficulty”
+- Floor surcharge triggers when floor_level > 0:
+  - if has_lift=false: surcharge = floor_level * per_floor_no_lift
+  - if has_lift=true : surcharge = floor_level * per_floor_with_lift
+- Access difficulty:
+  - easy: 0
+  - medium: add (labor_subtotal * medium_pct)
+  - hard: add (labor_subtotal * hard_pct)
+- All rates/pcts must be in PricingConfig.
+
+F) Totals / outputs
+Return:
+- item_lines[]
+- fee_lines[] (transport + floor + access)
+- discount_line (negative)
+- totals:
+  - labor_subtotal
+  - logistics_fees_subtotal
+  - discount_amount
+  - grand_total
+  - deposit_amount = 50% of grand_total
+  - final_amount = grand_total - deposit_amount
+- flags:
+  - requires_admin_review (bool)
+  - reasons[] (strings)
+
+Rounding:
+- Round money to 2 decimals.
+- Ensure grand_total matches sum(lines + fees - discount) after consistent rounding.
+
+G) Safety rules
+- Never crash if catalog missing: always fallback to GENERIC_FALLBACK.
+- Clamp quantity to minimum 1.
+- If NaN occurs, set to 0 and flag requires_admin_review.
+
+DELIVERABLE:
+- One pricing module/function that accepts the INPUTS above and returns a QuotePricingResult object.
+- One separate distance function used ONLY for relocation:
+  - getRouteDistanceKm(pickup_address, dropoff_address) -> number
+  - uses route distance API and returns route km
+  - failure returns 0 + flags admin review
+- All tunable numbers are in ONE PricingConfig object.
+
+NO PACKING. DO NOT ADD PACKING ANYWHERE.

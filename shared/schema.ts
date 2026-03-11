@@ -73,6 +73,8 @@ export const quotes = pgTable("quotes", {
   finalPaidAt: timestamp("final_paid_at"),
   paymentStatus: text("payment_status").default("unpaid"), // unpaid, deposit_pending, deposit_paid, final_pending, paid_in_full
 
+  distanceKm: numeric("distance_km"), // auto-computed route distance for relocation
+
   notes: text("notes"), // admin internal notes
   detectionPhotoUrl: text("detection_photo_url"), // thumbnail from AI photo scan at submission
 
