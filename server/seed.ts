@@ -1,26 +1,24 @@
 import { db } from "./db";
 import { users, catalogItems } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+
+const ACCOUNTS = [
+  { username: "admin",  password: "Admin@TMG2026",  role: "admin", name: "System Admin" },
+  { username: "staff1", password: "Staff1@TMG2026", role: "staff", name: "Ahmad Faiz" },
+  { username: "staff2", password: "Staff2@TMG2026", role: "staff", name: "Ravi Kumar" },
+] as const;
 
 export async function seedDatabase() {
-  const existingAdmin = await db.select().from(users).where(eq(users.username, "admin"));
-  if (existingAdmin.length === 0) {
-    await db.insert(users).values({
-      username: "admin",
-      password: "password123",
-      role: "admin",
-      name: "System Admin"
-    });
-  }
-
-  const existingStaff = await db.select().from(users).where(eq(users.username, "staff1"));
-  if (existingStaff.length === 0) {
-    await db.insert(users).values({
-      username: "staff1",
-      password: "password123",
-      role: "staff",
-      name: "John Doe (Staff)"
-    });
+  for (const acct of ACCOUNTS) {
+    const hash = await bcrypt.hash(acct.password, 10);
+    await db
+      .insert(users)
+      .values({ username: acct.username, password: hash, role: acct.role, name: acct.name })
+      .onConflictDoUpdate({
+        target: users.username,
+        set: { password: hash, name: acct.name, role: acct.role },
+      });
   }
 
   // Round 1: initial catalog (QB-INSTALL marker)

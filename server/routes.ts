@@ -137,9 +137,10 @@ export async function registerRoutes(
     try {
       const { username, password } = api.auth.login.input.parse(req.body);
       const user = await storage.getUserByUsername(username);
-      if (!user || user.password !== password) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
+      if (!user) return res.status(401).json({ message: "Invalid credentials" });
+      const bcrypt = await import("bcryptjs");
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) return res.status(401).json({ message: "Invalid credentials" });
       res.json(user);
     } catch (e) {
       res.status(400).json({ message: "Invalid input" });
