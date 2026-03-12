@@ -795,19 +795,32 @@ export async function registerRoutes(
       const { imageBase64, mimeType = "image/jpeg" } = req.body;
       if (!imageBase64) return res.status(400).json({ message: "Image required" });
 
+      // Fetch unique catalog item names so GPT can map detections to actual catalog entries
+      const allItems = await storage.getCatalogItems();
+      const uniqueNames = [...new Set(allItems.map(i => i.name))];
+      const catalogList = uniqueNames.join(", ");
+
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: "You are a furniture identification assistant. When given an image, you identify furniture and household items visible in the photo. You always respond with ONLY a valid JSON array and nothing else."
+            content: `You are a furniture identification assistant for TMG Install, a Singapore furniture installation company. When given an image, you identify furniture and items visible in the photo and map them to the closest name from the company's service catalog. You always respond with ONLY a valid JSON array and nothing else.`
           },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "Look at this image and list every piece of furniture, office fixture, or household item you can see, even partially. This includes beds, sofas, wardrobes, tables, chairs, desks, shelves, cabinets, TVs, appliances, phone booths, meeting pods, acoustic booths, office partitions, reception counters, drilling fixtures, wall-mounted shelves, curtain tracks, and any other furniture or office equipment. Make your best guess even if items are partially visible or the image is not perfect. Respond with ONLY a valid JSON array and nothing else — no prose, no explanation: [{\"name\": \"item name\", \"quantity\": 1}]. List up to 10 distinct items."
+                text: `Look at this image and identify every piece of furniture, office fixture, or household item visible, even partially.
+
+IMPORTANT: For each detected item, you MUST use the closest matching name from this catalog list:
+${catalogList}
+
+Only use a name NOT in the catalog if there is absolutely no close match. Make your best guess even if items are partially visible. Respond with ONLY a valid JSON array — no prose, no explanation:
+[{"name": "exact catalog name or closest match", "quantity": 1}]
+
+List up to 10 distinct items.`
               },
               {
                 type: "image_url",
@@ -816,7 +829,7 @@ export async function registerRoutes(
             ]
           }
         ],
-        max_tokens: 500,
+        max_tokens: 600,
       });
 
       const content = response.choices[0]?.message?.content || "";

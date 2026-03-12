@@ -383,12 +383,22 @@ export default function EstimateWizard() {
       if (detected.length === 0) {
         setPhotoError("No furniture detected — try a clearer photo or add items manually.");
       } else {
+        // Stem a word: "desks" → "desk", "cabinets" → "cabinet"
+        const stem = (w: string) => w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w;
+
+        const fuzzyMatch = (detected: string, catalog: string): boolean => {
+          const d = detected.toLowerCase();
+          const c = catalog.toLowerCase();
+          // 1. Direct substring match
+          if (c.includes(d) || d.includes(c)) return true;
+          // 2. Word-level match: any significant word from detected appears in catalog name (with stemming)
+          const words = d.split(/\s+/).filter(w => w.length > 3).map(stem);
+          return words.some(w => c.includes(w) || c.includes(stem(w)));
+        };
+
         let matchCount = 0;
         detected.forEach(({ name, quantity }) => {
-          const lc = name.toLowerCase();
-          const matched = catalogGroups.find(
-            g => g.name.toLowerCase().includes(lc) || lc.includes(g.name.toLowerCase())
-          );
+          const matched = catalogGroups.find(g => fuzzyMatch(name, g.name));
           if (matched) {
             addCatalogGroup(matched, quantity || 1);
             matchCount++;
