@@ -472,8 +472,7 @@ export default function QuoteStatus() {
                           min={getTodayPlus1()}
                           value={selectedDate}
                           onChange={e => { setSelectedDate(e.target.value); setSelectedTime(""); }}
-                          className="w-full h-12 px-4 bg-white/[0.07] border border-white/15 text-white text-sm outline-none focus:border-white/40 focus:bg-white/[0.10] transition-all"
-                          style={{ colorScheme: "dark" }}
+                          className="w-full h-12 px-4 bg-white text-black text-sm border border-white/20 outline-none focus:border-white/60 transition-all"
                           data-testid="input-booking-date"
                         />
                       </div>
