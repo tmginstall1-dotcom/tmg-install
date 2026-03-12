@@ -38,6 +38,23 @@ function getTodayPlus1() {
   return d.toISOString().split("T")[0];
 }
 
+const MONTHS = [
+  { v: "01", l: "Jan" }, { v: "02", l: "Feb" }, { v: "03", l: "Mar" },
+  { v: "04", l: "Apr" }, { v: "05", l: "May" }, { v: "06", l: "Jun" },
+  { v: "07", l: "Jul" }, { v: "08", l: "Aug" }, { v: "09", l: "Sep" },
+  { v: "10", l: "Oct" }, { v: "11", l: "Nov" }, { v: "12", l: "Dec" },
+];
+
+function daysInMonth(month: string, year: string) {
+  if (!month || !year) return 31;
+  return new Date(parseInt(year), parseInt(month), 0).getDate();
+}
+
+function buildDateStr(day: string, month: string, year: string) {
+  if (!day || !month || !year) return "";
+  return `${year}-${month}-${day.padStart(2, "0")}`;
+}
+
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
@@ -56,6 +73,9 @@ export default function QuoteStatus() {
 
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
+  const [selDay, setSelDay] = useState("");
+  const [selMonth, setSelMonth] = useState("");
+  const [selYear, setSelYear] = useState("");
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
@@ -464,19 +484,45 @@ export default function QuoteStatus() {
                     </div>
 
                     <div className="px-6 py-5 space-y-4">
-                      {/* Date field */}
-                      <div className="w-full overflow-hidden">
-                        <p className="text-[10px] font-semibold tracking-widest uppercase text-white/35 mb-2" style={{ letterSpacing: "0.15em" }}>Date</p>
-                        <input
-                          type="date"
-                          min={getTodayPlus1()}
-                          value={selectedDate}
-                          onChange={e => { setSelectedDate(e.target.value); setSelectedTime(""); }}
-                          className="h-12 px-4 bg-white/[0.07] border border-white/15 text-white text-sm outline-none focus:border-white/40 transition-all text-center"
-                          style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box", display: "block", colorScheme: "dark" }}
-                          data-testid="input-booking-date"
-                        />
-                      </div>
+                      {/* Date field — three selects to avoid iOS native date input issues */}
+                      {(() => {
+                        const minDate = getTodayPlus1(); // "YYYY-MM-DD"
+                        const minY = minDate.split("-")[0];
+                        const numDays = daysInMonth(selMonth, selYear);
+                        const days = Array.from({ length: numDays }, (_, i) => String(i + 1).padStart(2, "0"));
+
+                        const handlePart = (day: string, month: string, year: string) => {
+                          const ds = buildDateStr(day, month, year);
+                          if (ds && ds < minDate) return; // block past/today
+                          setSelectedDate(ds);
+                          setSelectedTime("");
+                        };
+
+                        const selectCls = "h-12 bg-white/[0.07] border border-white/15 text-white text-sm outline-none focus:border-white/40 transition-all appearance-none text-center";
+
+                        return (
+                          <div>
+                            <p className="text-[10px] font-semibold tracking-widest uppercase text-white/35 mb-2" style={{ letterSpacing: "0.15em" }}>Date</p>
+                            <div className="grid grid-cols-3 gap-2">
+                              <select value={selDay} onChange={e => { setSelDay(e.target.value); handlePart(e.target.value, selMonth, selYear); }}
+                                className={selectCls} data-testid="select-booking-day">
+                                <option value="" className="text-black bg-white">DD</option>
+                                {days.map(d => <option key={d} value={d} className="text-black bg-white">{d}</option>)}
+                              </select>
+                              <select value={selMonth} onChange={e => { setSelMonth(e.target.value); handlePart(selDay, e.target.value, selYear); }}
+                                className={selectCls} data-testid="select-booking-month">
+                                <option value="" className="text-black bg-white">MM</option>
+                                {MONTHS.map(m => <option key={m.v} value={m.v} className="text-black bg-white">{m.l}</option>)}
+                              </select>
+                              <select value={selYear} onChange={e => { setSelYear(e.target.value); handlePart(selDay, selMonth, e.target.value); }}
+                                className={selectCls} data-testid="select-booking-year">
+                                <option value="" className="text-black bg-white">YYYY</option>
+                                {[minY, String(parseInt(minY) + 1)].map(y => <option key={y} value={y} className="text-black bg-white">{y}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Time field */}
                       <div>
