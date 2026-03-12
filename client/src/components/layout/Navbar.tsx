@@ -6,6 +6,9 @@ export function Navbar() {
   const { user, logout } = useAuth();
   const [location] = useLocation();
 
+  // No header on login pages
+  if (location === "/admin/login" || location === "/staff/login") return null;
+
   const isAdminArea = location.startsWith("/admin");
   const isStaffArea = location.startsWith("/staff");
   const isCustomerArea = !isAdminArea && !isStaffArea;
