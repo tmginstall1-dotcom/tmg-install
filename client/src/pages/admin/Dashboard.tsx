@@ -1,10 +1,12 @@
 import { useQuotes } from "@/hooks/use-quotes";
+import { useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { format } from "date-fns";
 import {
   ArrowUpRight, ClipboardList, DollarSign, CalendarCheck,
-  Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle,
+  Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -139,6 +141,22 @@ function SectionPanel({
 export default function AdminDashboard() {
   const { data: allQuotes, isLoading } = useQuotes();
 
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/clear-all-data", { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to clear");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+    },
+  });
+
+  function handleClearAll() {
+    if (window.confirm("⚠️ Delete ALL quotes, customers and job data? This cannot be undone.")) {
+      clearAllMutation.mutate();
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen pt-28 flex items-center justify-center">
@@ -189,6 +207,16 @@ export default function AdminDashboard() {
               <span className="text-sm font-bold text-foreground">{formatMoney(totalRevenue)}</span>
               <span className="text-xs text-muted-foreground">total revenue</span>
             </div>
+            <button
+              onClick={handleClearAll}
+              disabled={clearAllMutation.isPending}
+              data-testid="button-clear-all-data"
+              className="inline-flex items-center gap-2 px-3 py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-700 font-bold text-sm hover:bg-red-100 transition-colors disabled:opacity-50"
+              title="Clear all test data"
+            >
+              <Trash2 className="w-4 h-4" />
+              {clearAllMutation.isPending ? "Clearing…" : "Clear Data"}
+            </button>
             <Link href="/admin/schedule" data-testid="link-schedule">
               <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-foreground text-background font-bold text-sm shadow-sm hover:bg-foreground/90 transition-colors">
                 <Calendar className="w-4 h-4" /> Schedule

@@ -16,6 +16,9 @@ export interface IStorage {
   getCatalogItems(search?: string): Promise<typeof catalogItems.$inferSelect[]>;
   createCatalogItem(item: InsertCatalogItem): Promise<typeof catalogItems.$inferSelect>;
 
+  // Admin Utilities
+  clearAllData(): Promise<void>;
+
   // Quotes
   getQuotes(status?: string): Promise<QuoteResponse[]>;
   getQuotesByStatuses(statuses: string[]): Promise<QuoteResponse[]>;
@@ -94,6 +97,13 @@ export class DatabaseStorage implements IStorage {
       items: itemsWithCatalog,
       updates: updatesList,
     };
+  }
+
+  async clearAllData(): Promise<void> {
+    await db.delete(jobUpdates);
+    await db.delete(quoteItems);
+    await db.delete(quotes);
+    await db.delete(customers);
   }
 
   async getQuotes(status?: string): Promise<QuoteResponse[]> {

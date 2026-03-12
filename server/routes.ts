@@ -221,6 +221,16 @@ export async function registerRoutes(
     }
   });
 
+  // -- Temporary: Admin clear all data (for test resets) --
+  app.delete("/api/admin/clear-all-data", async (req, res) => {
+    try {
+      await storage.clearAllData();
+      res.json({ success: true, message: "All data cleared" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // -- Quotes Routes --
   app.get(api.quotes.list.path, async (req, res) => {
     const status = req.query.status as string | undefined;
