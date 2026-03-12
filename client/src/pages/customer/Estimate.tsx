@@ -152,17 +152,8 @@ const TIME_SLOTS = [
   { value: "13:00-17:00", label: "Afternoon", time: "1pm – 5pm" },
 ];
 
-const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-function daysInMonthFn(month: number, year: number) {
-  return new Date(year, month, 0).getDate();
-}
-
-function buildSlotDateStr(day: string, month: string, year: string) {
-  if (!day || !month || !year) return "";
-  const m = String(MONTHS_SHORT.indexOf(month) + 1).padStart(2, "0");
-  const d = String(day).padStart(2, "0");
-  return `${year}-${m}-${d}`;
+function toDateStr(y: number, m: number, d: number) {
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
 export default function EstimateWizard() {
@@ -193,11 +184,11 @@ export default function EstimateWizard() {
   const [detectedPhotoUrl, setDetectedPhotoUrl] = useState<string>("");
   const [detectedCount, setDetectedCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Step 4: Schedule
-  const today = new Date();
-  const [slotDay, setSlotDay] = useState("");
-  const [slotMonth, setSlotMonth] = useState("");
-  const [slotYear, setSlotYear] = useState(String(today.getFullYear()));
+  // Step 4: Schedule — calendar
+  const todayDate = new Date();
+  const [calMonth, setCalMonth] = useState(todayDate.getMonth());   // 0-indexed
+  const [calYear, setCalYear]   = useState(todayDate.getFullYear());
+  const [slotDateStr, setSlotDateStr] = useState("");               // "yyyy-MM-dd"
   const [slotTime, setSlotTime] = useState("");
   // Step 5: Review / Contact
   const [name, setName] = useState("");
@@ -229,8 +220,6 @@ export default function EstimateWizard() {
     const heldSlot = slotAvailability.held.some(h => h.date === dateStr && h.timeSlot === timeSlot);
     return blockedDay || heldSlot;
   };
-
-  const slotDateStr = buildSlotDateStr(slotDay, slotMonth, slotYear);
 
   const catalogGroups = useMemo(() => groupCatalog(catalogRaw || []), [catalogRaw]);
 
@@ -930,125 +919,173 @@ export default function EstimateWizard() {
 
             {/* ── STEP 4: Schedule ── */}
             {step === 4 && (() => {
-              const nowSG = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Singapore" }));
-              const curYear = nowSG.getFullYear();
-              const yearOptions = [curYear, curYear + 1];
-              const maxDays = slotMonth && slotYear
-                ? daysInMonthFn(MONTHS_SHORT.indexOf(slotMonth) + 1, parseInt(slotYear))
-                : 31;
-              const dayOptions = Array.from({ length: maxDays }, (_, i) => String(i + 1));
-              const selectCls = "flex-1 h-12 px-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none text-sm font-medium transition-all appearance-none";
+              // Calendar grid helpers
+              const todayStr = toDateStr(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
+              const firstWeekday = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+              const leadingBlanks = (firstWeekday + 6) % 7;                // shift to Mon=0
+              const totalDays = new Date(calYear, calMonth + 1, 0).getDate();
+              const cells: (number | null)[] = [
+                ...Array(leadingBlanks).fill(null),
+                ...Array.from({ length: totalDays }, (_, i) => i + 1),
+              ];
+              while (cells.length % 7 !== 0) cells.push(null);
+              const monthLabel = new Date(calYear, calMonth, 1).toLocaleString("en-SG", { month: "long", year: "numeric" });
+
+              const prevMonth = () => {
+                const d = new Date(calYear, calMonth - 1, 1);
+                if (d >= new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)) {
+                  setCalMonth(d.getMonth()); setCalYear(d.getFullYear());
+                }
+              };
+              const nextMonth = () => {
+                const d = new Date(calYear, calMonth + 1, 1);
+                const cap = new Date(todayDate.getFullYear(), todayDate.getMonth() + 4, 1);
+                if (d < cap) { setCalMonth(d.getMonth()); setCalYear(d.getFullYear()); }
+              };
+
+              const getSlotStatus = (ds: string) => {
+                const m = isSlotTaken(ds, "09:00-12:00");
+                const a = isSlotTaken(ds, "13:00-17:00");
+                if (m && a) return "full";
+                if (m || a) return "partial";
+                return "available";
+              };
 
               return (
-                <div className="space-y-6">
+                <div className="space-y-5">
                   <div>
                     <h2 className="text-3xl font-display font-bold mb-1">Pick a Slot</h2>
-                    <p className="text-muted-foreground">Choose your preferred appointment date and time.</p>
+                    <p className="text-muted-foreground">Tap a date, then choose morning or afternoon.</p>
                   </div>
 
-                  {/* Date picker */}
-                  <div className="bg-card rounded-2xl border p-6 space-y-4">
-                    <p className="font-bold flex items-center gap-2"><CalendarDays className="w-5 h-5 text-primary" /> Preferred Date</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="relative">
-                        <select value={slotDay} onChange={e => setSlotDay(e.target.value)} data-testid="select-slot-day" className={selectCls}>
-                          <option value="">DD</option>
-                          {dayOptions.map(d => <option key={d} value={d}>{d.padStart(2,"0")}</option>)}
-                        </select>
-                      </div>
-                      <div className="relative">
-                        <select value={slotMonth} onChange={e => { setSlotMonth(e.target.value); setSlotDay(""); }} data-testid="select-slot-month" className={selectCls}>
-                          <option value="">MMM</option>
-                          {MONTHS_SHORT.map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                      </div>
-                      <div className="relative">
-                        <select value={slotYear} onChange={e => { setSlotYear(e.target.value); setSlotDay(""); }} data-testid="select-slot-year" className={selectCls}>
-                          {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
-                        </select>
-                      </div>
+                  {/* Calendar card */}
+                  <div className="bg-card rounded-2xl border p-4 space-y-3">
+                    {/* Month navigation */}
+                    <div className="flex items-center justify-between px-1">
+                      <button onClick={prevMonth} data-testid="button-cal-prev"
+                        className="p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <p className="font-bold text-sm">{monthLabel}</p>
+                      <button onClick={nextMonth} data-testid="button-cal-next"
+                        className="p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
                     </div>
-                    {slotDateStr && (
-                      <p className="text-sm text-muted-foreground">
-                        Selected: <span className="font-semibold text-foreground">{new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</span>
-                      </p>
-                    )}
-                  </div>
 
-                  {/* Time slot picker */}
-                  <div className="bg-card rounded-2xl border p-6 space-y-4">
-                    <p className="font-bold flex items-center gap-2"><Clock className="w-5 h-5 text-primary" /> Time Window</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {TIME_SLOTS.map(slot => {
-                        const taken = isSlotTaken(slotDateStr, slot.value);
-                        const selected = slotTime === slot.value;
+                    {/* Day-of-week headers */}
+                    <div className="grid grid-cols-7 text-center">
+                      {["Mo","Tu","We","Th","Fr","Sa","Su"].map(d => (
+                        <div key={d} className="text-[11px] font-bold text-muted-foreground py-1">{d}</div>
+                      ))}
+                    </div>
+
+                    {/* Day cells */}
+                    <div className="grid grid-cols-7 gap-0.5">
+                      {cells.map((day, i) => {
+                        if (!day) return <div key={`e-${i}`} />;
+                        const ds = toDateStr(calYear, calMonth, day);
+                        const past = ds < todayStr;
+                        const status = past ? "past" : getSlotStatus(ds);
+                        const isSelected = ds === slotDateStr;
+                        const isToday = ds === todayStr;
+
                         return (
                           <button
-                            key={slot.value}
-                            disabled={taken || !slotDateStr}
-                            onClick={() => !taken && setSlotTime(slot.value)}
-                            data-testid={`button-slot-${slot.value}`}
-                            className={`
-                              relative flex flex-col items-center gap-1.5 py-5 rounded-2xl border-2 transition-all font-medium
-                              ${taken ? "border-border bg-muted/40 text-muted-foreground cursor-not-allowed opacity-60" :
-                                selected ? "border-primary bg-primary/10 text-primary shadow-md" :
-                                "border-border bg-card hover:border-primary/50 hover:bg-primary/5 cursor-pointer"
-                              }
-                              ${!slotDateStr && !taken ? "opacity-50 cursor-not-allowed" : ""}
-                            `}
+                            key={ds}
+                            data-testid={`button-cal-${ds}`}
+                            disabled={past || status === "full"}
+                            onClick={() => { setSlotDateStr(ds); setSlotTime(""); }}
+                            className={[
+                              "relative flex flex-col items-center justify-center h-10 rounded-xl text-sm font-medium transition-all select-none",
+                              isSelected
+                                ? "bg-primary text-primary-foreground font-bold shadow-md"
+                                : status === "full"
+                                  ? "bg-muted/20 text-muted-foreground/40 cursor-not-allowed line-through text-xs"
+                                  : past
+                                    ? "text-muted-foreground/25 cursor-not-allowed"
+                                    : "hover:bg-primary/10 hover:text-primary cursor-pointer",
+                              isToday && !isSelected ? "ring-2 ring-primary/40 ring-offset-1" : "",
+                            ].join(" ")}
                           >
-                            {slot.value === "09:00-12:00"
-                              ? <Sun className="w-6 h-6" />
-                              : <Sunset className="w-6 h-6" />
-                            }
-                            <span className="font-bold">{slot.label}</span>
-                            <span className="text-xs text-muted-foreground">{slot.time}</span>
-                            {taken && (
-                              <span className="absolute top-2 right-2 flex items-center gap-1 text-xs text-muted-foreground">
-                                <Ban className="w-3 h-3" /> Full
-                              </span>
+                            {day}
+                            {/* Availability dot */}
+                            {!past && !isSelected && status === "partial" && (
+                              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-amber-400" />
                             )}
-                            {selected && !taken && (
-                              <span className="absolute top-2 right-2 flex items-center gap-1 text-xs text-primary">
-                                <Check className="w-3 h-3" /> Selected
-                              </span>
+                            {!past && !isSelected && status === "available" && (
+                              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-emerald-400" />
                             )}
                           </button>
                         );
                       })}
                     </div>
-                    {!slotDateStr && (
-                      <p className="text-xs text-muted-foreground text-center">Select a date above to check slot availability.</p>
-                    )}
+
+                    {/* Legend */}
+                    <div className="flex items-center gap-4 pt-2 border-t text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" /> Available</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" /> Partial</span>
+                      <span className="flex items-center gap-1.5 opacity-40 line-through">31</span>
+                      <span className="opacity-40">Full</span>
+                    </div>
                   </div>
 
-                  {/* Slot confirmation banner */}
+                  {/* Time slot picker — shown once a date is selected */}
+                  {slotDateStr ? (
+                    <div className="bg-card rounded-2xl border p-5 space-y-4">
+                      <p className="font-bold flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-primary" />
+                        {new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "short", year: "numeric" })}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {TIME_SLOTS.map(slot => {
+                          const taken = isSlotTaken(slotDateStr, slot.value);
+                          const sel = slotTime === slot.value;
+                          return (
+                            <button key={slot.value} disabled={taken}
+                              onClick={() => !taken && setSlotTime(slot.value)}
+                              data-testid={`button-slot-${slot.value}`}
+                              className={[
+                                "relative flex flex-col items-center gap-1.5 py-5 rounded-2xl border-2 transition-all font-medium",
+                                taken ? "border-border bg-muted/40 text-muted-foreground cursor-not-allowed opacity-50"
+                                  : sel ? "border-primary bg-primary/10 text-primary shadow-md"
+                                  : "border-border bg-card hover:border-primary/50 hover:bg-primary/5 cursor-pointer",
+                              ].join(" ")}
+                            >
+                              {slot.value === "09:00-12:00" ? <Sun className="w-6 h-6" /> : <Sunset className="w-6 h-6" />}
+                              <span className="font-bold">{slot.label}</span>
+                              <span className="text-xs text-muted-foreground">{slot.time}</span>
+                              {taken && <span className="absolute top-2 right-2 text-[10px] text-muted-foreground flex items-center gap-0.5"><Ban className="w-2.5 h-2.5" />Full</span>}
+                              {sel && !taken && <span className="absolute top-2 right-2 text-[10px] text-primary flex items-center gap-0.5"><Check className="w-2.5 h-2.5" />Chosen</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-muted/30 rounded-2xl border border-dashed p-6 text-center text-muted-foreground text-sm">
+                      <CalendarDays className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      Select a date on the calendar above
+                    </div>
+                  )}
+
+                  {/* Confirmation banner */}
                   {slotDateStr && slotTime && !isSlotTaken(slotDateStr, slotTime) && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
                       <Check className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                       <div>
                         <p className="font-semibold text-emerald-800">Slot Available!</p>
                         <p className="text-sm text-emerald-700">
-                          {new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "short", year: "numeric" })}, {TIME_SLOTS.find(t => t.value === slotTime)?.time}
+                          {new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "short", year: "numeric" })},&nbsp;{TIME_SLOTS.find(t => t.value === slotTime)?.time}
                         </p>
-                        <p className="text-xs text-emerald-600 mt-1">This slot will be held for 48 hours once you submit your quote.</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {slotDateStr && slotTime && isSlotTaken(slotDateStr, slotTime) && (
-                    <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-4 flex items-start gap-3">
-                      <Ban className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-destructive">Slot Unavailable</p>
-                        <p className="text-sm text-destructive/80">This slot is already taken. Please choose a different date or time.</p>
+                        <p className="text-xs text-emerald-600 mt-1">Held for 48 hours once your quote is submitted.</p>
                       </div>
                     </div>
                   )}
 
                   <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
                     <p className="text-xs text-amber-700">
-                      <strong>Note:</strong> This is your <em>preferred</em> slot. Our team will review your request and confirm the booking after deposit is paid.
+                      <strong>Note:</strong> This is your <em>preferred</em> slot — our team confirms it after deposit is paid.
                     </p>
                   </div>
                 </div>
