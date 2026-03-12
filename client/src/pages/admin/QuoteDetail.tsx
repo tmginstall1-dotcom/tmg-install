@@ -665,16 +665,30 @@ export default function AdminQuoteDetail() {
                       <UserPlus className="w-4 h-4" /> Assign Staff
                     </button>
                   </div>
+                  {/* Admin can request final payment early (e.g. if staff didn't check out via app) */}
+                  <div className="pt-1 border-t">
+                    <p className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wide font-semibold">Job Done?</p>
+                    <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment-early"
+                      className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-sm shadow-emerald-500/20 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50">
+                      <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Mark Done & Request Final Payment"}
+                    </button>
+                  </div>
                 </div>
               )}
 
               {/* ── PHASE 4: In Progress ── */}
               {quote.status === 'in_progress' && (
-                <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4 text-sm">
-                  <p className="font-bold text-pink-800 flex items-center gap-1.5 mb-1">
-                    <Zap className="w-4 h-4" /> Job In Progress
-                  </p>
-                  <p className="text-xs text-pink-700">Staff are on-site. Field check-ins and photos will appear in the timeline below.</p>
+                <div className="space-y-3">
+                  <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4 text-sm">
+                    <p className="font-bold text-pink-800 flex items-center gap-1.5 mb-1">
+                      <Zap className="w-4 h-4" /> Job In Progress
+                    </p>
+                    <p className="text-xs text-pink-700">Staff are on-site. Field check-ins will appear in the timeline below.</p>
+                  </div>
+                  <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment-inprogress"
+                    className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-sm shadow-emerald-500/20 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50">
+                    <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Mark Done & Request Final Payment"}
+                  </button>
                 </div>
               )}
 
@@ -685,7 +699,7 @@ export default function AdminQuoteDetail() {
                     <p className="font-bold text-emerald-800 flex items-center gap-1.5 mb-1">
                       <CheckCircle2 className="w-4 h-4" /> Job Completed
                     </p>
-                    <p className="text-xs text-emerald-700">Field work is done. Request the final 50% balance payment from the customer.</p>
+                    <p className="text-xs text-emerald-700">Field work is done. Send the final payment request to the customer.</p>
                   </div>
                   <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment"
                     className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/20 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 text-sm">
@@ -696,15 +710,21 @@ export default function AdminQuoteDetail() {
 
               {/* ── PHASE 5a: Awaiting Final Payment ── */}
               {quote.status === 'final_payment_requested' && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
-                  <p className="font-bold text-amber-800 flex items-center gap-1.5 text-sm">
-                    <DollarSign className="w-4 h-4" /> Awaiting Final Payment
-                  </p>
-                  <p className="text-xs text-amber-700">Email sent. Waiting for customer to pay the remaining balance.</p>
-                  <div className="bg-amber-100 rounded-xl px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
-                    <span>Balance due</span>
-                    <span className="font-black">{formatMoney(quote.finalAmount)}</span>
+                <div className="space-y-3">
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+                    <p className="font-bold text-amber-800 flex items-center gap-1.5 text-sm">
+                      <DollarSign className="w-4 h-4" /> Awaiting Final Payment
+                    </p>
+                    <p className="text-xs text-amber-700">Payment request sent. Waiting for customer to pay the remaining balance.</p>
+                    <div className="bg-amber-100 rounded-xl px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
+                      <span>Balance due</span>
+                      <span className="font-black">{formatMoney(quote.finalAmount)}</span>
+                    </div>
                   </div>
+                  <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-resend-final-payment"
+                    className="w-full border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                    <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Resend Final Payment Email"}
+                  </button>
                 </div>
               )}
 
