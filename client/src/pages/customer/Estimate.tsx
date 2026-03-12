@@ -363,7 +363,7 @@ export default function EstimateWizard() {
     setPhotoError("");
 
     try {
-      const { base64, thumbnail, mimeType } = await compressImage(file);
+      const { base64, thumbnail, mimeType } = await compressImage(file, 1536);
 
       const res = await fetch("/api/catalog/detect-items", {
         method: "POST",

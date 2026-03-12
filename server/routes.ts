@@ -797,31 +797,52 @@ export async function registerRoutes(
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Look at this image showing furniture or items that might need installation, dismantling, or relocation. List all distinct furniture items you can see. Return ONLY a valid JSON array (no markdown): [{\"name\": \"item name\", \"quantity\": 1}]. Be specific with furniture names (e.g. \"Queen Bed Frame\", \"3-Seater Sofa\"). Max 10 items."
-            },
-            {
-              type: "image_url",
-              image_url: { url: `data:${mimeType};base64,${imageBase64}` }
-            }
-          ]
-        }],
-        max_tokens: 400,
+        messages: [
+          {
+            role: "system",
+            content: "You are a furniture identification assistant. When given an image, you identify furniture and household items visible in the photo. You always respond with ONLY a valid JSON array and nothing else."
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Look at this image and list every piece of furniture or household item you can see, even partially. This includes beds, sofas, wardrobes, tables, chairs, desks, shelves, cabinets, TVs, appliances, etc. Make your best guess even if items are partially visible or the image is not perfect. Respond with ONLY a valid JSON array and nothing else — no prose, no explanation: [{\"name\": \"item name\", \"quantity\": 1}]. List up to 10 distinct items."
+              },
+              {
+                type: "image_url",
+                image_url: { url: `data:${mimeType};base64,${imageBase64}`, detail: "high" }
+              }
+            ]
+          }
+        ],
+        max_tokens: 500,
       });
 
-      const content = response.choices[0]?.message?.content || "[]";
+      const content = response.choices[0]?.message?.content || "";
+      console.log("[detect-items] raw GPT response:", content);
+
       let detected: { name: string; quantity: number }[] = [];
-      try {
-        const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
-        detected = JSON.parse(cleaned);
-      } catch {
-        detected = [];
+      if (content) {
+        try {
+          // Strip markdown code fences if present
+          let cleaned = content.replace(/```(?:json)?\n?/g, "").replace(/\n?```/g, "").trim();
+          // Extract JSON array if embedded in prose
+          const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+          if (arrayMatch) cleaned = arrayMatch[0];
+          const parsed = JSON.parse(cleaned);
+          if (Array.isArray(parsed)) {
+            detected = parsed.filter(
+              (item: any) => typeof item === "object" && item !== null && typeof item.name === "string"
+            ).map((item: any) => ({ name: item.name, quantity: Number(item.quantity) || 1 }));
+          }
+        } catch (parseErr) {
+          console.error("[detect-items] JSON parse failed:", parseErr, "raw:", content);
+          detected = [];
+        }
       }
 
+      console.log("[detect-items] detected items:", detected);
       res.json({ detected });
     } catch (err) {
       console.error("Photo detection error:", err);
