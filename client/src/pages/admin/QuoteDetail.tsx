@@ -596,7 +596,7 @@ export default function AdminQuoteDetail() {
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t">
-                  <span className="text-muted-foreground">Balance (70%)</span>
+                  <span className="text-muted-foreground">Balance (50%)</span>
                   <span className={`font-semibold ${quote.finalPaidAt ? 'text-emerald-600' : ''}`}>
                     {quote.finalPaidAt ? '✓ ' : ''}{formatMoney(quote.finalAmount)}
                   </span>
