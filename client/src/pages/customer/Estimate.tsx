@@ -733,7 +733,7 @@ export default function EstimateWizard() {
                     <Camera className="w-4 h-4 text-accent" /> AI Photo Detection
                     <span className="text-muted-foreground font-normal text-xs">(optional)</span>
                   </p>
-                  <input type="file" ref={fileInputRef} accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} />
+                  <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handlePhotoUpload} />
 
                   {/* Success state — thumbnail + re-scan option */}
                   {detectedPhotoUrl && !photoDetecting ? (
