@@ -271,10 +271,6 @@ export default function QuoteStatus() {
                   <p className="text-[10px] text-black/35 font-semibold uppercase mb-1.5" style={{ letterSpacing: "0.12em" }}>Name</p>
                   <p className="font-semibold text-sm text-black">{quote.customer?.name}</p>
                 </div>
-                <div>
-                  <p className="text-[10px] text-black/35 font-semibold uppercase mb-1.5" style={{ letterSpacing: "0.12em" }}>Contact</p>
-                  <p className="font-semibold text-sm text-black">{quote.customer?.phone}</p>
-                </div>
                 <div className="sm:col-span-2">
                   <p className="text-[10px] text-black/35 font-semibold uppercase mb-1.5" style={{ letterSpacing: "0.12em" }}>Service Address</p>
                   <p className="font-semibold text-sm text-black">{quote.serviceAddress}</p>
