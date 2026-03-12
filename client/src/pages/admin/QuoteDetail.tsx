@@ -636,8 +636,8 @@ export default function AdminQuoteDetail() {
                 </div>
               )}
 
-              {/* ── PHASE 3: Booked / Assign Staff ── */}
-              {['booked', 'assigned'].includes(quote.status) && (
+              {/* ── PHASE 3a: Booked — assign staff ── */}
+              {quote.status === 'booked' && (
                 <div className="space-y-3">
                   {quote.scheduledAt && (
                     <div className="bg-violet-50 border border-violet-200 rounded-2xl p-3.5 text-sm">
@@ -651,7 +651,7 @@ export default function AdminQuoteDetail() {
                   )}
                   <div>
                     <label className="text-xs font-bold mb-2 block text-muted-foreground uppercase tracking-wide">
-                      {quote.status === 'assigned' ? 'Change Staff Assignment' : 'Assign Staff Member'}
+                      Assign Staff Member
                     </label>
                     <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)} data-testid="select-staff"
                       className="w-full px-4 py-2.5 rounded-xl bg-secondary border mb-3 outline-none focus:border-primary text-sm">
@@ -665,7 +665,33 @@ export default function AdminQuoteDetail() {
                       <UserPlus className="w-4 h-4" /> Assign Staff
                     </button>
                   </div>
-                  {/* Admin can request final payment early (e.g. if staff didn't check out via app) */}
+                </div>
+              )}
+
+              {/* ── PHASE 3b: Assigned — awaiting on-site work ── */}
+              {quote.status === 'assigned' && (
+                <div className="space-y-3">
+                  {quote.scheduledAt && (
+                    <div className="bg-violet-50 border border-violet-200 rounded-2xl p-3.5 text-sm">
+                      <p className="font-bold text-violet-800 flex items-center gap-1.5 mb-1">
+                        <CalendarCheck className="w-4 h-4" /> Booking Confirmed
+                      </p>
+                      <p className="font-bold text-violet-900 text-xs">
+                        {format(new Date(quote.scheduledAt), 'EEE, d MMM yyyy')} · {quote.timeWindow}
+                      </p>
+                    </div>
+                  )}
+                  {quote.assignedStaff && (
+                    <div className="bg-secondary/60 rounded-2xl px-4 py-3 text-sm flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-sm shrink-0">
+                        {quote.assignedStaff.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm leading-tight">{quote.assignedStaff.name}</p>
+                        <p className="text-xs text-muted-foreground">Staff assigned</p>
+                      </div>
+                    </div>
+                  )}
                   <div className="pt-1 border-t">
                     <p className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wide font-semibold">Job Done?</p>
                     <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment-early"
