@@ -173,6 +173,42 @@ export async function registerRoutes(
     res.json(items);
   });
 
+  // -- Blocked Slots Routes --
+  // Public: customer fetches blocked slots to enforce in booking UI
+  app.get("/api/blocked-slots", async (req, res) => {
+    try {
+      const slots = await storage.getBlockedSlots();
+      res.json(slots);
+    } catch {
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  // Admin: create a blocked slot
+  app.post("/api/admin/blocked-slots", async (req, res) => {
+    try {
+      const { date, timeSlot, reason } = z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be yyyy-MM-dd"),
+        timeSlot: z.string().nullable().optional(),
+        reason: z.string().optional(),
+      }).parse(req.body);
+      const slot = await storage.createBlockedSlot({ date, timeSlot: timeSlot || null, reason: reason || null });
+      res.json(slot);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message || "Invalid input" });
+    }
+  });
+
+  // Admin: remove a blocked slot
+  app.delete("/api/admin/blocked-slots/:id", async (req, res) => {
+    try {
+      await storage.deleteBlockedSlot(Number(req.params.id));
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   // -- Quotes Routes --
   app.get(api.quotes.list.path, async (req, res) => {
     const status = req.query.status as string | undefined;

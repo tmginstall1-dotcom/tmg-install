@@ -284,6 +284,36 @@ export function useCloseQuote() {
   });
 }
 
+// Blocked Slots
+export function useBlockedSlots() {
+  return useQuery<{ id: number; date: string; timeSlot: string | null; reason: string | null }[]>({
+    queryKey: ["/api/blocked-slots"],
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateBlockedSlot() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { date: string; timeSlot?: string | null; reason?: string }) => {
+      const res = await apiRequest("POST", "/api/admin/blocked-slots", data);
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/blocked-slots"] }),
+  });
+}
+
+export function useDeleteBlockedSlot() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/admin/blocked-slots/${id}`);
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/blocked-slots"] }),
+  });
+}
+
 // Keep for backward compatibility
 export function useUpdateQuoteBooking() {
   const queryClient = useQueryClient();

@@ -122,6 +122,19 @@ export const quoteItemsRelations = relations(quoteItems, ({ one }) => ({
 }));
 
 // Zod Schemas
+// Blocked Dates/Slots (admin-managed, prevents customer bookings)
+export const blockedSlots = pgTable("blocked_slots", {
+  id: serial("id").primaryKey(),
+  date: text("date").notNull(),                     // yyyy-MM-dd
+  timeSlot: text("time_slot"),                      // '09:00-12:00' | '13:00-17:00' | null = whole day
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertBlockedSlotSchema = createInsertSchema(blockedSlots).omit({ id: true, createdAt: true });
+export type BlockedSlot = typeof blockedSlots.$inferSelect;
+export type InsertBlockedSlot = z.infer<typeof insertBlockedSlotSchema>;
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertCatalogItemSchema = createInsertSchema(catalogItems).omit({ id: true });

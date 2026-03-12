@@ -1,8 +1,8 @@
 import { db } from "./db";
 import { 
-  users, customers, catalogItems, quotes, quoteItems, jobUpdates,
+  users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
-  type QuoteResponse
+  type QuoteResponse, type InsertBlockedSlot, type BlockedSlot
 } from "@shared/schema";
 import { eq, desc, or, inArray } from "drizzle-orm";
 
@@ -32,6 +32,11 @@ export interface IStorage {
     items?: Omit<InsertQuoteItem, 'quoteId'>[];
   }): Promise<QuoteResponse | undefined>;
   addJobUpdate(update: InsertJobUpdate): Promise<void>;
+
+  // Blocked Slots
+  getBlockedSlots(): Promise<BlockedSlot[]>;
+  createBlockedSlot(slot: InsertBlockedSlot): Promise<BlockedSlot>;
+  deleteBlockedSlot(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -280,6 +285,19 @@ export class DatabaseStorage implements IStorage {
 
   async addJobUpdate(update: InsertJobUpdate) {
     await db.insert(jobUpdates).values(update);
+  }
+
+  async getBlockedSlots(): Promise<BlockedSlot[]> {
+    return await db.select().from(blockedSlots).orderBy(blockedSlots.date);
+  }
+
+  async createBlockedSlot(slot: InsertBlockedSlot): Promise<BlockedSlot> {
+    const [created] = await db.insert(blockedSlots).values(slot).returning();
+    return created;
+  }
+
+  async deleteBlockedSlot(id: number): Promise<void> {
+    await db.delete(blockedSlots).where(eq(blockedSlots.id, id));
   }
 }
 
