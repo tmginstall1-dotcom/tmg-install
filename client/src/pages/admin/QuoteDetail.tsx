@@ -5,7 +5,8 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useState } from "react";
 import { 
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
-  DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera
+  DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
+  ClipboardList, Banknote, CalendarCheck, Zap, BadgeCheck
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -187,6 +188,97 @@ export default function AdminQuoteDetail() {
                 )}
               </div>
             </div>
+
+            {/* ── Job Status Pipeline ── */}
+            {(() => {
+              type Phase = { id: string; label: string; Icon: React.ElementType; statuses: string[] };
+              const PIPELINE: Phase[] = [
+                { id: "quote",    label: "Quote",    Icon: ClipboardList, statuses: ["submitted", "under_review"] },
+                { id: "deposit",  label: "Deposit",  Icon: Banknote,       statuses: ["deposit_requested", "deposit_paid"] },
+                { id: "booking",  label: "Booking",  Icon: CalendarCheck,  statuses: ["booking_requested", "booked"] },
+                { id: "assigned", label: "Assigned", Icon: UserPlus,       statuses: ["assigned"] },
+                { id: "job",      label: "On-site",  Icon: Zap,            statuses: ["in_progress", "completed"] },
+                { id: "closed",   label: "Closed",   Icon: BadgeCheck,     statuses: ["final_payment_requested", "final_paid", "closed"] },
+              ];
+              const isCancelled = quote.status === "cancelled";
+              const activeIdx   = isCancelled ? -1 : PIPELINE.findIndex(p => p.statuses.includes(quote.status));
+
+              const subLabel: Record<string, string> = {
+                submitted: "New request",
+                under_review: "Reviewing",
+                deposit_requested: "Email sent",
+                deposit_paid: "Paid ✓",
+                booking_requested: "Slot pending",
+                booked: "Confirmed ✓",
+                assigned: "Staff set",
+                in_progress: "Live",
+                completed: "Done ✓",
+                final_payment_requested: "Email sent",
+                final_paid: "Paid ✓",
+                closed: "Case closed",
+              };
+
+              return (
+                <div className="bg-card rounded-3xl border shadow-sm px-5 py-5" data-testid="status-pipeline">
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">Job Pipeline</p>
+                  {/* Stepper */}
+                  <div className="flex items-start">
+                    {PIPELINE.map((phase, i) => {
+                      const isDone     = !isCancelled && activeIdx > i;
+                      const isActive   = !isCancelled && activeIdx === i;
+                      const { Icon }   = phase;
+                      return (
+                        <div key={phase.id} className="flex items-center flex-1 last:flex-none">
+                          <div className="flex flex-col items-center gap-1.5 min-w-0">
+                            {/* Circle node */}
+                            <div className={[
+                              "relative w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0",
+                              isDone   ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" :
+                              isActive ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-primary/20" :
+                                         "bg-muted text-muted-foreground/50",
+                            ].join(" ")}>
+                              {isDone
+                                ? <CheckCircle2 className="w-4 h-4" />
+                                : <Icon className="w-4 h-4" />
+                              }
+                              {isActive && (
+                                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-primary border-2 border-white animate-ping opacity-75" />
+                              )}
+                            </div>
+                            {/* Label */}
+                            <span className={[
+                              "text-[10px] font-bold whitespace-nowrap",
+                              isActive ? "text-primary" : isDone ? "text-foreground/70" : "text-muted-foreground/40",
+                            ].join(" ")}>
+                              {phase.label}
+                            </span>
+                            {/* Sub-label for active phase */}
+                            {isActive && (
+                              <span className="text-[9px] text-primary/70 font-medium whitespace-nowrap -mt-1">
+                                {subLabel[quote.status] || ""}
+                              </span>
+                            )}
+                          </div>
+                          {/* Connector line */}
+                          {i < PIPELINE.length - 1 && (
+                            <div className={[
+                              "flex-1 h-0.5 mx-1 mb-6 rounded-full transition-all",
+                              isDone ? "bg-primary" : "bg-border",
+                            ].join(" ")} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Cancelled state */}
+                  {isCancelled && (
+                    <div className="mt-2 text-center text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl py-2">
+                      This job was cancelled
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Customer + Address */}
             <div className="bg-card p-6 rounded-3xl border shadow-sm">
@@ -486,100 +578,188 @@ export default function AdminQuoteDetail() {
 
           {/* Sidebar Actions */}
           <div className="space-y-5">
-            <div className="bg-card rounded-3xl p-5 border shadow-sm space-y-3">
-              <h3 className="font-bold mb-3">Admin Actions</h3>
+            {/* ── Next Action Card ── */}
+            <div className="bg-card rounded-3xl p-5 border shadow-sm space-y-4">
 
-              {/* Approve & Request Deposit */}
+              {/* Section heading */}
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <h3 className="font-bold text-sm uppercase tracking-wide text-muted-foreground">Next Action</h3>
+              </div>
+
+              {/* ── PHASE 1: New / Under Review ── */}
               {['submitted', 'under_review'].includes(quote.status) && (
-                <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending} data-testid="button-approve-deposit"
-                  className="w-full btn-primary-gradient py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50">
-                  <CheckCircle2 className="w-5 h-5" /> Approve & Request Deposit
-                </button>
+                <div className="space-y-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3.5 text-sm">
+                    <p className="font-bold text-blue-800 flex items-center gap-1.5 mb-1">
+                      <ClipboardList className="w-4 h-4" /> Quote Received
+                    </p>
+                    <p className="text-xs text-blue-700">Review the items and pricing below, then approve to request the deposit from the customer.</p>
+                  </div>
+                  <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending} data-testid="button-approve-deposit"
+                    className="w-full btn-primary-gradient py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
+                    <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
+                  </button>
+                </div>
               )}
 
-              {/* Re-request deposit if already requested */}
+              {/* ── PHASE 2a: Deposit Requested ── */}
               {quote.status === 'deposit_requested' && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-                  <p className="font-bold mb-1">Deposit Requested</p>
-                  <p className="text-xs">Waiting for customer to pay {formatMoney(quote.depositAmount)}</p>
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+                  <p className="font-bold text-amber-800 flex items-center gap-1.5 text-sm">
+                    <Banknote className="w-4 h-4" /> Awaiting Deposit
+                  </p>
+                  <p className="text-xs text-amber-700">Email sent. Waiting for customer to pay the 50% deposit of <strong>{formatMoney(quote.depositAmount)}</strong>.</p>
+                  <div className="bg-amber-100 rounded-xl px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
+                    <span>Deposit amount</span>
+                    <span className="font-black">{formatMoney(quote.depositAmount)}</span>
+                  </div>
                 </div>
               )}
 
-              {/* Deposit paid info */}
+              {/* ── PHASE 2b: Deposit Paid ── */}
               {quote.status === 'deposit_paid' && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-700">
-                  <p className="font-bold mb-1">✓ Deposit Paid</p>
-                  <p className="text-xs">Waiting for customer to request a booking slot</p>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-1.5">
+                  <p className="font-bold text-emerald-800 flex items-center gap-1.5 text-sm">
+                    <CheckCircle2 className="w-4 h-4" /> Deposit Received
+                  </p>
+                  <p className="text-xs text-emerald-700">Deposit of {formatMoney(quote.depositAmount)} confirmed. Customer will now select a booking slot — you'll be notified once they submit a request.</p>
+                  {quote.preferredDate && (
+                    <div className="mt-2 bg-white border border-emerald-200 rounded-xl px-3 py-2 text-xs">
+                      <p className="text-muted-foreground mb-0.5">Preferred slot (from estimate)</p>
+                      <p className="font-bold text-foreground flex items-center gap-1.5">
+                        <Calendar className="w-3 h-3 text-emerald-600" />
+                        {format(new Date(quote.preferredDate + "T12:00:00"), 'EEE, d MMM yyyy')} · {quote.preferredTimeWindow}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Confirm Booking */}
+              {/* ── PHASE 3a: Booking Requested ── */}
               {quote.status === 'booking_requested' && (
-                <div>
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-3">
-                    <p className="text-sm font-bold text-blue-800 mb-1">📅 Booking Request Received</p>
-                    {quote.scheduledAt && (
-                      <p className="text-xs text-blue-700">
-                        {format(new Date(quote.scheduledAt), 'EEE, MMM d, yyyy')} · {quote.timeWindow}
+                <div className="space-y-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2">
+                    <p className="font-bold text-blue-800 flex items-center gap-1.5 text-sm">
+                      <CalendarCheck className="w-4 h-4" /> Booking Request
+                    </p>
+                    {(quote.scheduledAt || quote.preferredDate) && (
+                      <div className="bg-white border border-blue-200 rounded-xl px-3 py-2.5 text-xs">
+                        <p className="text-blue-600 mb-0.5 font-semibold">Requested slot</p>
+                        <p className="font-bold text-blue-900">
+                          {quote.scheduledAt
+                            ? `${format(new Date(quote.scheduledAt), 'EEE, d MMM yyyy')} · ${quote.timeWindow}`
+                            : `${format(new Date(quote.preferredDate + "T12:00:00"), 'EEE, d MMM yyyy')} · ${quote.preferredTimeWindow}`
+                          }
+                        </p>
+                      </div>
+                    )}
+                    {quote.rescheduledCount > 0 && (
+                      <p className="text-xs text-amber-600 font-semibold flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Reschedule #{quote.rescheduledCount}
                       </p>
                     )}
-                    {quote.rescheduledCount && quote.rescheduledCount > 0 ? (
-                      <p className="text-xs text-amber-600 font-semibold mt-1">⚠ Reschedule #{quote.rescheduledCount}</p>
-                    ) : null}
+                    <p className="text-xs text-blue-700">Confirm this slot to lock it in and notify the customer.</p>
                   </div>
                   <button onClick={handleConfirmBooking} disabled={confirmBooking.isPending} data-testid="button-confirm-booking"
-                    className="w-full btn-primary-gradient py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50">
-                    <Calendar className="w-5 h-5" /> Confirm Booking
+                    className="w-full btn-primary-gradient py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
+                    <CalendarCheck className="w-4 h-4" /> {confirmBooking.isPending ? "Confirming..." : "Confirm Booking"}
                   </button>
                 </div>
               )}
 
-              {/* Assign Staff */}
+              {/* ── PHASE 3b: Booked / Assign Staff ── */}
               {['booked', 'assigned'].includes(quote.status) && (
-                <div className="pt-2 border-t">
-                  <label className="text-xs font-semibold mb-2 block text-muted-foreground">Assign Staff Member</label>
-                  <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)} data-testid="select-staff"
-                    className="w-full px-4 py-2.5 rounded-xl bg-secondary border mb-3 outline-none focus:border-primary text-sm">
-                    <option value="">Select staff...</option>
-                    {staffList?.map((s: any) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                  <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedStaff} data-testid="button-assign-staff"
-                    className="w-full bg-foreground text-background py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-foreground/90 transition-colors disabled:opacity-50">
-                    <UserPlus className="w-4 h-4" /> Assign Staff
+                <div className="space-y-3">
+                  {quote.scheduledAt && (
+                    <div className="bg-violet-50 border border-violet-200 rounded-2xl p-3.5 text-sm">
+                      <p className="font-bold text-violet-800 flex items-center gap-1.5 mb-1">
+                        <CalendarCheck className="w-4 h-4" /> Booking Confirmed
+                      </p>
+                      <p className="font-bold text-violet-900 text-xs">
+                        {format(new Date(quote.scheduledAt), 'EEE, d MMM yyyy')} · {quote.timeWindow}
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs font-bold mb-2 block text-muted-foreground uppercase tracking-wide">
+                      {quote.status === 'assigned' ? 'Change Staff Assignment' : 'Assign Staff Member'}
+                    </label>
+                    <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)} data-testid="select-staff"
+                      className="w-full px-4 py-2.5 rounded-xl bg-secondary border mb-3 outline-none focus:border-primary text-sm">
+                      <option value="">Select staff...</option>
+                      {staffList?.map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                    <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedStaff} data-testid="button-assign-staff"
+                      className="w-full bg-foreground text-background py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-foreground/90 transition-colors disabled:opacity-50">
+                      <UserPlus className="w-4 h-4" /> Assign Staff
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── PHASE 4: In Progress ── */}
+              {quote.status === 'in_progress' && (
+                <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4 text-sm">
+                  <p className="font-bold text-pink-800 flex items-center gap-1.5 mb-1">
+                    <Zap className="w-4 h-4" /> Job In Progress
+                  </p>
+                  <p className="text-xs text-pink-700">Staff are on-site. Field check-ins and photos will appear in the timeline below.</p>
+                </div>
+              )}
+
+              {/* ── PHASE 4b: Completed — request final payment ── */}
+              {quote.status === 'completed' && (
+                <div className="space-y-3">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 text-sm">
+                    <p className="font-bold text-emerald-800 flex items-center gap-1.5 mb-1">
+                      <CheckCircle2 className="w-4 h-4" /> Job Completed
+                    </p>
+                    <p className="text-xs text-emerald-700">Field work is done. Request the final 50% balance payment from the customer.</p>
+                  </div>
+                  <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment"
+                    className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/20 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 text-sm">
+                    <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Request Final Payment"}
                   </button>
                 </div>
               )}
 
-              {/* Request Final Payment */}
-              {quote.status === 'completed' && (
-                <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment"
-                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/20 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50">
-                  <DollarSign className="w-5 h-5" /> Request Final Payment
-                </button>
-              )}
-
-              {/* Final requested info */}
+              {/* ── PHASE 5a: Awaiting Final Payment ── */}
               {quote.status === 'final_payment_requested' && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-                  <p className="font-bold mb-1">Final Payment Requested</p>
-                  <p className="text-xs">Waiting for customer to pay {formatMoney(quote.finalAmount)}</p>
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+                  <p className="font-bold text-amber-800 flex items-center gap-1.5 text-sm">
+                    <DollarSign className="w-4 h-4" /> Awaiting Final Payment
+                  </p>
+                  <p className="text-xs text-amber-700">Email sent. Waiting for customer to pay the remaining balance.</p>
+                  <div className="bg-amber-100 rounded-xl px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
+                    <span>Balance due</span>
+                    <span className="font-black">{formatMoney(quote.finalAmount)}</span>
+                  </div>
                 </div>
               )}
 
-              {/* Closed */}
+              {/* ── PHASE 5b: Closed / Fully Paid ── */}
               {['closed', 'final_paid'].includes(quote.status) && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-1" />
-                  <p className="font-bold text-emerald-700">Case Closed</p>
-                  <p className="text-xs text-emerald-600 mt-1">Total received: {formatMoney(quote.total)}</p>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center">
+                  <BadgeCheck className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                  <p className="font-bold text-emerald-700 text-base">Case Closed</p>
+                  <p className="text-xs text-emerald-600 mt-1">Total collected: <strong>{formatMoney(quote.total)}</strong></p>
                 </div>
               )}
 
-              {/* Manual Close */}
+              {/* ── Cancelled ── */}
+              {quote.status === 'cancelled' && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center">
+                  <XCircle className="w-8 h-8 text-red-400 mx-auto mb-1" />
+                  <p className="font-bold text-red-700 text-sm">Job Cancelled</p>
+                </div>
+              )}
+
+              {/* Manual Close (always available unless terminal) */}
               {!['closed', 'cancelled', 'final_paid'].includes(quote.status) && (
-                <div className="pt-3 border-t">
+                <div className="pt-2 border-t">
                   <button onClick={handleManualClose} data-testid="button-manual-close"
                     className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold text-muted-foreground hover:bg-secondary transition-colors">
                     <XCircle className="w-4 h-4" /> Manual Close / Cancel

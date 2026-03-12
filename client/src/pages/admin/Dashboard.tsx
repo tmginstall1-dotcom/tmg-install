@@ -30,20 +30,36 @@ function avatarColor(id: number) {
 }
 
 function QuoteRow({ quote, showDate = false }: { quote: any; showDate?: boolean }) {
+  // Determine which date to show in the meta line
+  const slotDate = quote.scheduledAt
+    ? format(new Date(quote.scheduledAt), "d MMM")
+    : quote.preferredDate
+      ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM") + " (pref.)"
+      : null;
+
+  const needsAction = ["submitted", "under_review", "booking_requested", "completed"].includes(quote.status);
+
   return (
     <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}>
-      <div className="group flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors cursor-pointer border-b last:border-0">
+      <div className={`group flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors cursor-pointer border-b last:border-0 ${needsAction ? "bg-amber-50/40 hover:bg-amber-50" : ""}`}>
         {/* Avatar */}
         <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor(quote.id)}`}>
           {initials(quote.customer?.name)}
         </div>
 
-        {/* Name + Address */}
+        {/* Name + meta */}
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm text-foreground leading-tight truncate group-hover:text-primary transition-colors">
             {quote.customer?.name || "Unknown"}
           </p>
-          <p className="text-xs text-muted-foreground truncate mt-0.5">{quote.serviceAddress}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-xs text-muted-foreground truncate">{quote.serviceAddress}</p>
+            {slotDate && showDate && (
+              <span className="hidden sm:inline shrink-0 text-[10px] font-semibold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-md">
+                {slotDate}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Ref */}
@@ -51,21 +67,19 @@ function QuoteRow({ quote, showDate = false }: { quote: any; showDate?: boolean 
           {quote.referenceNo}
         </span>
 
-        {/* Status */}
+        {/* Status badge */}
         <StatusBadge status={quote.status} className="hidden md:inline-flex scale-90 origin-right shrink-0" />
 
-        {/* Amount */}
+        {/* Amount + date */}
         <div className="text-right shrink-0">
           <p className="text-sm font-bold text-foreground">{formatMoney(quote.total)}</p>
-          {showDate && quote.scheduledAt && (
-            <p className="text-xs text-muted-foreground">{format(new Date(quote.scheduledAt), "d MMM")}</p>
-          )}
-          {!showDate && (
-            <p className="text-xs text-muted-foreground">{format(new Date(quote.createdAt), "d MMM")}</p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            {showDate && slotDate ? slotDate : format(new Date(quote.createdAt), "d MMM")}
+          </p>
         </div>
 
-        <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+        {/* Arrow — highlighted for action-needed rows */}
+        <ArrowUpRight className={`w-4 h-4 transition-colors shrink-0 ${needsAction ? "text-amber-500 group-hover:text-amber-600" : "text-muted-foreground group-hover:text-primary"}`} />
       </div>
     </Link>
   );
