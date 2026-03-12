@@ -1,0 +1,229 @@
+You are a senior product designer + senior frontend engineer. Redesign the TMG Install public homepage so it looks premium, modern, and high-converting, WITHOUT changing any backend logic or working app behavior.
+
+PROJECT CONTEXT
+TMG Install is a Singapore furniture installation / dismantling / relocation service. The brand should feel premium, confident, clean, minimal, and trustworthy. The current homepage works, but it feels too empty, too plain, and not visually strong enough.
+
+PRIMARY OBJECTIVE
+Upgrade the homepage UI/UX dramatically while preserving all existing functionality exactly as-is.
+
+STRICT NON-NEGOTIABLE RULES
+DO NOT:
+- change backend logic
+- change Supabase logic
+- change API calls
+- change routes
+- change auth
+- change form submission logic
+- change payload structure
+- change database field names
+- change existing button handlers
+- change existing CTA behavior
+- change quote logic
+- change WhatsApp logic
+- change admin/staff/customer workflows
+- create new endpoints
+- create new tables
+- break existing components that are already wired
+- refactor working logic unless absolutely required for styling structure only
+
+THIS IS A FRONTEND VISUAL REDESIGN ONLY.
+
+SAFE IMPLEMENTATION RULES
+- Reuse existing handlers, props, and wired components
+- Preserve all current actions and functionality
+- Only improve layout, section structure, spacing, styling, typography, and visual presentation
+- Keep the redesign focused on the public homepage and shared presentation styles used by it
+- Do not modify unrelated pages
+- Do not introduce unstable dependencies unless already available
+- Keep code production-safe, clean, and maintainable
+- Preserve responsiveness
+- Do not remove working sections unless replacing them with a better visual version that keeps the same logic
+
+BRAND / ART DIRECTION
+Create a premium monochrome design:
+- black / white / soft gray palette only
+- no bright colors
+- no loud gradients
+- no cartoon visuals
+- no generic template feel
+- no flashy startup style
+- strong editorial spacing
+- bold condensed hero typography
+- refined modern UI
+- industrial-luxury feel
+- Apple x Yeezy x modern premium SaaS
+- sharp, minimal, expensive-looking
+- clean borders, subtle shadows, restrained motion
+
+VISUAL GOAL
+The homepage should feel:
+- premium
+- polished
+- conversion-focused
+- structured
+- trustworthy
+- modern
+- strong on desktop
+- elegant on mobile
+
+CURRENT PROBLEM TO SOLVE
+The homepage currently feels:
+- too empty
+- visually unfinished
+- weak in hierarchy
+- not using space well
+- too plain for a premium service brand
+
+DESIGN SOLUTION TO BUILD
+
+1) HEADER
+Redesign the top navigation/header to feel more premium.
+Requirements:
+- keep current logo/brand
+- keep current buttons/actions
+- refine spacing, height, alignment, typography, and CTA styling
+- make header sticky
+- add subtle backdrop blur and thin border on scroll
+- keep it clean and minimal
+
+2) HERO SECTION
+Build a strong hero section with a 2-column layout on desktop and stacked layout on mobile.
+
+LEFT SIDE:
+- small premium badge/pill above headline: “AI-Powered Instant Quotes”
+- bold hero headline:
+  “FURNITURE INSTALLATION,
+   MADE EFFORTLESS.”
+- refined supporting paragraph that explains the value clearly
+- primary CTA: Get Estimate
+- secondary CTA: WhatsApp Us
+- trust/value row below CTAs:
+  - Office / Home / Commercial
+  - Singapore-wide coverage
+  - Fast scheduling
+
+RIGHT SIDE:
+- add a premium visual-only quote/dashboard preview card
+- this is for presentation only, do not add new logic
+- visually show:
+  - service type
+  - address row
+  - item count
+  - estimate breakdown
+  - total estimate
+  - status chip or AI-generated indicator
+- use layered cards, structured rows, clean borders, subtle shadows
+- make this side feel like a polished service estimate interface
+- motion can be subtle only
+
+3) TRUST / VALUE STRIP
+Below the hero, add a premium trust strip or card row for key benefits:
+- Expert Installers
+- Transparent Pricing
+- Fast Scheduling
+- Residential + Commercial Jobs
+Keep copy concise and premium.
+
+4) HOW IT WORKS
+Redesign the current “How it works” section so it no longer looks like a placeholder.
+Use 3 premium cards:
+- 1 Select Service
+- 2 Add Address
+- 3 Item List & Quote
+
+Design requirements:
+- stronger typography
+- better card proportions
+- more premium spacing
+- elegant borders and hover states
+- clear number badges
+- better section title treatment
+- optional subtle connector flow on desktop
+- mobile stack must remain excellent
+
+5) WHY TMG INSTALL SECTION
+Add a strong value proposition section with 3 or 4 cards such as:
+- Office furniture specialists
+- Home assembly and dismantling
+- Clear WhatsApp communication
+- Singapore-wide support
+
+Make these cards feel high-end and persuasive, not generic.
+
+6) SOCIAL/CONFIDENCE LAYER
+Without changing logic, add a visual confidence-building section such as:
+- “Built for office, home, and commercial jobs”
+- “Transparent estimate flow”
+- “Fast response on WhatsApp”
+This should help the page convert better while staying minimal.
+
+7) BOTTOM CTA BAND
+Add a premium CTA section before the footer:
+- bold short headline
+- short supporting text
+- one primary Get Estimate button
+- one secondary WhatsApp button
+Keep existing actions exactly unchanged.
+
+8) FOOTER
+Redesign footer to feel more intentional and premium.
+Requirements:
+- stronger spacing
+- better hierarchy
+- clean dark section
+- columns for brand / contact / legal
+- better typography and muted secondary text
+- preserve current links and contact details
+- do not change destinations
+
+LAYOUT / SPACING REQUIREMENTS
+- reduce empty dead space
+- use a stronger max-width container system
+- improve vertical rhythm between sections
+- improve alignment on large screens
+- make desktop feel substantial, not sparse
+- make mobile feel premium, not cramped
+
+TYPOGRAPHY REQUIREMENTS
+- strong, bold condensed type for major headlines
+- clean sans serif for body text
+- improved text scale and hierarchy
+- premium tracking/spacing
+- no playful typography
+- typography should carry the brand identity
+
+BUTTON / CARD STYLE
+- buttons should feel expensive and decisive
+- cards should feel architectural and structured
+- consistent radius
+- subtle border language
+- minimal shadow depth
+- clean hover states
+- no oversized rounded startup bubble style
+
+RESPONSIVE REQUIREMENTS
+- mobile-first
+- elegant stacking at all breakpoints
+- no broken alignment
+- no oversized empty blocks
+- buttons wrap cleanly
+- cards remain readable and balanced on tablet and desktop
+
+ACCESSIBILITY / QUALITY
+- maintain strong contrast
+- preserve semantic structure
+- preserve keyboard accessibility
+- keep performance reasonable
+- avoid layout shift
+- keep implementation clean and production-ready
+
+COPY STYLE
+Use concise, premium, confident copy. Do not use generic marketing fluff. Do not use lorem ipsum. Keep content short, direct, and professional.
+
+FINAL DELIVERY REQUIREMENT
+Return the upgraded homepage implementation only.
+Preserve all existing working functionality exactly.
+Focus on visual quality, layout, spacing, hierarchy, and premium design execution.
+
+Before writing code, inspect the existing homepage structure and reuse the current working components/logic wherever possible.
+Only redesign the presentation layer safely.
