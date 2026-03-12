@@ -122,7 +122,11 @@ function groupCatalog(items: CatalogItem[]): CatalogGroup[] {
   items.forEach(item => {
     const key = item.name.toLowerCase().trim();
     if (!map[key]) map[key] = { name: item.name, category: item.category || "", entries: [] };
-    map[key].entries.push({ id: item.id, sku: item.sku || "", serviceType: item.serviceType as ServiceType, basePrice: item.basePrice });
+    // Deduplicate by serviceType — keep only first entry per service type
+    const alreadyHasType = map[key].entries.some(e => e.serviceType === item.serviceType);
+    if (!alreadyHasType) {
+      map[key].entries.push({ id: item.id, sku: item.sku || "", serviceType: item.serviceType as ServiceType, basePrice: item.basePrice });
+    }
   });
   return Object.values(map);
 }
@@ -273,14 +277,15 @@ export default function EstimateWizard() {
           updated.push({ id: uid(), sku: "", name: group.name, category: group.category, serviceType: st, quantity: qty, unitPrice: 0, isCustom: true });
         });
       } else {
-        // Add only the first matching entry (avoid duplicates for multi-service items)
-        const entry = relevant[0];
-        const existing = updated.find(i => i.catalogItemId === entry.id);
-        if (existing) {
-          updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
-        } else {
-          updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), isCustom: false });
-        }
+        // Add ALL matching service variants (one line per selected service type)
+        relevant.forEach(entry => {
+          const existing = updated.find(i => i.catalogItemId === entry.id);
+          if (existing) {
+            updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
+          } else {
+            updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), isCustom: false });
+          }
+        });
       }
       return updated;
     });
