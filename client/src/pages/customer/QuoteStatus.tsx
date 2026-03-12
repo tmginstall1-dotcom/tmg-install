@@ -353,34 +353,46 @@ export default function QuoteStatus() {
                     const slots = getAvailableSlots(rescheduleDate, blockedSlotsList);
                     const blocked = rescheduleDate && slots.length === 0;
                     return (
-                      <div className="mt-3 border border-black/12 p-5">
-                        <p className="text-xs font-semibold tracking-widest uppercase text-black/50 mb-4" style={{ letterSpacing: "0.15em" }}>Select New Date & Time</p>
-                        <input type="date" min={getTodayPlus1()} value={rescheduleDate}
-                          onChange={e => { setRescheduleDate(e.target.value); setRescheduleTime(""); }}
-                          className="w-full px-3 py-2.5 border border-black/20 bg-white text-sm mb-3 outline-none focus:border-black transition-colors"
-                          data-testid="input-reschedule-date" />
-                        {blocked ? (
-                          <div className="flex items-center gap-2 px-3 py-2.5 border border-black/20 bg-black/[0.03] mb-3">
-                            <AlertCircle className="w-4 h-4 text-black/50 shrink-0" />
-                            <p className="text-xs text-black/60">This date is fully booked. Please choose another.</p>
+                      <div className="mt-4 border border-black/10">
+                        <div className="px-4 py-3 border-b border-black/8 bg-black/[0.02] flex items-center gap-2">
+                          <CalendarDays className="w-3.5 h-3.5 text-black/40" />
+                          <p className="text-[10px] font-semibold tracking-widest uppercase text-black/40" style={{ letterSpacing: "0.18em" }}>Select New Date & Time</p>
+                        </div>
+                        <div className="p-4 space-y-3">
+                          <div>
+                            <p className="text-[10px] font-semibold tracking-widest uppercase text-black/35 mb-1.5" style={{ letterSpacing: "0.15em" }}>Date</p>
+                            <input type="date" min={getTodayPlus1()} value={rescheduleDate}
+                              onChange={e => { setRescheduleDate(e.target.value); setRescheduleTime(""); }}
+                              className="w-full h-11 px-4 border border-black/15 bg-white text-sm outline-none focus:border-black/40 transition-all"
+                              data-testid="input-reschedule-date" />
                           </div>
-                        ) : (
-                          <select value={rescheduleTime} onChange={e => setRescheduleTime(e.target.value)}
-                            className="w-full px-3 py-2.5 border border-black/20 bg-white text-sm mb-4 outline-none focus:border-black transition-colors appearance-none"
-                            data-testid="select-reschedule-time">
-                            <option value="">Select time window</option>
-                            {slots.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                          </select>
-                        )}
-                        <div className="flex gap-2">
-                          <button onClick={handleReschedule} disabled={rescheduleMutation.isPending || !!blocked} data-testid="button-confirm-reschedule"
-                            className="flex-1 bg-black text-white py-2.5 text-xs font-bold uppercase tracking-widest disabled:opacity-40 hover:bg-black/85 transition-colors">
-                            {rescheduleMutation.isPending ? "Sending…" : "Submit Reschedule"}
-                          </button>
-                          <button onClick={() => setShowReschedule(false)}
-                            className="px-5 py-2.5 border border-black/20 text-xs font-bold hover:border-black/40 transition-colors">
-                            Cancel
-                          </button>
+                          <div>
+                            <p className="text-[10px] font-semibold tracking-widest uppercase text-black/35 mb-1.5" style={{ letterSpacing: "0.15em" }}>Time Window</p>
+                            {blocked ? (
+                              <div className="h-11 flex items-center gap-2 px-4 border border-black/15 bg-black/[0.03]">
+                                <AlertCircle className="w-4 h-4 text-black/40 shrink-0" />
+                                <p className="text-xs text-black/50">This date is fully booked — choose another</p>
+                              </div>
+                            ) : (
+                              <select value={rescheduleTime} onChange={e => setRescheduleTime(e.target.value)}
+                                className="w-full h-11 px-4 border border-black/15 bg-white text-sm outline-none focus:border-black/40 transition-all appearance-none"
+                                data-testid="select-reschedule-time">
+                                <option value="">Select a time window</option>
+                                {slots.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                              </select>
+                            )}
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button onClick={handleReschedule} disabled={rescheduleMutation.isPending || !!blocked || !rescheduleDate || !rescheduleTime} data-testid="button-confirm-reschedule"
+                              className="flex-1 h-11 bg-black text-white text-xs font-bold uppercase tracking-widest disabled:opacity-40 hover:bg-black/85 transition-colors"
+                              style={{ letterSpacing: "0.12em" }}>
+                              {rescheduleMutation.isPending ? "Sending…" : "Submit Reschedule"}
+                            </button>
+                            <button onClick={() => setShowReschedule(false)}
+                              className="h-11 px-5 border border-black/15 text-xs font-bold hover:border-black/30 transition-colors">
+                              Cancel
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -442,34 +454,69 @@ export default function QuoteStatus() {
                 const slots = getAvailableSlots(selectedDate, blockedSlotsList);
                 const blocked = selectedDate && slots.length === 0;
                 return (
-                  <div className="px-6 pb-6 border-t border-white/10 pt-5">
-                    <p className="text-xs font-semibold tracking-widest uppercase text-white/40 mb-4 flex items-center gap-2" style={{ letterSpacing: "0.15em" }}>
-                      <CalendarDays className="w-3.5 h-3.5" /> Choose Appointment
-                    </p>
-                    <input type="date" min={getTodayPlus1()} value={selectedDate}
-                      onChange={e => { setSelectedDate(e.target.value); setSelectedTime(""); }}
-                      className="w-full px-3 py-2.5 bg-white/10 border border-white/20 text-white text-sm mb-3 outline-none focus:border-white/50 transition-colors"
-                      data-testid="input-booking-date" />
-                    {blocked ? (
-                      <div className="flex items-center gap-2 px-3 py-2.5 bg-white/10 border border-white/20 mb-4">
-                        <AlertCircle className="w-4 h-4 text-white/60 shrink-0" />
-                        <p className="text-xs text-white/60">This date is fully booked. Please choose another.</p>
+                  <div className="border-t border-white/10">
+                    {/* Section header */}
+                    <div className="px-6 py-4 border-b border-white/10 flex items-center gap-2">
+                      <CalendarDays className="w-3.5 h-3.5 text-white/40" />
+                      <p className="text-[10px] font-semibold tracking-widest uppercase text-white/40" style={{ letterSpacing: "0.18em" }}>
+                        Choose Appointment
+                      </p>
+                    </div>
+
+                    <div className="px-6 py-5 space-y-4">
+                      {/* Date field */}
+                      <div>
+                        <p className="text-[10px] font-semibold tracking-widest uppercase text-white/35 mb-2" style={{ letterSpacing: "0.15em" }}>Date</p>
+                        <input
+                          type="date"
+                          min={getTodayPlus1()}
+                          value={selectedDate}
+                          onChange={e => { setSelectedDate(e.target.value); setSelectedTime(""); }}
+                          className="w-full h-12 px-4 bg-white/[0.07] border border-white/15 text-white text-sm outline-none focus:border-white/40 focus:bg-white/[0.10] transition-all"
+                          data-testid="input-booking-date"
+                        />
                       </div>
-                    ) : (
-                      <select value={selectedTime} onChange={e => setSelectedTime(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-white/10 border border-white/20 text-white text-sm mb-4 outline-none focus:border-white/50 transition-colors appearance-none"
-                        data-testid="select-booking-time">
-                        <option value="" className="text-black">Select time window</option>
-                        {slots.map(s => <option key={s.value} value={s.value} className="text-black">{s.label}</option>)}
-                      </select>
-                    )}
-                    <button onClick={handleBookingRequest} disabled={bookMutation.isPending || !!blocked} data-testid="button-request-booking"
-                      className="w-full bg-white text-black font-bold py-3.5 text-sm uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-60 hover:bg-white/90 transition-colors"
-                      style={{ letterSpacing: "0.12em" }}>
-                      {bookMutation.isPending ? "Sending…" : "Request This Slot"}
-                      {!bookMutation.isPending && <ArrowRight className="w-4 h-4" />}
-                    </button>
-                    <p className="text-xs text-white/30 mt-3 text-center">Admin will confirm within 24 hours</p>
+
+                      {/* Time field */}
+                      <div>
+                        <p className="text-[10px] font-semibold tracking-widest uppercase text-white/35 mb-2" style={{ letterSpacing: "0.15em" }}>Time Window</p>
+                        {blocked ? (
+                          <div className="h-12 flex items-center gap-2 px-4 bg-white/[0.07] border border-white/15">
+                            <AlertCircle className="w-4 h-4 text-white/50 shrink-0" />
+                            <p className="text-xs text-white/50">This date is fully booked — choose another</p>
+                          </div>
+                        ) : (
+                          <select
+                            value={selectedTime}
+                            onChange={e => setSelectedTime(e.target.value)}
+                            className="w-full h-12 px-4 bg-white/[0.07] border border-white/15 text-white text-sm outline-none focus:border-white/40 focus:bg-white/[0.10] transition-all appearance-none"
+                            data-testid="select-booking-time"
+                          >
+                            <option value="" className="text-black bg-white">Select a time window</option>
+                            {slots.map(s => <option key={s.value} value={s.value} className="text-black bg-white">{s.label}</option>)}
+                          </select>
+                        )}
+                      </div>
+
+                      {/* Submit */}
+                      <div className="pt-1">
+                        <button
+                          onClick={handleBookingRequest}
+                          disabled={bookMutation.isPending || !!blocked || !selectedDate || !selectedTime}
+                          data-testid="button-request-booking"
+                          className="w-full h-12 bg-white text-black font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 hover:bg-white/90 transition-colors"
+                          style={{ letterSpacing: "0.14em" }}
+                        >
+                          {bookMutation.isPending
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
+                            : <><span>Request This Slot</span><ArrowRight className="w-4 h-4" /></>
+                          }
+                        </button>
+                        <p className="text-[10px] text-white/25 mt-3 text-center tracking-wide">
+                          Our team will confirm within 24 hours
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
