@@ -5,8 +5,8 @@ import bcrypt from "bcryptjs";
 
 const ACCOUNTS = [
   { username: "admin",  password: "Admin@TMG2026",  role: "admin", name: "System Admin" },
-  { username: "staff1", password: "Staff1@TMG2026", role: "staff", name: "Ahmad Faiz" },
-  { username: "staff2", password: "Staff2@TMG2026", role: "staff", name: "Ravi Kumar" },
+  { username: "staff1", password: "Staff1@TMG2026", role: "staff", name: "Ng Kim Boon" },
+  { username: "staff2", password: "Staff2@TMG2026", role: "staff", name: "Soh Seng Kai" },
 ] as const;
 
 export async function seedDatabase() {
