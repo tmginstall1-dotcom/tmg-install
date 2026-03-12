@@ -406,7 +406,7 @@ export default function QuoteStatus() {
           <div className="space-y-4">
 
             {/* Payment Summary — black card */}
-            <motion.div {...fadeUp(0.15)} className="bg-black text-white shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
+            <motion.div {...fadeUp(0.15)} className="bg-black text-white shadow-[0_8px_40px_rgba(0,0,0,0.18)] overflow-hidden">
               <div className="px-6 py-5 border-b border-white/10">
                 <p className="text-[10px] font-semibold tracking-widest uppercase text-white/40" style={{ letterSpacing: "0.18em" }}>
                   Payment Summary
@@ -465,14 +465,15 @@ export default function QuoteStatus() {
 
                     <div className="px-6 py-5 space-y-4">
                       {/* Date field */}
-                      <div>
+                      <div className="w-full overflow-hidden">
                         <p className="text-[10px] font-semibold tracking-widest uppercase text-white/35 mb-2" style={{ letterSpacing: "0.15em" }}>Date</p>
                         <input
                           type="date"
                           min={getTodayPlus1()}
                           value={selectedDate}
                           onChange={e => { setSelectedDate(e.target.value); setSelectedTime(""); }}
-                          className="w-full h-12 px-4 bg-white text-black text-sm border border-white/20 outline-none focus:border-white/60 transition-all"
+                          className="h-12 px-4 bg-white text-black text-sm border border-white/20 outline-none focus:border-white/60 transition-all"
+                          style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box", display: "block" }}
                           data-testid="input-booking-date"
                         />
                       </div>
