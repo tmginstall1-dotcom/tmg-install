@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Wrench, Scissors, Truck, MapPin, Search, Plus, Minus, Trash2, 
   ChevronRight, ChevronLeft, Check, ClipboardList, Camera, X, 
-  Loader2, AlertCircle, Star, Package, ArrowRight, Navigation, Tag
+  Loader2, AlertCircle, Star, Package, ArrowRight, Navigation, Tag,
+  CalendarDays, Clock, Sun, Sunset, Ban
 } from "lucide-react";
 import type { CatalogItem } from "@shared/schema";
 import { computePricing, type PricingCatalogEntry } from "@shared/pricing";
@@ -142,12 +143,31 @@ const STEPS = [
   { num: 1, label: "Services" },
   { num: 2, label: "Address" },
   { num: 3, label: "Items" },
-  { num: 4, label: "Review" },
+  { num: 4, label: "Schedule" },
+  { num: 5, label: "Review" },
 ];
+
+const TIME_SLOTS = [
+  { value: "09:00-12:00", label: "Morning", time: "9am – 12pm" },
+  { value: "13:00-17:00", label: "Afternoon", time: "1pm – 5pm" },
+];
+
+const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function daysInMonthFn(month: number, year: number) {
+  return new Date(year, month, 0).getDate();
+}
+
+function buildSlotDateStr(day: string, month: string, year: string) {
+  if (!day || !month || !year) return "";
+  const m = String(MONTHS_SHORT.indexOf(month) + 1).padStart(2, "0");
+  const d = String(day).padStart(2, "0");
+  return `${year}-${m}-${d}`;
+}
 
 export default function EstimateWizard() {
   const [, setLocation] = useLocation();
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   // Step 1
   const [services, setServices] = useState<ServiceType[]>([]);
@@ -173,7 +193,13 @@ export default function EstimateWizard() {
   const [detectedPhotoUrl, setDetectedPhotoUrl] = useState<string>("");
   const [detectedCount, setDetectedCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Step 4
+  // Step 4: Schedule
+  const today = new Date();
+  const [slotDay, setSlotDay] = useState("");
+  const [slotMonth, setSlotMonth] = useState("");
+  const [slotYear, setSlotYear] = useState(String(today.getFullYear()));
+  const [slotTime, setSlotTime] = useState("");
+  // Step 5: Review / Contact
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -187,6 +213,24 @@ export default function EstimateWizard() {
     queryKey: ["/api/catalog"],
     queryFn: () => fetch("/api/catalog").then(r => r.json()),
   });
+
+  // Fetch slot availability (blocked + held)
+  const { data: slotAvailability } = useQuery<{
+    blocked: { date: string; timeSlot: string | null }[];
+    held: { date: string; timeSlot: string; quoteId: number }[];
+  }>({
+    queryKey: ["/api/slots/availability"],
+    queryFn: () => fetch("/api/slots/availability").then(r => r.json()),
+  });
+
+  const isSlotTaken = (dateStr: string, timeSlot: string) => {
+    if (!slotAvailability || !dateStr) return false;
+    const blockedDay = slotAvailability.blocked.some(b => b.date === dateStr && (b.timeSlot === null || b.timeSlot === timeSlot));
+    const heldSlot = slotAvailability.held.some(h => h.date === dateStr && h.timeSlot === timeSlot);
+    return blockedDay || heldSlot;
+  };
+
+  const slotDateStr = buildSlotDateStr(slotDay, slotMonth, slotYear);
 
   const catalogGroups = useMemo(() => groupCatalog(catalogRaw || []), [catalogRaw]);
 
@@ -456,6 +500,8 @@ export default function EstimateWizard() {
         discount: pricingResult.discountAmount,
         distanceKm: distanceKm > 0 ? distanceKm : undefined,
         detectedPhotoUrl: detectedPhotoUrl || undefined,
+        preferredDate: slotDateStr || undefined,
+        preferredTimeWindow: slotTime || undefined,
       };
       const res = await fetch("/api/quotes/wizard", {
         method: "POST",
@@ -477,11 +523,12 @@ export default function EstimateWizard() {
     if (step === 1) return services.length > 0;
     if (step === 2) return isRelocation ? (pickupAddress.length > 2 && dropoffAddress.length > 2) : serviceAddress.length > 2;
     if (step === 3) return items.length > 0;
+    if (step === 4) return slotDateStr.length > 0 && slotTime.length > 0 && !isSlotTaken(slotDateStr, slotTime);
     return false;
   };
 
-  const next = () => setStep(s => Math.min(s + 1, 4) as 1 | 2 | 3 | 4);
-  const back = () => setStep(s => Math.max(s - 1, 1) as 1 | 2 | 3 | 4);
+  const next = () => setStep(s => Math.min(s + 1, 5) as 1 | 2 | 3 | 4 | 5);
+  const back = () => setStep(s => Math.max(s - 1, 1) as 1 | 2 | 3 | 4 | 5);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -881,8 +928,135 @@ export default function EstimateWizard() {
               </div>
             )}
 
-            {/* ── STEP 4: Review ── */}
-            {step === 4 && (
+            {/* ── STEP 4: Schedule ── */}
+            {step === 4 && (() => {
+              const nowSG = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Singapore" }));
+              const curYear = nowSG.getFullYear();
+              const yearOptions = [curYear, curYear + 1];
+              const maxDays = slotMonth && slotYear
+                ? daysInMonthFn(MONTHS_SHORT.indexOf(slotMonth) + 1, parseInt(slotYear))
+                : 31;
+              const dayOptions = Array.from({ length: maxDays }, (_, i) => String(i + 1));
+              const selectCls = "flex-1 h-12 px-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none text-sm font-medium transition-all appearance-none";
+
+              return (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-3xl font-display font-bold mb-1">Pick a Slot</h2>
+                    <p className="text-muted-foreground">Choose your preferred appointment date and time.</p>
+                  </div>
+
+                  {/* Date picker */}
+                  <div className="bg-card rounded-2xl border p-6 space-y-4">
+                    <p className="font-bold flex items-center gap-2"><CalendarDays className="w-5 h-5 text-primary" /> Preferred Date</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="relative">
+                        <select value={slotDay} onChange={e => setSlotDay(e.target.value)} data-testid="select-slot-day" className={selectCls}>
+                          <option value="">DD</option>
+                          {dayOptions.map(d => <option key={d} value={d}>{d.padStart(2,"0")}</option>)}
+                        </select>
+                      </div>
+                      <div className="relative">
+                        <select value={slotMonth} onChange={e => { setSlotMonth(e.target.value); setSlotDay(""); }} data-testid="select-slot-month" className={selectCls}>
+                          <option value="">MMM</option>
+                          {MONTHS_SHORT.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div className="relative">
+                        <select value={slotYear} onChange={e => { setSlotYear(e.target.value); setSlotDay(""); }} data-testid="select-slot-year" className={selectCls}>
+                          {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    {slotDateStr && (
+                      <p className="text-sm text-muted-foreground">
+                        Selected: <span className="font-semibold text-foreground">{new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Time slot picker */}
+                  <div className="bg-card rounded-2xl border p-6 space-y-4">
+                    <p className="font-bold flex items-center gap-2"><Clock className="w-5 h-5 text-primary" /> Time Window</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {TIME_SLOTS.map(slot => {
+                        const taken = isSlotTaken(slotDateStr, slot.value);
+                        const selected = slotTime === slot.value;
+                        return (
+                          <button
+                            key={slot.value}
+                            disabled={taken || !slotDateStr}
+                            onClick={() => !taken && setSlotTime(slot.value)}
+                            data-testid={`button-slot-${slot.value}`}
+                            className={`
+                              relative flex flex-col items-center gap-1.5 py-5 rounded-2xl border-2 transition-all font-medium
+                              ${taken ? "border-border bg-muted/40 text-muted-foreground cursor-not-allowed opacity-60" :
+                                selected ? "border-primary bg-primary/10 text-primary shadow-md" :
+                                "border-border bg-card hover:border-primary/50 hover:bg-primary/5 cursor-pointer"
+                              }
+                              ${!slotDateStr && !taken ? "opacity-50 cursor-not-allowed" : ""}
+                            `}
+                          >
+                            {slot.value === "09:00-12:00"
+                              ? <Sun className="w-6 h-6" />
+                              : <Sunset className="w-6 h-6" />
+                            }
+                            <span className="font-bold">{slot.label}</span>
+                            <span className="text-xs text-muted-foreground">{slot.time}</span>
+                            {taken && (
+                              <span className="absolute top-2 right-2 flex items-center gap-1 text-xs text-muted-foreground">
+                                <Ban className="w-3 h-3" /> Full
+                              </span>
+                            )}
+                            {selected && !taken && (
+                              <span className="absolute top-2 right-2 flex items-center gap-1 text-xs text-primary">
+                                <Check className="w-3 h-3" /> Selected
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {!slotDateStr && (
+                      <p className="text-xs text-muted-foreground text-center">Select a date above to check slot availability.</p>
+                    )}
+                  </div>
+
+                  {/* Slot confirmation banner */}
+                  {slotDateStr && slotTime && !isSlotTaken(slotDateStr, slotTime) && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
+                      <Check className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-emerald-800">Slot Available!</p>
+                        <p className="text-sm text-emerald-700">
+                          {new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "short", year: "numeric" })}, {TIME_SLOTS.find(t => t.value === slotTime)?.time}
+                        </p>
+                        <p className="text-xs text-emerald-600 mt-1">This slot will be held for 48 hours once you submit your quote.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {slotDateStr && slotTime && isSlotTaken(slotDateStr, slotTime) && (
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-4 flex items-start gap-3">
+                      <Ban className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-destructive">Slot Unavailable</p>
+                        <p className="text-sm text-destructive/80">This slot is already taken. Please choose a different date or time.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                    <p className="text-xs text-amber-700">
+                      <strong>Note:</strong> This is your <em>preferred</em> slot. Our team will review your request and confirm the booking after deposit is paid.
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── STEP 5: Review ── */}
+            {step === 5 && (
               <div className="space-y-6">
                 <div>
                   <h2 className="text-3xl font-display font-bold mb-1">Your Details</h2>
@@ -910,6 +1084,21 @@ export default function EstimateWizard() {
                       placeholder="jane@example.com" className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
                   </div>
                 </div>
+
+                {/* Slot summary */}
+                {slotDateStr && slotTime && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
+                    <p className="text-xs font-semibold text-emerald-700 uppercase mb-3 tracking-wide">Preferred Appointment Slot</p>
+                    <div className="flex items-center gap-2 font-bold text-emerald-800">
+                      <CalendarDays className="w-4 h-4 text-emerald-600" />
+                      {new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-emerald-700 mt-1.5">
+                      <Clock className="w-4 h-4 text-emerald-500" />
+                      {TIME_SLOTS.find(t => t.value === slotTime)?.label} — {TIME_SLOTS.find(t => t.value === slotTime)?.time}
+                    </div>
+                  </div>
+                )}
 
                 {/* Summary */}
                 <div className="bg-card rounded-2xl border overflow-hidden">
@@ -1003,7 +1192,7 @@ export default function EstimateWizard() {
             </button>
           ) : <div />}
 
-          {step < 4 ? (
+          {step < 5 ? (
             <button onClick={next} disabled={!canNext()} data-testid="button-next"
               className="btn-primary-gradient flex items-center gap-2 px-8 py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 disabled:shadow-none">
               Next <ChevronRight className="w-4 h-4" />

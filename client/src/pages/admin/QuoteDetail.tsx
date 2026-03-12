@@ -274,9 +274,18 @@ export default function AdminQuoteDetail() {
                         <MapPin className="w-3 h-3" /> Route: {Number(quote.distanceKm).toFixed(1)} km
                       </div>
                     )}
+                    {quote.preferredDate && !quote.scheduledAt && (
+                      <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <p className="text-xs text-amber-700 font-semibold">Customer's Requested Slot</p>
+                        <p className="font-bold text-sm mt-1 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                          {format(new Date(quote.preferredDate + "T12:00:00"), 'EEE, MMM d, yyyy')} · {quote.preferredTimeWindow}
+                        </p>
+                      </div>
+                    )}
                     {quote.scheduledAt && (
                       <div className="mt-3 p-3 rounded-xl bg-secondary/50 border">
-                        <p className="text-xs text-muted-foreground font-semibold">Scheduled Slot</p>
+                        <p className="text-xs text-muted-foreground font-semibold">Confirmed Slot</p>
                         <p className="font-bold text-sm mt-1 flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-primary" />
                           {format(new Date(quote.scheduledAt), 'EEE, MMM d, yyyy')} · {quote.timeWindow}

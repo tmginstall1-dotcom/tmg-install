@@ -67,6 +67,11 @@ export const quotes = pgTable("quotes", {
   bookingRequestedAt: timestamp("booking_requested_at"), // when customer submitted request
   rescheduledCount: integer("rescheduled_count").default(0), // # of times rescheduled (max 1 free)
 
+  // Slot chosen in the wizard (before submission)
+  preferredDate: text("preferred_date"),           // yyyy-MM-dd chosen by customer in wizard
+  preferredTimeWindow: text("preferred_time_window"), // e.g. '09:00-12:00'
+  slotHeldUntil: timestamp("slot_held_until"),      // hold expires 48h after submission
+
   depositAmount: numeric("deposit_amount").default("0"),
   depositPaidAt: timestamp("deposit_paid_at"),
   finalAmount: numeric("final_amount").default("0"),

@@ -1,0 +1,138 @@
+STRICT CHANGE REQUEST — BOOKING SLOT MOVES INTO QUOTE FORM, KEEP ALL OTHER TMG FLOW INTACT
+
+Project: tmginstall.com
+Goal: change ONLY the booking date/time workflow. Do NOT change pricing logic, quote logic, Stripe deposit/final payment logic, admin quote editing flow, staff flow, auth, or email branding. This is a controlled change. Inspect the existing repo first and modify existing files/tables/functions in place. Do NOT create duplicate tables, duplicate edge/server functions, duplicate pages, or parallel logic. Prefer full-file replacements where needed. Remove deprecated booking-link logic completely so old flow cannot reappear.
+
+CURRENT BUSINESS RULE TO KEEP:
+- Customer submits quote request
+- Admin reviews and can edit estimated quote before sending deposit request
+- Customer pays deposit
+- Job continues through existing admin/staff/final payment flow
+- All existing quote/invoice/job data must remain intact
+
+NEW BOOKING RULE:
+- Customer must choose preferred job date and time slot directly inside the public quote form before submitting the quote
+- The old “email customer after deposit to choose booking date/time” flow must be removed
+- Admin controls which dates/time slots are available or blocked
+- If one customer successfully submits a quote with a slot, that slot must no longer be selectable by another customer
+- Capacity is 1 booking per slot
+- Deposit-paid email that asks customer to book a slot must be removed
+- Deposit-paid email should instead reference the customer’s already selected slot
+- Keep admin confirmation capability; just remove the separate post-deposit booking selection step
+
+IMPLEMENTATION REQUIREMENTS
+
+1) PUBLIC QUOTE FORM
+Add a new booking section inside the existing estimate/quote form:
+- Show a date picker and available time slots
+- Show ONLY slots that are active and not blocked and not already held/confirmed
+- Slot list must come from admin-managed availability, not hardcoded frontend values
+- Customer cannot submit the quote without choosing a slot
+- Save the selected slot on the quote/job record as the requested booking slot
+- The selected slot must be visible again in admin review, quote emails, and customer records
+
+2) SLOT AVAILABILITY / BLOCKING
+Admin must be able to:
+- Create available slots by date and time
+- Block a full day or specific slot
+- Unblock a slot
+- See slot status: available / held / confirmed / blocked / released / expired
+- Capacity per slot = 1
+- When a customer submits a quote using a slot, that slot becomes unavailable to other customers immediately
+
+3) HOLD / CONFLICT LOGIC
+Because booking is now chosen before deposit, implement a safe reservation rule:
+- On successful quote submission, selected slot becomes HELD for that quote
+- HELD slots are hidden from other customers immediately
+- When deposit is paid, HELD becomes CONFIRMED (or RESERVED_PENDING_ADMIN_CONFIRMATION if that matches current workflow better)
+- If quote is cancelled, rejected, expired, or deposit is not paid within the configured hold window, release the slot automatically
+- Use a sensible default hold window, e.g. 2 hours or admin-configurable if easy
+- Add server-side protection against race conditions so two customers cannot get the same slot
+- Do not rely on frontend-only checks; enforce availability in database/server logic
+
+4) ADMIN QUOTE REVIEW
+Update admin quote review page so admin can:
+- See selected requested booking date/time on each quote
+- Edit the quote amount as before
+- Keep the requested slot or change it manually to another available slot
+- Block or release slots from admin scheduling UI
+- See whether slot is held, confirmed, blocked, expired, or released
+- If admin changes slot, update quote/job data and use the new slot in future emails
+
+5) EMAIL FLOW CHANGES
+Remove the old email flow that sends customer a booking link after deposit payment.
+Update emails so:
+- Quote submitted email includes the customer’s selected preferred slot
+- Deposit request email includes the selected slot for reference
+- Deposit paid email does NOT ask customer to choose a booking slot anymore
+- Deposit paid email should confirm that their selected slot has been reserved/confirmed according to existing workflow wording
+- Booking confirmed / updated emails should still work, but now based on the slot already chosen in the form
+- Preserve all existing itemised quote/invoice/job details in emails
+
+6) DATABASE / SCHEMA
+Inspect current schema first and reuse existing scheduling table(s) if they already exist.
+If scheduling tables are missing or not suitable, create the minimum required schema only once.
+Need support for:
+- slot id
+- date
+- start time
+- end time
+- status
+- capacity
+- blocked reason
+- quote/job linkage
+- hold expiry timestamp
+- created/updated timestamps
+Also add or reuse fields on quotes/jobs for:
+- requested_booking_slot_id
+- requested_booking_date
+- requested_booking_start
+- requested_booking_end
+- booking_status
+Do not create duplicate quote/job/schedule tables if similar tables already exist. Migrate cleanly.
+
+7) BACKEND / SERVER LOGIC
+Update the existing quote creation flow so booking slot selection is stored atomically with quote creation.
+Update the existing deposit webhook / payment success logic so it converts held slot to confirmed/reserved and never sends the old booking selection email.
+Add automatic release logic for expired holds using the simplest reliable approach already used in this codebase, or add a safe scheduled cleanup path if necessary.
+All slot assignment and release must be idempotent and safe.
+
+8) FRONTEND UX
+Public quote form:
+- Clean monochrome premium UI consistent with current TMG design
+- Booking section should feel simple and trustworthy
+- Disable unavailable slots visually
+- Show clear text like “Selected slot is temporarily reserved after quote submission”
+Admin UI:
+- Add a simple slot management view or extend current admin schedule view
+- Fast to use on desktop and mobile
+
+9) REMOVE OLD FLOW
+Completely remove or disable:
+- post-deposit booking selection link generation
+- booking-token flow used only for customer slot selection after deposit
+- old email copy instructing customer to choose a date after deposit
+Do not leave dead buttons, dead routes, or dead email templates behind
+
+10) ACCEPTANCE CRITERIA
+This change is complete only if all are true:
+- Customer can choose date/time in quote form
+- Unavailable/blocked/booked/held slots cannot be selected
+- Two customers cannot get the same slot
+- Admin can block/unblock slots and review/change selected slot
+- Quote still submits correctly
+- Admin can still edit estimate before requesting deposit
+- Deposit paid flow no longer sends booking selection email
+- Customer/admin emails show the already selected slot
+- Existing pricing, quote breakdown, Stripe, staff workflow, and final payment flow still work
+- No duplicate tables/functions/routes created
+
+DELIVERABLES REQUIRED
+- Apply the changes directly in the repo
+- Show all files changed
+- Show schema/migration changes
+- Show deprecated files/routes/functions removed
+- Give a concise test checklist for quote submit, slot hold, deposit paid, admin slot block, and conflict prevention
+
+IMPORTANT:
+Be strict with scope. Only booking date/time flow changes. Do not redesign or refactor unrelated systems. Do not break current TMG quote/admin/payment workflow.

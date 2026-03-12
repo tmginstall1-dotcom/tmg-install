@@ -155,11 +155,22 @@ function buildEmailWrapper(title: string, subtitle: string, body: string): strin
 
 export function depositRequestEmail(quote: any, paymentLink: string): string {
   const customer = quote.customer;
+  const slotDate = quote.preferredDate
+    ? new Date(quote.preferredDate + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+    : null;
   const body = `
     <p>Hello <strong>${customer?.name}</strong>,</p>
     <p>Great news! Your quote has been reviewed and approved. Please pay the deposit to confirm your booking.</p>
     
     <div class="ref-badge">${quote.referenceNo}</div>
+
+    ${slotDate ? `
+    <div class="section-title">Your Reserved Slot</div>
+    <div class="info-box" style="border-left: 4px solid #16a34a;">
+      <div class="info-row"><span>📅 Date</span><span><strong>${slotDate}</strong></span></div>
+      <div class="info-row"><span>🕐 Time Window</span><span><strong>${quote.preferredTimeWindow}</strong></span></div>
+      <p style="margin:8px 0 0;font-size:13px;color:#666;">This slot is held for 48 hours from submission. Pay the deposit to confirm it permanently.</p>
+    </div>` : ''}
     
     <div class="section-title">Customer Details</div>
     <div class="info-box">
@@ -181,51 +192,56 @@ export function depositRequestEmail(quote: any, paymentLink: string): string {
     ${buildTotalsTable(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
 
     <div style="background:#ede9fe;border-radius:10px;padding:20px;margin:20px 0;text-align:center;">
-      <p style="margin:0 0 6px;font-size:15px;color:#4f46e5;">Deposit Required to Proceed</p>
+      <p style="margin:0 0 6px;font-size:15px;color:#4f46e5;">Deposit Required to Confirm Your Slot</p>
       <p style="margin:0 0 16px;font-size:28px;font-weight:800;color:#4f46e5;">$${Number(quote.depositAmount || 0).toFixed(2)}</p>
       <a href="${paymentLink}" class="btn" style="display:inline-block">Pay Deposit Now →</a>
     </div>
 
-    <p style="font-size:14px;color:#666;">Once your deposit is received, we'll send you a booking link to choose your preferred date and time slot.</p>
     ${buildContactSection()}
   `;
-  return buildEmailWrapper("Deposit Payment Required", "Your quote is approved — pay now to proceed", body);
+  return buildEmailWrapper("Deposit Payment Required", "Your quote is approved — pay now to confirm your slot", body);
 }
 
-export function depositReceivedEmail(quote: any, bookingLink: string): string {
+export function depositReceivedEmail(quote: any): string {
   const customer = quote.customer;
+  const slotDate = quote.preferredDate
+    ? new Date(quote.preferredDate + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+    : null;
+  const hasSlot = slotDate && quote.preferredTimeWindow;
   const body = `
     <p>Hello <strong>${customer?.name}</strong>,</p>
-    <p>We've received your deposit payment. Thank you! You can now select your preferred appointment date.</p>
+    <p>We've received your deposit payment — thank you! Your appointment slot is now <strong>confirmed</strong>.</p>
 
     <div class="ref-badge">${quote.referenceNo}</div>
+
+    ${hasSlot ? `
+    <div class="section-title">Confirmed Appointment Slot</div>
+    <div class="info-box" style="border-left:4px solid #16a34a;background:#f0fdf4;">
+      <div class="info-row"><span>📅 Date</span><span style="color:#15803d;font-weight:700">${slotDate}</span></div>
+      <div class="info-row"><span>🕐 Time Window</span><span style="color:#15803d;font-weight:700">${quote.preferredTimeWindow}</span></div>
+    </div>` : ''}
 
     <div class="section-title">Service Details</div>
     <div class="info-box">
       ${buildAddressSection(quote)}
     </div>
 
-    <div class="section-title">Payment Received</div>
+    <div class="section-title">Payment Summary</div>
     <div class="info-box">
       <div class="info-row"><span>Deposit Paid</span><span style="color:#16a34a;font-weight:700">✓ $${Number(quote.depositAmount || 0).toFixed(2)}</span></div>
-      <div class="info-row"><span>Balance Remaining</span><span>$${Number(quote.finalAmount || 0).toFixed(2)}</span></div>
-    </div>
-
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:20px;margin:20px 0;text-align:center;">
-      <p style="margin:0 0 8px;font-weight:700;font-size:16px;color:#15803d;">Book Your Appointment</p>
-      <a href="${bookingLink}" class="btn btn-green" style="display:inline-block">Choose Your Date & Time →</a>
+      <div class="info-row"><span>Balance Due on Completion</span><span>$${Number(quote.finalAmount || 0).toFixed(2)}</span></div>
     </div>
 
     <div class="alert-box">
-      <strong>📋 Booking Rules:</strong><br>
-      • Your booking request will be confirmed by our admin team<br>
-      • You'll receive a confirmation email once your slot is approved<br>
+      <strong>📋 What Happens Next:</strong><br>
+      • Our admin team will review and formally confirm your booking<br>
+      • You'll receive a booking confirmation email once approved<br>
       • One free reschedule is available (at least 24 hours before your appointment)<br>
       • Contact us on WhatsApp for urgent changes
     </div>
     ${buildContactSection()}
   `;
-  return buildEmailWrapper("Deposit Received! 🎉", "Now choose your appointment date", body);
+  return buildEmailWrapper("Deposit Received — Slot Confirmed! 🎉", "Your appointment slot is secured", body);
 }
 
 export function bookingRequestAdminEmail(quote: any): string {

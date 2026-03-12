@@ -119,6 +119,8 @@ export const api = {
         discount: z.number().min(0).optional(),       // bulk discount amount
         distanceKm: z.number().min(0).optional(),     // auto-computed route distance (relocation only)
         detectedPhotoUrl: z.string().optional(), // compressed thumbnail from AI photo scan
+        preferredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),      // slot chosen in wizard
+        preferredTimeWindow: z.string().optional(), // e.g. '09:00-12:00'
       }),
       responses: { 201: z.custom<QuoteResponse>(), 400: errorSchemas.validation }
     }

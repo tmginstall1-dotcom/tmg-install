@@ -313,6 +313,24 @@ export default function QuoteStatus() {
                 )}
               </div>
 
+              {/* Slot held (submitted / deposit_requested) */}
+              {quote.preferredDate && ["submitted", "deposit_requested"].includes(quote.status) && (
+                <div className="mx-6 mb-5 border border-black/12 bg-amber-50/60 p-4">
+                  <p className="text-[10px] font-semibold tracking-widest uppercase text-amber-700/70 mb-3" style={{ letterSpacing: "0.15em" }}>
+                    Slot Reserved (Pending Deposit)
+                  </p>
+                  <div className="flex items-center gap-2 font-bold text-sm text-black">
+                    <CalendarDays className="w-4 h-4 text-amber-600/60" />
+                    {format(new Date(quote.preferredDate + "T12:00:00"), "EEEE, MMMM d, yyyy")}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-black/60 mt-1.5">
+                    <Clock className="w-4 h-4 text-black/30" />
+                    {quote.preferredTimeWindow}
+                  </div>
+                  <p className="text-xs text-black/40 mt-2">Your slot is held for 48 hours — pay the deposit to confirm it.</p>
+                </div>
+              )}
+
               {/* Confirmed appointment */}
               {quote.scheduledAt && ["booked", "assigned", "in_progress", "completed", "final_payment_requested"].includes(quote.status) && (
                 <div className="mx-6 mb-5 border border-black/12 bg-black/[0.025] p-4">
@@ -469,104 +487,30 @@ export default function QuoteStatus() {
                 </div>
               )}
 
-              {/* Request Booking */}
-              {quote.status === "deposit_paid" && (() => {
-                const slots = getAvailableSlots(selectedDate, blockedSlotsList);
-                const blocked = selectedDate && slots.length === 0;
-                return (
-                  <div className="border-t border-white/10">
-                    {/* Section header */}
-                    <div className="px-6 py-4 border-b border-white/10 flex items-center gap-2">
-                      <CalendarDays className="w-3.5 h-3.5 text-white/40" />
-                      <p className="text-[10px] font-semibold tracking-widest uppercase text-white/40" style={{ letterSpacing: "0.18em" }}>
-                        Choose Appointment
-                      </p>
-                    </div>
-
-                    <div className="px-6 py-5 space-y-4">
-                      {/* Date field — three selects to avoid iOS native date input issues */}
-                      {(() => {
-                        const minDate = getTodayPlus1(); // "YYYY-MM-DD"
-                        const minY = minDate.split("-")[0];
-                        const numDays = daysInMonth(selMonth, selYear);
-                        const days = Array.from({ length: numDays }, (_, i) => String(i + 1).padStart(2, "0"));
-
-                        const handlePart = (day: string, month: string, year: string) => {
-                          const ds = buildDateStr(day, month, year);
-                          if (ds && ds < minDate) return; // block past/today
-                          setSelectedDate(ds);
-                          setSelectedTime("");
-                        };
-
-                        const selectCls = "h-12 bg-white/[0.07] border border-white/15 text-white text-sm outline-none focus:border-white/40 transition-all appearance-none text-center";
-
-                        return (
-                          <div>
-                            <p className="text-[10px] font-semibold tracking-widest uppercase text-white/35 mb-2" style={{ letterSpacing: "0.15em" }}>Date</p>
-                            <div className="grid grid-cols-3 gap-2">
-                              <select value={selDay} onChange={e => { setSelDay(e.target.value); handlePart(e.target.value, selMonth, selYear); }}
-                                className={selectCls} data-testid="select-booking-day">
-                                <option value="" className="text-black bg-white">DD</option>
-                                {days.map(d => <option key={d} value={d} className="text-black bg-white">{d}</option>)}
-                              </select>
-                              <select value={selMonth} onChange={e => { setSelMonth(e.target.value); handlePart(selDay, e.target.value, selYear); }}
-                                className={selectCls} data-testid="select-booking-month">
-                                <option value="" className="text-black bg-white">MM</option>
-                                {MONTHS.map(m => <option key={m.v} value={m.v} className="text-black bg-white">{m.l}</option>)}
-                              </select>
-                              <select value={selYear} onChange={e => { setSelYear(e.target.value); handlePart(selDay, selMonth, e.target.value); }}
-                                className={selectCls} data-testid="select-booking-year">
-                                <option value="" className="text-black bg-white">YYYY</option>
-                                {[minY, String(parseInt(minY) + 1)].map(y => <option key={y} value={y} className="text-black bg-white">{y}</option>)}
-                              </select>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Time field */}
-                      <div>
-                        <p className="text-[10px] font-semibold tracking-widest uppercase text-white/35 mb-2" style={{ letterSpacing: "0.15em" }}>Time Window</p>
-                        {blocked ? (
-                          <div className="h-12 flex items-center gap-2 px-4 bg-white/[0.07] border border-white/15">
-                            <AlertCircle className="w-4 h-4 text-white/50 shrink-0" />
-                            <p className="text-xs text-white/50">This date is fully booked — choose another</p>
-                          </div>
-                        ) : (
-                          <select
-                            value={selectedTime}
-                            onChange={e => setSelectedTime(e.target.value)}
-                            className="w-full h-12 px-4 bg-white/[0.07] border border-white/15 text-white text-sm outline-none focus:border-white/40 focus:bg-white/[0.10] transition-all appearance-none"
-                            data-testid="select-booking-time"
-                          >
-                            <option value="" className="text-black bg-white">Select a time window</option>
-                            {slots.map(s => <option key={s.value} value={s.value} className="text-black bg-white">{s.label}</option>)}
-                          </select>
-                        )}
-                      </div>
-
-                      {/* Submit */}
-                      <div className="pt-1">
-                        <button
-                          onClick={handleBookingRequest}
-                          disabled={bookMutation.isPending || !!blocked || !selectedDate || !selectedTime}
-                          data-testid="button-request-booking"
-                          className="w-full h-12 bg-white text-black font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 hover:bg-white/90 transition-colors"
-                          style={{ letterSpacing: "0.14em" }}
-                        >
-                          {bookMutation.isPending
-                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
-                            : <><span>Request This Slot</span><ArrowRight className="w-4 h-4" /></>
-                          }
-                        </button>
-                        <p className="text-[10px] text-white/25 mt-3 text-center tracking-wide">
-                          Our team will confirm within 24 hours
-                        </p>
-                      </div>
-                    </div>
+              {/* Slot reserved — deposit paid, awaiting admin confirmation */}
+              {quote.status === "deposit_paid" && quote.preferredDate && (
+                <div className="border-t border-white/10">
+                  <div className="px-6 py-4 border-b border-white/10 flex items-center gap-2">
+                    <CalendarDays className="w-3.5 h-3.5 text-white/40" />
+                    <p className="text-[10px] font-semibold tracking-widest uppercase text-white/40" style={{ letterSpacing: "0.18em" }}>
+                      Reserved Slot
+                    </p>
                   </div>
-                );
-              })()}
+                  <div className="px-6 py-5 space-y-3">
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <CalendarDays className="w-4 h-4 text-white/40 shrink-0" />
+                      <span>{format(new Date(quote.preferredDate + "T12:00:00"), "EEEE, MMMM d, yyyy")}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-white/60">
+                      <Clock className="w-4 h-4 text-white/40 shrink-0" />
+                      <span>{quote.preferredTimeWindow}</span>
+                    </div>
+                    <p className="text-[10px] text-white/30 mt-1 tracking-wide">
+                      Awaiting admin confirmation — you'll receive an email once confirmed.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Booking pending */}
               {quote.status === "booking_requested" && (

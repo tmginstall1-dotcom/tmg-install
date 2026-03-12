@@ -107,11 +107,10 @@ export async function registerRoutes(
         }
 
         if (type === "deposit") {
-          const bookingLink = `${APP_URL}/quotes/${quote.id}`;
           await sendEmail({
             to: quote.customer.email,
-            subject: `[${quote.referenceNo}] Deposit Received — Book Your Appointment`,
-            html: depositReceivedEmail(quote, bookingLink),
+            subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
+            html: depositReceivedEmail(quote),
           });
           console.log(`Stripe webhook: deposit paid for ${quote.referenceNo} (SGD ${amountPaid})`);
         }
@@ -171,6 +170,19 @@ export async function registerRoutes(
     const search = req.query.search as string | undefined;
     const items = await storage.getCatalogItems(search);
     res.json(items);
+  });
+
+  // -- Slot Availability (blocked + held by active quotes) --
+  app.get("/api/slots/availability", async (req, res) => {
+    try {
+      const [blocked, held] = await Promise.all([
+        storage.getBlockedSlots(),
+        storage.getHeldSlots(),
+      ]);
+      res.json({ blocked, held });
+    } catch {
+      res.status(500).json({ message: "Internal error" });
+    }
   });
 
   // -- Blocked Slots Routes --
@@ -390,13 +402,12 @@ export async function registerRoutes(
       const quote = await storage.updateQuotePayment(id, input.paymentType, input.amount);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
       
-      // After deposit paid, send email with booking link
+      // After deposit paid, send slot confirmation email
       if (input.paymentType === 'deposit' && quote.customer) {
-        const bookingLink = `${APP_URL}/quotes/${quote.id}`;
-        const emailHtml = depositReceivedEmail(quote, bookingLink);
+        const emailHtml = depositReceivedEmail(quote);
         await sendEmail({
           to: quote.customer.email,
-          subject: `[${quote.referenceNo}] Deposit Received — Book Your Appointment`,
+          subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
           html: emailHtml,
         });
       }
@@ -473,11 +484,10 @@ export async function registerRoutes(
       if (!quote || !quote.customer) return res.status(200).json({ status: "ok" });
 
       if (type === "deposit") {
-        const bookingLink = `${APP_URL}/quotes/${quote.id}`;
         await sendEmail({
           to: quote.customer.email,
-          subject: `[${quote.referenceNo}] Deposit Received — Book Your Appointment`,
-          html: depositReceivedEmail(quote, bookingLink),
+          subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
+          html: depositReceivedEmail(quote),
         });
         console.log(`Payment verified (no-webhook): deposit paid for ${quote.referenceNo}`);
       }
@@ -911,6 +921,17 @@ List up to 10 distinct items.`
     try {
       const input = api.quotes.wizard.input.parse(req.body);
 
+      // Validate slot if provided
+      if (input.preferredDate && input.preferredTimeWindow) {
+        const available = await storage.isSlotAvailable(input.preferredDate, input.preferredTimeWindow);
+        if (!available) {
+          return res.status(409).json({
+            message: "That time slot was just taken by another customer. Please choose a different slot.",
+            field: "preferredTimeWindow",
+          });
+        }
+      }
+
       // Labor subtotal from item prices
       const laborSubtotal = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
       const discount = input.discount || 0;
@@ -919,6 +940,9 @@ List up to 10 distinct items.`
       const depositAmount = (grandTotal * 0.50).toFixed(2);
       const finalAmount = (grandTotal * 0.50).toFixed(2);
       const referenceNo = `TMG-${Date.now().toString(36).toUpperCase()}`;
+
+      // Hold expiry: 48 hours from submission
+      const slotHeldUntil = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
       const allItems = [
         ...input.items.map(item => ({
@@ -962,6 +986,11 @@ List up to 10 distinct items.`
           aiConfidenceScore: 100,
           distanceKm: input.distanceKm != null ? input.distanceKm.toFixed(1) : null,
           detectionPhotoUrl: input.detectedPhotoUrl || null,
+          // Slot chosen in wizard
+          preferredDate: input.preferredDate || null,
+          preferredTimeWindow: input.preferredTimeWindow || null,
+          slotHeldUntil: (input.preferredDate && input.preferredTimeWindow) ? slotHeldUntil : null,
+          bookingRequestedAt: (input.preferredDate && input.preferredTimeWindow) ? new Date() : null,
         },
         allItems
       );

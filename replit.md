@@ -4,7 +4,7 @@
 
 TMG Install is a full-stack furniture installation quoting and operations platform for **The Moving Guy Pte Ltd** (Singapore). It handles the complete workflow from customer quote submission through job completion:
 
-- **Customer side**: 4-step estimate wizard (`/estimate`) → quote status → deposit payment → booking slot request → confirmed appointment → final payment
+- **Customer side**: 5-step estimate wizard (`/estimate`) → quote status → deposit payment → confirmed appointment → final payment
 - **Admin side**: Review quotes, approve & request deposit, edit quotes before deposit, confirm booking slots, manage schedule, assign staff, request final payment
 - **Staff side**: View active jobs (deposit paid+), GPS check-in with photos (Arrived), GPS check-out with photos (Completed)
 
@@ -28,7 +28,7 @@ Preferred communication style: Simple, everyday language.
 - **Animations**: Framer Motion
 - **Key pages**:
   - `/` — Landing page with AI quote widget
-  - `/estimate` — 4-step quote wizard
+  - `/estimate` — 5-step quote wizard (Services → Address → Items → Schedule → Review)
   - `/quotes/:id` — Customer quote status, booking, payment, reschedule
   - `/admin/login` — Login for admin/staff
   - `/admin` — Admin dashboard (6-section: New/Awaiting Deposit/Pending Booking/Upcoming/Active/Final Payment)
@@ -56,6 +56,7 @@ Preferred communication style: Simple, everyday language.
   - `POST /api/quotes/:id/completed-checkout` — Staff check-out (GPS + photos required)
   - `POST /api/quotes/:id/request-final-payment` — Admin sends final payment email
   - `POST /api/quotes/:id/close` — Admin manual close
+  - `GET /api/slots/availability` — Returns blocked dates + held slots from active quotes (used by wizard Step 4)
   - `GET /api/catalog` — Catalog items (optional ?search=)
   - `POST /api/catalog/detect-items` — GPT-4o vision photo item detection
 

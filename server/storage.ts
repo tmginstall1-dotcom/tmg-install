@@ -4,7 +4,7 @@ import {
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot
 } from "@shared/schema";
-import { eq, desc, or, inArray } from "drizzle-orm";
+import { eq, desc, or, inArray, isNotNull, and, not } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -37,6 +37,10 @@ export interface IStorage {
   getBlockedSlots(): Promise<BlockedSlot[]>;
   createBlockedSlot(slot: InsertBlockedSlot): Promise<BlockedSlot>;
   deleteBlockedSlot(id: number): Promise<void>;
+
+  // Held Slots (active quotes that have a slot reserved)
+  getHeldSlots(): Promise<{ date: string; timeSlot: string; quoteId: number }[]>;
+  isSlotAvailable(date: string, timeWindow: string, excludeQuoteId?: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -298,6 +302,70 @@ export class DatabaseStorage implements IStorage {
 
   async deleteBlockedSlot(id: number): Promise<void> {
     await db.delete(blockedSlots).where(eq(blockedSlots.id, id));
+  }
+
+  // Return all slots currently held by active (non-cancelled/closed) quotes
+  async getHeldSlots(): Promise<{ date: string; timeSlot: string; quoteId: number }[]> {
+    const activeStatuses = [
+      'submitted', 'deposit_requested', 'deposit_paid',
+      'booking_requested', 'booked', 'assigned', 'in_progress',
+    ];
+    const activeQuotes = await db.select({
+      id: quotes.id,
+      preferredDate: quotes.preferredDate,
+      preferredTimeWindow: quotes.preferredTimeWindow,
+      slotHeldUntil: quotes.slotHeldUntil,
+      status: quotes.status,
+    }).from(quotes).where(inArray(quotes.status, activeStatuses));
+
+    const now = new Date();
+    return activeQuotes
+      .filter(q => q.preferredDate && q.preferredTimeWindow)
+      .filter(q => {
+        // Held slots expire for non-deposit-paid quotes
+        if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress'].includes(q.status)) {
+          return true; // confirmed — always held
+        }
+        // submitted / deposit_requested — held until expiry
+        return !q.slotHeldUntil || q.slotHeldUntil > now;
+      })
+      .map(q => ({
+        date: q.preferredDate!,
+        timeSlot: q.preferredTimeWindow!,
+        quoteId: q.id,
+      }));
+  }
+
+  // Returns true if the date+timeWindow combo is free (not blocked, not held)
+  async isSlotAvailable(date: string, timeWindow: string, excludeQuoteId?: number): Promise<boolean> {
+    // Check admin-blocked slots
+    const blocked = await db.select().from(blockedSlots)
+      .where(eq(blockedSlots.date, date));
+    const isBlocked = blocked.some(b => b.timeSlot === null || b.timeSlot === timeWindow);
+    if (isBlocked) return false;
+
+    // Check active quote holds (race condition guard)
+    const activeStatuses = [
+      'submitted', 'deposit_requested', 'deposit_paid',
+      'booking_requested', 'booked', 'assigned', 'in_progress',
+    ];
+    const held = await db.select({
+      id: quotes.id,
+      preferredDate: quotes.preferredDate,
+      preferredTimeWindow: quotes.preferredTimeWindow,
+      slotHeldUntil: quotes.slotHeldUntil,
+      status: quotes.status,
+    }).from(quotes).where(inArray(quotes.status, activeStatuses));
+
+    const now = new Date();
+    const conflict = held.some(q => {
+      if (excludeQuoteId && q.id === excludeQuoteId) return false;
+      if (q.preferredDate !== date || q.preferredTimeWindow !== timeWindow) return false;
+      if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress'].includes(q.status)) return true;
+      return !q.slotHeldUntil || q.slotHeldUntil > now;
+    });
+
+    return !conflict;
   }
 }
 
