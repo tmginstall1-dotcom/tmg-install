@@ -402,3 +402,47 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
+
+export async function autoBookPendingQuotes() {
+  const stuckStatuses = ['deposit_paid', 'booking_requested'];
+  const stuck = await db.select().from(quotes)
+    .where(inArray(quotes.status, stuckStatuses));
+
+  let migrated = 0;
+  for (const q of stuck) {
+    // Case 1: has a preferred slot from the estimate
+    if (q.preferredDate && q.preferredTimeWindow) {
+      const scheduledAt = new Date(q.preferredDate + 'T12:00:00');
+      await db.update(quotes).set({
+        status: 'booked',
+        scheduledAt,
+        timeWindow: q.preferredTimeWindow,
+        slotHeldUntil: null,
+        bookingRequestedAt: q.bookingRequestedAt ?? new Date(),
+      }).where(eq(quotes.id, q.id));
+      await db.insert(jobUpdates).values({
+        quoteId: q.id,
+        statusChange: 'booked',
+        actorType: 'system',
+        note: `Booking auto-confirmed for ${q.preferredDate} ${q.preferredTimeWindow} (migrated)`,
+      });
+      migrated++;
+    // Case 2: already has a scheduledAt (admin-confirmed via old flow) but status didn't flip to booked
+    } else if (q.scheduledAt && q.timeWindow) {
+      await db.update(quotes).set({
+        status: 'booked',
+        slotHeldUntil: null,
+      }).where(eq(quotes.id, q.id));
+      await db.insert(jobUpdates).values({
+        quoteId: q.id,
+        statusChange: 'booked',
+        actorType: 'system',
+        note: `Status corrected to booked — slot already set for ${q.scheduledAt.toDateString()} ${q.timeWindow}`,
+      });
+      migrated++;
+    }
+  }
+  if (migrated > 0) {
+    console.log(`[startup] Auto-booked ${migrated} quote(s) from stuck deposit_paid/booking_requested state`);
+  }
+}

@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { format } from "date-fns";
 import {
   ArrowUpRight, ClipboardList, DollarSign, CalendarCheck,
-  Zap, CheckCircle2, Clock, Calendar, TrendingUp, AlertCircle, Banknote,
+  Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -37,7 +37,7 @@ function QuoteRow({ quote, showDate = false }: { quote: any; showDate?: boolean 
       ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM") + " (pref.)"
       : null;
 
-  const needsAction = ["submitted", "under_review", "booking_requested", "completed"].includes(quote.status);
+  const needsAction = ["submitted", "under_review", "completed"].includes(quote.status);
 
   return (
     <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}>
@@ -150,9 +150,10 @@ export default function AdminDashboard() {
   const quotes = allQuotes || [];
 
   const newQuotes       = quotes.filter((q: any) => ["submitted", "under_review"].includes(q.status));
-  const awaitingDeposit = quotes.filter((q: any) => q.status === "deposit_requested");
-  const depositPaid     = quotes.filter((q: any) => q.status === "deposit_paid");
-  const pendingBooking  = quotes.filter((q: any) => q.status === "booking_requested");
+  const awaitingDeposit = quotes.filter((q: any) =>
+    ["deposit_requested", "approved"].includes(q.status) ||
+    (q.status === "deposit_paid" && !q.scheduledAt)
+  );
   const upcomingBooked  = quotes.filter((q: any) => ["booked", "assigned"].includes(q.status));
   const activeJobs      = quotes.filter((q: any) => q.status === "in_progress");
   const awaitingPayment = quotes.filter((q: any) => ["completed", "final_payment_requested"].includes(q.status));
@@ -163,13 +164,11 @@ export default function AdminDashboard() {
     .reduce((sum: number, q: any) => sum + Number(q.total || 0), 0);
 
   const statCards = [
-    { label: "New Requests",       value: newQuotes.length,       icon: ClipboardList, color: "text-violet-600", bg: "bg-violet-50",  bar: "bg-violet-500" },
-    { label: "Awaiting Deposit",   value: awaitingDeposit.length, icon: DollarSign,    color: "text-amber-600",  bg: "bg-amber-50",   bar: "bg-amber-500" },
-    { label: "Deposit Paid",       value: depositPaid.length,     icon: Banknote,      color: "text-indigo-600", bg: "bg-indigo-50",  bar: "bg-indigo-500" },
-    { label: "Pending Booking",    value: pendingBooking.length,  icon: Clock,         color: "text-blue-600",   bg: "bg-blue-50",    bar: "bg-blue-500" },
-    { label: "Upcoming Jobs",      value: upcomingBooked.length,  icon: CalendarCheck, color: "text-cyan-600",   bg: "bg-cyan-50",    bar: "bg-cyan-500" },
-    { label: "Active / In Progress", value: activeJobs.length,   icon: Zap,           color: "text-orange-600", bg: "bg-orange-50",  bar: "bg-orange-500" },
-    { label: "Awaiting Payment",   value: awaitingPayment.length, icon: AlertCircle,   color: "text-emerald-600",bg: "bg-emerald-50", bar: "bg-emerald-500" },
+    { label: "New Requests",         value: newQuotes.length,       icon: ClipboardList, color: "text-violet-600", bg: "bg-violet-50",  bar: "bg-violet-500" },
+    { label: "Awaiting Deposit",     value: awaitingDeposit.length, icon: DollarSign,    color: "text-amber-600",  bg: "bg-amber-50",   bar: "bg-amber-500" },
+    { label: "Upcoming Bookings",    value: upcomingBooked.length,  icon: CalendarCheck, color: "text-cyan-600",   bg: "bg-cyan-50",    bar: "bg-cyan-500" },
+    { label: "Active / In Progress", value: activeJobs.length,      icon: Zap,           color: "text-orange-600", bg: "bg-orange-50",  bar: "bg-orange-500" },
+    { label: "Awaiting Payment",     value: awaitingPayment.length, icon: AlertCircle,   color: "text-emerald-600",bg: "bg-emerald-50", bar: "bg-emerald-500" },
   ];
 
   return (
@@ -199,7 +198,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
           {statCards.map((card, i) => (
             <motion.div
               key={card.label}
@@ -225,7 +224,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Action required banner */}
-        {(newQuotes.length + pendingBooking.length + awaitingPayment.length) > 0 && (
+        {(newQuotes.length + awaitingPayment.length) > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -233,7 +232,7 @@ export default function AdminDashboard() {
           >
             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
             <p className="text-sm font-semibold text-amber-800">
-              {newQuotes.length + pendingBooking.length + awaitingPayment.length} item{(newQuotes.length + pendingBooking.length + awaitingPayment.length) !== 1 ? "s" : ""} need your attention
+              {newQuotes.length + awaitingPayment.length} item{(newQuotes.length + awaitingPayment.length) !== 1 ? "s" : ""} need your attention
             </p>
           </motion.div>
         )}
@@ -255,25 +254,6 @@ export default function AdminDashboard() {
             quotes={awaitingDeposit}
             emptyMsg="No outstanding deposits"
           />
-          {/* Full-width: Deposit Paid — waiting for customer to book a slot */}
-          <div className="md:col-span-2">
-            <SectionPanel
-              title="Deposit Paid — Waiting for Customer to Book a Slot"
-              icon={Banknote}
-              accent="bg-indigo-100 text-indigo-700"
-              quotes={depositPaid}
-              emptyMsg="No jobs waiting for booking requests"
-              showDate
-            />
-          </div>
-          <SectionPanel
-            title="Pending Booking Confirmation"
-            icon={Clock}
-            accent="bg-blue-100 text-blue-700"
-            quotes={pendingBooking}
-            emptyMsg="No pending confirmations"
-            urgent
-          />
           <SectionPanel
             title="Upcoming Confirmed Bookings"
             icon={CalendarCheck}
@@ -290,13 +270,15 @@ export default function AdminDashboard() {
             emptyMsg="No active jobs"
             urgent
           />
-          <SectionPanel
-            title="Awaiting Final Payment"
-            icon={AlertCircle}
-            accent="bg-emerald-100 text-emerald-700"
-            quotes={awaitingPayment.concat(recentlyClosed)}
-            emptyMsg="No jobs awaiting payment"
-          />
+          <div className="md:col-span-2">
+            <SectionPanel
+              title="Awaiting Final Payment"
+              icon={AlertCircle}
+              accent="bg-emerald-100 text-emerald-700"
+              quotes={awaitingPayment.concat(recentlyClosed)}
+              emptyMsg="No jobs awaiting payment"
+            />
+          </div>
         </div>
 
       </div>

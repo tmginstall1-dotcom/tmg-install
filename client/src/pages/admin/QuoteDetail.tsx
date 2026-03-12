@@ -193,9 +193,9 @@ export default function AdminQuoteDetail() {
             {(() => {
               type Phase = { id: string; label: string; Icon: React.ElementType; statuses: string[] };
               const PIPELINE: Phase[] = [
-                { id: "quote",    label: "Quote",    Icon: ClipboardList, statuses: ["submitted", "under_review"] },
+                { id: "quote",    label: "Quote",    Icon: ClipboardList, statuses: ["submitted", "under_review", "approved"] },
                 { id: "deposit",  label: "Deposit",  Icon: Banknote,       statuses: ["deposit_requested", "deposit_paid"] },
-                { id: "booking",  label: "Booking",  Icon: CalendarCheck,  statuses: ["booking_requested", "booked"] },
+                { id: "booked",   label: "Booked",   Icon: CalendarCheck,  statuses: ["booked"] },
                 { id: "assigned", label: "Assigned", Icon: UserPlus,       statuses: ["assigned"] },
                 { id: "job",      label: "On-site",  Icon: Zap,            statuses: ["in_progress", "completed"] },
                 { id: "closed",   label: "Closed",   Icon: BadgeCheck,     statuses: ["final_payment_requested", "final_paid", "closed"] },
@@ -206,9 +206,9 @@ export default function AdminQuoteDetail() {
               const subLabel: Record<string, string> = {
                 submitted: "New request",
                 under_review: "Reviewing",
+                approved: "Approved",
                 deposit_requested: "Email sent",
                 deposit_paid: "Paid ✓",
-                booking_requested: "Slot pending",
                 booked: "Confirmed ✓",
                 assigned: "Staff set",
                 in_progress: "Live",
@@ -636,39 +636,7 @@ export default function AdminQuoteDetail() {
                 </div>
               )}
 
-              {/* ── PHASE 3a: Booking Requested ── */}
-              {quote.status === 'booking_requested' && (
-                <div className="space-y-3">
-                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2">
-                    <p className="font-bold text-blue-800 flex items-center gap-1.5 text-sm">
-                      <CalendarCheck className="w-4 h-4" /> Booking Request
-                    </p>
-                    {(quote.scheduledAt || quote.preferredDate) && (
-                      <div className="bg-white border border-blue-200 rounded-xl px-3 py-2.5 text-xs">
-                        <p className="text-blue-600 mb-0.5 font-semibold">Requested slot</p>
-                        <p className="font-bold text-blue-900">
-                          {quote.scheduledAt
-                            ? `${format(new Date(quote.scheduledAt), 'EEE, d MMM yyyy')} · ${quote.timeWindow}`
-                            : `${format(new Date(quote.preferredDate + "T12:00:00"), 'EEE, d MMM yyyy')} · ${quote.preferredTimeWindow}`
-                          }
-                        </p>
-                      </div>
-                    )}
-                    {quote.rescheduledCount > 0 && (
-                      <p className="text-xs text-amber-600 font-semibold flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" /> Reschedule #{quote.rescheduledCount}
-                      </p>
-                    )}
-                    <p className="text-xs text-blue-700">Confirm this slot to lock it in and notify the customer.</p>
-                  </div>
-                  <button onClick={handleConfirmBooking} disabled={confirmBooking.isPending} data-testid="button-confirm-booking"
-                    className="w-full btn-primary-gradient py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
-                    <CalendarCheck className="w-4 h-4" /> {confirmBooking.isPending ? "Confirming..." : "Confirm Booking"}
-                  </button>
-                </div>
-              )}
-
-              {/* ── PHASE 3b: Booked / Assign Staff ── */}
+              {/* ── PHASE 3: Booked / Assign Staff ── */}
               {['booked', 'assigned'].includes(quote.status) && (
                 <div className="space-y-3">
                   {quote.scheduledAt && (
