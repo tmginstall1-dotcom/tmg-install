@@ -9,6 +9,7 @@ import { eq, desc, or, inArray, isNotNull, and, not } from "drizzle-orm";
 export interface IStorage {
   // Users
   getUserByUsername(username: string): Promise<typeof users.$inferSelect | undefined>;
+  getUserById(id: number): Promise<typeof users.$inferSelect | undefined>;
   getStaffMembers(): Promise<typeof users.$inferSelect[]>;
   createUser(user: InsertUser): Promise<typeof users.$inferSelect>;
 
@@ -49,6 +50,11 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   async getUserByUsername(username: string) {
     const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getUserById(id: number) {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 

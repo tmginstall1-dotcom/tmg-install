@@ -140,22 +140,25 @@ export async function registerRoutes(
       const bcrypt = await import("bcryptjs");
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) return res.status(401).json({ message: "Invalid credentials" });
-      res.json(user);
+      req.session.userId = user.id;
+      await new Promise<void>((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
+      const { password: _pw, ...safeUser } = user;
+      res.json(safeUser);
     } catch (e) {
       res.status(400).json({ message: "Invalid input" });
     }
   });
 
   app.get(api.auth.me.path, async (req, res) => {
-    const staff = await storage.getStaffMembers();
-    if (staff.length > 0) {
-      res.json(staff[0]);
-    } else {
-      res.status(401).json({ message: "Not logged in" });
-    }
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user) return res.status(401).json({ message: "Not logged in" });
+    const { password: _pw, ...safeUser } = user;
+    res.json(safeUser);
   });
 
   app.post(api.auth.logout.path, (req, res) => {
+    req.session.destroy(() => {});
     res.json({ message: "Logged out" });
   });
 

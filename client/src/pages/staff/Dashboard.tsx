@@ -35,7 +35,7 @@ export default function StaffDashboard() {
     .filter((q: any) => ['completed', 'final_payment_requested', 'final_paid', 'closed'].includes(q.status))
     .slice(0, 8);
 
-  const totalVisible = activeNow.length + upcoming.length;
+  const totalVisible = activeNow.length + upcoming.length + completed.length;
 
   return (
     <div className="min-h-screen pt-24 pb-20 bg-background">
@@ -89,8 +89,8 @@ export default function StaffDashboard() {
             <div className="w-16 h-16 bg-card rounded-full mx-auto flex items-center justify-center mb-4 shadow-sm">
               <CalendarDays className="w-8 h-8 text-muted-foreground" />
             </div>
-            <h3 className="font-bold text-lg">No active jobs</h3>
-            <p className="text-muted-foreground text-sm">You're all caught up!</p>
+            <h3 className="font-bold text-lg">No jobs yet</h3>
+            <p className="text-muted-foreground text-sm">Jobs will appear here once booked.</p>
           </div>
         )}
       </div>
