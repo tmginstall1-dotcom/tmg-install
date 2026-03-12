@@ -546,7 +546,7 @@ export default function QuoteStatus() {
                       <p className="text-[10px] font-semibold tracking-widest uppercase text-white/50 mb-0.5" style={{ letterSpacing: "0.15em" }}>
                         WhatsApp
                       </p>
-                      <p className="font-bold text-sm text-white">{WHATSAPP_DISPLAY}</p>
+                      <p className="font-bold text-sm text-white">Contact Us</p>
                     </div>
                   </div>
                   <ArrowRight className="w-4 h-4 text-white/40 group-hover:text-white/70 group-hover:translate-x-0.5 transition-all" />
