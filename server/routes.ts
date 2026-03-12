@@ -807,7 +807,7 @@ export async function registerRoutes(
             content: [
               {
                 type: "text",
-                text: "Look at this image and list every piece of furniture or household item you can see, even partially. This includes beds, sofas, wardrobes, tables, chairs, desks, shelves, cabinets, TVs, appliances, etc. Make your best guess even if items are partially visible or the image is not perfect. Respond with ONLY a valid JSON array and nothing else — no prose, no explanation: [{\"name\": \"item name\", \"quantity\": 1}]. List up to 10 distinct items."
+                text: "Look at this image and list every piece of furniture, office fixture, or household item you can see, even partially. This includes beds, sofas, wardrobes, tables, chairs, desks, shelves, cabinets, TVs, appliances, phone booths, meeting pods, acoustic booths, office partitions, reception counters, drilling fixtures, wall-mounted shelves, curtain tracks, and any other furniture or office equipment. Make your best guess even if items are partially visible or the image is not perfect. Respond with ONLY a valid JSON array and nothing else — no prose, no explanation: [{\"name\": \"item name\", \"quantity\": 1}]. List up to 10 distinct items."
               },
               {
                 type: "image_url",

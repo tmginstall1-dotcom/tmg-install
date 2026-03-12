@@ -314,4 +314,82 @@ export async function seedDatabase() {
       { name: "Outdoor Bench", sku: "OUTBENCH-DISMANTLE", category: "Outdoor", serviceType: "dismantle", basePrice: "30.00" },
     ]);
   }
+
+  // Round 3: Phone Booths / Meeting Pods + Drilling Services (PHONE-BOOTH-INSTALL marker)
+  const r3 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "PHONE-BOOTH-INSTALL"));
+  if (r3.length === 0) {
+    await db.insert(catalogItems).values([
+
+      // ─── Phone Booths & Meeting Pods ─────────────────────────────────────────
+      // Solo phone booth (1-person acoustic pod, freestanding, ~1m² footprint)
+      { name: "Solo Phone Booth (1-Person)", sku: "PHONE-BOOTH-INSTALL", category: "Meeting Pods & Phone Booths", serviceType: "install", basePrice: "280.00" },
+      { name: "Solo Phone Booth (1-Person)", sku: "PHONE-BOOTH-DISMANTLE", category: "Meeting Pods & Phone Booths", serviceType: "dismantle", basePrice: "180.00" },
+      { name: "Solo Phone Booth (1-Person)", sku: "PHONE-BOOTH-RELOCATE", category: "Meeting Pods & Phone Booths", serviceType: "relocate", basePrice: "380.00" },
+
+      // Duo / 2-person phone booth
+      { name: "Duo Phone Booth (2-Person)", sku: "DUO-BOOTH-INSTALL", category: "Meeting Pods & Phone Booths", serviceType: "install", basePrice: "350.00" },
+      { name: "Duo Phone Booth (2-Person)", sku: "DUO-BOOTH-DISMANTLE", category: "Meeting Pods & Phone Booths", serviceType: "dismantle", basePrice: "250.00" },
+      { name: "Duo Phone Booth (2-Person)", sku: "DUO-BOOTH-RELOCATE", category: "Meeting Pods & Phone Booths", serviceType: "relocate", basePrice: "500.00" },
+
+      // 4-person meeting pod
+      { name: "Meeting Pod (4-Person)", sku: "POD4-INSTALL", category: "Meeting Pods & Phone Booths", serviceType: "install", basePrice: "550.00" },
+      { name: "Meeting Pod (4-Person)", sku: "POD4-DISMANTLE", category: "Meeting Pods & Phone Booths", serviceType: "dismantle", basePrice: "380.00" },
+      { name: "Meeting Pod (4-Person)", sku: "POD4-RELOCATE", category: "Meeting Pods & Phone Booths", serviceType: "relocate", basePrice: "750.00" },
+
+      // 6-person meeting room pod
+      { name: "Meeting Room Pod (6-Person)", sku: "POD6-INSTALL", category: "Meeting Pods & Phone Booths", serviceType: "install", basePrice: "750.00" },
+      { name: "Meeting Room Pod (6-Person)", sku: "POD6-DISMANTLE", category: "Meeting Pods & Phone Booths", serviceType: "dismantle", basePrice: "550.00" },
+      { name: "Meeting Room Pod (6-Person)", sku: "POD6-RELOCATE", category: "Meeting Pods & Phone Booths", serviceType: "relocate", basePrice: "950.00" },
+
+      // 8-person / large boardroom pod
+      { name: "Large Meeting Pod (8-Person)", sku: "POD8-INSTALL", category: "Meeting Pods & Phone Booths", serviceType: "install", basePrice: "950.00" },
+      { name: "Large Meeting Pod (8-Person)", sku: "POD8-DISMANTLE", category: "Meeting Pods & Phone Booths", serviceType: "dismantle", basePrice: "700.00" },
+      { name: "Large Meeting Pod (8-Person)", sku: "POD8-RELOCATE", category: "Meeting Pods & Phone Booths", serviceType: "relocate", basePrice: "1200.00" },
+
+      // Freestanding acoustic booth (open-top / semi-enclosed)
+      { name: "Freestanding Acoustic Booth", sku: "ACBOOTH-INSTALL", category: "Meeting Pods & Phone Booths", serviceType: "install", basePrice: "300.00" },
+      { name: "Freestanding Acoustic Booth", sku: "ACBOOTH-DISMANTLE", category: "Meeting Pods & Phone Booths", serviceType: "dismantle", basePrice: "200.00" },
+      { name: "Freestanding Acoustic Booth", sku: "ACBOOTH-RELOCATE", category: "Meeting Pods & Phone Booths", serviceType: "relocate", basePrice: "420.00" },
+
+      // Modular pod panel (per panel, for modular pod systems)
+      { name: "Modular Pod Panel (per panel)", sku: "PODPANEL-INSTALL", category: "Meeting Pods & Phone Booths", serviceType: "install", basePrice: "80.00" },
+      { name: "Modular Pod Panel (per panel)", sku: "PODPANEL-DISMANTLE", category: "Meeting Pods & Phone Booths", serviceType: "dismantle", basePrice: "60.00" },
+
+      // Kiosk / standing mini-pod
+      { name: "Standing Kiosk / Mini Pod", sku: "KIOSK-INSTALL", category: "Meeting Pods & Phone Booths", serviceType: "install", basePrice: "200.00" },
+      { name: "Standing Kiosk / Mini Pod", sku: "KIOSK-DISMANTLE", category: "Meeting Pods & Phone Booths", serviceType: "dismantle", basePrice: "150.00" },
+      { name: "Standing Kiosk / Mini Pod", sku: "KIOSK-RELOCATE", category: "Meeting Pods & Phone Booths", serviceType: "relocate", basePrice: "280.00" },
+
+      // ─── Drilling Services ────────────────────────────────────────────────────
+      // Standard wall drilling — brick / plasterboard (per hole)
+      { name: "Wall Drilling — Brick / Drywall (per hole)", sku: "DRILL-BRICK", category: "Drilling Services", serviceType: "install", basePrice: "15.00" },
+
+      // Concrete wall drilling (per hole) — reinforced/HDB concrete
+      { name: "Wall Drilling — Concrete (per hole)", sku: "DRILL-CONCRETE", category: "Drilling Services", serviceType: "install", basePrice: "25.00" },
+
+      // Marble / tile drilling (per hole) — delicate surface requiring diamond bit
+      { name: "Wall Drilling — Marble / Tile (per hole)", sku: "DRILL-MARBLE", category: "Drilling Services", serviceType: "install", basePrice: "40.00" },
+
+      // Glass / tempered glass drilling (per hole)
+      { name: "Glass / Partition Drilling (per hole)", sku: "DRILL-GLASS", category: "Drilling Services", serviceType: "install", basePrice: "60.00" },
+
+      // Shelf or bracket mounting (per bracket set, includes rawl plugs and screws)
+      { name: "Shelf Bracket Mounting (per bracket set)", sku: "DRILL-BRACKET", category: "Drilling Services", serviceType: "install", basePrice: "30.00" },
+
+      // Heavy-duty wall anchor (per anchor point — for load-bearing fittings)
+      { name: "Heavy-Duty Wall Anchor (per point)", sku: "DRILL-ANCHOR", category: "Drilling Services", serviceType: "install", basePrice: "35.00" },
+
+      // Hole-patching / wall restoration after removal (per hole)
+      { name: "Wall Hole Patching / Restoration (per hole)", sku: "DRILL-PATCH", category: "Drilling Services", serviceType: "dismantle", basePrice: "20.00" },
+
+      // Cable / conduit channel drilling through wall (per penetration)
+      { name: "Cable / Conduit Wall Penetration (per point)", sku: "DRILL-CABLE", category: "Drilling Services", serviceType: "install", basePrice: "45.00" },
+
+      // Overhead cable tray mounting (per metre run — drilling into ceiling/beam)
+      { name: "Overhead Cable Tray Mounting (per metre)", sku: "DRILL-TRAY", category: "Drilling Services", serviceType: "install", basePrice: "55.00" },
+
+      // Full set of misc. fixings / misc drilling (job-based for small works)
+      { name: "Miscellaneous Drilling & Fixing (per session)", sku: "DRILL-MISC", category: "Drilling Services", serviceType: "install", basePrice: "80.00" },
+    ]);
+  }
 }
