@@ -157,9 +157,9 @@ export default function QuoteStatus() {
     under_review: "Our team is reviewing your quote.",
     approved: "Your quote is approved! Awaiting deposit request from our team.",
     deposit_requested: "Please pay the deposit to confirm your booking.",
-    deposit_paid: "Deposit received! Please select your preferred appointment date.",
-    booking_requested: "Your booking request has been sent. We'll confirm your slot shortly.",
-    booked: "Your booking is confirmed. Our team will arrive at the scheduled time.",
+    deposit_paid: "Deposit received! Our team will reach out shortly to confirm your appointment.",
+    booking_requested: "Your booking request has been received. We'll confirm your slot shortly.",
+    booked: "Your deposit is paid and booking is confirmed. Our team will arrive at the scheduled time.",
     assigned: "A team member has been assigned to your job.",
     in_progress: "Your job is currently in progress.",
     completed: "Your job is complete. Please make the final payment.",
@@ -487,28 +487,12 @@ export default function QuoteStatus() {
                 </div>
               )}
 
-              {/* Slot reserved — deposit paid, awaiting admin confirmation */}
-              {quote.status === "deposit_paid" && quote.preferredDate && (
-                <div className="border-t border-white/10">
-                  <div className="px-6 py-4 border-b border-white/10 flex items-center gap-2">
-                    <CalendarDays className="w-3.5 h-3.5 text-white/40" />
-                    <p className="text-[10px] font-semibold tracking-widest uppercase text-white/40" style={{ letterSpacing: "0.18em" }}>
-                      Reserved Slot
-                    </p>
-                  </div>
-                  <div className="px-6 py-5 space-y-3">
-                    <div className="flex items-center gap-2 font-bold text-sm">
-                      <CalendarDays className="w-4 h-4 text-white/40 shrink-0" />
-                      <span>{format(new Date(quote.preferredDate + "T12:00:00"), "EEEE, MMMM d, yyyy")}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-white/60">
-                      <Clock className="w-4 h-4 text-white/40 shrink-0" />
-                      <span>{quote.preferredTimeWindow}</span>
-                    </div>
-                    <p className="text-[10px] text-white/30 mt-1 tracking-wide">
-                      Awaiting admin confirmation — you'll receive an email once confirmed.
-                    </p>
-                  </div>
+              {/* Deposit paid fallback — no preferred slot set (rare) */}
+              {quote.status === "deposit_paid" && !quote.preferredDate && (
+                <div className="px-6 pb-5 border-t border-white/10 pt-5 text-center">
+                  <Clock className="w-6 h-6 mx-auto mb-2 text-white/40" />
+                  <p className="font-bold text-sm">Deposit Received</p>
+                  <p className="text-xs text-white/40 mt-1">Our team will contact you shortly to schedule your appointment.</p>
                 </div>
               )}
 

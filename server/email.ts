@@ -234,14 +234,14 @@ export function depositReceivedEmail(quote: any): string {
 
     <div class="alert-box">
       <strong>📋 What Happens Next:</strong><br>
-      • Our admin team will review and formally confirm your booking<br>
-      • You'll receive a booking confirmation email once approved<br>
-      • One free reschedule is available (at least 24 hours before your appointment)<br>
-      • Contact us on WhatsApp for urgent changes
+      • Your booking slot is now locked in — no further action needed<br>
+      • A staff member will be assigned and we'll keep you updated<br>
+      • Please ensure someone is available at the address on the scheduled date<br>
+      • Contact us on WhatsApp for any changes or urgent matters
     </div>
     ${buildContactSection()}
   `;
-  return buildEmailWrapper("Deposit Received — Slot Confirmed! 🎉", "Your appointment slot is secured", body);
+  return buildEmailWrapper("Deposit Paid — Booking Confirmed! 🎉", "Your appointment is locked in", body);
 }
 
 export function bookingRequestAdminEmail(quote: any): string {

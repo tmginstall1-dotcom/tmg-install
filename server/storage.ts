@@ -149,40 +149,72 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateQuotePayment(id: number, paymentType: 'deposit' | 'final', amount: string) {
-    const updateData: Partial<typeof quotes.$inferInsert> = {};
     const now = new Date();
 
     if (paymentType === 'deposit') {
-      updateData.depositPaidAt = now;
-      updateData.paymentStatus = 'deposit_paid';
-      updateData.status = 'deposit_paid';
-    } else {
-      updateData.finalPaidAt = now;
-      updateData.paymentStatus = 'paid_in_full';
-      updateData.status = 'final_paid';
-    }
+      // Fetch the quote first to check for a preferred slot
+      const existing = await db.select().from(quotes).where(eq(quotes.id, id)).limit(1);
+      const q = existing[0];
 
-    await db.update(quotes).set(updateData).where(eq(quotes.id, id));
-    await db.insert(jobUpdates).values({
-      quoteId: id,
-      statusChange: paymentType === 'deposit' ? 'deposit_paid' : 'final_paid',
-      actorType: 'customer',
-      note: `${paymentType === 'deposit' ? 'Deposit' : 'Final'} payment of $${amount} received`
-    });
+      // Record deposit payment
+      await db.insert(jobUpdates).values({
+        quoteId: id,
+        statusChange: 'deposit_paid',
+        actorType: 'customer',
+        note: `Deposit payment of $${amount} received`
+      });
 
-    // Auto-close if final payment received and job was completed
-    if (paymentType === 'final') {
-      const quote = await this.fetchQuoteDetails(id);
-      if (quote) {
-        // Auto-close
-        await db.update(quotes).set({ status: 'closed' }).where(eq(quotes.id, id));
+      if (q?.preferredDate && q?.preferredTimeWindow) {
+        // Auto-confirm the booking using the slot chosen during the estimate
+        const scheduledAt = new Date(q.preferredDate + 'T12:00:00');
+        await db.update(quotes).set({
+          depositPaidAt: now,
+          paymentStatus: 'deposit_paid',
+          status: 'booked',
+          scheduledAt,
+          timeWindow: q.preferredTimeWindow,
+          slotHeldUntil: null,
+          bookingRequestedAt: now,
+        }).where(eq(quotes.id, id));
+
         await db.insert(jobUpdates).values({
           quoteId: id,
-          statusChange: 'closed',
+          statusChange: 'booked',
           actorType: 'system',
-          note: 'Case automatically closed after final payment received'
+          note: `Booking auto-confirmed for ${q.preferredDate} ${q.preferredTimeWindow} (slot from estimate)`
         });
+      } else {
+        // No preferred slot — fall back to deposit_paid (admin can book manually)
+        await db.update(quotes).set({
+          depositPaidAt: now,
+          paymentStatus: 'deposit_paid',
+          status: 'deposit_paid',
+        }).where(eq(quotes.id, id));
       }
+
+    } else {
+      // Final payment
+      await db.update(quotes).set({
+        finalPaidAt: now,
+        paymentStatus: 'paid_in_full',
+        status: 'final_paid',
+      }).where(eq(quotes.id, id));
+
+      await db.insert(jobUpdates).values({
+        quoteId: id,
+        statusChange: 'final_paid',
+        actorType: 'customer',
+        note: `Final payment of $${amount} received`
+      });
+
+      // Auto-close
+      await db.update(quotes).set({ status: 'closed' }).where(eq(quotes.id, id));
+      await db.insert(jobUpdates).values({
+        quoteId: id,
+        statusChange: 'closed',
+        actorType: 'system',
+        note: 'Case automatically closed after final payment received'
+      });
     }
 
     return await this.fetchQuoteDetails(id);
