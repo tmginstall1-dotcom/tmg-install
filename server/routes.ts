@@ -513,26 +513,36 @@ export async function registerRoutes(
       if (!type) return res.status(400).json({ message: "Missing payment type" });
 
       const amountPaid = ((session.amount_total ?? 0) / 100).toFixed(2);
+
+      // Check if webhook already processed this payment (to avoid double email)
+      const existingQuote = await storage.getQuote(id);
+      const alreadyProcessedByWebhook =
+        type === "deposit" ? !!existingQuote?.depositPaidAt : !!existingQuote?.finalPaidAt;
+
       const quote = await storage.updateQuotePayment(id, type as "deposit" | "final", amountPaid);
 
       if (!quote || !quote.customer) return res.status(200).json({ status: "ok" });
 
-      if (type === "deposit") {
-        await sendEmail({
-          to: quote.customer.email,
-          subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
-          html: depositReceivedEmail(quote),
-        });
-        console.log(`Payment verified (no-webhook): deposit paid for ${quote.referenceNo}`);
-      }
+      if (!alreadyProcessedByWebhook) {
+        if (type === "deposit") {
+          await sendEmail({
+            to: quote.customer.email,
+            subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
+            html: depositReceivedEmail(quote),
+          });
+          console.log(`Payment verified (no-webhook): deposit paid for ${quote.referenceNo}`);
+        }
 
-      if (type === "final") {
-        await sendEmail({
-          to: quote.customer.email,
-          subject: `[${quote.referenceNo}] Payment Received — Case Closed`,
-          html: caseClosedEmail(quote),
-        });
-        console.log(`Payment verified (no-webhook): final paid for ${quote.referenceNo}`);
+        if (type === "final") {
+          await sendEmail({
+            to: quote.customer.email,
+            subject: `[${quote.referenceNo}] Payment Received — Case Closed`,
+            html: caseClosedEmail(quote),
+          });
+          console.log(`Payment verified (no-webhook): final paid for ${quote.referenceNo}`);
+        }
+      } else {
+        console.log(`Payment verify: webhook already processed ${type} for ${quote.referenceNo} — skipping email`);
       }
 
       res.json({ status: "ok", quote });
