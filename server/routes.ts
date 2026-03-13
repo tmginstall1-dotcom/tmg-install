@@ -1043,6 +1043,18 @@ List up to 10 distinct items.`
         allItems
       );
 
+      // Alert admin on new estimate submission
+      try {
+        const alertHtml = newEstimateAdminAlert(quote);
+        await sendEmail({
+          to: ADMIN_EMAIL,
+          subject: `🔔 New Estimate Request — ${quote.referenceNo} from ${quote.customer?.name}`,
+          html: alertHtml,
+        });
+      } catch (alertErr) {
+        console.error("Admin alert email error:", alertErr);
+      }
+
       res.status(201).json(quote);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
