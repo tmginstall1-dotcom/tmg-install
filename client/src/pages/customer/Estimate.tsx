@@ -501,6 +501,17 @@ export default function EstimateWizard() {
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.message || "Submission failed"); }
       const quote = await res.json();
+
+      // Google Ads conversion tracking — fires on successful estimate submission
+      try {
+        (window as any).gtag?.("event", "conversion", {
+          send_to: "AW-18012639714",
+          value: Number(quote.total) || 0,
+          currency: "SGD",
+          transaction_id: quote.referenceNo,
+        });
+      } catch (_) {}
+
       setLocation(`/quotes/${quote.id}`);
     } catch (err: any) {
       setSubmitError(err.message || "Failed to submit. Please try again.");
