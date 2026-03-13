@@ -1311,9 +1311,9 @@ export default function EstimateWizard() {
               <h3 className="font-bold text-foreground mb-1">2. Deposit & Payment Policy</h3>
               <ul className="list-disc pl-5 space-y-1">
                 <li>A <strong>50% non-refundable deposit</strong> is required to confirm your booking.</li>
-                <li>The remaining <strong>50% balance is due upon completion</strong> of the work, before our team leaves the premises.</li>
-                <li>Accepted payment methods: <strong>PayNow, bank transfer, or cash</strong>.</li>
-                <li>Failure to pay the balance upon completion may result in legal action and recovery of costs.</li>
+                <li>The remaining <strong>50% balance is due upon completion</strong> of the work. Once our admin team has verified the completed work, a payment link will be sent to your email for the balance payment.</li>
+                <li>Accepted payment methods: <strong>Stripe (credit/debit card), PayNow, bank transfer, or cash</strong>.</li>
+                <li>Failure to pay the balance within the stipulated timeframe may result in legal action and recovery of costs.</li>
               </ul>
             </section>
 
