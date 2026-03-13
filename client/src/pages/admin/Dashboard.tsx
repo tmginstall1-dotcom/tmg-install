@@ -306,10 +306,10 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white rounded-xl border shadow-sm">
+            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border shadow-sm">
               <TrendingUp className="w-4 h-4 text-emerald-600" />
               <span className="text-sm font-bold text-foreground">{formatMoney(totalRevenue)}</span>
-              <span className="text-xs text-muted-foreground">total revenue</span>
+              <span className="text-xs text-muted-foreground hidden sm:inline">total revenue</span>
             </div>
             <button
               onClick={handleClearAll}

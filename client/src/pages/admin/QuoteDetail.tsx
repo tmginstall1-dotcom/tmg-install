@@ -169,7 +169,7 @@ export default function AdminQuoteDetail() {
   const editTotal = editSubtotal + editTransport;
 
   return (
-    <div className="min-h-screen pt-28 pb-20 bg-secondary/30">
+    <div className="min-h-screen pt-20 pb-32 lg:pt-28 lg:pb-20 bg-secondary/30">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         
         <Link href="/admin" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary mb-8 transition-colors">
@@ -226,10 +226,11 @@ export default function AdminQuoteDetail() {
               };
 
               return (
-                <div className="bg-card rounded-3xl border shadow-sm px-5 py-5" data-testid="status-pipeline">
+                <div className="bg-card rounded-3xl border shadow-sm px-5 py-5 overflow-hidden" data-testid="status-pipeline">
                   <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">Job Pipeline</p>
-                  {/* Stepper */}
-                  <div className="flex items-start">
+                  {/* Stepper — horizontal scroll on mobile */}
+                  <div className="overflow-x-auto -mx-5 px-5 pb-1">
+                  <div className="flex items-start min-w-[440px]">
                     {PIPELINE.map((phase, i) => {
                       const isDone     = !isCancelled && activeIdx > i;
                       const isActive   = !isCancelled && activeIdx === i;
@@ -277,6 +278,7 @@ export default function AdminQuoteDetail() {
                       );
                     })}
                   </div>
+                  </div>{/* end overflow-x-auto */}
                   {/* Cancelled state */}
                   {isCancelled && (
                     <div className="mt-2 text-center text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl py-2">
@@ -436,22 +438,26 @@ export default function AdminQuoteDetail() {
               {isEditing ? (
                 <div className="space-y-2">
                   {editItems.map((item, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 items-center p-2 rounded-xl border bg-secondary/30" data-testid={`edit-item-${i}`}>
-                      <input value={item.detectedName || item.originalDescription} onChange={e => updateEditItem(i, 'detectedName', e.target.value)}
-                        placeholder="Item name" className="px-2 py-1.5 rounded-lg border bg-background text-sm outline-none focus:border-primary" />
-                      <select value={item.serviceType} onChange={e => updateEditItem(i, 'serviceType', e.target.value)}
-                        className="px-2 py-1.5 rounded-lg border bg-background text-xs outline-none focus:border-primary">
-                        <option value="install">Install</option>
-                        <option value="dismantle">Dismantle</option>
-                        <option value="relocate">Relocate</option>
-                      </select>
-                      <input type="number" min="1" value={item.quantity} onChange={e => updateEditItem(i, 'quantity', parseInt(e.target.value) || 1)}
-                        className="w-14 px-2 py-1.5 rounded-lg border bg-background text-sm outline-none focus:border-primary text-center" />
-                      <input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => updateEditItem(i, 'unitPrice', e.target.value)}
-                        className="w-20 px-2 py-1.5 rounded-lg border bg-background text-sm outline-none focus:border-primary" placeholder="Price" />
-                      <button onClick={() => removeEditItem(i)} className="w-8 h-8 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors flex items-center justify-center">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <div key={i} className="p-3 rounded-xl border bg-secondary/30 space-y-2" data-testid={`edit-item-${i}`}>
+                      <div className="flex gap-2">
+                        <input value={item.detectedName || item.originalDescription} onChange={e => updateEditItem(i, 'detectedName', e.target.value)}
+                          placeholder="Item name" className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border bg-background text-sm outline-none focus:border-primary" />
+                        <button onClick={() => removeEditItem(i)} className="w-8 h-8 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors flex items-center justify-center shrink-0">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <select value={item.serviceType} onChange={e => updateEditItem(i, 'serviceType', e.target.value)}
+                          className="px-2 py-1.5 rounded-lg border bg-background text-xs outline-none focus:border-primary">
+                          <option value="install">Install</option>
+                          <option value="dismantle">Dismantle</option>
+                          <option value="relocate">Relocate</option>
+                        </select>
+                        <input type="number" min="1" value={item.quantity} onChange={e => updateEditItem(i, 'quantity', parseInt(e.target.value) || 1)}
+                          placeholder="Qty" className="px-2 py-1.5 rounded-lg border bg-background text-sm outline-none focus:border-primary text-center" />
+                        <input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => updateEditItem(i, 'unitPrice', e.target.value)}
+                          className="px-2 py-1.5 rounded-lg border bg-background text-sm outline-none focus:border-primary" placeholder="$Price" />
+                      </div>
                     </div>
                   ))}
                   <div className="flex gap-3 mt-3 pt-3 border-t">
@@ -849,6 +855,63 @@ export default function AdminQuoteDetail() {
           </div>
 
         </div>
+      </div>
+
+      {/* Mobile sticky bottom action bar */}
+      <div className="fixed bottom-0 inset-x-0 lg:hidden bg-background/95 backdrop-blur-xl border-t z-40 p-3">
+        {['submitted', 'under_review'].includes(quote.status) && (
+          <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending} data-testid="button-mobile-approve"
+            className="w-full btn-primary-gradient py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+            <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
+          </button>
+        )}
+        {quote.status === 'deposit_requested' && (
+          <div className="w-full py-3 text-center text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl">
+            ⏳ Awaiting customer deposit — {formatMoney(quote.depositAmount)}
+          </div>
+        )}
+        {quote.status === 'deposit_paid' && (
+          <div className="w-full py-3 text-center text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl">
+            ✅ Deposit paid — awaiting booking request
+          </div>
+        )}
+        {quote.status === 'booked' && (
+          <div className="flex gap-2">
+            <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}
+              className="flex-1 px-3 py-3 rounded-xl bg-secondary border outline-none focus:border-primary text-sm">
+              <option value="">Select staff…</option>
+              {staffList?.map((s: any) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedStaff} data-testid="button-mobile-assign"
+              className="px-4 py-3 rounded-xl bg-foreground text-background font-bold text-sm flex items-center gap-2 disabled:opacity-50">
+              <UserPlus className="w-4 h-4" /> Assign
+            </button>
+          </div>
+        )}
+        {['in_progress', 'completed', 'assigned'].includes(quote.status) && (
+          <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-mobile-final-payment"
+            className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+            <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending…" : "Mark Done & Request Final Payment"}
+          </button>
+        )}
+        {quote.status === 'final_payment_requested' && (
+          <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-mobile-resend-payment"
+            className="w-full border border-amber-300 text-amber-700 bg-amber-50 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+            <DollarSign className="w-4 h-4" /> Resend Final Payment Email
+          </button>
+        )}
+        {['closed', 'final_paid'].includes(quote.status) && (
+          <div className="w-full py-3 text-center text-sm font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl">
+            ✅ Case Closed — {formatMoney(quote.total)} collected
+          </div>
+        )}
+        {quote.status === 'cancelled' && (
+          <div className="w-full py-3 text-center text-sm font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl">
+            Job Cancelled
+          </div>
+        )}
       </div>
 
       {/* Photo Lightbox */}
