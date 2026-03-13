@@ -89,6 +89,24 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Ensure session table exists (connect-pg-simple createTableIfMissing can be unreliable)
+  try {
+    const { Pool } = await import("pg");
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "session" (
+        "sid" varchar NOT NULL COLLATE "default",
+        "sess" json NOT NULL,
+        "expire" timestamp(6) NOT NULL,
+        CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE
+      ) WITH (OIDS=FALSE);
+      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+    `);
+    await pool.end();
+  } catch (e) {
+    console.warn("[session] table setup warning:", e);
+  }
+
   await seedDatabase();
   await autoBookPendingQuotes();
   await registerRoutes(httpServer, app);

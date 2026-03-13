@@ -133,19 +133,29 @@ export async function registerRoutes(
 
   // -- Auth Routes --
   app.post(api.auth.login.path, async (req, res) => {
+    let parsed: { username: string; password: string };
     try {
-      const { username, password } = api.auth.login.input.parse(req.body);
+      parsed = api.auth.login.input.parse(req.body);
+    } catch {
+      return res.status(400).json({ message: "Username and password are required" });
+    }
+    try {
+      const { username, password } = parsed;
       const user = await storage.getUserByUsername(username);
       if (!user) return res.status(401).json({ message: "Invalid credentials" });
       const bcrypt = await import("bcryptjs");
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) return res.status(401).json({ message: "Invalid credentials" });
       req.session.userId = user.id;
-      await new Promise<void>((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
+      await new Promise<void>((resolve) => req.session.save(e => {
+        if (e) console.error("[session] save error:", e);
+        resolve();
+      }));
       const { password: _pw, ...safeUser } = user;
       res.json(safeUser);
     } catch (e) {
-      res.status(400).json({ message: "Invalid input" });
+      console.error("[login] unexpected error:", e);
+      res.status(500).json({ message: "Login failed, please try again" });
     }
   });
 
