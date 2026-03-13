@@ -480,7 +480,7 @@ export default function Landing() {
               <div className="w-1 h-1 rounded-full bg-white/20" />
               <p className="font-body text-white/25 text-xs">Singapore</p>
               <div className="w-1 h-1 rounded-full bg-white/20" />
-              <p className="font-body text-white/25 text-xs">UEN: 201836408C</p>
+              <p className="font-body text-white/25 text-xs">UEN: 202424156H</p>
             </div>
           </div>
         </div>
