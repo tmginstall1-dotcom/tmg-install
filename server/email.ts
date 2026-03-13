@@ -399,4 +399,50 @@ export function caseClosedEmail(quote: any): string {
   return buildEmailWrapper("Case Closed — Payment Confirmed", "Thank you for your business!", body);
 }
 
+export function newEstimateAdminAlert(quote: any): string {
+  const customer = quote.customer;
+  const services = quote.selectedServices ? JSON.parse(quote.selectedServices as string) : [];
+  const adminUrl = `https://tmginstall.com/admin/quotes/${quote.id}`;
+  const body = `
+    <div class="alert-box" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px 18px;margin-bottom:20px;">
+      🔔 <strong>New estimate request just came in!</strong> A customer has submitted an estimate through the website. Please review and respond promptly.
+    </div>
+
+    <div class="ref-badge">${quote.referenceNo}</div>
+
+    <div class="section-title">Customer Details</div>
+    <div class="info-box">
+      <div class="info-row"><span><strong>Name</strong></span><span>${customer?.name}</span></div>
+      <div class="info-row"><span><strong>Phone</strong></span><span><a href="tel:${customer?.phone}">${customer?.phone}</a></span></div>
+      <div class="info-row"><span><strong>Email</strong></span><span><a href="mailto:${customer?.email}">${customer?.email}</a></span></div>
+    </div>
+
+    <div class="section-title">Service Details</div>
+    <div class="info-box">
+      ${buildAddressSection(quote)}
+      ${services.length ? `<div class="info-row"><span>Services</span><span>${services.join(', ')}</span></div>` : ''}
+    </div>
+
+    <div class="section-title">Estimated Items</div>
+    ${buildItemsTable(quote.items)}
+
+    <div class="section-title">Estimated Value</div>
+    ${buildTotalsTable(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
+
+    ${quote.requiresManualReview ? `
+    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:14px 18px;margin:16px 0;">
+      ⚠️ <strong>Manual Review Required</strong> — AI confidence is low. Please verify the items and pricing before approving.
+    </div>` : ''}
+
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${adminUrl}" class="btn" style="display:inline-block">Review Quote in Admin Portal →</a>
+    </div>
+  `;
+  return buildEmailWrapper(
+    "New Estimate Request",
+    `From ${customer?.name} · ${quote.referenceNo}`,
+    body
+  );
+}
+
 export { ADMIN_EMAIL, WHATSAPP_LINK, WHATSAPP_NUMBER };

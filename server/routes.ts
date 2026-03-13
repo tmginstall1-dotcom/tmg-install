@@ -15,6 +15,7 @@ import {
   rescheduleConfirmationEmail,
   finalPaymentEmail, 
   caseClosedEmail,
+  newEstimateAdminAlert,
   ADMIN_EMAIL
 } from "./email";
 
@@ -360,6 +361,13 @@ export async function registerRoutes(
         },
         aiParsedItems
       );
+
+      // Alert admin immediately on new estimate submission (non-blocking)
+      sendEmail({
+        to: ADMIN_EMAIL,
+        subject: `🔔 New Estimate Request — ${quote.referenceNo} from ${quote.customer?.name}`,
+        html: newEstimateAdminAlert(quote),
+      }).catch(e => console.error("[email] admin alert failed:", e));
 
       res.status(201).json(quote);
     } catch (err) {
