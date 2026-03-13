@@ -4,6 +4,10 @@ const WHATSAPP_NUMBER = "+6580880757";
 const WHATSAPP_LINK = "https://wa.me/6580880757";
 const SALES_EMAIL = "sales@tmginstall.com";
 const ADMIN_EMAIL = "sales@tmginstall.com";
+const WEBSITE = "https://tmginstall.com";
+const TERMS_URL = "https://tmginstall.com/terms";
+const UEN = "202424156H";
+const ADDRESS = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
 
 interface EmailParams {
   to: string;
@@ -43,406 +47,682 @@ export async function sendEmail({ to, subject, html }: EmailParams): Promise<boo
   }
 }
 
-// Shared CSS styles for all emails
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const C = {
+  black:      "#0a0a0a",
+  white:      "#ffffff",
+  offWhite:   "#f8f8f8",
+  border:     "#e5e5e5",
+  mutedText:  "#6b6b6b",
+  green:      "#15803d",
+  greenBg:    "#f0fdf4",
+  greenBorder:"#bbf7d0",
+  amber:      "#92400e",
+  amberBg:    "#fffbeb",
+  amberBorder:"#fde68a",
+  red:        "#b91c1c",
+  redBg:      "#fef2f2",
+  redBorder:  "#fecaca",
+  blue:       "#1d4ed8",
+  blueBg:     "#eff6ff",
+  blueBorder: "#bfdbfe",
+};
+
+// ─── Shared CSS ───────────────────────────────────────────────────────────────
 const emailStyles = `
-  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }
-  .container { max-width: 620px; margin: 30px auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
-  .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 32px; text-align: center; }
-  .header h1 { margin: 0 0 8px; font-size: 24px; font-weight: 700; }
-  .header p { margin: 0; opacity: 0.85; font-size: 15px; }
-  .content { padding: 32px; }
-  .ref-badge { display: inline-block; background: #f0f0f0; border-radius: 6px; padding: 6px 14px; font-weight: 700; font-size: 16px; letter-spacing: 1px; margin-bottom: 20px; color: #4f46e5; }
-  .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin: 24px 0 12px; }
-  .info-box { background: #f9f9fb; border-left: 4px solid #4f46e5; border-radius: 6px; padding: 16px 20px; margin-bottom: 16px; }
-  .info-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; }
-  .info-row:last-child { margin-bottom: 0; }
-  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-  th { background: #f0f0f0; text-align: left; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #555; }
-  td { padding: 10px 12px; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
-  tr:last-child td { border-bottom: none; }
-  .totals-table td { padding: 8px 12px; }
-  .totals-table tr.grand-total td { font-weight: 700; font-size: 16px; color: #4f46e5; border-top: 2px solid #e0e0e0; }
-  .totals-table tr.deposit-row td { color: #16a34a; font-weight: 600; }
-  .btn { display: inline-block; background: #4f46e5; color: white !important; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; margin: 20px 0; text-align: center; }
-  .btn-green { background: #16a34a; }
-  .contact-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px 20px; margin: 20px 0; }
-  .footer { background: #f9f9fb; padding: 24px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #eee; }
-  .status-badge { display: inline-block; padding: 4px 12px; border-radius: 100px; background: #ede9fe; color: #4f46e5; font-weight: 700; font-size: 13px; }
-  .alert-box { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; font-size: 14px; margin: 16px 0; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: ${C.black}; margin: 0; padding: 0; background: ${C.offWhite}; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 600px; margin: 0 auto; padding: 24px 16px; }
+  .card { background: ${C.white}; border: 1px solid ${C.border}; border-radius: 4px; overflow: hidden; }
+  .header { background: ${C.black}; color: ${C.white}; padding: 36px 32px 32px; text-align: center; }
+  .logo { font-size: 26px; font-weight: 900; letter-spacing: 6px; color: ${C.white}; text-transform: uppercase; margin: 0 0 4px; font-family: 'Arial Black', Arial, sans-serif; }
+  .logo-sub { font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1.5px; text-transform: uppercase; margin: 0 0 20px; }
+  .phase-badge { display: inline-block; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.85); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 5px 16px; border-radius: 2px; margin-bottom: 12px; }
+  .header-title { font-size: 22px; font-weight: 800; color: ${C.white}; margin: 0 0 6px; letter-spacing: 0.5px; }
+  .header-sub { font-size: 13px; color: rgba(255,255,255,0.55); margin: 0; }
+  .body { padding: 32px; }
+  .ref-row { display: flex; align-items: center; gap: 12px; background: ${C.offWhite}; border: 1px solid ${C.border}; border-radius: 4px; padding: 12px 16px; margin-bottom: 24px; }
+  .ref-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: ${C.mutedText}; }
+  .ref-value { font-size: 16px; font-weight: 800; letter-spacing: 2px; color: ${C.black}; font-family: 'Courier New', monospace; }
+  .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: ${C.mutedText}; margin: 24px 0 10px; border-bottom: 1px solid ${C.border}; padding-bottom: 6px; }
+  .info-grid { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  .info-grid td { padding: 5px 0; font-size: 14px; vertical-align: top; }
+  .info-grid td:first-child { color: ${C.mutedText}; width: 38%; }
+  .info-grid td:last-child { font-weight: 600; color: ${C.black}; }
+  .items-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 4px 0 8px; }
+  .items-table th { background: ${C.black}; color: ${C.white}; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .items-table th:last-child { text-align: right; }
+  .items-table td { padding: 9px 10px; border-bottom: 1px solid ${C.border}; vertical-align: middle; color: ${C.black}; }
+  .items-table td:last-child { text-align: right; font-weight: 700; }
+  .items-table tr:last-child td { border-bottom: none; }
+  .items-table .svc-tag { display: inline-block; background: ${C.offWhite}; border: 1px solid ${C.border}; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 1px 6px; border-radius: 2px; color: ${C.mutedText}; }
+  .totals-box { border: 1px solid ${C.border}; border-radius: 4px; overflow: hidden; margin: 4px 0; }
+  .totals-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 16px; font-size: 14px; border-bottom: 1px solid ${C.border}; }
+  .totals-row:last-child { border-bottom: none; }
+  .totals-row.grand { background: ${C.black}; color: ${C.white}; font-size: 16px; font-weight: 800; }
+  .totals-row.deposit { background: ${C.greenBg}; color: ${C.green}; font-weight: 700; }
+  .totals-row.balance { color: ${C.mutedText}; font-size: 13px; }
+  .cta-block { text-align: center; margin: 28px 0; padding: 28px 24px; border: 1px solid ${C.border}; border-radius: 4px; background: ${C.offWhite}; }
+  .cta-amount-label { font-size: 12px; color: ${C.mutedText}; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 6px; }
+  .cta-amount { font-size: 36px; font-weight: 900; color: ${C.black}; margin: 0 0 20px; letter-spacing: -1px; font-family: 'Arial Black', Arial, sans-serif; }
+  .btn { display: inline-block; background: ${C.black}; color: ${C.white} !important; padding: 14px 36px; border-radius: 2px; text-decoration: none; font-weight: 800; font-size: 14px; letter-spacing: 1.5px; text-transform: uppercase; }
+  .btn-green { background: ${C.green}; }
+  .btn-amber { background: #b45309; }
+  .notice { border-radius: 4px; padding: 14px 16px; font-size: 13px; line-height: 1.6; margin: 16px 0; }
+  .notice.info { background: ${C.blueBg}; border-left: 3px solid ${C.blue}; color: #1e3a5f; }
+  .notice.success { background: ${C.greenBg}; border-left: 3px solid ${C.green}; color: #14532d; }
+  .notice.warning { background: ${C.amberBg}; border-left: 3px solid #f59e0b; color: ${C.amber}; }
+  .notice.danger { background: ${C.redBg}; border-left: 3px solid #ef4444; color: ${C.red}; }
+  .checklist { margin: 0; padding: 0; list-style: none; }
+  .checklist li { padding: 5px 0 5px 22px; font-size: 13px; color: ${C.black}; position: relative; border-bottom: 1px solid ${C.border}; }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "✓"; position: absolute; left: 0; color: ${C.green}; font-weight: 700; }
+  .date-card { background: ${C.black}; color: ${C.white}; border-radius: 4px; padding: 20px 24px; margin: 4px 0; }
+  .date-card .dc-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.45); margin-bottom: 4px; }
+  .date-card .dc-value { font-size: 18px; font-weight: 800; color: ${C.white}; }
+  .date-card .dc-time { font-size: 14px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+  .contact-strip { display: flex; gap: 12px; margin: 20px 0; }
+  .contact-item { flex: 1; background: ${C.offWhite}; border: 1px solid ${C.border}; border-radius: 4px; padding: 12px; text-align: center; text-decoration: none; }
+  .contact-item .ci-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .contact-item .ci-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: ${C.mutedText}; display: block; margin-bottom: 2px; }
+  .contact-item .ci-value { font-size: 13px; font-weight: 700; color: ${C.black}; display: block; }
+  .footer { padding: 24px 32px; border-top: 1px solid ${C.border}; text-align: center; }
+  .footer p { font-size: 11px; color: ${C.mutedText}; margin: 3px 0; line-height: 1.6; }
+  .footer a { color: ${C.mutedText}; text-decoration: underline; }
+  .divider { height: 1px; background: ${C.border}; margin: 20px 0; }
+  .step-track { display: flex; justify-content: center; gap: 6px; margin: 16px 0 0; }
+  .step-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.25); }
+  .step-dot.active { background: ${C.white}; width: 20px; border-radius: 3px; }
 `;
 
-// Build itemised table from items data
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function buildItemsTable(items: any[]): string {
-  if (!items || items.length === 0) return '<p style="color:#888;font-size:14px;">No items listed.</p>';
+  if (!items || items.length === 0) return `<p style="font-size:13px;color:${C.mutedText};margin:8px 0;">No items recorded.</p>`;
   const rows = items.map(item => `
     <tr>
-      <td>${item.detectedName || item.originalDescription}</td>
-      <td style="text-align:center">${item.serviceType}</td>
-      <td style="text-align:center">${item.quantity}</td>
-      <td style="text-align:right">$${Number(item.unitPrice).toFixed(2)}</td>
-      <td style="text-align:right"><strong>$${Number(item.subtotal).toFixed(2)}</strong></td>
+      <td>
+        <strong style="font-size:13px;">${item.detectedName || item.originalDescription}</strong>
+        <br><span class="svc-tag">${item.serviceType}</span>
+      </td>
+      <td style="text-align:center;font-size:13px;color:${C.mutedText};">×${item.quantity}</td>
+      <td style="text-align:right;font-size:13px;color:${C.mutedText};">$${Number(item.unitPrice).toFixed(2)}</td>
+      <td>$${Number(item.subtotal).toFixed(2)}</td>
     </tr>
   `).join('');
   return `
-    <table>
-      <thead>
-        <tr>
-          <th>Item</th><th style="text-align:center">Service</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit</th><th style="text-align:right">Total</th>
-        </tr>
-      </thead>
+    <table class="items-table">
+      <thead><tr>
+        <th>Item</th>
+        <th style="text-align:center;">Qty</th>
+        <th style="text-align:right;">Unit Price</th>
+        <th style="text-align:right;">Subtotal</th>
+      </tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;
 }
 
-function buildTotalsTable(subtotal: any, transportFee: any, total: any, depositAmount: any, finalAmount: any): string {
+function buildTotalsBox(subtotal: any, transportFee: any, total: any, depositAmount: any, finalAmount: any): string {
+  const hasTransport = Number(transportFee || 0) > 0;
   return `
-    <table class="totals-table">
-      <tr><td>Subtotal</td><td style="text-align:right">$${Number(subtotal || 0).toFixed(2)}</td></tr>
-      <tr><td>Transport Fee</td><td style="text-align:right">$${Number(transportFee || 0).toFixed(2)}</td></tr>
-      <tr class="grand-total"><td>Grand Total</td><td style="text-align:right">$${Number(total || 0).toFixed(2)}</td></tr>
-      <tr class="deposit-row"><td>Deposit (30%)</td><td style="text-align:right">$${Number(depositAmount || 0).toFixed(2)}</td></tr>
-      <tr><td>Balance Due</td><td style="text-align:right">$${Number(finalAmount || 0).toFixed(2)}</td></tr>
-    </table>
-  `;
-}
-
-function buildAddressSection(quote: any): string {
-  const services = Array.isArray(quote.selectedServices) ? quote.selectedServices : (quote.selectedServices ? JSON.parse(quote.selectedServices as string) : []);
-  const isRelocation = services.includes('relocate') || quote.pickupAddress;
-  if (isRelocation && quote.pickupAddress && quote.dropoffAddress) {
-    return `
-      <div class="info-row"><span><strong>Pickup:</strong></span><span>${quote.pickupAddress}</span></div>
-      <div class="info-row"><span><strong>Dropoff:</strong></span><span>${quote.dropoffAddress}</span></div>
-    `;
-  }
-  return `<div class="info-row"><span><strong>Service Address:</strong></span><span>${quote.serviceAddress}</span></div>`;
-}
-
-function buildContactSection(): string {
-  return `
-    <div class="contact-box">
-      <p style="margin:0 0 8px;font-weight:700;font-size:15px;">Need help?</p>
-      <p style="margin:0 0 4px;font-size:14px;">📧 Email: <a href="mailto:${SALES_EMAIL}">${SALES_EMAIL}</a></p>
-      <p style="margin:0;font-size:14px;">💬 WhatsApp: <a href="${WHATSAPP_LINK}">${WHATSAPP_NUMBER}</a></p>
+    <div class="totals-box">
+      <div class="totals-row"><span>Labour subtotal</span><span>$${Number(subtotal || 0).toFixed(2)}</span></div>
+      ${hasTransport ? `<div class="totals-row"><span>Logistics / transport</span><span>$${Number(transportFee || 0).toFixed(2)}</span></div>` : ''}
+      <div class="totals-row grand"><span>Grand Total</span><span>$${Number(total || 0).toFixed(2)}</span></div>
+      <div class="totals-row deposit"><span>✓ Deposit (50%)</span><span>$${Number(depositAmount || 0).toFixed(2)}</span></div>
+      <div class="totals-row balance"><span>Balance due on completion (50%)</span><span>$${Number(finalAmount || 0).toFixed(2)}</span></div>
     </div>
   `;
 }
 
-function buildEmailWrapper(title: string, subtitle: string, body: string): string {
+function buildAddressRows(quote: any): string {
+  const services = Array.isArray(quote.selectedServices) ? quote.selectedServices : (quote.selectedServices ? JSON.parse(quote.selectedServices as string) : []);
+  const isRelocation = services.includes('relocate') || quote.pickupAddress;
+  if (isRelocation && quote.pickupAddress && quote.dropoffAddress) {
+    return `
+      <tr><td>Pickup address</td><td>${quote.pickupAddress}</td></tr>
+      <tr><td>Drop-off address</td><td>${quote.dropoffAddress}</td></tr>
+    `;
+  }
+  return `<tr><td>Service address</td><td>${quote.serviceAddress}</td></tr>`;
+}
+
+function buildContactStrip(): string {
   return `
-    <!DOCTYPE html><html><head><meta charset="UTF-8"><style>${emailStyles}</style></head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>${title}</h1>
-          <p>${subtitle}</p>
-        </div>
-        <div class="content">
-          ${body}
-        </div>
-        <div class="footer">
-          <p>© 2026 TMG Install / The Moving Guy. All rights reserved.</p>
-          <p>160 Robinson Road, #14-04 SBF Center, Singapore 068914</p>
-        </div>
-      </div>
-    </body>
-    </html>
+    <div class="contact-strip">
+      <a href="mailto:${SALES_EMAIL}" class="contact-item" style="text-decoration:none;">
+        <span class="ci-icon">✉️</span>
+        <span class="ci-label">Email</span>
+        <span class="ci-value">${SALES_EMAIL}</span>
+      </a>
+      <a href="${WHATSAPP_LINK}" class="contact-item" style="text-decoration:none;">
+        <span class="ci-icon">💬</span>
+        <span class="ci-label">WhatsApp</span>
+        <span class="ci-value">${WHATSAPP_NUMBER}</span>
+      </a>
+    </div>
   `;
 }
 
-// ─── Customer Emails ───────────────────────────────────────────────────────────
+function buildFooter(): string {
+  return `
+    <div class="footer">
+      <p><strong>TMG Install / The Moving Guy Pte Ltd</strong> &nbsp;·&nbsp; UEN ${UEN}</p>
+      <p>${ADDRESS}</p>
+      <p style="margin-top:8px;">
+        <a href="${WEBSITE}">tmginstall.com</a>
+        &nbsp;·&nbsp;
+        <a href="${TERMS_URL}">Terms &amp; Conditions</a>
+        &nbsp;·&nbsp;
+        <a href="mailto:${SALES_EMAIL}">Contact Us</a>
+      </p>
+      <p style="margin-top:8px;font-size:10px;color:#aaa;">© 2026 The Moving Guy Pte Ltd. All rights reserved.</p>
+    </div>
+  `;
+}
 
+function buildRefRow(referenceNo: string): string {
+  return `
+    <div class="ref-row">
+      <div>
+        <div class="ref-label">Reference No.</div>
+        <div class="ref-value">${referenceNo}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildStepDots(active: number, total: number): string {
+  return `<div class="step-track">${Array.from({ length: total }, (_, i) =>
+    `<div class="step-dot${i + 1 === active ? ' active' : ''}"></div>`
+  ).join('')}</div>`;
+}
+
+function buildEmailShell(headerContent: string, bodyContent: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <style>${emailStyles}</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="header">
+        <div class="logo">TMG INSTALL</div>
+        <div class="logo-sub">The Moving Guy Pte Ltd · Singapore</div>
+        ${headerContent}
+      </div>
+      <div class="body">
+        ${bodyContent}
+      </div>
+      ${buildFooter()}
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// ─── Customer-facing emails ───────────────────────────────────────────────────
+
+// 1. Estimate submitted confirmation (for customer)
+export function estimateSubmittedEmail(quote: any): string {
+  const customer = quote.customer;
+  const header = `
+    ${buildStepDots(1, 5)}
+    <div class="phase-badge">Step 1 of 5 · Quote Received</div>
+    <div class="header-title">We've Received Your Estimate</div>
+    <div class="header-sub">Our team will review and respond within 1 business day</div>
+  `;
+  const body = `
+    <p style="font-size:15px;margin:0 0 8px;">Hi <strong>${customer?.name}</strong>,</p>
+    <p style="font-size:14px;color:${C.mutedText};margin:0 0 20px;">Thank you for submitting your furniture installation estimate. We've received all the details and our team is reviewing your request.</p>
+
+    ${buildRefRow(quote.referenceNo)}
+
+    <div class="section-label">Your Details</div>
+    <table class="info-grid">
+      <tr><td>Name</td><td>${customer?.name}</td></tr>
+      <tr><td>Email</td><td>${customer?.email}</td></tr>
+      <tr><td>Phone</td><td>${customer?.phone}</td></tr>
+      ${buildAddressRows(quote)}
+    </table>
+
+    <div class="section-label">Requested Items</div>
+    ${buildItemsTable(quote.items)}
+
+    <div class="section-label">Estimated Pricing</div>
+    ${buildTotalsBox(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
+
+    <div class="notice info" style="margin-top:20px;">
+      <strong>What happens next?</strong><br>
+      Our team will review your quote, verify pricing, and send you a deposit request within 1 business day. Once you pay the 50% deposit, your slot is confirmed.
+    </div>
+
+    ${buildContactStrip()}
+
+    <p style="font-size:12px;color:${C.mutedText};text-align:center;margin-top:8px;">
+      By proceeding, you agree to our <a href="${TERMS_URL}" style="color:${C.black};">Terms &amp; Conditions</a>.
+      The 50% deposit is non-refundable once paid.
+    </p>
+  `;
+  return buildEmailShell(header, body);
+}
+
+// 2. Deposit request email — customer pays 50% to confirm slot
 export function depositRequestEmail(quote: any, paymentLink: string): string {
   const customer = quote.customer;
   const slotDate = quote.preferredDate
     ? new Date(quote.preferredDate + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
     : null;
+  const header = `
+    ${buildStepDots(2, 5)}
+    <div class="phase-badge">Step 2 of 5 · Quote Approved</div>
+    <div class="header-title">Deposit Payment Required</div>
+    <div class="header-sub">Pay to lock in your appointment slot</div>
+  `;
   const body = `
-    <p>Hello <strong>${customer?.name}</strong>,</p>
-    <p>Great news! Your quote has been reviewed and approved. Please pay the deposit to confirm your booking.</p>
-    
-    <div class="ref-badge">${quote.referenceNo}</div>
+    <p style="font-size:15px;margin:0 0 8px;">Hi <strong>${customer?.name}</strong>,</p>
+    <p style="font-size:14px;color:${C.mutedText};margin:0 0 20px;">Your estimate has been reviewed and approved. Pay the 50% deposit below to confirm your appointment slot and proceed with the booking.</p>
+
+    ${buildRefRow(quote.referenceNo)}
 
     ${slotDate ? `
-    <div class="section-title">Your Reserved Slot</div>
-    <div class="info-box" style="border-left: 4px solid #16a34a;">
-      <div class="info-row"><span>📅 Date</span><span><strong>${slotDate}</strong></span></div>
-      <div class="info-row"><span>🕐 Time Window</span><span><strong>${quote.preferredTimeWindow}</strong></span></div>
-      <p style="margin:8px 0 0;font-size:13px;color:#666;">This slot is held for 48 hours from submission. Pay the deposit to confirm it permanently.</p>
+    <div class="section-label">Your Reserved Slot</div>
+    <div class="date-card">
+      <div class="dc-label">Appointment</div>
+      <div class="dc-value">${slotDate}</div>
+      <div class="dc-time">⏱ ${quote.preferredTimeWindow}</div>
+    </div>
+    <div class="notice warning" style="margin-top:8px;margin-bottom:0;">
+      ⏳ <strong>This slot is held for 48 hours.</strong> Pay before it expires to guarantee your preferred date.
     </div>` : ''}
-    
-    <div class="section-title">Customer Details</div>
-    <div class="info-box">
-      <div class="info-row"><span>Name</span><span>${customer?.name}</span></div>
-      <div class="info-row"><span>Email</span><span>${customer?.email}</span></div>
-      <div class="info-row"><span>Phone</span><span>${customer?.phone}</span></div>
-    </div>
 
-    <div class="section-title">Service Details</div>
-    <div class="info-box">
-      ${buildAddressSection(quote)}
-      <div class="info-row"><span>Status</span><span><span class="status-badge">Deposit Requested</span></span></div>
-    </div>
+    <div class="section-label">Service Details</div>
+    <table class="info-grid">
+      <tr><td>Customer</td><td>${customer?.name}</td></tr>
+      <tr><td>Phone</td><td>${customer?.phone}</td></tr>
+      ${buildAddressRows(quote)}
+    </table>
 
-    <div class="section-title">Itemised Breakdown</div>
+    <div class="section-label">Itemised Scope of Work</div>
     ${buildItemsTable(quote.items)}
 
-    <div class="section-title">Payment Summary</div>
-    ${buildTotalsTable(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
+    <div class="section-label">Payment Breakdown</div>
+    ${buildTotalsBox(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
 
-    <div style="background:#ede9fe;border-radius:10px;padding:20px;margin:20px 0;text-align:center;">
-      <p style="margin:0 0 6px;font-size:15px;color:#4f46e5;">Deposit Required to Confirm Your Slot</p>
-      <p style="margin:0 0 16px;font-size:28px;font-weight:800;color:#4f46e5;">$${Number(quote.depositAmount || 0).toFixed(2)}</p>
-      <a href="${paymentLink}" class="btn" style="display:inline-block">Pay Deposit Now →</a>
+    <div class="cta-block">
+      <div class="cta-amount-label">Deposit due now (50%)</div>
+      <div class="cta-amount">$${Number(quote.depositAmount || 0).toFixed(2)}</div>
+      <a href="${paymentLink}" class="btn">Pay Deposit Now →</a>
+      <p style="font-size:11px;color:${C.mutedText};margin:14px 0 0;">Secure payment via Stripe. Card details are never stored.</p>
     </div>
 
-    ${buildContactSection()}
+    <div class="notice warning">
+      <strong>Cancellation Policy</strong><br>
+      · Cancellation more than 48 hours before appointment: refund of deposit minus $30 admin fee<br>
+      · Cancellation less than 48 hours before appointment: deposit is forfeited<br>
+      · The 50% deposit is non-refundable in all other circumstances<br>
+      Full terms at <a href="${TERMS_URL}" style="color:${C.amber};">${TERMS_URL}</a>
+    </div>
+
+    ${buildContactStrip()}
+
+    <p style="font-size:12px;color:${C.mutedText};text-align:center;">
+      By paying, you agree to our <a href="${TERMS_URL}" style="color:${C.black};">Terms &amp; Conditions</a>.
+    </p>
   `;
-  return buildEmailWrapper("Deposit Payment Required", "Your quote is approved — pay now to confirm your slot", body);
+  return buildEmailShell(header, body);
 }
 
+// 3. Deposit received — booking confirmed
 export function depositReceivedEmail(quote: any): string {
   const customer = quote.customer;
   const slotDate = quote.preferredDate
     ? new Date(quote.preferredDate + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
     : null;
-  const hasSlot = slotDate && quote.preferredTimeWindow;
+  const header = `
+    ${buildStepDots(3, 5)}
+    <div class="phase-badge">Step 3 of 5 · Booking Confirmed</div>
+    <div class="header-title">Deposit Received — You're Booked!</div>
+    <div class="header-sub">Your appointment slot is now confirmed</div>
+  `;
   const body = `
-    <p>Hello <strong>${customer?.name}</strong>,</p>
-    <p>We've received your deposit payment — thank you! Your appointment slot is now <strong>confirmed</strong>.</p>
+    <p style="font-size:15px;margin:0 0 8px;">Hi <strong>${customer?.name}</strong>,</p>
+    <p style="font-size:14px;color:${C.mutedText};margin:0 0 20px;">We've received your deposit payment — thank you! Your booking is now locked in and our team has been notified.</p>
 
-    <div class="ref-badge">${quote.referenceNo}</div>
+    ${buildRefRow(quote.referenceNo)}
 
-    ${hasSlot ? `
-    <div class="section-title">Confirmed Appointment Slot</div>
-    <div class="info-box" style="border-left:4px solid #16a34a;background:#f0fdf4;">
-      <div class="info-row"><span>📅 Date</span><span style="color:#15803d;font-weight:700">${slotDate}</span></div>
-      <div class="info-row"><span>🕐 Time Window</span><span style="color:#15803d;font-weight:700">${quote.preferredTimeWindow}</span></div>
+    ${slotDate ? `
+    <div class="section-label">Confirmed Appointment Slot</div>
+    <div class="date-card">
+      <div class="dc-label">Your Appointment</div>
+      <div class="dc-value">${slotDate}</div>
+      <div class="dc-time">⏱ ${quote.preferredTimeWindow}</div>
     </div>` : ''}
 
-    <div class="section-title">Service Details</div>
-    <div class="info-box">
-      ${buildAddressSection(quote)}
+    <div class="section-label">Payment Status</div>
+    <div class="totals-box">
+      <div class="totals-row deposit"><span>✓ Deposit paid (50%)</span><span>$${Number(quote.depositAmount || 0).toFixed(2)}</span></div>
+      <div class="totals-row balance"><span>Balance due on completion</span><span>$${Number(quote.finalAmount || 0).toFixed(2)}</span></div>
+      <div class="totals-row grand"><span>Grand Total</span><span>$${Number(quote.total || 0).toFixed(2)}</span></div>
     </div>
 
-    <div class="section-title">Payment Summary</div>
-    <div class="info-box">
-      <div class="info-row"><span>Deposit Paid</span><span style="color:#16a34a;font-weight:700">✓ $${Number(quote.depositAmount || 0).toFixed(2)}</span></div>
-      <div class="info-row"><span>Balance Due on Completion</span><span>$${Number(quote.finalAmount || 0).toFixed(2)}</span></div>
+    <div class="section-label">What to Prepare</div>
+    <ul class="checklist">
+      <li>Ensure clear access to all items and the service area</li>
+      <li>Have photos or assembly manuals ready if available</li>
+      <li>Make sure someone (18+) is present at the address</li>
+      <li>Remove fragile or personal items from the work area beforehand</li>
+      <li>Note down any special instructions and WhatsApp us in advance</li>
+    </ul>
+
+    <div class="notice info" style="margin-top:16px;">
+      <strong>Next Step:</strong> Our team will confirm your exact schedule and assign a technician. You'll receive another email once your appointment is formally confirmed with a date and time.
     </div>
 
-    <div class="alert-box">
-      <strong>📋 What Happens Next:</strong><br>
-      • Your booking slot is now locked in — no further action needed<br>
-      • A staff member will be assigned and we'll keep you updated<br>
-      • Please ensure someone is available at the address on the scheduled date<br>
-      • Contact us on WhatsApp for any changes or urgent matters
-    </div>
-    ${buildContactSection()}
+    ${buildContactStrip()}
+
+    <p style="font-size:12px;color:${C.mutedText};text-align:center;">
+      Need to reschedule? Contact us at least 48 hours before your appointment.
+      See our <a href="${TERMS_URL}" style="color:${C.black};">Terms &amp; Conditions</a> for the rescheduling policy.
+    </p>
   `;
-  return buildEmailWrapper("Deposit Paid — Booking Confirmed! 🎉", "Your appointment is locked in", body);
+  return buildEmailShell(header, body);
 }
 
+// 4. Admin notification — new booking request
 export function bookingRequestAdminEmail(quote: any): string {
   const customer = quote.customer;
   const services = Array.isArray(quote.selectedServices) ? quote.selectedServices : (quote.selectedServices ? JSON.parse(quote.selectedServices as string) : []);
   const scheduledDate = quote.scheduledAt ? new Date(quote.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "TBD";
+  const adminUrl = `${WEBSITE}/admin/quotes/${quote.id}`;
+  const header = `
+    <div class="phase-badge">Admin Alert · New Booking Request</div>
+    <div class="header-title">Booking Request Received</div>
+    <div class="header-sub">Customer has selected a slot — please confirm in the admin portal</div>
+  `;
   const body = `
-    <p><strong>New booking request received!</strong> Please review and confirm the customer's preferred slot.</p>
-    
-    <div class="ref-badge">${quote.referenceNo}</div>
-
-    <div class="section-title">Customer</div>
-    <div class="info-box">
-      <div class="info-row"><span>Name</span><span>${customer?.name}</span></div>
-      <div class="info-row"><span>Phone</span><span><a href="tel:${customer?.phone}">${customer?.phone}</a></span></div>
-      <div class="info-row"><span>Email</span><span>${customer?.email}</span></div>
+    <div class="notice info">
+      📅 <strong>${customer?.name}</strong> has submitted a booking request and selected their preferred appointment slot. Please log in to the admin portal to review and confirm.
     </div>
 
-    <div class="section-title">Requested Slot</div>
-    <div class="info-box">
-      <div class="info-row"><span>Date</span><span><strong>${scheduledDate}</strong></span></div>
-      <div class="info-row"><span>Time Window</span><span><strong>${quote.timeWindow || 'TBD'}</strong></span></div>
-      ${buildAddressSection(quote)}
-      <div class="info-row"><span>Services</span><span>${services.join(', ') || 'See quote'}</span></div>
+    ${buildRefRow(quote.referenceNo)}
+
+    <div class="section-label">Customer</div>
+    <table class="info-grid">
+      <tr><td>Name</td><td><strong>${customer?.name}</strong></td></tr>
+      <tr><td>Phone</td><td><a href="tel:${customer?.phone}" style="color:${C.black};">${customer?.phone}</a></td></tr>
+      <tr><td>Email</td><td><a href="mailto:${customer?.email}" style="color:${C.black};">${customer?.email}</a></td></tr>
+    </table>
+
+    <div class="section-label">Requested Appointment</div>
+    <div class="date-card">
+      <div class="dc-label">Requested Slot</div>
+      <div class="dc-value">${scheduledDate}</div>
+      <div class="dc-time">⏱ ${quote.timeWindow || 'TBD'}</div>
     </div>
 
-    <div class="section-title">Items</div>
+    <div class="section-label">Service Location</div>
+    <table class="info-grid">
+      ${buildAddressRows(quote)}
+      ${services.length ? `<tr><td>Services</td><td>${services.map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}</td></tr>` : ''}
+    </table>
+
+    <div class="section-label">Scope of Work</div>
     ${buildItemsTable(quote.items)}
 
-    <div class="section-title">Financials</div>
-    ${buildTotalsTable(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
+    <div class="section-label">Financial Summary</div>
+    ${buildTotalsBox(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
 
-    <p style="font-size:14px;">Please log in to the admin portal to confirm or reject this booking request.</p>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${adminUrl}" class="btn">Review &amp; Confirm in Admin Portal →</a>
+    </div>
   `;
-  return buildEmailWrapper("New Booking Request", `From ${customer?.name} — ${quote.referenceNo}`, body);
+  return buildEmailShell(header, body);
 }
 
+// 5. Booking confirmation — admin confirmed the slot
 export function bookingConfirmationEmail(quote: any): string {
   const customer = quote.customer;
-  const scheduledDate = quote.scheduledAt ? new Date(quote.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "TBD";
+  const scheduledDate = quote.scheduledAt
+    ? new Date(quote.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+    : "TBD";
+  const header = `
+    ${buildStepDots(3, 5)}
+    <div class="phase-badge">Step 3 of 5 · Appointment Confirmed</div>
+    <div class="header-title">Your Appointment is Confirmed</div>
+    <div class="header-sub">Everything is set — here's what you need to know</div>
+  `;
   const body = `
-    <p>Hello <strong>${customer?.name}</strong>,</p>
-    <p>Your appointment has been confirmed by our team. Please ensure someone is available at the address on the scheduled date.</p>
+    <p style="font-size:15px;margin:0 0 8px;">Hi <strong>${customer?.name}</strong>,</p>
+    <p style="font-size:14px;color:${C.mutedText};margin:0 0 20px;">Your appointment has been confirmed by our team. A trained technician has been assigned to your job. Please review the details below.</p>
 
-    <div class="ref-badge">${quote.referenceNo}</div>
+    ${buildRefRow(quote.referenceNo)}
 
-    <div class="section-title">Confirmed Appointment</div>
-    <div class="info-box" style="border-left-color:#16a34a;background:#f0fdf4">
-      <div class="info-row"><span>📅 Date</span><span><strong>${scheduledDate}</strong></span></div>
-      <div class="info-row"><span>🕐 Time Window</span><span><strong>${quote.timeWindow || 'TBD'}</strong></span></div>
-      ${buildAddressSection(quote)}
+    <div class="section-label">Confirmed Appointment</div>
+    <div class="date-card">
+      <div class="dc-label">Date &amp; Time</div>
+      <div class="dc-value">${scheduledDate}</div>
+      <div class="dc-time">⏱ ${quote.timeWindow || 'TBD'}</div>
     </div>
 
-    <div class="section-title">Your Items</div>
+    <div class="section-label">Service Address</div>
+    <table class="info-grid">
+      ${buildAddressRows(quote)}
+    </table>
+
+    <div class="section-label">Scope of Work</div>
     ${buildItemsTable(quote.items)}
 
-    <div class="section-title">Payment Summary</div>
-    ${buildTotalsTable(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
-
-    <div class="alert-box">
-      <strong>📋 What to Expect:</strong><br>
-      • Our team will arrive within the confirmed time window<br>
-      • Please ensure access to the service area<br>
-      • Reschedule must be requested at least 24 hours in advance via WhatsApp<br>
-      • Balance of $${Number(quote.finalAmount || 0).toFixed(2)} is due upon completion
+    <div class="section-label">Payment Status</div>
+    <div class="totals-box">
+      <div class="totals-row deposit"><span>✓ Deposit paid (50%)</span><span>$${Number(quote.depositAmount || 0).toFixed(2)}</span></div>
+      <div class="totals-row balance"><span>Balance due on completion</span><span>$${Number(quote.finalAmount || 0).toFixed(2)}</span></div>
+      <div class="totals-row grand"><span>Grand Total</span><span>$${Number(quote.total || 0).toFixed(2)}</span></div>
     </div>
-    ${buildContactSection()}
+
+    <div class="section-label">Day-of Checklist</div>
+    <ul class="checklist">
+      <li>Ensure someone (18+) is available at the address during the time window</li>
+      <li>Keep the work area clear of personal belongings</li>
+      <li>Have access to power outlets if required for power tools</li>
+      <li>Prepare any assembly manuals or reference photos for the technician</li>
+      <li>The balance of <strong>$${Number(quote.finalAmount || 0).toFixed(2)}</strong> is due upon completion of work</li>
+    </ul>
+
+    <div class="notice warning">
+      <strong>Reschedule Policy:</strong> If you need to change the appointment, please contact us on WhatsApp at least <strong>48 hours</strong> before the scheduled time. Late reschedules may be subject to a fee.
+      See <a href="${TERMS_URL}" style="color:${C.amber};">Terms &amp; Conditions</a> for details.
+    </div>
+
+    ${buildContactStrip()}
   `;
-  return buildEmailWrapper("Booking Confirmed! ✅", "Your appointment is locked in", body);
+  return buildEmailShell(header, body);
 }
 
+// 6. Reschedule confirmation
 export function rescheduleConfirmationEmail(quote: any): string {
   const customer = quote.customer;
-  const scheduledDate = quote.scheduledAt ? new Date(quote.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "TBD";
-  const body = `
-    <p>Hello <strong>${customer?.name}</strong>,</p>
-    <p>Your reschedule request has been received and is pending admin confirmation. You'll receive another email once it's confirmed.</p>
-
-    <div class="ref-badge">${quote.referenceNo}</div>
-
-    <div class="section-title">Requested New Slot</div>
-    <div class="info-box" style="border-left-color:#f59e0b;background:#fffbeb">
-      <div class="info-row"><span>📅 Date</span><span><strong>${scheduledDate}</strong></span></div>
-      <div class="info-row"><span>🕐 Time Window</span><span><strong>${quote.timeWindow || 'TBD'}</strong></span></div>
-      ${buildAddressSection(quote)}
-    </div>
-
-    <div class="alert-box">
-      ⚠️ <strong>Note:</strong> You have used your free reschedule. Any further changes may incur charges — please contact us on WhatsApp.
-    </div>
-    ${buildContactSection()}
+  const scheduledDate = quote.scheduledAt
+    ? new Date(quote.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+    : "TBD";
+  const header = `
+    <div class="phase-badge">Reschedule · Pending Confirmation</div>
+    <div class="header-title">Reschedule Request Received</div>
+    <div class="header-sub">We'll confirm your new slot shortly</div>
   `;
-  return buildEmailWrapper("Reschedule Request Received", "Pending admin confirmation", body);
+  const body = `
+    <p style="font-size:15px;margin:0 0 8px;">Hi <strong>${customer?.name}</strong>,</p>
+    <p style="font-size:14px;color:${C.mutedText};margin:0 0 20px;">We've received your request to reschedule. Your new slot is pending confirmation from our team — you'll receive a confirmation email shortly.</p>
+
+    ${buildRefRow(quote.referenceNo)}
+
+    <div class="section-label">Requested New Slot</div>
+    <div class="date-card">
+      <div class="dc-label">Requested Date</div>
+      <div class="dc-value">${scheduledDate}</div>
+      <div class="dc-time">⏱ ${quote.timeWindow || 'TBD'}</div>
+    </div>
+
+    <div class="section-label">Service Address</div>
+    <table class="info-grid">
+      ${buildAddressRows(quote)}
+    </table>
+
+    <div class="notice warning">
+      <strong>Important:</strong> Each booking is entitled to one free reschedule (subject to availability).
+      Subsequent reschedule requests or changes made less than 48 hours before the appointment may incur a rescheduling fee.
+      Please see our <a href="${TERMS_URL}" style="color:${C.amber};">Terms &amp; Conditions</a> for the full rescheduling policy.
+    </div>
+
+    ${buildContactStrip()}
+  `;
+  return buildEmailShell(header, body);
 }
 
+// 7. Final payment request
 export function finalPaymentEmail(quote: any, paymentLink: string): string {
   const customer = quote.customer;
+  const header = `
+    ${buildStepDots(5, 5)}
+    <div class="phase-badge">Step 5 of 5 · Job Complete</div>
+    <div class="header-title">Final Payment Due</div>
+    <div class="header-sub">Your job is complete — please settle the remaining balance</div>
+  `;
   const body = `
-    <p>Hello <strong>${customer?.name}</strong>,</p>
-    <p>Your service has been completed! Please make the final payment to close your job.</p>
+    <p style="font-size:15px;margin:0 0 8px;">Hi <strong>${customer?.name}</strong>,</p>
+    <p style="font-size:14px;color:${C.mutedText};margin:0 0 20px;">Our team has completed all work on your job. Please pay the remaining 50% balance to close your case. A receipt will be emailed to you upon payment.</p>
 
-    <div class="ref-badge">${quote.referenceNo}</div>
+    ${buildRefRow(quote.referenceNo)}
 
-    <div class="section-title">Customer Details</div>
-    <div class="info-box">
-      <div class="info-row"><span>Name</span><span>${customer?.name}</span></div>
-      <div class="info-row"><span>Phone</span><span>${customer?.phone}</span></div>
-      ${buildAddressSection(quote)}
-    </div>
-
-    <div class="section-title">Completed Items</div>
+    <div class="section-label">Completed Work</div>
     ${buildItemsTable(quote.items)}
 
-    <div class="section-title">Payment Summary</div>
-    ${buildTotalsTable(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
+    <div class="section-label">Payment Breakdown</div>
+    ${buildTotalsBox(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
 
-    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:20px;margin:20px 0;text-align:center;">
-      <p style="margin:0 0 6px;font-size:15px;color:#92400e;">Balance Due</p>
-      <p style="margin:0 0 16px;font-size:28px;font-weight:800;color:#92400e;">$${Number(quote.finalAmount || 0).toFixed(2)}</p>
-      <a href="${paymentLink}" class="btn" style="background:#d97706;display:inline-block">Pay Final Balance →</a>
+    <div class="cta-block">
+      <div class="cta-amount-label">Balance due now (50%)</div>
+      <div class="cta-amount">$${Number(quote.finalAmount || 0).toFixed(2)}</div>
+      <a href="${paymentLink}" class="btn btn-green">Pay Final Balance →</a>
+      <p style="font-size:11px;color:${C.mutedText};margin:14px 0 0;">Secure payment via Stripe. Your case closes automatically once payment is confirmed.</p>
     </div>
 
-    <p style="font-size:14px;color:#666;">Your case will be automatically closed once payment is confirmed.</p>
-    ${buildContactSection()}
+    <div class="notice info">
+      <strong>Not happy with the work?</strong> Please contact us on WhatsApp before making payment so we can address any concerns. We stand by our workmanship.
+    </div>
+
+    ${buildContactStrip()}
+
+    <p style="font-size:12px;color:${C.mutedText};text-align:center;">
+      By paying, you acknowledge that all work has been completed to your satisfaction.
+      See our <a href="${TERMS_URL}" style="color:${C.black};">Terms &amp; Conditions</a>.
+    </p>
   `;
-  return buildEmailWrapper("Final Payment Due", "Please complete your balance payment", body);
+  return buildEmailShell(header, body);
 }
 
+// 8. Case closed — full receipt
 export function caseClosedEmail(quote: any): string {
   const customer = quote.customer;
+  const header = `
+    ${buildStepDots(5, 5)}
+    <div class="phase-badge">Complete · Case Closed</div>
+    <div class="header-title">All Done — Thank You!</div>
+    <div class="header-sub">Payment confirmed · Job closed</div>
+  `;
   const body = `
-    <p>Hello <strong>${customer?.name}</strong>,</p>
-    <p>Thank you for choosing TMG Install! Your payment has been received and your case is now closed.</p>
+    <p style="font-size:15px;margin:0 0 8px;">Hi <strong>${customer?.name}</strong>,</p>
+    <p style="font-size:14px;color:${C.mutedText};margin:0 0 20px;">Your final payment has been received and your case is now fully closed. Thank you for choosing TMG Install!</p>
 
-    <div class="ref-badge">${quote.referenceNo}</div>
+    ${buildRefRow(quote.referenceNo)}
 
-    <div class="section-title">Payment Confirmation</div>
-    <div class="info-box" style="border-left-color:#16a34a;background:#f0fdf4">
-      <div class="info-row"><span>✓ Deposit Paid</span><span style="color:#16a34a;font-weight:700">$${Number(quote.depositAmount || 0).toFixed(2)}</span></div>
-      <div class="info-row"><span>✓ Final Payment</span><span style="color:#16a34a;font-weight:700">$${Number(quote.finalAmount || 0).toFixed(2)}</span></div>
-      <div class="info-row" style="font-size:16px;font-weight:800;border-top:1px solid #bbf7d0;padding-top:8px;margin-top:8px"><span>Total Paid</span><span>$${Number(quote.total || 0).toFixed(2)}</span></div>
+    <div class="section-label">Payment Receipt</div>
+    <div class="totals-box">
+      <div class="totals-row deposit"><span>✓ Deposit (50%)</span><span>$${Number(quote.depositAmount || 0).toFixed(2)}</span></div>
+      <div class="totals-row deposit"><span>✓ Final payment (50%)</span><span>$${Number(quote.finalAmount || 0).toFixed(2)}</span></div>
+      <div class="totals-row grand"><span>Total Paid</span><span>$${Number(quote.total || 0).toFixed(2)}</span></div>
     </div>
 
-    <div class="section-title">Completed Work</div>
+    <div class="section-label">Work Completed</div>
     ${buildItemsTable(quote.items)}
 
-    <div style="text-align:center;padding:20px;background:#f0fdf4;border-radius:10px;margin:20px 0;">
-      <p style="font-size:24px;margin:0 0 8px">✅</p>
-      <p style="font-weight:700;font-size:16px;color:#15803d;margin:0">Case Closed — Thank you!</p>
+    <div style="text-align:center;padding:28px 20px;background:${C.offWhite};border:1px solid ${C.border};border-radius:4px;margin:20px 0;">
+      <div style="font-size:32px;margin-bottom:8px;">✅</div>
+      <div style="font-size:18px;font-weight:800;color:${C.black};letter-spacing:0.5px;">Case #${quote.referenceNo} Closed</div>
+      <div style="font-size:13px;color:${C.mutedText};margin-top:4px;">All payments confirmed · Work complete</div>
     </div>
 
-    <p style="font-size:14px;color:#666;">We hope you're happy with our service! If you need help in future, don't hesitate to reach out.</p>
-    ${buildContactSection()}
+    <div class="notice success">
+      <strong>Need us again?</strong> Save our contact for your next move, assembly, or installation job. We cover the whole of Singapore and handle offices, homes, and commercial spaces.
+    </div>
+
+    ${buildContactStrip()}
+
+    <p style="font-size:12px;color:${C.mutedText};text-align:center;">
+      If you have any concerns about the completed work, please contact us within 7 days.
+      See our <a href="${TERMS_URL}" style="color:${C.black};">Terms &amp; Conditions</a> for warranty details.
+    </p>
   `;
-  return buildEmailWrapper("Case Closed — Payment Confirmed", "Thank you for your business!", body);
+  return buildEmailShell(header, body);
 }
 
+// 9. Admin alert — new estimate submitted
 export function newEstimateAdminAlert(quote: any): string {
   const customer = quote.customer;
   const services = Array.isArray(quote.selectedServices) ? quote.selectedServices : (quote.selectedServices ? JSON.parse(quote.selectedServices as string) : []);
-  const adminUrl = `https://tmginstall.com/admin/quotes/${quote.id}`;
+  const adminUrl = `${WEBSITE}/admin/quotes/${quote.id}`;
+  const header = `
+    <div class="phase-badge">Admin Alert · New Submission</div>
+    <div class="header-title">New Estimate Request</div>
+    <div class="header-sub">From ${customer?.name} · ${quote.referenceNo}</div>
+  `;
   const body = `
-    <div class="alert-box" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px 18px;margin-bottom:20px;">
-      🔔 <strong>New estimate request just came in!</strong> A customer has submitted an estimate through the website. Please review and respond promptly.
+    <div class="notice info">
+      🔔 <strong>New estimate just came in!</strong> A customer has submitted an estimate request through the website. Please review the items and pricing, then approve to trigger the deposit payment email.
     </div>
 
-    <div class="ref-badge">${quote.referenceNo}</div>
+    ${buildRefRow(quote.referenceNo)}
 
-    <div class="section-title">Customer Details</div>
-    <div class="info-box">
-      <div class="info-row"><span><strong>Name</strong></span><span>${customer?.name}</span></div>
-      <div class="info-row"><span><strong>Phone</strong></span><span><a href="tel:${customer?.phone}">${customer?.phone}</a></span></div>
-      <div class="info-row"><span><strong>Email</strong></span><span><a href="mailto:${customer?.email}">${customer?.email}</a></span></div>
-    </div>
+    <div class="section-label">Customer Details</div>
+    <table class="info-grid">
+      <tr><td>Name</td><td><strong>${customer?.name}</strong></td></tr>
+      <tr><td>Phone</td><td><a href="tel:${customer?.phone}" style="color:${C.black};">${customer?.phone}</a></td></tr>
+      <tr><td>Email</td><td><a href="mailto:${customer?.email}" style="color:${C.black};">${customer?.email}</a></td></tr>
+    </table>
 
-    <div class="section-title">Service Details</div>
-    <div class="info-box">
-      ${buildAddressSection(quote)}
-      ${services.length ? `<div class="info-row"><span>Services</span><span>${services.join(', ')}</span></div>` : ''}
-    </div>
+    <div class="section-label">Service Details</div>
+    <table class="info-grid">
+      ${buildAddressRows(quote)}
+      ${quote.preferredDate ? `<tr><td>Preferred date</td><td><strong>${new Date(quote.preferredDate + "T12:00:00").toLocaleDateString("en-SG", { weekday: "short", year: "numeric", month: "short", day: "numeric" })}</strong></td></tr>` : ''}
+      ${quote.preferredTimeWindow ? `<tr><td>Time window</td><td>${quote.preferredTimeWindow}</td></tr>` : ''}
+      ${services.length ? `<tr><td>Services</td><td>${services.map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}</td></tr>` : ''}
+    </table>
 
-    <div class="section-title">Estimated Items</div>
+    <div class="section-label">Estimated Items (${(quote.items || []).length} item${(quote.items || []).length !== 1 ? 's' : ''})</div>
     ${buildItemsTable(quote.items)}
 
-    <div class="section-title">Estimated Value</div>
-    ${buildTotalsTable(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
+    <div class="section-label">Estimated Value</div>
+    ${buildTotalsBox(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount)}
 
     ${quote.requiresManualReview ? `
-    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:14px 18px;margin:16px 0;">
-      ⚠️ <strong>Manual Review Required</strong> — AI confidence is low. Please verify the items and pricing before approving.
+    <div class="notice warning">
+      ⚠️ <strong>Manual Review Required</strong> — This quote was flagged for manual review. Please verify all items and pricing before approving.
     </div>` : ''}
 
-    <div style="text-align:center;margin:24px 0;">
-      <a href="${adminUrl}" class="btn" style="display:inline-block">Review Quote in Admin Portal →</a>
+    ${quote.notes ? `
+    <div class="section-label">Customer Notes</div>
+    <div style="background:${C.offWhite};border:1px solid ${C.border};border-radius:4px;padding:12px 16px;font-size:14px;font-style:italic;color:${C.mutedText};">"${quote.notes}"</div>
+    ` : ''}
+
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${adminUrl}" class="btn">Review &amp; Approve in Admin Portal →</a>
     </div>
   `;
-  return buildEmailWrapper(
-    "New Estimate Request",
-    `From ${customer?.name} · ${quote.referenceNo}`,
-    body
-  );
+  return buildEmailShell(header, body);
 }
 
 export { ADMIN_EMAIL, WHATSAPP_LINK, WHATSAPP_NUMBER };

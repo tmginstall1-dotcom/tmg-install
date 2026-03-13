@@ -10,6 +10,8 @@ TMG Install is a full-stack furniture installation quoting and operations platfo
 
 The app is a monorepo with a React frontend (Vite), Express backend, and PostgreSQL database via Drizzle ORM. Email via Resend. AI features use OpenAI via Replit AI Integrations.
 
+**Email system**: Fully redesigned in `server/email.ts` using a monochrome black/white design that matches the TMG Install brand. 8 email templates cover all workflow steps with step indicators (1–5), T&C links, cancellation policy, phase-appropriate content, and a receipt/case-closed email. A new "estimate submitted" confirmation email is sent to customers on wizard completion.
+
 ---
 
 ## User Preferences

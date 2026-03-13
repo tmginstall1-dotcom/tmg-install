@@ -8,6 +8,7 @@ import Stripe from "stripe";
 import { openai } from "./replit_integrations/audio/client";
 import { 
   sendEmail, 
+  estimateSubmittedEmail,
   depositRequestEmail, 
   depositReceivedEmail,
   bookingRequestAdminEmail,
@@ -1053,6 +1054,19 @@ List up to 10 distinct items.`
         });
       } catch (alertErr) {
         console.error("Admin alert email error:", alertErr);
+      }
+
+      // Send customer confirmation email
+      try {
+        if (quote.customer?.email) {
+          await sendEmail({
+            to: quote.customer.email,
+            subject: `Estimate Received — ${quote.referenceNo} | TMG Install`,
+            html: estimateSubmittedEmail(quote),
+          });
+        }
+      } catch (custEmailErr) {
+        console.error("Customer estimate confirmation email error:", custEmailErr);
       }
 
       res.status(201).json(quote);
