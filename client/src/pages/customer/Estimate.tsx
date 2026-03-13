@@ -196,6 +196,8 @@ export default function EstimateWizard() {
   const [phone, setPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const isRelocation = services.includes("relocate");
 
@@ -1220,8 +1222,35 @@ export default function EstimateWizard() {
           </motion.div>
         </AnimatePresence>
 
+        {/* T&C checkbox — step 5 only */}
+        {step === 5 && (
+          <div className="mt-6 p-4 rounded-xl border-2 border-border bg-secondary/30">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={e => setTermsAccepted(e.target.checked)}
+                data-testid="checkbox-terms"
+                className="mt-0.5 w-4 h-4 rounded accent-primary shrink-0"
+              />
+              <span className="text-sm text-muted-foreground leading-relaxed">
+                I have read and agree to the{" "}
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(true)}
+                  className="text-primary font-semibold underline underline-offset-2 hover:text-primary/80 transition-colors"
+                  data-testid="button-view-terms"
+                >
+                  Terms & Conditions
+                </button>
+                {" "}of The Moving Guy Pte Ltd, including the deposit, cancellation, and rescheduling policies.
+              </span>
+            </label>
+          </div>
+        )}
+
         {/* Navigation */}
-        <div className="flex items-center justify-between mt-8 gap-4">
+        <div className="flex items-center justify-between mt-4 gap-4">
           {step > 1 ? (
             <button onClick={back} data-testid="button-back"
               className="flex items-center gap-2 px-6 py-3 rounded-xl border-2 border-border bg-card font-semibold hover:bg-secondary transition-colors">
@@ -1237,7 +1266,7 @@ export default function EstimateWizard() {
           ) : (
             <button
               onClick={handleSubmit}
-              disabled={isSubmitting || !name.trim() || !email.trim() || !phone.trim()}
+              disabled={isSubmitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
               data-testid="button-submit"
               className="btn-primary-gradient flex items-center gap-2 px-8 py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 disabled:shadow-none"
             >
@@ -1247,5 +1276,116 @@ export default function EstimateWizard() {
         </div>
       </div>
     </div>
+
+    {/* Terms & Conditions Modal */}
+    {showTermsModal && (
+      <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowTermsModal(false)}>
+        <div
+          className="bg-background rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Modal header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+            <div>
+              <h2 className="text-lg font-bold">Terms & Conditions</h2>
+              <p className="text-xs text-muted-foreground">The Moving Guy Pte Ltd · UEN 202424156H</p>
+            </div>
+            <button onClick={() => setShowTermsModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-secondary transition-colors text-muted-foreground" data-testid="button-close-terms">✕</button>
+          </div>
+
+          {/* Scrollable body */}
+          <div className="overflow-y-auto px-6 py-5 space-y-5 text-sm text-foreground/80 leading-relaxed">
+
+            <section>
+              <h3 className="font-bold text-foreground mb-1">1. Incomplete or Missing Parts</h3>
+              <p>If our team arrives on-site and discovers that the furniture to be installed, dismantled, or relocated is incomplete, missing parts, damaged beyond assembly, or otherwise in a condition that prevents safe or proper installation, The Moving Guy Pte Ltd reserves the right to halt work without completion. In such cases:</p>
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li>The deposit paid will be <strong>non-refundable</strong>.</li>
+                <li>The customer is entitled to <strong>one (1) complimentary reschedule</strong> to complete the work once the full set of parts is obtained and ready for installation.</li>
+                <li>Subsequent visits after the free reschedule will be treated as a new booking and charged accordingly.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="font-bold text-foreground mb-1">2. Deposit & Payment Policy</h3>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>A <strong>50% non-refundable deposit</strong> is required to confirm your booking.</li>
+                <li>The remaining <strong>50% balance is due upon completion</strong> of the work, before our team leaves the premises.</li>
+                <li>Accepted payment methods: <strong>PayNow, bank transfer, or cash</strong>.</li>
+                <li>Failure to pay the balance upon completion may result in legal action and recovery of costs.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="font-bold text-foreground mb-1">3. Cancellation Policy</h3>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Cancellations made <strong>more than 48 hours</strong> before the scheduled appointment: deposit refunded less a <strong>$30 administrative fee</strong>.</li>
+                <li>Cancellations made <strong>within 48 hours</strong> of the scheduled appointment: <strong>deposit is forfeited</strong> in full.</li>
+                <li>No-shows on the day of appointment are treated as a same-day cancellation — deposit is forfeited.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="font-bold text-foreground mb-1">4. Rescheduling Policy</h3>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Each customer is entitled to <strong>one (1) free reschedule</strong>, with a minimum of <strong>24 hours' notice</strong> before the appointment.</li>
+                <li>Rescheduling requests made with less than 24 hours' notice will be treated as a cancellation.</li>
+                <li>Subsequent rescheduling requests (beyond the first free one) will incur a <strong>$30 administrative fee</strong>.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="font-bold text-foreground mb-1">5. Scope of Work & Additional Charges</h3>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>The estimate provided is based on the items and services described at the time of booking. Any additional items or services discovered on-site will be quoted separately and must be agreed upon before work commences.</li>
+                <li>Additional charges may apply for <strong>stairs access</strong> (if no lift is available), <strong>difficult access</strong>, or <strong>disposal of old furniture</strong> (if requested).</li>
+                <li>Waiting time exceeding <strong>30 minutes</strong> beyond the scheduled window due to customer delays may incur a waiting fee of $20 per 30 minutes.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="font-bold text-foreground mb-1">6. Damage & Liability</h3>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Our team will exercise reasonable care during all work. However, The Moving Guy Pte Ltd is <strong>not liable</strong> for: pre-existing damage or wear; damage resulting from furniture with manufacturing defects or poor structural integrity; superficial marks to walls from standard drilling or fixing.</li>
+                <li>Any damage claims must be reported <strong>immediately on the day of service</strong>, before our team departs.</li>
+                <li>Maximum liability is capped at the total value of services paid for that job.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="font-bold text-foreground mb-1">7. Site Access & Customer Responsibilities</h3>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>The customer is responsible for securing all necessary <strong>permits, lift access bookings, and HDB/condo approvals</strong> prior to the appointment.</li>
+                <li>The customer must ensure the site is safe, accessible, and free of obstructions before our team arrives.</li>
+                <li>If access is denied by building management, the deposit will be forfeited and a new booking will be required.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="font-bold text-foreground mb-1">8. Warranty</h3>
+              <p>TMG Install provides a <strong>7-day workmanship warranty</strong> on all installations. This covers defects directly resulting from our installation work. It does not cover damage from misuse, unauthorised modification, or manufacturer defects.</p>
+            </section>
+
+            <section>
+              <h3 className="font-bold text-foreground mb-1">9. Privacy</h3>
+              <p>Your personal information (name, phone, email, address) is collected solely for the purpose of delivering our services and communicating with you regarding your booking. We do not sell or share your data with third parties, in accordance with Singapore's <strong>Personal Data Protection Act (PDPA)</strong>.</p>
+            </section>
+
+            <section>
+              <h3 className="font-bold text-foreground mb-1">10. Governing Law</h3>
+              <p>These Terms & Conditions are governed by the laws of the <strong>Republic of Singapore</strong>. Any disputes shall be subject to the exclusive jurisdiction of the Singapore courts. The Moving Guy Pte Ltd (UEN: 202424156H) reserves the right to update these terms at any time.</p>
+            </section>
+
+            <p className="text-xs text-muted-foreground border-t pt-4">Last updated: March 2026 · The Moving Guy Pte Ltd · UEN 202424156H · tmginstall.com</p>
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t shrink-0 flex justify-end gap-3">
+            <button onClick={() => setShowTermsModal(false)} className="px-5 py-2.5 rounded-xl border font-semibold text-sm hover:bg-secondary transition-colors" data-testid="button-decline-terms">Close</button>
+            <button onClick={() => { setTermsAccepted(true); setShowTermsModal(false); }} className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors" data-testid="button-accept-terms">I Agree</button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }
