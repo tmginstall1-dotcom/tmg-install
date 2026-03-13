@@ -10,6 +10,8 @@ import { autoBookPendingQuotes } from "./storage";
 const app = express();
 const httpServer = createServer(app);
 
+app.set("trust proxy", 1);
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
