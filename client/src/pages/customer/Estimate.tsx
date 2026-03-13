@@ -505,7 +505,7 @@ export default function EstimateWizard() {
       // Google Ads conversion tracking — fires on successful estimate submission
       try {
         (window as any).gtag?.("event", "conversion", {
-          send_to: "AW-18012639714",
+          send_to: "AW-18012639714/aTxuCNC63IccBOKjjIID",
           value: Number(quote.total) || 0,
           currency: "SGD",
           transaction_id: quote.referenceNo,
