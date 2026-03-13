@@ -28,6 +28,8 @@ export function useSchedule() {
   });
 }
 
+const TERMINAL_STATUSES = ['closed', 'cancelled'];
+
 export function useQuote(id: string | number) {
   return useQuery({
     queryKey: [api.quotes.get.path, id],
@@ -40,6 +42,11 @@ export function useQuote(id: string | number) {
       return res.json();
     },
     enabled: !!id,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || TERMINAL_STATUSES.includes(data.status)) return false;
+      return 15_000;
+    },
   });
 }
 

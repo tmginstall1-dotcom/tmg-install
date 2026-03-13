@@ -1,14 +1,16 @@
-import { useQuotes } from "@/hooks/use-quotes";
-import { useMutation } from "@tanstack/react-query";
+import { useQuotes, useUpdateQuoteStatus } from "@/hooks/use-quotes";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { format } from "date-fns";
+import { useState } from "react";
 import {
   ArrowUpRight, ClipboardList, DollarSign, CalendarCheck,
-  Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2,
+  Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2, UserPlus,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 
 function formatMoney(v: any) {
   return `$${Number(v || 0).toLocaleString('en-SG', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -87,9 +89,109 @@ function QuoteRow({ quote, showDate = false }: { quote: any; showDate?: boolean 
   );
 }
 
+function BookedQuoteRow({ quote }: { quote: any }) {
+  const { toast } = useToast();
+  const { data: staffList } = useQuery<any[]>({ queryKey: ["/api/staff"] });
+  const updateStatus = useUpdateQuoteStatus();
+  const [selectedStaff, setSelectedStaff] = useState("");
+  const [expanded, setExpanded] = useState(false);
+
+  const slotDate = quote.scheduledAt
+    ? format(new Date(quote.scheduledAt), "d MMM")
+    : quote.preferredDate
+      ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM")
+      : null;
+
+  const handleAssign = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!selectedStaff) return;
+    try {
+      await updateStatus.mutateAsync({ id: quote.id, status: "assigned", assignedStaffId: parseInt(selectedStaff) });
+      toast({ title: "Staff assigned", description: "Job is now assigned." });
+      setExpanded(false);
+    } catch {
+      toast({ title: "Failed to assign", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="border-b last:border-0">
+      <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}>
+        <div className="group flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors cursor-pointer">
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor(quote.id)}`}>
+            {initials(quote.customer?.name)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-foreground leading-tight truncate group-hover:text-primary transition-colors">
+              {quote.customer?.name || "Unknown"}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-muted-foreground truncate">{quote.serviceAddress}</p>
+              {slotDate && (
+                <span className="hidden sm:inline shrink-0 text-[10px] font-semibold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-md">{slotDate}</span>
+              )}
+            </div>
+          </div>
+          <span className="hidden sm:inline text-[11px] font-mono font-semibold text-muted-foreground bg-secondary px-2 py-0.5 rounded-md shrink-0">
+            {quote.referenceNo}
+          </span>
+          {quote.assignedStaffId
+            ? <StatusBadge status="assigned" className="scale-90 origin-right shrink-0" />
+            : <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full shrink-0">No Staff</span>
+          }
+          <div className="text-right shrink-0">
+            <p className="text-sm font-bold text-foreground">{formatMoney(quote.total)}</p>
+            {slotDate && <p className="text-xs text-muted-foreground">{slotDate}</p>}
+          </div>
+        </div>
+      </Link>
+      {!quote.assignedStaffId && (
+        <div className="px-5 pb-3">
+          {!expanded ? (
+            <button
+              onClick={() => setExpanded(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+              data-testid={`button-quick-assign-${quote.id}`}
+            >
+              <UserPlus className="w-3.5 h-3.5" /> Assign Staff
+            </button>
+          ) : (
+            <div className="flex items-center gap-2" onClick={e => e.preventDefault()}>
+              <select
+                value={selectedStaff}
+                onChange={e => setSelectedStaff(e.target.value)}
+                className="flex-1 text-xs border rounded-lg px-2 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                data-testid={`select-quick-staff-${quote.id}`}
+              >
+                <option value="">Select staff…</option>
+                {staffList?.map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleAssign}
+                disabled={!selectedStaff || updateStatus.isPending}
+                className="text-xs font-bold bg-primary text-primary-foreground px-3 py-1.5 rounded-lg disabled:opacity-50 hover:bg-primary/90 transition-colors"
+                data-testid={`button-confirm-assign-${quote.id}`}
+              >
+                Assign
+              </button>
+              <button
+                onClick={() => setExpanded(false)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1"
+              >✕</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SectionPanel({
   title, icon: Icon, accent, quotes, emptyMsg, showDate,
-  urgent = false,
+  urgent = false, bookedStyle = false,
 }: {
   title: string;
   icon: React.ElementType;
@@ -98,6 +200,7 @@ function SectionPanel({
   emptyMsg: string;
   showDate?: boolean;
   urgent?: boolean;
+  bookedStyle?: boolean;
 }) {
   return (
     <motion.div
@@ -124,9 +227,10 @@ function SectionPanel({
 
       {/* Rows */}
       <div>
-        {quotes.map((q: any) => (
-          <QuoteRow key={q.id} quote={q} showDate={showDate} />
-        ))}
+        {quotes.map((q: any) => bookedStyle
+          ? <BookedQuoteRow key={q.id} quote={q} />
+          : <QuoteRow key={q.id} quote={q} showDate={showDate} />
+        )}
         {quotes.length === 0 && (
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-2">
             <CheckCircle2 className="w-6 h-6 opacity-30" />
@@ -289,6 +393,7 @@ export default function AdminDashboard() {
             quotes={upcomingBooked}
             emptyMsg="No upcoming bookings"
             showDate
+            bookedStyle
           />
           <SectionPanel
             title="Active / In Progress"
