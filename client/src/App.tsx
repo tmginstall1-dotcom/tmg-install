@@ -13,6 +13,7 @@ import Landing from "@/pages/customer/Landing";
 import QuoteStatus from "@/pages/customer/QuoteStatus";
 import EstimateWizard from "@/pages/customer/Estimate";
 import Terms from "@/pages/customer/Terms";
+import Privacy from "@/pages/customer/Privacy";
 import Login from "@/pages/admin/Login";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminQuoteDetail from "@/pages/admin/QuoteDetail";
@@ -58,6 +59,7 @@ function Router() {
         <Route path="/estimate" component={EstimateWizard} />
         <Route path="/quotes/:id" component={QuoteStatus} />
         <Route path="/terms" component={Terms} />
+        <Route path="/privacy" component={Privacy} />
         
         {/* Auth Routes */}
         <Route path="/admin/login" component={Login} />

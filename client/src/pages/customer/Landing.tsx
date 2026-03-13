@@ -468,8 +468,8 @@ export default function Landing() {
                 Legal
               </h4>
               <div className="space-y-3">
-                <p><a href="#" className="font-body text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</a></p>
-                <p><a href="#" className="font-body text-sm text-white/50 hover:text-white transition-colors">Terms of Service</a></p>
+                <p><Link href="/privacy" className="font-body text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</Link></p>
+                <p><Link href="/terms" className="font-body text-sm text-white/50 hover:text-white transition-colors">Terms of Service</Link></p>
               </div>
             </div>
           </div>
