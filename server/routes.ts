@@ -363,14 +363,19 @@ export async function registerRoutes(
       );
 
       // Alert admin immediately on new estimate submission (non-blocking)
-      sendEmail({
-        to: ADMIN_EMAIL,
-        subject: `🔔 New Estimate Request — ${quote.referenceNo} from ${quote.customer?.name}`,
-        html: newEstimateAdminAlert(quote),
-      }).then(ok => {
-        if (ok) console.log(`[email] admin alert sent to ${ADMIN_EMAIL} for ${quote.referenceNo}`);
-        else console.error(`[email] admin alert FAILED for ${quote.referenceNo} — check RESEND_API_KEY and domain verification`);
-      }).catch(e => console.error("[email] admin alert exception:", e));
+      try {
+        const alertHtml = newEstimateAdminAlert(quote);
+        sendEmail({
+          to: ADMIN_EMAIL,
+          subject: `🔔 New Estimate Request — ${quote.referenceNo} from ${quote.customer?.name}`,
+          html: alertHtml,
+        }).then(ok => {
+          if (ok) console.log(`[email] admin alert sent to ${ADMIN_EMAIL} for ${quote.referenceNo}`);
+          else console.error(`[email] admin alert FAILED for ${quote.referenceNo}`);
+        }).catch(e => console.error("[email] admin alert send error:", e));
+      } catch (alertErr) {
+        console.error("[email] admin alert build error:", alertErr);
+      }
 
       res.status(201).json(quote);
     } catch (err) {

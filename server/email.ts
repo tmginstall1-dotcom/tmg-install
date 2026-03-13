@@ -108,7 +108,7 @@ function buildTotalsTable(subtotal: any, transportFee: any, total: any, depositA
 }
 
 function buildAddressSection(quote: any): string {
-  const services = quote.selectedServices ? JSON.parse(quote.selectedServices as string) : [];
+  const services = Array.isArray(quote.selectedServices) ? quote.selectedServices : (quote.selectedServices ? JSON.parse(quote.selectedServices as string) : []);
   const isRelocation = services.includes('relocate') || quote.pickupAddress;
   if (isRelocation && quote.pickupAddress && quote.dropoffAddress) {
     return `
@@ -246,7 +246,7 @@ export function depositReceivedEmail(quote: any): string {
 
 export function bookingRequestAdminEmail(quote: any): string {
   const customer = quote.customer;
-  const services = quote.selectedServices ? JSON.parse(quote.selectedServices as string) : [];
+  const services = Array.isArray(quote.selectedServices) ? quote.selectedServices : (quote.selectedServices ? JSON.parse(quote.selectedServices as string) : []);
   const scheduledDate = quote.scheduledAt ? new Date(quote.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "TBD";
   const body = `
     <p><strong>New booking request received!</strong> Please review and confirm the customer's preferred slot.</p>
@@ -401,7 +401,7 @@ export function caseClosedEmail(quote: any): string {
 
 export function newEstimateAdminAlert(quote: any): string {
   const customer = quote.customer;
-  const services = quote.selectedServices ? JSON.parse(quote.selectedServices as string) : [];
+  const services = Array.isArray(quote.selectedServices) ? quote.selectedServices : (quote.selectedServices ? JSON.parse(quote.selectedServices as string) : []);
   const adminUrl = `https://tmginstall.com/admin/quotes/${quote.id}`;
   const body = `
     <div class="alert-box" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px 18px;margin-bottom:20px;">
