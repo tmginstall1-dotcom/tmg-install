@@ -362,19 +362,18 @@ export async function registerRoutes(
         aiParsedItems
       );
 
-      // Alert admin immediately on new estimate submission (non-blocking)
+      // Alert admin on new estimate submission (awaited so it completes before response)
       try {
         const alertHtml = newEstimateAdminAlert(quote);
-        sendEmail({
+        const alertOk = await sendEmail({
           to: ADMIN_EMAIL,
           subject: `🔔 New Estimate Request — ${quote.referenceNo} from ${quote.customer?.name}`,
           html: alertHtml,
-        }).then(ok => {
-          if (ok) console.log(`[email] admin alert sent to ${ADMIN_EMAIL} for ${quote.referenceNo}`);
-          else console.error(`[email] admin alert FAILED for ${quote.referenceNo}`);
-        }).catch(e => console.error("[email] admin alert send error:", e));
+        });
+        if (alertOk) console.log(`[email] admin alert sent to ${ADMIN_EMAIL} for ${quote.referenceNo}`);
+        else console.error(`[email] admin alert FAILED for ${quote.referenceNo}`);
       } catch (alertErr) {
-        console.error("[email] admin alert build error:", alertErr);
+        console.error("[email] admin alert error:", alertErr);
       }
 
       res.status(201).json(quote);
