@@ -2,7 +2,7 @@ import { useParams, Link } from "wouter";
 import { useQuote, useUpdateQuoteStatus, useRequestFinalPayment, useConfirmBooking, useEditQuote, useCloseQuote } from "@/hooks/use-quotes";
 import { useStaffList } from "@/hooks/use-staff";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
@@ -33,6 +33,13 @@ export default function AdminQuoteDetail() {
   const [editCustomer, setEditCustomer] = useState<any>({});
   const [editQuoteData, setEditQuoteData] = useState<any>({});
   const [editItems, setEditItems] = useState<any[]>([]);
+  const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxPhoto(null); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   if (isLoading) return <div className="pt-32 text-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div></div>;
   if (!quote) return <div className="pt-32 text-center">Not found</div>;
@@ -557,10 +564,14 @@ export default function AdminQuoteDetail() {
                             </p>
                             <div className="flex flex-wrap gap-2">
                               {photos.map((p: string, i: number) => (
-                                <a key={i} href={p} target="_blank" rel="noreferrer">
+                                <button key={i} type="button" onClick={() => setLightboxPhoto(p)}
+                                  className="focus:outline-none group relative" data-testid={`button-photo-${i}`}>
                                   <img src={p} alt={`proof-${i + 1}`}
-                                    className="w-24 h-24 rounded-xl object-cover border-2 border-border hover:border-primary transition-colors shadow-sm" />
-                                </a>
+                                    className="w-24 h-24 rounded-xl object-cover border-2 border-border group-hover:border-primary transition-colors shadow-sm" />
+                                  <div className="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">View</span>
+                                  </div>
+                                </button>
                               ))}
                             </div>
                           </div>
@@ -834,6 +845,30 @@ export default function AdminQuoteDetail() {
 
         </div>
       </div>
+
+      {/* Photo Lightbox */}
+      {lightboxPhoto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxPhoto(null)}
+          data-testid="lightbox-overlay"
+        >
+          <button
+            onClick={() => setLightboxPhoto(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-white"
+            data-testid="button-lightbox-close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={lightboxPhoto}
+            alt="Photo proof enlarged"
+            className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
+            onClick={e => e.stopPropagation()}
+            data-testid="lightbox-image"
+          />
+        </div>
+      )}
     </div>
   );
 }

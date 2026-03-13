@@ -89,6 +89,15 @@ export function Navbar() {
                   Schedule
                 </Link>
               )}
+              {user.role === "admin" && (
+                <Link
+                  href="/admin/export"
+                  className={`hover:text-primary transition-colors ${location === "/admin/export" ? "text-primary" : ""}`}
+                  data-testid="nav-export-pdf"
+                >
+                  Export
+                </Link>
+              )}
               {user.role === "staff" && (
                 <Link
                   href="/staff"

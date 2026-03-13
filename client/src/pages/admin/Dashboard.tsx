@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { format } from "date-fns";
 import {
   ArrowUpRight, ClipboardList, DollarSign, CalendarCheck,
-  Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2, FileDown,
+  Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -217,11 +217,6 @@ export default function AdminDashboard() {
               <Trash2 className="w-4 h-4" />
               {clearAllMutation.isPending ? "Clearing…" : "Clear Data"}
             </button>
-            <Link href="/admin/export" data-testid="link-export-pdf">
-              <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-700 font-bold text-sm hover:bg-emerald-100 transition-colors">
-                <FileDown className="w-4 h-4" /> Export PDF
-              </div>
-            </Link>
             <Link href="/admin/schedule" data-testid="link-schedule">
               <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-foreground text-background font-bold text-sm shadow-sm hover:bg-foreground/90 transition-colors">
                 <Calendar className="w-4 h-4" /> Schedule
