@@ -49,7 +49,7 @@ export default function Login() {
             value={username}
             onChange={e => { setUsername(e.target.value); setError(""); }}
             placeholder="USERNAME"
-            className="w-full bg-transparent border-b border-black/20 focus:border-black py-3 text-[13px] tracking-widest uppercase placeholder:text-black/30 outline-none transition-colors"
+            className="w-full bg-transparent border-b border-black/20 focus:border-black py-3 text-[13px] tracking-widest placeholder:uppercase placeholder:text-black/30 outline-none transition-colors"
             style={{ letterSpacing: "0.15em" }}
             data-testid="input-username"
           />
@@ -65,7 +65,7 @@ export default function Login() {
             value={password}
             onChange={e => { setPassword(e.target.value); setError(""); }}
             placeholder="PASSWORD"
-            className="w-full bg-transparent border-b border-black/20 focus:border-black py-3 text-[13px] tracking-widest uppercase placeholder:text-black/30 pr-8 outline-none transition-colors"
+            className="w-full bg-transparent border-b border-black/20 focus:border-black py-3 text-[13px] tracking-widest placeholder:uppercase placeholder:text-black/30 pr-8 outline-none transition-colors"
             style={{ letterSpacing: "0.15em" }}
             data-testid="input-password"
           />
