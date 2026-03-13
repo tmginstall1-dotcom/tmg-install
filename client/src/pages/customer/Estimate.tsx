@@ -524,6 +524,7 @@ export default function EstimateWizard() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <div className="min-h-screen pt-16 pb-20 bg-secondary/30">
       {/* Step indicator */}
       <div className="sticky top-16 z-40 bg-background/90 backdrop-blur-md border-b">
@@ -1387,5 +1388,6 @@ export default function EstimateWizard() {
         </div>
       </div>
     )}
+    </>
   );
 }
