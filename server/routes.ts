@@ -985,7 +985,14 @@ List up to 10 distinct items.`
       const laborSubtotal = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
       const discount = input.discount || 0;
       const logisticsFee = input.logisticsFee || 0;
-      const grandTotal = laborSubtotal - discount + logisticsFee;
+      const rawTotal = laborSubtotal - discount + logisticsFee;
+
+      // ── Minimum charge: SGD 180 ──────────────────────────────────────────────
+      const MIN_CHARGE = 180;
+      const minAdjustment = rawTotal < MIN_CHARGE ? MIN_CHARGE - rawTotal : 0;
+      const grandTotal = rawTotal + minAdjustment;
+      // ────────────────────────────────────────────────────────────────────────
+
       const depositAmount = (grandTotal * 0.50).toFixed(2);
       const finalAmount = (grandTotal * 0.50).toFixed(2);
       const referenceNo = `TMG-${Date.now().toString(36).toUpperCase()}`;
@@ -1012,6 +1019,16 @@ List up to 10 distinct items.`
           unitPrice: "0",
           subtotal: "0",
         })),
+        // Minimum charge adjustment — only added when job total is below SGD 180
+        ...(minAdjustment > 0 ? [{
+          catalogItemId: undefined as number | undefined,
+          originalDescription: "Minimum Charge Adjustment",
+          detectedName: "Minimum Charge Adjustment",
+          serviceType: "adjustment",
+          quantity: 1,
+          unitPrice: minAdjustment.toFixed(2),
+          subtotal: minAdjustment.toFixed(2),
+        }] : []),
       ];
 
       const quote = await storage.createQuote(
