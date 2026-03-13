@@ -418,7 +418,12 @@ export default function AdminQuoteDetail() {
               {/* AI photo scan thumbnail */}
               {!isEditing && quote.detectionPhotoUrl && (
                 <div className="flex items-start gap-4 mb-5 p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
-                  <img src={quote.detectionPhotoUrl} alt="Customer submitted photo" className="w-20 h-20 rounded-xl object-cover border-2 border-emerald-300 shrink-0" />
+                  <button type="button" onClick={() => setLightboxPhoto(quote.detectionPhotoUrl)} className="focus:outline-none group relative shrink-0" data-testid="button-ai-photo">
+                    <img src={quote.detectionPhotoUrl} alt="Customer submitted photo" className="w-20 h-20 rounded-xl object-cover border-2 border-emerald-300 group-hover:border-emerald-500 transition-colors" />
+                    <div className="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
+                      <span className="text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">View</span>
+                    </div>
+                  </button>
                   <div>
                     <p className="text-sm font-bold text-emerald-800 flex items-center gap-1.5 mb-0.5">
                       <Camera className="w-4 h-4" /> AI Photo Scan
