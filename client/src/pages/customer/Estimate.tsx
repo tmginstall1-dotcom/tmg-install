@@ -1107,18 +1107,18 @@ export default function EstimateWizard() {
                     <div>
                       <label className="text-sm font-semibold mb-1.5 block">Full Name <span className="text-destructive">*</span></label>
                       <input required value={name} onChange={e => setName(e.target.value)} data-testid="input-name"
-                        placeholder="Jane Tan" className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                        placeholder="Ahmad Bin Ismail" className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
                     </div>
                     <div>
                       <label className="text-sm font-semibold mb-1.5 block">Phone <span className="text-destructive">*</span></label>
                       <input required value={phone} onChange={e => setPhone(e.target.value)} data-testid="input-phone"
-                        placeholder="+65 9123 4567" className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                        placeholder="+65 8123 4567" className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
                     </div>
                   </div>
                   <div>
                     <label className="text-sm font-semibold mb-1.5 block">Email <span className="text-destructive">*</span></label>
                     <input required type="email" value={email} onChange={e => setEmail(e.target.value)} data-testid="input-email"
-                      placeholder="jane@example.com" className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      placeholder="ahmadismail@gmail.com" className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
                   </div>
                 </div>
 
