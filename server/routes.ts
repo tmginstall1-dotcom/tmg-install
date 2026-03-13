@@ -367,7 +367,10 @@ export async function registerRoutes(
         to: ADMIN_EMAIL,
         subject: `🔔 New Estimate Request — ${quote.referenceNo} from ${quote.customer?.name}`,
         html: newEstimateAdminAlert(quote),
-      }).catch(e => console.error("[email] admin alert failed:", e));
+      }).then(ok => {
+        if (ok) console.log(`[email] admin alert sent to ${ADMIN_EMAIL} for ${quote.referenceNo}`);
+        else console.error(`[email] admin alert FAILED for ${quote.referenceNo} — check RESEND_API_KEY and domain verification`);
+      }).catch(e => console.error("[email] admin alert exception:", e));
 
       res.status(201).json(quote);
     } catch (err) {
