@@ -864,7 +864,8 @@ export async function registerRoutes(
           gpsLat: input.gpsLat ? input.gpsLat.toString() : undefined,
           gpsLng: input.gpsLng ? input.gpsLng.toString() : undefined
         },
-        input.assignedStaffId
+        input.assignedStaffId,
+        input.assignedTeamId
       );
       
       if (!quote) return res.status(404).json({ message: "Quote not found" });

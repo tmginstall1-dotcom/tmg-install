@@ -141,6 +141,7 @@ export const quotes = pgTable("quotes", {
   selectedServices: text("selected_services"), // JSON stringified array
 
   assignedStaffId: integer("assigned_staff_id").references(() => users.id),
+  assignedTeamId: integer("assigned_team_id").references(() => teams.id),
   scheduledAt: timestamp("scheduled_at"),
   timeWindow: text("time_window"), // e.g. "09:00-12:00"
 
@@ -227,6 +228,7 @@ export const payslipsRelations = relations(payslips, ({ one }) => ({
 export const quotesRelations = relations(quotes, ({ one, many }) => ({
   customer: one(customers, { fields: [quotes.customerId], references: [customers.id] }),
   assignedStaff: one(users, { fields: [quotes.assignedStaffId], references: [users.id] }),
+  assignedTeam: one(teams, { fields: [quotes.assignedTeamId], references: [teams.id] }),
   items: many(quoteItems),
   updates: many(jobUpdates),
 }));
@@ -320,4 +322,5 @@ export type QuoteResponse = Quote & {
   items?: (QuoteItem & { catalogItem?: CatalogItem })[];
   updates?: JobUpdate[];
   assignedStaff?: User;
+  assignedTeam?: Team & { members?: User[] };
 };

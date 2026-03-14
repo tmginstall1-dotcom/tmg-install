@@ -1,6 +1,7 @@
 import { useParams, Link } from "wouter";
 import { useQuote, useUpdateQuoteStatus, useRequestFinalPayment, useConfirmBooking, useEditQuote, useCloseQuote } from "@/hooks/use-quotes";
 import { useStaffList } from "@/hooks/use-staff";
+import { useQuery } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useState, useEffect } from "react";
 import { 
@@ -21,6 +22,7 @@ export default function AdminQuoteDetail() {
   
   const { data: quote, isLoading } = useQuote(id);
   const { data: staffList } = useStaffList();
+  const { data: teamsList = [] } = useQuery<any[]>({ queryKey: ["/api/teams"] });
   const updateStatus = useUpdateQuoteStatus();
   const requestFinalPayment = useRequestFinalPayment();
   const confirmBooking = useConfirmBooking();
@@ -28,7 +30,7 @@ export default function AdminQuoteDetail() {
   const closeQuote = useCloseQuote();
   const { toast } = useToast();
 
-  const [selectedStaff, setSelectedStaff] = useState("");
+  const [selectedAssignee, setSelectedAssignee] = useState(""); // "staff:2" | "team:3"
   const [isEditing, setIsEditing] = useState(false);
   const [editCustomer, setEditCustomer] = useState<any>({});
   const [editQuoteData, setEditQuoteData] = useState<any>({});
@@ -112,10 +114,17 @@ export default function AdminQuoteDetail() {
   };
 
   const handleAssign = async () => {
-    if (!selectedStaff) return toast({ title: "Select a staff member", variant: "destructive" });
+    if (!selectedAssignee) return toast({ title: "Select a staff member or team", variant: "destructive" });
     try {
-      await updateStatus.mutateAsync({ id, status: 'assigned', assignedStaffId: parseInt(selectedStaff) });
-      toast({ title: "Staff assigned", description: "Staff member assigned to this job." });
+      const [type, rawId] = selectedAssignee.split(":");
+      const numId = parseInt(rawId);
+      if (type === "team") {
+        await updateStatus.mutateAsync({ id, status: 'assigned', assignedTeamId: numId });
+        toast({ title: "Team assigned", description: "The whole team has been assigned to this job." });
+      } else {
+        await updateStatus.mutateAsync({ id, status: 'assigned', assignedStaffId: numId });
+        toast({ title: "Staff assigned", description: "Staff member assigned to this job." });
+      }
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -724,16 +733,25 @@ export default function AdminQuoteDetail() {
                   )}
                   <div>
                     <label className="text-xs font-bold mb-2 block text-muted-foreground uppercase tracking-wide">
-                      Assign Staff Member
+                      Assign Staff or Team
                     </label>
-                    <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)} data-testid="select-staff"
+                    <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)} data-testid="select-staff"
                       className="w-full px-4 py-2.5 rounded-xl bg-secondary border mb-3 outline-none focus:border-primary text-sm">
-                      <option value="">Select staff...</option>
-                      {staffList?.map((s: any) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
+                      <option value="">Select staff or team...</option>
+                      {teamsList.length > 0 && (
+                        <optgroup label="── Teams">
+                          {teamsList.map((t: any) => (
+                            <option key={`team:${t.id}`} value={`team:${t.id}`}>👥 {t.name} ({t.members?.length ?? 0} members)</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="── Individual Staff">
+                        {staffList?.map((s: any) => (
+                          <option key={`staff:${s.id}`} value={`staff:${s.id}`}>{s.name}</option>
+                        ))}
+                      </optgroup>
                     </select>
-                    <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedStaff} data-testid="button-assign-staff"
+                    <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedAssignee} data-testid="button-assign-staff"
                       className="w-full bg-foreground text-background py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-foreground/90 transition-colors disabled:opacity-50">
                       <UserPlus className="w-4 h-4" /> Assign Staff
                     </button>
@@ -754,14 +772,37 @@ export default function AdminQuoteDetail() {
                       </p>
                     </div>
                   )}
-                  {quote.assignedStaff && (
+                  {/* Show assigned team */}
+                  {(quote as any).assignedTeam && (
+                    <div className="bg-secondary/60 rounded-2xl px-4 py-3 text-sm">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+                          style={{ background: (quote as any).assignedTeam.color || "#6366f1" }}>
+                          👥
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm leading-tight">{(quote as any).assignedTeam.name}</p>
+                          <p className="text-xs text-muted-foreground">Team assigned — {(quote as any).assignedTeam.members?.length ?? 0} members</p>
+                        </div>
+                      </div>
+                      {(quote as any).assignedTeam.members?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {(quote as any).assignedTeam.members.map((m: any) => (
+                            <span key={m.id} className="bg-background border rounded-full px-2.5 py-0.5 text-xs font-medium">{m.name}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Show assigned individual staff */}
+                  {quote.assignedStaff && !(quote as any).assignedTeam && (
                     <div className="bg-secondary/60 rounded-2xl px-4 py-3 text-sm flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-sm shrink-0">
                         {quote.assignedStaff.name.charAt(0)}
                       </div>
                       <div>
                         <p className="font-bold text-sm leading-tight">{quote.assignedStaff.name}</p>
-                        <p className="text-xs text-muted-foreground">Staff assigned</p>
+                        <p className="text-xs text-muted-foreground">Individual staff assigned</p>
                       </div>
                     </div>
                   )}
@@ -880,19 +921,43 @@ export default function AdminQuoteDetail() {
               </div>
             </div>
 
-            {/* Staff Assignment */}
-            {quote.assignedStaff && (
+            {/* Staff / Team Assignment */}
+            {((quote as any).assignedTeam || quote.assignedStaff) && (
               <div className="bg-card rounded-3xl p-5 border shadow-sm">
-                <h3 className="font-bold mb-3 text-sm text-muted-foreground uppercase tracking-wide">Assigned Staff</h3>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
-                    {quote.assignedStaff.name.charAt(0)}
-                  </div>
+                <h3 className="font-bold mb-3 text-sm text-muted-foreground uppercase tracking-wide">
+                  {(quote as any).assignedTeam ? "Assigned Team" : "Assigned Staff"}
+                </h3>
+                {(quote as any).assignedTeam ? (
                   <div>
-                    <p className="font-bold text-sm">{quote.assignedStaff.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{quote.assignedStaff.role}</p>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-base"
+                        style={{ background: (quote as any).assignedTeam.color || "#6366f1" }}>
+                        👥
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">{(quote as any).assignedTeam.name}</p>
+                        <p className="text-xs text-muted-foreground">{(quote as any).assignedTeam.members?.length ?? 0} members</p>
+                      </div>
+                    </div>
+                    {(quote as any).assignedTeam.members?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {(quote as any).assignedTeam.members.map((m: any) => (
+                          <span key={m.id} className="bg-secondary border rounded-full px-2.5 py-0.5 text-xs font-medium">{m.name}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                      {quote.assignedStaff!.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">{quote.assignedStaff!.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{quote.assignedStaff!.role}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -928,14 +993,23 @@ export default function AdminQuoteDetail() {
         )}
         {quote.status === 'booked' && (
           <div className="flex gap-2">
-            <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}
+            <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)}
               className="flex-1 px-3 py-3 rounded-xl bg-secondary border outline-none focus:border-primary text-sm">
-              <option value="">Select staff…</option>
-              {staffList?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
+              <option value="">Select staff or team…</option>
+              {teamsList.length > 0 && (
+                <optgroup label="── Teams">
+                  {teamsList.map((t: any) => (
+                    <option key={`team:${t.id}`} value={`team:${t.id}`}>👥 {t.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="── Individual Staff">
+                {staffList?.map((s: any) => (
+                  <option key={`staff:${s.id}`} value={`staff:${s.id}`}>{s.name}</option>
+                ))}
+              </optgroup>
             </select>
-            <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedStaff} data-testid="button-mobile-assign"
+            <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedAssignee} data-testid="button-mobile-assign"
               className="px-4 py-3 rounded-xl bg-foreground text-background font-bold text-sm flex items-center gap-2 disabled:opacity-50">
               <UserPlus className="w-4 h-4" /> Assign
             </button>

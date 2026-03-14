@@ -70,7 +70,7 @@ export function useCreateQuoteRequest() {
 export function useUpdateQuoteStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: number | string; status: string; note?: string; photoUrl?: string; assignedStaffId?: number }) => {
+    mutationFn: async ({ id, ...data }: { id: number | string; status: string; note?: string; photoUrl?: string; assignedStaffId?: number; assignedTeamId?: number }) => {
       const url = buildUrl(api.quotes.updateStatus.path, { id });
       const res = await fetch(url, {
         method: api.quotes.updateStatus.method,

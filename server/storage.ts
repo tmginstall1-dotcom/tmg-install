@@ -73,7 +73,7 @@ export interface IStorage {
   getQuotesForStaff(staffId: number): Promise<QuoteResponse[]>;
   getQuote(id: number): Promise<QuoteResponse | undefined>;
   createQuote(customer: InsertCustomer, quote: Omit<InsertQuote, 'customerId'>, items: InsertQuoteItem[]): Promise<QuoteResponse>;
-  updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number): Promise<QuoteResponse | undefined>;
+  updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number, assignedTeamId?: number | null): Promise<QuoteResponse | undefined>;
   updateQuotePayment(id: number, paymentType: 'deposit' | 'final', amount: string): Promise<QuoteResponse | undefined>;
   requestBooking(id: number, scheduledAt: Date, timeWindow: string): Promise<QuoteResponse | undefined>;
   confirmBooking(id: number): Promise<QuoteResponse | undefined>;
@@ -359,8 +359,17 @@ export class DatabaseStorage implements IStorage {
 
   async getQuotesForStaff(staffId: number): Promise<QuoteResponse[]> {
     const teammateIds = await this.getTeammateIds(staffId);
+    // Also get the staff member's teamId so we can include team-assigned jobs
+    const [me] = await db.select().from(users).where(eq(users.id, staffId));
+    const myTeamId = me?.teamId;
+
+    const conditions = [inArray(quotes.assignedStaffId, teammateIds)];
+    if (myTeamId) {
+      conditions.push(eq(quotes.assignedTeamId, myTeamId));
+    }
+
     const quotesList = await db.select().from(quotes)
-      .where(inArray(quotes.assignedStaffId, teammateIds))
+      .where(or(...conditions))
       .orderBy(desc(quotes.createdAt));
     const results = await Promise.all(quotesList.map(q => this.fetchQuoteDetails(q.id)));
     return results.filter(Boolean) as QuoteResponse[];
@@ -386,6 +395,16 @@ export class DatabaseStorage implements IStorage {
 
     const customer = quote.customerId ? (await db.select().from(customers).where(eq(customers.id, quote.customerId)))[0] : undefined;
     const staff = quote.assignedStaffId ? (await db.select().from(users).where(eq(users.id, quote.assignedStaffId)))[0] : undefined;
+
+    // Resolve assigned team + its members
+    let assignedTeam: (typeof teams.$inferSelect & { members?: typeof users.$inferSelect[] }) | undefined;
+    if (quote.assignedTeamId) {
+      const [team] = await db.select().from(teams).where(eq(teams.id, quote.assignedTeamId));
+      if (team) {
+        const members = await db.select().from(users).where(eq(users.teamId, team.id));
+        assignedTeam = { ...team, members };
+      }
+    }
     
     const itemsList = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, quoteId));
     const itemsWithCatalog = await Promise.all(itemsList.map(async item => {
@@ -399,6 +418,7 @@ export class DatabaseStorage implements IStorage {
       ...quote,
       customer,
       assignedStaff: staff,
+      assignedTeam,
       items: itemsWithCatalog,
       updates: updatesList,
     };
@@ -444,10 +464,17 @@ export class DatabaseStorage implements IStorage {
     return detailedQuote;
   }
 
-  async updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number) {
+  async updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number, assignedTeamId?: number | null) {
     const updateData: Partial<typeof quotes.$inferInsert> = { status };
     if (assignedStaffId !== undefined) {
       updateData.assignedStaffId = assignedStaffId;
+      // Assigning individual staff clears team assignment
+      updateData.assignedTeamId = null;
+    }
+    if (assignedTeamId !== undefined) {
+      updateData.assignedTeamId = assignedTeamId;
+      // Assigning a team clears individual staff assignment
+      updateData.assignedStaffId = null;
     }
     await db.update(quotes).set(updateData).where(eq(quotes.id, id));
     await db.insert(jobUpdates).values({

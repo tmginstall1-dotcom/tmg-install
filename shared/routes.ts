@@ -72,7 +72,7 @@ export const api = {
     updateStatus: {
       method: 'PATCH' as const,
       path: '/api/quotes/:id/status' as const,
-      input: z.object({ status: z.string(), note: z.string().optional(), gpsLat: z.number().optional(), gpsLng: z.number().optional(), photoUrl: z.string().optional(), assignedStaffId: z.number().optional() }),
+      input: z.object({ status: z.string(), note: z.string().optional(), gpsLat: z.number().optional(), gpsLng: z.number().optional(), photoUrl: z.string().optional(), assignedStaffId: z.number().optional(), assignedTeamId: z.number().optional() }),
       responses: { 200: z.custom<QuoteResponse>(), 400: errorSchemas.validation }
     },
     updatePayment: {
