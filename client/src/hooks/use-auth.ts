@@ -30,9 +30,11 @@ export function useAuth() {
       return res.json();
     },
     onSuccess: (user) => {
-      // Clear ALL cached data first so no previous user's data bleeds through
+      // Clear ALL cached data so no previous user's data bleeds through, then set new user
       queryClient.clear();
       queryClient.setQueryData([api.auth.me.path], user);
+      // Re-invalidate everything so the new user's data is fetched fresh
+      queryClient.invalidateQueries();
     },
   });
 
@@ -45,8 +47,10 @@ export function useAuth() {
       if (!res.ok) throw new Error("Logout failed");
     },
     onSuccess: () => {
-      // Wipe the entire cache so the next user starts completely fresh
+      // Wipe the entire cache so no data lingers, then immediately mark user as null
+      // (do NOT let it go into isLoading — that would block the StaffRoute redirect)
       queryClient.clear();
+      queryClient.setQueryData([api.auth.me.path], null);
     },
   });
 
