@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#000000"/>
+  <text x="256" y="208" font-family="'Helvetica Neue',Arial,sans-serif" font-size="102" font-weight="900" fill="white" text-anchor="middle" dominant-baseline="middle">TMG</text>
+  <text x="256" y="315" font-family="'Helvetica Neue',Arial,sans-serif" font-size="48" font-weight="500" fill="white" letter-spacing="16" text-anchor="middle" dominant-baseline="middle">INSTALL</text>
+  <text x="256" y="400" font-family="'Helvetica Neue',Arial,sans-serif" font-size="28" font-weight="400" fill="rgba(255,255,255,0.45)" letter-spacing="6" text-anchor="middle" dominant-baseline="middle">STAFF</text>
+</svg>
