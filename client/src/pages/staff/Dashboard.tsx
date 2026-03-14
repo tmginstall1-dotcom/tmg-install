@@ -1,17 +1,16 @@
 import { useAuth } from "@/hooks/use-auth";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   MapPin, CalendarDays, ChevronRight, Phone, MessageCircle, User,
-  Clock, Users, Timer, AlertCircle, CheckCircle2, ListTodo
+  Clock, Timer, AlertCircle, CheckCircle2, FileText, CalendarCheck,
+  Briefcase, TrendingUp, Wifi, WifiOff
 } from "lucide-react";
 import { format, isToday, differenceInSeconds } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtHHMM(secs: number) {
   if (secs < 0) secs = 0;
@@ -21,11 +20,8 @@ function fmtHHMM(secs: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
 export default function StaffDashboard() {
   const { user } = useAuth();
-  const [, navigate] = useLocation();
 
   const { data: quotes, isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/quotes"],
@@ -46,16 +42,70 @@ export default function StaffDashboard() {
     });
   const totalVisible = activeNow.length + upcoming.length;
 
+  const firstName = user?.name?.split(" ")[0] || "there";
+
   return (
     <div className="min-h-screen bg-background">
-      {/* ── Clock In Hero ── */}
-      <ClockHero attendance={attendance} user={user} isLoading={attLoading} />
+      <ClockHero attendance={attendance} user={user} isLoading={attLoading} firstName={firstName} />
 
-      {/* ── Jobs section ── */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pb-24">
-        <div className="mt-6 mb-4">
-          <h2 className="text-lg font-black">My Jobs</h2>
-          <p className="text-xs text-muted-foreground">Active assignments and upcoming schedule</p>
+      <div className="max-w-2xl mx-auto px-4 sm:px-5 pb-24 -mt-4 relative z-10">
+        {/* Quick Nav Cards */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Link href="/staff/hr?tab=leave">
+            <div className="bg-card border-2 rounded-2xl p-4 flex items-center gap-3 hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer"
+              data-testid="button-my-requests">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+                <CalendarCheck className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-sm leading-tight">Leave</p>
+                <p className="text-xs text-muted-foreground">Apply & track</p>
+              </div>
+            </div>
+          </Link>
+          <Link href="/staff/hr?tab=attendance">
+            <div className="bg-card border-2 rounded-2xl p-4 flex items-center gap-3 hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer"
+              data-testid="button-timesheet">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5 text-blue-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-sm leading-tight">Timesheet</p>
+                <p className="text-xs text-muted-foreground">Hours & records</p>
+              </div>
+            </div>
+          </Link>
+          <Link href="/staff/hr?tab=payslips">
+            <div className="bg-card border-2 rounded-2xl p-4 flex items-center gap-3 hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer"
+              data-testid="button-payslips">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                <FileText className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-sm leading-tight">Payslips</p>
+                <p className="text-xs text-muted-foreground">Salary & pay</p>
+              </div>
+            </div>
+          </Link>
+          <div className="bg-card border-2 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
+              <Briefcase className="w-5 h-5 text-violet-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-sm leading-tight">{allJobs.length} Jobs</p>
+              <p className="text-xs text-muted-foreground">{activeNow.length} active now</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Jobs Section */}
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-black">My Jobs</h2>
+          {totalVisible > 0 && (
+            <span className="text-xs font-bold text-muted-foreground bg-secondary px-2.5 py-1 rounded-full">
+              {totalVisible} assigned
+            </span>
+          )}
         </div>
 
         {jobsLoading ? (
@@ -65,26 +115,32 @@ export default function StaffDashboard() {
         ) : (
           <>
             {activeNow.length > 0 && (
-              <section className="mb-6">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">🔴 Active Now</p>
-                <div className="space-y-3">
+              <section className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <p className="text-xs font-bold text-red-600 uppercase tracking-wider">Active Now</p>
+                </div>
+                <div className="space-y-2.5">
                   {activeNow.map((job: any) => <JobCard key={job.id} job={job} priority myUserId={user?.id} />)}
                 </div>
               </section>
             )}
             {upcoming.length > 0 && (
-              <section className="mb-6">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">📅 Upcoming ({upcoming.length})</p>
-                <div className="space-y-3">
+              <section className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Upcoming ({upcoming.length})</p>
+                </div>
+                <div className="space-y-2.5">
                   {upcoming.map((job: any) => <JobCard key={job.id} job={job} myUserId={user?.id} />)}
                 </div>
               </section>
             )}
             {totalVisible === 0 && (
-              <div className="text-center py-12 bg-secondary/30 rounded-3xl border-2 border-dashed">
+              <div className="text-center py-14 bg-secondary/30 rounded-3xl border-2 border-dashed">
                 <CalendarDays className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <p className="font-bold text-muted-foreground">No jobs yet</p>
-                <p className="text-sm text-muted-foreground">Jobs will appear once booked and assigned.</p>
+                <p className="font-bold text-muted-foreground">No jobs assigned</p>
+                <p className="text-sm text-muted-foreground mt-1">Jobs will appear once booked and assigned to you.</p>
               </div>
             )}
           </>
@@ -94,139 +150,9 @@ export default function StaffDashboard() {
   );
 }
 
-// ─── Team Today (admin only — removed from staff dashboard) ───────────────────
-
-function TeamToday({ myId }: { myId?: number }) {
-  const { data: roster = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/staff/team/today"],
-    refetchInterval: 30000,
-  });
-
-  const clockedIn  = roster.filter(r => r.clockInAt && !r.clockOutAt);
-  const clockedOut = roster.filter(r => r.clockInAt && r.clockOutAt);
-  const absent     = roster.filter(r => !r.clockInAt);
-
-  return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-5">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-base font-black flex items-center gap-2">
-          <Users className="w-4 h-4 text-primary" /> Team Today
-        </h2>
-        <div className="flex gap-2 text-xs font-bold">
-          <span className="flex items-center gap-1 text-emerald-600">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-            {clockedIn.length} in
-          </span>
-          <span className="text-muted-foreground">· {absent.length} absent</span>
-        </div>
-      </div>
-
-      <div className="bg-card border-2 rounded-2xl overflow-hidden divide-y">
-        {isLoading && (
-          <div className="flex justify-center py-6">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
-
-        {/* Clocked In */}
-        {clockedIn.map((m) => {
-          const initials = m.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
-          const isSelf = m.id === myId;
-          return (
-            <div key={m.id} className="flex items-center gap-3 px-4 py-3"
-              data-testid={`team-row-${m.id}`}>
-              <div style={{ backgroundColor: avatarColor(m.id) }}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0">
-                {initials}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm leading-tight">
-                  {m.name}
-                  {isSelf && <span className="ml-1.5 text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full align-middle">You</span>}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                  <span className="text-xs font-bold text-emerald-600">
-                    Clocked in · {format(new Date(m.clockInAt), "h:mm a")}
-                  </span>
-                </div>
-              </div>
-              {m.clockInLat && m.clockInLng && (
-                <a href={`https://maps.google.com/?q=${m.clockInLat},${m.clockInLng}`}
-                  target="_blank" rel="noreferrer"
-                  className="shrink-0 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                  title="View location">
-                  <MapPin className="w-4 h-4" />
-                </a>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Clocked Out */}
-        {clockedOut.map((m) => {
-          const initials = m.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
-          const isSelf = m.id === myId;
-          const mins = differenceInMinutes(new Date(m.clockOutAt), new Date(m.clockInAt));
-          const h = Math.floor(mins / 60), min = mins % 60;
-          return (
-            <div key={m.id} className="flex items-center gap-3 px-4 py-3 opacity-70"
-              data-testid={`team-row-${m.id}`}>
-              <div style={{ backgroundColor: avatarColor(m.id) }}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0">
-                {initials}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm leading-tight">
-                  {m.name}
-                  {isSelf && <span className="ml-1.5 text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full align-middle">You</span>}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
-                  <span className="text-xs text-muted-foreground">
-                    {format(new Date(m.clockInAt), "h:mm a")} – {format(new Date(m.clockOutAt), "h:mm a")}
-                    <span className="font-bold text-foreground ml-1">
-                      {h > 0 ? `${h}h ${min}m` : `${min}m`}
-                    </span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Absent / not yet in */}
-        {absent.map((m) => {
-          const initials = m.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
-          const isSelf = m.id === myId;
-          return (
-            <div key={m.id} className="flex items-center gap-3 px-4 py-3 opacity-50"
-              data-testid={`team-row-${m.id}`}>
-              <div style={{ backgroundColor: avatarColor(m.id) }}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0 grayscale">
-                {initials}
-              </div>
-              <div className="flex-1">
-                <p className="font-bold text-sm">{m.name}
-                  {isSelf && <span className="ml-1.5 text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full align-middle">You</span>}
-                </p>
-                <p className="text-xs text-muted-foreground">Not clocked in</p>
-              </div>
-            </div>
-          );
-        })}
-
-        {!isLoading && roster.length === 0 && (
-          <p className="text-center py-6 text-sm text-muted-foreground">No team members found.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Clock Hero ───────────────────────────────────────────────────────────────
-
-function ClockHero({ attendance, user, isLoading }: { attendance: any; user: any; isLoading: boolean }) {
+function ClockHero({ attendance, user, isLoading, firstName }: {
+  attendance: any; user: any; isLoading: boolean; firstName: string;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [now, setNow] = useState(new Date());
@@ -234,13 +160,11 @@ function ClockHero({ attendance, user, isLoading }: { attendance: any; user: any
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const hasRequested = useRef(false);
 
-  // Live clock
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // Auto-request location on mount
   useEffect(() => {
     if (hasRequested.current) return;
     hasRequested.current = true;
@@ -248,10 +172,7 @@ function ClockHero({ attendance, user, isLoading }: { attendance: any; user: any
   }, []);
 
   const requestLocation = () => {
-    if (!navigator.geolocation) {
-      setGpsState("denied");
-      return;
-    }
+    if (!navigator.geolocation) { setGpsState("denied"); return; }
     setGpsState("loading");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -284,7 +205,7 @@ function ClockHero({ attendance, user, isLoading }: { attendance: any; user: any
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/attendance/today"] });
-      toast({ title: "Clocked in ✓", description: `${format(new Date(), "HH:mm")} — location recorded` });
+      toast({ title: "Clocked in", description: `${format(new Date(), "HH:mm")} — location recorded` });
     },
     onError: (e: any) => toast({ title: "Clock-in failed", description: e.message, variant: "destructive" }),
   });
@@ -300,7 +221,7 @@ function ClockHero({ attendance, user, isLoading }: { attendance: any; user: any
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/attendance/today"] });
-      toast({ title: "Clocked out ✓", description: "See you next time!" });
+      toast({ title: "Clocked out", description: "See you next time!" });
     },
     onError: (e: any) => toast({ title: "Clock-out failed", description: e.message, variant: "destructive" }),
   });
@@ -309,221 +230,171 @@ function ClockHero({ attendance, user, isLoading }: { attendance: any; user: any
   const isClockedOut = attendance && attendance.clockOutAt;
   const isPending = clockInMut.isPending || clockOutMut.isPending || gpsState === "loading";
 
-  // Total work seconds today
   const workedSecs = isClockedOut
     ? Math.floor((new Date(attendance.clockOutAt).getTime() - new Date(attendance.clockInAt).getTime()) / 1000)
     : isClockedIn
     ? Math.floor((now.getTime() - new Date(attendance.clockInAt).getTime()) / 1000)
     : 0;
 
-  // Map URL (OpenStreetMap embed)
-  const mapLat = coords?.lat ?? 1.3521; // fallback: Singapore
+  const mapLat = coords?.lat ?? 1.3521;
   const mapLng = coords?.lng ?? 103.8198;
   const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${mapLng - 0.008},${mapLat - 0.008},${mapLng + 0.008},${mapLat + 0.008}&layer=mapnik&marker=${mapLat},${mapLng}`;
 
   return (
-    <div className="relative w-full" style={{ minHeight: 420 }}>
+    <div className="relative w-full" style={{ minHeight: 380 }}>
       {/* Map Background */}
       <div className="absolute inset-0 overflow-hidden">
-        {gpsState === "ok" || gpsState === "idle" ? (
-          <iframe
-            src={mapUrl}
-            className="w-full h-full border-0 pointer-events-none"
-            title="Location map"
-            loading="lazy"
-          />
+        {(gpsState === "ok" || gpsState === "idle") ? (
+          <iframe src={mapUrl} className="w-full h-full border-0 pointer-events-none" title="Location map" loading="lazy" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-b from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
-            <div className="text-center">
-              <MapPin className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground font-medium">
-                {gpsState === "loading" ? "Getting location…" : "Location access denied"}
-              </p>
-            </div>
+          <div className="w-full h-full bg-gradient-to-b from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center">
+            <MapPin className="w-12 h-12 text-slate-300" />
           </div>
         )}
-        {/* Gradient overlay at bottom for content readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/70" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/10 to-black/80" />
       </div>
 
-      {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 pt-16 px-4 flex items-center justify-center">
-        <div className="bg-black/50 backdrop-blur-md text-white text-sm font-bold px-4 py-2 rounded-full flex items-center gap-2">
-          <Timer className="w-4 h-4" />
-          Total work hours today
-          <span className="font-mono font-black text-base ml-1">
-            {fmtHHMM(workedSecs).slice(0, 5)}
-          </span>
+      {/* Top greeting bar */}
+      <div className="absolute top-0 left-0 right-0 pt-16 px-5 flex items-start justify-between">
+        <div>
+          <p className="text-white/70 text-xs font-medium">{format(now, "EEE, d MMM yyyy")}</p>
+          <p className="text-white font-black text-lg leading-tight">Hello, {firstName}</p>
+        </div>
+        <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur text-white text-xs font-bold px-3 py-1.5 rounded-full">
+          {gpsState === "ok" ? (
+            <><Wifi className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-300">GPS OK</span></>
+          ) : gpsState === "denied" ? (
+            <><WifiOff className="w-3.5 h-3.5 text-red-400" /> <button onClick={requestLocation} className="text-red-300 underline">Retry</button></>
+          ) : gpsState === "loading" ? (
+            <><div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Locating</>
+          ) : (
+            <><MapPin className="w-3.5 h-3.5" /> Waiting</>
+          )}
         </div>
       </div>
 
-      {/* GPS status indicator */}
-      {gpsState === "denied" && (
-        <div className="absolute top-28 left-0 right-0 mx-4">
-          <div className="bg-red-600/90 backdrop-blur text-white text-xs font-bold px-4 py-2.5 rounded-2xl flex items-center gap-2 max-w-sm mx-auto">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            Location access is required. Please allow in your browser settings and tap retry.
-            <button onClick={requestLocation} className="underline ml-1 whitespace-nowrap">Retry</button>
-          </div>
-        </div>
-      )}
-      {gpsState === "ok" && (
-        <div className="absolute top-28 left-0 right-0 mx-4">
-          <div className="bg-emerald-600/80 backdrop-blur text-white text-xs font-bold px-4 py-2.5 rounded-2xl flex items-center gap-2 max-w-xs mx-auto">
-            <CheckCircle2 className="w-4 h-4" />
-            Location confirmed
-          </div>
-        </div>
-      )}
-
-      {/* Bottom content */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-6 flex flex-col items-center gap-5">
-        {/* Status text */}
-        <div className="text-center text-white">
-          {isClockedIn && (
-            <p className="text-sm font-bold bg-emerald-500/80 backdrop-blur px-3 py-1 rounded-full">
-              Clocked in at {format(new Date(attendance.clockInAt), "HH:mm")}
-            </p>
-          )}
-          {isClockedOut && (
-            <p className="text-sm font-bold bg-slate-800/80 backdrop-blur px-3 py-1 rounded-full">
-              {format(new Date(attendance.clockInAt), "HH:mm")} – {format(new Date(attendance.clockOutAt), "HH:mm")} · Done for today
-            </p>
-          )}
-          {!attendance && !isLoading && (
-            <p className="text-sm text-white/80">{format(now, "EEE, d MMMM yyyy")}</p>
-          )}
-        </div>
-
-        {/* Big Clock In / Out button */}
-        {!isClockedOut && (
-          <button
-            onClick={() => isClockedIn ? clockOutMut.mutate() : clockInMut.mutate()}
-            disabled={isPending || gpsState === "denied"}
-            data-testid={isClockedIn ? "button-clock-out" : "button-clock-in"}
-            className={`w-36 h-36 rounded-full flex flex-col items-center justify-center gap-1 font-black text-lg shadow-2xl transition-all active:scale-95 disabled:opacity-60 border-4 border-white/30 ${
-              isClockedIn
-                ? "bg-red-500 text-white hover:bg-red-600"
-                : "bg-[#4A90E2] text-white hover:bg-[#357ABD]"
-            }`}
-          >
-            {isPending ? (
-              <>
-                <div className="w-8 h-8 border-4 border-white/40 border-t-white rounded-full animate-spin" />
-                <span className="text-xs font-bold mt-1">Wait…</span>
-              </>
-            ) : (
-              <>
-                <Clock className="w-8 h-8" />
-                <span className="text-base">{isClockedIn ? "Clock Out" : "Clock In"}</span>
-              </>
+      {/* Bottom panel */}
+      <div className="absolute bottom-0 left-0 right-0 px-5 pb-8">
+        <div className="flex items-end justify-between gap-4">
+          {/* Work timer */}
+          <div>
+            {isClockedIn && (
+              <p className="text-white/60 text-xs font-medium mb-0.5">Since {format(new Date(attendance.clockInAt), "HH:mm")}</p>
             )}
-          </button>
-        )}
+            {isClockedOut && (
+              <p className="text-white/60 text-xs font-medium mb-0.5">
+                {format(new Date(attendance.clockInAt), "HH:mm")} – {format(new Date(attendance.clockOutAt), "HH:mm")}
+              </p>
+            )}
+            {!attendance && !isLoading && (
+              <p className="text-white/60 text-xs font-medium mb-0.5">Not clocked in today</p>
+            )}
+            <div className="flex items-baseline gap-1">
+              <Timer className="w-4 h-4 text-white/70 mb-0.5" />
+              <span className="text-white font-mono font-black text-3xl tracking-tight">
+                {fmtHHMM(workedSecs).slice(0, 5)}
+              </span>
+              <span className="text-white/60 text-sm font-medium">today</span>
+            </div>
+          </div>
 
-        {/* Quick action buttons */}
-        <div className="flex gap-3 w-full max-w-xs">
-          <Link href="/staff/hr" className="flex-1">
-            <div className="bg-white/90 dark:bg-black/60 backdrop-blur rounded-2xl py-3 flex flex-col items-center gap-1 hover:bg-white transition-colors"
-              data-testid="button-my-requests">
-              <ListTodo className="w-5 h-5 text-amber-500" />
-              <span className="text-xs font-bold">My Requests</span>
+          {/* Clock button */}
+          {!isClockedOut ? (
+            <button
+              onClick={() => isClockedIn ? clockOutMut.mutate() : clockInMut.mutate()}
+              disabled={isPending || gpsState === "denied"}
+              data-testid={isClockedIn ? "button-clock-out" : "button-clock-in"}
+              className={`w-24 h-24 rounded-2xl flex flex-col items-center justify-center gap-1.5 font-black shadow-2xl transition-all active:scale-95 disabled:opacity-60 border-2 border-white/20 ${
+                isClockedIn
+                  ? "bg-red-500 text-white"
+                  : "bg-white text-black"
+              }`}
+            >
+              {isPending ? (
+                <div className="w-6 h-6 border-3 border-current/40 border-t-current rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Clock className="w-7 h-7" />
+                  <span className="text-xs">{isClockedIn ? "Clock Out" : "Clock In"}</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <div className="w-24 h-24 rounded-2xl bg-white/10 backdrop-blur border-2 border-white/20 flex flex-col items-center justify-center gap-1">
+              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
+              <span className="text-white text-xs font-bold">Done</span>
             </div>
-          </Link>
-          <Link href="/staff/hr" className="flex-1">
-            <div className="bg-white/90 dark:bg-black/60 backdrop-blur rounded-2xl py-3 flex flex-col items-center gap-1 hover:bg-white transition-colors"
-              data-testid="button-timesheet">
-              <CalendarDays className="w-5 h-5 text-[#4A90E2]" />
-              <span className="text-xs font-bold">Timesheet</span>
-            </div>
-          </Link>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Job Card ─────────────────────────────────────────────────────────────────
-
 function JobCard({ job, priority, myUserId }: { job: any; priority?: boolean; myUserId?: number }) {
   const isMyJob = job.assignedStaffId && job.assignedStaffId === myUserId;
-  const isTeamJob = job.assignedStaffId && job.assignedStaffId !== myUserId;
-  const isUnassigned = !job.assignedStaffId && job.status === "booked";
-
   const scheduledDate = job.scheduledAt ? new Date(job.scheduledAt) : null;
   const dateLabel = scheduledDate
-    ? isToday(scheduledDate) ? "Today" : format(scheduledDate, "EEE, MMM d")
+    ? isToday(scheduledDate) ? "Today" : format(scheduledDate, "EEE, d MMM")
     : null;
 
   return (
-    <div className={[
-      "bg-card border-2 rounded-3xl shadow-sm overflow-hidden transition-all",
-      priority ? "border-orange-300" :
-      isMyJob ? "border-primary/60 shadow-md shadow-primary/10" :
-      "border-border hover:border-primary/40",
-    ].join(" ")}
-      data-testid={`job-card-${job.id}`}>
-      <div className={`px-5 pt-5 pb-3 ${priority ? "bg-orange-50 dark:bg-orange-950/20" : ""}`}>
-        <div className="flex justify-between items-start mb-3">
-          <div className="min-w-0 flex-1 pr-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-bold text-lg leading-tight">{job.customer?.name}</h3>
+    <Link href={`/staff/jobs/${job.id}`}>
+      <div className={[
+        "bg-card border-2 rounded-2xl p-4 hover:shadow-md transition-all cursor-pointer active:scale-[0.99]",
+        priority ? "border-orange-300 bg-orange-50/50 dark:bg-orange-950/10" :
+        isMyJob ? "border-primary/40" : "border-border hover:border-primary/30",
+      ].join(" ")}
+        data-testid={`job-card-${job.id}`}>
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+              <h3 className="font-bold text-base leading-tight">{job.customer?.name}</h3>
               {isMyJob && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                  <User className="w-2.5 h-2.5" /> Your Job
-                </span>
-              )}
-              {isTeamJob && job.assignedStaff && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full dark:bg-violet-900/30 dark:text-violet-300">
-                  <Users className="w-2.5 h-2.5" /> {job.assignedStaff.name}
-                </span>
-              )}
-              {isUnassigned && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                  Unassigned
+                <span className="text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">
+                  You
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">{job.referenceNo}</p>
+            <p className="text-xs text-muted-foreground font-mono">{job.referenceNo}</p>
           </div>
           <StatusBadge status={job.status} className="scale-90 origin-top-right shrink-0" />
         </div>
 
-        <div className="space-y-1.5 mb-3">
+        <div className="space-y-1.5">
           <div className="flex items-start gap-2 text-sm">
-            <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-            <span className="font-medium leading-snug">{job.serviceAddress}</span>
+            <MapPin className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+            <span className="text-sm leading-snug font-medium">{job.serviceAddress}</span>
           </div>
           {job.scheduledAt && (
             <div className="flex items-center gap-2 text-sm">
-              <CalendarDays className="w-4 h-4 shrink-0 text-muted-foreground" />
-              <span className={["font-semibold", dateLabel === "Today" ? "text-orange-600" : "text-muted-foreground"].join(" ")}>
+              <CalendarDays className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+              <span className={`font-semibold text-sm ${dateLabel === "Today" ? "text-orange-600" : "text-muted-foreground"}`}>
                 {dateLabel} · {job.timeWindow || "TBD"}
               </span>
             </div>
           )}
         </div>
 
-        <div className="flex gap-2">
-          <a href={`tel:${job.customer?.phone}`} data-testid={`call-${job.id}`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border text-xs font-bold hover:bg-secondary transition-colors">
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+          <a href={`tel:${job.customer?.phone}`}
+            onClick={e => e.stopPropagation()}
+            data-testid={`call-${job.id}`}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary text-xs font-bold hover:bg-secondary/80 transition-colors">
             <Phone className="w-3.5 h-3.5" /> Call
           </a>
-          <a href={`https://wa.me/${job.customer?.phone?.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" data-testid={`wa-${job.id}`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-colors">
+          <a href={`https://wa.me/${job.customer?.phone?.replace(/\D/g, "")}`}
+            target="_blank" rel="noreferrer"
+            onClick={e => e.stopPropagation()}
+            data-testid={`wa-${job.id}`}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold hover:bg-emerald-200 transition-colors">
             <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
           </a>
-        </div>
-      </div>
-
-      <Link href={`/staff/jobs/${job.id}`} data-testid={`view-job-${job.id}`}>
-        <div className="px-5 py-3 flex items-center justify-between border-t hover:bg-secondary/50 transition-colors cursor-pointer">
-          <span className="text-sm font-bold text-muted-foreground">{job.items?.length || 0} item{job.items?.length !== 1 ? "s" : ""}</span>
-          <div className="flex items-center gap-1 text-primary font-bold text-sm">
-            View & Action <ChevronRight className="w-4 h-4" />
+          <div className="ml-auto">
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </div>
         </div>
-      </Link>
-    </div>
+      </div>
+    </Link>
   );
 }
