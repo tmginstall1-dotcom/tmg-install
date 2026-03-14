@@ -100,7 +100,7 @@ function AttendanceTab() {
     queryKey: ["/api/attendance/amendments"],
   });
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [showCount, setShowCount] = useState(10);
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
 
   if (isLoading) return (
     <div className="flex justify-center py-16">
@@ -116,156 +116,161 @@ function AttendanceTab() {
     </div>
   );
 
-  // Summary: total hours this month
-  const now = new Date();
-  const thisMonth = myLogs.filter(l => {
-    const d = new Date(l.clockInAt);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  });
-  const totalMinsThisMonth = thisMonth.reduce((acc, l) => {
+  // Build ordered list of months (most recent first)
+  const monthMap: Record<string, any[]> = {};
+  for (const log of myLogs) {
+    const key = format(new Date(log.clockInAt), "yyyy-MM");
+    if (!monthMap[key]) monthMap[key] = [];
+    monthMap[key].push(log);
+  }
+  const monthKeys = Object.keys(monthMap).sort((a, b) => b.localeCompare(a));
+
+  const clampedIdx = Math.min(selectedMonthIdx, monthKeys.length - 1);
+  const activeKey = monthKeys[clampedIdx];
+  const activeLogs = monthMap[activeKey] || [];
+
+  const monthMins = activeLogs.reduce((acc: number, l: any) => {
     if (!l.clockOutAt) return acc;
     return acc + differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
   }, 0);
-  const totalDaysWorked = thisMonth.filter(l => l.clockOutAt).length;
-
-  // Group by month
-  const grouped: Record<string, any[]> = {};
-  for (const log of myLogs) {
-    const key = format(new Date(log.clockInAt), "MMMM yyyy");
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(log);
-  }
-  const months = Object.keys(grouped);
-
-  const visibleLogs = myLogs.slice(0, showCount);
+  const daysWorked = activeLogs.filter((l: any) => l.clockOutAt).length;
+  const monthLabel = format(new Date(activeKey + "-01"), "MMMM yyyy");
 
   return (
     <div className="space-y-4">
-      {/* This month summary */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-card border-2 rounded-2xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="w-4 h-4 text-primary" />
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">This Month</p>
+      {/* Month navigator */}
+      <div className="bg-card border-2 rounded-2xl overflow-hidden">
+        <div className="flex items-center">
+          <button
+            onClick={() => setSelectedMonthIdx(i => Math.min(i + 1, monthKeys.length - 1))}
+            disabled={clampedIdx >= monthKeys.length - 1}
+            className="p-4 hover:bg-secondary/40 transition-colors disabled:opacity-30"
+            data-testid="button-prev-month">
+            <ChevronDown className="w-5 h-5 rotate-90" />
+          </button>
+          <div className="flex-1 text-center py-3">
+            <p className="font-black text-lg">{monthLabel}</p>
+            <p className="text-xs text-muted-foreground">{monthKeys.length - clampedIdx} of {monthKeys.length} months</p>
           </div>
-          <p className="text-2xl font-black">{fmtDur(totalMinsThisMonth)}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Total hours worked</p>
+          <button
+            onClick={() => setSelectedMonthIdx(i => Math.max(i - 1, 0))}
+            disabled={clampedIdx <= 0}
+            className="p-4 hover:bg-secondary/40 transition-colors disabled:opacity-30"
+            data-testid="button-next-month">
+            <ChevronDown className="w-5 h-5 -rotate-90" />
+          </button>
         </div>
-        <div className="bg-card border-2 rounded-2xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Days In</p>
+
+        {/* Month stats strip */}
+        <div className="border-t grid grid-cols-3 divide-x">
+          <div className="px-3 py-2.5 text-center">
+            <p className="text-lg font-black">{fmtDur(monthMins)}</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase">Total Hours</p>
           </div>
-          <p className="text-2xl font-black">{totalDaysWorked}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Days clocked out</p>
+          <div className="px-3 py-2.5 text-center">
+            <p className="text-lg font-black">{daysWorked}</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase">Days In</p>
+          </div>
+          <div className="px-3 py-2.5 text-center">
+            <p className="text-lg font-black">{activeLogs.length > 0 && monthMins > 0 ? fmtDur(Math.round(monthMins / daysWorked)) : "—"}</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase">Avg / Day</p>
+          </div>
         </div>
       </div>
 
-      {/* Month-grouped records */}
-      {months.map(month => {
-        const logs = grouped[month];
-        const monthMins = logs.reduce((acc, l) => {
-          if (!l.clockOutAt) return acc;
-          return acc + differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
-        }, 0);
-        return (
-          <div key={month} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{month}</p>
-              <p className="text-xs font-bold text-muted-foreground">{fmtDur(monthMins)} · {logs.filter(l => l.clockOutAt).length}d</p>
-            </div>
+      {/* Records for selected month */}
+      {activeLogs.length === 0 ? (
+        <div className="text-center py-10 bg-secondary/30 rounded-2xl border-2 border-dashed">
+          <p className="text-sm text-muted-foreground">No records for {monthLabel}</p>
+        </div>
+      ) : (
+        <div className="bg-card border-2 rounded-2xl overflow-hidden divide-y">
+          {activeLogs.map((log: any) => {
+            const mins = log.clockOutAt
+              ? differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt))
+              : null;
+            const pendingAmend = amendments.find((a: any) => a.attendanceLogId === log.id && a.status === "pending");
+            const isOpen = expandedId === log.id;
 
-            <div className="bg-card border-2 rounded-2xl overflow-hidden divide-y">
-              {logs.map((log: any) => {
-                const mins = log.clockOutAt
-                  ? differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt))
-                  : null;
-                const pendingAmend = amendments.find((a: any) => a.attendanceLogId === log.id && a.status === "pending");
-                const isOpen = expandedId === log.id;
-
-                return (
-                  <div key={log.id}>
-                    <button
-                      onClick={() => setExpandedId(isOpen ? null : log.id)}
-                      className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-secondary/30 transition-colors"
-                      data-testid={`attendance-row-${log.id}`}>
-                      <div className="text-left flex items-center gap-3">
-                        <div className="text-center w-8 shrink-0">
-                          <p className="text-[11px] font-bold text-muted-foreground leading-none">{format(new Date(log.clockInAt), "EEE")}</p>
-                          <p className="text-lg font-black leading-tight">{format(new Date(log.clockInAt), "d")}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold leading-tight">
-                            {format(new Date(log.clockInAt), "HH:mm")}
-                            {log.clockOutAt ? ` – ${format(new Date(log.clockOutAt), "HH:mm")}` : (
-                              <span className="text-emerald-600 ml-1 text-xs font-bold">Active</span>
-                            )}
-                          </p>
-                          {pendingAmend && (
-                            <span className="text-[10px] font-bold text-amber-600">Amendment pending</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-black text-base tabular-nums">
-                          {mins !== null ? fmtDur(mins) : "—"}
-                        </p>
-                        {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                      </div>
-                    </button>
-
-                    {isOpen && (
-                      <div className="border-t bg-secondary/20 px-4 py-4 space-y-3">
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 rounded-xl p-3">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Clock In</p>
-                            <p className="font-bold text-base">{format(new Date(log.clockInAt), "HH:mm")}</p>
-                            {log.clockInLat && (
-                              <a href={`https://maps.google.com/?q=${log.clockInLat},${log.clockInLng}`}
-                                target="_blank" rel="noreferrer"
-                                className="text-xs text-primary underline mt-0.5 inline-block">
-                                View GPS ↗
-                              </a>
-                            )}
-                          </div>
-                          <div className={`border rounded-xl p-3 ${log.clockOutAt ? "bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900" : "bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900"}`}>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Clock Out</p>
-                            <p className="font-bold text-base">{log.clockOutAt ? format(new Date(log.clockOutAt), "HH:mm") : "—"}</p>
-                            {log.clockOutLat && (
-                              <a href={`https://maps.google.com/?q=${log.clockOutLat},${log.clockOutLng}`}
-                                target="_blank" rel="noreferrer"
-                                className="text-xs text-primary underline mt-0.5 inline-block">
-                                View GPS ↗
-                              </a>
-                            )}
-                          </div>
-                        </div>
-
-                        {amendments.filter((a: any) => a.attendanceLogId === log.id).map((a: any) => (
-                          <div key={a.id} className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-sm">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <p className="text-xs font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wide">Amendment</p>
-                              <LeaveStatusBadge status={a.status} />
-                            </div>
-                            <p className="text-xs text-foreground font-medium">
-                              Requested: {a.requestedClockIn && format(new Date(a.requestedClockIn), "HH:mm")}
-                              {a.requestedClockOut && ` – ${format(new Date(a.requestedClockOut), "HH:mm")}`}
-                            </p>
-                            <p className="text-xs text-muted-foreground">Reason: {a.reason}</p>
-                            {a.adminNote && <p className="text-xs text-muted-foreground mt-0.5 italic">Admin: {a.adminNote}</p>}
-                          </div>
-                        ))}
-
-                        {!pendingAmend && <AmendmentForm log={log} />}
-                      </div>
-                    )}
+            return (
+              <div key={log.id}>
+                <button
+                  onClick={() => setExpandedId(isOpen ? null : log.id)}
+                  className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-secondary/30 transition-colors"
+                  data-testid={`attendance-row-${log.id}`}>
+                  <div className="flex items-center gap-3 text-left">
+                    <div className="w-10 shrink-0 text-center">
+                      <p className="text-[11px] font-bold text-muted-foreground leading-none uppercase">{format(new Date(log.clockInAt), "EEE")}</p>
+                      <p className="text-xl font-black leading-tight">{format(new Date(log.clockInAt), "d")}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold leading-tight">
+                        {format(new Date(log.clockInAt), "HH:mm")}
+                        {log.clockOutAt
+                          ? ` – ${format(new Date(log.clockOutAt), "HH:mm")}`
+                          : <span className="text-emerald-600 ml-1.5 text-xs font-bold">● Active</span>}
+                      </p>
+                      {pendingAmend && (
+                        <span className="text-[10px] font-bold text-amber-600">Amendment pending</span>
+                      )}
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+                  <div className="flex items-center gap-2">
+                    <p className="font-black text-base tabular-nums">
+                      {mins !== null ? fmtDur(mins) : "—"}
+                    </p>
+                    {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t bg-secondary/20 px-4 py-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 rounded-xl p-3">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Clock In</p>
+                        <p className="font-bold text-base">{format(new Date(log.clockInAt), "HH:mm")}</p>
+                        {log.clockInLat && (
+                          <a href={`https://maps.google.com/?q=${log.clockInLat},${log.clockInLng}`}
+                            target="_blank" rel="noreferrer"
+                            className="text-xs text-primary underline mt-0.5 inline-block">View GPS ↗</a>
+                        )}
+                      </div>
+                      <div className={`border rounded-xl p-3 ${log.clockOutAt
+                        ? "bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900"
+                        : "bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900"}`}>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Clock Out</p>
+                        <p className="font-bold text-base">{log.clockOutAt ? format(new Date(log.clockOutAt), "HH:mm") : "—"}</p>
+                        {log.clockOutLat && (
+                          <a href={`https://maps.google.com/?q=${log.clockOutLat},${log.clockOutLng}`}
+                            target="_blank" rel="noreferrer"
+                            className="text-xs text-primary underline mt-0.5 inline-block">View GPS ↗</a>
+                        )}
+                      </div>
+                    </div>
+
+                    {amendments.filter((a: any) => a.attendanceLogId === log.id).map((a: any) => (
+                      <div key={a.id} className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-xs font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wide">Amendment</p>
+                          <LeaveStatusBadge status={a.status} />
+                        </div>
+                        <p className="text-xs text-foreground font-medium">
+                          Requested: {a.requestedClockIn && format(new Date(a.requestedClockIn), "HH:mm")}
+                          {a.requestedClockOut && ` – ${format(new Date(a.requestedClockOut), "HH:mm")}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Reason: {a.reason}</p>
+                        {a.adminNote && <p className="text-xs text-muted-foreground mt-0.5 italic">Admin: {a.adminNote}</p>}
+                      </div>
+                    ))}
+
+                    {!pendingAmend && <AmendmentForm log={log} />}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
