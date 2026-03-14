@@ -41,10 +41,8 @@ function StaffRoute({ component: Component }: { component: React.ComponentType }
   const [, setLocation] = useLocation();
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
-  if (!user) {
-    setLocation('/staff/login');
-    return null;
-  }
+  if (!user) { setLocation('/staff/login'); return null; }
+  if (user.role === 'admin') { setLocation('/admin'); return null; }
   return <Component />;
 }
 
