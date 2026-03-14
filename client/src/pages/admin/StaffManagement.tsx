@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useSearch, useLocation } from "wouter";
 import { format, differenceInMinutes, startOfMonth, endOfMonth, startOfWeek, endOfWeek, parseISO } from "date-fns";
 import {
   Plus, Trash2, Pencil, Check, X, Users, Clock, UserPlus, LogIn, LogOut,
-  ChevronDown, ChevronUp, Calendar, FileText, Settings2, Loader2, AlertCircle, MapPin, Printer
+  ChevronDown, ChevronUp, Calendar, FileText, Settings2, Loader2, AlertCircle, MapPin, Printer,
+  ArrowRight, DollarSign, ChevronLeft, ChevronRight
 } from "lucide-react";
 import OfficialPayslip from "@/components/OfficialPayslip";
 
@@ -39,7 +41,50 @@ const LEAVE_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function StaffManagement() {
-  const [tab, setTab] = useState<"teams" | "payroll" | "amendments" | "leave" | "payslips">("teams");
+  const search = useSearch();
+  const [, navigate] = useLocation();
+  const params = new URLSearchParams(search);
+  const tabParam = params.get("tab");
+  const validTabs = ["teams", "payroll", "amendments", "leave", "payslips"] as const;
+  type TabKey = typeof validTabs[number];
+  const [tab, setTab] = useState<TabKey>(
+    validTabs.includes(tabParam as TabKey) ? (tabParam as TabKey) : "teams"
+  );
+
+  useEffect(() => {
+    const p = new URLSearchParams(search);
+    const t = p.get("tab");
+    if (validTabs.includes(t as TabKey)) setTab(t as TabKey);
+  }, [search]);
+
+  const switchTab = (key: TabKey) => {
+    setTab(key);
+    navigate(`/admin/staff?tab=${key}`, { replace: true });
+  };
+
+  // Fetch pending counts for badge display
+  const { data: pendingAmendments = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/attendance/amendments"],
+    select: (d) => d.filter((a: any) => a.status === "pending"),
+  });
+  const { data: pendingLeave = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/leave", "pending"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/leave?status=pending");
+      return res.json();
+    },
+  });
+
+  const pendingAmendCount = (pendingAmendments as any[]).length;
+  const pendingLeaveCount = (pendingLeave as any[]).length;
+
+  const tabs = [
+    { key: "teams" as const, label: "Teams & Staff", icon: Users, badge: 0 },
+    { key: "payroll" as const, label: "Attendance", icon: Clock, badge: 0 },
+    { key: "amendments" as const, label: "Amendments", icon: AlertCircle, badge: pendingAmendCount },
+    { key: "leave" as const, label: "Leave", icon: Calendar, badge: pendingLeaveCount },
+    { key: "payslips" as const, label: "Payslips", icon: FileText, badge: 0 },
+  ];
 
   return (
     <div className="min-h-screen pt-20 pb-16 bg-background">
@@ -50,18 +95,18 @@ export default function StaffManagement() {
         </div>
 
         <div className="flex gap-0 mb-6 border-b overflow-x-auto">
-          {([
-            { key: "teams", label: "Teams & Staff", icon: Users },
-            { key: "payroll", label: "Attendance", icon: Clock },
-            { key: "amendments", label: "Amendments", icon: AlertCircle },
-            { key: "leave", label: "Leave", icon: Calendar },
-            { key: "payslips", label: "Payslips", icon: FileText },
-          ] as const).map(({ key, label, icon: Icon }) => (
-            <button key={key} onClick={() => setTab(key)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px ${
+          {tabs.map(({ key, label, icon: Icon, badge }) => (
+            <button key={key} onClick={() => switchTab(key)}
+              className={`relative flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px ${
                 tab === key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}>
+              }`}
+              data-testid={`tab-${key}`}>
               <Icon className="w-4 h-4" /> {label}
+              {badge > 0 && (
+                <span className="ml-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
+                  {badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -317,39 +362,54 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
 
 function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings }: any) {
   const team = teams.find((t: any) => t.id === staff.teamId);
+  const monthly = parseFloat(staff.monthlyRate || "0");
+  const hourly  = parseFloat(staff.hourlyRate  || "0");
+  const hasPayConfig = monthly > 0 || hourly > 0;
+
   return (
-    <div className="flex items-center justify-between gap-2 py-2 border-b last:border-0">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold truncate">{staff.name}</p>
-        <p className="text-xs text-muted-foreground">{staff.username}</p>
-        {team && (
-          <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-0.5"
-            style={{ background: team.color + "22", color: team.color }}>
-            {team.name}
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <button onClick={onPaySettings} title="Pay settings"
-          className="p-1 text-muted-foreground hover:text-primary transition-colors">
-          <Settings2 className="w-3.5 h-3.5" />
-        </button>
-        {staff.teamId && (
-          <button onClick={onUnassign} title="Remove from team"
-            className="p-1 text-muted-foreground hover:text-destructive transition-colors">
-            <X className="w-3.5 h-3.5" />
+    <div className="py-2 border-b last:border-0">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold truncate">{staff.name}</p>
+          <p className="text-xs text-muted-foreground">{staff.username}</p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {team && (
+              <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                style={{ background: team.color + "22", color: team.color }}>
+                {team.name}
+              </span>
+            )}
+            {hasPayConfig && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400">
+                <DollarSign className="w-2.5 h-2.5" />
+                {monthly > 0 ? `S$${monthly.toFixed(0)}/mo` : `S$${hourly.toFixed(2)}/hr`}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={onPaySettings} title="Pay settings"
+            className="p-1 text-muted-foreground hover:text-primary transition-colors"
+            data-testid={`button-pay-settings-${staff.id}`}>
+            <Settings2 className="w-3.5 h-3.5" />
           </button>
-        )}
-        <select onChange={e => { if (e.target.value) onAssign(parseInt(e.target.value)); e.target.value = ""; }}
-          className="text-xs border rounded-lg px-1 py-1 bg-background max-w-[90px]"
-          defaultValue="">
-          <option value="" disabled>{staff.teamId ? "Move" : "Assign"}</option>
-          {teams.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
-        <button onClick={onDelete} title="Delete staff"
-          className="p-1 text-muted-foreground hover:text-destructive transition-colors">
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+          {staff.teamId && (
+            <button onClick={onUnassign} title="Remove from team"
+              className="p-1 text-muted-foreground hover:text-destructive transition-colors">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <select onChange={e => { if (e.target.value) onAssign(parseInt(e.target.value)); e.target.value = ""; }}
+            className="text-xs border rounded-lg px-1 py-1 bg-background max-w-[90px]"
+            defaultValue="">
+            <option value="" disabled>{staff.teamId ? "Move" : "Assign"}</option>
+            {teams.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <button onClick={onDelete} title="Delete staff"
+            className="p-1 text-muted-foreground hover:text-destructive transition-colors">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1393,20 +1453,39 @@ function AmendmentsTab() {
             </div>
           </div>
           <div className="p-4 space-y-3">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-xs font-bold text-muted-foreground mb-1">ORIGINAL</p>
-                <p>In: {a.originalClockIn ? format(new Date(a.originalClockIn), "d MMM HH:mm") : "—"}</p>
-                <p>Out: {a.originalClockOut ? format(new Date(a.originalClockOut), "d MMM HH:mm") : "—"}</p>
+            {/* Before → After comparison */}
+            <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+              {/* Original */}
+              <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 space-y-1">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">Original</p>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <LogIn className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <span className="font-mono">{a.originalClockIn ? format(new Date(a.originalClockIn), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <LogOut className="w-3 h-3 text-red-400 shrink-0" />
+                  <span className="font-mono">{a.originalClockOut ? format(new Date(a.originalClockOut), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-bold text-primary mb-1">REQUESTED</p>
-                <p className="text-primary">In: {a.requestedClockIn ? format(new Date(a.requestedClockIn), "d MMM HH:mm") : "—"}</p>
-                <p className="text-primary">Out: {a.requestedClockOut ? format(new Date(a.requestedClockOut), "d MMM HH:mm") : "—"}</p>
+              {/* Arrow */}
+              <div className="flex flex-col items-center gap-0.5">
+                <ArrowRight className="w-4 h-4 text-primary" />
+              </div>
+              {/* Requested */}
+              <div className="bg-primary/5 border border-primary/30 rounded-xl px-3 py-2.5 space-y-1">
+                <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1.5">Requested</p>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <LogIn className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <span className="font-mono font-bold text-primary">{a.requestedClockIn ? format(new Date(a.requestedClockIn), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <LogOut className="w-3 h-3 text-red-400 shrink-0" />
+                  <span className="font-mono font-bold text-primary">{a.requestedClockOut ? format(new Date(a.requestedClockOut), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
+                </div>
               </div>
             </div>
             <div className="bg-secondary/30 rounded-xl px-3 py-2">
-              <p className="text-xs font-bold text-muted-foreground mb-0.5">Reason</p>
+              <p className="text-xs font-bold text-muted-foreground mb-0.5">Staff Reason</p>
               <p className="text-sm">{a.reason}</p>
             </div>
             {a.status === 'pending' && (
@@ -1457,6 +1536,26 @@ function LeaveTab() {
     },
   });
 
+  // Fetch all leaves for the year to compute balances
+  const { data: allLeaves = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/leave", "all"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/leave");
+      return res.json();
+    },
+  });
+
+  // Build per-staff used days map (approved annual leave only)
+  const usedAnnualByStaff = (allLeaves as any[]).reduce((acc: Record<number, number>, l: any) => {
+    if (l.leaveType === "annual" && l.status === "approved" && l.userId) {
+      acc[l.userId] = (acc[l.userId] || 0) + parseFloat(l.totalDays || "0");
+    }
+    return acc;
+  }, {});
+
+  // Pending counts per filter
+  const pendingCount = (allLeaves as any[]).filter((l: any) => l.status === "pending").length;
+
   const reviewMut = useMutation({
     mutationFn: ({ id, status }: { id: number; status: "approved" | "rejected" }) =>
       apiRequest("PATCH", `/api/admin/leave/${id}`, { status, adminNote: notes[id] || "" }),
@@ -1469,11 +1568,17 @@ function LeaveTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        {[["pending", "Pending"], ["approved", "Approved"], ["rejected", "Rejected"], ["all", "All"]].map(([v, l]) => (
+      <div className="flex gap-2 flex-wrap">
+        {([["pending", "Pending"], ["approved", "Approved"], ["rejected", "Rejected"], ["all", "All"]] as const).map(([v, l]) => (
           <button key={v} onClick={() => setStatusFilter(v)}
-            className={`px-4 py-2 text-xs font-bold rounded-xl border-2 transition-all ${statusFilter === v ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl border-2 transition-all ${statusFilter === v ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"}`}
+            data-testid={`filter-leave-${v}`}>
             {l}
+            {v === "pending" && pendingCount > 0 && (
+              <span className="min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
+                {pendingCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1487,54 +1592,90 @@ function LeaveTab() {
         </div>
       ) : (
         <div className="space-y-3">
-          {leaves.map((l: any) => (
-            <div key={l.id} className="bg-card border rounded-2xl overflow-hidden">
-              <div className="px-4 py-3 flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="font-bold">{l.user?.name}</p>
-                    <StatusBadge status={l.status} />
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary">
-                      {LEAVE_TYPE_LABELS[l.leaveType] || l.leaveType}
-                    </span>
-                    <span className="font-bold">
-                      {format(parseISO(l.startDate), "d MMM")} – {format(parseISO(l.endDate), "d MMM yyyy")}
-                    </span>
-                    <span className="text-muted-foreground">({parseFloat(l.totalDays)}d)</span>
-                  </div>
-                  {l.reason && <p className="text-xs text-muted-foreground mt-1">{l.reason}</p>}
-                </div>
-                <p className="text-2xl font-black text-muted-foreground shrink-0 ml-4">{parseFloat(l.totalDays)}d</p>
-              </div>
+          {(leaves as any[]).map((l: any) => {
+            const entitlement = parseInt(l.user?.annualLeaveEntitlement || "14");
+            const usedDays = usedAnnualByStaff[l.userId] || 0;
+            const remaining = entitlement - usedDays;
+            const isAnnual = l.leaveType === "annual";
 
-              {l.status === 'pending' && (
-                <div className="px-4 pb-4 space-y-2 border-t pt-3">
-                  <textarea value={notes[l.id] || ""} onChange={e => setNotes(n => ({ ...n, [l.id]: e.target.value }))}
-                    placeholder="Admin note (optional)" rows={2}
-                    className="w-full px-3 py-2 text-sm border rounded-xl bg-background resize-none" />
-                  <div className="flex gap-2">
-                    <button onClick={() => reviewMut.mutate({ id: l.id, status: "approved" })}
-                      disabled={reviewMut.isPending}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50"
-                      data-testid={`button-approve-leave-${l.id}`}>
-                      <Check className="w-3.5 h-3.5" /> Approve
-                    </button>
-                    <button onClick={() => reviewMut.mutate({ id: l.id, status: "rejected" })}
-                      disabled={reviewMut.isPending}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-destructive text-destructive-foreground text-xs font-bold rounded-xl hover:opacity-90 disabled:opacity-50"
-                      data-testid={`button-reject-leave-${l.id}`}>
-                      <X className="w-3.5 h-3.5" /> Reject
-                    </button>
+            return (
+              <div key={l.id} className="bg-card border rounded-2xl overflow-hidden">
+                {/* Card header */}
+                <div className="px-4 pt-3 pb-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <p className="font-bold">{l.user?.name}</p>
+                        <StatusBadge status={l.status} />
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
+                          {LEAVE_TYPE_LABELS[l.leaveType] || l.leaveType}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm flex-wrap">
+                        <span className="font-bold text-foreground">
+                          {format(parseISO(l.startDate), "d MMM")} – {format(parseISO(l.endDate), "d MMM yyyy")}
+                        </span>
+                        <span className="text-muted-foreground text-xs">
+                          Submitted {format(new Date(l.createdAt || l.startDate), "d MMM")}
+                        </span>
+                      </div>
+                      {l.reason && <p className="text-xs text-muted-foreground mt-1 italic">"{l.reason}"</p>}
+                    </div>
+                    {/* Days requested + balance */}
+                    <div className="shrink-0 text-right">
+                      <p className="text-2xl font-black leading-none">{parseFloat(l.totalDays)}d</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">requested</p>
+                      {isAnnual && (
+                        <p className={`text-[10px] font-bold mt-1 ${remaining < 0 ? "text-red-500" : remaining < 3 ? "text-amber-600" : "text-emerald-600"}`}>
+                          {remaining < 0 ? `${Math.abs(remaining).toFixed(1)}d over` : `${remaining.toFixed(1)}d left`}
+                        </p>
+                      )}
+                    </div>
                   </div>
+                  {/* Leave balance bar for annual leave */}
+                  {isAnnual && (
+                    <div className="mt-2.5">
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+                        <span>{usedDays.toFixed(1)} used of {entitlement} days entitlement</span>
+                        <span className={remaining < 0 ? "text-red-500 font-bold" : ""}>{remaining > 0 ? `${remaining.toFixed(1)} remaining` : "Exceeded"}</span>
+                      </div>
+                      <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${remaining < 0 ? "bg-red-500" : remaining < 3 ? "bg-amber-500" : "bg-emerald-500"}`}
+                          style={{ width: `${Math.min(100, (usedDays / entitlement) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-              {l.adminNote && (
-                <p className="px-4 pb-3 text-xs text-muted-foreground italic">Note: {l.adminNote}</p>
-              )}
-            </div>
-          ))}
+
+                {l.status === 'pending' && (
+                  <div className="px-4 pb-4 space-y-2 border-t pt-3">
+                    <textarea value={notes[l.id] || ""} onChange={e => setNotes(n => ({ ...n, [l.id]: e.target.value }))}
+                      placeholder="Admin note (optional)" rows={2}
+                      className="w-full px-3 py-2 text-sm border rounded-xl bg-background resize-none" />
+                    <div className="flex gap-2">
+                      <button onClick={() => reviewMut.mutate({ id: l.id, status: "approved" })}
+                        disabled={reviewMut.isPending}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50"
+                        data-testid={`button-approve-leave-${l.id}`}>
+                        <Check className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button onClick={() => reviewMut.mutate({ id: l.id, status: "rejected" })}
+                        disabled={reviewMut.isPending}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-destructive text-destructive-foreground text-xs font-bold rounded-xl hover:opacity-90 disabled:opacity-50"
+                        data-testid={`button-reject-leave-${l.id}`}>
+                        <X className="w-3.5 h-3.5" /> Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {l.adminNote && (
+                  <p className="px-4 pb-3 text-xs text-muted-foreground italic border-t pt-2">Admin note: {l.adminNote}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1658,16 +1799,33 @@ function PayslipsTab() {
             ) : null;
           })()}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-muted-foreground mb-1 block">Period Start</label>
-              <input type="date" value={genForm.periodStart} onChange={e => setGenForm(f => ({ ...f, periodStart: e.target.value }))}
-                className="w-full px-3 py-2 border rounded-xl text-sm bg-background" data-testid="input-period-start" />
+          {/* Period quick presets */}
+          <div>
+            <label className="text-xs font-bold text-muted-foreground mb-2 block">Pay Period</label>
+            <div className="flex gap-2 mb-2 flex-wrap">
+              {[
+                { label: "This Month", fn: () => { const t = new Date(); return [format(startOfMonth(t), "yyyy-MM-dd"), format(endOfMonth(t), "yyyy-MM-dd")]; } },
+                { label: "Last Month", fn: () => { const pm = new Date(); pm.setMonth(pm.getMonth() - 1); return [format(startOfMonth(pm), "yyyy-MM-dd"), format(endOfMonth(pm), "yyyy-MM-dd")]; } },
+                { label: "2 Months Ago", fn: () => { const pm = new Date(); pm.setMonth(pm.getMonth() - 2); return [format(startOfMonth(pm), "yyyy-MM-dd"), format(endOfMonth(pm), "yyyy-MM-dd")]; } },
+              ].map(({ label, fn }) => (
+                <button key={label} type="button"
+                  onClick={() => { const [s, e] = fn(); setGenForm(f => ({ ...f, periodStart: s, periodEnd: e })); }}
+                  className="px-3 py-1.5 text-xs font-bold border rounded-lg hover:bg-secondary transition-colors">
+                  {label}
+                </button>
+              ))}
             </div>
-            <div>
-              <label className="text-xs font-bold text-muted-foreground mb-1 block">Period End</label>
-              <input type="date" value={genForm.periodEnd} onChange={e => setGenForm(f => ({ ...f, periodEnd: e.target.value }))}
-                className="w-full px-3 py-2 border rounded-xl text-sm bg-background" data-testid="input-period-end" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] text-muted-foreground mb-1 block">From</label>
+                <input type="date" value={genForm.periodStart} onChange={e => setGenForm(f => ({ ...f, periodStart: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-xl text-sm bg-background" data-testid="input-period-start" />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground mb-1 block">To</label>
+                <input type="date" value={genForm.periodEnd} onChange={e => setGenForm(f => ({ ...f, periodEnd: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-xl text-sm bg-background" data-testid="input-period-end" />
+              </div>
             </div>
           </div>
           <textarea value={genForm.notes} onChange={e => setGenForm(f => ({ ...f, notes: e.target.value }))}
