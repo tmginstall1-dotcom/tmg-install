@@ -210,7 +210,11 @@ export default function QuoteStatus() {
             <CheckCircle2 className="w-5 h-5 text-black shrink-0" />
             <div>
               <p className="font-bold text-black text-sm">Payment received</p>
-              <p className="text-xs text-black/50 mt-0.5">Your payment has been confirmed. You can now book your appointment below.</p>
+              {quote && ["final_paid", "closed", "completed", "in_progress", "assigned"].includes(quote.status) ? (
+                <p className="text-xs text-black/50 mt-0.5">Your final payment has been confirmed. Thank you for choosing TMG Install!</p>
+              ) : (
+                <p className="text-xs text-black/50 mt-0.5">Your deposit has been confirmed. You can now book your appointment below.</p>
+              )}
             </div>
           </motion.div>
         )}
