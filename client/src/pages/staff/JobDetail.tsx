@@ -1,7 +1,7 @@
 import { useParams, Link } from "wouter";
 import { useQuote, useStaffArrived, useStaffCompleted } from "@/hooks/use-quotes";
 import { useState, useRef } from "react";
-import { ArrowLeft, MapPin, Phone, CheckCircle2, Camera, Map, Navigation, MessageCircle, Upload, X, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, Phone, CheckCircle2, Camera, Map, Navigation, MessageCircle, Upload, X, Loader2, Clock } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -49,6 +49,7 @@ export default function JobDetail() {
   const [note, setNote] = useState("");
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsTimestamp, setGpsTimestamp] = useState<Date | null>(null);
   const [actionType, setActionType] = useState<'arrived' | 'completed' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,6 +65,7 @@ export default function JobDetail() {
     try {
       const coords = await captureGPS();
       setGpsCoords(coords);
+      setGpsTimestamp(new Date());
       setGpsStatus('ok');
     } catch (err: any) {
       setGpsStatus('error');
@@ -228,6 +230,13 @@ export default function JobDetail() {
                 {gpsStatus === 'ok' && `✓ ${gpsCoords?.lat.toFixed(4)}, ${gpsCoords?.lng.toFixed(4)}`}
                 {gpsStatus === 'error' && 'Retry GPS'}
               </button>
+              {gpsStatus === 'ok' && gpsTimestamp && (
+                <p className="mt-2 text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  Captured at {gpsTimestamp.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  {' '}on {gpsTimestamp.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              )}
             </div>
 
             {/* Photos */}
@@ -274,7 +283,7 @@ export default function JobDetail() {
                 {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
                 {isPending ? "Uploading..." : actionType === 'arrived' ? "Confirm Arrived" : "Confirm Completed"}
               </button>
-              <button onClick={() => { setActionType(null); setPhotos([]); setGpsCoords(null); setGpsStatus('idle'); setNote(""); }}
+              <button onClick={() => { setActionType(null); setPhotos([]); setGpsCoords(null); setGpsTimestamp(null); setGpsStatus('idle'); setNote(""); }}
                 className="px-5 py-3.5 rounded-2xl border font-bold hover:bg-secondary transition-colors"
                 data-testid="button-cancel-action">
                 Cancel

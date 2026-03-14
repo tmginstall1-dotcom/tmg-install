@@ -529,29 +529,80 @@ export default function AdminQuoteDetail() {
               </h3>
               <div className="space-y-4">
                 {quote.updates?.map((update: any) => {
-                  const isFieldEvent = update.gpsLat || update.photoUrl;
+                  const isArrival   = update.statusChange === 'in_progress' && update.gpsLat;
+                  const isCompletion = update.statusChange === 'completed' && update.gpsLat;
+                  const isFieldEvent = isArrival || isCompletion;
                   let photos: string[] = [];
                   if (update.photoUrl) {
                     try { photos = JSON.parse(update.photoUrl); } catch { photos = [update.photoUrl]; }
                   }
+                  const eventTime = new Date(update.createdAt);
+
                   return (
-                    <div key={update.id} className={`flex gap-3 ${isFieldEvent ? 'items-start' : ''}`}>
+                    <div key={update.id} className="flex gap-3 items-start">
                       <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-1 ${
-                        update.statusChange === 'in_progress' ? 'bg-blue-100 border-blue-500' :
-                        update.statusChange === 'completed' ? 'bg-emerald-100 border-emerald-500' :
+                        isArrival    ? 'bg-blue-100 border-blue-500' :
+                        isCompletion ? 'bg-emerald-100 border-emerald-500' :
                         'bg-primary/20 border-primary'
                       }`}></div>
                       <div className="flex-1 pb-4 border-b last:border-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <h4 className="font-bold text-sm capitalize">{update.statusChange.replace(/_/g, ' ')}</h4>
-                          <time className="text-xs text-muted-foreground">{format(new Date(update.createdAt), 'MMM d, HH:mm')}</time>
-                        </div>
-                        <p className="text-xs text-muted-foreground capitalize">{update.actorType}</p>
-                        {update.note && <p className="text-xs text-muted-foreground mt-1 italic">"{update.note}"</p>}
+
+                        {/* Field event — arrival or completion: show prominent timestamp block */}
+                        {isFieldEvent ? (
+                          <div className={`rounded-2xl border p-4 mb-3 ${
+                            isArrival    ? 'bg-blue-50 border-blue-200' :
+                            'bg-emerald-50 border-emerald-200'
+                          }`}>
+                            <div className="flex items-start justify-between gap-2 flex-wrap">
+                              <div>
+                                <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${
+                                  isArrival ? 'text-blue-600' : 'text-emerald-600'
+                                }`}>
+                                  {isArrival ? '📍 Staff Arrived' : '✅ Job Completed'}
+                                </p>
+                                <p className={`text-lg font-black ${
+                                  isArrival ? 'text-blue-900' : 'text-emerald-900'
+                                }`}>
+                                  {format(eventTime, 'h:mm a')}
+                                </p>
+                                <p className={`text-xs font-medium mt-0.5 ${
+                                  isArrival ? 'text-blue-700' : 'text-emerald-700'
+                                }`}>
+                                  {format(eventTime, 'EEEE, d MMM yyyy')}
+                                </p>
+                              </div>
+                              <div className={`text-right text-xs ${
+                                isArrival ? 'text-blue-600' : 'text-emerald-600'
+                              }`}>
+                                <p className="font-semibold capitalize">{update.actorType}</p>
+                              </div>
+                            </div>
+                            {update.note && (
+                              <p className={`text-xs mt-2 italic border-t pt-2 ${
+                                isArrival ? 'text-blue-700 border-blue-200' : 'text-emerald-700 border-emerald-200'
+                              }`}>
+                                "{update.note}"
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-bold text-sm capitalize">{update.statusChange.replace(/_/g, ' ')}</h4>
+                            <time className="text-xs text-muted-foreground">{format(eventTime, 'MMM d, HH:mm')}</time>
+                          </div>
+                        )}
+
+                        {/* Non-field event meta */}
+                        {!isFieldEvent && (
+                          <>
+                            <p className="text-xs text-muted-foreground capitalize">{update.actorType}</p>
+                            {update.note && <p className="text-xs text-muted-foreground mt-1 italic">"{update.note}"</p>}
+                          </>
+                        )}
 
                         {/* GPS Proof */}
                         {update.gpsLat && (
-                          <div className="mt-2 inline-flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+                          <div className="mt-2 inline-flex items-center gap-2 bg-white border border-blue-200 rounded-xl px-3 py-2">
                             <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
                             <span className="text-xs font-semibold text-blue-800">
                               {Number(update.gpsLat).toFixed(5)}, {Number(update.gpsLng).toFixed(5)}
@@ -562,7 +613,7 @@ export default function AdminQuoteDetail() {
                               rel="noreferrer"
                               className="text-xs font-bold text-blue-600 underline hover:text-blue-800 ml-1"
                             >
-                              View on Maps ↗
+                              Maps ↗
                             </a>
                           </div>
                         )}
