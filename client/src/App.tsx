@@ -29,10 +29,8 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   const [, setLocation] = useLocation();
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
-  if (!user || user.role !== 'admin') {
-    setLocation('/admin/login');
-    return null;
-  }
+  if (!user) { setLocation('/admin/login'); return null; }
+  if (user.role !== 'admin') { setLocation('/staff'); return null; }
   return <Component />;
 }
 
