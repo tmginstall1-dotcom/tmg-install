@@ -3,6 +3,28 @@ import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Teams (groups of staff members)
+export const teams = pgTable("teams", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  color: text("color").notNull().default("#6366f1"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Attendance Logs (daily clock in/out)
+export const attendanceLogs = pgTable("attendance_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clockInAt: timestamp("clock_in_at").notNull(),
+  clockOutAt: timestamp("clock_out_at"),
+  clockInLat: numeric("clock_in_lat"),
+  clockInLng: numeric("clock_in_lng"),
+  clockOutLat: numeric("clock_out_lat"),
+  clockOutLng: numeric("clock_out_lng"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Users (Admin/Staff)
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -10,6 +32,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: text("role").notNull().default('staff'), // 'admin' | 'staff'
   name: text("name").notNull(),
+  teamId: integer("team_id").references(() => teams.id),
 });
 
 // Customers
@@ -114,6 +137,19 @@ export const jobUpdates = pgTable("job_updates", {
 });
 
 // Relations
+export const teamsRelations = relations(teams, ({ many }) => ({
+  members: many(users),
+}));
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+  team: one(teams, { fields: [users.teamId], references: [teams.id] }),
+  attendanceLogs: many(attendanceLogs),
+}));
+
+export const attendanceLogsRelations = relations(attendanceLogs, ({ one }) => ({
+  user: one(users, { fields: [attendanceLogs.userId], references: [users.id] }),
+}));
+
 export const quotesRelations = relations(quotes, ({ one, many }) => ({
   customer: one(customers, { fields: [quotes.customerId], references: [customers.id] }),
   assignedStaff: one(users, { fields: [quotes.assignedStaffId], references: [users.id] }),
@@ -139,6 +175,16 @@ export const blockedSlots = pgTable("blocked_slots", {
 export const insertBlockedSlotSchema = createInsertSchema(blockedSlots).omit({ id: true, createdAt: true });
 export type BlockedSlot = typeof blockedSlots.$inferSelect;
 export type InsertBlockedSlot = z.infer<typeof insertBlockedSlotSchema>;
+
+export const insertTeamSchema = createInsertSchema(teams).omit({ id: true, createdAt: true });
+export type Team = typeof teams.$inferSelect;
+export type InsertTeam = z.infer<typeof insertTeamSchema>;
+
+export const insertAttendanceLogSchema = createInsertSchema(attendanceLogs).omit({ id: true, createdAt: true });
+export type AttendanceLog = typeof attendanceLogs.$inferSelect;
+export type InsertAttendanceLog = z.infer<typeof insertAttendanceLogSchema>;
+
+export type AttendanceLogWithUser = AttendanceLog & { user?: User };
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });

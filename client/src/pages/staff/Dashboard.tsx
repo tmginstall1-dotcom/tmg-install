@@ -1,13 +1,27 @@
-import { useQuotes } from "@/hooks/use-quotes";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { MapPin, CalendarDays, ChevronRight, Phone, MessageCircle, User } from "lucide-react";
-import { format, isToday, isFuture, isPast } from "date-fns";
+import { MapPin, CalendarDays, ChevronRight, Phone, MessageCircle, User, LogIn, LogOut, Clock, Users } from "lucide-react";
+import { format, isToday, differenceInMinutes } from "date-fns";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function StaffDashboard() {
-  const { data: quotes, isLoading } = useQuotes();
   const { user } = useAuth();
+  const qc = useQueryClient();
+
+  const { data: quotes, isLoading: jobsLoading } = useQuery<any[]>({
+    queryKey: ["/api/staff/quotes"],
+  });
+
+  const { data: attendance, isLoading: attLoading } = useQuery<any>({
+    queryKey: ["/api/attendance/today"],
+    refetchInterval: 30000,
+  });
+
+  const isLoading = jobsLoading || attLoading;
 
   if (isLoading) return (
     <div className="min-h-screen pt-32 flex items-center justify-center">
@@ -16,18 +30,13 @@ export default function StaffDashboard() {
   );
 
   const allJobs = quotes || [];
-
-  // Active Now: in_progress (on-site right now)
   const activeNow = allJobs.filter((q: any) => q.status === 'in_progress');
-
-  // Upcoming: booked (confirmed, not yet assigned) + assigned (assigned to someone, not yet started)
-  // sorted by scheduledAt ascending
   const upcoming = allJobs
     .filter((q: any) => ['booked', 'assigned'].includes(q.status))
     .sort((a: any, b: any) => {
       const da = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
-      const db2 = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
-      return da - db2;
+      const db = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
+      return da - db;
     });
 
   const totalVisible = activeNow.length + upcoming.length;
@@ -36,10 +45,13 @@ export default function StaffDashboard() {
     <div className="min-h-screen pt-24 pb-20 bg-background">
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
 
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-3xl font-display font-black">My Jobs</h1>
           <p className="text-muted-foreground">Active assignments and upcoming schedule</p>
         </div>
+
+        {/* Clock In/Out Widget */}
+        <ClockWidget attendance={attendance} userId={user?.id} />
 
         {/* Active Now */}
         {activeNow.length > 0 && (
@@ -53,7 +65,7 @@ export default function StaffDashboard() {
           </section>
         )}
 
-        {/* Upcoming — all booked + assigned jobs */}
+        {/* Upcoming */}
         {upcoming.length > 0 && (
           <section className="mb-8">
             <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">
@@ -81,8 +93,133 @@ export default function StaffDashboard() {
   );
 }
 
+function ClockWidget({ attendance, userId }: { attendance: any; userId?: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [now, setNow] = useState(new Date());
+  const [gpsLoading, setGpsLoading] = useState(false);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const isClockedIn = attendance && !attendance.clockOutAt;
+  const isClockedOut = attendance && attendance.clockOutAt;
+
+  const elapsed = isClockedIn
+    ? differenceInMinutes(now, new Date(attendance.clockInAt))
+    : isClockedOut
+    ? differenceInMinutes(new Date(attendance.clockOutAt), new Date(attendance.clockInAt))
+    : 0;
+
+  const fmtDuration = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  const getGps = (): Promise<{ lat: string; lng: string } | null> =>
+    new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: String(pos.coords.latitude), lng: String(pos.coords.longitude) }),
+        () => resolve(null),
+        { timeout: 8000 }
+      );
+    });
+
+  const clockInMut = useMutation({
+    mutationFn: async () => {
+      setGpsLoading(true);
+      const gps = await getGps();
+      setGpsLoading(false);
+      return apiRequest("POST", "/api/attendance/clock-in", { lat: gps?.lat, lng: gps?.lng });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/attendance/today"] });
+      toast({ title: "Clocked in", description: `${format(new Date(), "HH:mm")} — have a great day!` });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const clockOutMut = useMutation({
+    mutationFn: async () => {
+      setGpsLoading(true);
+      const gps = await getGps();
+      setGpsLoading(false);
+      return apiRequest("POST", "/api/attendance/clock-out", { lat: gps?.lat, lng: gps?.lng });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/attendance/today"] });
+      toast({ title: "Clocked out", description: `See you tomorrow!` });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const isPending = clockInMut.isPending || clockOutMut.isPending || gpsLoading;
+
+  return (
+    <div className={`mb-8 rounded-3xl border-2 overflow-hidden shadow-sm ${
+      isClockedIn ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20"
+      : isClockedOut ? "border-border bg-card"
+      : "border-border bg-card"
+    }`}>
+      <div className="px-5 py-4 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-0.5">
+            {isClockedIn ? "On the Clock" : isClockedOut ? "Today's Attendance" : "Not Clocked In"}
+          </p>
+          <p className="text-2xl font-black font-mono tabular-nums">
+            {isClockedIn
+              ? format(now, "HH:mm:ss")
+              : isClockedOut
+              ? fmtDuration(elapsed)
+              : format(now, "HH:mm")}
+          </p>
+          {isClockedIn && (
+            <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">
+              In at {format(new Date(attendance.clockInAt), "HH:mm")} · {fmtDuration(elapsed)} elapsed
+            </p>
+          )}
+          {isClockedOut && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {format(new Date(attendance.clockInAt), "HH:mm")} – {format(new Date(attendance.clockOutAt), "HH:mm")} · {fmtDuration(elapsed)} worked
+            </p>
+          )}
+          {!attendance && (
+            <p className="text-xs text-muted-foreground mt-0.5">{format(now, "EEE, d MMM yyyy")}</p>
+          )}
+        </div>
+
+        {!isClockedOut && (
+          <button
+            onClick={() => isClockedIn ? clockOutMut.mutate() : clockInMut.mutate()}
+            disabled={isPending}
+            data-testid={isClockedIn ? "button-clock-out" : "button-clock-in"}
+            className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all disabled:opacity-60 ${
+              isClockedIn
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-emerald-600 text-white hover:bg-emerald-700"
+            }`}
+          >
+            {isPending ? (
+              <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            ) : isClockedIn ? (
+              <><LogOut className="w-4 h-4" /> Clock Out</>
+            ) : (
+              <><LogIn className="w-4 h-4" /> Clock In</>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function JobCard({ job, priority, myUserId }: { job: any; priority?: boolean; myUserId?: number }) {
   const isMyJob = job.assignedStaffId && job.assignedStaffId === myUserId;
+  const isTeamJob = job.assignedStaffId && job.assignedStaffId !== myUserId;
   const isUnassigned = !job.assignedStaffId && job.status === 'booked';
 
   const scheduledDate = job.scheduledAt ? new Date(job.scheduledAt) : null;
@@ -108,8 +245,13 @@ function JobCard({ job, priority, myUserId }: { job: any; priority?: boolean; my
                   <User className="w-2.5 h-2.5" /> Your Job
                 </span>
               )}
+              {isTeamJob && job.assignedStaff && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full dark:bg-violet-900/30 dark:text-violet-300">
+                  <Users className="w-2.5 h-2.5" /> {job.assignedStaff.name}
+                </span>
+              )}
               {isUnassigned && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
                   Unassigned
                 </span>
               )}
@@ -127,10 +269,7 @@ function JobCard({ job, priority, myUserId }: { job: any; priority?: boolean; my
           {job.scheduledAt && (
             <div className="flex items-center gap-2 text-sm">
               <CalendarDays className="w-4 h-4 shrink-0 text-muted-foreground" />
-              <span className={[
-                "font-semibold",
-                dateLabel === "Today" ? "text-orange-600" : "text-muted-foreground"
-              ].join(" ")}>
+              <span className={["font-semibold", dateLabel === "Today" ? "text-orange-600" : "text-muted-foreground"].join(" ")}>
                 {dateLabel} · {job.timeWindow || "TBD"}
               </span>
             </div>

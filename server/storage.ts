@@ -1,10 +1,11 @@
 import { db } from "./db";
 import { 
-  users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots,
+  users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
-  type QuoteResponse, type InsertBlockedSlot, type BlockedSlot
+  type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
+  type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser
 } from "@shared/schema";
-import { eq, desc, or, inArray, isNotNull, and, not } from "drizzle-orm";
+import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -12,6 +13,22 @@ export interface IStorage {
   getUserById(id: number): Promise<typeof users.$inferSelect | undefined>;
   getStaffMembers(): Promise<typeof users.$inferSelect[]>;
   createUser(user: InsertUser): Promise<typeof users.$inferSelect>;
+  updateUser(id: number, data: Partial<typeof users.$inferInsert>): Promise<typeof users.$inferSelect | undefined>;
+  deleteUser(id: number): Promise<void>;
+
+  // Teams
+  getTeams(): Promise<(Team & { members: typeof users.$inferSelect[] })[]>;
+  createTeam(team: InsertTeam): Promise<Team>;
+  updateTeam(id: number, data: Partial<InsertTeam>): Promise<Team | undefined>;
+  deleteTeam(id: number): Promise<void>;
+  assignUserToTeam(userId: number, teamId: number | null): Promise<void>;
+  getTeammateIds(userId: number): Promise<number[]>;
+
+  // Attendance
+  clockIn(userId: number, lat?: string, lng?: string): Promise<AttendanceLog>;
+  clockOut(userId: number, lat?: string, lng?: string): Promise<AttendanceLog | undefined>;
+  getTodayAttendance(userId: number): Promise<AttendanceLog | undefined>;
+  getAttendanceLogs(from?: Date, to?: Date, userId?: number): Promise<AttendanceLogWithUser[]>;
 
   // Catalog
   getCatalogItems(search?: string): Promise<typeof catalogItems.$inferSelect[]>;
@@ -23,6 +40,7 @@ export interface IStorage {
   // Quotes
   getQuotes(status?: string): Promise<QuoteResponse[]>;
   getQuotesByStatuses(statuses: string[]): Promise<QuoteResponse[]>;
+  getQuotesForStaff(staffId: number): Promise<QuoteResponse[]>;
   getQuote(id: number): Promise<QuoteResponse | undefined>;
   createQuote(customer: InsertCustomer, quote: Omit<InsertQuote, 'customerId'>, items: InsertQuoteItem[]): Promise<QuoteResponse>;
   updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number): Promise<QuoteResponse | undefined>;
@@ -65,6 +83,116 @@ export class DatabaseStorage implements IStorage {
   async createUser(user: InsertUser) {
     const [created] = await db.insert(users).values(user).returning();
     return created;
+  }
+
+  async updateUser(id: number, data: Partial<typeof users.$inferInsert>) {
+    const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return updated;
+  }
+
+  async deleteUser(id: number) {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  // Teams
+  async getTeams() {
+    const allTeams = await db.select().from(teams).orderBy(teams.name);
+    const allStaff = await db.select().from(users).where(eq(users.role, 'staff'));
+    return allTeams.map(team => ({
+      ...team,
+      members: allStaff.filter(u => u.teamId === team.id),
+    }));
+  }
+
+  async createTeam(team: InsertTeam) {
+    const [created] = await db.insert(teams).values(team).returning();
+    return created;
+  }
+
+  async updateTeam(id: number, data: Partial<InsertTeam>) {
+    const [updated] = await db.update(teams).set(data).where(eq(teams.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTeam(id: number) {
+    await db.update(users).set({ teamId: null }).where(eq(users.teamId, id));
+    await db.delete(teams).where(eq(teams.id, id));
+  }
+
+  async assignUserToTeam(userId: number, teamId: number | null) {
+    await db.update(users).set({ teamId }).where(eq(users.id, userId));
+  }
+
+  async getTeammateIds(userId: number): Promise<number[]> {
+    const [me] = await db.select().from(users).where(eq(users.id, userId));
+    if (!me?.teamId) return [userId];
+    const teammates = await db.select({ id: users.id }).from(users).where(eq(users.teamId, me.teamId));
+    return teammates.map(t => t.id);
+  }
+
+  // Attendance
+  async clockIn(userId: number, lat?: string, lng?: string): Promise<AttendanceLog> {
+    const [log] = await db.insert(attendanceLogs).values({
+      userId,
+      clockInAt: new Date(),
+      clockInLat: lat,
+      clockInLng: lng,
+    }).returning();
+    return log;
+  }
+
+  async clockOut(userId: number, lat?: string, lng?: string): Promise<AttendanceLog | undefined> {
+    // Find the most recent open record (no clockOutAt)
+    const [open] = await db.select().from(attendanceLogs)
+      .where(and(eq(attendanceLogs.userId, userId), isNull(attendanceLogs.clockOutAt)))
+      .orderBy(desc(attendanceLogs.clockInAt))
+      .limit(1);
+    if (!open) return undefined;
+    const [updated] = await db.update(attendanceLogs)
+      .set({ clockOutAt: new Date(), clockOutLat: lat, clockOutLng: lng })
+      .where(eq(attendanceLogs.id, open.id))
+      .returning();
+    return updated;
+  }
+
+  async getTodayAttendance(userId: number): Promise<AttendanceLog | undefined> {
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+    const [log] = await db.select().from(attendanceLogs)
+      .where(and(
+        eq(attendanceLogs.userId, userId),
+        gte(attendanceLogs.clockInAt, todayStart),
+        lte(attendanceLogs.clockInAt, todayEnd)
+      ))
+      .orderBy(desc(attendanceLogs.clockInAt))
+      .limit(1);
+    return log;
+  }
+
+  async getAttendanceLogs(from?: Date, to?: Date, userId?: number): Promise<AttendanceLogWithUser[]> {
+    const conditions = [];
+    if (from) conditions.push(gte(attendanceLogs.clockInAt, from));
+    if (to) conditions.push(lte(attendanceLogs.clockInAt, to));
+    if (userId) conditions.push(eq(attendanceLogs.userId, userId));
+
+    const logs = await db.select().from(attendanceLogs)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(desc(attendanceLogs.clockInAt));
+
+    const staffList = await db.select().from(users);
+    return logs.map(log => ({
+      ...log,
+      user: staffList.find(u => u.id === log.userId),
+    }));
+  }
+
+  async getQuotesForStaff(staffId: number): Promise<QuoteResponse[]> {
+    const teammateIds = await this.getTeammateIds(staffId);
+    const quotesList = await db.select().from(quotes)
+      .where(inArray(quotes.assignedStaffId, teammateIds))
+      .orderBy(desc(quotes.createdAt));
+    const results = await Promise.all(quotesList.map(q => this.fetchQuoteDetails(q.id)));
+    return results.filter(Boolean) as QuoteResponse[];
   }
 
   async getCatalogItems(search?: string) {

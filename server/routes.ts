@@ -180,6 +180,138 @@ export async function registerRoutes(
     res.json(staff);
   });
 
+  // Create staff member (admin only)
+  app.post("/api/admin/staff", async (req, res) => {
+    try {
+      const { username, password, name } = z.object({
+        username: z.string().min(2),
+        password: z.string().min(6),
+        name: z.string().min(2),
+      }).parse(req.body);
+      const existing = await storage.getUserByUsername(username);
+      if (existing) return res.status(409).json({ message: "Username already taken" });
+      const user = await storage.createUser({ username, password, name, role: 'staff' });
+      res.json(user);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  // Update staff member
+  app.patch("/api/admin/staff/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const data = z.object({
+        name: z.string().min(2).optional(),
+        password: z.string().min(6).optional(),
+        teamId: z.number().nullable().optional(),
+      }).parse(req.body);
+      const updated = await storage.updateUser(id, data);
+      res.json(updated);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  // Delete staff member
+  app.delete("/api/admin/staff/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteUser(id);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // -- Team Routes --
+  app.get("/api/teams", async (_req, res) => {
+    const data = await storage.getTeams();
+    res.json(data);
+  });
+
+  app.post("/api/teams", async (req, res) => {
+    try {
+      const data = z.object({ name: z.string().min(1), color: z.string().optional() }).parse(req.body);
+      const team = await storage.createTeam({ name: data.name, color: data.color || "#6366f1" });
+      res.json(team);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.patch("/api/teams/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const data = z.object({ name: z.string().min(1).optional(), color: z.string().optional() }).parse(req.body);
+      const updated = await storage.updateTeam(id, data);
+      res.json(updated);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.delete("/api/teams/:id", async (req, res) => {
+    try {
+      await storage.deleteTeam(parseInt(req.params.id));
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/teams/:id/assign", async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.id);
+      const { userId } = z.object({ userId: z.number() }).parse(req.body);
+      await storage.assignUserToTeam(userId, teamId);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.post("/api/staff/:id/unassign-team", async (req, res) => {
+    try {
+      await storage.assignUserToTeam(parseInt(req.params.id), null);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // -- Attendance Routes --
+  app.get("/api/attendance/today", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const log = await storage.getTodayAttendance(req.session.userId);
+    res.json(log || null);
+  });
+
+  app.post("/api/attendance/clock-in", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const { lat, lng } = z.object({ lat: z.string().optional(), lng: z.string().optional() }).parse(req.body);
+      // Check if already clocked in today
+      const existing = await storage.getTodayAttendance(req.session.userId);
+      if (existing && !existing.clockOutAt) return res.status(409).json({ message: "Already clocked in" });
+      const log = await storage.clockIn(req.session.userId, lat, lng);
+      res.json(log);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.post("/api/attendance/clock-out", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const { lat, lng } = z.object({ lat: z.string().optional(), lng: z.string().optional() }).parse(req.body);
+      const log = await storage.clockOut(req.session.userId, lat, lng);
+      if (!log) return res.status(404).json({ message: "No active clock-in found" });
+      res.json(log);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.get("/api/admin/attendance", async (req, res) => {
+    try {
+      const { from, to, userId } = req.query;
+      const logs = await storage.getAttendanceLogs(
+        from ? new Date(from as string) : undefined,
+        to ? new Date(to as string) : undefined,
+        userId ? parseInt(userId as string) : undefined,
+      );
+      res.json(logs);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Staff-specific quotes (team-aware)
+  app.get("/api/staff/quotes", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const quotes = await storage.getQuotesForStaff(req.session.userId);
+    res.json(quotes);
+  });
+
   // -- Catalog Routes --
   app.get(api.catalog.list.path, async (req, res) => {
     const search = req.query.search as string | undefined;

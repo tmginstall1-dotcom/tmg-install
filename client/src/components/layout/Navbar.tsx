@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, MessageCircle, Menu, X, LayoutDashboard, Calendar, FileDown, Briefcase } from "lucide-react";
+import { LogOut, MessageCircle, Menu, X, LayoutDashboard, Calendar, FileDown, Briefcase, Users } from "lucide-react";
 
 const WHATSAPP = "https://wa.me/6580880757";
 
@@ -68,6 +68,7 @@ export function Navbar() {
   const adminLinks = [
     { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
     { href: "/admin/schedule", label: "Schedule", icon: Calendar },
+    { href: "/admin/staff", label: "Staff", icon: Users },
     { href: "/admin/export", label: "Export", icon: FileDown },
   ];
 
