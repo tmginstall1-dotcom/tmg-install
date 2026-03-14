@@ -296,9 +296,14 @@ export async function registerRoutes(
   app.get("/api/admin/attendance", async (req, res) => {
     try {
       const { from, to, userId } = req.query;
+      const parseDate = (s: unknown) => {
+        if (!s) return undefined;
+        const d = new Date(s as string);
+        return isNaN(d.getTime()) ? undefined : d;
+      };
       const logs = await storage.getAttendanceLogs(
-        from ? new Date(from as string) : undefined,
-        to ? new Date(to as string) : undefined,
+        parseDate(from),
+        parseDate(to),
         userId ? parseInt(userId as string) : undefined,
       );
       res.json(logs);

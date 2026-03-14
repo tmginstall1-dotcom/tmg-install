@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, differenceInMinutes, startOfMonth, endOfMonth, startOfWeek, endOfWeek, parseISO } from "date-fns";
 import {
   Plus, Trash2, Pencil, Check, X, Users, Clock, UserPlus, LogIn, LogOut,
-  ChevronDown, ChevronUp, Calendar, FileText, Settings2, Loader2, AlertCircle
+  ChevronDown, ChevronUp, Calendar, FileText, Settings2, Loader2, AlertCircle, MapPin
 } from "lucide-react";
 
 const TEAM_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6"];
@@ -468,13 +468,18 @@ function TodayRoster() {
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const [date, setDate] = useState(todayStr);
   const { data: staff = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
+  const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(new Date(date).getTime());
   const { data: logs = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/attendance", date, date, ""],
     queryFn: async () => {
+      if (!isValidDate) return [];
       const params = new URLSearchParams({ from: date + "T00:00:00", to: date + "T23:59:59" });
       const res = await fetch(`/api/admin/attendance?${params}`);
-      return res.json();
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
     },
+    enabled: isValidDate,
     refetchInterval: 30000,
   });
 
@@ -504,7 +509,7 @@ function TodayRoster() {
             className="text-xs font-bold text-primary underline">Back to Today</button>
         )}
         <span className="text-xs text-muted-foreground font-medium">
-          {isToday ? "Today, " : ""}{format(new Date(date + "T12:00:00"), "EEEE d MMMM yyyy")}
+          {(() => { try { const d = new Date(date + "T12:00:00"); if (isNaN(d.getTime())) return ""; return (isToday ? "Today, " : "") + format(d, "EEEE d MMMM yyyy"); } catch { return ""; } })()}
         </span>
       </div>
 
@@ -551,12 +556,27 @@ function TodayRoster() {
 }
 
 function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" | "out" | "absent" }) {
+  const [mapOpen, setMapOpen] = useState<"in" | "out" | null>(null);
   const mins = log?.clockOutAt
     ? differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt))
     : null;
 
+  const hasInGps  = !!(log?.clockInLat  && log?.clockInLng);
+  const hasOutGps = !!(log?.clockOutLat && log?.clockOutLng);
+
+  const activeGps = mapOpen === "out" && hasOutGps
+    ? { lat: log.clockOutLat, lng: log.clockOutLng }
+    : hasInGps
+    ? { lat: log.clockInLat,  lng: log.clockInLng  }
+    : null;
+
+  const osmSrc = activeGps
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${+activeGps.lng - 0.003},${+activeGps.lat - 0.003},${+activeGps.lng + 0.003},${+activeGps.lat + 0.003}&layer=mapnik&marker=${activeGps.lat},${activeGps.lng}`
+    : null;
+
   return (
     <div className="px-4 py-3" data-testid={`roster-row-${staff.id}`}>
+      {/* Main row */}
       <div className="flex items-center gap-3">
         <StaffAvatar user={staff} size={10} />
         <div className="flex-1 min-w-0">
@@ -583,26 +603,89 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
             <span className="text-xs text-muted-foreground">Not clocked in</span>
           )}
         </div>
-        {/* GPS links */}
-        <div className="shrink-0 flex flex-col items-end gap-1">
-          {log?.clockInLat && log?.clockInLng && (
-            <a href={`https://maps.google.com/?q=${log.clockInLat},${log.clockInLng}`}
-              target="_blank" rel="noreferrer"
-              className="text-[10px] font-bold text-primary flex items-center gap-0.5 hover:underline"
-              title="View clock-in location">
-              <LogIn className="w-3 h-3" /> In
-            </a>
+
+        {/* GPS map toggle buttons */}
+        <div className="shrink-0 flex items-center gap-1.5">
+          {hasInGps && (
+            <button
+              onClick={() => setMapOpen(prev => prev === "in" ? null : "in")}
+              data-testid={`button-map-in-${staff.id}`}
+              className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg border transition-colors ${
+                mapOpen === "in"
+                  ? "bg-emerald-500 text-white border-emerald-500"
+                  : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
+              }`}
+              title="View clock-in location"
+            >
+              <MapPin className="w-3 h-3" />
+              In
+            </button>
           )}
-          {log?.clockOutLat && log?.clockOutLng && (
-            <a href={`https://maps.google.com/?q=${log.clockOutLat},${log.clockOutLng}`}
-              target="_blank" rel="noreferrer"
-              className="text-[10px] font-bold text-red-500 flex items-center gap-0.5 hover:underline"
-              title="View clock-out location">
-              <LogOut className="w-3 h-3" /> Out
-            </a>
+          {hasOutGps && (
+            <button
+              onClick={() => setMapOpen(prev => prev === "out" ? null : "out")}
+              data-testid={`button-map-out-${staff.id}`}
+              className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg border transition-colors ${
+                mapOpen === "out"
+                  ? "bg-red-500 text-white border-red-500"
+                  : "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900"
+              }`}
+              title="View clock-out location"
+            >
+              <MapPin className="w-3 h-3" />
+              Out
+            </button>
+          )}
+          {!hasInGps && !hasOutGps && log && (
+            <span className="text-[10px] text-muted-foreground italic">No GPS</span>
           )}
         </div>
       </div>
+
+      {/* Inline OSM map panel */}
+      {mapOpen && osmSrc && (
+        <div className="mt-3 rounded-xl overflow-hidden border border-border shadow-sm">
+          {/* Header strip */}
+          <div className={`flex items-center justify-between px-3 py-2 ${
+            mapOpen === "in"
+              ? "bg-emerald-500 text-white"
+              : "bg-red-500 text-white"
+          }`}>
+            <div className="flex items-center gap-2 text-xs font-bold">
+              <MapPin className="w-3.5 h-3.5" />
+              {mapOpen === "in"
+                ? `Clock-In · ${log?.clockInAt ? format(new Date(log.clockInAt), "h:mm a") : ""}`
+                : `Clock-Out · ${log?.clockOutAt ? format(new Date(log.clockOutAt), "h:mm a") : ""}`}
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href={`https://maps.google.com/?q=${activeGps!.lat},${activeGps!.lng}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[10px] font-bold underline opacity-90 hover:opacity-100"
+              >
+                Open in Maps ↗
+              </a>
+              <button onClick={() => setMapOpen(null)} className="opacity-80 hover:opacity-100 ml-1">
+                ✕
+              </button>
+            </div>
+          </div>
+          {/* Map iframe */}
+          <iframe
+            src={osmSrc}
+            title={`${staff.name} ${mapOpen === "in" ? "clock-in" : "clock-out"} location`}
+            className="w-full"
+            style={{ height: 220, border: "none" }}
+            loading="lazy"
+          />
+          {/* Coords footer */}
+          <div className="px-3 py-1.5 bg-muted/60 text-[10px] font-mono text-muted-foreground flex items-center justify-between">
+            <span>{parseFloat(activeGps!.lat).toFixed(6)}, {parseFloat(activeGps!.lng).toFixed(6)}</span>
+            <span className="font-sans text-[10px]">{staff.name}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
