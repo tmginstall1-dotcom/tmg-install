@@ -82,6 +82,7 @@ export const payslips = pgTable("payslips", {
   periodEnd: text("period_end").notNull(),        // yyyy-MM-dd
   regularHours: numeric("regular_hours").default("0"),
   overtimeHours: numeric("overtime_hours").default("0"),
+  basicPay: numeric("basic_pay").default("0"),
   regularPay: numeric("regular_pay").default("0"),
   overtimePay: numeric("overtime_pay").default("0"),
   leaveDeduction: numeric("leave_deduction").default("0"),

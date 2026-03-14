@@ -1696,10 +1696,12 @@ function PayslipsTab() {
           {payslips.map((ps: any) => {
             const isOpen = expandedId === ps.id;
             const isMonthlyBased = parseFloat(ps.user?.monthlyRate || "0") > 0;
+            const basicPay = parseFloat(ps.basicPay || "0");
             const detailItems = isMonthlyBased
               ? [
-                  { label: "Monthly Salary", val: `S$${parseFloat(ps.regularPay).toFixed(2)}` },
+                  { label: "Basic Salary", val: `S$${basicPay.toFixed(2)}` },
                   { label: "Regular Hours", val: `${parseFloat(ps.regularHours).toFixed(1)}h` },
+                  { label: "Regular Pay", val: `S$${parseFloat(ps.regularPay).toFixed(2)}` },
                   { label: "OT Hours", val: `${parseFloat(ps.overtimeHours).toFixed(1)}h` },
                   { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}` },
                   { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}` },

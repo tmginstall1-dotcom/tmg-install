@@ -533,14 +533,16 @@ export async function registerRoutes(
         }
       }
 
-      let regularPay = 0, overtimePay = 0, grossPay = 0;
+      let basicPay = 0, regularPay = 0, overtimePay = 0, grossPay = 0;
       if (isMonthly) {
-        // Monthly salary base + OT hours × OT rate
-        regularPay  = monthlyRate;
+        // Basic salary (fixed) + regular hrs × hourly rate + OT hrs × OT rate
+        basicPay    = monthlyRate;
+        regularPay  = regularHours * hourlyRate;
         overtimePay = overtimeHours * overtimeRate;
-        grossPay    = regularPay + overtimePay;
+        grossPay    = basicPay + regularPay + overtimePay;
       } else {
         // Purely hourly: regular hrs × hourly rate + OT hrs × OT rate
+        basicPay    = 0;
         regularPay  = regularHours * hourlyRate;
         overtimePay = overtimeHours * overtimeRate;
         grossPay    = regularPay + overtimePay;
@@ -566,6 +568,7 @@ export async function registerRoutes(
         periodEnd,
         regularHours: regularHours.toFixed(2),
         overtimeHours: overtimeHours.toFixed(2),
+        basicPay: basicPay.toFixed(2),
         regularPay: regularPay.toFixed(2),
         overtimePay: overtimePay.toFixed(2),
         leaveDeduction: leaveDeduction.toFixed(2),
