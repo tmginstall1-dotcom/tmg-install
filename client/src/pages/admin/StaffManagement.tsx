@@ -435,6 +435,8 @@ function PayrollTab() {
   });
 
   const staffTotals = (logs as any[]).reduce((acc: any, log: any) => {
+    // Skip admin / non-staff records
+    if (log.user?.role !== 'staff') return acc;
     const uid = log.userId;
     if (!acc[uid]) acc[uid] = { user: log.user, totalMins: 0, days: 0, logs: [] };
     if (log.clockOutAt) {
@@ -445,6 +447,13 @@ function PayrollTab() {
     acc[uid].logs.push(log);
     return acc;
   }, {});
+
+  // Merge in staff who have no logs this period (show them with 0h so admin can see all staff)
+  (staff as any[]).forEach((s: any) => {
+    if (!staffTotals[s.id]) {
+      staffTotals[s.id] = { user: s, totalMins: 0, days: 0, logs: [] };
+    }
+  });
 
   const staffRows = Object.values(staffTotals) as any[];
   const grandTotal = staffRows.reduce((sum, r) => sum + r.totalMins, 0);
@@ -475,7 +484,7 @@ function PayrollTab() {
             <select value={filterUserId} onChange={e => setFilterUserId(e.target.value)}
               className="px-3 py-2 border rounded-lg text-sm bg-background min-w-[120px]" data-testid="select-staff-filter">
               <option value="">All Staff</option>
-              {staff.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {staff.map((s: any) => <option key={s.id} value={s.id}>{s.name} (@{s.username})</option>)}
             </select>
           </div>
           <div className="flex gap-1 pb-0.5">
@@ -495,45 +504,43 @@ function PayrollTab() {
           <p className="text-2xl font-black">{fmt(grandTotal)}</p>
         </div>
         <div className="bg-card border rounded-2xl p-4">
-          <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide mb-1">Staff Tracked</p>
-          <p className="text-2xl font-black">{staffRows.length}</p>
+          <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide mb-1">Staff Members</p>
+          <p className="text-2xl font-black">{staffRows.filter((r: any) => r.days > 0).length} <span className="text-sm font-normal text-muted-foreground">/ {staffRows.length}</span></p>
         </div>
         <div className="bg-card border rounded-2xl p-4">
           <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide mb-1">Total Records</p>
-          <p className="text-2xl font-black">{(logs as any[]).length}</p>
+          <p className="text-2xl font-black">{staffRows.reduce((s: number, r: any) => s + r.logs.length, 0)}</p>
         </div>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-      ) : staffRows.length === 0 ? (
-        <div className="text-center py-16 bg-secondary/30 rounded-3xl border-2 border-dashed">
-          <Clock className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-          <p className="font-semibold text-muted-foreground">No attendance records for this period</p>
-        </div>
       ) : (
         <div className="space-y-3">
           {staffRows.map((row: any) => (
-            <div key={row.user?.id} className="bg-card border rounded-2xl overflow-hidden">
+            <div key={row.user?.id} className={`border rounded-2xl overflow-hidden ${row.days === 0 ? "bg-secondary/20 opacity-70" : "bg-card"}`}>
               <button
-                onClick={() => setExpandedId(expandedId === row.user?.id ? null : row.user?.id)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/30 transition-colors"
+                onClick={() => row.logs.length > 0 && setExpandedId(expandedId === row.user?.id ? null : row.user?.id)}
+                className={`w-full px-4 py-3 flex items-center justify-between transition-colors ${row.logs.length > 0 ? "hover:bg-secondary/30 cursor-pointer" : "cursor-default"}`}
                 data-testid={`payroll-row-${row.user?.id}`}>
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-black text-sm flex items-center justify-center">
+                  <div className={`w-10 h-10 rounded-full font-black text-sm flex items-center justify-center shrink-0 ${row.days > 0 ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground"}`}>
                     {row.user?.name?.charAt(0)}
                   </div>
                   <div className="text-left">
                     <p className="font-bold text-sm">{row.user?.name}</p>
-                    <p className="text-xs text-muted-foreground">{row.days} day{row.days !== 1 ? "s" : ""} worked</p>
+                    <p className="text-xs text-muted-foreground font-mono">@{row.user?.username}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {row.days > 0 ? <span className="text-emerald-600 font-bold">{row.days} day{row.days !== 1 ? "s" : ""} clocked</span> : <span className="text-muted-foreground">No records this period</span>}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <p className="font-black text-lg">{fmt(row.totalMins)}</p>
+                    <p className={`font-black text-lg ${row.totalMins === 0 ? "text-muted-foreground" : ""}`}>{fmt(row.totalMins)}</p>
                     <p className="text-xs text-muted-foreground">{row.days > 0 ? fmt(Math.round(row.totalMins / row.days)) + " avg/day" : "—"}</p>
                   </div>
-                  {expandedId === row.user?.id ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                  {row.logs.length > 0 && (expandedId === row.user?.id ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />)}
                 </div>
               </button>
 
@@ -599,6 +606,7 @@ function PayrollTab() {
 }
 
 // ─── Amendments Tab ────────────────────────────────────────────────────────────
+
 
 function AmendmentsTab() {
   const qc = useQueryClient();
@@ -858,14 +866,36 @@ function PayslipsTab() {
             <label className="text-xs font-bold text-muted-foreground mb-1 block">Staff Member</label>
             <select value={genForm.userId} onChange={e => setGenForm(f => ({ ...f, userId: e.target.value }))}
               className="w-full px-3 py-2 border rounded-xl text-sm bg-background" data-testid="select-gen-staff">
-              <option value="">Select staff...</option>
+              <option value="">Select staff member...</option>
               {staff.map((s: any) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.payType === "hourly" ? `S$${s.hourlyRate}/hr` : `S$${s.monthlyRate}/mo`})
+                  {s.name} (@{s.username}) — {s.payType === "hourly" ? `S$${s.hourlyRate}/hr` : `S$${s.monthlyRate}/mo`}
                 </option>
               ))}
             </select>
           </div>
+          {/* Selected staff info card */}
+          {genForm.userId && (() => {
+            const s = (staff as any[]).find((x: any) => String(x.id) === genForm.userId);
+            return s ? (
+              <div className="flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-xl px-3 py-2.5">
+                <div className="w-9 h-9 rounded-full bg-primary/20 text-primary font-black text-sm flex items-center justify-center shrink-0">
+                  {s.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm truncate">{s.name}</p>
+                  <p className="text-xs font-mono text-muted-foreground">@{s.username}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs font-bold text-primary">
+                    {s.payType === "hourly" ? `S$${s.hourlyRate}/hr` : `S$${s.monthlyRate}/mo`}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground capitalize">{s.payType} rate</p>
+                </div>
+              </div>
+            ) : null;
+          })()}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-muted-foreground mb-1 block">Period Start</label>
@@ -910,11 +940,17 @@ function PayslipsTab() {
                 <button onClick={() => setExpandedId(isOpen ? null : ps.id)}
                   className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/30 transition-colors"
                   data-testid={`payslip-admin-${ps.id}`}>
-                  <div className="text-left">
-                    <p className="font-bold">{ps.user?.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(parseISO(ps.periodStart), "d MMM")} – {format(parseISO(ps.periodEnd), "d MMM yyyy")}
-                    </p>
+                  <div className="flex items-center gap-2.5 text-left">
+                    <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-black text-sm flex items-center justify-center shrink-0">
+                      {ps.user?.name?.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-bold">{ps.user?.name}</p>
+                      <p className="text-xs font-mono text-muted-foreground">@{ps.user?.username}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(parseISO(ps.periodStart), "d MMM")} – {format(parseISO(ps.periodEnd), "d MMM yyyy")}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
