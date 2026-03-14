@@ -489,7 +489,9 @@ export async function registerRoutes(
   app.get("/api/staff/payslips", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     const slips = await storage.getPayslipsByUser(req.session.userId);
-    res.json(slips);
+    const me = await storage.getUserById(req.session.userId);
+    const monthlyRate = parseFloat(me?.monthlyRate as string || "0");
+    res.json(slips.map(s => ({ ...s, isMonthlyBased: monthlyRate > 0 })));
   });
 
   app.post("/api/admin/payslips/generate", async (req, res) => {
@@ -515,10 +517,11 @@ export async function registerRoutes(
 
       const monthlyRate = parseFloat(staffMember.monthlyRate as string || "0");
       const hourlyRate  = parseFloat(staffMember.hourlyRate  as string || "0");
-      // Use the stored overtime rate; fall back to hourly × 1.5 if not set
       const overtimeRate = parseFloat((staffMember as any).overtimeRate as string || "0") ||
                            (hourlyRate * 1.5);
-      const payType = staffMember.payType || "hourly";
+
+      // Auto-detect: if monthly salary is set, treat as monthly-based regardless of payType flag
+      const isMonthly = monthlyRate > 0;
 
       // Calculate hours per day (cap regular at 8h/day, remainder is OT)
       let regularHours = 0, overtimeHours = 0;
@@ -531,19 +534,16 @@ export async function registerRoutes(
       }
 
       let regularPay = 0, overtimePay = 0, grossPay = 0;
-      if (payType === "hourly") {
-        // Purely hourly: regular hrs × hourly rate + OT hrs × OT rate
-        regularPay = regularHours * hourlyRate;
+      if (isMonthly) {
+        // Monthly salary base + OT hours × OT rate
+        regularPay  = monthlyRate;
         overtimePay = overtimeHours * overtimeRate;
-        grossPay = regularPay + overtimePay;
+        grossPay    = regularPay + overtimePay;
       } else {
-        // Monthly base + OT hrs × OT rate (custom or prorate)
-        grossPay = monthlyRate;
-        regularPay = monthlyRate;
-        const effectiveOtRate = parseFloat((staffMember as any).overtimeRate as string || "0") ||
-                                (monthlyRate / 26 / 8 * 1.5);
-        overtimePay = overtimeHours * effectiveOtRate;
-        grossPay += overtimePay;
+        // Purely hourly: regular hrs × hourly rate + OT hrs × OT rate
+        regularPay  = regularHours * hourlyRate;
+        overtimePay = overtimeHours * overtimeRate;
+        grossPay    = regularPay + overtimePay;
       }
 
       // Fetch unpaid leave deductions in period
@@ -555,7 +555,8 @@ export async function registerRoutes(
         l.startDate <= periodEnd
       );
       const unpaidDays = unpaidLeaves.reduce((s, l) => s + parseFloat(l.totalDays as string), 0);
-      const dailyRate = payType === 'hourly' ? hourlyRate * 8 : monthlyRate / 26;
+      // Daily rate: monthly salary ÷ 26 working days, or hourly × 8
+      const dailyRate = isMonthly ? monthlyRate / 26 : hourlyRate * 8;
       const leaveDeduction = unpaidDays * dailyRate;
       grossPay -= leaveDeduction;
 

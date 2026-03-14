@@ -1695,6 +1695,22 @@ function PayslipsTab() {
         <div className="space-y-3">
           {payslips.map((ps: any) => {
             const isOpen = expandedId === ps.id;
+            const isMonthlyBased = parseFloat(ps.user?.monthlyRate || "0") > 0;
+            const detailItems = isMonthlyBased
+              ? [
+                  { label: "Monthly Salary", val: `S$${parseFloat(ps.regularPay).toFixed(2)}` },
+                  { label: "Regular Hours", val: `${parseFloat(ps.regularHours).toFixed(1)}h` },
+                  { label: "OT Hours", val: `${parseFloat(ps.overtimeHours).toFixed(1)}h` },
+                  { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}` },
+                  { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}` },
+                ]
+              : [
+                  { label: "Regular Hours", val: `${parseFloat(ps.regularHours).toFixed(1)}h` },
+                  { label: "OT Hours", val: `${parseFloat(ps.overtimeHours).toFixed(1)}h` },
+                  { label: "Regular Pay", val: `S$${parseFloat(ps.regularPay).toFixed(2)}` },
+                  { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}` },
+                  { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}` },
+                ];
             return (
               <div key={ps.id} className="bg-card border-2 rounded-2xl overflow-hidden">
                 <button onClick={() => setExpandedId(isOpen ? null : ps.id)}
@@ -1724,13 +1740,7 @@ function PayslipsTab() {
                 {isOpen && (
                   <div className="border-t p-4 space-y-3">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                      {[
-                        { label: "Regular Hours", val: `${parseFloat(ps.regularHours).toFixed(1)}h` },
-                        { label: "OT Hours", val: `${parseFloat(ps.overtimeHours).toFixed(1)}h` },
-                        { label: "Regular Pay", val: `S$${parseFloat(ps.regularPay).toFixed(2)}` },
-                        { label: "OT Pay (1.5×)", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}` },
-                        { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}` },
-                      ].map(({ label, val }) => (
+                      {detailItems.map(({ label, val }) => (
                         <div key={label} className="bg-secondary/30 rounded-xl p-2.5">
                           <p className="text-[10px] text-muted-foreground font-bold uppercase mb-0.5">{label}</p>
                           <p className="font-bold">{val}</p>
