@@ -331,10 +331,11 @@ function PrintJob({ q, today }: { q: any; today: string }) {
           <div style={{ fontSize: 8, color: "#6b7280" }}>{TEL} · {MAIL} · {WEB}</div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 900, color: "#1e40af", lineHeight: 1 }}>{q.referenceNo}</div>
-          <div style={{ marginTop: 5 }}><span style={s.badge}>{statusLabel(q.status)}</span></div>
-          <div style={{ fontSize: 8, color: "#9ca3af", marginTop: 6 }}>Audit Record · Generated {today}</div>
-          <div style={{ fontSize: 8, color: "#9ca3af" }}>Submitted {dt(q.createdAt)}</div>
+          <div style={{ fontSize: 8, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 2, marginBottom: 4 }}>Job Reference No.</div>
+          <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 900, color: "#000", lineHeight: 1, background: "#f3f4f6", border: "2px solid #111", borderRadius: 6, padding: "5px 12px", display: "inline-block" }}>{q.referenceNo}</div>
+          <div style={{ marginTop: 6 }}><span style={s.badge}>{statusLabel(q.status)}</span></div>
+          <div style={{ fontSize: 8, color: "#6b7280", marginTop: 5 }}>Audit Record · Generated {today}</div>
+          <div style={{ fontSize: 8, color: "#6b7280" }}>Submitted {dt(q.createdAt)}</div>
         </div>
       </div>
 
