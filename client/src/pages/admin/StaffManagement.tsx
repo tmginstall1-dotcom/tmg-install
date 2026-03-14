@@ -616,7 +616,41 @@ function TodayRoster() {
   );
 }
 
+// Module-level cache so all pill instances share results and avoid duplicate requests
+const geocodeCache: Record<string, string> = {};
+
+function useReverseGeocode(lat: string, lng: string) {
+  const key = `${parseFloat(lat).toFixed(5)},${parseFloat(lng).toFixed(5)}`;
+  const [address, setAddress] = useState<string>(geocodeCache[key] || "");
+
+  useEffect(() => {
+    if (geocodeCache[key]) { setAddress(geocodeCache[key]); return; }
+    let cancelled = false;
+    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=17&addressdetails=1`, {
+      headers: { "Accept-Language": "en" },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        const a = data?.address;
+        // Build a short readable label: road + suburb/district
+        const parts = [
+          a?.road || a?.pedestrian || a?.footway || a?.path,
+          a?.suburb || a?.neighbourhood || a?.quarter || a?.city_district || a?.town || a?.village || a?.city,
+        ].filter(Boolean);
+        const result = parts.length ? parts.join(", ") : (data?.display_name?.split(",").slice(0, 2).join(",") || key);
+        geocodeCache[key] = result;
+        setAddress(result);
+      })
+      .catch(() => { if (!cancelled) setAddress(key); });
+    return () => { cancelled = true; };
+  }, [key]);
+
+  return address;
+}
+
 function GpsLocationPill({ lat, lng, label, color }: { lat: string; lng: string; label: string; color: "green" | "red" }) {
+  const address = useReverseGeocode(lat, lng);
   const mapsUrl = `https://maps.google.com/?q=${lat},${lng}`;
   const colorCls = color === "green"
     ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
@@ -624,9 +658,9 @@ function GpsLocationPill({ lat, lng, label, color }: { lat: string; lng: string;
   return (
     <a href={mapsUrl} target="_blank" rel="noreferrer"
       className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border hover:opacity-80 transition-opacity ${colorCls}`}
-      title={`Open ${label} location in Google Maps`}>
+      title={`${label}: ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)} — Open in Google Maps`}>
       <MapPin className="w-2.5 h-2.5 shrink-0" />
-      {label} · {parseFloat(lat).toFixed(4)}, {parseFloat(lng).toFixed(4)}
+      {label} · {address || `${parseFloat(lat).toFixed(4)}, ${parseFloat(lng).toFixed(4)}`}
     </a>
   );
 }
