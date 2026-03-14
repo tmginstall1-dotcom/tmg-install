@@ -1139,22 +1139,26 @@ function TimesheetsView() {
           <div className="flex items-center gap-1 text-sm">
             <LogIn className="w-3 h-3 text-emerald-500 shrink-0" />
             <span className="font-mono">{format(new Date(log.clockInAt), "HH:mm")}</span>
-            {log.clockInLat && log.clockInLng && (
-              <a href={`https://maps.google.com/?q=${log.clockInLat},${log.clockInLng}`} target="_blank" rel="noreferrer"
-                className="text-primary" title="GPS"><MapPin className="w-3 h-3" /></a>
-            )}
           </div>
+          {log.clockInLat && log.clockInLng && (
+            <div className="mt-0.5">
+              <GpsLocationPill lat={log.clockInLat} lng={log.clockInLng} label="In" color="green" />
+            </div>
+          )}
         </td>
         <td className="px-3 py-2.5">
           {log.clockOutAt ? (
-            <div className="flex items-center gap-1 text-sm">
-              <LogOut className="w-3 h-3 text-red-500 shrink-0" />
-              <span className="font-mono">{format(new Date(log.clockOutAt), "HH:mm")}</span>
+            <>
+              <div className="flex items-center gap-1 text-sm">
+                <LogOut className="w-3 h-3 text-red-500 shrink-0" />
+                <span className="font-mono">{format(new Date(log.clockOutAt), "HH:mm")}</span>
+              </div>
               {log.clockOutLat && log.clockOutLng && (
-                <a href={`https://maps.google.com/?q=${log.clockOutLat},${log.clockOutLng}`} target="_blank" rel="noreferrer"
-                  className="text-primary" title="GPS"><MapPin className="w-3 h-3" /></a>
+                <div className="mt-0.5">
+                  <GpsLocationPill lat={log.clockOutLat} lng={log.clockOutLng} label="Out" color="red" />
+                </div>
               )}
-            </div>
+            </>
           ) : (
             <span className="text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">Still in</span>
           )}
