@@ -787,6 +787,128 @@ function EditLogForm({ log, queryKeys, onClose }: { log: any; queryKeys: any[]; 
   );
 }
 
+// ─── Add record form ───────────────────────────────────────────────────────────
+
+function AddRecordForm({
+  staff, presetUserId, presetDate, queryKeys, onClose,
+}: {
+  staff: any[]; presetUserId?: number; presetDate?: string; queryKeys: any[]; onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const defaultDate = presetDate || format(new Date(), "yyyy-MM-dd");
+  const [userId,  setUserId]  = useState(String(presetUserId || (staff[0]?.id ?? "")));
+  const [inVal,   setInVal]   = useState(defaultDate + "T08:00");
+  const [outVal,  setOutVal]  = useState(defaultDate + "T17:00");
+  const [notes,   setNotes]   = useState("");
+
+  const previewMins = inVal && outVal
+    ? differenceInMinutes(new Date(outVal), new Date(inVal))
+    : null;
+
+  const addMut = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/attendance", {
+      userId: parseInt(userId),
+      clockInAt:  new Date(inVal).toISOString(),
+      clockOutAt: outVal ? new Date(outVal).toISOString() : null,
+      notes: notes || undefined,
+    }),
+    onSuccess: () => {
+      queryKeys.forEach(k => qc.invalidateQueries({ queryKey: k }));
+      toast({ title: "Record added ✓", description: staff.find((s:any) => String(s.id) === userId)?.name });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="border-2 border-primary/30 bg-primary/5 rounded-2xl p-4 space-y-4"
+      data-testid="add-record-form">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
+            <Plus className="w-4 h-4 text-white" />
+          </div>
+          <p className="font-black text-sm">Add Attendance Record</p>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Staff selector */}
+        <div className="sm:col-span-2">
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Staff Member</label>
+          <select value={userId} onChange={e => setUserId(e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg text-sm bg-background"
+            data-testid="select-add-staff">
+            {staff.filter((s:any) => s.role === "staff").map((s:any) => (
+              <option key={s.id} value={s.id}>{s.name} (@{s.username})</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Clock In */}
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+            <LogIn className="w-3 h-3 text-emerald-500" /> Clock In
+          </label>
+          <input type="datetime-local" value={inVal} onChange={e => setInVal(e.target.value)}
+            className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+            data-testid="input-add-clockin" />
+        </div>
+
+        {/* Clock Out */}
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+            <LogOut className="w-3 h-3 text-red-500" /> Clock Out
+            <span className="text-[10px] text-muted-foreground font-normal ml-1">(optional)</span>
+          </label>
+          <input type="datetime-local" value={outVal} onChange={e => setOutVal(e.target.value)}
+            className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+            data-testid="input-add-clockout" />
+        </div>
+
+        {/* Notes */}
+        <div className="sm:col-span-2">
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Notes / Reason</label>
+          <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="e.g. Staff forgot to clock in — manually added by admin"
+            className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+            data-testid="input-add-notes" />
+        </div>
+      </div>
+
+      {/* Duration preview */}
+      {previewMins !== null && previewMins > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Duration: <strong>{fmt(previewMins)}</strong>
+          {previewMins > 8 * 60 && (
+            <span className="ml-2 text-amber-600 font-bold">(+{fmt(previewMins - 8 * 60)} OT)</span>
+          )}
+        </p>
+      )}
+      {previewMins !== null && previewMins <= 0 && (
+        <p className="text-xs text-red-500 font-bold">⚠ Clock Out must be after Clock In</p>
+      )}
+
+      <div className="flex gap-2">
+        <button onClick={() => addMut.mutate()} disabled={addMut.isPending || !userId || !inVal || (previewMins !== null && previewMins <= 0)}
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          data-testid="button-save-add-record">
+          {addMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          Save Record
+        </button>
+        <button onClick={onClose}
+          className="px-4 py-2 border rounded-xl text-sm font-bold hover:bg-secondary transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Timesheets View ────────────────────────────────────────────────────────────
 
 function TimesheetsView() {
@@ -798,9 +920,11 @@ function TimesheetsView() {
   const [filterUid,  setFilterUid]  = useState("");
   const [sortBy,     setSortBy]     = useState<"name" | "hours">("name");
   const [sortDir,    setSortDir]    = useState<"asc" | "desc">("asc");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [editingId,  setEditingId]  = useState<number | null>(null);
-  const [confirmDel, setConfirmDel] = useState<number | null>(null);
+  const [expandedId,  setExpandedId]  = useState<number | null>(null);
+  const [editingId,   setEditingId]   = useState<number | null>(null);
+  const [confirmDel,  setConfirmDel]  = useState<number | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addPresetUid, setAddPresetUid] = useState<number | undefined>();
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -997,6 +1121,15 @@ function TimesheetsView() {
             ))}
           </div>
 
+          {/* Add Record button — always visible */}
+          <button
+            onClick={() => { setAddPresetUid(undefined); setShowAddForm(f => !f); }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${showAddForm ? "bg-primary text-white border-primary" : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"}`}
+            data-testid="button-open-add-record">
+            <Plus className="w-3.5 h-3.5" />
+            Add Record
+          </button>
+
           {view === "period" && (
             <>
               <div className="flex gap-1 ml-auto flex-wrap">
@@ -1069,6 +1202,17 @@ function TimesheetsView() {
         </div>
       </div>
 
+      {/* ── Add Record form (expanded inline) ───────────────────────── */}
+      {showAddForm && (
+        <AddRecordForm
+          staff={staff as any[]}
+          presetUserId={addPresetUid}
+          presetDate={view === "daily" ? dailyDate : undefined}
+          queryKeys={sharedQueryKeys}
+          onClose={() => { setShowAddForm(false); setAddPresetUid(undefined); }}
+        />
+      )}
+
       {/* ── Stats ───────────────────────────────────────────────────── */}
       {view === "period" && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1108,9 +1252,24 @@ function TimesheetsView() {
                     <p className="text-xs font-mono text-muted-foreground">@{s.username}</p>
                   </div>
                   {hasRecords ? (
-                    <span className="text-xs font-bold text-emerald-600">{fmt(calcOT(sLogs).totalMins)}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-emerald-600">{fmt(calcOT(sLogs).totalMins)}</span>
+                      <button
+                        onClick={() => { setAddPresetUid(s.id); setShowAddForm(true); }}
+                        className="flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors"
+                        title={`Add record for ${s.name}`}
+                        data-testid={`button-quick-add-${s.id}`}>
+                        <Plus className="w-2.5 h-2.5" /> Add
+                      </button>
+                    </div>
                   ) : (
-                    <span className="text-xs text-muted-foreground">No record</span>
+                    <button
+                      onClick={() => { setAddPresetUid(s.id); setShowAddForm(true); }}
+                      className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors"
+                      title={`Add record for ${s.name}`}
+                      data-testid={`button-add-${s.id}`}>
+                      <Plus className="w-3 h-3" /> Add Record
+                    </button>
                   )}
                 </div>
                 {hasRecords && (

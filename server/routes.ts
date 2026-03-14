@@ -310,6 +310,27 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.post("/api/admin/attendance", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const { userId, clockInAt, clockOutAt, notes } = z.object({
+        userId: z.number(),
+        clockInAt: z.string(),
+        clockOutAt: z.string().nullable().optional(),
+        notes: z.string().optional(),
+      }).parse(req.body);
+      const log = await storage.createAttendanceLog({
+        userId,
+        clockInAt: new Date(clockInAt),
+        clockOutAt: clockOutAt ? new Date(clockOutAt) : null,
+        notes,
+      });
+      res.json(log);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
   app.patch("/api/admin/attendance/:id", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     const caller = await storage.getUserById(req.session.userId);

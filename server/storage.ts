@@ -34,6 +34,7 @@ export interface IStorage {
   getTodayAttendance(userId: number): Promise<AttendanceLog | undefined>;
   getAttendanceLogs(from?: Date, to?: Date, userId?: number): Promise<AttendanceLogWithUser[]>;
   getAttendanceLog(id: number): Promise<AttendanceLog | undefined>;
+  createAttendanceLog(data: { userId: number; clockInAt: Date; clockOutAt?: Date | null; notes?: string }): Promise<AttendanceLog>;
   updateAttendanceLog(id: number, data: { clockInAt?: Date; clockOutAt?: Date | null; notes?: string }): Promise<AttendanceLog | undefined>;
   deleteAttendanceLog(id: number): Promise<void>;
 
@@ -217,6 +218,16 @@ export class DatabaseStorage implements IStorage {
 
   async getAttendanceLog(id: number): Promise<AttendanceLog | undefined> {
     const [log] = await db.select().from(attendanceLogs).where(eq(attendanceLogs.id, id));
+    return log;
+  }
+
+  async createAttendanceLog(data: { userId: number; clockInAt: Date; clockOutAt?: Date | null; notes?: string }): Promise<AttendanceLog> {
+    const [log] = await db.insert(attendanceLogs).values({
+      userId: data.userId,
+      clockInAt: data.clockInAt,
+      clockOutAt: data.clockOutAt ?? null,
+      notes: data.notes ?? null,
+    }).returning();
     return log;
   }
 
