@@ -30,7 +30,8 @@ export function useAuth() {
       return res.json();
     },
     onSuccess: (user) => {
-      // Directly set the user in the cache to avoid re-fetching the mock /me endpoint
+      // Clear ALL cached data first so no previous user's data bleeds through
+      queryClient.clear();
       queryClient.setQueryData([api.auth.me.path], user);
     },
   });
@@ -44,7 +45,8 @@ export function useAuth() {
       if (!res.ok) throw new Error("Logout failed");
     },
     onSuccess: () => {
-      queryClient.setQueryData([api.auth.me.path], null);
+      // Wipe the entire cache so the next user starts completely fresh
+      queryClient.clear();
     },
   });
 
