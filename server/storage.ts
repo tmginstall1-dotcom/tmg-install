@@ -1,9 +1,13 @@
 import { db } from "./db";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
+  attendanceAmendments, leaveRequests, payslips,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
-  type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser
+  type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser,
+  type AttendanceAmendment, type AttendanceAmendmentWithUser,
+  type LeaveRequest, type LeaveRequestWithUser,
+  type Payslip, type PayslipWithUser
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull } from "drizzle-orm";
 
@@ -29,6 +33,29 @@ export interface IStorage {
   clockOut(userId: number, lat?: string, lng?: string): Promise<AttendanceLog | undefined>;
   getTodayAttendance(userId: number): Promise<AttendanceLog | undefined>;
   getAttendanceLogs(from?: Date, to?: Date, userId?: number): Promise<AttendanceLogWithUser[]>;
+  getAttendanceLog(id: number): Promise<AttendanceLog | undefined>;
+
+  // Amendments
+  createAmendment(data: Omit<typeof attendanceAmendments.$inferInsert, 'id' | 'createdAt'>): Promise<AttendanceAmendment>;
+  getAmendmentsByUser(userId: number): Promise<AttendanceAmendmentWithUser[]>;
+  getPendingAmendments(): Promise<AttendanceAmendmentWithUser[]>;
+  reviewAmendment(id: number, status: 'approved' | 'rejected', adminNote: string, reviewedBy: number): Promise<AttendanceAmendment | undefined>;
+
+  // Leave Requests
+  createLeaveRequest(data: Omit<typeof leaveRequests.$inferInsert, 'id' | 'createdAt'>): Promise<LeaveRequest>;
+  getLeaveRequestsByUser(userId: number): Promise<LeaveRequest[]>;
+  getAllLeaveRequests(status?: string): Promise<LeaveRequestWithUser[]>;
+  reviewLeaveRequest(id: number, status: 'approved' | 'rejected', adminNote: string, reviewedBy: number): Promise<LeaveRequest | undefined>;
+  getLeaveBalance(userId: number, year: number): Promise<{ entitlement: number; used: number; pending: number; remaining: number }>;
+
+  // Pay Settings
+  updatePaySettings(userId: number, settings: { payType?: string; hourlyRate?: string; monthlyRate?: string; annualLeaveEntitlement?: number }): Promise<typeof users.$inferSelect | undefined>;
+
+  // Payslips
+  generatePayslip(data: Omit<typeof payslips.$inferInsert, 'id' | 'createdAt'>): Promise<Payslip>;
+  getPayslipsByUser(userId: number): Promise<Payslip[]>;
+  getAllPayslips(userId?: number): Promise<PayslipWithUser[]>;
+  deletePayslip(id: number): Promise<void>;
 
   // Catalog
   getCatalogItems(search?: string): Promise<typeof catalogItems.$inferSelect[]>;
@@ -184,6 +211,124 @@ export class DatabaseStorage implements IStorage {
       ...log,
       user: staffList.find(u => u.id === log.userId),
     }));
+  }
+
+  async getAttendanceLog(id: number): Promise<AttendanceLog | undefined> {
+    const [log] = await db.select().from(attendanceLogs).where(eq(attendanceLogs.id, id));
+    return log;
+  }
+
+  // Amendments
+  async createAmendment(data: Omit<typeof attendanceAmendments.$inferInsert, 'id' | 'createdAt'>): Promise<AttendanceAmendment> {
+    const [created] = await db.insert(attendanceAmendments).values(data).returning();
+    return created;
+  }
+
+  async getAmendmentsByUser(userId: number): Promise<AttendanceAmendmentWithUser[]> {
+    const rows = await db.select().from(attendanceAmendments)
+      .where(eq(attendanceAmendments.userId, userId))
+      .orderBy(desc(attendanceAmendments.createdAt));
+    const allUsers = await db.select().from(users);
+    return rows.map(r => ({ ...r, user: allUsers.find(u => u.id === r.userId) }));
+  }
+
+  async getPendingAmendments(): Promise<AttendanceAmendmentWithUser[]> {
+    const rows = await db.select().from(attendanceAmendments)
+      .orderBy(desc(attendanceAmendments.createdAt));
+    const allUsers = await db.select().from(users);
+    return rows.map(r => ({ ...r, user: allUsers.find(u => u.id === r.userId) }));
+  }
+
+  async reviewAmendment(id: number, status: 'approved' | 'rejected', adminNote: string, reviewedBy: number): Promise<AttendanceAmendment | undefined> {
+    const [amendment] = await db.select().from(attendanceAmendments).where(eq(attendanceAmendments.id, id));
+    if (!amendment) return undefined;
+    if (status === 'approved') {
+      // Apply the corrected times to the attendance log
+      const updates: any = {};
+      if (amendment.requestedClockIn) updates.clockInAt = amendment.requestedClockIn;
+      if (amendment.requestedClockOut) updates.clockOutAt = amendment.requestedClockOut;
+      if (Object.keys(updates).length > 0) {
+        await db.update(attendanceLogs).set(updates).where(eq(attendanceLogs.id, amendment.attendanceLogId));
+      }
+    }
+    const [updated] = await db.update(attendanceAmendments)
+      .set({ status, adminNote, reviewedBy, reviewedAt: new Date() })
+      .where(eq(attendanceAmendments.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Leave Requests
+  async createLeaveRequest(data: Omit<typeof leaveRequests.$inferInsert, 'id' | 'createdAt'>): Promise<LeaveRequest> {
+    const [created] = await db.insert(leaveRequests).values(data).returning();
+    return created;
+  }
+
+  async getLeaveRequestsByUser(userId: number): Promise<LeaveRequest[]> {
+    return db.select().from(leaveRequests)
+      .where(eq(leaveRequests.userId, userId))
+      .orderBy(desc(leaveRequests.createdAt));
+  }
+
+  async getAllLeaveRequests(status?: string): Promise<LeaveRequestWithUser[]> {
+    const rows = status
+      ? await db.select().from(leaveRequests).where(eq(leaveRequests.status, status)).orderBy(desc(leaveRequests.createdAt))
+      : await db.select().from(leaveRequests).orderBy(desc(leaveRequests.createdAt));
+    const allUsers = await db.select().from(users);
+    return rows.map(r => ({ ...r, user: allUsers.find(u => u.id === r.userId) }));
+  }
+
+  async reviewLeaveRequest(id: number, status: 'approved' | 'rejected', adminNote: string, reviewedBy: number): Promise<LeaveRequest | undefined> {
+    const [updated] = await db.update(leaveRequests)
+      .set({ status, adminNote, reviewedBy, reviewedAt: new Date() })
+      .where(eq(leaveRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getLeaveBalance(userId: number, year: number): Promise<{ entitlement: number; used: number; pending: number; remaining: number }> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    const entitlement = user?.annualLeaveEntitlement ?? 14;
+    const yearStart = `${year}-01-01`;
+    const yearEnd = `${year}-12-31`;
+    const requests = await db.select().from(leaveRequests)
+      .where(and(
+        eq(leaveRequests.userId, userId),
+        eq(leaveRequests.leaveType, 'annual'),
+        gte(leaveRequests.startDate, yearStart),
+        lte(leaveRequests.startDate, yearEnd),
+      ));
+    const used = requests.filter(r => r.status === 'approved').reduce((s, r) => s + parseFloat(r.totalDays as string), 0);
+    const pending = requests.filter(r => r.status === 'pending').reduce((s, r) => s + parseFloat(r.totalDays as string), 0);
+    return { entitlement, used, pending, remaining: entitlement - used - pending };
+  }
+
+  // Pay Settings
+  async updatePaySettings(userId: number, settings: { payType?: string; hourlyRate?: string; monthlyRate?: string; annualLeaveEntitlement?: number }) {
+    const [updated] = await db.update(users).set(settings as any).where(eq(users.id, userId)).returning();
+    return updated;
+  }
+
+  // Payslips
+  async generatePayslip(data: Omit<typeof payslips.$inferInsert, 'id' | 'createdAt'>): Promise<Payslip> {
+    const [created] = await db.insert(payslips).values(data).returning();
+    return created;
+  }
+
+  async getPayslipsByUser(userId: number): Promise<Payslip[]> {
+    return db.select().from(payslips).where(eq(payslips.userId, userId)).orderBy(desc(payslips.createdAt));
+  }
+
+  async getAllPayslips(userId?: number): Promise<PayslipWithUser[]> {
+    const rows = userId
+      ? await db.select().from(payslips).where(eq(payslips.userId, userId)).orderBy(desc(payslips.createdAt))
+      : await db.select().from(payslips).orderBy(desc(payslips.createdAt));
+    const allUsers = await db.select().from(users);
+    return rows.map(r => ({ ...r, user: allUsers.find(u => u.id === r.userId) }));
+  }
+
+  async deletePayslip(id: number): Promise<void> {
+    await db.delete(payslips).where(eq(payslips.id, id));
   }
 
   async getQuotesForStaff(staffId: number): Promise<QuoteResponse[]> {

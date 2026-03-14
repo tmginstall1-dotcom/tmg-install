@@ -33,6 +33,61 @@ export const users = pgTable("users", {
   role: text("role").notNull().default('staff'), // 'admin' | 'staff'
   name: text("name").notNull(),
   teamId: integer("team_id").references(() => teams.id),
+  // Payroll fields
+  payType: text("pay_type").default("hourly"),      // 'hourly' | 'monthly'
+  hourlyRate: numeric("hourly_rate").default("0"),  // SGD per hour
+  monthlyRate: numeric("monthly_rate").default("0"), // SGD per month (for salaried)
+  annualLeaveEntitlement: integer("annual_leave_entitlement").default(14), // days per year
+});
+
+// Attendance Amendment Requests
+export const attendanceAmendments = pgTable("attendance_amendments", {
+  id: serial("id").primaryKey(),
+  attendanceLogId: integer("attendance_log_id").references(() => attendanceLogs.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  originalClockIn: timestamp("original_clock_in"),
+  originalClockOut: timestamp("original_clock_out"),
+  requestedClockIn: timestamp("requested_clock_in"),
+  requestedClockOut: timestamp("requested_clock_out"),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  adminNote: text("admin_note"),
+  reviewedBy: integer("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Leave Requests
+export const leaveRequests = pgTable("leave_requests", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  leaveType: text("leave_type").notNull(), // 'annual' | 'medical' | 'unpaid' | 'other'
+  startDate: text("start_date").notNull(),  // yyyy-MM-dd
+  endDate: text("end_date").notNull(),      // yyyy-MM-dd
+  totalDays: numeric("total_days").notNull(),
+  reason: text("reason"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  adminNote: text("admin_note"),
+  reviewedBy: integer("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Payslips
+export const payslips = pgTable("payslips", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  periodStart: text("period_start").notNull(),  // yyyy-MM-dd
+  periodEnd: text("period_end").notNull(),        // yyyy-MM-dd
+  regularHours: numeric("regular_hours").default("0"),
+  overtimeHours: numeric("overtime_hours").default("0"),
+  regularPay: numeric("regular_pay").default("0"),
+  overtimePay: numeric("overtime_pay").default("0"),
+  leaveDeduction: numeric("leave_deduction").default("0"),
+  grossPay: numeric("gross_pay").default("0"),
+  notes: text("notes"),
+  generatedBy: integer("generated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Customers
@@ -144,10 +199,26 @@ export const teamsRelations = relations(teams, ({ many }) => ({
 export const usersRelations = relations(users, ({ one, many }) => ({
   team: one(teams, { fields: [users.teamId], references: [teams.id] }),
   attendanceLogs: many(attendanceLogs),
+  leaveRequests: many(leaveRequests),
+  payslips: many(payslips),
 }));
 
-export const attendanceLogsRelations = relations(attendanceLogs, ({ one }) => ({
+export const attendanceLogsRelations = relations(attendanceLogs, ({ one, many }) => ({
   user: one(users, { fields: [attendanceLogs.userId], references: [users.id] }),
+  amendments: many(attendanceAmendments),
+}));
+
+export const attendanceAmendmentsRelations = relations(attendanceAmendments, ({ one }) => ({
+  log: one(attendanceLogs, { fields: [attendanceAmendments.attendanceLogId], references: [attendanceLogs.id] }),
+  user: one(users, { fields: [attendanceAmendments.userId], references: [users.id] }),
+}));
+
+export const leaveRequestsRelations = relations(leaveRequests, ({ one }) => ({
+  user: one(users, { fields: [leaveRequests.userId], references: [users.id] }),
+}));
+
+export const payslipsRelations = relations(payslips, ({ one }) => ({
+  user: one(users, { fields: [payslips.userId], references: [users.id] }),
 }));
 
 export const quotesRelations = relations(quotes, ({ one, many }) => ({
@@ -183,8 +254,22 @@ export type InsertTeam = z.infer<typeof insertTeamSchema>;
 export const insertAttendanceLogSchema = createInsertSchema(attendanceLogs).omit({ id: true, createdAt: true });
 export type AttendanceLog = typeof attendanceLogs.$inferSelect;
 export type InsertAttendanceLog = z.infer<typeof insertAttendanceLogSchema>;
-
 export type AttendanceLogWithUser = AttendanceLog & { user?: User };
+
+export const insertAttendanceAmendmentSchema = createInsertSchema(attendanceAmendments).omit({ id: true, createdAt: true });
+export type AttendanceAmendment = typeof attendanceAmendments.$inferSelect;
+export type InsertAttendanceAmendment = z.infer<typeof insertAttendanceAmendmentSchema>;
+export type AttendanceAmendmentWithUser = AttendanceAmendment & { user?: User };
+
+export const insertLeaveRequestSchema = createInsertSchema(leaveRequests).omit({ id: true, createdAt: true });
+export type LeaveRequest = typeof leaveRequests.$inferSelect;
+export type InsertLeaveRequest = z.infer<typeof insertLeaveRequestSchema>;
+export type LeaveRequestWithUser = LeaveRequest & { user?: User };
+
+export const insertPayslipSchema = createInsertSchema(payslips).omit({ id: true, createdAt: true });
+export type Payslip = typeof payslips.$inferSelect;
+export type InsertPayslip = z.infer<typeof insertPayslipSchema>;
+export type PayslipWithUser = Payslip & { user?: User };
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });

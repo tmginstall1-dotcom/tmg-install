@@ -305,6 +305,228 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // -- Amendment Routes --
+  app.post("/api/attendance/amendment", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const { attendanceLogId, requestedClockIn, requestedClockOut, reason } = z.object({
+        attendanceLogId: z.number(),
+        requestedClockIn: z.string().optional(),
+        requestedClockOut: z.string().optional(),
+        reason: z.string().min(5),
+      }).parse(req.body);
+
+      const log = await storage.getAttendanceLog(attendanceLogId);
+      if (!log) return res.status(404).json({ message: "Record not found" });
+
+      const amendment = await storage.createAmendment({
+        attendanceLogId,
+        userId: req.session.userId,
+        originalClockIn: log.clockInAt,
+        originalClockOut: log.clockOutAt,
+        requestedClockIn: requestedClockIn ? new Date(requestedClockIn) : undefined,
+        requestedClockOut: requestedClockOut ? new Date(requestedClockOut) : undefined,
+        reason,
+        status: 'pending',
+      });
+      res.json(amendment);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.get("/api/attendance/amendments", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const amendments = await storage.getAmendmentsByUser(req.session.userId);
+    res.json(amendments);
+  });
+
+  app.get("/api/admin/attendance/amendments", async (req, res) => {
+    const amendments = await storage.getPendingAmendments();
+    res.json(amendments);
+  });
+
+  app.patch("/api/admin/attendance/amendments/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const id = parseInt(req.params.id);
+      const { status, adminNote } = z.object({
+        status: z.enum(["approved", "rejected"]),
+        adminNote: z.string().default(""),
+      }).parse(req.body);
+      const updated = await storage.reviewAmendment(id, status, adminNote, req.session.userId);
+      res.json(updated);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  // -- Leave Routes --
+  app.post("/api/leave", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const data = z.object({
+        leaveType: z.enum(["annual", "medical", "unpaid", "other"]),
+        startDate: z.string(),
+        endDate: z.string(),
+        totalDays: z.number().min(0.5),
+        reason: z.string().optional(),
+      }).parse(req.body);
+      const leave = await storage.createLeaveRequest({ ...data, userId: req.session.userId, totalDays: String(data.totalDays) });
+      res.json(leave);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.get("/api/leave", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const leaves = await storage.getLeaveRequestsByUser(req.session.userId);
+    res.json(leaves);
+  });
+
+  app.get("/api/leave/balance", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const year = parseInt((req.query.year as string) || String(new Date().getFullYear()));
+    const balance = await storage.getLeaveBalance(req.session.userId, year);
+    res.json(balance);
+  });
+
+  app.get("/api/admin/leave", async (req, res) => {
+    const status = req.query.status as string | undefined;
+    const leaves = await storage.getAllLeaveRequests(status);
+    res.json(leaves);
+  });
+
+  app.patch("/api/admin/leave/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const id = parseInt(req.params.id);
+      const { status, adminNote } = z.object({
+        status: z.enum(["approved", "rejected"]),
+        adminNote: z.string().default(""),
+      }).parse(req.body);
+      const updated = await storage.reviewLeaveRequest(id, status, adminNote, req.session.userId);
+      res.json(updated);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  // -- Pay Settings --
+  app.patch("/api/admin/pay-settings/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const data = z.object({
+        payType: z.enum(["hourly", "monthly"]).optional(),
+        hourlyRate: z.string().optional(),
+        monthlyRate: z.string().optional(),
+        annualLeaveEntitlement: z.number().int().min(0).max(30).optional(),
+      }).parse(req.body);
+      const updated = await storage.updatePaySettings(userId, data);
+      res.json(updated);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  // -- Payslip Routes --
+  app.get("/api/admin/payslips", async (req, res) => {
+    const userId = req.query.userId ? parseInt(req.query.userId as string) : undefined;
+    const slips = await storage.getAllPayslips(userId);
+    res.json(slips);
+  });
+
+  app.get("/api/staff/payslips", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const slips = await storage.getPayslipsByUser(req.session.userId);
+    res.json(slips);
+  });
+
+  app.post("/api/admin/payslips/generate", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const { userId, periodStart, periodEnd, notes } = z.object({
+        userId: z.number(),
+        periodStart: z.string(),
+        periodEnd: z.string(),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      // Fetch attendance logs for period
+      const logs = await storage.getAttendanceLogs(
+        new Date(periodStart + "T00:00:00"),
+        new Date(periodEnd + "T23:59:59"),
+        userId,
+      );
+
+      // Fetch user pay settings
+      const staffMember = await storage.getUserById(userId);
+      if (!staffMember) return res.status(404).json({ message: "Staff not found" });
+
+      const hourlyRate = parseFloat(staffMember.hourlyRate as string || "0");
+      const monthlyRate = parseFloat(staffMember.monthlyRate as string || "0");
+      const payType = staffMember.payType || "hourly";
+
+      // Calculate hours from logs
+      let totalMins = 0;
+      for (const log of logs) {
+        if (log.clockOutAt) {
+          const mins = (new Date(log.clockOutAt).getTime() - new Date(log.clockInAt).getTime()) / 60000;
+          totalMins += mins;
+        }
+      }
+      const totalHours = totalMins / 60;
+      const regularHours = Math.min(totalHours, logs.length * 8); // 8h regular per day
+      const overtimeHours = Math.max(0, totalHours - regularHours);
+
+      let regularPay = 0, overtimePay = 0, grossPay = 0;
+      if (payType === "hourly") {
+        regularPay = regularHours * hourlyRate;
+        overtimePay = overtimeHours * hourlyRate * 1.5;
+        grossPay = regularPay + overtimePay;
+      } else {
+        // Monthly: prorate if partial month (assume 26 working days/month)
+        grossPay = monthlyRate;
+        regularPay = monthlyRate;
+        overtimePay = overtimeHours * (monthlyRate / 26 / 8) * 1.5;
+        grossPay += overtimePay;
+      }
+
+      // Fetch unpaid leave deductions in period
+      const allLeaves = await storage.getAllLeaveRequests('approved');
+      const unpaidLeaves = allLeaves.filter(l =>
+        l.userId === userId &&
+        l.leaveType === 'unpaid' &&
+        l.startDate >= periodStart &&
+        l.startDate <= periodEnd
+      );
+      const unpaidDays = unpaidLeaves.reduce((s, l) => s + parseFloat(l.totalDays as string), 0);
+      const dailyRate = payType === 'hourly' ? hourlyRate * 8 : monthlyRate / 26;
+      const leaveDeduction = unpaidDays * dailyRate;
+      grossPay -= leaveDeduction;
+
+      const payslip = await storage.generatePayslip({
+        userId,
+        periodStart,
+        periodEnd,
+        regularHours: regularHours.toFixed(2),
+        overtimeHours: overtimeHours.toFixed(2),
+        regularPay: regularPay.toFixed(2),
+        overtimePay: overtimePay.toFixed(2),
+        leaveDeduction: leaveDeduction.toFixed(2),
+        grossPay: Math.max(0, grossPay).toFixed(2),
+        notes,
+        generatedBy: req.session.userId,
+      });
+      res.json(payslip);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.delete("/api/admin/payslips/:id", async (req, res) => {
+    try {
+      await storage.deletePayslip(parseInt(req.params.id));
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Staff own attendance logs
+  app.get("/api/staff/attendance", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const logs = await storage.getAttendanceLogs(undefined, undefined, req.session.userId);
+    res.json(logs);
+  });
+
   // Staff-specific quotes (team-aware)
   app.get("/api/staff/quotes", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });

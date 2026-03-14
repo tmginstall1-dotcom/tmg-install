@@ -22,6 +22,7 @@ import AdminExportPDF from "@/pages/admin/ExportPDF";
 import AdminStaffManagement from "@/pages/admin/StaffManagement";
 import StaffDashboard from "@/pages/staff/Dashboard";
 import StaffJobDetail from "@/pages/staff/JobDetail";
+import StaffHR from "@/pages/staff/HR";
 
 import { useAuth } from "@/hooks/use-auth";
 
@@ -87,6 +88,9 @@ function Router() {
         </Route>
         <Route path="/staff/jobs/:id">
           {() => <StaffRoute component={StaffJobDetail} />}
+        </Route>
+        <Route path="/staff/hr">
+          {() => <StaffRoute component={StaffHR} />}
         </Route>
 
         {/* Fallback */}

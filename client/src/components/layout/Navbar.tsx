@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, MessageCircle, Menu, X, LayoutDashboard, Calendar, FileDown, Briefcase, Users } from "lucide-react";
+import { LogOut, MessageCircle, Menu, X, LayoutDashboard, Calendar, FileDown, Briefcase, Users, ClipboardList } from "lucide-react";
 
 const WHATSAPP = "https://wa.me/6580880757";
 
@@ -74,6 +74,7 @@ export function Navbar() {
 
   const staffLinks = [
     { href: "/staff", label: "My Jobs", icon: Briefcase },
+    { href: "/staff/hr", label: "My HR", icon: ClipboardList },
   ];
 
   // Always use area-based links so staff area only ever shows staff links
