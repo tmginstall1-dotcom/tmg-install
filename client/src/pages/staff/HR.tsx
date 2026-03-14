@@ -4,7 +4,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { format, differenceInMinutes, differenceInCalendarDays, parseISO, addDays } from "date-fns";
-import { Clock, Calendar, FileText, ChevronDown, ChevronUp, Edit3, Check, X, AlertCircle, Loader2 } from "lucide-react";
+import { Clock, Calendar, FileText, ChevronDown, ChevronUp, Edit3, Check, X, AlertCircle, Loader2, Printer } from "lucide-react";
+import OfficialPayslip from "@/components/OfficialPayslip";
 
 type Tab = "attendance" | "leave" | "payslips";
 
@@ -375,8 +376,10 @@ function LeaveTab({ userId }: { userId?: number }) {
 // ─── Payslips Tab ──────────────────────────────────────────────────────────────
 
 function PayslipsTab() {
+  const { user } = useAuth();
   const { data: payslips = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/staff/payslips"] });
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [printingPayslip, setPrintingPayslip] = useState<any | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
@@ -425,11 +428,18 @@ function PayslipsTab() {
                 </p>
                 <p className="text-xs text-muted-foreground">Generated {format(new Date(ps.createdAt), "d MMM yyyy")}</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <div className="text-right">
                   <p className="text-xl font-black text-primary">S${parseFloat(ps.grossPay).toFixed(2)}</p>
                   <p className="text-xs text-muted-foreground">Gross Pay</p>
                 </div>
+                <button
+                  onClick={e => { e.stopPropagation(); setPrintingPayslip(ps); }}
+                  className="p-2 rounded-xl hover:bg-primary/10 text-primary transition-colors"
+                  title="View / Print official payslip"
+                  data-testid={`button-print-${ps.id}`}>
+                  <Printer className="w-4 h-4" />
+                </button>
                 {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
               </div>
             </button>
@@ -458,6 +468,15 @@ function PayslipsTab() {
           </div>
         );
       })}
+
+      {printingPayslip && (
+        <OfficialPayslip
+          payslip={printingPayslip}
+          staffName={user?.name}
+          staffUsername={user?.username}
+          onClose={() => setPrintingPayslip(null)}
+        />
+      )}
     </div>
   );
 }

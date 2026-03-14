@@ -5,8 +5,9 @@ import { useToast } from "@/hooks/use-toast";
 import { format, differenceInMinutes, startOfMonth, endOfMonth, startOfWeek, endOfWeek, parseISO } from "date-fns";
 import {
   Plus, Trash2, Pencil, Check, X, Users, Clock, UserPlus, LogIn, LogOut,
-  ChevronDown, ChevronUp, Calendar, FileText, Settings2, Loader2, AlertCircle, MapPin
+  ChevronDown, ChevronUp, Calendar, FileText, Settings2, Loader2, AlertCircle, MapPin, Printer
 } from "lucide-react";
+import OfficialPayslip from "@/components/OfficialPayslip";
 
 const TEAM_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6"];
 
@@ -1557,6 +1558,7 @@ function PayslipsTab() {
     notes: "",
   });
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [printingPayslip, setPrintingPayslip] = useState<any | null>(null);
 
   const { data: payslips = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/payslips", filterUserId],
@@ -1733,11 +1735,18 @@ function PayslipsTab() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <div className="text-right">
                       <p className="text-xl font-black text-primary">S${parseFloat(ps.grossPay).toFixed(2)}</p>
                       <p className="text-xs text-muted-foreground">Gross Pay</p>
                     </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); setPrintingPayslip(ps); }}
+                      className="p-2 rounded-xl hover:bg-primary/10 text-primary transition-colors"
+                      title="View / Print official payslip"
+                      data-testid={`button-print-${ps.id}`}>
+                      <Printer className="w-4 h-4" />
+                    </button>
                     {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                   </div>
                 </button>
@@ -1772,6 +1781,13 @@ function PayslipsTab() {
             );
           })}
         </div>
+      )}
+
+      {printingPayslip && (
+        <OfficialPayslip
+          payslip={printingPayslip}
+          onClose={() => setPrintingPayslip(null)}
+        />
       )}
     </div>
   );
