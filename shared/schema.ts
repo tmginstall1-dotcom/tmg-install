@@ -34,9 +34,10 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   teamId: integer("team_id").references(() => teams.id),
   // Payroll fields
-  payType: text("pay_type").default("hourly"),      // 'hourly' | 'monthly'
-  hourlyRate: numeric("hourly_rate").default("0"),  // SGD per hour
-  monthlyRate: numeric("monthly_rate").default("0"), // SGD per month (for salaried)
+  payType: text("pay_type").default("hourly"),        // 'hourly' | 'monthly'
+  monthlyRate: numeric("monthly_rate").default("0"),  // SGD per month base salary
+  hourlyRate: numeric("hourly_rate").default("0"),    // SGD per hour, first 8 hrs/day
+  overtimeRate: numeric("overtime_rate").default("0"),// SGD per hour, after 8 hrs/day
   annualLeaveEntitlement: integer("annual_leave_entitlement").default(14), // days per year
 });
 

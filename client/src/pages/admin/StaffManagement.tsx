@@ -236,9 +236,9 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
   const qc = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState({
-    payType: staff.payType || "hourly",
-    hourlyRate: staff.hourlyRate || "0",
     monthlyRate: staff.monthlyRate || "0",
+    hourlyRate: staff.hourlyRate || "0",
+    overtimeRate: staff.overtimeRate || "0",
     annualLeaveEntitlement: staff.annualLeaveEntitlement ?? 14,
   });
 
@@ -255,45 +255,60 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  return (
-    <div className="mx-1 mb-2 p-3 bg-secondary/30 border border-primary/20 rounded-xl space-y-2 text-sm">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Pay Settings — {staff.name}</p>
-      <div className="flex gap-2">
-        {["hourly", "monthly"].map(pt => (
-          <button key={pt} onClick={() => setForm(f => ({ ...f, payType: pt }))}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 ${form.payType === pt ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
-            {pt === "hourly" ? "Hourly" : "Monthly Salary"}
-          </button>
-        ))}
+  const field = (label: string, hint: string, key: keyof typeof form, testId: string) => (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between">
+        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">{label}</label>
+        <span className="text-[10px] text-muted-foreground">{hint}</span>
       </div>
-      {form.payType === "hourly" ? (
-        <div>
-          <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Hourly Rate (SGD)</label>
-          <input type="number" step="0.01" min="0" value={form.hourlyRate}
-            onChange={e => setForm(f => ({ ...f, hourlyRate: e.target.value }))}
-            className="w-full px-2 py-1.5 text-sm border rounded-lg bg-background" data-testid="input-hourly-rate" />
+      <div className="relative">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">S$</span>
+        <input type="number" step="0.01" min="0" value={form[key]}
+          onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+          className="w-full pl-8 pr-3 py-1.5 text-sm border rounded-lg bg-background font-mono"
+          data-testid={testId} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="mx-1 mb-2 p-4 bg-secondary/30 border-2 border-primary/20 rounded-2xl space-y-3 text-sm">
+      <p className="text-[10px] font-black uppercase tracking-widest text-primary">
+        Pay Package — {staff.name}
+      </p>
+
+      {/* 3 pay components */}
+      <div className="bg-card rounded-xl border divide-y overflow-hidden">
+        <div className="px-3 py-2.5">
+          {field("Monthly Salary", "SGD / month", "monthlyRate", "input-monthly-rate")}
         </div>
-      ) : (
-        <div>
-          <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Monthly Rate (SGD)</label>
-          <input type="number" step="1" min="0" value={form.monthlyRate}
-            onChange={e => setForm(f => ({ ...f, monthlyRate: e.target.value }))}
-            className="w-full px-2 py-1.5 text-sm border rounded-lg bg-background" data-testid="input-monthly-rate" />
+        <div className="px-3 py-2.5">
+          {field("Hourly Rate", "first 8 hrs / day", "hourlyRate", "input-hourly-rate")}
         </div>
-      )}
-      <div>
-        <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Annual Leave Entitlement (days)</label>
+        <div className="px-3 py-2.5">
+          {field("Overtime Rate", "after 8 hrs / day", "overtimeRate", "input-overtime-rate")}
+        </div>
+      </div>
+
+      {/* Leave entitlement */}
+      <div className="space-y-1">
+        <div className="flex items-baseline justify-between">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Annual Leave</label>
+          <span className="text-[10px] text-muted-foreground">days / year</span>
+        </div>
         <input type="number" min="0" max="30" value={form.annualLeaveEntitlement}
           onChange={e => setForm(f => ({ ...f, annualLeaveEntitlement: parseInt(e.target.value) || 0 }))}
-          className="w-full px-2 py-1.5 text-sm border rounded-lg bg-background" data-testid="input-leave-entitlement" />
+          className="w-full px-3 py-1.5 text-sm border rounded-lg bg-background"
+          data-testid="input-leave-entitlement" />
       </div>
-      <div className="flex gap-2">
+
+      <div className="flex gap-2 pt-1">
         <button onClick={() => mut.mutate()} disabled={mut.isPending}
-          className="flex-1 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg disabled:opacity-50"
+          className="flex-1 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-xl disabled:opacity-50"
           data-testid="button-save-pay">
-          {mut.isPending ? "Saving..." : "Save"}
+          {mut.isPending ? "Saving…" : "Save Pay Package"}
         </button>
-        <button onClick={onClose} className="px-3 py-1.5 border text-xs rounded-lg">Cancel</button>
+        <button onClick={onClose} className="px-4 py-2 border text-xs rounded-xl font-medium">Cancel</button>
       </div>
     </div>
   );
@@ -1057,7 +1072,7 @@ function PayslipsTab() {
               <option value="">Select staff member...</option>
               {staff.map((s: any) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} (@{s.username}) — {s.payType === "hourly" ? `S$${s.hourlyRate}/hr` : `S$${s.monthlyRate}/mo`}
+                  {s.name} (@{s.username})
                 </option>
               ))}
             </select>
@@ -1066,19 +1081,36 @@ function PayslipsTab() {
           {genForm.userId && (() => {
             const s = (staff as any[]).find((x: any) => String(x.id) === genForm.userId);
             return s ? (
-              <div className="flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-xl px-3 py-2.5">
-                <div className="w-9 h-9 rounded-full bg-primary/20 text-primary font-black text-sm flex items-center justify-center shrink-0">
-                  {s.name.charAt(0)}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl px-3 py-3 space-y-2.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-primary/20 text-primary font-black text-sm flex items-center justify-center shrink-0">
+                    {s.name.split(" ").map((w: string) => w[0]).slice(0,2).join("").toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm truncate">{s.name}</p>
+                    <p className="text-xs font-mono text-muted-foreground">@{s.username}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm truncate">{s.name}</p>
-                  <p className="text-xs font-mono text-muted-foreground">@{s.username}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-xs font-bold text-primary">
-                    {s.payType === "hourly" ? `S$${s.hourlyRate}/hr` : `S$${s.monthlyRate}/mo`}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground capitalize">{s.payType} rate</p>
+                {/* Pay package summary — 3 components */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-card rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide">Monthly</p>
+                    <p className="text-xs font-black text-foreground font-mono mt-0.5">
+                      S${parseFloat(s.monthlyRate || "0").toFixed(0)}
+                    </p>
+                  </div>
+                  <div className="bg-card rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide">Reg/hr</p>
+                    <p className="text-xs font-black text-foreground font-mono mt-0.5">
+                      S${parseFloat(s.hourlyRate || "0").toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700 rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400 font-bold uppercase tracking-wide">OT/hr</p>
+                    <p className="text-xs font-black text-amber-700 dark:text-amber-400 font-mono mt-0.5">
+                      S${parseFloat(s.overtimeRate || "0").toFixed(2)}
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : null;

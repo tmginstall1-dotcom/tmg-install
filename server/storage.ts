@@ -49,7 +49,7 @@ export interface IStorage {
   getLeaveBalance(userId: number, year: number): Promise<{ entitlement: number; used: number; pending: number; remaining: number }>;
 
   // Pay Settings
-  updatePaySettings(userId: number, settings: { payType?: string; hourlyRate?: string; monthlyRate?: string; annualLeaveEntitlement?: number }): Promise<typeof users.$inferSelect | undefined>;
+  updatePaySettings(userId: number, settings: { payType?: string; monthlyRate?: string; hourlyRate?: string; overtimeRate?: string; annualLeaveEntitlement?: number }): Promise<typeof users.$inferSelect | undefined>;
 
   // Payslips
   generatePayslip(data: Omit<typeof payslips.$inferInsert, 'id' | 'createdAt'>): Promise<Payslip>;
@@ -304,7 +304,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Pay Settings
-  async updatePaySettings(userId: number, settings: { payType?: string; hourlyRate?: string; monthlyRate?: string; annualLeaveEntitlement?: number }) {
+  async updatePaySettings(userId: number, settings: { payType?: string; monthlyRate?: string; hourlyRate?: string; overtimeRate?: string; annualLeaveEntitlement?: number }) {
     const [updated] = await db.update(users).set(settings as any).where(eq(users.id, userId)).returning();
     return updated;
   }

@@ -411,8 +411,9 @@ export async function registerRoutes(
       const userId = parseInt(req.params.userId);
       const data = z.object({
         payType: z.enum(["hourly", "monthly"]).optional(),
-        hourlyRate: z.string().optional(),
         monthlyRate: z.string().optional(),
+        hourlyRate: z.string().optional(),
+        overtimeRate: z.string().optional(),
         annualLeaveEntitlement: z.number().int().min(0).max(30).optional(),
       }).parse(req.body);
       const updated = await storage.updatePaySettings(userId, data);
@@ -454,32 +455,36 @@ export async function registerRoutes(
       const staffMember = await storage.getUserById(userId);
       if (!staffMember) return res.status(404).json({ message: "Staff not found" });
 
-      const hourlyRate = parseFloat(staffMember.hourlyRate as string || "0");
       const monthlyRate = parseFloat(staffMember.monthlyRate as string || "0");
+      const hourlyRate  = parseFloat(staffMember.hourlyRate  as string || "0");
+      // Use the stored overtime rate; fall back to hourly × 1.5 if not set
+      const overtimeRate = parseFloat((staffMember as any).overtimeRate as string || "0") ||
+                           (hourlyRate * 1.5);
       const payType = staffMember.payType || "hourly";
 
-      // Calculate hours from logs
-      let totalMins = 0;
+      // Calculate hours per day (cap regular at 8h/day, remainder is OT)
+      let regularHours = 0, overtimeHours = 0;
       for (const log of logs) {
         if (log.clockOutAt) {
-          const mins = (new Date(log.clockOutAt).getTime() - new Date(log.clockInAt).getTime()) / 60000;
-          totalMins += mins;
+          const hrs = (new Date(log.clockOutAt).getTime() - new Date(log.clockInAt).getTime()) / 3600000;
+          regularHours  += Math.min(hrs, 8);
+          overtimeHours += Math.max(0, hrs - 8);
         }
       }
-      const totalHours = totalMins / 60;
-      const regularHours = Math.min(totalHours, logs.length * 8); // 8h regular per day
-      const overtimeHours = Math.max(0, totalHours - regularHours);
 
       let regularPay = 0, overtimePay = 0, grossPay = 0;
       if (payType === "hourly") {
+        // Purely hourly: regular hrs × hourly rate + OT hrs × OT rate
         regularPay = regularHours * hourlyRate;
-        overtimePay = overtimeHours * hourlyRate * 1.5;
+        overtimePay = overtimeHours * overtimeRate;
         grossPay = regularPay + overtimePay;
       } else {
-        // Monthly: prorate if partial month (assume 26 working days/month)
+        // Monthly base + OT hrs × OT rate (custom or prorate)
         grossPay = monthlyRate;
         regularPay = monthlyRate;
-        overtimePay = overtimeHours * (monthlyRate / 26 / 8) * 1.5;
+        const effectiveOtRate = parseFloat((staffMember as any).overtimeRate as string || "0") ||
+                                (monthlyRate / 26 / 8 * 1.5);
+        overtimePay = overtimeHours * effectiveOtRate;
         grossPay += overtimePay;
       }
 
