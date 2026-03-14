@@ -202,6 +202,7 @@ export function useStaffArrived() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.quotes.get.path, variables.id] });
       queryClient.invalidateQueries({ queryKey: [api.quotes.list.path] });
+      queryClient.invalidateQueries({ queryKey: ['/api/staff/quotes'] });
     },
   });
 }
@@ -225,6 +226,7 @@ export function useStaffCompleted() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.quotes.get.path, variables.id] });
       queryClient.invalidateQueries({ queryKey: [api.quotes.list.path] });
+      queryClient.invalidateQueries({ queryKey: ['/api/staff/quotes'] });
     },
   });
 }

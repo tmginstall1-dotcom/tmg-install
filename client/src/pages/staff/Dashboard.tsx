@@ -25,10 +25,15 @@ export default function StaffDashboard() {
 
   const { data: quotes, isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/quotes"],
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
   const { data: attendance, isLoading: attLoading } = useQuery<any>({
     queryKey: ["/api/attendance/today"],
     refetchInterval: 30000,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   const allJobs = quotes || [];
