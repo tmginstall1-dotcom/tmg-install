@@ -571,10 +571,37 @@ export default function EstimateWizard() {
                 </div>
                 <div className="grid grid-cols-1 gap-4">
                   {([
-                    { type: "install" as ServiceType, icon: <Wrench className="w-7 h-7" />, label: "Installation", desc: "Assemble and install furniture at your location", color: "emerald" },
-                    { type: "dismantle" as ServiceType, icon: <Scissors className="w-7 h-7" />, label: "Dismantling", desc: "Carefully take apart and pack existing furniture", color: "amber" },
-                    { type: "relocate" as ServiceType, icon: <Truck className="w-7 h-7" />, label: "Relocation / Move", desc: "Move furniture between locations — pickup & delivery", color: "blue" },
-                  ]).map(({ type, icon, label, desc, color }) => {
+                    {
+                      type: "install" as ServiceType,
+                      icon: <Wrench className="w-7 h-7" />,
+                      label: "Installation",
+                      desc: "Assemble and install furniture at your location",
+                      cardActive: "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 shadow-lg",
+                      iconActive: "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600",
+                      iconInactive: "bg-secondary text-emerald-600",
+                      dotActive: "border-emerald-500 bg-emerald-500",
+                    },
+                    {
+                      type: "dismantle" as ServiceType,
+                      icon: <Scissors className="w-7 h-7" />,
+                      label: "Dismantling",
+                      desc: "Carefully take apart and pack existing furniture",
+                      cardActive: "border-amber-400 bg-amber-50 dark:bg-amber-950/30 shadow-lg",
+                      iconActive: "bg-amber-100 dark:bg-amber-900/50 text-amber-600",
+                      iconInactive: "bg-secondary text-amber-600",
+                      dotActive: "border-amber-500 bg-amber-500",
+                    },
+                    {
+                      type: "relocate" as ServiceType,
+                      icon: <Truck className="w-7 h-7" />,
+                      label: "Relocation / Move",
+                      desc: "Move furniture between locations — pickup & delivery",
+                      cardActive: "border-blue-400 bg-blue-50 dark:bg-blue-950/30 shadow-lg",
+                      iconActive: "bg-blue-100 dark:bg-blue-900/50 text-blue-600",
+                      iconInactive: "bg-secondary text-blue-600",
+                      dotActive: "border-blue-500 bg-blue-500",
+                    },
+                  ]).map(({ type, icon, label, desc, cardActive, iconActive, iconInactive, dotActive }) => {
                     const active = services.includes(type);
                     return (
                       <button
@@ -582,13 +609,13 @@ export default function EstimateWizard() {
                         data-testid={`service-${type}`}
                         onClick={() => setServices(prev => active ? prev.filter(s => s !== type) : [...prev, type])}
                         className={`group relative rounded-2xl border-2 p-5 text-left transition-all duration-200 ${
-                          active ? `border-${color}-400 bg-${color}-50 dark:bg-${color}-950/30 shadow-lg` : "border-border bg-card hover:border-border/80 hover:shadow-md"
+                          active ? cardActive : "border-border bg-card hover:border-border/80 hover:shadow-md"
                         }`}
                       >
                         <div className="flex items-start gap-4">
-                          <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-${color}-600 ${
-                            active ? `bg-${color}-100 dark:bg-${color}-900/50` : "bg-secondary"
-                          } transition-colors`}>
+                          <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${
+                            active ? iconActive : iconInactive
+                          }`}>
                             {icon}
                           </div>
                           <div className="flex-1">
@@ -596,7 +623,7 @@ export default function EstimateWizard() {
                             <p className="text-sm text-muted-foreground mt-0.5">{desc}</p>
                           </div>
                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-1 transition-all ${
-                            active ? `border-${color}-500 bg-${color}-500` : "border-border"
+                            active ? dotActive : "border-border"
                           }`}>
                             {active && <Check className="w-3.5 h-3.5 text-white" />}
                           </div>
