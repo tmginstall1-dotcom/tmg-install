@@ -1,404 +1,345 @@
 import { useQuotes } from "@/hooks/use-quotes";
 import { Link } from "wouter";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
-import {
-  Printer, ArrowLeft, FileText, ChevronDown, ChevronRight,
-  Download, Filter, X, CheckCircle2, Clock, MapPin
-} from "lucide-react";
+import { Printer, ArrowLeft, Download, ChevronDown, ChevronRight, X, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 
-/* ─── Company constants ─────────────────────────────────────── */
-const COMPANY = "The Moving Guy Pte Ltd";
-const UEN     = "202424156H";
-const ADDRESS = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
-const PHONE   = "+65 8088 0757";
-const EMAIL   = "sales@tmginstall.com";
-const WEBSITE = "tmginstall.com";
+/* ─── Constants ─────────────────────────────────────────────── */
+const CO   = "The Moving Guy Pte Ltd";
+const UEN  = "202424156H";
+const ADDR = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
+const TEL  = "+65 8088 0757";
+const MAIL = "sales@tmginstall.com";
+const WEB  = "tmginstall.com";
 
-/* ─── Helpers ───────────────────────────────────────────────── */
-function sgd(v: any) {
-  return `S$${Number(v || 0).toLocaleString("en-SG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-function d(v?: string | null, time = false) {
-  if (!v) return "—";
-  return time ? format(new Date(v), "d MMM yyyy, h:mm a") : format(new Date(v), "d MMM yyyy");
-}
-function getUpdate(updates: any[], statusChange: string) {
-  return (updates || []).find((u: any) => u.statusChange === statusChange && u.gpsLat);
-}
-function parseServices(raw: string | null) {
-  try { return JSON.parse(raw || "[]"); } catch { return []; }
-}
+/* ─── Formatters ─────────────────────────────────────────────── */
+const money = (v: any) =>
+  `S$${Number(v || 0).toLocaleString("en-SG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/* ─── CSV Export ────────────────────────────────────────────── */
-function exportCSV(jobs: any[]) {
-  const h = ["Ref No","Created","Customer","Phone","Email","Service Address","Job Date","Time Window","Staff","Subtotal","Transport","Discount","Total","Deposit Amt","Deposit Paid","Final Amt","Final Paid","Status"];
-  const rows = jobs.map(q => {
-    const addr = q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress || "");
-    return [
-      q.referenceNo, d(q.createdAt), q.customer?.name || "", q.customer?.phone || "", q.customer?.email || "",
-      addr, q.scheduledAt ? format(new Date(q.scheduledAt), "d MMM yyyy") : "", q.timeWindow || "",
-      q.assignedStaff?.name || "",
-      Number(q.subtotal||0).toFixed(2), Number(q.transportFee||0).toFixed(2), Number(q.discount||0).toFixed(2),
-      Number(q.total||0).toFixed(2),
-      Number(q.depositAmount||0).toFixed(2), q.depositPaidAt ? d(q.depositPaidAt) : "",
-      Number(q.finalAmount||0).toFixed(2), q.finalPaidAt ? d(q.finalPaidAt) : "",
-      q.status === "final_paid" ? "Fully Paid" : "Closed",
-    ].map(v => `"${String(v).replace(/"/g,'""')}"`);
-  });
-  const csv = [h.map(x=>`"${x}"`).join(","), ...rows.map(r=>r.join(","))].join("\n");
+const dt = (v?: string | null, withTime = false) =>
+  v ? format(new Date(v), withTime ? "d MMM yyyy, h:mm a" : "d MMM yyyy") : "—";
+
+const addr = (q: any) =>
+  q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress || "—");
+
+const statusLabel = (s: string) => (s === "final_paid" ? "Paid" : "Closed");
+const statusCls   = (s: string) =>
+  s === "final_paid"
+    ? "bg-emerald-100 text-emerald-700"
+    : "bg-slate-100 text-slate-500";
+
+/* ─── CSV ────────────────────────────────────────────────────── */
+function downloadCSV(jobs: any[]) {
+  const headers = ["Ref","Date Created","Customer","Phone","Address","Job Date","Time","Staff","Total","Deposit Paid","Final Paid","Status"];
+  const rows = jobs.map(q => [
+    q.referenceNo, dt(q.createdAt), q.customer?.name || "", q.customer?.phone || "",
+    addr(q), q.scheduledAt ? dt(q.scheduledAt) : "", q.timeWindow || "",
+    q.assignedStaff?.name || "",
+    Number(q.total || 0).toFixed(2),
+    q.depositPaidAt ? dt(q.depositPaidAt) : "Unpaid",
+    q.finalPaidAt   ? dt(q.finalPaidAt)   : "Unpaid",
+    statusLabel(q.status),
+  ].map(v => `"${String(v).replace(/"/g, '""')}"`));
+
+  const csv = [headers.map(h => `"${h}"`).join(","), ...rows.map(r => r.join(","))].join("\n");
   const a = Object.assign(document.createElement("a"), {
-    href: URL.createObjectURL(new Blob([csv], { type:"text/csv;charset=utf-8;" })),
-    download: `TMG_Jobs_${format(new Date(),"yyyy-MM-dd")}.csv`,
+    href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" })),
+    download: `TMG_Audit_${format(new Date(), "yyyy-MM-dd")}.csv`,
   });
   a.click();
 }
 
-/* ─── Print helpers ─────────────────────────────────────────── */
-function triggerPrint(mode: "summary" | "full") {
+/* ─── Print trigger ──────────────────────────────────────────── */
+function doPrint(mode: "summary" | "full") {
   document.body.dataset.printMode = mode;
   setTimeout(() => {
     window.print();
-    setTimeout(() => { delete document.body.dataset.printMode; }, 800);
-  }, 80);
+    setTimeout(() => delete document.body.dataset.printMode, 800);
+  }, 60);
 }
 
-/* ══════════════════════════════════════════════════════════════
-   PRINT-ONLY JOB DETAIL  (rendered outside the <table>)
-══════════════════════════════════════════════════════════════ */
-function PrintJobDetail({ q, today }: { q: any; today: string }) {
-  const arrived   = getUpdate(q.updates, "in_progress");
-  const completed = getUpdate(q.updates, "completed");
-  const notes     = (q.updates || []).filter((u: any) => u.note && !u.gpsLat);
-  const items     = q.items || [];
-  const services  = parseServices(q.selectedServices);
-  const isRelocation = !!q.pickupAddress;
+/* ─── Small helpers ──────────────────────────────────────────── */
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex text-xs py-1 border-b border-gray-50 last:border-0 gap-3">
+      <span className="text-gray-400 w-20 shrink-0">{label}</span>
+      <span className="font-medium text-gray-800">{value}</span>
+    </div>
+  );
+}
+
+/* ─── Expanded screen panel ──────────────────────────────────── */
+function JobPanel({ q }: { q: any }) {
+  const items    = q.items || [];
+  const arrived  = (q.updates || []).find((u: any) => u.statusChange === "in_progress" && u.gpsLat);
+  const done     = (q.updates || []).find((u: any) => u.statusChange === "completed" && u.gpsLat);
+  const services = (() => { try { return JSON.parse(q.selectedServices || "[]"); } catch { return []; } })();
 
   return (
-    <div className="print-job-detail" style={{ pageBreakBefore:"always", breakBefore:"page" }}>
-      {/* ── Job header band ── */}
-      <div style={{ background:"#000", color:"#fff", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-        <div>
-          <div style={{ fontSize:8, letterSpacing:2, opacity:.5, textTransform:"uppercase", marginBottom:2 }}>Job Detail — Audit Record</div>
-          <div style={{ fontSize:16, fontWeight:900, fontFamily:"monospace" }}>{q.referenceNo}</div>
-        </div>
-        <div style={{ textAlign:"right" }}>
-          <div style={{
-            display:"inline-block", padding:"2px 8px", borderRadius:99, fontSize:9, fontWeight:700,
-            background: q.status==="final_paid" ? "#22c55e" : "rgba(255,255,255,0.15)", color:"#fff"
-          }}>
-            {q.status === "final_paid" ? "FULLY PAID" : "CLOSED"}
+    <div className="bg-gray-50 border-t border-b border-gray-200 px-6 py-5">
+      <div className="grid grid-cols-3 gap-6 max-w-4xl">
+
+        {/* ── Column 1: Info ── */}
+        <div className="space-y-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Customer</p>
+            <Row label="Name"  value={q.customer?.name  || "—"} />
+            <Row label="Phone" value={q.customer?.phone || "—"} />
+            <Row label="Email" value={q.customer?.email || "—"} />
           </div>
-          <div style={{ fontSize:9, opacity:.4, marginTop:3 }}>Submitted {d(q.createdAt)}</div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Appointment</p>
+            <Row label="Date"     value={q.scheduledAt ? format(new Date(q.scheduledAt), "EEE, d MMM yyyy") : "—"} />
+            {q.timeWindow && <Row label="Time"  value={q.timeWindow} />}
+            <Row label="Staff"    value={q.assignedStaff?.name || "—"} />
+            {services.length > 0 && <Row label="Services" value={services.join(", ")} />}
+          </div>
+        </div>
+
+        {/* ── Column 2: Financials ── */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Financials</p>
+          {items.length > 0 && (
+            <div className="mb-3">
+              {items.map((it: any) => (
+                <div key={it.id} className="flex justify-between text-xs py-1 border-b border-gray-100 last:border-0">
+                  <span className="text-gray-700">{it.detectedName || it.originalDescription} ×{it.quantity}</span>
+                  <span className="font-semibold">{money(it.subtotal)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="space-y-1 text-xs">
+            {Number(q.transportFee || 0) > 0 && (
+              <div className="flex justify-between text-gray-500">
+                <span>Transport</span><span>{money(q.transportFee)}</span>
+              </div>
+            )}
+            {Number(q.discount || 0) > 0 && (
+              <div className="flex justify-between text-red-500">
+                <span>Discount</span><span>−{money(q.discount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold border-t border-gray-200 pt-2 mt-2 text-sm">
+              <span>Total</span><span>{money(q.total)}</span>
+            </div>
+            <div className={`flex justify-between text-xs ${q.depositPaidAt ? "text-emerald-600" : "text-gray-400"}`}>
+              <span>Deposit {q.depositPaidAt ? "✓" : ""}</span><span>{money(q.depositAmount)}</span>
+            </div>
+            <div className={`flex justify-between text-xs ${q.finalPaidAt ? "text-emerald-600" : "text-gray-400"}`}>
+              <span>Final {q.finalPaidAt ? "✓" : ""}</span><span>{money(q.finalAmount)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Column 3: On-site ── */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">On-Site Record</p>
+          {arrived ? (
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-2">
+              <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide mb-1">Arrived</p>
+              <p className="text-sm font-bold text-blue-800">{format(new Date(arrived.createdAt), "h:mm a")}</p>
+              <p className="text-xs text-blue-600">{format(new Date(arrived.createdAt), "d MMM yyyy")}</p>
+            </div>
+          ) : (
+            <div className="border border-dashed border-gray-200 rounded-lg p-3 mb-2 text-xs text-gray-400">No arrival GPS</div>
+          )}
+          {done ? (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+              <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wide mb-1">Completed</p>
+              <p className="text-sm font-bold text-emerald-800">{format(new Date(done.createdAt), "h:mm a")}</p>
+              <p className="text-xs text-emerald-600">{format(new Date(done.createdAt), "d MMM yyyy")}</p>
+              {arrived && (
+                <p className="text-[10px] text-emerald-400 mt-1">
+                  {Math.round((new Date(done.createdAt).getTime() - new Date(arrived.createdAt).getTime()) / 60000)} min on-site
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="border border-dashed border-gray-200 rounded-lg p-3 text-xs text-gray-400">No completion GPS</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Print-only job detail (proper break-before: page on div) ── */
+function PrintJob({ q, today }: { q: any; today: string }) {
+  const items    = q.items || [];
+  const arrived  = (q.updates || []).find((u: any) => u.statusChange === "in_progress" && u.gpsLat);
+  const done     = (q.updates || []).find((u: any) => u.statusChange === "completed" && u.gpsLat);
+  const notes    = (q.updates || []).filter((u: any) => u.note && !u.gpsLat);
+  const services = (() => { try { return JSON.parse(q.selectedServices || "[]"); } catch { return []; } })();
+  const isReloc  = !!q.pickupAddress;
+
+  const cell: React.CSSProperties = { padding: "3px 0", fontSize: 9 };
+  const th: React.CSSProperties   = { padding: "3px 5px", fontWeight: 700, fontSize: 8, textAlign: "left" };
+
+  return (
+    <div style={{ pageBreakBefore: "always", breakBefore: "page", fontFamily: "Arial, sans-serif", padding: "0 4px" }}>
+
+      {/* Header band */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#000", color: "#fff", padding: "8px 12px", borderRadius: "4px 4px 0 0", marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 7, letterSpacing: 2, opacity: .5, textTransform: "uppercase" }}>Job Detail — Audit Record</div>
+          <div style={{ fontSize: 15, fontWeight: 900, fontFamily: "monospace" }}>{q.referenceNo}</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <span style={{ background: q.status === "final_paid" ? "#22c55e" : "rgba(255,255,255,.2)", color: "#fff", padding: "2px 8px", borderRadius: 99, fontSize: 8, fontWeight: 700, textTransform: "uppercase" }}>
+            {q.status === "final_paid" ? "FULLY PAID" : "CLOSED"}
+          </span>
+          <div style={{ fontSize: 8, opacity: .4, marginTop: 2 }}>Submitted {dt(q.createdAt)}</div>
         </div>
       </div>
 
-      {/* ── Two-column body ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, padding:"0 4px" }}>
+      {/* 3-column grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
 
-        {/* LEFT COLUMN */}
+        {/* Col 1 */}
         <div>
-          <PBlock title="Customer">
-            <PRow label="Name"  val={q.customer?.name  || "—"} />
-            <PRow label="Phone" val={q.customer?.phone || "—"} />
-            <PRow label="Email" val={q.customer?.email || "—"} />
-          </PBlock>
-
-          <PBlock title="Service Location">
-            {isRelocation ? (
-              <>
-                <PRow label="Pickup"   val={q.pickupAddress} />
-                <PRow label="Drop-off" val={q.dropoffAddress} />
-              </>
-            ) : (
-              <PRow label="Address" val={q.serviceAddress || "—"} />
-            )}
-            {services.length > 0 && <PRow label="Services" val={services.join(", ")} />}
-            {q.accessDifficulty && <PRow label="Access"   val={q.accessDifficulty} />}
-            {q.floorsInfo       && <PRow label="Floors"   val={q.floorsInfo} />}
-          </PBlock>
-
-          <PBlock title="Appointment">
-            <PRow label="Date"  val={q.scheduledAt ? format(new Date(q.scheduledAt), "EEEE, d MMMM yyyy") : "—"} />
-            {q.timeWindow && <PRow label="Time" val={q.timeWindow} />}
-            <PRow label="Staff" val={q.assignedStaff?.name || "—"} />
-          </PBlock>
-
-          <PBlock title="On-Site GPS Record">
-            {arrived ? (
-              <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:6, padding:"6px 8px", marginBottom:6 }}>
-                <div style={{ fontSize:8, fontWeight:700, color:"#2563eb", textTransform:"uppercase", letterSpacing:1 }}>📍 Staff Arrived</div>
-                <div style={{ fontSize:13, fontWeight:900, color:"#1e3a8a" }}>{format(new Date(arrived.createdAt),"h:mm a")}</div>
-                <div style={{ fontSize:9, color:"#3b82f6" }}>{format(new Date(arrived.createdAt),"EEEE, d MMM yyyy")}</div>
-                <div style={{ fontSize:8, color:"#93c5fd", marginTop:2 }}>GPS {Number(arrived.gpsLat).toFixed(5)}, {Number(arrived.gpsLng).toFixed(5)}</div>
-              </div>
-            ) : (
-              <div style={{ border:"1px dashed #e5e7eb", borderRadius:6, padding:"6px 8px", fontSize:9, color:"#9ca3af", marginBottom:6 }}>No arrival GPS recorded</div>
-            )}
-            {completed ? (
-              <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:6, padding:"6px 8px" }}>
-                <div style={{ fontSize:8, fontWeight:700, color:"#16a34a", textTransform:"uppercase", letterSpacing:1 }}>✅ Completed</div>
-                <div style={{ fontSize:13, fontWeight:900, color:"#14532d" }}>{format(new Date(completed.createdAt),"h:mm a")}</div>
-                <div style={{ fontSize:9, color:"#22c55e" }}>{format(new Date(completed.createdAt),"EEEE, d MMM yyyy")}</div>
-                {arrived && (
-                  <div style={{ fontSize:8, color:"#86efac", marginTop:2 }}>
-                    ⏱ {Math.round((new Date(completed.createdAt).getTime() - new Date(arrived.createdAt).getTime()) / 60000)} min on-site
-                  </div>
-                )}
-                <div style={{ fontSize:8, color:"#86efac" }}>GPS {Number(completed.gpsLat).toFixed(5)}, {Number(completed.gpsLng).toFixed(5)}</div>
-              </div>
-            ) : (
-              <div style={{ border:"1px dashed #e5e7eb", borderRadius:6, padding:"6px 8px", fontSize:9, color:"#9ca3af" }}>No completion GPS recorded</div>
-            )}
-          </PBlock>
-
+          <Sect title="Customer">
+            <PR label="Name"  val={q.customer?.name  || "—"} />
+            <PR label="Phone" val={q.customer?.phone || "—"} />
+            <PR label="Email" val={q.customer?.email || "—"} />
+          </Sect>
+          <Sect title="Service Location">
+            {isReloc ? (<><PR label="Pickup" val={q.pickupAddress} /><PR label="Drop-off" val={q.dropoffAddress} /></>) : <PR label="Address" val={q.serviceAddress || "—"} />}
+            {services.length > 0 && <PR label="Services" val={services.join(", ")} />}
+            {q.accessDifficulty && <PR label="Access"   val={q.accessDifficulty} />}
+            {q.floorsInfo       && <PR label="Floors"   val={q.floorsInfo} />}
+          </Sect>
+          <Sect title="Appointment">
+            <PR label="Date"  val={q.scheduledAt ? format(new Date(q.scheduledAt), "EEEE, d MMMM yyyy") : "—"} />
+            {q.timeWindow && <PR label="Time"  val={q.timeWindow} />}
+            <PR label="Staff" val={q.assignedStaff?.name || "—"} />
+          </Sect>
           {notes.length > 0 && (
-            <PBlock title="Notes & Updates">
-              {notes.map((u: any) => (
-                <div key={u.id} style={{ background:"#f9fafb", borderRadius:4, padding:"4px 6px", marginBottom:4, fontSize:9 }}>
-                  <div style={{ color:"#6b7280", marginBottom:2 }}>{u.actorType} · {d(u.createdAt, true)}</div>
-                  <div style={{ color:"#374151", fontStyle:"italic" }}>"{u.note}"</div>
+            <Sect title="Notes">
+              {notes.map((n: any) => (
+                <div key={n.id} style={{ background: "#f9fafb", borderRadius: 4, padding: "3px 6px", marginBottom: 3, fontSize: 8 }}>
+                  <span style={{ color: "#9ca3af" }}>{dt(n.createdAt, true)} · </span>
+                  <span style={{ fontStyle: "italic" }}>"{n.note}"</span>
                 </div>
               ))}
-            </PBlock>
+            </Sect>
           )}
         </div>
 
-        {/* RIGHT COLUMN */}
+        {/* Col 2: Items + Financials */}
         <div>
-          <PBlock title="Scope of Work">
-            {items.length === 0 ? (
-              <div style={{ fontSize:9, color:"#9ca3af" }}>No items recorded.</div>
-            ) : (
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:9 }}>
+          <Sect title="Scope of Work">
+            {items.length === 0 ? <div style={{ fontSize: 8, color: "#9ca3af" }}>No items.</div> : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ background:"#f3f4f6" }}>
-                    {["Item","Type","Qty","Unit Price","Total"].map(h => (
-                      <th key={h} style={{ padding:"3px 5px", textAlign:["Qty","Unit Price","Total"].includes(h)?"right":"left", fontWeight:700, fontSize:8 }}>{h}</th>
-                    ))}
+                  <tr style={{ background: "#f3f4f6" }}>
+                    <th style={th}>Item</th>
+                    <th style={{ ...th, textAlign: "right" }}>Qty</th>
+                    <th style={{ ...th, textAlign: "right" }}>Unit</th>
+                    <th style={{ ...th, textAlign: "right" }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((it: any, ii: number) => (
-                    <tr key={it.id} style={{ background: ii%2===0 ? "#fff" : "#f9fafb" }}>
-                      <td style={{ padding:"3px 5px", fontWeight:600, borderBottom:"1px solid #f3f4f6" }}>{it.detectedName || it.originalDescription}</td>
-                      <td style={{ padding:"3px 5px", color:"#6b7280", textTransform:"capitalize", borderBottom:"1px solid #f3f4f6" }}>{it.serviceType}</td>
-                      <td style={{ padding:"3px 5px", textAlign:"right", borderBottom:"1px solid #f3f4f6" }}>{it.quantity}</td>
-                      <td style={{ padding:"3px 5px", textAlign:"right", borderBottom:"1px solid #f3f4f6" }}>{sgd(it.unitPrice)}</td>
-                      <td style={{ padding:"3px 5px", textAlign:"right", fontWeight:700, borderBottom:"1px solid #f3f4f6" }}>{sgd(it.subtotal)}</td>
+                    <tr key={it.id} style={{ background: ii % 2 ? "#f9fafb" : "#fff" }}>
+                      <td style={{ ...cell, padding: "3px 5px" }}>{it.detectedName || it.originalDescription}</td>
+                      <td style={{ ...cell, padding: "3px 5px", textAlign: "right" }}>{it.quantity}</td>
+                      <td style={{ ...cell, padding: "3px 5px", textAlign: "right" }}>{money(it.unitPrice)}</td>
+                      <td style={{ ...cell, padding: "3px 5px", textAlign: "right", fontWeight: 700 }}>{money(it.subtotal)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
-          </PBlock>
-
-          <PBlock title="Financial Summary">
-            <table style={{ width:"100%", fontSize:9 }}>
+          </Sect>
+          <Sect title="Financial Summary">
+            <table style={{ width: "100%" }}>
               <tbody>
-                <PFinRow label="Labour subtotal"   val={sgd(q.subtotal)} />
-                {Number(q.transportFee||0)>0 && <PFinRow label="Transport & logistics" val={sgd(q.transportFee)} />}
-                {Number(q.discount||0)>0     && <PFinRow label="Discount"              val={`−${sgd(q.discount)}`} red />}
-                <tr style={{ borderTop:"2px solid #000", borderBottom:"2px solid #000" }}>
-                  <td style={{ padding:"5px 0", fontWeight:900, fontSize:11 }}>GRAND TOTAL</td>
-                  <td style={{ padding:"5px 0", textAlign:"right", fontWeight:900, fontSize:11 }}>{sgd(q.total)}</td>
+                <FinRow label="Labour"    val={money(q.subtotal)} />
+                {Number(q.transportFee||0)>0 && <FinRow label="Transport" val={money(q.transportFee)} />}
+                {Number(q.discount||0)>0     && <FinRow label="Discount"  val={`−${money(q.discount)}`} color="#dc2626" />}
+                <tr style={{ borderTop: "2px solid #000", borderBottom: "2px solid #000" }}>
+                  <td style={{ ...cell, fontWeight: 900, fontSize: 11, padding: "5px 0" }}>GRAND TOTAL</td>
+                  <td style={{ ...cell, fontWeight: 900, fontSize: 11, textAlign: "right", padding: "5px 0" }}>{money(q.total)}</td>
                 </tr>
-                <PFinRow label={`Deposit 50%${q.depositPaidAt?" ✓":""}`} val={sgd(q.depositAmount)} green={!!q.depositPaidAt} />
-                {q.depositPaidAt && <tr><td colSpan={2} style={{ fontSize:8, color:"#6b7280", padding:"1px 0 3px 12px" }}>Paid {d(q.depositPaidAt, true)}</td></tr>}
-                <PFinRow label={`Final 50%${q.finalPaidAt?" ✓":""}`} val={sgd(q.finalAmount)} green={!!q.finalPaidAt} />
-                {q.finalPaidAt && <tr><td colSpan={2} style={{ fontSize:8, color:"#6b7280", padding:"1px 0 3px 12px" }}>Paid {d(q.finalPaidAt, true)}</td></tr>}
+                <FinRow label={`Deposit 50%${q.depositPaidAt?" ✓":""}`} val={money(q.depositAmount)} color={q.depositPaidAt?"#15803d":undefined} />
+                {q.depositPaidAt && <tr><td colSpan={2} style={{ fontSize: 7, color: "#9ca3af", paddingLeft: 8 }}>Paid {dt(q.depositPaidAt, true)}</td></tr>}
+                <FinRow label={`Final 50%${q.finalPaidAt?" ✓":""}`}     val={money(q.finalAmount)}   color={q.finalPaidAt?"#15803d":undefined} />
+                {q.finalPaidAt && <tr><td colSpan={2} style={{ fontSize: 7, color: "#9ca3af", paddingLeft: 8 }}>Paid {dt(q.finalPaidAt, true)}</td></tr>}
               </tbody>
             </table>
-          </PBlock>
+          </Sect>
+        </div>
 
-          {/* Audit certification box */}
-          <PBlock title="Audit Certification">
-            <div style={{ border:"2px dashed #e5e7eb", borderRadius:8, padding:10 }}>
-              {["Verified by","Date verified","Signature"].map(label => (
-                <div key={label} style={{ display:"flex", alignItems:"flex-end", gap:8, marginBottom:10 }}>
-                  <span style={{ fontSize:8, color:"#9ca3af", width:72, flexShrink:0 }}>{label}</span>
-                  <div style={{ flex:1, borderBottom:"1px solid #d1d5db", paddingBottom:2 }}>
-                    {label === "Verified by" && <span style={{ fontSize:8, color:"#d1d5db" }}>Admin / Operations</span>}
-                  </div>
+        {/* Col 3: GPS + Certification */}
+        <div>
+          <Sect title="On-Site GPS Record">
+            {arrived ? (
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "6px 8px", marginBottom: 6 }}>
+                <div style={{ fontSize: 7, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: 1 }}>📍 Staff Arrived</div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: "#1e3a8a" }}>{format(new Date(arrived.createdAt), "h:mm a")}</div>
+                <div style={{ fontSize: 8, color: "#3b82f6" }}>{format(new Date(arrived.createdAt), "EEEE, d MMM yyyy")}</div>
+                <div style={{ fontSize: 7, color: "#93c5fd", marginTop: 2 }}>GPS {Number(arrived.gpsLat).toFixed(5)}, {Number(arrived.gpsLng).toFixed(5)}</div>
+              </div>
+            ) : <div style={{ border: "1px dashed #e5e7eb", borderRadius: 6, padding: "6px 8px", fontSize: 8, color: "#9ca3af", marginBottom: 6 }}>No arrival GPS</div>}
+
+            {done ? (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "6px 8px" }}>
+                <div style={{ fontSize: 7, fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: 1 }}>✅ Completed</div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: "#14532d" }}>{format(new Date(done.createdAt), "h:mm a")}</div>
+                <div style={{ fontSize: 8, color: "#22c55e" }}>{format(new Date(done.createdAt), "EEEE, d MMM yyyy")}</div>
+                {arrived && <div style={{ fontSize: 7, color: "#86efac", marginTop: 2 }}>⏱ {Math.round((new Date(done.createdAt).getTime() - new Date(arrived.createdAt).getTime()) / 60000)} min on-site</div>}
+                <div style={{ fontSize: 7, color: "#86efac" }}>GPS {Number(done.gpsLat).toFixed(5)}, {Number(done.gpsLng).toFixed(5)}</div>
+              </div>
+            ) : <div style={{ border: "1px dashed #e5e7eb", borderRadius: 6, padding: "6px 8px", fontSize: 8, color: "#9ca3af" }}>No completion GPS</div>}
+          </Sect>
+
+          <Sect title="Audit Certification">
+            <div style={{ border: "2px dashed #e5e7eb", borderRadius: 6, padding: 10 }}>
+              {["Verified by", "Date verified", "Signature"].map(lbl => (
+                <div key={lbl} style={{ display: "flex", alignItems: "flex-end", gap: 6, marginBottom: 12 }}>
+                  <span style={{ fontSize: 8, color: "#9ca3af", width: 70, flexShrink: 0 }}>{lbl}</span>
+                  <div style={{ flex: 1, borderBottom: "1px solid #d1d5db", paddingBottom: 2 }} />
                 </div>
               ))}
             </div>
-          </PBlock>
+          </Sect>
         </div>
       </div>
 
-      {/* Footer strip */}
-      <div style={{ marginTop:12, paddingTop:6, borderTop:"1px solid #e5e7eb", display:"flex", justifyContent:"space-between", fontSize:8, color:"#9ca3af" }}>
-        <span>{COMPANY} · UEN {UEN}</span>
-        <span style={{ fontFamily:"monospace", fontWeight:700 }}>{q.referenceNo}</span>
+      {/* Footer */}
+      <div style={{ marginTop: 10, paddingTop: 6, borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", fontSize: 7, color: "#9ca3af" }}>
+        <span>{CO} · UEN {UEN}</span>
+        <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{q.referenceNo}</span>
         <span>Confidential · Audit use only · {today}</span>
       </div>
     </div>
   );
 }
 
-function PBlock({ title, children }: { title: string; children: React.ReactNode }) {
+function Sect({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom:12 }}>
-      <div style={{ fontSize:8, fontWeight:900, textTransform:"uppercase", letterSpacing:2, color:"#6b7280", borderBottom:"1px solid #e5e7eb", paddingBottom:3, marginBottom:6 }}>{title}</div>
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 7, fontWeight: 900, textTransform: "uppercase", letterSpacing: 2, color: "#6b7280", borderBottom: "1px solid #e5e7eb", paddingBottom: 2, marginBottom: 5 }}>{title}</div>
       {children}
     </div>
   );
 }
-function PRow({ label, val }: { label: string; val: string }) {
+function PR({ label, val }: { label: string; val: string }) {
   return (
-    <div style={{ display:"flex", gap:6, padding:"2px 0", fontSize:9, borderBottom:"1px solid #f9fafb" }}>
-      <span style={{ color:"#9ca3af", width:56, flexShrink:0 }}>{label}</span>
-      <span style={{ fontWeight:600, flex:1 }}>{val}</span>
+    <div style={{ display: "flex", gap: 6, padding: "2px 0", fontSize: 8 }}>
+      <span style={{ color: "#9ca3af", width: 52, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontWeight: 600 }}>{val}</span>
     </div>
   );
 }
-function PFinRow({ label, val, red, green }: { label: string; val: string; red?: boolean; green?: boolean }) {
+function FinRow({ label, val, color }: { label: string; val: string; color?: string }) {
+  const s: React.CSSProperties = { padding: "3px 0", fontSize: 9, color: color || "#6b7280" };
   return (
     <tr>
-      <td style={{ padding:"3px 0", color: green ? "#15803d" : red ? "#dc2626" : "#6b7280" }}>{label}</td>
-      <td style={{ padding:"3px 0", textAlign:"right", fontWeight:600, color: green ? "#15803d" : red ? "#dc2626" : undefined }}>{val}</td>
+      <td style={s}>{label}</td>
+      <td style={{ ...s, textAlign: "right", fontWeight: 600 }}>{val}</td>
     </tr>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════
-   SCREEN EXPANDED JOB DETAIL
-══════════════════════════════════════════════════════════════ */
-function ScreenJobDetail({ q }: { q: any }) {
-  const arrived   = getUpdate(q.updates, "in_progress");
-  const completed = getUpdate(q.updates, "completed");
-  const notes     = (q.updates || []).filter((u: any) => u.note && !u.gpsLat);
-  const items     = q.items || [];
-  const services  = parseServices(q.selectedServices);
-  const isRelocation = !!q.pickupAddress;
-
-  return (
-    <div className="p-5 grid grid-cols-2 gap-6 bg-white">
-      <div className="space-y-5">
-        <SBlock title="Customer">
-          <SRow label="Name"  val={q.customer?.name  || "—"} />
-          <SRow label="Phone" val={q.customer?.phone || "—"} />
-          <SRow label="Email" val={q.customer?.email || "—"} />
-        </SBlock>
-        <SBlock title="Service Location">
-          {isRelocation ? (<><SRow label="Pickup" val={q.pickupAddress} /><SRow label="Drop-off" val={q.dropoffAddress} /></>) : <SRow label="Address" val={q.serviceAddress || "—"} />}
-          {services.length > 0 && <SRow label="Services" val={services.join(", ")} />}
-          {q.accessDifficulty && <SRow label="Access"  val={q.accessDifficulty} />}
-          {q.floorsInfo       && <SRow label="Floors"  val={q.floorsInfo} />}
-        </SBlock>
-        <SBlock title="Appointment">
-          <SRow label="Date"  val={q.scheduledAt ? format(new Date(q.scheduledAt), "EEEE, d MMMM yyyy") : "—"} />
-          {q.timeWindow && <SRow label="Time" val={q.timeWindow} />}
-          <SRow label="Staff" val={q.assignedStaff?.name || "—"} />
-        </SBlock>
-        <SBlock title="On-Site GPS Record">
-          <div className="space-y-2">
-            {arrived ? (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <MapPin className="w-3 h-3 text-blue-600" />
-                  <span className="text-[9px] font-bold text-blue-600 uppercase tracking-wide">Staff Arrived</span>
-                </div>
-                <p className="text-sm font-black text-blue-900">{format(new Date(arrived.createdAt),"h:mm a")}</p>
-                <p className="text-xs text-blue-700">{format(new Date(arrived.createdAt),"EEEE, d MMM yyyy")}</p>
-                <p className="text-[9px] text-blue-400 mt-1">GPS {Number(arrived.gpsLat).toFixed(5)}, {Number(arrived.gpsLng).toFixed(5)}</p>
-              </div>
-            ) : <div className="border border-dashed rounded-xl p-3 text-xs text-muted-foreground">No arrival GPS recorded</div>}
-            {completed ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Job Completed</span>
-                </div>
-                <p className="text-sm font-black text-emerald-900">{format(new Date(completed.createdAt),"h:mm a")}</p>
-                <p className="text-xs text-emerald-700">{format(new Date(completed.createdAt),"EEEE, d MMM yyyy")}</p>
-                {arrived && <p className="text-[9px] text-emerald-400 mt-1">⏱ {Math.round((new Date(completed.createdAt).getTime() - new Date(arrived.createdAt).getTime())/60000)} min on-site</p>}
-                <p className="text-[9px] text-emerald-400">GPS {Number(completed.gpsLat).toFixed(5)}, {Number(completed.gpsLng).toFixed(5)}</p>
-              </div>
-            ) : <div className="border border-dashed rounded-xl p-3 text-xs text-muted-foreground">No completion GPS recorded</div>}
-          </div>
-        </SBlock>
-        {notes.length > 0 && (
-          <SBlock title="Notes & Updates">
-            {notes.map((u: any) => (
-              <div key={u.id} className="bg-secondary/40 rounded-lg px-3 py-2 mb-1.5">
-                <div className="flex justify-between mb-0.5">
-                  <span className="text-[9px] font-bold text-muted-foreground capitalize">{u.actorType} · {u.statusChange?.replace(/_/g," ")}</span>
-                  <span className="text-[9px] text-muted-foreground">{d(u.createdAt,true)}</span>
-                </div>
-                <p className="text-xs italic">"{u.note}"</p>
-              </div>
-            ))}
-          </SBlock>
-        )}
-      </div>
-      <div className="space-y-5">
-        <SBlock title="Scope of Work">
-          {items.length === 0 ? <p className="text-xs text-muted-foreground">No items recorded.</p> : (
-            <table className="w-full text-xs border-collapse">
-              <thead><tr className="bg-foreground/5">
-                {["Item","Type","Qty","Unit","Total"].map(h => (
-                  <th key={h} className={`px-2 py-1.5 font-bold text-[9px] ${["Qty","Unit","Total"].includes(h)?"text-right":"text-left"}`}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>{items.map((it:any,ii:number) => (
-                <tr key={it.id} className={ii%2===0?"":"bg-secondary/20"}>
-                  <td className="px-2 py-1.5 border-b border-gray-100 font-semibold">{it.detectedName||it.originalDescription}</td>
-                  <td className="px-2 py-1.5 border-b border-gray-100 capitalize text-muted-foreground">{it.serviceType}</td>
-                  <td className="px-2 py-1.5 border-b border-gray-100 text-right">{it.quantity}</td>
-                  <td className="px-2 py-1.5 border-b border-gray-100 text-right">{sgd(it.unitPrice)}</td>
-                  <td className="px-2 py-1.5 border-b border-gray-100 text-right font-bold">{sgd(it.subtotal)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-        </SBlock>
-        <SBlock title="Financial Summary">
-          <table className="w-full text-xs">
-            <tbody>
-              <tr><td className="py-1.5 text-muted-foreground">Labour</td><td className="py-1.5 text-right font-semibold">{sgd(q.subtotal)}</td></tr>
-              {Number(q.transportFee||0)>0 && <tr><td className="py-1.5 text-muted-foreground">Transport &amp; logistics</td><td className="py-1.5 text-right font-semibold">{sgd(q.transportFee)}</td></tr>}
-              {Number(q.discount||0)>0 && <tr><td className="py-1.5 text-muted-foreground">Discount</td><td className="py-1.5 text-right font-semibold text-red-600">−{sgd(q.discount)}</td></tr>}
-              <tr className="border-t-2 border-b-2 border-black font-black">
-                <td className="py-2 text-sm">Grand Total</td><td className="py-2 text-right text-sm">{sgd(q.total)}</td>
-              </tr>
-              <tr><td className="py-1.5 text-muted-foreground">Deposit 50% {q.depositPaidAt && <span className="text-emerald-600">✓</span>}</td><td className="py-1.5 text-right font-semibold text-emerald-700">{sgd(q.depositAmount)}</td></tr>
-              {q.depositPaidAt && <tr><td colSpan={2} className="text-[9px] text-muted-foreground pl-4 pb-1">Paid {d(q.depositPaidAt,true)}</td></tr>}
-              <tr><td className="py-1.5 text-muted-foreground">Final 50% {q.finalPaidAt && <span className="text-emerald-600">✓</span>}</td><td className="py-1.5 text-right font-semibold text-emerald-700">{sgd(q.finalAmount)}</td></tr>
-              {q.finalPaidAt && <tr><td colSpan={2} className="text-[9px] text-muted-foreground pl-4 pb-1">Paid {d(q.finalPaidAt,true)}</td></tr>}
-            </tbody>
-          </table>
-        </SBlock>
-        <div className="border-2 border-dashed border-gray-200 rounded-xl p-4">
-          <p className="text-[9px] font-black uppercase tracking-[2px] text-muted-foreground mb-3">Audit Certification</p>
-          {["Verified by","Date verified","Signature"].map(label => (
-            <div key={label} className="flex items-end gap-2 mb-3">
-              <span className="text-[9px] text-muted-foreground w-20 shrink-0">{label}</span>
-              <div className="flex-1 border-b border-gray-300 pb-0.5">
-                {label==="Verified by" && <span className="text-[9px] text-muted-foreground/40">Admin / Operations</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-function SBlock({ title, children }: { title:string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-[9px] font-black uppercase tracking-[2px] text-muted-foreground mb-2 pb-1.5 border-b">{title}</p>
-      <div>{children}</div>
-    </div>
-  );
-}
-function SRow({ label, val }: { label:string; val:string }) {
-  return (
-    <div className="flex gap-2 py-1 text-xs border-b border-gray-50 last:border-0">
-      <span className="text-muted-foreground w-20 shrink-0">{label}</span>
-      <span className="font-semibold flex-1">{val}</span>
-    </div>
   );
 }
 
@@ -407,40 +348,41 @@ function SRow({ label, val }: { label:string; val:string }) {
 ══════════════════════════════════════════════════════════════ */
 export default function ExportPDF() {
   const { data: allQuotes, isLoading } = useQuotes();
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId]   = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const today = new Date();
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo,   setDateTo]   = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all"|"final_paid"|"closed">("all");
-  const generatedAt = format(new Date(), "d MMMM yyyy, HH:mm");
 
-  const applyPreset = (p: string) => {
-    if (p==="thisMonth")  { setDateFrom(format(startOfMonth(today),"yyyy-MM-dd")); setDateTo(format(endOfMonth(today),"yyyy-MM-dd")); }
-    else if (p==="lastMonth") { const pm=subMonths(today,1); setDateFrom(format(startOfMonth(pm),"yyyy-MM-dd")); setDateTo(format(endOfMonth(pm),"yyyy-MM-dd")); }
-    else if (p==="thisYear")  { setDateFrom(format(startOfYear(today),"yyyy-MM-dd")); setDateTo(format(endOfYear(today),"yyyy-MM-dd")); }
-    else { setDateFrom(""); setDateTo(""); }
+  const now = new Date();
+  const [dateFrom, setDateFrom]         = useState("");
+  const [dateTo,   setDateTo]           = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "final_paid" | "closed">("all");
+  const generatedAt = format(now, "d MMMM yyyy, HH:mm");
+
+  const preset = (p: string) => {
+    if (p === "month")     { setDateFrom(format(startOfMonth(now), "yyyy-MM-dd"));           setDateTo(format(endOfMonth(now), "yyyy-MM-dd")); }
+    if (p === "last")      { const pm = subMonths(now, 1); setDateFrom(format(startOfMonth(pm), "yyyy-MM-dd")); setDateTo(format(endOfMonth(pm), "yyyy-MM-dd")); }
+    if (p === "year")      { setDateFrom(format(startOfYear(now), "yyyy-MM-dd"));            setDateTo(format(endOfYear(now), "yyyy-MM-dd")); }
+    if (p === "all")       { setDateFrom(""); setDateTo(""); }
   };
-  const clearFilters = () => { setDateFrom(""); setDateTo(""); setStatusFilter("all"); };
-  const hasFilters = !!(dateFrom || dateTo || statusFilter !== "all");
 
-  const baseJobs = (allQuotes||[])
-    .filter((q:any) => ["closed","final_paid"].includes(q.status))
-    .sort((a:any,b:any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const hasFilter = !!(dateFrom || dateTo || statusFilter !== "all");
+  const clear = () => { setDateFrom(""); setDateTo(""); setStatusFilter("all"); };
 
-  const jobs = baseJobs.filter((q:any) => {
-    if (statusFilter!=="all" && q.status!==statusFilter) return false;
+  const baseJobs = ((allQuotes || []) as any[])
+    .filter(q => ["closed", "final_paid"].includes(q.status))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const jobs = baseJobs.filter(q => {
+    if (statusFilter !== "all" && q.status !== statusFilter) return false;
     const ref = q.scheduledAt || q.createdAt;
-    if (dateFrom && ref && new Date(ref) < new Date(dateFrom)) return false;
-    if (dateTo   && ref && new Date(ref) > new Date(dateTo+"T23:59:59")) return false;
+    if (dateFrom && ref && new Date(ref) < new Date(dateFrom))                  return false;
+    if (dateTo   && ref && new Date(ref) > new Date(dateTo + "T23:59:59"))     return false;
     return true;
   });
 
-  const totalRev  = jobs.reduce((s:number,q:any)=>s+Number(q.total||0),0);
-  const totalDep  = jobs.reduce((s:number,q:any)=>s+Number(q.depositAmount||0),0);
-  const totalFin  = jobs.reduce((s:number,q:any)=>s+Number(q.finalAmount||0),0);
-  const paidCount = jobs.filter((q:any)=>q.status==="final_paid").length;
-  const avgDeal   = jobs.length ? totalRev/jobs.length : 0;
+  const rev  = jobs.reduce((s, q) => s + Number(q.total || 0), 0);
+  const dep  = jobs.reduce((s, q) => s + Number(q.depositAmount || 0), 0);
+  const fin  = jobs.reduce((s, q) => s + Number(q.finalAmount || 0), 0);
+  const paid = jobs.filter(q => q.status === "final_paid").length;
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -450,200 +392,176 @@ export default function ExportPDF() {
 
   return (
     <>
-      {/* ══ TOOLBAR (screen only) ══ */}
-      <div className="screen-only bg-white border-b px-5 py-2.5 sticky top-14 z-40 shadow-sm">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2.5 flex-wrap">
+      {/* ══ TOOLBAR ══ */}
+      <div className="screen-only bg-white border-b px-5 py-2.5 sticky top-14 z-40">
+        <div className="flex items-center justify-between gap-3">
+          {/* left */}
+          <div className="flex items-center gap-3 min-w-0">
             <Link href="/admin">
-              <button className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
+              <button className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors shrink-0">
                 <ArrowLeft className="w-4 h-4" /> Back
               </button>
             </Link>
-            <span className="text-muted-foreground/30">|</span>
-            <div className="flex items-center gap-1.5 text-sm font-bold">
-              <FileText className="w-4 h-4 text-primary" /> Closed Jobs — Audit Report
-            </div>
-            <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-              {jobs.length} of {baseJobs.length}
+            <span className="text-gray-200">|</span>
+            <span className="text-sm font-semibold text-gray-700 truncate">Closed Jobs — Audit Report</span>
+            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full shrink-0">
+              {jobs.length}{jobs.length !== baseJobs.length ? ` / ${baseJobs.length}` : ""}
             </span>
-            {hasFilters && (
-              <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-primary font-bold">
+            {hasFilter && (
+              <button onClick={clear} className="flex items-center gap-1 text-xs text-primary font-semibold shrink-0">
                 <X className="w-3 h-3" /> Clear
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => setShowFilters(f=>!f)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold rounded-xl border-2 transition-all ${showFilters||hasFilters?"border-primary bg-primary/5 text-primary":"border-border"}`}
+          {/* right */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setShowFilters(f => !f)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${showFilters || hasFilter ? "border-primary bg-primary/5 text-primary" : "border-gray-200 text-gray-600 hover:border-gray-400"}`}
               data-testid="button-toggle-filters">
-              <Filter className="w-3.5 h-3.5" /> Filter {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Filter
             </button>
-            <button onClick={() => exportCSV(jobs)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors"
+            <button onClick={() => downloadCSV(jobs)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
               data-testid="button-export-csv">
               <Download className="w-3.5 h-3.5" /> CSV
             </button>
-            <button onClick={() => triggerPrint("summary")}
-              className="flex items-center gap-1.5 px-3 py-1.5 border-2 border-foreground text-foreground text-sm font-bold rounded-xl hover:bg-secondary transition-colors"
+            <button onClick={() => doPrint("summary")}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors"
               data-testid="button-print-summary">
               <Printer className="w-3.5 h-3.5" /> Print Summary
             </button>
-            <button onClick={() => triggerPrint("full")}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-foreground text-background text-sm font-bold rounded-xl hover:bg-foreground/90 transition-colors"
+            <button onClick={() => doPrint("full")}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors"
               data-testid="button-print-full">
               <Printer className="w-3.5 h-3.5" /> Print Full Report
             </button>
           </div>
         </div>
 
-        {/* Filter panel */}
+        {/* Filter bar */}
         {showFilters && (
           <div className="mt-2.5 pt-2.5 border-t flex flex-wrap items-end gap-3">
-            <div>
-              <p className="text-[10px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">Period</p>
-              <div className="flex gap-1.5">
-                {[["all","All Time"],["thisMonth","This Month"],["lastMonth","Last Month"],["thisYear","This Year"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>applyPreset(v)}
-                    className="px-2.5 py-1 text-xs font-bold border rounded-lg hover:bg-secondary transition-colors">{l}</button>
-                ))}
-              </div>
+            <div className="flex gap-1.5">
+              {[["all","All time"],["month","This month"],["last","Last month"],["year","This year"]].map(([v,l]) => (
+                <button key={v} onClick={() => preset(v)}
+                  className="px-2.5 py-1 text-xs border rounded-md hover:bg-gray-50 transition-colors">{l}</button>
+              ))}
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex gap-2">
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground mb-1">From (Job Date)</p>
-                <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
-                  className="px-3 py-1.5 border rounded-xl text-sm bg-background" data-testid="input-filter-from" />
+                <p className="text-[10px] text-gray-400 mb-1">Job date from</p>
+                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                  className="px-2.5 py-1 border rounded-md text-xs bg-white" data-testid="input-filter-from" />
               </div>
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground mb-1">To</p>
-                <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
-                  className="px-3 py-1.5 border rounded-xl text-sm bg-background" data-testid="input-filter-to" />
+                <p className="text-[10px] text-gray-400 mb-1">To</p>
+                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                  className="px-2.5 py-1 border rounded-md text-xs bg-white" data-testid="input-filter-to" />
               </div>
             </div>
-            <div>
-              <p className="text-[10px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">Status</p>
-              <div className="flex gap-1.5">
-                {([["all","All"],["final_paid","Fully Paid"],["closed","Closed (Unpaid)"]] as const).map(([v,l])=>(
-                  <button key={v} onClick={()=>setStatusFilter(v)}
-                    className={`px-2.5 py-1 text-xs font-bold border-2 rounded-lg transition-all ${statusFilter===v?"border-primary bg-primary/5 text-primary":"border-border"}`}>{l}</button>
-                ))}
-              </div>
+            <div className="flex gap-1.5">
+              {([["all","All"],["final_paid","Fully paid"],["closed","Unpaid"]] as const).map(([v,l]) => (
+                <button key={v} onClick={() => setStatusFilter(v)}
+                  className={`px-2.5 py-1 text-xs border-2 rounded-md transition-all ${statusFilter === v ? "border-primary bg-primary/5 text-primary" : "border-gray-200"}`}>{l}</button>
+              ))}
             </div>
           </div>
         )}
       </div>
 
-      {/* ══ SHARED HEADER (screen + print) ══ */}
-      <div id="report-header" className="max-w-6xl mx-auto px-6 py-6">
-        <div className="flex items-start justify-between mb-5 pb-4 border-b-2 border-foreground">
+      {/* ══ BODY ══ */}
+      <div className="max-w-6xl mx-auto px-6 py-6" id="report-body">
+
+        {/* Document header */}
+        <div className="flex items-start justify-between mb-5 pb-4 border-b-2 border-gray-900">
           <div>
-            <h1 className="text-2xl font-black tracking-tight">TMG INSTALL</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">{COMPANY} · UEN {UEN}</p>
-            <p className="text-xs text-muted-foreground">{ADDRESS}</p>
-            <p className="text-xs text-muted-foreground">{WEBSITE} · {PHONE} · {EMAIL}</p>
+            <h1 className="text-xl font-black tracking-tight">TMG INSTALL</h1>
+            <p className="text-xs text-gray-400 mt-0.5">{CO} · UEN {UEN}</p>
+            <p className="text-xs text-gray-400">{ADDR}</p>
+            <p className="text-xs text-gray-400">{WEB} · {TEL} · {MAIL}</p>
           </div>
           <div className="text-right">
-            <p className="text-xl font-black">Closed Jobs — Audit Report</p>
-            {(dateFrom||dateTo) && (
-              <p className="text-sm font-bold text-primary mt-0.5">
-                {dateFrom ? format(new Date(dateFrom),"d MMM yyyy") : "Beginning"} – {dateTo ? format(new Date(dateTo),"d MMM yyyy") : "Today"}
+            <p className="text-lg font-black">Closed Jobs — Audit Report</p>
+            {(dateFrom || dateTo) && (
+              <p className="text-sm font-semibold text-primary mt-0.5">
+                {dateFrom ? format(new Date(dateFrom), "d MMM yyyy") : "—"} → {dateTo ? format(new Date(dateTo), "d MMM yyyy") : "Today"}
               </p>
             )}
-            {statusFilter!=="all" && <p className="text-xs text-muted-foreground">{statusFilter==="final_paid"?"Fully Paid Only":"Closed (Unpaid) Only"}</p>}
-            <p className="text-xs text-muted-foreground mt-1">Generated: {generatedAt}</p>
-            <p className="text-xs text-muted-foreground">{jobs.length} job{jobs.length!==1?"s":""}</p>
+            <p className="text-xs text-gray-400 mt-1">Generated: {generatedAt}</p>
+            <p className="text-xs text-gray-400">{jobs.length} job{jobs.length !== 1 ? "s" : ""}</p>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+        <div className="grid grid-cols-4 gap-3 mb-6">
           {[
-            { label:"Total Revenue",        val:sgd(totalRev),  cls:"bg-emerald-50 border-emerald-200 text-emerald-800 border", big:true },
-            { label:"Deposits Collected",   val:sgd(totalDep),  cls:"bg-secondary/40 border" },
-            { label:"Finals Collected",     val:sgd(totalFin),  cls:"bg-secondary/40 border" },
-            { label:"Fully Paid",           val:`${paidCount} / ${jobs.length}`, cls:"bg-secondary/40 border" },
-            { label:"Avg Deal",             val:sgd(avgDeal),   cls:"bg-secondary/40 border" },
+            { label: "Total Revenue",     value: money(rev),  accent: true },
+            { label: "Deposits Received", value: money(dep) },
+            { label: "Finals Received",   value: money(fin) },
+            { label: "Fully Paid",        value: `${paid} of ${jobs.length}` },
           ].map(c => (
-            <div key={c.label} className={`rounded-xl p-4 ${c.cls}`}>
-              <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground mb-1">{c.label}</p>
-              <p className={`font-black ${c.big?"text-xl":"text-base"}`}>{c.val}</p>
+            <div key={c.label} className={`rounded-xl p-4 border ${c.accent ? "bg-emerald-50 border-emerald-200" : "bg-gray-50 border-gray-200"}`}>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">{c.label}</p>
+              <p className={`font-black ${c.accent ? "text-xl text-emerald-700" : "text-base text-gray-800"}`}>{c.value}</p>
             </div>
           ))}
         </div>
 
-        {/* ── Screen summary table ── */}
+        {/* ── Screen table ── */}
         <div className="screen-only">
           {jobs.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <FileText className="w-10 h-10 mx-auto mb-3 opacity-20" />
+            <div className="text-center py-16 text-gray-400">
               <p className="font-semibold">No jobs match the current filters.</p>
-              <button onClick={clearFilters} className="mt-2 text-primary text-sm font-bold underline">Clear filters</button>
+              {hasFilter && <button onClick={clear} className="mt-2 text-primary text-sm font-semibold underline">Clear filters</button>}
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border">
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-foreground text-background">
-                    <th className="w-6 px-2 py-2.5" />
-                    {["Ref No","Created","Customer","Service Address","Job Date","Staff","Total","Deposit","Balance","Status"].map(h=>(
-                      <th key={h} className={`px-3 py-2.5 font-bold text-xs whitespace-nowrap ${["Total","Deposit","Balance"].includes(h)?"text-right":h==="Status"?"text-center":"text-left"}`}>{h}</th>
+                  <tr className="bg-gray-900 text-white text-xs">
+                    <th className="w-8 px-3 py-2.5" />
+                    {["Ref No","Customer","Job Date","Staff","Total","Status"].map(h => (
+                      <th key={h} className={`px-3 py-2.5 font-semibold text-left`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody>
-                  {jobs.map((q:any, i:number) => {
+                <tbody className="divide-y divide-gray-100">
+                  {jobs.map((q, i) => {
                     const isOpen = expandedId === q.id;
-                    const addr = q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress||"—");
                     return (
                       <>
                         <tr key={`r-${q.id}`}
-                          onClick={() => setExpandedId(isOpen?null:q.id)}
-                          className={`cursor-pointer transition-colors ${isOpen?"bg-primary/5 border-l-4 border-l-primary":i%2===0?"bg-white hover:bg-secondary/30":"bg-secondary/10 hover:bg-secondary/30"}`}
+                          onClick={() => setExpandedId(isOpen ? null : q.id)}
+                          className={`cursor-pointer transition-colors ${isOpen ? "bg-primary/5" : "hover:bg-gray-50"}`}
                           data-testid={`row-job-${q.id}`}>
-                          <td className="px-2 py-2.5">{isOpen?<ChevronDown className="w-4 h-4 text-primary"/>:<ChevronRight className="w-4 h-4 text-muted-foreground"/>}</td>
-                          <td className="px-3 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">{q.referenceNo}</td>
-                          <td className="px-3 py-2.5 text-xs whitespace-nowrap">{d(q.createdAt)}</td>
-                          <td className="px-3 py-2.5">
-                            <div className="font-semibold text-xs">{q.customer?.name}</div>
-                            <div className="text-xs text-muted-foreground">{q.customer?.phone}</div>
+                          <td className="px-3 py-3 text-gray-400">
+                            {isOpen ? <ChevronDown className="w-4 h-4 text-primary" /> : <ChevronRight className="w-4 h-4" />}
                           </td>
-                          <td className="px-3 py-2.5 text-xs max-w-[150px]"><span className="line-clamp-2">{addr}</span></td>
-                          <td className="px-3 py-2.5 text-xs whitespace-nowrap">
-                            {q.scheduledAt ? format(new Date(q.scheduledAt),"d MMM yyyy") : "—"}
-                            {q.timeWindow && <div className="text-muted-foreground text-xs">{q.timeWindow}</div>}
+                          <td className="px-3 py-3">
+                            <span className="font-mono text-xs font-bold text-primary">{q.referenceNo}</span>
+                            <div className="text-[10px] text-gray-400 mt-0.5">{dt(q.createdAt)}</div>
                           </td>
-                          <td className="px-3 py-2.5 text-xs">{q.assignedStaff?.name||"—"}</td>
-                          <td className="px-3 py-2.5 text-right font-bold text-xs">{sgd(q.total)}</td>
-                          <td className="px-3 py-2.5 text-right text-xs">
-                            {q.depositPaidAt?<span className="font-bold text-emerald-700">✓ {sgd(q.depositAmount)}</span>:<span className="text-muted-foreground">{sgd(q.depositAmount)}</span>}
+                          <td className="px-3 py-3">
+                            <div className="text-sm font-semibold">{q.customer?.name}</div>
+                            <div className="text-xs text-gray-400">{q.customer?.phone}</div>
                           </td>
-                          <td className="px-3 py-2.5 text-right text-xs">
-                            {q.finalPaidAt?<span className="font-bold text-emerald-700">✓ {sgd(q.finalAmount)}</span>:<span className="text-muted-foreground">{sgd(q.finalAmount)}</span>}
+                          <td className="px-3 py-3 text-sm">
+                            {q.scheduledAt ? format(new Date(q.scheduledAt), "d MMM yyyy") : "—"}
+                            {q.timeWindow && <div className="text-xs text-gray-400">{q.timeWindow}</div>}
                           </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${q.status==="final_paid"?"bg-emerald-100 text-emerald-700":"bg-slate-100 text-slate-600"}`}>
-                              {q.status==="final_paid"?"Paid":"Closed"}
+                          <td className="px-3 py-3 text-sm text-gray-600">{q.assignedStaff?.name || "—"}</td>
+                          <td className="px-3 py-3 font-bold text-sm">{money(q.total)}</td>
+                          <td className="px-3 py-3">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusCls(q.status)}`}>
+                              {statusLabel(q.status)}
                             </span>
                           </td>
                         </tr>
                         {isOpen && (
-                          <tr key={`d-${q.id}`}>
-                            <td colSpan={11} className="p-0 border-b-2 border-primary/20">
-                              <div className="bg-foreground text-background px-5 py-3 flex items-center justify-between">
-                                <div>
-                                  <p className="text-[9px] font-bold tracking-widest text-white/40 uppercase">Job Detail — Audit Record</p>
-                                  <p className="text-base font-black font-mono">{q.referenceNo}</p>
-                                </div>
-                                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${q.status==="final_paid"?"bg-emerald-500 text-white":"bg-white/20 text-white"}`}>
-                                  {q.status==="final_paid"?"Fully Paid":"Closed"}
-                                </span>
-                              </div>
-                              <ScreenJobDetail q={q} />
-                              <div className="px-5 py-2 border-t bg-secondary/20 flex items-center justify-between text-[9px] text-muted-foreground">
-                                <span>{COMPANY} · UEN {UEN}</span>
-                                <span className="font-mono font-bold">{q.referenceNo}</span>
-                                <span>Confidential · {generatedAt}</span>
-                              </div>
+                          <tr key={`p-${q.id}`}>
+                            <td colSpan={7} className="p-0">
+                              <JobPanel q={q} />
                             </td>
                           </tr>
                         )}
@@ -652,129 +570,102 @@ export default function ExportPDF() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-foreground text-background font-bold">
+                  <tr className="bg-gray-900 text-white text-xs font-bold">
                     <td />
-                    <td colSpan={5} className="px-3 py-2.5 text-xs">TOTALS ({jobs.length} job{jobs.length!==1?"s":""})</td>
-                    <td className="px-3 py-2.5 text-right text-xs">{sgd(totalRev)}</td>
-                    <td className="px-3 py-2.5 text-right text-xs">{sgd(totalDep)}</td>
-                    <td className="px-3 py-2.5 text-right text-xs">{sgd(totalFin)}</td>
+                    <td colSpan={4} className="px-3 py-2.5">TOTALS — {jobs.length} job{jobs.length !== 1 ? "s" : ""}</td>
+                    <td className="px-3 py-2.5">{money(rev)}</td>
                     <td />
                   </tr>
                 </tfoot>
               </table>
             </div>
           )}
-        </div>
 
-        {/* ── Print summary table (inline, no expand chevrons) ── */}
-        <div className="print-only">
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:9 }}>
-            <thead>
-              <tr style={{ background:"#000", color:"#fff" }}>
-                {["Ref No","Created","Customer","Service Address","Job Date","Staff","Total","Deposit","Balance","Status"].map(h=>(
-                  <th key={h} style={{ padding:"5px 8px", fontWeight:700, fontSize:9, textAlign:["Total","Deposit","Balance"].includes(h)?"right":h==="Status"?"center":"left", whiteSpace:"nowrap" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((q:any, i:number) => {
-                const addr = q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress||"—");
-                return (
-                  <tr key={q.id} style={{ background:i%2===0?"#fff":"#f9fafb" }}>
-                    <td style={{ padding:"4px 8px", fontFamily:"monospace", fontWeight:700, fontSize:8, color:"#1d4ed8", whiteSpace:"nowrap" }}>{q.referenceNo}</td>
-                    <td style={{ padding:"4px 8px", fontSize:8, whiteSpace:"nowrap" }}>{d(q.createdAt)}</td>
-                    <td style={{ padding:"4px 8px" }}>
-                      <div style={{ fontWeight:600, fontSize:9 }}>{q.customer?.name}</div>
-                      <div style={{ fontSize:8, color:"#6b7280" }}>{q.customer?.phone}</div>
-                    </td>
-                    <td style={{ padding:"4px 8px", fontSize:8, maxWidth:130 }}>{addr}</td>
-                    <td style={{ padding:"4px 8px", fontSize:8, whiteSpace:"nowrap" }}>
-                      {q.scheduledAt ? format(new Date(q.scheduledAt),"d MMM yyyy") : "—"}
-                      {q.timeWindow && <div style={{ color:"#6b7280", fontSize:8 }}>{q.timeWindow}</div>}
-                    </td>
-                    <td style={{ padding:"4px 8px", fontSize:8 }}>{q.assignedStaff?.name||"—"}</td>
-                    <td style={{ padding:"4px 8px", textAlign:"right", fontWeight:700, fontSize:9 }}>{sgd(q.total)}</td>
-                    <td style={{ padding:"4px 8px", textAlign:"right", fontSize:9, color:q.depositPaidAt?"#15803d":"#6b7280", fontWeight:q.depositPaidAt?700:400 }}>
-                      {q.depositPaidAt?"✓ ":""}{sgd(q.depositAmount)}
-                    </td>
-                    <td style={{ padding:"4px 8px", textAlign:"right", fontSize:9, color:q.finalPaidAt?"#15803d":"#6b7280", fontWeight:q.finalPaidAt?700:400 }}>
-                      {q.finalPaidAt?"✓ ":""}{sgd(q.finalAmount)}
-                    </td>
-                    <td style={{ padding:"4px 8px", textAlign:"center" }}>
-                      <span style={{ display:"inline-block", padding:"1px 6px", borderRadius:99, fontSize:8, fontWeight:700, textTransform:"uppercase", background:q.status==="final_paid"?"#dcfce7":"#f1f5f9", color:q.status==="final_paid"?"#15803d":"#475569" }}>
-                        {q.status==="final_paid"?"PAID":"CLOSED"}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr style={{ background:"#000", color:"#fff", fontWeight:700 }}>
-                <td colSpan={6} style={{ padding:"5px 8px", fontSize:9 }}>TOTALS ({jobs.length} job{jobs.length!==1?"s":""})</td>
-                <td style={{ padding:"5px 8px", textAlign:"right", fontSize:9 }}>{sgd(totalRev)}</td>
-                <td style={{ padding:"5px 8px", textAlign:"right", fontSize:9 }}>{sgd(totalDep)}</td>
-                <td style={{ padding:"5px 8px", textAlign:"right", fontSize:9 }}>{sgd(totalFin)}</td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
-          <div style={{ marginTop:16, paddingTop:8, borderTop:"1px solid #e5e7eb", display:"flex", justifyContent:"space-between", fontSize:8, color:"#9ca3af" }}>
-            <span>TMG Install · {COMPANY} · UEN {UEN}</span>
-            <span>Confidential — For internal audit use only</span>
+          {/* Screen footer */}
+          <div className="mt-6 pt-4 border-t text-xs text-gray-400 flex justify-between">
+            <span>TMG Install · {CO} · UEN {UEN}</span>
+            <span>Confidential — Internal audit use only</span>
             <span>Generated {generatedAt}</span>
           </div>
         </div>
 
-        {/* Page footer (screen) */}
-        <div className="screen-only mt-6 pt-4 border-t text-xs text-muted-foreground flex justify-between">
-          <span>TMG Install · {COMPANY} · UEN {UEN}</span>
-          <span>Confidential — For internal audit use only</span>
-          <span>Generated {generatedAt}</span>
+        {/* ── Print-only summary table ── */}
+        <div className="print-only">
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9 }}>
+            <thead>
+              <tr style={{ background: "#111", color: "#fff" }}>
+                {["Ref No","Customer","Address","Job Date","Staff","Total","Deposit","Final","Status"].map(h => (
+                  <th key={h} style={{ padding: "5px 8px", fontWeight: 700, fontSize: 8, textAlign: ["Total","Deposit","Final"].includes(h) ? "right" : "left" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((q, i) => (
+                <tr key={q.id} style={{ background: i % 2 ? "#f9fafb" : "#fff" }}>
+                  <td style={{ padding: "4px 8px", fontFamily: "monospace", fontSize: 8, fontWeight: 700, color: "#1d4ed8" }}>{q.referenceNo}</td>
+                  <td style={{ padding: "4px 8px" }}>
+                    <div style={{ fontWeight: 600, fontSize: 9 }}>{q.customer?.name}</div>
+                    <div style={{ fontSize: 7, color: "#9ca3af" }}>{q.customer?.phone}</div>
+                  </td>
+                  <td style={{ padding: "4px 8px", fontSize: 8, maxWidth: 120 }}>{addr(q)}</td>
+                  <td style={{ padding: "4px 8px", fontSize: 8, whiteSpace: "nowrap" }}>
+                    {q.scheduledAt ? format(new Date(q.scheduledAt), "d MMM yyyy") : "—"}
+                    {q.timeWindow && <div style={{ color: "#9ca3af", fontSize: 7 }}>{q.timeWindow}</div>}
+                  </td>
+                  <td style={{ padding: "4px 8px", fontSize: 8 }}>{q.assignedStaff?.name || "—"}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "right", fontWeight: 700, fontSize: 9 }}>{money(q.total)}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "right", fontSize: 8, color: q.depositPaidAt ? "#15803d" : "#9ca3af" }}>
+                    {q.depositPaidAt ? "✓ " : ""}{money(q.depositAmount)}
+                  </td>
+                  <td style={{ padding: "4px 8px", textAlign: "right", fontSize: 8, color: q.finalPaidAt ? "#15803d" : "#9ca3af" }}>
+                    {q.finalPaidAt ? "✓ " : ""}{money(q.finalAmount)}
+                  </td>
+                  <td style={{ padding: "4px 8px", textAlign: "center" }}>
+                    <span style={{ background: q.status === "final_paid" ? "#dcfce7" : "#f1f5f9", color: q.status === "final_paid" ? "#15803d" : "#64748b", padding: "1px 6px", borderRadius: 99, fontSize: 7, fontWeight: 700, textTransform: "uppercase" }}>
+                      {statusLabel(q.status)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: "#111", color: "#fff", fontWeight: 700 }}>
+                <td colSpan={5} style={{ padding: "5px 8px", fontSize: 9 }}>TOTALS — {jobs.length} job{jobs.length !== 1 ? "s" : ""}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", fontSize: 9 }}>{money(rev)}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", fontSize: 9 }}>{money(dep)}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", fontSize: 9 }}>{money(fin)}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+          <div style={{ marginTop: 14, paddingTop: 8, borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", fontSize: 8, color: "#9ca3af" }}>
+            <span>TMG Install · {CO} · UEN {UEN}</span>
+            <span>Confidential — Internal audit use only</span>
+            <span>Generated {generatedAt}</span>
+          </div>
         </div>
       </div>
 
-      {/* ══ PRINT-ONLY JOB DETAILS (completely outside table, proper page breaks) ══ */}
+      {/* ══ PRINT-ONLY JOB DETAILS (outside table — proper break-before: page on divs) ══ */}
       <div id="print-details">
-        {jobs.map(q => (
-          <PrintJobDetail key={q.id} q={q} today={generatedAt} />
-        ))}
+        {jobs.map(q => <PrintJob key={q.id} q={q} today={generatedAt} />)}
       </div>
 
-      {/* ══ STYLES ══ */}
+      {/* ══ CSS ══ */}
       <style>{`
-        /* Screen: hide print-only elements */
-        .print-only  { display: none !important; }
+        .print-only { display: none !important; }
 
         @media print {
-          /* Hide ALL screen navigation, toolbar, etc. */
           .screen-only { display: none !important; }
+          .print-only  { display: block !important; }
 
-          /* Show print-only content */
-          .print-only { display: block !important; }
-
-          /* Base print settings */
-          @page { size: A4 landscape; margin: 10mm; }
+          @page { size: A4 landscape; margin: 8mm; }
           body  { font-size: 9px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-          /* Summary mode: hide the per-job detail divs */
           body[data-print-mode="summary"] #print-details { display: none !important; }
+          body[data-print-mode="full"]    #print-details { display: block !important; }
 
-          /* Full mode: show per-job detail divs */
-          body[data-print-mode="full"] #print-details { display: block !important; }
-
-          /* Each job detail gets its own page — this works on <div>, not <tr> */
-          .print-job-detail {
-            page-break-before: always;
-            break-before: page;
-            page-break-inside: avoid;
-          }
-
-          /* The report header section has no page break before it */
-          #report-header { page-break-before: avoid; break-before: avoid; }
-
-          /* Hide interactive chrome */
-          button, a[href] { text-decoration: none !important; }
+          #report-body { page-break-before: avoid; break-before: avoid; }
         }
       `}</style>
     </>
