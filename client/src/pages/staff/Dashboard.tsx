@@ -1,122 +1,136 @@
 import { useAuth } from "@/hooks/use-auth";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { MapPin, CalendarDays, ChevronRight, Phone, MessageCircle, User, LogIn, LogOut, Clock, Users } from "lucide-react";
-import { format, isToday, differenceInMinutes } from "date-fns";
+import {
+  MapPin, CalendarDays, ChevronRight, Phone, MessageCircle, User,
+  Clock, Users, Timer, AlertCircle, CheckCircle2, ListTodo
+} from "lucide-react";
+import { format, isToday, differenceInSeconds } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtHHMM(secs: number) {
+  if (secs < 0) secs = 0;
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function StaffDashboard() {
   const { user } = useAuth();
-  const qc = useQueryClient();
+  const [, navigate] = useLocation();
 
   const { data: quotes, isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/quotes"],
   });
-
   const { data: attendance, isLoading: attLoading } = useQuery<any>({
     queryKey: ["/api/attendance/today"],
     refetchInterval: 30000,
   });
 
-  const isLoading = jobsLoading || attLoading;
-
-  if (isLoading) return (
-    <div className="min-h-screen pt-32 flex items-center justify-center">
-      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
-
   const allJobs = quotes || [];
-  const activeNow = allJobs.filter((q: any) => q.status === 'in_progress');
+  const activeNow = allJobs.filter((q: any) => q.status === "in_progress");
   const upcoming = allJobs
-    .filter((q: any) => ['booked', 'assigned'].includes(q.status))
+    .filter((q: any) => ["booked", "assigned"].includes(q.status))
     .sort((a: any, b: any) => {
       const da = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
       const db = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
       return da - db;
     });
-
   const totalVisible = activeNow.length + upcoming.length;
 
   return (
-    <div className="min-h-screen pt-24 pb-20 bg-background">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+    <div className="min-h-screen bg-background">
+      {/* ── Clock In Hero ── */}
+      <ClockHero attendance={attendance} user={user} isLoading={attLoading} />
 
-        <div className="mb-6">
-          <h1 className="text-3xl font-display font-black">My Jobs</h1>
-          <p className="text-muted-foreground">Active assignments and upcoming schedule</p>
+      {/* ── Jobs section ── */}
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pb-24">
+        <div className="mt-6 mb-4">
+          <h2 className="text-lg font-black">My Jobs</h2>
+          <p className="text-xs text-muted-foreground">Active assignments and upcoming schedule</p>
         </div>
 
-        {/* Clock In/Out Widget */}
-        <ClockWidget attendance={attendance} userId={user?.id} />
-
-        {/* Active Now */}
-        {activeNow.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">🔴 Active Now</h2>
-            <div className="space-y-3">
-              {activeNow.map((job: any) => (
-                <JobCard key={job.id} job={job} priority myUserId={user?.id} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Upcoming */}
-        {upcoming.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">
-              📅 Upcoming ({upcoming.length})
-            </h2>
-            <div className="space-y-3">
-              {upcoming.map((job: any) => (
-                <JobCard key={job.id} job={job} myUserId={user?.id} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {totalVisible === 0 && (
-          <div className="text-center py-16 bg-secondary/30 rounded-3xl border-2 border-dashed">
-            <div className="w-16 h-16 bg-card rounded-full mx-auto flex items-center justify-center mb-4 shadow-sm">
-              <CalendarDays className="w-8 h-8 text-muted-foreground" />
-            </div>
-            <h3 className="font-bold text-lg">No jobs yet</h3>
-            <p className="text-muted-foreground text-sm">Jobs will appear here once booked.</p>
+        {jobsLoading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : (
+          <>
+            {activeNow.length > 0 && (
+              <section className="mb-6">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">🔴 Active Now</p>
+                <div className="space-y-3">
+                  {activeNow.map((job: any) => <JobCard key={job.id} job={job} priority myUserId={user?.id} />)}
+                </div>
+              </section>
+            )}
+            {upcoming.length > 0 && (
+              <section className="mb-6">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">📅 Upcoming ({upcoming.length})</p>
+                <div className="space-y-3">
+                  {upcoming.map((job: any) => <JobCard key={job.id} job={job} myUserId={user?.id} />)}
+                </div>
+              </section>
+            )}
+            {totalVisible === 0 && (
+              <div className="text-center py-12 bg-secondary/30 rounded-3xl border-2 border-dashed">
+                <CalendarDays className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="font-bold text-muted-foreground">No jobs yet</p>
+                <p className="text-sm text-muted-foreground">Jobs will appear once booked and assigned.</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
 
-function ClockWidget({ attendance, userId }: { attendance: any; userId?: number }) {
+// ─── Clock Hero ───────────────────────────────────────────────────────────────
+
+function ClockHero({ attendance, user, isLoading }: { attendance: any; user: any; isLoading: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [now, setNow] = useState(new Date());
-  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsState, setGpsState] = useState<"idle" | "loading" | "ok" | "denied">("idle");
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const hasRequested = useRef(false);
 
+  // Live clock
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const isClockedIn = attendance && !attendance.clockOutAt;
-  const isClockedOut = attendance && attendance.clockOutAt;
+  // Auto-request location on mount
+  useEffect(() => {
+    if (hasRequested.current) return;
+    hasRequested.current = true;
+    requestLocation();
+  }, []);
 
-  const elapsed = isClockedIn
-    ? differenceInMinutes(now, new Date(attendance.clockInAt))
-    : isClockedOut
-    ? differenceInMinutes(new Date(attendance.clockOutAt), new Date(attendance.clockInAt))
-    : 0;
-
-  const fmtDuration = (mins: number) => {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsState("denied");
+      return;
+    }
+    setGpsState("loading");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGpsState("ok");
+      },
+      () => setGpsState("denied"),
+      { timeout: 10000, enableHighAccuracy: true }
+    );
   };
 
   const getGps = (): Promise<{ lat: string; lng: string } | null> =>
@@ -125,106 +139,190 @@ function ClockWidget({ attendance, userId }: { attendance: any; userId?: number 
       navigator.geolocation.getCurrentPosition(
         (pos) => resolve({ lat: String(pos.coords.latitude), lng: String(pos.coords.longitude) }),
         () => resolve(null),
-        { timeout: 8000 }
+        { timeout: 10000, enableHighAccuracy: true }
       );
     });
 
   const clockInMut = useMutation({
     mutationFn: async () => {
-      setGpsLoading(true);
+      setGpsState("loading");
       const gps = await getGps();
-      setGpsLoading(false);
-      return apiRequest("POST", "/api/attendance/clock-in", { lat: gps?.lat, lng: gps?.lng });
+      if (!gps) { setGpsState("denied"); throw new Error("Location is required to clock in."); }
+      setGpsState("ok");
+      if (gps) setCoords({ lat: parseFloat(gps.lat), lng: parseFloat(gps.lng) });
+      return apiRequest("POST", "/api/attendance/clock-in", { lat: gps.lat, lng: gps.lng });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/attendance/today"] });
-      toast({ title: "Clocked in", description: `${format(new Date(), "HH:mm")} — have a great day!` });
+      toast({ title: "Clocked in ✓", description: `${format(new Date(), "HH:mm")} — location recorded` });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Clock-in failed", description: e.message, variant: "destructive" }),
   });
 
   const clockOutMut = useMutation({
     mutationFn: async () => {
-      setGpsLoading(true);
+      setGpsState("loading");
       const gps = await getGps();
-      setGpsLoading(false);
-      return apiRequest("POST", "/api/attendance/clock-out", { lat: gps?.lat, lng: gps?.lng });
+      if (!gps) { setGpsState("denied"); throw new Error("Location is required to clock out."); }
+      setGpsState("ok");
+      if (gps) setCoords({ lat: parseFloat(gps.lat), lng: parseFloat(gps.lng) });
+      return apiRequest("POST", "/api/attendance/clock-out", { lat: gps.lat, lng: gps.lng });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/attendance/today"] });
-      toast({ title: "Clocked out", description: `See you tomorrow!` });
+      toast({ title: "Clocked out ✓", description: "See you next time!" });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Clock-out failed", description: e.message, variant: "destructive" }),
   });
 
-  const isPending = clockInMut.isPending || clockOutMut.isPending || gpsLoading;
+  const isClockedIn = attendance && !attendance.clockOutAt;
+  const isClockedOut = attendance && attendance.clockOutAt;
+  const isPending = clockInMut.isPending || clockOutMut.isPending || gpsState === "loading";
+
+  // Total work seconds today
+  const workedSecs = isClockedOut
+    ? Math.floor((new Date(attendance.clockOutAt).getTime() - new Date(attendance.clockInAt).getTime()) / 1000)
+    : isClockedIn
+    ? Math.floor((now.getTime() - new Date(attendance.clockInAt).getTime()) / 1000)
+    : 0;
+
+  // Map URL (OpenStreetMap embed)
+  const mapLat = coords?.lat ?? 1.3521; // fallback: Singapore
+  const mapLng = coords?.lng ?? 103.8198;
+  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${mapLng - 0.008},${mapLat - 0.008},${mapLng + 0.008},${mapLat + 0.008}&layer=mapnik&marker=${mapLat},${mapLng}`;
 
   return (
-    <div className={`mb-8 rounded-3xl border-2 overflow-hidden shadow-sm ${
-      isClockedIn ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20"
-      : isClockedOut ? "border-border bg-card"
-      : "border-border bg-card"
-    }`}>
-      <div className="px-5 py-4 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-0.5">
-            {isClockedIn ? "On the Clock" : isClockedOut ? "Today's Attendance" : "Not Clocked In"}
-          </p>
-          <p className="text-2xl font-black font-mono tabular-nums">
-            {isClockedIn
-              ? format(now, "HH:mm:ss")
-              : isClockedOut
-              ? fmtDuration(elapsed)
-              : format(now, "HH:mm")}
-          </p>
+    <div className="relative w-full" style={{ minHeight: 420 }}>
+      {/* Map Background */}
+      <div className="absolute inset-0 overflow-hidden">
+        {gpsState === "ok" || gpsState === "idle" ? (
+          <iframe
+            src={mapUrl}
+            className="w-full h-full border-0 pointer-events-none"
+            title="Location map"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-b from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
+            <div className="text-center">
+              <MapPin className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground font-medium">
+                {gpsState === "loading" ? "Getting location…" : "Location access denied"}
+              </p>
+            </div>
+          </div>
+        )}
+        {/* Gradient overlay at bottom for content readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/70" />
+      </div>
+
+      {/* Top bar */}
+      <div className="absolute top-0 left-0 right-0 pt-16 px-4 flex items-center justify-center">
+        <div className="bg-black/50 backdrop-blur-md text-white text-sm font-bold px-4 py-2 rounded-full flex items-center gap-2">
+          <Timer className="w-4 h-4" />
+          Total work hours today
+          <span className="font-mono font-black text-base ml-1">
+            {fmtHHMM(workedSecs).slice(0, 5)}
+          </span>
+        </div>
+      </div>
+
+      {/* GPS status indicator */}
+      {gpsState === "denied" && (
+        <div className="absolute top-28 left-0 right-0 mx-4">
+          <div className="bg-red-600/90 backdrop-blur text-white text-xs font-bold px-4 py-2.5 rounded-2xl flex items-center gap-2 max-w-sm mx-auto">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            Location access is required. Please allow in your browser settings and tap retry.
+            <button onClick={requestLocation} className="underline ml-1 whitespace-nowrap">Retry</button>
+          </div>
+        </div>
+      )}
+      {gpsState === "ok" && (
+        <div className="absolute top-28 left-0 right-0 mx-4">
+          <div className="bg-emerald-600/80 backdrop-blur text-white text-xs font-bold px-4 py-2.5 rounded-2xl flex items-center gap-2 max-w-xs mx-auto">
+            <CheckCircle2 className="w-4 h-4" />
+            Location confirmed
+          </div>
+        </div>
+      )}
+
+      {/* Bottom content */}
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-6 flex flex-col items-center gap-5">
+        {/* Status text */}
+        <div className="text-center text-white">
           {isClockedIn && (
-            <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">
-              In at {format(new Date(attendance.clockInAt), "HH:mm")} · {fmtDuration(elapsed)} elapsed
+            <p className="text-sm font-bold bg-emerald-500/80 backdrop-blur px-3 py-1 rounded-full">
+              Clocked in at {format(new Date(attendance.clockInAt), "HH:mm")}
             </p>
           )}
           {isClockedOut && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {format(new Date(attendance.clockInAt), "HH:mm")} – {format(new Date(attendance.clockOutAt), "HH:mm")} · {fmtDuration(elapsed)} worked
+            <p className="text-sm font-bold bg-slate-800/80 backdrop-blur px-3 py-1 rounded-full">
+              {format(new Date(attendance.clockInAt), "HH:mm")} – {format(new Date(attendance.clockOutAt), "HH:mm")} · Done for today
             </p>
           )}
-          {!attendance && (
-            <p className="text-xs text-muted-foreground mt-0.5">{format(now, "EEE, d MMM yyyy")}</p>
+          {!attendance && !isLoading && (
+            <p className="text-sm text-white/80">{format(now, "EEE, d MMMM yyyy")}</p>
           )}
         </div>
 
+        {/* Big Clock In / Out button */}
         {!isClockedOut && (
           <button
             onClick={() => isClockedIn ? clockOutMut.mutate() : clockInMut.mutate()}
-            disabled={isPending}
+            disabled={isPending || gpsState === "denied"}
             data-testid={isClockedIn ? "button-clock-out" : "button-clock-in"}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all disabled:opacity-60 ${
+            className={`w-36 h-36 rounded-full flex flex-col items-center justify-center gap-1 font-black text-lg shadow-2xl transition-all active:scale-95 disabled:opacity-60 border-4 border-white/30 ${
               isClockedIn
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "bg-emerald-600 text-white hover:bg-emerald-700"
+                ? "bg-red-500 text-white hover:bg-red-600"
+                : "bg-[#4A90E2] text-white hover:bg-[#357ABD]"
             }`}
           >
             {isPending ? (
-              <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-            ) : isClockedIn ? (
-              <><LogOut className="w-4 h-4" /> Clock Out</>
+              <>
+                <div className="w-8 h-8 border-4 border-white/40 border-t-white rounded-full animate-spin" />
+                <span className="text-xs font-bold mt-1">Wait…</span>
+              </>
             ) : (
-              <><LogIn className="w-4 h-4" /> Clock In</>
+              <>
+                <Clock className="w-8 h-8" />
+                <span className="text-base">{isClockedIn ? "Clock Out" : "Clock In"}</span>
+              </>
             )}
           </button>
         )}
+
+        {/* Quick action buttons */}
+        <div className="flex gap-3 w-full max-w-xs">
+          <Link href="/staff/hr" className="flex-1">
+            <div className="bg-white/90 dark:bg-black/60 backdrop-blur rounded-2xl py-3 flex flex-col items-center gap-1 hover:bg-white transition-colors"
+              data-testid="button-my-requests">
+              <ListTodo className="w-5 h-5 text-amber-500" />
+              <span className="text-xs font-bold">My Requests</span>
+            </div>
+          </Link>
+          <Link href="/staff/hr" className="flex-1">
+            <div className="bg-white/90 dark:bg-black/60 backdrop-blur rounded-2xl py-3 flex flex-col items-center gap-1 hover:bg-white transition-colors"
+              data-testid="button-timesheet">
+              <CalendarDays className="w-5 h-5 text-[#4A90E2]" />
+              <span className="text-xs font-bold">Timesheet</span>
+            </div>
+          </Link>
+        </div>
       </div>
     </div>
   );
 }
 
+// ─── Job Card ─────────────────────────────────────────────────────────────────
+
 function JobCard({ job, priority, myUserId }: { job: any; priority?: boolean; myUserId?: number }) {
   const isMyJob = job.assignedStaffId && job.assignedStaffId === myUserId;
   const isTeamJob = job.assignedStaffId && job.assignedStaffId !== myUserId;
-  const isUnassigned = !job.assignedStaffId && job.status === 'booked';
+  const isUnassigned = !job.assignedStaffId && job.status === "booked";
 
   const scheduledDate = job.scheduledAt ? new Date(job.scheduledAt) : null;
   const dateLabel = scheduledDate
-    ? isToday(scheduledDate) ? "Today" : format(scheduledDate, 'EEE, MMM d')
+    ? isToday(scheduledDate) ? "Today" : format(scheduledDate, "EEE, MMM d")
     : null;
 
   return (
@@ -232,7 +330,7 @@ function JobCard({ job, priority, myUserId }: { job: any; priority?: boolean; my
       "bg-card border-2 rounded-3xl shadow-sm overflow-hidden transition-all",
       priority ? "border-orange-300" :
       isMyJob ? "border-primary/60 shadow-md shadow-primary/10" :
-      "border-border hover:border-primary/40"
+      "border-border hover:border-primary/40",
     ].join(" ")}
       data-testid={`job-card-${job.id}`}>
       <div className={`px-5 pt-5 pb-3 ${priority ? "bg-orange-50 dark:bg-orange-950/20" : ""}`}>
@@ -281,7 +379,7 @@ function JobCard({ job, priority, myUserId }: { job: any; priority?: boolean; my
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border text-xs font-bold hover:bg-secondary transition-colors">
             <Phone className="w-3.5 h-3.5" /> Call
           </a>
-          <a href={`https://wa.me/${job.customer?.phone?.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" data-testid={`wa-${job.id}`}
+          <a href={`https://wa.me/${job.customer?.phone?.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" data-testid={`wa-${job.id}`}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-colors">
             <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
           </a>

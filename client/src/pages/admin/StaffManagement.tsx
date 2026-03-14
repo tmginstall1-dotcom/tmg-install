@@ -415,7 +415,186 @@ function TeamCard({ team, allStaff, onDelete, onRemoveMember, onAddMember }: any
 
 // ─── Attendance / Payroll Tab ──────────────────────────────────────────────────
 
+// Staff initials avatar with deterministic color
+const AVATAR_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6","#06b6d4","#84cc16"];
+function staffColor(id: number) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
+function StaffAvatar({ user, size = 10 }: { user: any; size?: number }) {
+  const initials = user?.name?.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+  return (
+    <div style={{ backgroundColor: staffColor(user?.id ?? 0), width: size * 4, height: size * 4, fontSize: size * 1.5 }}
+      className="rounded-full flex items-center justify-center text-white font-black shrink-0">
+      {initials}
+    </div>
+  );
+}
+
 function PayrollTab() {
+  const [view, setView] = useState<"today" | "timesheets">("today");
+  return (
+    <div className="space-y-4">
+      {/* Sub-tab switcher */}
+      <div className="flex gap-1 bg-secondary/50 p-1 rounded-xl w-fit">
+        {([["today","Today's Roster"],["timesheets","Timesheets"]] as const).map(([v,l]) => (
+          <button key={v} onClick={() => setView(v)}
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${view === v ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            data-testid={`tab-att-${v}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {view === "today" ? <TodayRoster /> : <TimesheetsView />}
+    </div>
+  );
+}
+
+// ─── Today's Roster ────────────────────────────────────────────────────────────
+
+function TodayRoster() {
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const [date, setDate] = useState(todayStr);
+  const { data: staff = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
+  const { data: logs = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/admin/attendance", date, date, ""],
+    queryFn: async () => {
+      const params = new URLSearchParams({ from: date + "T00:00:00", to: date + "T23:59:59" });
+      const res = await fetch(`/api/admin/attendance?${params}`);
+      return res.json();
+    },
+    refetchInterval: 30000,
+  });
+
+  // Build roster: each staff member with their log for the day (if any)
+  const roster = (staff as any[]).map((s: any) => {
+    const log = (logs as any[]).find((l: any) => l.userId === s.id);
+    return { staff: s, log: log || null };
+  });
+
+  const clockedIn = roster.filter(r => r.log && !r.log.clockOutAt);
+  const clockedOut = roster.filter(r => r.log && r.log.clockOutAt);
+  const notClockedIn = roster.filter(r => !r.log);
+
+  const isToday = date === todayStr;
+
+  return (
+    <div className="space-y-5">
+      {/* Date picker */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 bg-card border-2 rounded-xl px-3 py-2">
+          <Calendar className="w-4 h-4 text-muted-foreground" />
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            className="text-sm font-bold bg-transparent outline-none" data-testid="input-roster-date" />
+        </div>
+        {!isToday && (
+          <button onClick={() => setDate(todayStr)}
+            className="text-xs font-bold text-primary underline">Back to Today</button>
+        )}
+        <span className="text-xs text-muted-foreground font-medium">
+          {isToday ? "Today, " : ""}{format(new Date(date + "T12:00:00"), "EEEE d MMMM yyyy")}
+        </span>
+      </div>
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4">
+          <p className="text-3xl font-black text-emerald-600">{clockedIn.length}</p>
+          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">Clocked in now</p>
+        </div>
+        <div className="bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+          <p className="text-3xl font-black text-muted-foreground">{notClockedIn.length}</p>
+          <p className="text-xs font-bold text-muted-foreground mt-0.5">Not clocked in</p>
+        </div>
+        <div className="bg-card border rounded-2xl p-4 col-span-2 sm:col-span-1">
+          <p className="text-3xl font-black">{clockedOut.length}</p>
+          <p className="text-xs font-bold text-muted-foreground mt-0.5">Clocked out</p>
+        </div>
+      </div>
+
+      {/* Staff roster list */}
+      {isLoading ? (
+        <div className="flex justify-center py-10"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>
+      ) : (
+        <div className="bg-card border-2 rounded-2xl overflow-hidden divide-y">
+          {roster.length === 0 && (
+            <p className="text-center py-8 text-muted-foreground text-sm">No staff found.</p>
+          )}
+          {/* Clocked In section */}
+          {clockedIn.map(({ staff: s, log }) => (
+            <RosterRow key={s.id} staff={s} log={log} status="in" />
+          ))}
+          {/* Clocked Out section */}
+          {clockedOut.map(({ staff: s, log }) => (
+            <RosterRow key={s.id} staff={s} log={log} status="out" />
+          ))}
+          {/* Not Clocked In section */}
+          {notClockedIn.map(({ staff: s }) => (
+            <RosterRow key={s.id} staff={s} log={null} status="absent" />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" | "out" | "absent" }) {
+  const mins = log?.clockOutAt
+    ? differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt))
+    : null;
+
+  return (
+    <div className="px-4 py-3" data-testid={`roster-row-${staff.id}`}>
+      <div className="flex items-center gap-3">
+        <StaffAvatar user={staff} size={10} />
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-sm leading-tight">{staff.name}</p>
+          <p className="text-xs font-mono text-muted-foreground">@{staff.username}</p>
+          {status === "in" && log && (
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-bold text-emerald-600">
+                Clocked in · {format(new Date(log.clockInAt), "h:mm a")}
+              </span>
+            </div>
+          )}
+          {status === "out" && log && (
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <Clock className="w-3 h-3 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
+                {format(new Date(log.clockInAt), "h:mm a")} – {format(new Date(log.clockOutAt), "h:mm a")}
+                {mins !== null && <span className="font-bold text-foreground ml-1">{fmt(mins)}</span>}
+              </span>
+            </div>
+          )}
+          {status === "absent" && (
+            <span className="text-xs text-muted-foreground">Not clocked in</span>
+          )}
+        </div>
+        {/* GPS links */}
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          {log?.clockInLat && log?.clockInLng && (
+            <a href={`https://maps.google.com/?q=${log.clockInLat},${log.clockInLng}`}
+              target="_blank" rel="noreferrer"
+              className="text-[10px] font-bold text-primary flex items-center gap-0.5 hover:underline"
+              title="View clock-in location">
+              <LogIn className="w-3 h-3" /> In
+            </a>
+          )}
+          {log?.clockOutLat && log?.clockOutLng && (
+            <a href={`https://maps.google.com/?q=${log.clockOutLat},${log.clockOutLng}`}
+              target="_blank" rel="noreferrer"
+              className="text-[10px] font-bold text-red-500 flex items-center gap-0.5 hover:underline"
+              title="View clock-out location">
+              <LogOut className="w-3 h-3" /> Out
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Timesheets View (date range) ──────────────────────────────────────────────
+
+function TimesheetsView() {
   const today = new Date();
   const [from, setFrom] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
@@ -524,9 +703,7 @@ function PayrollTab() {
                 className={`w-full px-4 py-3 flex items-center justify-between transition-colors ${row.logs.length > 0 ? "hover:bg-secondary/30 cursor-pointer" : "cursor-default"}`}
                 data-testid={`payroll-row-${row.user?.id}`}>
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full font-black text-sm flex items-center justify-center shrink-0 ${row.days > 0 ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground"}`}>
-                    {row.user?.name?.charAt(0)}
-                  </div>
+                  <StaffAvatar user={row.user} size={10} />
                   <div className="text-left">
                     <p className="font-bold text-sm">{row.user?.name}</p>
                     <p className="text-xs text-muted-foreground font-mono">@{row.user?.username}</p>
@@ -583,12 +760,23 @@ function PayrollTab() {
                             <td className="px-4 py-2.5 text-right font-bold">
                               {mins !== null ? fmt(mins) : "—"}
                             </td>
-                            <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                              {log.clockInLat && log.clockInLng ? (
-                                <a href={`https://maps.google.com/?q=${log.clockInLat},${log.clockInLng}`}
-                                  target="_blank" rel="noreferrer"
-                                  className="text-primary underline">GPS ↗</a>
-                              ) : "—"}
+                            <td className="px-4 py-2.5 text-xs">
+                              <div className="flex flex-col gap-1">
+                                {log.clockInLat && log.clockInLng ? (
+                                  <a href={`https://maps.google.com/?q=${log.clockInLat},${log.clockInLng}`}
+                                    target="_blank" rel="noreferrer"
+                                    className="text-emerald-600 font-bold flex items-center gap-0.5 hover:underline">
+                                    <LogIn className="w-3 h-3" /> In
+                                  </a>
+                                ) : <span className="text-muted-foreground">—</span>}
+                                {log.clockOutLat && log.clockOutLng ? (
+                                  <a href={`https://maps.google.com/?q=${log.clockOutLat},${log.clockOutLng}`}
+                                    target="_blank" rel="noreferrer"
+                                    className="text-red-500 font-bold flex items-center gap-0.5 hover:underline">
+                                    <LogOut className="w-3 h-3" /> Out
+                                  </a>
+                                ) : null}
+                              </div>
                             </td>
                           </tr>
                         );
