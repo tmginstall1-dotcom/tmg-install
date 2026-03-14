@@ -274,7 +274,11 @@ export async function registerRoutes(
   app.post("/api/attendance/clock-in", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     try {
-      const { lat, lng } = z.object({ lat: z.string().optional(), lng: z.string().optional() }).parse(req.body);
+      const { lat, lng } = z.object({
+        lat: z.string({ required_error: "GPS location is required to clock in." }),
+        lng: z.string({ required_error: "GPS location is required to clock in." }),
+      }).parse(req.body);
+      if (!lat || !lng) return res.status(400).json({ message: "GPS location is required to clock in." });
       // Check if already clocked in today
       const existing = await storage.getTodayAttendance(req.session.userId);
       if (existing && !existing.clockOutAt) return res.status(409).json({ message: "Already clocked in" });
@@ -286,7 +290,11 @@ export async function registerRoutes(
   app.post("/api/attendance/clock-out", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     try {
-      const { lat, lng } = z.object({ lat: z.string().optional(), lng: z.string().optional() }).parse(req.body);
+      const { lat, lng } = z.object({
+        lat: z.string({ required_error: "GPS location is required to clock out." }),
+        lng: z.string({ required_error: "GPS location is required to clock out." }),
+      }).parse(req.body);
+      if (!lat || !lng) return res.status(400).json({ message: "GPS location is required to clock out." });
       const log = await storage.clockOut(req.session.userId, lat, lng);
       if (!log) return res.status(404).json({ message: "No active clock-in found" });
       res.json(log);

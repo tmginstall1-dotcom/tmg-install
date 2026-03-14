@@ -616,6 +616,21 @@ function TodayRoster() {
   );
 }
 
+function GpsLocationPill({ lat, lng, label, color }: { lat: string; lng: string; label: string; color: "green" | "red" }) {
+  const mapsUrl = `https://maps.google.com/?q=${lat},${lng}`;
+  const colorCls = color === "green"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
+    : "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900";
+  return (
+    <a href={mapsUrl} target="_blank" rel="noreferrer"
+      className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border hover:opacity-80 transition-opacity ${colorCls}`}
+      title={`Open ${label} location in Google Maps`}>
+      <MapPin className="w-2.5 h-2.5 shrink-0" />
+      {label} · {parseFloat(lat).toFixed(4)}, {parseFloat(lng).toFixed(4)}
+    </a>
+  );
+}
+
 function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" | "out" | "absent" }) {
   const [mapOpen, setMapOpen] = useState<"in" | "out" | null>(null);
   const mins = log?.clockOutAt
@@ -627,7 +642,7 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
 
   const activeGps = mapOpen === "out" && hasOutGps
     ? { lat: log.clockOutLat, lng: log.clockOutLng }
-    : hasInGps
+    : mapOpen === "in" && hasInGps
     ? { lat: log.clockInLat,  lng: log.clockInLng  }
     : null;
 
@@ -643,62 +658,65 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm leading-tight">{staff.name}</p>
           <p className="text-xs font-mono text-muted-foreground">@{staff.username}</p>
+
+          {/* Status + GPS location pills inline */}
           {status === "in" && log && (
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs font-bold text-emerald-600">
-                Clocked in · {format(new Date(log.clockInAt), "h:mm a")}
-              </span>
+            <div className="mt-1 space-y-1">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="text-xs font-bold text-emerald-600">Clocked in · {format(new Date(log.clockInAt), "h:mm a")}</span>
+              </div>
+              {hasInGps && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <GpsLocationPill lat={log.clockInLat} lng={log.clockInLng} label="In" color="green" />
+                  <button onClick={() => setMapOpen(p => p === "in" ? null : "in")}
+                    className={`text-[10px] px-2 py-0.5 rounded-full border font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                    data-testid={`button-map-in-${staff.id}`}>
+                    {mapOpen === "in" ? "Hide map ▲" : "Map ▾"}
+                  </button>
+                </div>
+              )}
+              {!hasInGps && <span className="text-[10px] text-amber-600 font-bold">⚠ No GPS recorded</span>}
             </div>
           )}
+
           {status === "out" && log && (
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <Clock className="w-3 h-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">
-                {format(new Date(log.clockInAt), "h:mm a")} – {format(new Date(log.clockOutAt), "h:mm a")}
-                {mins !== null && <span className="font-bold text-foreground ml-1">{fmt(mins)}</span>}
-              </span>
+            <div className="mt-1 space-y-1">
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground">
+                  {format(new Date(log.clockInAt), "h:mm a")} – {format(new Date(log.clockOutAt), "h:mm a")}
+                  {mins !== null && <span className="font-bold text-foreground ml-1">{fmt(mins)}</span>}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {hasInGps && (
+                  <>
+                    <GpsLocationPill lat={log.clockInLat} lng={log.clockInLng} label="In" color="green" />
+                    <button onClick={() => setMapOpen(p => p === "in" ? null : "in")}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      data-testid={`button-map-in-${staff.id}`}>
+                      {mapOpen === "in" ? "▲" : "Map ▾"}
+                    </button>
+                  </>
+                )}
+                {hasOutGps && (
+                  <>
+                    <GpsLocationPill lat={log.clockOutLat} lng={log.clockOutLng} label="Out" color="red" />
+                    <button onClick={() => setMapOpen(p => p === "out" ? null : "out")}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border font-bold transition-colors ${mapOpen === "out" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      data-testid={`button-map-out-${staff.id}`}>
+                      {mapOpen === "out" ? "▲" : "Map ▾"}
+                    </button>
+                  </>
+                )}
+                {!hasInGps && !hasOutGps && <span className="text-[10px] text-amber-600 font-bold">⚠ No GPS recorded</span>}
+              </div>
             </div>
           )}
+
           {status === "absent" && (
             <span className="text-xs text-muted-foreground">Not clocked in</span>
-          )}
-        </div>
-
-        {/* GPS map toggle buttons */}
-        <div className="shrink-0 flex items-center gap-1.5">
-          {hasInGps && (
-            <button
-              onClick={() => setMapOpen(prev => prev === "in" ? null : "in")}
-              data-testid={`button-map-in-${staff.id}`}
-              className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg border transition-colors ${
-                mapOpen === "in"
-                  ? "bg-emerald-500 text-white border-emerald-500"
-                  : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
-              }`}
-              title="View clock-in location"
-            >
-              <MapPin className="w-3 h-3" />
-              In
-            </button>
-          )}
-          {hasOutGps && (
-            <button
-              onClick={() => setMapOpen(prev => prev === "out" ? null : "out")}
-              data-testid={`button-map-out-${staff.id}`}
-              className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg border transition-colors ${
-                mapOpen === "out"
-                  ? "bg-red-500 text-white border-red-500"
-                  : "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900"
-              }`}
-              title="View clock-out location"
-            >
-              <MapPin className="w-3 h-3" />
-              Out
-            </button>
-          )}
-          {!hasInGps && !hasOutGps && log && (
-            <span className="text-[10px] text-muted-foreground italic">No GPS</span>
           )}
         </div>
       </div>
@@ -708,9 +726,7 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
         <div className="mt-3 rounded-xl overflow-hidden border border-border shadow-sm">
           {/* Header strip */}
           <div className={`flex items-center justify-between px-3 py-2 ${
-            mapOpen === "in"
-              ? "bg-emerald-500 text-white"
-              : "bg-red-500 text-white"
+            mapOpen === "in" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"
           }`}>
             <div className="flex items-center gap-2 text-xs font-bold">
               <MapPin className="w-3.5 h-3.5" />
@@ -719,17 +735,12 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
                 : `Clock-Out · ${log?.clockOutAt ? format(new Date(log.clockOutAt), "h:mm a") : ""}`}
             </div>
             <div className="flex items-center gap-2">
-              <a
-                href={`https://maps.google.com/?q=${activeGps!.lat},${activeGps!.lng}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[10px] font-bold underline opacity-90 hover:opacity-100"
-              >
+              <a href={`https://maps.google.com/?q=${activeGps!.lat},${activeGps!.lng}`}
+                target="_blank" rel="noreferrer"
+                className="text-[10px] font-bold underline opacity-90 hover:opacity-100">
                 Open in Maps ↗
               </a>
-              <button onClick={() => setMapOpen(null)} className="opacity-80 hover:opacity-100 ml-1">
-                ✕
-              </button>
+              <button onClick={() => setMapOpen(null)} className="opacity-80 hover:opacity-100 ml-1">✕</button>
             </div>
           </div>
           {/* Map iframe */}
@@ -737,13 +748,17 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
             src={osmSrc}
             title={`${staff.name} ${mapOpen === "in" ? "clock-in" : "clock-out"} location`}
             className="w-full"
-            style={{ height: 220, border: "none" }}
+            style={{ height: 240, border: "none" }}
             loading="lazy"
           />
           {/* Coords footer */}
           <div className="px-3 py-1.5 bg-muted/60 text-[10px] font-mono text-muted-foreground flex items-center justify-between">
             <span>{parseFloat(activeGps!.lat).toFixed(6)}, {parseFloat(activeGps!.lng).toFixed(6)}</span>
-            <span className="font-sans text-[10px]">{staff.name}</span>
+            <a href={`https://maps.google.com/?q=${activeGps!.lat},${activeGps!.lng}`}
+              target="_blank" rel="noreferrer"
+              className="text-primary font-sans text-[10px] font-bold hover:underline">
+              Google Maps ↗
+            </a>
           </div>
         </div>
       )}

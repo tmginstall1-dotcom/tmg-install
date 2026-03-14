@@ -300,25 +300,41 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
 
           {/* Clock button */}
           {!isClockedOut ? (
-            <button
-              onClick={() => isClockedIn ? clockOutMut.mutate() : clockInMut.mutate()}
-              disabled={isPending || gpsState === "denied"}
-              data-testid={isClockedIn ? "button-clock-out" : "button-clock-in"}
-              className={`w-24 h-24 rounded-2xl flex flex-col items-center justify-center gap-1.5 font-black shadow-2xl transition-all active:scale-95 disabled:opacity-60 border-2 border-white/20 ${
-                isClockedIn
-                  ? "bg-red-500 text-white"
-                  : "bg-white text-black"
-              }`}
-            >
-              {isPending ? (
-                <div className="w-6 h-6 border-3 border-current/40 border-t-current rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Clock className="w-7 h-7" />
-                  <span className="text-xs">{isClockedIn ? "Clock Out" : "Clock In"}</span>
-                </>
+            <div className="flex flex-col items-end gap-2">
+              {gpsState === "denied" && (
+                <div className="bg-red-500/90 backdrop-blur text-white text-xs font-bold px-3 py-2 rounded-xl max-w-[200px] text-right leading-tight">
+                  📍 Location blocked<br />
+                  <span className="font-normal opacity-90">Enable GPS in your browser/phone settings to clock in</span>
+                  <button onClick={requestLocation} className="block mt-1 underline font-bold">Retry</button>
+                </div>
               )}
-            </button>
+              <button
+                onClick={() => isClockedIn ? clockOutMut.mutate() : clockInMut.mutate()}
+                disabled={isPending || gpsState === "denied"}
+                data-testid={isClockedIn ? "button-clock-out" : "button-clock-in"}
+                className={`w-24 h-24 rounded-2xl flex flex-col items-center justify-center gap-1.5 font-black shadow-2xl transition-all active:scale-95 disabled:opacity-50 border-2 border-white/20 ${
+                  isClockedIn
+                    ? "bg-red-500 text-white"
+                    : gpsState === "denied"
+                    ? "bg-white/30 text-white/60 cursor-not-allowed"
+                    : "bg-white text-black"
+                }`}
+              >
+                {isPending ? (
+                  <div className="w-6 h-6 border-3 border-current/40 border-t-current rounded-full animate-spin" />
+                ) : gpsState === "denied" ? (
+                  <>
+                    <WifiOff className="w-7 h-7" />
+                    <span className="text-xs">No GPS</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-7 h-7" />
+                    <span className="text-xs">{isClockedIn ? "Clock Out" : "Clock In"}</span>
+                  </>
+                )}
+              </button>
+            </div>
           ) : (
             <div className="w-24 h-24 rounded-2xl bg-white/10 backdrop-blur border-2 border-white/20 flex flex-col items-center justify-center gap-1">
               <CheckCircle2 className="w-7 h-7 text-emerald-400" />
