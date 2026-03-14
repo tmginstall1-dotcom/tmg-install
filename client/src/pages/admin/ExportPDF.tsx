@@ -297,7 +297,7 @@ export default function ExportPDF() {
   return (
     <>
       {/* ── Toolbar (screen only) ── */}
-      <div className="print:hidden bg-white border-b px-6 py-3 sticky top-0 z-10 shadow-sm">
+      <div className="print:hidden bg-white border-b px-6 py-3 sticky top-14 z-40 shadow-sm">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           {/* Left: back + title */}
           <div className="flex items-center gap-3">
