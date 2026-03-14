@@ -51,9 +51,7 @@ function InstallBanner() {
         {/* Header */}
         <div className="flex items-start justify-between px-5 pt-5 pb-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0">
-              <span className="text-black font-black text-xs tracking-tight">TMG</span>
-            </div>
+            <img src="/icon-192.png" alt="TMG Staff" className="w-10 h-10 rounded-xl shrink-0" />
             <div>
               <p className="font-bold text-sm leading-tight">TMG Install — Staff</p>
               <p className="text-white/50 text-xs mt-0.5">tmginstall.com</p>
