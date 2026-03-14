@@ -34,6 +34,8 @@ export interface IStorage {
   getTodayAttendance(userId: number): Promise<AttendanceLog | undefined>;
   getAttendanceLogs(from?: Date, to?: Date, userId?: number): Promise<AttendanceLogWithUser[]>;
   getAttendanceLog(id: number): Promise<AttendanceLog | undefined>;
+  updateAttendanceLog(id: number, data: { clockInAt?: Date; clockOutAt?: Date | null; notes?: string }): Promise<AttendanceLog | undefined>;
+  deleteAttendanceLog(id: number): Promise<void>;
 
   // Amendments
   createAmendment(data: Omit<typeof attendanceAmendments.$inferInsert, 'id' | 'createdAt'>): Promise<AttendanceAmendment>;
@@ -216,6 +218,19 @@ export class DatabaseStorage implements IStorage {
   async getAttendanceLog(id: number): Promise<AttendanceLog | undefined> {
     const [log] = await db.select().from(attendanceLogs).where(eq(attendanceLogs.id, id));
     return log;
+  }
+
+  async updateAttendanceLog(id: number, data: { clockInAt?: Date; clockOutAt?: Date | null; notes?: string }): Promise<AttendanceLog | undefined> {
+    const updates: any = {};
+    if (data.clockInAt !== undefined) updates.clockInAt = data.clockInAt;
+    if (data.clockOutAt !== undefined) updates.clockOutAt = data.clockOutAt;
+    if (data.notes !== undefined) updates.notes = data.notes;
+    const [updated] = await db.update(attendanceLogs).set(updates).where(eq(attendanceLogs.id, id)).returning();
+    return updated;
+  }
+
+  async deleteAttendanceLog(id: number): Promise<void> {
+    await db.delete(attendanceLogs).where(eq(attendanceLogs.id, id));
   }
 
   // Amendments

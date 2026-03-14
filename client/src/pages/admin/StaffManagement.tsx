@@ -690,202 +690,500 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
   );
 }
 
-// ─── Timesheets View (date range) ──────────────────────────────────────────────
+// ─── Timesheets — helpers ───────────────────────────────────────────────────────
+
+function calcOT(logs: any[]): { totalMins: number; regularMins: number; otMins: number } {
+  let totalMins = 0, regularMins = 0, otMins = 0;
+  for (const l of logs) {
+    if (!l.clockOutAt) continue;
+    const mins = differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
+    totalMins += mins;
+    regularMins += Math.min(mins, 8 * 60);
+    otMins += Math.max(0, mins - 8 * 60);
+  }
+  return { totalMins, regularMins, otMins };
+}
+
+// ─── Inline edit form for a single attendance log ──────────────────────────────
+
+function EditLogForm({ log, queryKeys, onClose }: { log: any; queryKeys: any[]; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const toLocal = (d: string | null) => d ? format(new Date(d), "yyyy-MM-dd'T'HH:mm") : "";
+  const [inVal,  setInVal]  = useState(toLocal(log.clockInAt));
+  const [outVal, setOutVal] = useState(toLocal(log.clockOutAt));
+  const [notes,  setNotes]  = useState(log.notes || "");
+
+  const previewMins = inVal && outVal
+    ? differenceInMinutes(new Date(outVal), new Date(inVal))
+    : null;
+
+  const saveMut = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/admin/attendance/${log.id}`, {
+      clockInAt:  inVal  ? new Date(inVal).toISOString()  : undefined,
+      clockOutAt: outVal ? new Date(outVal).toISOString() : null,
+      notes,
+    }),
+    onSuccess: () => {
+      queryKeys.forEach(k => qc.invalidateQueries({ queryKey: k }));
+      toast({ title: "Record updated" });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <tr className="border-t bg-primary/5">
+      <td colSpan={7} className="px-4 py-3">
+        <div className="space-y-3">
+          <p className="text-xs font-black text-primary uppercase tracking-wider">Editing record #{log.id}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+                <LogIn className="w-3 h-3 text-emerald-500" /> Clock In
+              </label>
+              <input type="datetime-local" value={inVal} onChange={e => setInVal(e.target.value)}
+                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+                data-testid={`input-edit-clockin-${log.id}`} />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+                <LogOut className="w-3 h-3 text-red-500" /> Clock Out
+                <span className="ml-1 text-[10px] text-muted-foreground font-normal">(leave blank = still in)</span>
+              </label>
+              <input type="datetime-local" value={outVal} onChange={e => setOutVal(e.target.value)}
+                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+                data-testid={`input-edit-clockout-${log.id}`} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Admin Notes</label>
+            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional note…"
+              className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+              data-testid={`input-edit-notes-${log.id}`} />
+          </div>
+          {previewMins !== null && previewMins >= 0 && (
+            <p className="text-xs text-muted-foreground">
+              Duration: <strong>{fmt(previewMins)}</strong>
+              {previewMins > 8 * 60 && <span className="ml-2 text-amber-600 font-bold">({fmt(previewMins - 8 * 60)} OT)</span>}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 disabled:opacity-60"
+              data-testid={`button-save-log-${log.id}`}>
+              {saveMut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+              Save
+            </button>
+            <button onClick={onClose}
+              className="px-3 py-1.5 border rounded-lg text-xs font-bold hover:bg-secondary transition-colors"
+              data-testid={`button-cancel-edit-${log.id}`}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// ─── Timesheets View ────────────────────────────────────────────────────────────
 
 function TimesheetsView() {
   const today = new Date();
-  const [from, setFrom] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
-  const [to, setTo] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
-  const [filterUserId, setFilterUserId] = useState<string>("");
+  const [view,       setView]       = useState<"daily" | "period">("period");
+  const [from,       setFrom]       = useState(format(startOfMonth(today), "yyyy-MM-dd"));
+  const [to,         setTo]         = useState(format(endOfMonth(today), "yyyy-MM-dd"));
+  const [dailyDate,  setDailyDate]  = useState(format(today, "yyyy-MM-dd"));
+  const [filterUid,  setFilterUid]  = useState("");
+  const [sortBy,     setSortBy]     = useState<"name" | "hours">("name");
+  const [sortDir,    setSortDir]    = useState<"asc" | "desc">("asc");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [editingId,  setEditingId]  = useState<number | null>(null);
+  const [confirmDel, setConfirmDel] = useState<number | null>(null);
+  const qc = useQueryClient();
+  const { toast } = useToast();
 
   const { data: staff = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
 
-  const { data: logs = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/admin/attendance", from, to, filterUserId],
-    queryFn: async () => {
-      const params = new URLSearchParams({ from: from + "T00:00:00", to: to + "T23:59:59" });
-      if (filterUserId) params.set("userId", filterUserId);
-      const res = await fetch(`/api/admin/attendance?${params}`);
-      return res.json();
-    },
-  });
+  // Period-view date validation
+  const isValid = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(new Date(d).getTime());
 
-  const staffTotals = (logs as any[]).reduce((acc: any, log: any) => {
-    // Skip admin / non-staff records
-    if (log.user?.role !== 'staff') return acc;
-    const uid = log.userId;
-    if (!acc[uid]) acc[uid] = { user: log.user, totalMins: 0, days: 0, logs: [] };
-    if (log.clockOutAt) {
-      const mins = differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt));
-      acc[uid].totalMins += mins;
-      acc[uid].days++;
-    }
-    acc[uid].logs.push(log);
-    return acc;
-  }, {});
-
-  // Merge in staff who have no logs this period (show them with 0h so admin can see all staff)
-  (staff as any[]).forEach((s: any) => {
-    if (!staffTotals[s.id]) {
-      staffTotals[s.id] = { user: s, totalMins: 0, days: 0, logs: [] };
-    }
-  });
-
-  const staffRows = Object.values(staffTotals) as any[];
-  const grandTotal = staffRows.reduce((sum, r) => sum + r.totalMins, 0);
-
-  const setPreset = (preset: string) => {
-    const t = new Date();
-    if (preset === "thisWeek") { setFrom(format(startOfWeek(t, { weekStartsOn: 1 }), "yyyy-MM-dd")); setTo(format(endOfWeek(t, { weekStartsOn: 1 }), "yyyy-MM-dd")); }
-    else if (preset === "thisMonth") { setFrom(format(startOfMonth(t), "yyyy-MM-dd")); setTo(format(endOfMonth(t), "yyyy-MM-dd")); }
-    else if (preset === "today") { setFrom(format(t, "yyyy-MM-dd")); setTo(format(t, "yyyy-MM-dd")); }
+  // Shared fetcher
+  const fetchLogs = async (f: string, t: string, uid: string) => {
+    if (!isValid(f) || !isValid(t)) return [];
+    const params = new URLSearchParams({ from: f + "T00:00:00", to: t + "T23:59:59" });
+    if (uid) params.set("userId", uid);
+    const res = await fetch(`/api/admin/attendance?${params}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
   };
 
+  // Period logs
+  const periodKey = ["/api/admin/attendance", from, to, filterUid];
+  const { data: periodLogs = [], isLoading: periodLoading } = useQuery<any[]>({
+    queryKey: periodKey,
+    queryFn: () => fetchLogs(from, to, filterUid),
+    enabled: view === "period",
+  });
+
+  // Daily logs
+  const dailyKey = ["/api/admin/attendance", dailyDate, dailyDate, ""];
+  const { data: dailyLogs = [], isLoading: dailyLoading } = useQuery<any[]>({
+    queryKey: dailyKey,
+    queryFn: () => fetchLogs(dailyDate, dailyDate, ""),
+    enabled: view === "daily",
+    refetchInterval: 30000,
+  });
+
+  const sharedQueryKeys = [periodKey, dailyKey];
+
+  // Delete mutation
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/attendance/${id}`),
+    onSuccess: () => {
+      sharedQueryKeys.forEach(k => qc.invalidateQueries({ queryKey: k }));
+      toast({ title: "Record deleted" });
+      setConfirmDel(null);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Period view: build per-staff rows
+  const buildStaffRows = (logs: any[]) => {
+    const map: Record<number, any> = {};
+    for (const log of logs) {
+      if (log.user?.role !== "staff") continue;
+      const uid = log.userId;
+      if (!map[uid]) map[uid] = { user: log.user, logs: [] };
+      map[uid].logs.push(log);
+    }
+    (staff as any[]).forEach((s: any) => {
+      if (!map[s.id]) map[s.id] = { user: s, logs: [] };
+    });
+    let rows = Object.values(map).map((r: any) => ({ ...r, ...calcOT(r.logs), days: r.logs.filter((l: any) => l.clockOutAt).length }));
+    rows.sort((a: any, b: any) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortBy === "hours") return dir * (a.totalMins - b.totalMins);
+      return dir * a.user.name.localeCompare(b.user.name);
+    });
+    return rows;
+  };
+
+  const staffRows = buildStaffRows(periodLogs as any[]);
+  const grandTotals = calcOT(staffRows.flatMap((r: any) => r.logs));
+
+  const setPreset = (p: string) => {
+    const t = new Date();
+    if (p === "today")     { setFrom(format(t, "yyyy-MM-dd")); setTo(format(t, "yyyy-MM-dd")); }
+    if (p === "week")      { setFrom(format(startOfWeek(t, { weekStartsOn: 1 }), "yyyy-MM-dd")); setTo(format(endOfWeek(t, { weekStartsOn: 1 }), "yyyy-MM-dd")); }
+    if (p === "month")     { setFrom(format(startOfMonth(t), "yyyy-MM-dd")); setTo(format(endOfMonth(t), "yyyy-MM-dd")); }
+    if (p === "prevMonth") { const pm = new Date(t.getFullYear(), t.getMonth() - 1, 1); setFrom(format(startOfMonth(pm), "yyyy-MM-dd")); setTo(format(endOfMonth(pm), "yyyy-MM-dd")); }
+  };
+
+  // Shared log-row render (used by both views)
+  const renderLogRow = (log: any, showDate = true) => {
+    const mins = log.clockOutAt ? differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt)) : null;
+    const otMins = mins !== null ? Math.max(0, mins - 8 * 60) : 0;
+    const isEditing = editingId === log.id;
+    const isDeleting = confirmDel === log.id;
+
+    if (isEditing) return (
+      <EditLogForm key={`edit-${log.id}`} log={log} queryKeys={sharedQueryKeys} onClose={() => setEditingId(null)} />
+    );
+
+    return (
+      <tr key={log.id} className={`border-t transition-colors ${isDeleting ? "bg-red-50 dark:bg-red-950/20" : "hover:bg-secondary/20"}`}
+        data-testid={`log-row-${log.id}`}>
+        {showDate && (
+          <td className="px-3 py-2.5 font-medium text-sm whitespace-nowrap">
+            {format(new Date(log.clockInAt), "EEE, d MMM")}
+          </td>
+        )}
+        <td className="px-3 py-2.5">
+          <div className="flex items-center gap-1 text-sm">
+            <LogIn className="w-3 h-3 text-emerald-500 shrink-0" />
+            <span className="font-mono">{format(new Date(log.clockInAt), "HH:mm")}</span>
+            {log.clockInLat && log.clockInLng && (
+              <a href={`https://maps.google.com/?q=${log.clockInLat},${log.clockInLng}`} target="_blank" rel="noreferrer"
+                className="text-primary" title="GPS"><MapPin className="w-3 h-3" /></a>
+            )}
+          </div>
+        </td>
+        <td className="px-3 py-2.5">
+          {log.clockOutAt ? (
+            <div className="flex items-center gap-1 text-sm">
+              <LogOut className="w-3 h-3 text-red-500 shrink-0" />
+              <span className="font-mono">{format(new Date(log.clockOutAt), "HH:mm")}</span>
+              {log.clockOutLat && log.clockOutLng && (
+                <a href={`https://maps.google.com/?q=${log.clockOutLat},${log.clockOutLng}`} target="_blank" rel="noreferrer"
+                  className="text-primary" title="GPS"><MapPin className="w-3 h-3" /></a>
+              )}
+            </div>
+          ) : (
+            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">Still in</span>
+          )}
+        </td>
+        <td className="px-3 py-2.5 text-right">
+          {mins !== null ? (
+            <div>
+              <span className="font-black text-sm">{fmt(mins)}</span>
+              {otMins > 0 && <span className="ml-1 text-[10px] font-bold text-amber-600">+{fmt(otMins)} OT</span>}
+            </div>
+          ) : <span className="text-muted-foreground text-sm">—</span>}
+        </td>
+        {log.notes && <td className="px-3 py-2.5 text-xs text-muted-foreground italic max-w-[120px] truncate">{log.notes}</td>}
+        {!log.notes && <td className="px-3 py-2.5" />}
+        <td className="px-3 py-2.5">
+          {isDeleting ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-red-600 font-bold">Delete?</span>
+              <button onClick={() => deleteMut.mutate(log.id)} disabled={deleteMut.isPending}
+                className="text-[11px] font-bold text-white bg-red-500 px-2 py-0.5 rounded hover:bg-red-600"
+                data-testid={`button-confirm-delete-${log.id}`}>
+                {deleteMut.isPending ? "…" : "Yes"}
+              </button>
+              <button onClick={() => setConfirmDel(null)}
+                className="text-[11px] font-bold border px-2 py-0.5 rounded hover:bg-secondary">
+                No
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button onClick={() => { setEditingId(log.id); setConfirmDel(null); }}
+                className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                title="Edit" data-testid={`button-edit-log-${log.id}`}>
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => { setConfirmDel(log.id); setEditingId(null); }}
+                className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-muted-foreground hover:text-red-500 transition-colors"
+                title="Delete" data-testid={`button-delete-log-${log.id}`}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
+  const logTableHead = (showDate = true) => (
+    <thead>
+      <tr className="bg-secondary/40">
+        {showDate && <th className="text-left px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Date</th>}
+        <th className="text-left px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Clock In</th>
+        <th className="text-left px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Clock Out</th>
+        <th className="text-right px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Hours</th>
+        <th className="text-left px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Notes</th>
+        <th className="px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Actions</th>
+      </tr>
+    </thead>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="bg-card border rounded-2xl p-4 space-y-3">
-        <div className="flex flex-wrap gap-2 items-end">
-          <div>
-            <label className="text-xs font-bold text-muted-foreground mb-1 block">From</label>
-            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm bg-background" data-testid="input-from-date" />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-muted-foreground mb-1 block">To</label>
-            <input type="date" value={to} onChange={e => setTo(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm bg-background" data-testid="input-to-date" />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-muted-foreground mb-1 block">Staff</label>
-            <select value={filterUserId} onChange={e => setFilterUserId(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm bg-background min-w-[120px]" data-testid="select-staff-filter">
-              <option value="">All Staff</option>
-              {staff.map((s: any) => <option key={s.id} value={s.id}>{s.name} (@{s.username})</option>)}
-            </select>
-          </div>
-          <div className="flex gap-1 pb-0.5">
-            {[["today","Today"],["thisWeek","This Week"],["thisMonth","This Month"]].map(([v,l]) => (
-              <button key={v} onClick={() => setPreset(v)}
-                className="px-3 py-2 text-xs font-semibold border rounded-lg hover:bg-secondary transition-colors">
-                {l}
+    <div className="space-y-5">
+      {/* ── Controls bar ─────────────────────────────────────────────── */}
+      <div className="bg-card border rounded-2xl p-4 space-y-4">
+        {/* View toggle */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-xl border overflow-hidden">
+            {(["daily","period"] as const).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                className={`px-4 py-2 text-xs font-bold transition-colors capitalize ${view === v ? "bg-primary text-white" : "hover:bg-secondary"}`}
+                data-testid={`button-view-${v}`}>
+                {v === "daily" ? "Daily" : "Period"}
               </button>
             ))}
           </div>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <div className="bg-card border rounded-2xl p-4">
-          <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide mb-1">Total Hours</p>
-          <p className="text-2xl font-black">{fmt(grandTotal)}</p>
+          {view === "period" && (
+            <>
+              <div className="flex gap-1 ml-auto flex-wrap">
+                {[["today","Today"],["week","This Week"],["month","This Month"],["prevMonth","Last Month"]].map(([v,l]) => (
+                  <button key={v} onClick={() => setPreset(v)}
+                    className="px-2.5 py-1.5 text-[11px] font-bold border rounded-lg hover:bg-secondary transition-colors">
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
-        <div className="bg-card border rounded-2xl p-4">
-          <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide mb-1">Staff Members</p>
-          <p className="text-2xl font-black">{staffRows.filter((r: any) => r.days > 0).length} <span className="text-sm font-normal text-muted-foreground">/ {staffRows.length}</span></p>
-        </div>
-        <div className="bg-card border rounded-2xl p-4">
-          <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide mb-1">Total Records</p>
-          <p className="text-2xl font-black">{staffRows.reduce((s: number, r: any) => s + r.logs.length, 0)}</p>
-        </div>
-      </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-      ) : (
-        <div className="space-y-3">
-          {staffRows.map((row: any) => (
-            <div key={row.user?.id} className={`border rounded-2xl overflow-hidden ${row.days === 0 ? "bg-secondary/20 opacity-70" : "bg-card"}`}>
-              <button
-                onClick={() => row.logs.length > 0 && setExpandedId(expandedId === row.user?.id ? null : row.user?.id)}
-                className={`w-full px-4 py-3 flex items-center justify-between transition-colors ${row.logs.length > 0 ? "hover:bg-secondary/30 cursor-pointer" : "cursor-default"}`}
-                data-testid={`payroll-row-${row.user?.id}`}>
-                <div className="flex items-center gap-3">
-                  <StaffAvatar user={row.user} size={10} />
-                  <div className="text-left">
-                    <p className="font-bold text-sm">{row.user?.name}</p>
-                    <p className="text-xs text-muted-foreground font-mono">@{row.user?.username}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {row.days > 0 ? <span className="text-emerald-600 font-bold">{row.days} day{row.days !== 1 ? "s" : ""} clocked</span> : <span className="text-muted-foreground">No records this period</span>}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className={`font-black text-lg ${row.totalMins === 0 ? "text-muted-foreground" : ""}`}>{fmt(row.totalMins)}</p>
-                    <p className="text-xs text-muted-foreground">{row.days > 0 ? fmt(Math.round(row.totalMins / row.days)) + " avg/day" : "—"}</p>
-                  </div>
-                  {row.logs.length > 0 && (expandedId === row.user?.id ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />)}
-                </div>
+        {/* Filters row */}
+        <div className="flex flex-wrap gap-3 items-end">
+          {view === "daily" ? (
+            <div className="flex items-center gap-2">
+              <button onClick={() => { const d = new Date(dailyDate); d.setDate(d.getDate()-1); setDailyDate(format(d,"yyyy-MM-dd")); }}
+                className="p-2 border rounded-lg hover:bg-secondary transition-colors" title="Previous day">
+                <ChevronDown className="w-4 h-4 rotate-90" />
               </button>
-
-              {expandedId === row.user?.id && (
-                <div className="border-t">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-secondary/30">
-                        <th className="text-left px-4 py-2 text-xs font-bold text-muted-foreground">Date</th>
-                        <th className="text-left px-4 py-2 text-xs font-bold text-muted-foreground">Clock In</th>
-                        <th className="text-left px-4 py-2 text-xs font-bold text-muted-foreground">Clock Out</th>
-                        <th className="text-right px-4 py-2 text-xs font-bold text-muted-foreground">Hours</th>
-                        <th className="text-left px-4 py-2 text-xs font-bold text-muted-foreground">GPS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {row.logs.map((log: any) => {
-                        const mins = log.clockOutAt
-                          ? differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt))
-                          : null;
-                        return (
-                          <tr key={log.id} className="border-t">
-                            <td className="px-4 py-2.5 font-medium">{format(new Date(log.clockInAt), "EEE d MMM")}</td>
-                            <td className="px-4 py-2.5">
-                              <div className="flex items-center gap-1">
-                                <LogIn className="w-3 h-3 text-emerald-500" />
-                                {format(new Date(log.clockInAt), "HH:mm")}
-                              </div>
-                            </td>
-                            <td className="px-4 py-2.5">
-                              {log.clockOutAt ? (
-                                <div className="flex items-center gap-1">
-                                  <LogOut className="w-3 h-3 text-red-500" />
-                                  {format(new Date(log.clockOutAt), "HH:mm")}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full">Still in</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-bold">
-                              {mins !== null ? fmt(mins) : "—"}
-                            </td>
-                            <td className="px-4 py-2.5 text-xs">
-                              <div className="flex flex-col gap-1">
-                                {log.clockInLat && log.clockInLng ? (
-                                  <a href={`https://maps.google.com/?q=${log.clockInLat},${log.clockInLng}`}
-                                    target="_blank" rel="noreferrer"
-                                    className="text-emerald-600 font-bold flex items-center gap-0.5 hover:underline">
-                                    <LogIn className="w-3 h-3" /> In
-                                  </a>
-                                ) : <span className="text-muted-foreground">—</span>}
-                                {log.clockOutLat && log.clockOutLng ? (
-                                  <a href={`https://maps.google.com/?q=${log.clockOutLat},${log.clockOutLng}`}
-                                    target="_blank" rel="noreferrer"
-                                    className="text-red-500 font-bold flex items-center gap-0.5 hover:underline">
-                                    <LogOut className="w-3 h-3" /> Out
-                                  </a>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              <div>
+                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Date</label>
+                <input type="date" value={dailyDate} onChange={e => setDailyDate(e.target.value)}
+                  className="px-3 py-1.5 border rounded-lg text-sm bg-background" data-testid="input-daily-date" />
+              </div>
+              <button onClick={() => { const d = new Date(dailyDate); d.setDate(d.getDate()+1); setDailyDate(format(d,"yyyy-MM-dd")); }}
+                className="p-2 border rounded-lg hover:bg-secondary transition-colors mt-4" title="Next day">
+                <ChevronDown className="w-4 h-4 -rotate-90" />
+              </button>
+              <button onClick={() => setDailyDate(format(today, "yyyy-MM-dd"))}
+                className="px-2.5 py-1.5 text-[11px] font-bold border rounded-lg hover:bg-secondary transition-colors mt-4">
+                Today
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2 items-end">
+              <div>
+                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">From</label>
+                <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+                  className="px-3 py-1.5 border rounded-lg text-sm bg-background" data-testid="input-from-date" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">To</label>
+                <input type="date" value={to} onChange={e => setTo(e.target.value)}
+                  className="px-3 py-1.5 border rounded-lg text-sm bg-background" data-testid="input-to-date" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Staff</label>
+                <select value={filterUid} onChange={e => setFilterUid(e.target.value)}
+                  className="px-3 py-1.5 border rounded-lg text-sm bg-background min-w-[130px]" data-testid="select-staff-filter">
+                  <option value="">All Staff</option>
+                  {(staff as any[]).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Sort By</label>
+                <div className="flex gap-1">
+                  {[["name","Name"],["hours","Hours"]].map(([v,l]) => (
+                    <button key={v} onClick={() => { if (sortBy === v) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortBy(v as any); setSortDir("asc"); } }}
+                      className={`px-2.5 py-1.5 text-[11px] font-bold border rounded-lg transition-colors flex items-center gap-1 ${sortBy === v ? "bg-primary text-white border-primary" : "hover:bg-secondary"}`}>
+                      {l} {sortBy === v ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Stats ───────────────────────────────────────────────────── */}
+      {view === "period" && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Total Hours", val: fmt(grandTotals.totalMins), color: "" },
+            { label: "Regular", val: fmt(grandTotals.regularMins), color: "text-emerald-600" },
+            { label: "Overtime", val: fmt(grandTotals.otMins), color: "text-amber-600" },
+            { label: "Staff w/ Records", val: `${staffRows.filter((r:any)=>r.days>0).length} / ${staffRows.length}`, color: "" },
+          ].map(c => (
+            <div key={c.label} className="bg-card border rounded-2xl p-4">
+              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide mb-1">{c.label}</p>
+              <p className={`text-xl font-black ${c.color}`}>{c.val}</p>
             </div>
           ))}
         </div>
+      )}
+
+      {/* ── Daily View ───────────────────────────────────────────────── */}
+      {view === "daily" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-black text-base">
+              {isValid(dailyDate) ? (() => { try { return format(new Date(dailyDate + "T12:00:00"), "EEEE, d MMMM yyyy"); } catch { return dailyDate; } })() : "Select a date"}
+            </h3>
+            {dailyLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          </div>
+          {(staff as any[]).filter((s:any)=>s.role==="staff").map((s: any) => {
+            const sLogs = (dailyLogs as any[]).filter((l:any) => l.userId === s.id);
+            const hasRecords = sLogs.length > 0;
+            return (
+              <div key={s.id} className={`border rounded-2xl overflow-hidden ${hasRecords ? "bg-card" : "bg-secondary/10 opacity-70"}`}
+                data-testid={`daily-staff-${s.id}`}>
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <StaffAvatar user={s} size={10} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm">{s.name}</p>
+                    <p className="text-xs font-mono text-muted-foreground">@{s.username}</p>
+                  </div>
+                  {hasRecords ? (
+                    <span className="text-xs font-bold text-emerald-600">{fmt(calcOT(sLogs).totalMins)}</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">No record</span>
+                  )}
+                </div>
+                {hasRecords && (
+                  <div className="border-t overflow-x-auto">
+                    <table className="w-full text-sm min-w-[500px]">
+                      {logTableHead(false)}
+                      <tbody>
+                        {sLogs.map((log: any) => renderLogRow(log, false))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Period View ─────────────────────────────────────────────── */}
+      {view === "period" && (
+        periodLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+        ) : (
+          <div className="space-y-3">
+            {staffRows.map((row: any) => (
+              <div key={row.user?.id} className={`border rounded-2xl overflow-hidden ${row.days === 0 ? "bg-secondary/10 opacity-70" : "bg-card"}`}
+                data-testid={`period-staff-${row.user?.id}`}>
+                {/* Staff header */}
+                <button
+                  onClick={() => row.logs.length > 0 && setExpandedId(expandedId === row.user?.id ? null : row.user?.id)}
+                  className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${row.logs.length > 0 ? "hover:bg-secondary/20 cursor-pointer" : "cursor-default"}`}
+                  data-testid={`button-expand-staff-${row.user?.id}`}>
+                  <StaffAvatar user={row.user} size={10} />
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="font-bold text-sm">{row.user?.name}</p>
+                    <p className="text-xs font-mono text-muted-foreground">@{row.user?.username}</p>
+                    <p className="text-xs mt-0.5">
+                      {row.days > 0
+                        ? <span className="text-emerald-600 font-bold">{row.days} day{row.days !== 1 ? "s" : ""} clocked</span>
+                        : <span className="text-muted-foreground">No records this period</span>}
+                    </p>
+                  </div>
+                  {/* Hour breakdown */}
+                  {row.totalMins > 0 && (
+                    <div className="text-right shrink-0">
+                      <p className="font-black text-base">{fmt(row.totalMins)}</p>
+                      <div className="flex gap-2 justify-end mt-0.5">
+                        <span className="text-[10px] text-emerald-600 font-bold">{fmt(row.regularMins)} reg</span>
+                        {row.otMins > 0 && <span className="text-[10px] text-amber-600 font-bold">{fmt(row.otMins)} OT</span>}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{row.days > 0 ? fmt(Math.round(row.totalMins / row.days)) + " avg/day" : ""}</p>
+                    </div>
+                  )}
+                  {row.logs.length > 0 && (
+                    expandedId === row.user?.id ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                  )}
+                </button>
+
+                {/* Expanded log table */}
+                {expandedId === row.user?.id && (
+                  <div className="border-t overflow-x-auto">
+                    <table className="w-full text-sm min-w-[550px]">
+                      {logTableHead(true)}
+                      <tbody>
+                        {row.logs.map((log: any) => renderLogRow(log, true))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )
       )}
     </div>
   );

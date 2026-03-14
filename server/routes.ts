@@ -310,6 +310,38 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.patch("/api/admin/attendance/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      const { clockInAt, clockOutAt, notes } = z.object({
+        clockInAt: z.string().optional(),
+        clockOutAt: z.string().nullable().optional(),
+        notes: z.string().optional(),
+      }).parse(req.body);
+      const updated = await storage.updateAttendanceLog(id, {
+        clockInAt: clockInAt ? new Date(clockInAt) : undefined,
+        clockOutAt: clockOutAt === null ? null : clockOutAt ? new Date(clockOutAt) : undefined,
+        notes,
+      });
+      if (!updated) return res.status(404).json({ message: "Record not found" });
+      res.json(updated);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.delete("/api/admin/attendance/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteAttendanceLog(id);
+      res.json({ success: true });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
   // -- Amendment Routes --
   app.post("/api/attendance/amendment", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
