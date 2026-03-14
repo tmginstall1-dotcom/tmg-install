@@ -30,12 +30,7 @@ export default function StaffDashboard() {
       return da - db2;
     });
 
-  // Completed / done
-  const completed = allJobs
-    .filter((q: any) => ['completed', 'final_payment_requested', 'final_paid', 'closed'].includes(q.status))
-    .slice(0, 8);
-
-  const totalVisible = activeNow.length + upcoming.length + completed.length;
+  const totalVisible = activeNow.length + upcoming.length;
 
   return (
     <div className="min-h-screen pt-24 pb-20 bg-background">
@@ -66,18 +61,6 @@ export default function StaffDashboard() {
             </h2>
             <div className="space-y-3">
               {upcoming.map((job: any) => (
-                <JobCard key={job.id} job={job} myUserId={user?.id} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Completed */}
-        {completed.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">✅ Completed</h2>
-            <div className="space-y-3">
-              {completed.map((job: any) => (
                 <JobCard key={job.id} job={job} myUserId={user?.id} />
               ))}
             </div>
