@@ -524,28 +524,32 @@ export async function registerRoutes(
       const isMonthly = monthlyRate > 0;
 
       // Calculate hours per day (cap regular at 8h/day, remainder is OT)
-      let regularHours = 0, overtimeHours = 0;
+      let regularHours = 0, overtimeHours = 0, mealAllowanceDays = 0;
       for (const log of logs) {
         if (log.clockOutAt) {
           const hrs = (new Date(log.clockOutAt).getTime() - new Date(log.clockInAt).getTime()) / 3600000;
+          const dailyOt = Math.max(0, hrs - 8);
           regularHours  += Math.min(hrs, 8);
-          overtimeHours += Math.max(0, hrs - 8);
+          overtimeHours += dailyOt;
+          // Meal allowance: S$8 per day when OT > 3h (applied once per day)
+          if (dailyOt > 3) mealAllowanceDays++;
         }
       }
+      const mealAllowance = mealAllowanceDays * 8;
 
       let basicPay = 0, regularPay = 0, overtimePay = 0, grossPay = 0;
       if (isMonthly) {
-        // Basic salary (fixed) + regular hrs × hourly rate + OT hrs × OT rate
+        // Basic salary (fixed) + regular hrs × hourly rate + OT hrs × OT rate + meal allowance
         basicPay    = monthlyRate;
         regularPay  = regularHours * hourlyRate;
         overtimePay = overtimeHours * overtimeRate;
-        grossPay    = basicPay + regularPay + overtimePay;
+        grossPay    = basicPay + regularPay + overtimePay + mealAllowance;
       } else {
-        // Purely hourly: regular hrs × hourly rate + OT hrs × OT rate
+        // Purely hourly: regular hrs × hourly rate + OT hrs × OT rate + meal allowance
         basicPay    = 0;
         regularPay  = regularHours * hourlyRate;
         overtimePay = overtimeHours * overtimeRate;
-        grossPay    = regularPay + overtimePay;
+        grossPay    = regularPay + overtimePay + mealAllowance;
       }
 
       // Fetch unpaid leave deductions in period
@@ -571,6 +575,7 @@ export async function registerRoutes(
         basicPay: basicPay.toFixed(2),
         regularPay: regularPay.toFixed(2),
         overtimePay: overtimePay.toFixed(2),
+        mealAllowance: mealAllowance.toFixed(2),
         leaveDeduction: leaveDeduction.toFixed(2),
         grossPay: Math.max(0, grossPay).toFixed(2),
         notes,

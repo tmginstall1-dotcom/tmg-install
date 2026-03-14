@@ -395,6 +395,7 @@ function PayslipsTab() {
       {payslips.map((ps: any) => {
         const isOpen = expandedId === ps.id;
         const basicPay = parseFloat(ps.basicPay || "0");
+        const mealAllowance = parseFloat(ps.mealAllowance || "0");
         const detailItems = ps.isMonthlyBased
           ? [
               { label: "Basic Salary", val: `S$${basicPay.toFixed(2)}` },
@@ -402,6 +403,7 @@ function PayslipsTab() {
               { label: "Regular Pay", val: `S$${parseFloat(ps.regularPay).toFixed(2)}` },
               { label: "OT Hours", val: `${parseFloat(ps.overtimeHours).toFixed(1)}h` },
               { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}` },
+              ...(mealAllowance > 0 ? [{ label: "Meal Allowance", val: `S$${mealAllowance.toFixed(2)}` }] : []),
               { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}`, negative: true },
             ]
           : [
@@ -409,6 +411,7 @@ function PayslipsTab() {
               { label: "OT Hours", val: `${parseFloat(ps.overtimeHours).toFixed(1)}h` },
               { label: "Regular Pay", val: `S$${parseFloat(ps.regularPay).toFixed(2)}` },
               { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}` },
+              ...(mealAllowance > 0 ? [{ label: "Meal Allowance", val: `S$${mealAllowance.toFixed(2)}` }] : []),
               { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}`, negative: true },
             ];
         return (
