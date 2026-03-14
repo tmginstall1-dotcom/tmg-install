@@ -3,9 +3,9 @@ import { Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   MapPin, CalendarDays, ChevronRight, Phone, MessageCircle, User,
-  Clock, Users, Timer, AlertCircle, CheckCircle2, ListTodo
+  Clock, Users, Timer, AlertCircle, CheckCircle2, ListTodo, LogIn, LogOut
 } from "lucide-react";
-import { format, isToday, differenceInSeconds } from "date-fns";
+import { format, isToday, differenceInSeconds, differenceInMinutes } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useRef } from "react";
@@ -51,6 +51,9 @@ export default function StaffDashboard() {
       {/* ── Clock In Hero ── */}
       <ClockHero attendance={attendance} user={user} isLoading={attLoading} />
 
+      {/* ── Team Today ── */}
+      <TeamToday myId={user?.id} />
+
       {/* ── Jobs section ── */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pb-24">
         <div className="mt-6 mb-4">
@@ -88,6 +91,141 @@ export default function StaffDashboard() {
               </div>
             )}
           </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Deterministic staff avatar colors ───────────────────────────────────────
+
+const AVATAR_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6","#06b6d4","#84cc16"];
+function avatarColor(id: number) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
+
+// ─── Team Today ───────────────────────────────────────────────────────────────
+
+function TeamToday({ myId }: { myId?: number }) {
+  const { data: roster = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/staff/team/today"],
+    refetchInterval: 30000,
+  });
+
+  const clockedIn  = roster.filter(r => r.clockInAt && !r.clockOutAt);
+  const clockedOut = roster.filter(r => r.clockInAt && r.clockOutAt);
+  const absent     = roster.filter(r => !r.clockInAt);
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-base font-black flex items-center gap-2">
+          <Users className="w-4 h-4 text-primary" /> Team Today
+        </h2>
+        <div className="flex gap-2 text-xs font-bold">
+          <span className="flex items-center gap-1 text-emerald-600">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+            {clockedIn.length} in
+          </span>
+          <span className="text-muted-foreground">· {absent.length} absent</span>
+        </div>
+      </div>
+
+      <div className="bg-card border-2 rounded-2xl overflow-hidden divide-y">
+        {isLoading && (
+          <div className="flex justify-center py-6">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* Clocked In */}
+        {clockedIn.map((m) => {
+          const initials = m.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
+          const isSelf = m.id === myId;
+          return (
+            <div key={m.id} className="flex items-center gap-3 px-4 py-3"
+              data-testid={`team-row-${m.id}`}>
+              <div style={{ backgroundColor: avatarColor(m.id) }}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0">
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm leading-tight">
+                  {m.name}
+                  {isSelf && <span className="ml-1.5 text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full align-middle">You</span>}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span className="text-xs font-bold text-emerald-600">
+                    Clocked in · {format(new Date(m.clockInAt), "h:mm a")}
+                  </span>
+                </div>
+              </div>
+              {m.clockInLat && m.clockInLng && (
+                <a href={`https://maps.google.com/?q=${m.clockInLat},${m.clockInLng}`}
+                  target="_blank" rel="noreferrer"
+                  className="shrink-0 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  title="View location">
+                  <MapPin className="w-4 h-4" />
+                </a>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Clocked Out */}
+        {clockedOut.map((m) => {
+          const initials = m.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
+          const isSelf = m.id === myId;
+          const mins = differenceInMinutes(new Date(m.clockOutAt), new Date(m.clockInAt));
+          const h = Math.floor(mins / 60), min = mins % 60;
+          return (
+            <div key={m.id} className="flex items-center gap-3 px-4 py-3 opacity-70"
+              data-testid={`team-row-${m.id}`}>
+              <div style={{ backgroundColor: avatarColor(m.id) }}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0">
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm leading-tight">
+                  {m.name}
+                  {isSelf && <span className="ml-1.5 text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full align-middle">You</span>}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground">
+                    {format(new Date(m.clockInAt), "h:mm a")} – {format(new Date(m.clockOutAt), "h:mm a")}
+                    <span className="font-bold text-foreground ml-1">
+                      {h > 0 ? `${h}h ${min}m` : `${min}m`}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Absent / not yet in */}
+        {absent.map((m) => {
+          const initials = m.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
+          const isSelf = m.id === myId;
+          return (
+            <div key={m.id} className="flex items-center gap-3 px-4 py-3 opacity-50"
+              data-testid={`team-row-${m.id}`}>
+              <div style={{ backgroundColor: avatarColor(m.id) }}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0 grayscale">
+                {initials}
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-sm">{m.name}
+                  {isSelf && <span className="ml-1.5 text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full align-middle">You</span>}
+                </p>
+                <p className="text-xs text-muted-foreground">Not clocked in</p>
+              </div>
+            </div>
+          );
+        })}
+
+        {!isLoading && roster.length === 0 && (
+          <p className="text-center py-6 text-sm text-muted-foreground">No team members found.</p>
         )}
       </div>
     </div>

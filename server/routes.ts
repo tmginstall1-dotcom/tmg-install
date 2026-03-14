@@ -527,6 +527,34 @@ export async function registerRoutes(
     res.json(logs);
   });
 
+  // Today's team roster — accessible to any logged-in staff member
+  app.get("/api/staff/team/today", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const today = new Date();
+      const from = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
+      const to   = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      const [allStaff, logs] = await Promise.all([
+        storage.getStaffMembers(),
+        storage.getAttendanceLogs(from, to),
+      ]);
+      const staffOnly = allStaff.filter((s: any) => s.role === "staff");
+      const roster = staffOnly.map((s: any) => {
+        const log = logs.find((l: any) => l.userId === s.id) || null;
+        return {
+          id: s.id,
+          name: s.name,
+          username: s.username,
+          clockInAt: log?.clockInAt ?? null,
+          clockOutAt: log?.clockOutAt ?? null,
+          clockInLat: log?.clockInLat ?? null,
+          clockInLng: log?.clockInLng ?? null,
+        };
+      });
+      res.json(roster);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // Staff-specific quotes (team-aware)
   app.get("/api/staff/quotes", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
