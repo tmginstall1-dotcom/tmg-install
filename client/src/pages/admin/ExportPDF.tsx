@@ -22,11 +22,25 @@ const dt = (v?: string | null, withTime = false) =>
 const addr = (q: any) =>
   q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress || "—");
 
-const statusLabel = (s: string) => (s === "final_paid" ? "Paid" : "Closed");
+const statusLabel = (s: string) => (s === "final_paid" ? "Fully Paid" : "Closed");
 const statusCls   = (s: string) =>
   s === "final_paid"
     ? "bg-emerald-100 text-emerald-700"
     : "bg-slate-100 text-slate-500";
+
+/* Parse floorsInfo JSON → human readable e.g. "Level 13 (with lift), Level 1 (no lift)" */
+function parseFloors(raw: any): string {
+  if (!raw) return "";
+  try {
+    const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (Array.isArray(arr) && arr.length > 0) {
+      return arr.map((f: any) =>
+        `Level ${f.level ?? f.floor ?? "?"}${f.hasLift ? " (with lift)" : " (no lift)"}`
+      ).join(", ");
+    }
+  } catch {}
+  return typeof raw === "string" ? raw : String(raw);
+}
 
 /* ─── CSV ────────────────────────────────────────────────────── */
 function downloadCSV(jobs: any[]) {
@@ -123,7 +137,7 @@ function DetailPanel({ q }: { q: any }) {
             <InfoRow label="Address" value={q.serviceAddress || "—"} />
           )}
           {q.accessDifficulty && <InfoRow label="Access" value={q.accessDifficulty} />}
-          {q.floorsInfo       && <InfoRow label="Floors" value={q.floorsInfo} />}
+          {q.floorsInfo && parseFloors(q.floorsInfo) && <InfoRow label="Floors" value={parseFloors(q.floorsInfo)} />}
         </Section>
 
         {/* Scope of work */}
@@ -283,7 +297,7 @@ function FinLine({ label, value, red }: { label: string; value: string; red?: bo
   );
 }
 
-/* ─── Print-only job detail ──────────────────────────────────── */
+/* ─── Print-only job detail — proper A4 portrait ─────────────── */
 function PrintJob({ q, today }: { q: any; today: string }) {
   const items    = q.items || [];
   const arrived  = (q.updates || []).find((u: any) => u.statusChange === "in_progress" && u.gpsLat);
@@ -291,159 +305,232 @@ function PrintJob({ q, today }: { q: any; today: string }) {
   const notes    = (q.updates || []).filter((u: any) => u.note && !u.gpsLat);
   const services = (() => { try { return JSON.parse(q.selectedServices || "[]"); } catch { return []; } })();
   const isReloc  = !!q.pickupAddress;
+  const floorsText = parseFloors(q.floorsInfo);
+  const onSiteMins = arrived && done
+    ? Math.round((new Date(done.createdAt).getTime() - new Date(arrived.createdAt).getTime()) / 60000)
+    : null;
 
-  const cell: React.CSSProperties = { padding: "3px 0", fontSize: 9 };
-  const th: React.CSSProperties   = { padding: "3px 5px", fontWeight: 700, fontSize: 8, textAlign: "left" };
+  const s = {
+    page:    { pageBreakBefore: "always", breakBefore: "page", fontFamily: "Arial, Helvetica, sans-serif", fontSize: 10, lineHeight: 1.5, color: "#111", padding: 0 } as React.CSSProperties,
+    hdr:     { display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "3px solid #111", paddingBottom: 10, marginBottom: 14 } as React.CSSProperties,
+    badge:   { display: "inline-block", padding: "3px 10px", borderRadius: 99, fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, background: q.status === "final_paid" ? "#dcfce7" : "#f1f5f9", color: q.status === "final_paid" ? "#15803d" : "#475569" },
+    grid2:   { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 14 } as React.CSSProperties,
+    thCell:  { padding: "5px 8px", fontWeight: 700, fontSize: 9, textAlign: "left" as const, background: "#111", color: "#fff" },
+    tdCell:  { padding: "5px 8px", fontSize: 9, verticalAlign: "top" as const },
+  };
 
   return (
-    <div style={{ pageBreakBefore: "always", breakBefore: "page", fontFamily: "Arial, sans-serif", padding: "0 4px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#000", color: "#fff", padding: "8px 12px", borderRadius: "4px 4px 0 0", marginBottom: 10 }}>
+    <div style={s.page}>
+
+      {/* ── Company header ── */}
+      <div style={s.hdr}>
         <div>
-          <div style={{ fontSize: 7, letterSpacing: 2, opacity: .5, textTransform: "uppercase" }}>Job Detail — Audit Record</div>
-          <div style={{ fontSize: 15, fontWeight: 900, fontFamily: "monospace" }}>{q.referenceNo}</div>
+          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: -1, lineHeight: 1 }}>TMG INSTALL</div>
+          <div style={{ fontSize: 8, color: "#6b7280", marginTop: 4 }}>{CO} · UEN {UEN}</div>
+          <div style={{ fontSize: 8, color: "#6b7280" }}>{ADDR}</div>
+          <div style={{ fontSize: 8, color: "#6b7280" }}>{TEL} · {MAIL} · {WEB}</div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <span style={{ background: q.status === "final_paid" ? "#22c55e" : "rgba(255,255,255,.2)", color: "#fff", padding: "2px 8px", borderRadius: 99, fontSize: 8, fontWeight: 700, textTransform: "uppercase" }}>
-            {q.status === "final_paid" ? "FULLY PAID" : "CLOSED"}
-          </span>
-          <div style={{ fontSize: 8, opacity: .4, marginTop: 2 }}>Submitted {dt(q.createdAt)}</div>
+          <div style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 900, color: "#1e40af", lineHeight: 1 }}>{q.referenceNo}</div>
+          <div style={{ marginTop: 5 }}><span style={s.badge}>{statusLabel(q.status)}</span></div>
+          <div style={{ fontSize: 8, color: "#9ca3af", marginTop: 6 }}>Audit Record · Generated {today}</div>
+          <div style={{ fontSize: 8, color: "#9ca3af" }}>Submitted {dt(q.createdAt)}</div>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-        <div>
-          <Sect title="Customer">
-            <PR label="Name"  val={q.customer?.name  || "—"} />
-            <PR label="Phone" val={q.customer?.phone || "—"} />
-            <PR label="Email" val={q.customer?.email || "—"} />
-          </Sect>
-          <Sect title="Service Location">
-            {isReloc ? (<><PR label="Pickup" val={q.pickupAddress} /><PR label="Drop-off" val={q.dropoffAddress} /></>) : <PR label="Address" val={q.serviceAddress || "—"} />}
-            {services.length > 0 && <PR label="Services" val={services.join(", ")} />}
-            {q.accessDifficulty && <PR label="Access"   val={q.accessDifficulty} />}
-            {q.floorsInfo       && <PR label="Floors"   val={q.floorsInfo} />}
-          </Sect>
-          <Sect title="Appointment">
-            <PR label="Date"  val={q.scheduledAt ? format(new Date(q.scheduledAt), "EEEE, d MMMM yyyy") : "—"} />
-            {q.timeWindow && <PR label="Time"  val={q.timeWindow} />}
-            <PR label="Staff" val={q.assignedStaff?.name || "—"} />
-          </Sect>
-          {notes.length > 0 && (
-            <Sect title="Notes">
-              {notes.map((n: any) => (
-                <div key={n.id} style={{ background: "#f9fafb", borderRadius: 4, padding: "3px 6px", marginBottom: 3, fontSize: 8 }}>
-                  <span style={{ color: "#9ca3af" }}>{dt(n.createdAt, true)} · </span>
-                  <span style={{ fontStyle: "italic" }}>"{n.note}"</span>
-                </div>
-              ))}
-            </Sect>
+
+      {/* ── Customer + Appointment ── */}
+      <div style={s.grid2}>
+        <PSect title="Customer">
+          <PRow label="Name"  val={q.customer?.name  || "—"} />
+          <PRow label="Phone" val={q.customer?.phone || "—"} />
+          <PRow label="Email" val={q.customer?.email || "—"} />
+        </PSect>
+        <PSect title="Appointment">
+          <PRow label="Date"     val={q.scheduledAt ? format(new Date(q.scheduledAt), "EEEE, d MMMM yyyy") : "—"} />
+          <PRow label="Time"     val={q.timeWindow || "—"} />
+          <PRow label="Staff"    val={q.assignedStaff?.name || "—"} />
+          {services.length > 0 && <PRow label="Services" val={services.join(", ")} />}
+        </PSect>
+      </div>
+
+      {/* ── Service Location ── */}
+      <PSect title="Service Location" mb={14}>
+        {isReloc ? (
+          <>
+            <PRow label="Pickup"   val={q.pickupAddress   || "—"} />
+            <PRow label="Drop-off" val={q.dropoffAddress  || "—"} />
+          </>
+        ) : (
+          <PRow label="Address" val={q.serviceAddress || "—"} />
+        )}
+        {q.accessDifficulty && <PRow label="Access" val={q.accessDifficulty} />}
+        {floorsText          && <PRow label="Floors" val={floorsText} />}
+      </PSect>
+
+      {/* ── Scope of Work ── */}
+      <PSect title="Scope of Work" mb={14}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9 }}>
+          <thead>
+            <tr>
+              <th style={{ ...s.thCell, width: "58%" }}>Item / Description</th>
+              <th style={{ ...s.thCell, width: "10%", textAlign: "center" }}>Qty</th>
+              <th style={{ ...s.thCell, width: "16%", textAlign: "right" }}>Unit Price</th>
+              <th style={{ ...s.thCell, width: "16%", textAlign: "right" }}>Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 && (
+              <tr><td colSpan={4} style={{ ...s.tdCell, color: "#9ca3af", fontStyle: "italic", textAlign: "center", padding: "10px 0" }}>No items recorded.</td></tr>
+            )}
+            {items.map((it: any, ii: number) => (
+              <tr key={it.id} style={{ background: ii % 2 ? "#f9fafb" : "#fff" }}>
+                <td style={s.tdCell}>{it.detectedName || it.originalDescription}</td>
+                <td style={{ ...s.tdCell, textAlign: "center" }}>{it.quantity}</td>
+                <td style={{ ...s.tdCell, textAlign: "right" }}>{money(it.unitPrice)}</td>
+                <td style={{ ...s.tdCell, textAlign: "right", fontWeight: 700 }}>{money(it.subtotal)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </PSect>
+
+      {/* ── Financial Summary ── */}
+      <PSect title="Financial Summary" mb={14}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9 }}>
+          <tbody>
+            <PFinRow label="Labour (Sub-total)" val={money(q.subtotal)} />
+            {Number(q.transportFee || 0) > 0 && <PFinRow label="Transport Fee" val={money(q.transportFee)} />}
+            {Number(q.discount     || 0) > 0 && <PFinRow label="Discount"      val={`− ${money(q.discount)}`} color="#dc2626" />}
+            <tr style={{ borderTop: "2.5px solid #111", borderBottom: "2.5px solid #111" }}>
+              <td style={{ padding: "7px 0", fontWeight: 900, fontSize: 13 }}>GRAND TOTAL</td>
+              <td style={{ padding: "7px 0", fontWeight: 900, fontSize: 13, textAlign: "right" }}>{money(q.total)}</td>
+            </tr>
+            <tr><td colSpan={2} style={{ height: 8 }} /></tr>
+            <PFinRow
+              label={`Deposit 50%${q.depositPaidAt ? " — PAID ✓" : " — UNPAID"}`}
+              val={money(q.depositAmount)}
+              color={q.depositPaidAt ? "#15803d" : "#9ca3af"}
+            />
+            {q.depositPaidAt && (
+              <tr><td colSpan={2} style={{ fontSize: 8, color: "#6b7280", paddingLeft: 12, paddingBottom: 3 }}>
+                Paid on {dt(q.depositPaidAt, true)}
+              </td></tr>
+            )}
+            <PFinRow
+              label={`Final 50%${q.finalPaidAt ? " — PAID ✓" : " — UNPAID"}`}
+              val={money(q.finalAmount)}
+              color={q.finalPaidAt ? "#15803d" : "#9ca3af"}
+            />
+            {q.finalPaidAt && (
+              <tr><td colSpan={2} style={{ fontSize: 8, color: "#6b7280", paddingLeft: 12, paddingBottom: 3 }}>
+                Paid on {dt(q.finalPaidAt, true)}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </PSect>
+
+      {/* ── On-Site GPS Record ── */}
+      <PSect title="On-Site GPS Record" mb={14}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {arrived ? (
+            <div style={{ border: "1px solid #bfdbfe", background: "#eff6ff", borderRadius: 8, padding: "10px 14px" }}>
+              <div style={{ fontSize: 8, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>📍 Staff Arrived</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: "#1e3a8a", lineHeight: 1 }}>{format(new Date(arrived.createdAt), "h:mm a")}</div>
+              <div style={{ fontSize: 9, color: "#3b82f6", marginTop: 3 }}>{format(new Date(arrived.createdAt), "EEEE, d MMMM yyyy")}</div>
+              <div style={{ fontSize: 8, color: "#93c5fd", marginTop: 4, fontFamily: "monospace" }}>
+                GPS: {Number(arrived.gpsLat).toFixed(6)}, {Number(arrived.gpsLng).toFixed(6)}
+              </div>
+            </div>
+          ) : (
+            <div style={{ border: "1px dashed #d1d5db", borderRadius: 8, padding: "10px 14px", color: "#9ca3af", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              No arrival GPS recorded
+            </div>
+          )}
+          {done ? (
+            <div style={{ border: "1px solid #bbf7d0", background: "#f0fdf4", borderRadius: 8, padding: "10px 14px" }}>
+              <div style={{ fontSize: 8, fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>✅ Job Completed</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: "#14532d", lineHeight: 1 }}>{format(new Date(done.createdAt), "h:mm a")}</div>
+              <div style={{ fontSize: 9, color: "#22c55e", marginTop: 3 }}>{format(new Date(done.createdAt), "EEEE, d MMMM yyyy")}</div>
+              {onSiteMins !== null && (
+                <div style={{ fontSize: 8, color: "#4ade80", marginTop: 4 }}>⏱ On-site duration: {onSiteMins} minutes</div>
+              )}
+              <div style={{ fontSize: 8, color: "#86efac", marginTop: 2, fontFamily: "monospace" }}>
+                GPS: {Number(done.gpsLat).toFixed(6)}, {Number(done.gpsLng).toFixed(6)}
+              </div>
+            </div>
+          ) : (
+            <div style={{ border: "1px dashed #d1d5db", borderRadius: 8, padding: "10px 14px", color: "#9ca3af", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              No completion GPS recorded
+            </div>
           )}
         </div>
-        <div>
-          <Sect title="Scope of Work">
-            {items.length === 0 ? <div style={{ fontSize: 8, color: "#9ca3af" }}>No items.</div> : (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: "#f3f4f6" }}>
-                    <th style={th}>Item</th>
-                    <th style={{ ...th, textAlign: "right" }}>Qty</th>
-                    <th style={{ ...th, textAlign: "right" }}>Unit</th>
-                    <th style={{ ...th, textAlign: "right" }}>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((it: any, ii: number) => (
-                    <tr key={it.id} style={{ background: ii % 2 ? "#f9fafb" : "#fff" }}>
-                      <td style={{ ...cell, padding: "3px 5px" }}>{it.detectedName || it.originalDescription}</td>
-                      <td style={{ ...cell, padding: "3px 5px", textAlign: "right" }}>{it.quantity}</td>
-                      <td style={{ ...cell, padding: "3px 5px", textAlign: "right" }}>{money(it.unitPrice)}</td>
-                      <td style={{ ...cell, padding: "3px 5px", textAlign: "right", fontWeight: 700 }}>{money(it.subtotal)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Sect>
-          <Sect title="Financial Summary">
-            <table style={{ width: "100%" }}>
-              <tbody>
-                <FinRow label="Labour"    val={money(q.subtotal)} />
-                {Number(q.transportFee||0)>0 && <FinRow label="Transport" val={money(q.transportFee)} />}
-                {Number(q.discount||0)>0     && <FinRow label="Discount"  val={`−${money(q.discount)}`} color="#dc2626" />}
-                <tr style={{ borderTop: "2px solid #000", borderBottom: "2px solid #000" }}>
-                  <td style={{ ...cell, fontWeight: 900, fontSize: 11, padding: "5px 0" }}>GRAND TOTAL</td>
-                  <td style={{ ...cell, fontWeight: 900, fontSize: 11, textAlign: "right", padding: "5px 0" }}>{money(q.total)}</td>
-                </tr>
-                <FinRow label={`Deposit 50%${q.depositPaidAt?" ✓":""}`} val={money(q.depositAmount)} color={q.depositPaidAt?"#15803d":undefined} />
-                {q.depositPaidAt && <tr><td colSpan={2} style={{ fontSize: 7, color: "#9ca3af", paddingLeft: 8 }}>Paid {dt(q.depositPaidAt, true)}</td></tr>}
-                <FinRow label={`Final 50%${q.finalPaidAt?" ✓":""}`}     val={money(q.finalAmount)}   color={q.finalPaidAt?"#15803d":undefined} />
-                {q.finalPaidAt && <tr><td colSpan={2} style={{ fontSize: 7, color: "#9ca3af", paddingLeft: 8 }}>Paid {dt(q.finalPaidAt, true)}</td></tr>}
-              </tbody>
-            </table>
-          </Sect>
-        </div>
-        <div>
-          <Sect title="On-Site GPS Record">
-            {arrived ? (
-              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "6px 8px", marginBottom: 6 }}>
-                <div style={{ fontSize: 7, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: 1 }}>📍 Staff Arrived</div>
-                <div style={{ fontSize: 13, fontWeight: 900, color: "#1e3a8a" }}>{format(new Date(arrived.createdAt), "h:mm a")}</div>
-                <div style={{ fontSize: 8, color: "#3b82f6" }}>{format(new Date(arrived.createdAt), "EEEE, d MMM yyyy")}</div>
-                <div style={{ fontSize: 7, color: "#93c5fd", marginTop: 2 }}>GPS {Number(arrived.gpsLat).toFixed(5)}, {Number(arrived.gpsLng).toFixed(5)}</div>
-              </div>
-            ) : <div style={{ border: "1px dashed #e5e7eb", borderRadius: 6, padding: "6px 8px", fontSize: 8, color: "#9ca3af", marginBottom: 6 }}>No arrival GPS</div>}
-            {done ? (
-              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "6px 8px" }}>
-                <div style={{ fontSize: 7, fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: 1 }}>✅ Completed</div>
-                <div style={{ fontSize: 13, fontWeight: 900, color: "#14532d" }}>{format(new Date(done.createdAt), "h:mm a")}</div>
-                <div style={{ fontSize: 8, color: "#22c55e" }}>{format(new Date(done.createdAt), "EEEE, d MMM yyyy")}</div>
-                {arrived && <div style={{ fontSize: 7, color: "#86efac", marginTop: 2 }}>⏱ {Math.round((new Date(done.createdAt).getTime() - new Date(arrived.createdAt).getTime()) / 60000)} min on-site</div>}
-                <div style={{ fontSize: 7, color: "#86efac" }}>GPS {Number(done.gpsLat).toFixed(5)}, {Number(done.gpsLng).toFixed(5)}</div>
-              </div>
-            ) : <div style={{ border: "1px dashed #e5e7eb", borderRadius: 6, padding: "6px 8px", fontSize: 8, color: "#9ca3af" }}>No completion GPS</div>}
-          </Sect>
-          <Sect title="Audit Certification">
-            <div style={{ border: "2px dashed #e5e7eb", borderRadius: 6, padding: 10 }}>
-              {["Verified by", "Date verified", "Signature"].map(lbl => (
-                <div key={lbl} style={{ display: "flex", alignItems: "flex-end", gap: 6, marginBottom: 12 }}>
-                  <span style={{ fontSize: 8, color: "#9ca3af", width: 70, flexShrink: 0 }}>{lbl}</span>
-                  <div style={{ flex: 1, borderBottom: "1px solid #d1d5db", paddingBottom: 2 }} />
-                </div>
-              ))}
+      </PSect>
+
+      {/* ── Notes (if any) ── */}
+      {notes.length > 0 && (
+        <PSect title={`Notes (${notes.length})`} mb={14}>
+          {notes.map((n: any) => (
+            <div key={n.id} style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 5, padding: "6px 10px", marginBottom: 5, fontSize: 9 }}>
+              <span style={{ color: "#92400e", fontWeight: 600 }}>{dt(n.createdAt, true)}</span>
+              <span style={{ color: "#6b7280", margin: "0 5px" }}>·</span>
+              <span style={{ fontStyle: "italic", color: "#78350f" }}>"{n.note}"</span>
             </div>
-          </Sect>
+          ))}
+        </PSect>
+      )}
+
+      {/* ── Audit Certification ── */}
+      <div style={{ border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "12px 16px", marginBottom: 14 }}>
+        <div style={{ fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: 2, color: "#374151", marginBottom: 12 }}>Audit Certification</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          {["Verified by", "Date verified"].map(lbl => (
+            <div key={lbl} style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+              <span style={{ fontSize: 8, color: "#9ca3af", whiteSpace: "nowrap", width: 72, flexShrink: 0 }}>{lbl}:</span>
+              <div style={{ flex: 1, borderBottom: "1px solid #d1d5db", paddingBottom: 2 }} />
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+          <span style={{ fontSize: 8, color: "#9ca3af", whiteSpace: "nowrap", width: 72, flexShrink: 0 }}>Signature:</span>
+          <div style={{ flex: 1, borderBottom: "1px solid #d1d5db", paddingBottom: 2 }} />
         </div>
       </div>
-      <div style={{ marginTop: 10, paddingTop: 6, borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", fontSize: 7, color: "#9ca3af" }}>
+
+      {/* ── Page footer ── */}
+      <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 6, display: "flex", justifyContent: "space-between", fontSize: 7, color: "#9ca3af" }}>
         <span>{CO} · UEN {UEN}</span>
         <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{q.referenceNo}</span>
-        <span>Confidential · Audit use only · {today}</span>
+        <span>Confidential · Audit Record</span>
       </div>
     </div>
   );
 }
 
-function Sect({ title, children }: { title: string; children: React.ReactNode }) {
+/* ─── Print helpers ──────────────────────────────────────────── */
+function PSect({ title, children, mb = 10 }: { title: string; children: React.ReactNode; mb?: number }) {
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 7, fontWeight: 900, textTransform: "uppercase", letterSpacing: 2, color: "#6b7280", borderBottom: "1px solid #e5e7eb", paddingBottom: 2, marginBottom: 5 }}>{title}</div>
+    <div style={{ marginBottom: mb }}>
+      <div style={{ fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: 2, color: "#374151", background: "#f3f4f6", padding: "3px 6px", marginBottom: 6, borderLeft: "3px solid #111" }}>
+        {title}
+      </div>
       {children}
     </div>
   );
 }
-function PR({ label, val }: { label: string; val: string }) {
+function PRow({ label, val }: { label: string; val: string }) {
   return (
-    <div style={{ display: "flex", gap: 6, padding: "2px 0", fontSize: 8 }}>
-      <span style={{ color: "#9ca3af", width: 52, flexShrink: 0 }}>{label}</span>
-      <span style={{ fontWeight: 600 }}>{val}</span>
+    <div style={{ display: "flex", gap: 8, padding: "3px 0", borderBottom: "1px solid #f9fafb", fontSize: 9 }}>
+      <span style={{ color: "#6b7280", width: 72, flexShrink: 0, fontWeight: 600 }}>{label}</span>
+      <span style={{ color: "#111", flex: 1 }}>{val}</span>
     </div>
   );
 }
-function FinRow({ label, val, color }: { label: string; val: string; color?: string }) {
-  const s: React.CSSProperties = { padding: "3px 0", fontSize: 9, color: color || "#6b7280" };
+function PFinRow({ label, val, color }: { label: string; val: string; color?: string }) {
   return (
     <tr>
-      <td style={s}>{label}</td>
-      <td style={{ ...s, textAlign: "right", fontWeight: 600 }}>{val}</td>
+      <td style={{ padding: "4px 0", fontSize: 9, color: color || "#374151" }}>{label}</td>
+      <td style={{ padding: "4px 0", fontSize: 9, color: color || "#374151", textAlign: "right", fontWeight: 600 }}>{val}</td>
     </tr>
   );
 }
@@ -807,8 +894,8 @@ export default function ExportPDF() {
           .screen-only { display: none !important; }
           .print-only  { display: block !important; }
 
-          @page { size: A4 landscape; margin: 8mm; }
-          body  { font-size: 9px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          @page { size: A4 portrait; margin: 15mm; }
+          body  { font-size: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
 
           body[data-print-mode="summary"] #print-details { display: none !important; }
           body[data-print-mode="full"]    #print-details { display: block !important; }
