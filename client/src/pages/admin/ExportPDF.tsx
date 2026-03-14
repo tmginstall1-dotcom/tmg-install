@@ -312,7 +312,6 @@ function PrintJob({ q, today }: { q: any; today: string }) {
 
   const s = {
     page:    { pageBreakBefore: "always", breakBefore: "page", fontFamily: "Arial, Helvetica, sans-serif", fontSize: 10, lineHeight: 1.5, color: "#111", padding: 0 } as React.CSSProperties,
-    hdr:     { display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "3px solid #111", paddingBottom: 10, marginBottom: 14 } as React.CSSProperties,
     badge:   { display: "inline-block", padding: "3px 10px", borderRadius: 99, fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, background: q.status === "final_paid" ? "#dcfce7" : "#f1f5f9", color: q.status === "final_paid" ? "#15803d" : "#475569" },
     grid2:   { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 14 } as React.CSSProperties,
     thCell:  { padding: "5px 8px", fontWeight: 700, fontSize: 9, textAlign: "left" as const, background: "#111", color: "#fff" },
@@ -322,21 +321,24 @@ function PrintJob({ q, today }: { q: any; today: string }) {
   return (
     <div style={s.page}>
 
-      {/* ── Company header ── */}
-      <div style={s.hdr}>
+      {/* ── Full-width black job header band ── */}
+      <div style={{ background: "#111", color: "#fff", padding: "10px 16px", borderRadius: "6px 6px 0 0", marginBottom: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: -1, lineHeight: 1 }}>TMG INSTALL</div>
-          <div style={{ fontSize: 8, color: "#6b7280", marginTop: 4 }}>{CO} · UEN {UEN}</div>
-          <div style={{ fontSize: 8, color: "#6b7280" }}>{ADDR}</div>
-          <div style={{ fontSize: 8, color: "#6b7280" }}>{TEL} · {MAIL} · {WEB}</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 3, marginBottom: 2 }}>Job Audit Record</div>
+          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1 }}>TMG INSTALL</div>
+          <div style={{ fontSize: 7, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>{CO} · UEN {UEN}</div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 8, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 2, marginBottom: 4 }}>Job Reference No.</div>
-          <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 900, color: "#000", lineHeight: 1, background: "#f3f4f6", border: "2px solid #111", borderRadius: 6, padding: "5px 12px", display: "inline-block" }}>{q.referenceNo}</div>
-          <div style={{ marginTop: 6 }}><span style={s.badge}>{statusLabel(q.status)}</span></div>
-          <div style={{ fontSize: 8, color: "#6b7280", marginTop: 5 }}>Audit Record · Generated {today}</div>
-          <div style={{ fontSize: 8, color: "#6b7280" }}>Submitted {dt(q.createdAt)}</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 3 }}>Job Reference No.</div>
+          <div style={{ fontFamily: "monospace", fontSize: 24, fontWeight: 900, color: "#fff", lineHeight: 1, letterSpacing: 1 }}>{q.referenceNo}</div>
+          <div style={{ marginTop: 5 }}><span style={s.badge}>{statusLabel(q.status)}</span></div>
         </div>
+      </div>
+
+      {/* ── Company sub-header with dates ── */}
+      <div style={{ borderLeft: "3px solid #111", borderRight: "3px solid #111", borderBottom: "3px solid #111", padding: "6px 16px 8px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 8, color: "#6b7280", borderRadius: "0 0 6px 6px" }}>
+        <span>{ADDR} · {TEL} · {MAIL} · {WEB}</span>
+        <span>Submitted {dt(q.createdAt)} · Generated {today}</span>
       </div>
 
       {/* ── Customer + Appointment ── */}
@@ -892,10 +894,12 @@ export default function ExportPDF() {
         .print-only { display: none !important; }
 
         @media print {
+          /* Hide all app chrome — navbar, screen-only UI */
+          nav, header { display: none !important; }
           .screen-only { display: none !important; }
           .print-only  { display: block !important; }
 
-          @page { size: A4 portrait; margin: 15mm; }
+          @page { size: A4 portrait; margin: 12mm; }
           body  { font-size: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
 
           body[data-print-mode="summary"] #print-details { display: none !important; }
