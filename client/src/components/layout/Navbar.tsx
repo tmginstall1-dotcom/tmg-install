@@ -173,7 +173,12 @@ export function Navbar() {
                     </div>
                     {/* Sign out */}
                     <button
-                      onClick={() => { setProfileOpen(false); logout(); }}
+                      onClick={async () => {
+                        setProfileOpen(false);
+                        const loginUrl = user?.role === "admin" ? "/admin/login" : "/staff/login";
+                        try { await logout(); } catch {}
+                        window.location.replace(loginUrl);
+                      }}
                       data-testid="button-profile-signout"
                       className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
                     >
@@ -238,7 +243,12 @@ export function Navbar() {
             ))}
             <div className="pt-2 mt-1 border-t border-gray-100">
               <button
-                onClick={() => { logout(); setMenuOpen(false); }}
+                onClick={async () => {
+                  setMenuOpen(false);
+                  const loginUrl = user?.role === "admin" ? "/admin/login" : "/staff/login";
+                  try { await logout(); } catch {}
+                  window.location.replace(loginUrl);
+                }}
                 className="w-full flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
                 data-testid="button-mobile-logout"
               >
