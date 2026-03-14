@@ -1,15 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { LogOut, MessageCircle, Menu, X, LayoutDashboard, Calendar, FileDown, Briefcase, Users, ClipboardList } from "lucide-react";
 
 const WHATSAPP = "https://wa.me/6580880757";
 
+const AVATAR_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6","#06b6d4","#84cc16"];
+function avatarColor(id: number) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
+
 export function Navbar() {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -19,7 +24,19 @@ export function Navbar() {
 
   useEffect(() => {
     setMenuOpen(false);
+    setProfileOpen(false);
   }, [location]);
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    if (profileOpen) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [profileOpen]);
 
   if (location === "/admin/login" || location === "/staff/login") return null;
 
@@ -77,8 +94,13 @@ export function Navbar() {
     { href: "/staff/hr", label: "My HR", icon: ClipboardList },
   ];
 
-  // Always use area-based links so staff area only ever shows staff links
   const navLinks = isStaffArea ? staffLinks : adminLinks;
+
+  // Build user initials & color
+  const initials = user?.name
+    ? user.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "?";
+  const bgColor = user?.id ? avatarColor(user.id) : "#6366f1";
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
@@ -105,19 +127,64 @@ export function Navbar() {
               </div>
               <div className="hidden sm:block h-7 w-px bg-border" />
 
-              {/* User avatar (always visible) */}
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
-                {user.name.charAt(0)}
+              {/* Clickable user avatar → profile dropdown */}
+              <div className="relative" ref={profileRef}>
+                <button
+                  onClick={() => setProfileOpen(v => !v)}
+                  data-testid="button-user-avatar"
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0 ring-2 ring-offset-1 ring-transparent hover:ring-primary/40 transition-all"
+                  style={{ backgroundColor: bgColor }}
+                  title={`${user.name} — click to view profile`}
+                >
+                  {initials}
+                </button>
+
+                {/* Profile dropdown card */}
+                {profileOpen && (
+                  <div className="absolute right-0 top-11 w-64 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 overflow-hidden"
+                    data-testid="profile-dropdown">
+                    {/* Header */}
+                    <div className="px-4 py-4 flex items-center gap-3 bg-gray-50 border-b">
+                      <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center text-white font-black text-base shrink-0"
+                        style={{ backgroundColor: bgColor }}
+                      >
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-foreground leading-tight truncate">{user.name}</p>
+                        <p className="text-xs font-mono text-muted-foreground">@{user.username}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                          <span className="text-[11px] font-semibold text-emerald-600">Logged in</span>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Role badge */}
+                    <div className="px-4 py-2 flex items-center justify-between border-b">
+                      <span className="text-xs text-muted-foreground">Role</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        user.role === "admin"
+                          ? "bg-violet-100 text-violet-700"
+                          : "bg-blue-100 text-blue-700"
+                      }`}>
+                        {user.role === "admin" ? "Administrator" : "Staff"}
+                      </span>
+                    </div>
+                    {/* Sign out */}
+                    <button
+                      onClick={() => { setProfileOpen(false); logout(); }}
+                      data-testid="button-profile-signout"
+                      className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Desktop logout */}
-              <button
-                onClick={() => logout()}
-                className="hidden sm:flex p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                title="Logout"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              {/* Desktop logout (hidden — logout now in avatar dropdown) */}
 
               {/* Mobile hamburger */}
               <button
@@ -127,7 +194,7 @@ export function Navbar() {
                 data-testid="button-mobile-menu"
               >
                 {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
+            </button>
             </>
           )}
         </div>
@@ -137,6 +204,23 @@ export function Navbar() {
       {user && menuOpen && (
         <div className="sm:hidden border-t border-gray-100 bg-white shadow-lg">
           <div className="px-4 py-3 space-y-1">
+            {/* User info at top of mobile menu */}
+            <div className="flex items-center gap-3 px-3 py-2.5 mb-1 bg-gray-50 rounded-xl">
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0"
+                style={{ backgroundColor: bgColor }}
+              >
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-sm leading-tight truncate">{user.name}</p>
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                  <span className="text-[11px] text-emerald-600 font-semibold">Logged in · @{user.username}</span>
+                </div>
+              </div>
+            </div>
+
             {navLinks.map(({ href, label, icon: Icon }) => (
               <Link key={href} href={href}>
                 <div
@@ -152,11 +236,10 @@ export function Navbar() {
                 </div>
               </Link>
             ))}
-            <div className="pt-2 mt-1 border-t border-gray-100 flex items-center justify-between">
-              <span className="text-sm text-muted-foreground px-3">{user.name}</span>
+            <div className="pt-2 mt-1 border-t border-gray-100">
               <button
                 onClick={() => { logout(); setMenuOpen(false); }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                className="w-full flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
                 data-testid="button-mobile-logout"
               >
                 <LogOut className="w-4 h-4" /> Sign Out

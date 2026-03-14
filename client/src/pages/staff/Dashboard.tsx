@@ -3,9 +3,9 @@ import { Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   MapPin, CalendarDays, ChevronRight, Phone, MessageCircle, User,
-  Clock, Users, Timer, AlertCircle, CheckCircle2, ListTodo, LogIn, LogOut
+  Clock, Users, Timer, AlertCircle, CheckCircle2, ListTodo
 } from "lucide-react";
-import { format, isToday, differenceInSeconds, differenceInMinutes } from "date-fns";
+import { format, isToday, differenceInSeconds } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useRef } from "react";
@@ -51,9 +51,6 @@ export default function StaffDashboard() {
       {/* ── Clock In Hero ── */}
       <ClockHero attendance={attendance} user={user} isLoading={attLoading} />
 
-      {/* ── Team Today ── */}
-      <TeamToday myId={user?.id} />
-
       {/* ── Jobs section ── */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pb-24">
         <div className="mt-6 mb-4">
@@ -97,12 +94,7 @@ export default function StaffDashboard() {
   );
 }
 
-// ─── Deterministic staff avatar colors ───────────────────────────────────────
-
-const AVATAR_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6","#06b6d4","#84cc16"];
-function avatarColor(id: number) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
-
-// ─── Team Today ───────────────────────────────────────────────────────────────
+// ─── Team Today (admin only — removed from staff dashboard) ───────────────────
 
 function TeamToday({ myId }: { myId?: number }) {
   const { data: roster = [], isLoading } = useQuery<any[]>({
