@@ -178,7 +178,7 @@ export default function AdminQuoteDetail() {
   const editTotal = editSubtotal + editTransport;
 
   return (
-    <div className="min-h-screen pt-14 pb-32 lg:pb-20 bg-slate-50">
+    <div className="min-h-screen pt-14 pb-32 lg:pb-20 bg-slate-50 overflow-x-hidden">
 
       {/* Dark hero header */}
       <div className="bg-slate-950 text-white">

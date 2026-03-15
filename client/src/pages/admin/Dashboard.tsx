@@ -10,7 +10,6 @@ import {
   Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2, UserPlus,
   ChevronRight, Clock, Sparkles, Users, ArrowRight,
 } from "lucide-react";
-import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
 function formatMoney(v: any) {
@@ -177,13 +176,9 @@ function SectionPanel({
   const ac = ACCENT[accentColor] || ACCENT.violet;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${
-        urgent && quotes.length > 0 ? "border-orange-200" : ac.border
-      }`}
-    >
+    <div className={`w-full bg-white rounded-2xl border overflow-hidden shadow-sm ${
+      urgent && quotes.length > 0 ? "border-orange-200" : ac.border
+    }`}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
         <div className="flex items-center gap-2">
@@ -210,7 +205,7 @@ function SectionPanel({
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -284,7 +279,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen pt-14 bg-slate-50 pb-24">
+    <div className="min-h-screen pt-14 bg-slate-50 pb-24 overflow-x-hidden">
 
       {/* ── HERO ─────────────────────────────────────────────────────── */}
       <div className="bg-slate-950 text-white">
@@ -312,11 +307,8 @@ export default function AdminDashboard() {
 
           {/* Stat grid — 3-col on mobile */}
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-4">
-            {statCards.map((card, i) => (
-              <motion.div key={card.label}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.04 }}
+            {statCards.map((card) => (
+              <div key={card.label}
                 className={`rounded-xl px-3 py-3 border ${
                   card.urgent && card.value > 0
                     ? "bg-orange-500/15 border-orange-500/30"
@@ -334,7 +326,7 @@ export default function AdminDashboard() {
                 </div>
                 <p className="text-[10px] font-semibold text-slate-500 leading-tight">{card.label}</p>
                 <div className={`mt-1.5 h-[2px] rounded-full ${card.value > 0 ? accentBar[card.accent] : "bg-white/10"}`} />
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -345,8 +337,7 @@ export default function AdminDashboard() {
 
         {/* Attention banner */}
         {urgentCount > 0 && (
-          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-            className="mt-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+          <div className="mt-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
             <Clock className="w-4 h-4 text-amber-500 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-amber-800 truncate">
@@ -360,11 +351,11 @@ export default function AdminDashboard() {
               </p>
             </div>
             <ArrowRight className="w-4 h-4 text-amber-400 shrink-0" />
-          </motion.div>
+          </div>
         )}
 
-        {/* Section grid */}
-        <div className="grid md:grid-cols-2 gap-4 mt-4">
+        {/* Section grid — single column on mobile, 2-col on desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
           <SectionPanel
             title="New Quote Requests"
             accentColor="violet"
@@ -393,7 +384,7 @@ export default function AdminDashboard() {
             emptyMsg="No active jobs right now"
             urgent
           />
-          <div className="md:col-span-2">
+          <div className="lg:col-span-2">
             <SectionPanel
               title="Awaiting Final Payment"
               accentColor="emerald"

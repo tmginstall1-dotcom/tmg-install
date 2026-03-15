@@ -82,7 +82,7 @@ export default function AdminSchedule() {
   const pastBlocked     = sortedBlockedDates.filter(d => d < today);
 
   return (
-    <div className="min-h-screen pt-14 bg-slate-50 pb-20">
+    <div className="min-h-screen pt-14 bg-slate-50 pb-20 overflow-x-hidden">
 
       {/* ── HEADER BAR ──────────────────────────────────────────── */}
       <div className="bg-slate-950 text-white">
