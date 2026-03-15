@@ -183,37 +183,37 @@ export default function AdminQuoteDetail() {
       {/* Dark hero header */}
       <div className="bg-slate-950 text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
-          <Link href="/admin" className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-slate-300 transition-colors mb-4 uppercase tracking-widest">
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
+          <Link href="/admin" className="inline-flex items-center gap-1.5 text-[10px] font-black text-slate-500 hover:text-slate-300 transition-colors mb-4 uppercase tracking-[0.2em]">
+            <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
           </Link>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                <span className="text-[10px] font-mono font-bold text-slate-500 bg-white/[0.07] border border-white/10 px-2 py-0.5 rounded-md tracking-widest">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className="text-[10px] font-mono font-black text-slate-400 bg-white/[0.07] border border-white/10 px-2 py-0.5 tracking-widest">
                   {quote.referenceNo}
                 </span>
                 <StatusBadge status={quote.status} />
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight truncate">{quote.customer?.name}</h1>
-              <p className="text-slate-500 text-xs mt-1">
-                Submitted {format(new Date(quote.createdAt), "d MMM yyyy, h:mm a")}
+              <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-2xl sm:text-3xl leading-none truncate">{quote.customer?.name}</h1>
+              <p className="text-slate-500 text-xs mt-2">
+                {format(new Date(quote.createdAt), "d MMM yyyy, h:mm a")}
                 {quote.scheduledAt && (
-                  <span className="ml-2 text-violet-400 font-semibold">
+                  <span className="ml-2 text-slate-400 font-semibold">
                     · Job {format(new Date(quote.scheduledAt), "d MMM, h:mm a")}
                   </span>
                 )}
               </p>
             </div>
             {/* Total + edit button */}
-            <div className="shrink-0 flex flex-col items-end gap-2">
+            <div className="shrink-0 flex flex-col items-end gap-3">
               <div className="text-right">
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Total</p>
-                <p className="text-xl font-black text-white tabular-nums leading-none">{formatMoney(quote.total)}</p>
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-0.5">Total</p>
+                <p className="text-2xl font-black text-white tabular-nums leading-none">{formatMoney(quote.total)}</p>
               </div>
               {canEdit && !isEditing && (
                 <button onClick={handleStartEdit} data-testid="button-edit-quote"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/15 bg-white/[0.07] hover:bg-white/[0.13] text-white text-xs font-bold transition-colors">
-                  <Edit2 className="w-3.5 h-3.5" /> Edit
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-white/20 bg-white/[0.07] hover:bg-white/[0.15] text-white text-[10px] font-black uppercase tracking-[0.1em] transition-colors">
+                  <Edit2 className="w-3 h-3" /> Edit
                 </button>
               )}
             </div>
@@ -256,8 +256,8 @@ export default function AdminQuoteDetail() {
               };
 
               return (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4" data-testid="status-pipeline">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4">Job Pipeline</p>
+                <div className="bg-white border border-black/[0.07] p-4" data-testid="status-pipeline">
+                  <p className="text-[10px] font-black text-black/35 uppercase tracking-[0.2em] mb-4">Job Pipeline</p>
                   {/* Stepper — horizontal scroll on mobile */}
                   <div className="overflow-x-auto -mx-4 px-4 pb-2">
                   <div className="flex items-start min-w-[380px]">
@@ -320,9 +320,9 @@ export default function AdminQuoteDetail() {
             })()}
 
             {/* Customer + Address */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <h3 className="text-[15px] font-bold mb-5 text-slate-900 flex items-center gap-2">
-                <MapPin className="text-violet-500 w-4 h-4" /> Customer & Location
+            <div className="bg-white p-5 border border-black/[0.07]">
+              <h3 className="text-[11px] font-black mb-5 text-slate-900 flex items-center gap-2 uppercase tracking-[0.15em]">
+                <MapPin className="w-4 h-4" /> Customer & Location
               </h3>
               
               {isEditing ? (
@@ -434,10 +434,10 @@ export default function AdminQuoteDetail() {
             </div>
 
             {/* Items & Pricing */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-5 border border-black/[0.07]">
               <div className="flex justify-between items-center mb-5">
-                <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
-                  <Receipt className="text-violet-500 w-4 h-4" /> Items & Pricing
+                <h3 className="text-[11px] font-black text-slate-900 flex items-center gap-2 uppercase tracking-[0.15em]">
+                  <Receipt className="w-4 h-4" /> Items & Pricing
                 </h3>
                 {isEditing && (
                   <button onClick={addEditItem} data-testid="button-add-item"
@@ -558,9 +558,9 @@ export default function AdminQuoteDetail() {
             </div>
 
             {/* Timeline */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <h3 className="text-[15px] font-bold mb-5 text-slate-900 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-slate-400" /> Job Timeline &amp; Field Proof
+            <div className="bg-white p-5 border border-black/[0.07]">
+              <h3 className="text-[11px] font-black mb-5 text-slate-900 flex items-center gap-2 uppercase tracking-[0.15em]">
+                <Clock className="w-4 h-4" /> Job Timeline &amp; Field Proof
               </h3>
               <div className="space-y-4">
                 {quote.updates?.map((update: any) => {
@@ -687,12 +687,12 @@ export default function AdminQuoteDetail() {
           {/* Sidebar Actions — appears first on mobile, second on desktop */}
           <div className="space-y-5 order-1 lg:order-2">
             {/* ── Next Action Card ── */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-white p-5 border border-black/[0.07] space-y-4">
 
               {/* Section heading */}
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <h3 className="font-bold text-sm uppercase tracking-wide text-muted-foreground">Next Action</h3>
+                <div className="w-1.5 h-4 bg-black" />
+                <h3 className="font-black text-[11px] uppercase tracking-[0.18em] text-slate-900">Next Action</h3>
               </div>
 
               {/* ── PHASE 1: New / Under Review ── */}
@@ -705,7 +705,7 @@ export default function AdminQuoteDetail() {
                     <p className="text-xs text-blue-700">Review the items and pricing below, then approve to request the deposit from the customer.</p>
                   </div>
                   <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending} data-testid="button-approve-deposit"
-                    className="w-full btn-primary-gradient py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
+                    className="w-full bg-black text-white py-3.5 font-black text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-neutral-800 transition-colors">
                     <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
                   </button>
                 </div>
@@ -713,12 +713,12 @@ export default function AdminQuoteDetail() {
 
               {/* ── PHASE 2a: Deposit Requested ── */}
               {quote.status === 'deposit_requested' && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
-                  <p className="font-bold text-amber-800 flex items-center gap-1.5 text-sm">
+                <div className="bg-amber-50 border border-amber-200 p-4 space-y-2">
+                  <p className="font-black text-amber-800 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em]">
                     <Banknote className="w-4 h-4" /> Awaiting Deposit
                   </p>
                   <p className="text-xs text-amber-700">Email sent. Waiting for customer to pay the 50% deposit of <strong>{formatMoney(quote.depositAmount)}</strong>.</p>
-                  <div className="bg-amber-100 rounded-xl px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
+                  <div className="bg-amber-100 px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
                     <span>Deposit amount</span>
                     <span className="font-black">{formatMoney(quote.depositAmount)}</span>
                   </div>
@@ -727,7 +727,7 @@ export default function AdminQuoteDetail() {
 
               {/* ── PHASE 2b: Deposit Paid ── */}
               {quote.status === 'deposit_paid' && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-1.5">
+                <div className="bg-emerald-50 border border-emerald-200 p-4 space-y-1.5">
                   <p className="font-bold text-emerald-800 flex items-center gap-1.5 text-sm">
                     <CheckCircle2 className="w-4 h-4" /> Deposit Received
                   </p>
@@ -778,7 +778,7 @@ export default function AdminQuoteDetail() {
                       </optgroup>
                     </select>
                     <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedAssignee} data-testid="button-assign-staff"
-                      className="w-full bg-foreground text-background py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-foreground/90 transition-colors disabled:opacity-50">
+                      className="w-full bg-black text-white py-3 font-black text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 hover:bg-neutral-800 transition-colors disabled:opacity-50">
                       <UserPlus className="w-4 h-4" /> Assign Staff
                     </button>
                   </div>
@@ -835,7 +835,7 @@ export default function AdminQuoteDetail() {
                   <div className="pt-1 border-t">
                     <p className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wide font-semibold">Job Done?</p>
                     <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment-early"
-                      className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-sm shadow-emerald-500/20 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50">
+                      className="w-full bg-black text-white py-3 font-black text-xs uppercase tracking-[0.1em] flex items-center justify-center gap-2 hover:bg-neutral-800 transition-colors disabled:opacity-50">
                       <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Mark Done & Request Final Payment"}
                     </button>
                   </div>
@@ -852,7 +852,7 @@ export default function AdminQuoteDetail() {
                     <p className="text-xs text-pink-700">Staff are on-site. Field check-ins will appear in the timeline below.</p>
                   </div>
                   <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment-inprogress"
-                    className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-sm shadow-emerald-500/20 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50">
+                    className="w-full bg-black text-white py-3 font-black text-xs uppercase tracking-[0.1em] flex items-center justify-center gap-2 hover:bg-neutral-800 transition-colors disabled:opacity-50">
                     <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Mark Done & Request Final Payment"}
                   </button>
                 </div>
@@ -868,7 +868,7 @@ export default function AdminQuoteDetail() {
                     <p className="text-xs text-emerald-700">Field work is done. Send the final payment request to the customer.</p>
                   </div>
                   <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment"
-                    className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/20 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 text-sm">
+                    className="w-full bg-black text-white py-3.5 font-black text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 hover:bg-neutral-800 transition-colors disabled:opacity-50">
                     <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Request Final Payment"}
                   </button>
                 </div>
@@ -888,7 +888,7 @@ export default function AdminQuoteDetail() {
                     </div>
                   </div>
                   <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-resend-final-payment"
-                    className="w-full border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                    className="w-full border border-black/20 text-slate-700 bg-white hover:bg-slate-50 py-2.5 font-black text-xs uppercase tracking-[0.1em] flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
                     <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Resend Final Payment Email"}
                   </button>
                 </div>
@@ -896,18 +896,18 @@ export default function AdminQuoteDetail() {
 
               {/* ── PHASE 5b: Closed / Fully Paid ── */}
               {['closed', 'final_paid'].includes(quote.status) && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center">
+                <div className="bg-emerald-50 border border-emerald-200 p-5 text-center">
                   <BadgeCheck className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                  <p className="font-bold text-emerald-700 text-base">Case Closed</p>
+                  <p className="font-black text-emerald-700 text-xs uppercase tracking-[0.15em]">Case Closed</p>
                   <p className="text-xs text-emerald-600 mt-1">Total collected: <strong>{formatMoney(quote.total)}</strong></p>
                 </div>
               )}
 
               {/* ── Cancelled ── */}
               {quote.status === 'cancelled' && (
-                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center">
+                <div className="bg-red-50 border border-red-200 p-4 text-center">
                   <XCircle className="w-8 h-8 text-red-400 mx-auto mb-1" />
-                  <p className="font-bold text-red-700 text-sm">Job Cancelled</p>
+                  <p className="font-black text-red-700 text-xs uppercase tracking-[0.15em]">Job Cancelled</p>
                 </div>
               )}
 
@@ -915,7 +915,7 @@ export default function AdminQuoteDetail() {
               {!['closed', 'cancelled', 'final_paid'].includes(quote.status) && (
                 <div className="pt-2 border-t">
                   <button onClick={handleManualClose} data-testid="button-manual-close"
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold text-muted-foreground hover:bg-secondary transition-colors">
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 border text-xs font-black uppercase tracking-[0.1em] text-muted-foreground hover:bg-secondary transition-colors">
                     <XCircle className="w-4 h-4" /> Manual Close / Cancel
                   </button>
                 </div>
@@ -923,22 +923,22 @@ export default function AdminQuoteDetail() {
             </div>
 
             {/* Payment Summary */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white border border-black/[0.07] overflow-hidden">
               {/* Total header */}
-              <div className="px-5 pt-5 pb-4 border-b border-slate-100">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Contract Value</p>
+              <div className="px-5 pt-5 pb-4 border-b border-black/[0.06]">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total Contract Value</p>
                 <p className="text-2xl font-black text-slate-900 tabular-nums">{formatMoney(quote.total)}</p>
               </div>
               {/* Payment rows */}
               <div className="p-4 space-y-2">
                 {/* Deposit row */}
-                <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm ${
+                <div className={`flex items-center justify-between px-3 py-2.5 text-sm ${
                   quote.depositPaidAt
                     ? 'bg-emerald-50 border border-emerald-200'
                     : 'bg-slate-50 border border-slate-200'
                 }`}>
                   <div className="flex items-center gap-2">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                    <div className={`w-5 h-5 flex items-center justify-center text-[10px] font-black ${
                       quote.depositPaidAt ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-white'
                     }`}>{quote.depositPaidAt ? '✓' : '1'}</div>
                     <span className={`font-semibold text-xs ${quote.depositPaidAt ? 'text-emerald-700' : 'text-slate-500'}`}>
@@ -950,13 +950,13 @@ export default function AdminQuoteDetail() {
                   </span>
                 </div>
                 {/* Balance row */}
-                <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm ${
+                <div className={`flex items-center justify-between px-3 py-2.5 text-sm ${
                   quote.finalPaidAt
                     ? 'bg-emerald-50 border border-emerald-200'
                     : 'bg-slate-50 border border-slate-200'
                 }`}>
                   <div className="flex items-center gap-2">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                    <div className={`w-5 h-5 flex items-center justify-center text-[10px] font-black ${
                       quote.finalPaidAt ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-white'
                     }`}>{quote.finalPaidAt ? '✓' : '2'}</div>
                     <span className={`font-semibold text-xs ${quote.finalPaidAt ? 'text-emerald-700' : 'text-slate-500'}`}>
@@ -972,8 +972,8 @@ export default function AdminQuoteDetail() {
 
             {/* Staff / Team Assignment */}
             {((quote as any).assignedTeam || quote.assignedStaff) && (
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                <h3 className="font-bold mb-3 text-xs text-slate-400 uppercase tracking-widest">
+              <div className="bg-white p-5 border border-black/[0.07]">
+                <h3 className="font-black mb-3 text-[10px] text-slate-400 uppercase tracking-[0.2em]">
                   {(quote as any).assignedTeam ? "Assigned Team" : "Assigned Staff"}
                 </h3>
                 {(quote as any).assignedTeam ? (
@@ -1012,8 +1012,8 @@ export default function AdminQuoteDetail() {
 
             {/* Internal Notes */}
             {quote.notes && (
-              <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200">
-                <h3 className="font-bold mb-2 text-xs text-amber-600 uppercase tracking-widest">Internal Notes</h3>
+              <div className="bg-amber-50 p-4 border border-amber-200">
+                <h3 className="font-black mb-2 text-[10px] text-amber-600 uppercase tracking-[0.2em]">Internal Notes</h3>
                 <p className="text-sm text-amber-800 leading-relaxed">{quote.notes}</p>
               </div>
             )}
@@ -1023,27 +1023,27 @@ export default function AdminQuoteDetail() {
       </div>
 
       {/* Mobile sticky bottom action bar — sits above AdminBottomNav (h-16) */}
-      <div className="fixed bottom-16 sm:bottom-0 inset-x-0 lg:hidden bg-white/95 backdrop-blur-xl border-t border-slate-200 z-40 p-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      <div className="fixed bottom-16 sm:bottom-0 inset-x-0 lg:hidden bg-white border-t border-black/[0.1] z-40 p-3">
         {['submitted', 'under_review'].includes(quote.status) && (
           <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending} data-testid="button-mobile-approve"
-            className="w-full btn-primary-gradient py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+            className="w-full bg-black text-white py-3.5 font-black text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-neutral-800 transition-colors">
             <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
           </button>
         )}
         {quote.status === 'deposit_requested' && (
-          <div className="w-full py-3 text-center text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl">
-            ⏳ Awaiting customer deposit — {formatMoney(quote.depositAmount)}
+          <div className="w-full py-3 text-center text-xs font-black uppercase tracking-[0.1em] text-amber-700 bg-amber-50 border border-amber-200">
+            Awaiting deposit — {formatMoney(quote.depositAmount)}
           </div>
         )}
         {quote.status === 'deposit_paid' && (
-          <div className="w-full py-3 text-center text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl">
-            ✅ Deposit paid — awaiting booking request
+          <div className="w-full py-3 text-center text-xs font-black uppercase tracking-[0.1em] text-emerald-700 bg-emerald-50 border border-emerald-200">
+            Deposit paid — awaiting booking
           </div>
         )}
         {quote.status === 'booked' && (
           <div className="flex gap-2">
             <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)}
-              className="flex-1 px-3 py-3 rounded-xl bg-secondary border outline-none focus:border-primary text-sm">
+              className="flex-1 px-3 py-3 bg-slate-50 border border-black/10 outline-none focus:border-black text-sm">
               <option value="">Select staff or team…</option>
               {teamsList.length > 0 && (
                 <optgroup label="── Teams">
@@ -1059,30 +1059,30 @@ export default function AdminQuoteDetail() {
               </optgroup>
             </select>
             <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedAssignee} data-testid="button-mobile-assign"
-              className="px-4 py-3 rounded-xl bg-foreground text-background font-bold text-sm flex items-center gap-2 disabled:opacity-50">
+              className="px-4 py-3 bg-black text-white font-black text-xs uppercase tracking-[0.1em] flex items-center gap-2 disabled:opacity-50 hover:bg-neutral-800 transition-colors">
               <UserPlus className="w-4 h-4" /> Assign
             </button>
           </div>
         )}
         {['in_progress', 'completed', 'assigned'].includes(quote.status) && (
           <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-mobile-final-payment"
-            className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+            className="w-full bg-black text-white py-3.5 font-black text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-neutral-800 transition-colors">
             <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending…" : "Mark Done & Request Final Payment"}
           </button>
         )}
         {quote.status === 'final_payment_requested' && (
           <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-mobile-resend-payment"
-            className="w-full border border-amber-300 text-amber-700 bg-amber-50 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+            className="w-full border border-black/20 text-slate-700 bg-white py-3.5 font-black text-xs uppercase tracking-[0.1em] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-slate-50 transition-colors">
             <DollarSign className="w-4 h-4" /> Resend Final Payment Email
           </button>
         )}
         {['closed', 'final_paid'].includes(quote.status) && (
-          <div className="w-full py-3 text-center text-sm font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl">
-            ✅ Case Closed — {formatMoney(quote.total)} collected
+          <div className="w-full py-3 text-center text-xs font-black uppercase tracking-[0.1em] text-emerald-700 bg-emerald-50 border border-emerald-200">
+            Case Closed — {formatMoney(quote.total)} collected
           </div>
         )}
         {quote.status === 'cancelled' && (
-          <div className="w-full py-3 text-center text-sm font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl">
+          <div className="w-full py-3 text-center text-xs font-black uppercase tracking-[0.1em] text-red-600 bg-red-50 border border-red-200">
             Job Cancelled
           </div>
         )}

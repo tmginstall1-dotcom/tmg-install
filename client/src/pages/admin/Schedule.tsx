@@ -92,10 +92,10 @@ export default function AdminSchedule() {
           </Link>
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">Schedule Management</h1>
-              <p className="text-slate-500 text-sm mt-0.5">
+              <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-2xl sm:text-3xl leading-none">Schedule</h1>
+              <p className="text-slate-500 text-xs mt-2">
                 {pending.length > 0
-                  ? <span className="text-amber-400 font-semibold">{pending.length} booking{pending.length > 1 ? "s" : ""} awaiting confirmation</span>
+                  ? <span className="text-amber-400 font-black uppercase tracking-[0.08em] text-[10px]">{pending.length} booking{pending.length > 1 ? "s" : ""} awaiting confirmation</span>
                   : "All bookings confirmed"
                 }
                 {confirmed.length > 0 && ` · ${confirmed.length} upcoming`}
@@ -103,12 +103,12 @@ export default function AdminSchedule() {
             </div>
             <button onClick={() => setShowForm(v => !v)}
               data-testid="button-add-block"
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all shrink-0 ${
+              className={`flex items-center gap-2 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] transition-all shrink-0 ${
                 showForm
                   ? "bg-white/10 text-white border border-white/20"
-                  : "bg-red-600 hover:bg-red-500 text-white shadow-sm shadow-red-900/40"
+                  : "bg-white text-black hover:bg-white/90"
               }`}>
-              {showForm ? <><X className="w-4 h-4" /> Cancel</> : <><Plus className="w-4 h-4" /> Block Date</>}
+              {showForm ? <><X className="w-3.5 h-3.5" /> Cancel</> : <><Plus className="w-3.5 h-3.5" /> Block Date</>}
             </button>
           </div>
         </div>
@@ -118,50 +118,50 @@ export default function AdminSchedule() {
 
         {/* ── BLOCK DATE FORM ──────────────────────────────────── */}
         {showForm && (
-          <div className="bg-white border-2 border-red-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-red-100 bg-red-50/50">
-              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
-                <Ban className="w-4 h-4 text-red-600" />
+          <div className="bg-white border border-black/[0.08] overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-black/[0.06] bg-red-50/40">
+              <div className="w-7 h-7 bg-red-100 flex items-center justify-center">
+                <Ban className="w-3.5 h-3.5 text-red-600" />
               </div>
               <div>
-                <p className="font-bold text-sm text-red-800">Block a Date</p>
+                <p className="font-black text-[11px] text-red-800 uppercase tracking-[0.15em]">Block a Date</p>
                 <p className="text-xs text-red-500 mt-0.5">Customers won't be able to book this date / time slot</p>
               </div>
             </div>
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Date *</label>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-1.5">Date *</label>
                   <input type="date" min={getTodayStr()} value={blockDate}
                     onChange={e => setBlockDate(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:border-slate-400 focus:ring-2 focus:ring-slate-900/8 outline-none transition-all"
+                    className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:border-slate-400 outline-none transition-all"
                     data-testid="input-block-date" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Time Slot</label>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-1.5">Time Slot</label>
                   <select value={blockSlot} onChange={e => setBlockSlot(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:border-slate-400 outline-none transition-all"
+                    className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:border-slate-400 outline-none transition-all"
                     data-testid="select-block-slot">
                     <option value="all">Full Day (both slots)</option>
                     {TIME_SLOTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Reason (optional)</label>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-1.5">Reason (optional)</label>
                   <input type="text" value={blockReason} onChange={e => setBlockReason(e.target.value)}
                     placeholder="e.g. Public holiday"
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:border-slate-400 outline-none transition-all"
+                    className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:border-slate-400 outline-none transition-all"
                     data-testid="input-block-reason" />
                 </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={handleBlock} disabled={createBlocked.isPending || !blockDate}
-                  className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold transition-colors disabled:opacity-50"
+                  className="px-5 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors disabled:opacity-50"
                   data-testid="button-confirm-block">
                   {createBlocked.isPending ? "Blocking…" : "Confirm Block"}
                 </button>
                 <button onClick={() => setShowForm(false)}
-                  className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                  className="px-5 py-2.5 border border-slate-200 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 hover:bg-slate-50 transition-colors">
                   Cancel
                 </button>
               </div>
@@ -172,10 +172,10 @@ export default function AdminSchedule() {
         {/* ── BLOCKED DATES ────────────────────────────────────── */}
         <section>
           <div className="flex items-center gap-3 mb-4">
-            <span className="w-2 h-2 rounded-full bg-red-500" />
-            <h2 className="font-bold text-base text-slate-800">Blocked Dates</h2>
+            <span className="w-1.5 h-4 bg-red-500" />
+            <h2 className="font-black text-[11px] text-slate-800 uppercase tracking-[0.18em]">Blocked Dates</h2>
             {upcomingBlocked.length > 0 && (
-              <span className="bg-red-100 text-red-700 text-xs font-bold rounded-full px-2.5 py-0.5">
+              <span className="bg-red-100 text-red-700 text-[10px] font-black px-2 py-0.5 uppercase tracking-[0.08em]">
                 {upcomingBlocked.length} upcoming
               </span>
             )}
@@ -190,8 +190,8 @@ export default function AdminSchedule() {
                 const mon = format(new Date(date + "T00:00:00"), "MMM");
                 const day = format(new Date(date + "T00:00:00"), "d");
                 return (
-                  <div key={date} className="bg-white border border-red-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
-                    <div className="w-11 h-11 rounded-xl bg-red-50 border border-red-200 flex flex-col items-center justify-center text-red-600 shrink-0">
+                  <div key={date} className="bg-white border border-red-200 p-4 flex items-center gap-4">
+                    <div className="w-11 h-11 bg-red-50 border border-red-200 flex flex-col items-center justify-center text-red-600 shrink-0">
                       <span className="text-[9px] font-black uppercase leading-none">{mon}</span>
                       <span className="text-lg font-black leading-tight">{day}</span>
                     </div>
@@ -202,7 +202,7 @@ export default function AdminSchedule() {
                       ) : (
                         <div className="flex flex-wrap gap-1 mt-0.5">
                           {slots.map(s => (
-                            <span key={s.id} className="text-xs bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">
+                            <span key={s.id} className="text-[10px] bg-red-100 text-red-700 font-black px-2 py-0.5 uppercase tracking-[0.08em]">
                               {TIME_SLOTS.find(t => t.value === s.timeSlot)?.label || s.timeSlot}
                             </span>
                           ))}
@@ -215,7 +215,7 @@ export default function AdminSchedule() {
                     <div className="flex gap-1 shrink-0">
                       {slots.map(s => (
                         <button key={s.id} onClick={() => handleUnblock(s.id)} disabled={deleteBlocked.isPending}
-                          className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                           title="Remove block" data-testid={`button-unblock-${s.id}`}>
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -226,9 +226,9 @@ export default function AdminSchedule() {
               })}
             </div>
           ) : (
-            <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center">
+            <div className="bg-white border border-dashed border-slate-200 p-8 text-center">
               <Calendar className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-              <p className="text-sm text-slate-400 font-medium">No upcoming blocked dates</p>
+              <p className="text-xs text-slate-400 font-black uppercase tracking-[0.1em]">No upcoming blocked dates</p>
             </div>
           )}
 
@@ -242,10 +242,10 @@ export default function AdminSchedule() {
         {/* ── PENDING CONFIRMATIONS ────────────────────────────── */}
         <section>
           <div className="flex items-center gap-3 mb-4">
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <h2 className="font-bold text-base text-slate-800">Pending Confirmations</h2>
+            <span className="w-1.5 h-4 bg-amber-500" />
+            <h2 className="font-black text-[11px] text-slate-800 uppercase tracking-[0.18em]">Pending Confirmations</h2>
             {pending.length > 0 && (
-              <span className="bg-amber-500 text-white text-xs font-bold rounded-full px-2.5 py-0.5">{pending.length}</span>
+              <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 uppercase tracking-[0.08em]">{pending.length}</span>
             )}
           </div>
 
@@ -253,7 +253,7 @@ export default function AdminSchedule() {
             {pending.map((quote: any) => {
               const scheduledDate = quote.scheduledAt ? format(new Date(quote.scheduledAt), "EEEE, MMM d, yyyy") : "TBD";
               return (
-                <div key={quote.id} className="bg-white border border-amber-200 rounded-2xl overflow-hidden shadow-sm"
+                <div key={quote.id} className="bg-white border border-amber-200 overflow-hidden"
                   data-testid={`pending-booking-${quote.id}`}>
                   <div className="h-1 bg-amber-400" />
                   <div className="p-5">
@@ -283,19 +283,19 @@ export default function AdminSchedule() {
                     {/* Action buttons — confirm prominent, contact secondary */}
                     <div className="mt-4 grid gap-2">
                       <button onClick={() => handleConfirm(quote.id)} disabled={confirmBooking.isPending}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition-colors disabled:opacity-50 shadow-sm shadow-emerald-900/20"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.12em] transition-colors disabled:opacity-50 hover:bg-neutral-800"
                         data-testid={`confirm-booking-${quote.id}`}>
                         <CheckCircle2 className="w-4 h-4" /> Confirm Booking
                       </button>
                       <div className="grid grid-cols-2 gap-2">
                         <a href={`tel:${quote.customer?.phone}`}
-                          className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold hover:bg-slate-200 transition-colors"
+                          className="flex items-center justify-center gap-1.5 px-3 py-3 border border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors"
                           data-testid={`call-${quote.id}`}>
                           <Phone className="w-3.5 h-3.5" /> Call
                         </a>
                         <a href={`https://wa.me/${quote.customer?.phone?.replace(/\D/g, "")}`}
                           target="_blank" rel="noreferrer"
-                          className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition-colors border border-emerald-200"
+                          className="flex items-center justify-center gap-1.5 px-3 py-3 border border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-emerald-100 transition-colors"
                           data-testid={`whatsapp-${quote.id}`}>
                           <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
                         </a>
@@ -303,12 +303,12 @@ export default function AdminSchedule() {
                     </div>
 
                     <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-sm text-slate-400">
-                        {quote.items?.length || 0} items · <span className="font-semibold text-slate-600">${Number(quote.total || 0).toFixed(2)}</span>
+                      <span className="text-xs text-slate-400">
+                        {quote.items?.length || 0} items · <span className="font-black text-slate-600">${Number(quote.total || 0).toFixed(2)}</span>
                       </span>
                       <Link href={`/admin/quotes/${quote.id}`}
-                        className="text-sm font-semibold text-violet-600 hover:text-violet-700 flex items-center gap-1 transition-colors">
-                        View Quote <ChevronRight className="w-4 h-4" />
+                        className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-700 hover:text-black flex items-center gap-1 transition-colors">
+                        View Quote <ChevronRight className="w-3.5 h-3.5" />
                       </Link>
                     </div>
                   </div>
@@ -316,9 +316,9 @@ export default function AdminSchedule() {
               );
             })}
             {pending.length === 0 && (
-              <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center">
+              <div className="bg-white border border-dashed border-slate-200 p-8 text-center">
                 <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm text-slate-400 font-medium">No pending booking requests</p>
+                <p className="text-xs text-slate-400 font-black uppercase tracking-[0.1em]">No pending booking requests</p>
               </div>
             )}
           </div>
@@ -327,9 +327,9 @@ export default function AdminSchedule() {
         {/* ── CONFIRMED BOOKINGS ───────────────────────────────── */}
         <section>
           <div className="flex items-center gap-3 mb-4">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <h2 className="font-bold text-base text-slate-800">Confirmed Schedule</h2>
-            <span className="bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full px-2.5 py-0.5">{confirmed.length}</span>
+            <span className="w-1.5 h-4 bg-emerald-500" />
+            <h2 className="font-black text-[11px] text-slate-800 uppercase tracking-[0.18em]">Confirmed Schedule</h2>
+            <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-2 py-0.5 uppercase tracking-[0.08em]">{confirmed.length}</span>
           </div>
 
           <div className="space-y-2">
@@ -339,8 +339,8 @@ export default function AdminSchedule() {
               const day = quote.scheduledAt ? format(new Date(quote.scheduledAt), "d") : "?";
               return (
                 <Link key={quote.id} href={`/admin/quotes/${quote.id}`} data-testid={`confirmed-booking-${quote.id}`}>
-                  <div className="group bg-white border border-slate-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all cursor-pointer flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col items-center justify-center text-emerald-700 shrink-0">
+                  <div className="group bg-white border border-slate-200 p-4 hover:border-emerald-300 transition-all cursor-pointer flex items-center gap-4">
+                    <div className="w-11 h-11 bg-emerald-50 border border-emerald-200 flex flex-col items-center justify-center text-emerald-700 shrink-0">
                       <span className="text-[9px] font-black uppercase leading-none">{mon}</span>
                       <span className="text-lg font-black leading-tight">{day}</span>
                     </div>
@@ -362,9 +362,9 @@ export default function AdminSchedule() {
               );
             })}
             {confirmed.length === 0 && (
-              <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center">
+              <div className="bg-white border border-dashed border-slate-200 p-8 text-center">
                 <Calendar className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm text-slate-400 font-medium">No confirmed bookings yet</p>
+                <p className="text-xs text-slate-400 font-black uppercase tracking-[0.1em]">No confirmed bookings yet</p>
               </div>
             )}
           </div>

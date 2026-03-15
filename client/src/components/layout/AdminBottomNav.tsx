@@ -32,13 +32,13 @@ export function AdminBottomNav() {
                   active ? "text-white" : "text-white/35 hover:text-white/60"
                 }`}
               >
-                <div className={`w-11 h-7 rounded-xl flex items-center justify-center transition-all ${
-                  active ? "bg-violet-600" : ""
+                <div className={`w-10 h-6 flex items-center justify-center transition-all ${
+                  active ? "bg-white" : ""
                 }`}>
-                  <Icon className={`transition-all ${active ? "w-5 h-5" : "w-4.5 h-4.5 opacity-70"}`} style={{ width: 18, height: 18 }} />
+                  <Icon className="transition-all" style={{ width: 16, height: 16, color: active ? "#000" : "rgba(255,255,255,0.35)" }} />
                 </div>
-                <span className={`text-[10px] font-bold tracking-wide leading-none ${
-                  active ? "text-white" : "text-white/40"
+                <span className={`text-[9px] font-black uppercase tracking-[0.12em] leading-none ${
+                  active ? "text-white" : "text-white/35"
                 }`}>{label}</span>
               </div>
             </Link>

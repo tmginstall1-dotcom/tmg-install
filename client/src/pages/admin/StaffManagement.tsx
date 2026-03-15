@@ -97,8 +97,8 @@ export default function StaffManagement() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Operations</p>
-              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">Staff & HR</h1>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mb-2">Operations</p>
+              <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-2xl sm:text-3xl leading-none">Staff & HR</h1>
               <p className="text-slate-500 text-sm mt-0.5">
                 {(allStaffForHeader as any[]).length} staff members
                 {(pendingAmendCount + pendingLeaveCount) > 0 && (
@@ -111,13 +111,13 @@ export default function StaffManagement() {
           </div>
 
           {/* Tab bar — inside dark header, touch-friendly horizontal scroll */}
-          <div className="flex gap-1.5 mt-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
+          <div className="flex gap-0.5 mt-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none border-t border-white/10 pt-3">
             {tabs.map(({ key, label, icon: Icon, badge }) => (
               <button key={key} onClick={() => switchTab(key)}
-                className={`relative flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
+                className={`relative flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] whitespace-nowrap transition-all shrink-0 ${
                   tab === key
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-400 hover:text-white hover:bg-white/10"
+                    ? "bg-white text-slate-900"
+                    : "text-slate-500 hover:text-white hover:bg-white/10"
                 }`}
                 data-testid={`tab-${key}`}>
                 <Icon className="w-4 h-4 shrink-0" />
@@ -203,29 +203,29 @@ function TeamsTab() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left: Staff Pool */}
       <div className="lg:col-span-1 space-y-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="bg-white border border-black/[0.08] p-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-xs uppercase tracking-widest text-slate-400">All Staff</h2>
+            <h2 className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-400">All Staff</h2>
             <button onClick={() => setAddingStaff(true)}
-              className="flex items-center gap-1 text-xs font-bold text-primary hover:underline">
+              className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-black hover:text-slate-600 transition-colors">
               <UserPlus className="w-3.5 h-3.5" /> Add
             </button>
           </div>
 
           {addingStaff && (
-            <div className="mb-3 p-4 bg-secondary/30 border border-primary/20 rounded-2xl space-y-3">
+            <div className="mb-3 p-4 bg-slate-50 border border-black/10 space-y-3">
               <input value={newStaff.name} onChange={e => setNewStaff(s => ({ ...s, name: e.target.value }))}
-                placeholder="Full name" className="w-full px-3 py-2.5 text-sm border rounded-xl bg-background" data-testid="input-staff-name" />
+                placeholder="Full name" className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black" data-testid="input-staff-name" />
               <input value={newStaff.username} onChange={e => setNewStaff(s => ({ ...s, username: e.target.value }))}
-                placeholder="Username" className="w-full px-3 py-2.5 text-sm border rounded-xl bg-background" data-testid="input-staff-username" />
+                placeholder="Username" className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black" data-testid="input-staff-username" />
               <input value={newStaff.password} onChange={e => setNewStaff(s => ({ ...s, password: e.target.value }))}
-                type="password" placeholder="Password (min 6)" className="w-full px-3 py-2.5 text-sm border rounded-xl bg-background" data-testid="input-staff-password" />
+                type="password" placeholder="Password (min 6)" className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black" data-testid="input-staff-password" />
               <div className="flex gap-2">
                 <button onClick={() => createStaffMut.mutate()} disabled={createStaffMut.isPending}
-                  className="flex-1 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-xl" data-testid="button-create-staff">
+                  className="flex-1 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors disabled:opacity-50" data-testid="button-create-staff">
                   {createStaffMut.isPending ? "Creating..." : "Create Account"}
                 </button>
-                <button onClick={() => setAddingStaff(false)} className="px-4 py-2.5 border text-sm rounded-xl font-medium">Cancel</button>
+                <button onClick={() => setAddingStaff(false)} className="px-4 py-2.5 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors">Cancel</button>
               </div>
             </div>
           )}
@@ -251,33 +251,33 @@ function TeamsTab() {
       {/* Right: Teams */}
       <div className="lg:col-span-2 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-bold text-sm uppercase tracking-wide text-muted-foreground">Teams</h2>
+          <h2 className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-400">Teams</h2>
           <button onClick={() => setAddingTeam(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors"
             data-testid="button-add-team">
             <Plus className="w-3.5 h-3.5" /> New Team
           </button>
         </div>
 
         {addingTeam && (
-          <div className="bg-card border-2 border-dashed border-primary/40 rounded-2xl p-4 space-y-3">
+          <div className="bg-slate-50 border border-black/10 p-4 space-y-3">
             <input value={newTeamName} onChange={e => setNewTeamName(e.target.value)}
               placeholder="Team name (e.g. Team A)" autoFocus
-              className="w-full px-3 py-2 border rounded-lg bg-background text-sm" data-testid="input-team-name" />
+              className="w-full px-3 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black" data-testid="input-team-name" />
             <div className="flex gap-2 items-center">
-              <span className="text-xs text-muted-foreground">Colour:</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">Colour:</span>
               {TEAM_COLORS.map(c => (
                 <button key={c} onClick={() => setNewTeamColor(c)}
-                  className={`w-6 h-6 rounded-full border-2 transition-all ${newTeamColor === c ? "border-foreground scale-125" : "border-transparent"}`}
+                  className={`w-6 h-6 border-2 transition-all ${newTeamColor === c ? "border-black scale-125" : "border-transparent"}`}
                   style={{ background: c }} />
               ))}
             </div>
             <div className="flex gap-2">
               <button onClick={() => createTeamMut.mutate()} disabled={!newTeamName || createTeamMut.isPending}
-                className="flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg disabled:opacity-50">
+                className="flex items-center gap-1 px-3 py-1.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] disabled:opacity-50 hover:bg-neutral-800 transition-colors">
                 <Check className="w-3.5 h-3.5" /> Create
               </button>
-              <button onClick={() => setAddingTeam(false)} className="px-3 py-1.5 border text-xs rounded-lg">Cancel</button>
+              <button onClick={() => setAddingTeam(false)} className="px-3 py-1.5 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors">Cancel</button>
             </div>
           </div>
         )}
@@ -290,10 +290,10 @@ function TeamsTab() {
         ))}
 
         {teams.length === 0 && !addingTeam && (
-          <div className="text-center py-16 bg-secondary/30 rounded-3xl border-2 border-dashed">
+          <div className="text-center py-16 bg-slate-50 border border-dashed border-slate-200">
             <Users className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-            <p className="font-semibold text-muted-foreground">No teams yet</p>
-            <p className="text-sm text-muted-foreground">Create a team to group staff together</p>
+            <p className="font-black text-[10px] uppercase tracking-[0.15em] text-muted-foreground">No teams yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Create a team to group staff together</p>
           </div>
         )}
       </div>
@@ -334,20 +334,20 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">S$</span>
         <input type="number" step="0.01" min="0" value={form[key]}
           onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-          className="w-full pl-8 pr-3 py-2.5 text-sm border rounded-xl bg-background font-mono"
+          className="w-full pl-8 pr-3 py-2.5 text-sm border border-black/10 bg-white font-mono outline-none focus:border-black"
           data-testid={testId} />
       </div>
     </div>
   );
 
   return (
-    <div className="mx-1 mb-2 p-4 bg-secondary/30 border-2 border-primary/20 rounded-2xl space-y-3 text-sm">
-      <p className="text-[10px] font-black uppercase tracking-widest text-primary">
+    <div className="mx-1 mb-2 p-4 bg-slate-50 border border-black/10 space-y-3 text-sm">
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black">
         Pay Package — {staff.name}
       </p>
 
       {/* 3 pay components */}
-      <div className="bg-white rounded-xl border border-slate-200 divide-y overflow-hidden shadow-sm">
+      <div className="bg-white border border-slate-200 divide-y overflow-hidden">
         <div className="px-3 py-2.5">
           {field("Monthly Salary", "SGD / month", "monthlyRate", "input-monthly-rate")}
         </div>
@@ -362,22 +362,22 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
       {/* Leave entitlement */}
       <div className="space-y-1">
         <div className="flex items-baseline justify-between">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Annual Leave</label>
+          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Annual Leave</label>
           <span className="text-[10px] text-muted-foreground">days / year</span>
         </div>
         <input type="number" min="0" max="30" value={form.annualLeaveEntitlement}
           onChange={e => setForm(f => ({ ...f, annualLeaveEntitlement: parseInt(e.target.value) || 0 }))}
-          className="w-full px-3 py-2.5 text-sm border rounded-xl bg-background"
+          className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black"
           data-testid="input-leave-entitlement" />
       </div>
 
       <div className="flex gap-2 pt-1">
         <button onClick={() => mut.mutate()} disabled={mut.isPending}
-          className="flex-1 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-xl disabled:opacity-50"
+          className="flex-1 py-2 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] disabled:opacity-50 hover:bg-neutral-800 transition-colors"
           data-testid="button-save-pay">
           {mut.isPending ? "Saving…" : "Save Pay Package"}
         </button>
-        <button onClick={onClose} className="px-4 py-2 border text-xs rounded-xl font-medium">Cancel</button>
+        <button onClick={onClose} className="px-4 py-2 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors">Cancel</button>
       </div>
     </div>
   );
@@ -397,18 +397,18 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings 
           <p className="text-xs text-muted-foreground">@{staff.username}</p>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {team && (
-              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full"
+              <span className="inline-block text-[9px] font-black px-2 py-0.5 uppercase tracking-[0.08em]"
                 style={{ background: team.color + "22", color: team.color }}>
                 {team.name}
               </span>
             )}
             {!team && (
-              <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+              <span className="inline-block text-[9px] font-black px-2 py-0.5 uppercase tracking-[0.08em] bg-slate-100 text-slate-500">
                 Unassigned
               </span>
             )}
             {hasPayConfig && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-black px-2 py-0.5 bg-emerald-50 text-emerald-700">
                 <DollarSign className="w-2.5 h-2.5" />
                 {monthly > 0 ? `S$${monthly.toFixed(0)}/mo` : `S$${hourly.toFixed(2)}/hr`}
               </span>
@@ -417,12 +417,12 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings 
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button onClick={onPaySettings} title="Pay settings"
-            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            className="p-2 text-muted-foreground hover:text-black hover:bg-slate-100 transition-colors"
             data-testid={`button-pay-settings-${staff.id}`}>
             <Settings2 className="w-4 h-4" />
           </button>
           <select onChange={e => { if (e.target.value === "__unassign__") onUnassign(); else if (e.target.value) onAssign(parseInt(e.target.value)); e.target.value = ""; }}
-            className="text-sm border rounded-lg px-2 py-2 bg-background max-w-[110px]"
+            className="text-xs border border-black/10 px-2 py-2 bg-background max-w-[110px] outline-none focus:border-black"
             defaultValue=""
             data-testid={`select-assign-team-${staff.id}`}>
             <option value="" disabled>{staff.teamId ? "Move" : "Assign"}</option>
@@ -430,7 +430,7 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings 
             {teams.filter((t: any) => t.id !== staff.teamId).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
           <button onClick={onDelete} title="Delete staff"
-            className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+            className="p-2 text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors"
             data-testid={`button-delete-staff-${staff.id}`}>
             <Trash2 className="w-4 h-4" />
           </button>
@@ -454,14 +454,14 @@ function TeamCard({ team, allStaff, onDelete, onRemoveMember, onAddMember }: any
   const nonMembers = allStaff.filter((s: any) => s.teamId !== team.id);
 
   return (
-    <div className="bg-card border-2 rounded-2xl overflow-hidden" style={{ borderColor: team.color + "44" }}>
+    <div className="bg-card border overflow-hidden" style={{ borderColor: team.color + "44" }}>
       <div className="px-4 py-3 flex items-center justify-between" style={{ background: team.color + "11" }}>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full" style={{ background: team.color }} />
+          <div className="w-3 h-3" style={{ background: team.color }} />
           {editingName ? (
             <div className="flex items-center gap-1">
               <input value={name} onChange={e => setName(e.target.value)} autoFocus
-                className="px-2 py-0.5 text-sm border rounded-lg bg-background font-bold w-32" />
+                className="px-2 py-0.5 text-sm border border-black/20 bg-white font-bold w-32 outline-none focus:border-black" />
               <button onClick={() => updateMut.mutate()} className="p-1 text-emerald-600"><Check className="w-3.5 h-3.5" /></button>
               <button onClick={() => setEditingName(false)} className="p-1 text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
             </div>
@@ -486,8 +486,8 @@ function TeamCard({ team, allStaff, onDelete, onRemoveMember, onAddMember }: any
         ) : (
           <div className="flex flex-wrap gap-2 mb-4">
             {team.members.map((m: any) => (
-              <div key={m.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-background text-sm font-semibold">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] font-black shrink-0"
+              <div key={m.id} className="flex items-center gap-2 px-3 py-1.5 border bg-background text-sm font-semibold">
+                <span className="w-6 h-6 flex items-center justify-center text-white text-[11px] font-black shrink-0"
                   style={{ background: team.color }}>{m.name.charAt(0)}</span>
                 {m.name}
                 <button onClick={() => onRemoveMember(m.id)}
@@ -506,7 +506,7 @@ function TeamCard({ team, allStaff, onDelete, onRemoveMember, onAddMember }: any
             <div className="flex flex-wrap gap-2">
               {nonMembers.map((s: any) => (
                 <button key={s.id} onClick={() => onAddMember(s.id)}
-                  className="flex items-center gap-1.5 px-3 py-2 border rounded-xl text-sm font-semibold hover:bg-secondary transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 border text-[10px] font-black uppercase tracking-[0.08em] hover:bg-slate-50 transition-colors"
                   data-testid={`button-add-member-${s.id}`}>
                   <Plus className="w-3.5 h-3.5" /> {s.name}
                 </button>
@@ -539,10 +539,10 @@ function PayrollTab() {
   return (
     <div className="space-y-4">
       {/* Sub-tab switcher */}
-      <div className="flex gap-1 bg-secondary/50 p-1 rounded-xl w-fit">
+      <div className="flex gap-0 border border-black/10 w-fit">
         {([["today","Today's Roster"],["timesheets","Timesheets"]] as const).map(([v,l]) => (
           <button key={v} onClick={() => setView(v)}
-            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${view === v ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            className={`px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition-all ${view === v ? "bg-black text-white" : "text-muted-foreground hover:text-black hover:bg-slate-50"}`}
             data-testid={`tab-att-${v}`}>
             {l}
           </button>
@@ -590,7 +590,7 @@ function TodayRoster() {
     <div className="space-y-5">
       {/* Date picker */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 bg-card border-2 rounded-xl px-3 py-2">
+        <div className="flex items-center gap-2 bg-white border border-black/10 px-3 py-2">
           <Calendar className="w-4 h-4 text-muted-foreground" />
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             className="text-sm font-bold bg-transparent outline-none" data-testid="input-roster-date" />
@@ -605,18 +605,18 @@ function TodayRoster() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-black/[0.06]">
+        <div className="bg-white p-4">
           <p className="text-3xl font-black text-emerald-600">{clockedIn.length}</p>
-          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">Clocked in now</p>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.12em] mt-0.5">Clocked in</p>
         </div>
-        <div className="bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+        <div className="bg-white p-4">
           <p className="text-3xl font-black text-muted-foreground">{notClockedIn.length}</p>
-          <p className="text-xs font-bold text-muted-foreground mt-0.5">Not clocked in</p>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.12em] mt-0.5">Not in</p>
         </div>
-        <div className="bg-card border rounded-2xl p-4 col-span-2 sm:col-span-1">
+        <div className="bg-white p-4 col-span-2 sm:col-span-1">
           <p className="text-3xl font-black">{clockedOut.length}</p>
-          <p className="text-xs font-bold text-muted-foreground mt-0.5">Clocked out</p>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.12em] mt-0.5">Clocked out</p>
         </div>
       </div>
 
@@ -624,7 +624,7 @@ function TodayRoster() {
       {isLoading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>
       ) : (
-        <div className="bg-card border-2 rounded-2xl overflow-hidden divide-y">
+        <div className="bg-white border border-black/[0.07] overflow-hidden divide-y">
           {roster.length === 0 && (
             <p className="text-center py-8 text-muted-foreground text-sm">No staff found.</p>
           )}
@@ -787,7 +787,7 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
 
       {/* Inline OSM map panel */}
       {mapOpen && osmSrc && (
-        <div className="mt-3 rounded-xl overflow-hidden border border-border shadow-sm">
+        <div className="mt-3 overflow-hidden border border-black/10">
           {/* Header strip */}
           <div className={`flex items-center justify-between px-3 py-2 ${
             mapOpen === "in" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"
@@ -873,7 +873,7 @@ function EditLogForm({ log, queryKeys, onClose }: { log: any; queryKeys: any[]; 
   });
 
   return (
-    <tr className="border-t bg-primary/5">
+    <tr className="border-t bg-slate-50">
       <td colSpan={7} className="px-4 py-3">
         <div className="space-y-3">
           <p className="text-xs font-black text-primary uppercase tracking-wider">Editing record #{log.id}</p>
@@ -883,7 +883,7 @@ function EditLogForm({ log, queryKeys, onClose }: { log: any; queryKeys: any[]; 
                 <LogIn className="w-3 h-3 text-emerald-500" /> Clock In
               </label>
               <input type="datetime-local" value={inVal} onChange={e => setInVal(e.target.value)}
-                className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
+                className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
                 data-testid={`input-edit-clockin-${log.id}`} />
             </div>
             <div>
@@ -892,14 +892,14 @@ function EditLogForm({ log, queryKeys, onClose }: { log: any; queryKeys: any[]; 
                 <span className="ml-1 text-[10px] text-muted-foreground font-normal">(leave blank = still in)</span>
               </label>
               <input type="datetime-local" value={outVal} onChange={e => setOutVal(e.target.value)}
-                className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
+                className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
                 data-testid={`input-edit-clockout-${log.id}`} />
             </div>
           </div>
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Admin Notes</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional note…"
-              className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
+              className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
               data-testid={`input-edit-notes-${log.id}`} />
           </div>
           {previewMins !== null && previewMins >= 0 && (
@@ -910,13 +910,13 @@ function EditLogForm({ log, queryKeys, onClose }: { log: any; queryKeys: any[]; 
           )}
           <div className="flex gap-2">
             <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 disabled:opacity-60"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] disabled:opacity-60 hover:bg-neutral-800 transition-colors"
               data-testid={`button-save-log-${log.id}`}>
               {saveMut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
               Save
             </button>
             <button onClick={onClose}
-              className="px-3 py-1.5 border rounded-lg text-xs font-bold hover:bg-secondary transition-colors"
+              className="px-3 py-1.5 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors"
               data-testid={`button-cancel-edit-${log.id}`}>
               Cancel
             </button>
@@ -962,14 +962,14 @@ function AddRecordForm({
   });
 
   return (
-    <div className="border-2 border-primary/30 bg-primary/5 rounded-2xl p-4 space-y-4"
+    <div className="border border-black/10 bg-slate-50 p-4 space-y-4"
       data-testid="add-record-form">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
+          <div className="w-7 h-7 bg-black flex items-center justify-center">
             <Plus className="w-4 h-4 text-white" />
           </div>
-          <p className="font-black text-sm">Add Attendance Record</p>
+          <p className="font-black text-sm uppercase tracking-[0.05em]">Add Attendance Record</p>
         </div>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
           <X className="w-4 h-4" />
@@ -981,7 +981,7 @@ function AddRecordForm({
         <div className="sm:col-span-2">
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Staff Member</label>
           <select value={userId} onChange={e => setUserId(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm bg-background"
+            className="w-full px-3 py-2 border border-black/10 text-sm bg-white outline-none focus:border-black"
             data-testid="select-add-staff">
             {staff.filter((s:any) => s.role === "staff").map((s:any) => (
               <option key={s.id} value={s.id}>{s.name} (@{s.username})</option>
@@ -995,7 +995,7 @@ function AddRecordForm({
             <LogIn className="w-3 h-3 text-emerald-500" /> Clock In
           </label>
           <input type="datetime-local" value={inVal} onChange={e => setInVal(e.target.value)}
-            className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
+            className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
             data-testid="input-add-clockin" />
         </div>
 
@@ -1006,7 +1006,7 @@ function AddRecordForm({
             <span className="text-[10px] text-muted-foreground font-normal ml-1">(optional)</span>
           </label>
           <input type="datetime-local" value={outVal} onChange={e => setOutVal(e.target.value)}
-            className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
+            className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
             data-testid="input-add-clockout" />
         </div>
 
@@ -1015,7 +1015,7 @@ function AddRecordForm({
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Notes / Reason</label>
           <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="e.g. Staff forgot to clock in — manually added by admin"
-            className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
+            className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
             data-testid="input-add-notes" />
         </div>
       </div>
@@ -1035,13 +1035,13 @@ function AddRecordForm({
 
       <div className="flex gap-2">
         <button onClick={() => addMut.mutate()} disabled={addMut.isPending || !userId || !inVal || (previewMins !== null && previewMins <= 0)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] disabled:opacity-50 hover:bg-neutral-800 transition-colors"
           data-testid="button-save-add-record">
           {addMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           Save Record
         </button>
         <button onClick={onClose}
-          className="px-4 py-2 border rounded-xl text-sm font-bold hover:bg-secondary transition-colors">
+          className="px-4 py-2 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-white transition-colors">
           Cancel
         </button>
       </div>
@@ -1252,13 +1252,13 @@ function TimesheetsView() {
   return (
     <div className="space-y-5">
       {/* ── Controls bar ─────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-4">
+      <div className="bg-white border border-black/[0.07] p-4 space-y-4">
         {/* View toggle */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex rounded-xl border overflow-hidden">
+          <div className="flex border border-black/10 overflow-hidden">
             {(["daily","period"] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
-                className={`px-4 py-2 text-xs font-bold transition-colors capitalize ${view === v ? "bg-primary text-white" : "hover:bg-secondary"}`}
+                className={`px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition-colors ${view === v ? "bg-black text-white" : "hover:bg-slate-50"}`}
                 data-testid={`button-view-${v}`}>
                 {v === "daily" ? "Daily" : "Period"}
               </button>
@@ -1268,7 +1268,7 @@ function TimesheetsView() {
           {/* Add Record button — always visible */}
           <button
             onClick={() => { setAddPresetUid(undefined); setShowAddForm(f => !f); }}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${showAddForm ? "bg-primary text-white border-primary" : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"}`}
+            className={`flex items-center gap-1.5 px-3 py-2 text-[10px] font-black uppercase tracking-[0.08em] border transition-colors ${showAddForm ? "bg-black text-white border-black" : "border-black/10 hover:bg-slate-50"}`}
             data-testid="button-open-add-record">
             <Plus className="w-3.5 h-3.5" />
             Add Record
@@ -1279,7 +1279,7 @@ function TimesheetsView() {
               <div className="flex gap-1 ml-auto flex-wrap">
                 {[["today","Today"],["week","This Week"],["month","This Month"],["prevMonth","Last Month"]].map(([v,l]) => (
                   <button key={v} onClick={() => setPreset(v)}
-                    className="px-2.5 py-1.5 text-[11px] font-bold border rounded-lg hover:bg-secondary transition-colors">
+                    className="px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.06em] border border-black/10 hover:bg-slate-50 transition-colors">
                     {l}
                   </button>
                 ))}
@@ -1293,20 +1293,20 @@ function TimesheetsView() {
           {view === "daily" ? (
             <div className="flex items-center gap-2">
               <button onClick={() => { const d = new Date(dailyDate); d.setDate(d.getDate()-1); setDailyDate(format(d,"yyyy-MM-dd")); }}
-                className="p-2 border rounded-lg hover:bg-secondary transition-colors" title="Previous day">
+                className="p-2 border border-black/10 hover:bg-slate-50 transition-colors" title="Previous day">
                 <ChevronDown className="w-4 h-4 rotate-90" />
               </button>
               <div>
                 <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Date</label>
                 <input type="date" value={dailyDate} onChange={e => setDailyDate(e.target.value)}
-                  className="px-3 py-2.5 border rounded-xl text-sm bg-background" data-testid="input-daily-date" />
+                  className="px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="input-daily-date" />
               </div>
               <button onClick={() => { const d = new Date(dailyDate); d.setDate(d.getDate()+1); setDailyDate(format(d,"yyyy-MM-dd")); }}
-                className="p-2 border rounded-lg hover:bg-secondary transition-colors mt-4" title="Next day">
+                className="p-2 border border-black/10 hover:bg-slate-50 transition-colors mt-4" title="Next day">
                 <ChevronDown className="w-4 h-4 -rotate-90" />
               </button>
               <button onClick={() => setDailyDate(format(today, "yyyy-MM-dd"))}
-                className="px-2.5 py-1.5 text-[11px] font-bold border rounded-lg hover:bg-secondary transition-colors mt-4">
+                className="px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.06em] border border-black/10 hover:bg-slate-50 transition-colors mt-4">
                 Today
               </button>
             </div>
@@ -1315,17 +1315,17 @@ function TimesheetsView() {
               <div>
                 <label className="text-[11px] font-bold text-muted-foreground mb-1 block">From</label>
                 <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-                  className="px-3 py-2.5 border rounded-xl text-sm bg-background" data-testid="input-from-date" />
+                  className="px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="input-from-date" />
               </div>
               <div>
                 <label className="text-[11px] font-bold text-muted-foreground mb-1 block">To</label>
                 <input type="date" value={to} onChange={e => setTo(e.target.value)}
-                  className="px-3 py-2.5 border rounded-xl text-sm bg-background" data-testid="input-to-date" />
+                  className="px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="input-to-date" />
               </div>
               <div>
                 <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Staff</label>
                 <select value={filterUid} onChange={e => setFilterUid(e.target.value)}
-                  className="px-3 py-2.5 border rounded-xl text-sm bg-background min-w-[130px]" data-testid="select-staff-filter">
+                  className="px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black min-w-[130px]" data-testid="select-staff-filter">
                   <option value="">All Staff</option>
                   {(staff as any[]).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
@@ -1335,7 +1335,7 @@ function TimesheetsView() {
                 <div className="flex gap-1">
                   {[["name","Name"],["hours","Hours"]].map(([v,l]) => (
                     <button key={v} onClick={() => { if (sortBy === v) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortBy(v as any); setSortDir("asc"); } }}
-                      className={`px-2.5 py-1.5 text-[11px] font-bold border rounded-lg transition-colors flex items-center gap-1 ${sortBy === v ? "bg-primary text-white border-primary" : "hover:bg-secondary"}`}>
+                      className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.06em] border transition-colors flex items-center gap-1 ${sortBy === v ? "bg-black text-white border-black" : "border-black/10 hover:bg-slate-50"}`}>
                       {l} {sortBy === v ? (sortDir === "asc" ? "↑" : "↓") : ""}
                     </button>
                   ))}
@@ -1366,8 +1366,8 @@ function TimesheetsView() {
             { label: "Overtime", val: fmt(grandTotals.otMins), color: "text-amber-600" },
             { label: "Staff w/ Records", val: `${staffRows.filter((r:any)=>r.days>0).length} / ${staffRows.length}`, color: "" },
           ].map(c => (
-            <div key={c.label} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide mb-1">{c.label}</p>
+            <div key={c.label} className="bg-white border border-black/[0.07] p-4">
+              <p className="text-[10px] font-black text-black/35 uppercase tracking-[0.2em] mb-1">{c.label}</p>
               <p className={`text-xl font-black ${c.color}`}>{c.val}</p>
             </div>
           ))}
@@ -1387,7 +1387,7 @@ function TimesheetsView() {
             const sLogs = (dailyLogs as any[]).filter((l:any) => l.userId === s.id);
             const hasRecords = sLogs.length > 0;
             return (
-              <div key={s.id} className={`border rounded-2xl overflow-hidden ${hasRecords ? "bg-card" : "bg-secondary/10 opacity-70"}`}
+              <div key={s.id} className={`border border-black/[0.07] overflow-hidden ${hasRecords ? "bg-white" : "bg-slate-50 opacity-70"}`}
                 data-testid={`daily-staff-${s.id}`}>
                 <div className="flex items-center gap-3 px-4 py-3">
                   <StaffAvatar user={s} size={10} />
@@ -1400,7 +1400,7 @@ function TimesheetsView() {
                       <span className="text-xs font-bold text-emerald-600">{fmt(calcOT(sLogs).totalMins)}</span>
                       <button
                         onClick={() => { setAddPresetUid(s.id); setShowAddForm(true); }}
-                        className="flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors"
+                        className="flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.06em] border border-black/10 hover:bg-slate-100 transition-colors"
                         title={`Add record for ${s.name}`}
                         data-testid={`button-quick-add-${s.id}`}>
                         <Plus className="w-2.5 h-2.5" /> Add
@@ -1409,7 +1409,7 @@ function TimesheetsView() {
                   ) : (
                     <button
                       onClick={() => { setAddPresetUid(s.id); setShowAddForm(true); }}
-                      className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors"
+                      className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] border border-black/10 hover:bg-slate-50 transition-colors"
                       title={`Add record for ${s.name}`}
                       data-testid={`button-add-${s.id}`}>
                       <Plus className="w-3 h-3" /> Add Record
@@ -1439,7 +1439,7 @@ function TimesheetsView() {
         ) : (
           <div className="space-y-3">
             {staffRows.map((row: any) => (
-              <div key={row.user?.id} className={`border rounded-2xl overflow-hidden ${row.days === 0 ? "bg-secondary/10 opacity-70" : "bg-card"}`}
+              <div key={row.user?.id} className={`border border-black/[0.07] overflow-hidden ${row.days === 0 ? "bg-slate-50 opacity-70" : "bg-white"}`}
                 data-testid={`period-staff-${row.user?.id}`}>
                 {/* Staff header */}
                 <button
@@ -1515,7 +1515,7 @@ function AmendmentsTab() {
 
   if (amendments.length === 0) {
     return (
-      <div className="text-center py-16 bg-secondary/30 rounded-3xl border-2 border-dashed">
+      <div className="text-center py-16 border border-dashed border-black/20">
         <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
         <p className="font-semibold text-muted-foreground">No amendment requests</p>
       </div>
@@ -1525,7 +1525,7 @@ function AmendmentsTab() {
   return (
     <div className="space-y-3">
       {amendments.map((a: any) => (
-        <div key={a.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <div key={a.id} className="bg-white border border-black/[0.07] overflow-hidden">
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
@@ -1539,7 +1539,7 @@ function AmendmentsTab() {
             {/* Before → After comparison */}
             <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
               {/* Original */}
-              <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 space-y-1">
+              <div className="bg-slate-50 border border-black/[0.06] px-3 py-2.5 space-y-1">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">Original</p>
                 <div className="flex items-center gap-1.5 text-xs">
                   <LogIn className="w-3 h-3 text-emerald-500 shrink-0" />
@@ -1555,19 +1555,19 @@ function AmendmentsTab() {
                 <ArrowRight className="w-4 h-4 text-primary" />
               </div>
               {/* Requested */}
-              <div className="bg-primary/5 border border-primary/30 rounded-xl px-3 py-2.5 space-y-1">
-                <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1.5">Requested</p>
+              <div className="bg-white border border-black/10 px-3 py-2.5 space-y-1">
+                <p className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5">Requested</p>
                 <div className="flex items-center gap-1.5 text-xs">
                   <LogIn className="w-3 h-3 text-emerald-500 shrink-0" />
-                  <span className="font-mono font-bold text-primary">{a.requestedClockIn ? format(new Date(a.requestedClockIn), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
+                  <span className="font-mono font-bold">{a.requestedClockIn ? format(new Date(a.requestedClockIn), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs">
                   <LogOut className="w-3 h-3 text-red-400 shrink-0" />
-                  <span className="font-mono font-bold text-primary">{a.requestedClockOut ? format(new Date(a.requestedClockOut), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
+                  <span className="font-mono font-bold">{a.requestedClockOut ? format(new Date(a.requestedClockOut), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
                 </div>
               </div>
             </div>
-            <div className="bg-secondary/30 rounded-xl px-3 py-2">
+            <div className="bg-slate-50 px-3 py-2">
               <p className="text-xs font-bold text-muted-foreground mb-0.5">Staff Reason</p>
               <p className="text-sm">{a.reason}</p>
             </div>
@@ -1575,17 +1575,17 @@ function AmendmentsTab() {
               <div className="space-y-2">
                 <textarea value={notes[a.id] || ""} onChange={e => setNotes(n => ({ ...n, [a.id]: e.target.value }))}
                   placeholder="Admin note (optional)" rows={2}
-                  className="w-full px-3 py-2 text-sm border rounded-xl bg-background resize-none" />
+                  className="w-full px-3 py-2 text-sm border border-black/10 bg-white outline-none focus:border-black resize-none" />
                 <div className="flex gap-2">
                   <button onClick={() => reviewMut.mutate({ id: a.id, status: "approved" })}
                     disabled={reviewMut.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-emerald-700 disabled:opacity-50"
                     data-testid={`button-approve-amendment-${a.id}`}>
                     <Check className="w-3.5 h-3.5" /> Approve
                   </button>
                   <button onClick={() => reviewMut.mutate({ id: a.id, status: "rejected" })}
                     disabled={reviewMut.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-destructive text-destructive-foreground text-xs font-bold rounded-xl hover:opacity-90 disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-red-700 disabled:opacity-50"
                     data-testid={`button-reject-amendment-${a.id}`}>
                     <X className="w-3.5 h-3.5" /> Reject
                   </button>
@@ -1654,11 +1654,11 @@ function LeaveTab() {
       <div className="flex gap-2 flex-wrap">
         {([["pending", "Pending"], ["approved", "Approved"], ["rejected", "Rejected"], ["all", "All"]] as const).map(([v, l]) => (
           <button key={v} onClick={() => setStatusFilter(v)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl border-2 transition-all ${statusFilter === v ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"}`}
+            className={`flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] border transition-all ${statusFilter === v ? "bg-black text-white border-black" : "border-black/10 hover:border-black/30 hover:bg-slate-50"}`}
             data-testid={`filter-leave-${v}`}>
             {l}
             {v === "pending" && pendingCount > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
+              <span className="min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-black flex items-center justify-center">
                 {pendingCount}
               </span>
             )}
@@ -1669,7 +1669,7 @@ function LeaveTab() {
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       ) : leaves.length === 0 ? (
-        <div className="text-center py-16 bg-secondary/30 rounded-3xl border-2 border-dashed">
+        <div className="text-center py-16 border border-dashed border-black/20">
           <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="font-semibold text-muted-foreground">No {statusFilter !== "all" ? statusFilter : ""} leave requests</p>
         </div>
@@ -1682,7 +1682,7 @@ function LeaveTab() {
             const isAnnual = l.leaveType === "annual";
 
             return (
-              <div key={l.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div key={l.id} className="bg-white border border-black/[0.07] overflow-hidden">
                 {/* Card header */}
                 <div className="px-4 pt-3 pb-2">
                   <div className="flex items-start justify-between gap-3">
@@ -1690,7 +1690,7 @@ function LeaveTab() {
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <p className="font-bold">{l.user?.name}</p>
                         <StatusBadge status={l.status} />
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 uppercase tracking-[0.06em]">
                           {LEAVE_TYPE_LABELS[l.leaveType] || l.leaveType}
                         </span>
                       </div>
@@ -1736,17 +1736,17 @@ function LeaveTab() {
                   <div className="px-4 pb-4 space-y-2 border-t pt-3">
                     <textarea value={notes[l.id] || ""} onChange={e => setNotes(n => ({ ...n, [l.id]: e.target.value }))}
                       placeholder="Admin note (optional)" rows={2}
-                      className="w-full px-3 py-2 text-sm border rounded-xl bg-background resize-none" />
+                      className="w-full px-3 py-2 text-sm border border-black/10 bg-white outline-none focus:border-black resize-none" />
                     <div className="flex gap-2">
                       <button onClick={() => reviewMut.mutate({ id: l.id, status: "approved" })}
                         disabled={reviewMut.isPending}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-emerald-700 disabled:opacity-50"
                         data-testid={`button-approve-leave-${l.id}`}>
                         <Check className="w-3.5 h-3.5" /> Approve
                       </button>
                       <button onClick={() => reviewMut.mutate({ id: l.id, status: "rejected" })}
                         disabled={reviewMut.isPending}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-destructive text-destructive-foreground text-xs font-bold rounded-xl hover:opacity-90 disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-red-700 disabled:opacity-50"
                         data-testid={`button-reject-leave-${l.id}`}>
                         <X className="w-3.5 h-3.5" /> Reject
                       </button>
@@ -1817,24 +1817,24 @@ function PayslipsTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center">
         <select value={filterUserId} onChange={e => setFilterUserId(e.target.value)}
-          className="px-3 py-2 border rounded-xl text-sm bg-background min-w-[150px]" data-testid="select-payslip-staff">
+          className="px-3 py-2 border border-black/10 text-sm bg-white outline-none focus:border-black min-w-[150px]" data-testid="select-payslip-staff">
           <option value="">All Staff</option>
           {staff.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         <button onClick={() => setShowGenerate(!showGenerate)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors"
           data-testid="button-generate-payslip">
           <Plus className="w-4 h-4" /> Generate Payslip
         </button>
       </div>
 
       {showGenerate && (
-        <div className="bg-card border-2 border-dashed border-primary/30 rounded-2xl p-4 space-y-3">
-          <p className="font-bold text-sm">Generate Payslip</p>
+        <div className="bg-slate-50 border border-black/10 p-4 space-y-3">
+          <p className="font-black text-sm uppercase tracking-[0.05em]">Generate Payslip</p>
           <div>
             <label className="text-xs font-bold text-muted-foreground mb-1 block">Staff Member</label>
             <select value={genForm.userId} onChange={e => setGenForm(f => ({ ...f, userId: e.target.value }))}
-              className="w-full px-3 py-2 border rounded-xl text-sm bg-background" data-testid="select-gen-staff">
+              className="w-full px-3 py-2 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="select-gen-staff">
               <option value="">Select staff member...</option>
               {staff.map((s: any) => (
                 <option key={s.id} value={s.id}>
@@ -1847,9 +1847,9 @@ function PayslipsTab() {
           {genForm.userId && (() => {
             const s = (staff as any[]).find((x: any) => String(x.id) === genForm.userId);
             return s ? (
-              <div className="bg-primary/5 border border-primary/20 rounded-xl px-3 py-3 space-y-2.5">
+              <div className="bg-white border border-black/10 px-3 py-3 space-y-2.5">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-primary/20 text-primary font-black text-sm flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 bg-black/10 text-black font-black text-sm flex items-center justify-center shrink-0">
                     {s.name.split(" ").map((w: string) => w[0]).slice(0,2).join("").toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1859,21 +1859,21 @@ function PayslipsTab() {
                 </div>
                 {/* Pay package summary — 3 components */}
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-card rounded-lg px-2 py-1.5 text-center">
+                  <div className="bg-slate-50 border border-black/[0.06] px-2 py-1.5 text-center">
                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide">Monthly</p>
                     <p className="text-xs font-black text-foreground font-mono mt-0.5">
                       S${parseFloat(s.monthlyRate || "0").toFixed(0)}
                     </p>
                   </div>
-                  <div className="bg-card rounded-lg px-2 py-1.5 text-center">
+                  <div className="bg-slate-50 border border-black/[0.06] px-2 py-1.5 text-center">
                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide">Reg/hr</p>
                     <p className="text-xs font-black text-foreground font-mono mt-0.5">
                       S${parseFloat(s.hourlyRate || "0").toFixed(2)}
                     </p>
                   </div>
-                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700 rounded-lg px-2 py-1.5 text-center">
-                    <p className="text-[10px] text-amber-700 dark:text-amber-400 font-bold uppercase tracking-wide">OT/hr</p>
-                    <p className="text-xs font-black text-amber-700 dark:text-amber-400 font-mono mt-0.5">
+                  <div className="bg-amber-50 border border-amber-200 px-2 py-1.5 text-center">
+                    <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wide">OT/hr</p>
+                    <p className="text-xs font-black text-amber-700 font-mono mt-0.5">
                       S${parseFloat(s.overtimeRate || "0").toFixed(2)}
                     </p>
                   </div>
@@ -1893,7 +1893,7 @@ function PayslipsTab() {
               ].map(({ label, fn }) => (
                 <button key={label} type="button"
                   onClick={() => { const [s, e] = fn(); setGenForm(f => ({ ...f, periodStart: s, periodEnd: e })); }}
-                  className="px-3 py-1.5 text-xs font-bold border rounded-lg hover:bg-secondary transition-colors">
+                  className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] border border-black/10 hover:bg-white transition-colors">
                   {label}
                 </button>
               ))}
@@ -1902,25 +1902,26 @@ function PayslipsTab() {
               <div>
                 <label className="text-[11px] text-muted-foreground mb-1 block">From</label>
                 <input type="date" value={genForm.periodStart} onChange={e => setGenForm(f => ({ ...f, periodStart: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-xl text-sm bg-background" data-testid="input-period-start" />
+                  className="w-full px-3 py-2 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="input-period-start" />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground mb-1 block">To</label>
                 <input type="date" value={genForm.periodEnd} onChange={e => setGenForm(f => ({ ...f, periodEnd: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-xl text-sm bg-background" data-testid="input-period-end" />
+                  className="w-full px-3 py-2 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="input-period-end" />
               </div>
             </div>
           </div>
           <textarea value={genForm.notes} onChange={e => setGenForm(f => ({ ...f, notes: e.target.value }))}
             placeholder="Notes (optional)" rows={2}
-            className="w-full px-3 py-2 text-sm border rounded-xl bg-background resize-none" />
+            className="w-full px-3 py-2 text-sm border border-black/10 bg-white outline-none focus:border-black resize-none" />
           <div className="flex gap-2">
             <button onClick={() => generateMut.mutate()} disabled={!genForm.userId || generateMut.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-bold rounded-xl disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] disabled:opacity-50 hover:bg-neutral-800 transition-colors"
               data-testid="button-confirm-generate">
               {generateMut.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : "Generate"}
             </button>
-            <button onClick={() => setShowGenerate(false)} className="px-4 py-2 border rounded-xl text-sm">Cancel</button>
+            <button onClick={() => setShowGenerate(false)}
+              className="px-4 py-2 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-white transition-colors">Cancel</button>
           </div>
           <p className="text-xs text-muted-foreground">Payslip is auto-calculated from clock-in/out records and leave deductions for the period.</p>
         </div>
@@ -1929,7 +1930,7 @@ function PayslipsTab() {
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       ) : payslips.length === 0 ? (
-        <div className="text-center py-16 bg-secondary/30 rounded-3xl border-2 border-dashed">
+        <div className="text-center py-16 border border-dashed border-black/20">
           <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="font-semibold text-muted-foreground">No payslips yet</p>
           <p className="text-sm text-muted-foreground">Generate payslips for your staff above</p>
@@ -1960,12 +1961,12 @@ function PayslipsTab() {
                   { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}` },
                 ];
             return (
-              <div key={ps.id} className="bg-card border-2 rounded-2xl overflow-hidden">
+              <div key={ps.id} className="bg-white border border-black/[0.07] overflow-hidden">
                 <button onClick={() => setExpandedId(isOpen ? null : ps.id)}
-                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/30 transition-colors"
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
                   data-testid={`payslip-admin-${ps.id}`}>
                   <div className="flex items-center gap-2.5 text-left">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-black text-sm flex items-center justify-center shrink-0">
+                    <div className="w-9 h-9 bg-black/10 text-black font-black text-sm flex items-center justify-center shrink-0">
                       {ps.user?.name?.charAt(0)}
                     </div>
                     <div>
@@ -1983,7 +1984,7 @@ function PayslipsTab() {
                     </div>
                     <button
                       onClick={e => { e.stopPropagation(); setPrintingPayslip(ps); }}
-                      className="p-2 rounded-xl hover:bg-primary/10 text-primary transition-colors"
+                      className="p-2 hover:bg-black/5 text-black/60 transition-colors"
                       title="View / Print official payslip"
                       data-testid={`button-print-${ps.id}`}>
                       <Printer className="w-4 h-4" />
@@ -1996,18 +1997,18 @@ function PayslipsTab() {
                   <div className="border-t p-4 space-y-3">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                       {detailItems.map(({ label, val }) => (
-                        <div key={label} className="bg-secondary/30 rounded-xl p-2.5">
+                        <div key={label} className="bg-slate-50 border border-black/[0.06] p-2.5">
                           <p className="text-[10px] text-muted-foreground font-bold uppercase mb-0.5">{label}</p>
                           <p className="font-bold">{val}</p>
                         </div>
                       ))}
-                      <div className="bg-primary/5 border border-primary/20 rounded-xl p-2.5">
-                        <p className="text-[10px] text-primary font-bold uppercase mb-0.5">Gross Pay</p>
-                        <p className="font-black text-primary">S${parseFloat(ps.grossPay).toFixed(2)}</p>
+                      <div className="bg-black text-white p-2.5">
+                        <p className="text-[10px] font-bold uppercase mb-0.5 text-white/60">Gross Pay</p>
+                        <p className="font-black">S${parseFloat(ps.grossPay).toFixed(2)}</p>
                       </div>
                     </div>
                     {ps.notes && (
-                      <div className="bg-secondary/30 rounded-xl px-3 py-2">
+                      <div className="bg-slate-50 px-3 py-2">
                         <p className="text-xs text-muted-foreground">{ps.notes}</p>
                       </div>
                     )}

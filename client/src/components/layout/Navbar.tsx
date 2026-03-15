@@ -128,7 +128,7 @@ export function Navbar() {
                 {navLinks.map(({ href, label, icon: Icon }) => (
                   isAdminArea ? (
                     <Link key={href} href={href} data-testid={`nav-${label.toLowerCase().replace(/\s/g, "-")}`}>
-                      <div className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                      <div className={`flex items-center gap-2 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition-all cursor-pointer ${
                         isActive(href)
                           ? "bg-white/10 text-white"
                           : "text-white/50 hover:text-white/80 hover:bg-white/5"

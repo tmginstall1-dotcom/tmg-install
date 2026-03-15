@@ -1,7 +1,7 @@
 import { useQuotes } from "@/hooks/use-quotes";
 import { Link } from "wouter";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
-import { Printer, ArrowLeft, Download, X, SlidersHorizontal, Search, MapPin, Clock, CheckCircle2, FileText } from "lucide-react";
+import { Printer, ArrowLeft, X, SlidersHorizontal, Search, MapPin, Clock, CheckCircle2, FileText } from "lucide-react";
 import { useState, useMemo } from "react";
 
 /* ─── Constants ─────────────────────────────────────────────── */
@@ -40,27 +40,6 @@ function parseFloors(raw: any): string {
     }
   } catch {}
   return typeof raw === "string" ? raw : String(raw);
-}
-
-/* ─── CSV ────────────────────────────────────────────────────── */
-function downloadCSV(jobs: any[]) {
-  const headers = ["Ref","Date Created","Customer","Phone","Address","Job Date","Time","Staff","Total","Deposit Paid","Final Paid","Status"];
-  const rows = jobs.map(q => [
-    q.referenceNo, dt(q.createdAt), q.customer?.name || "", q.customer?.phone || "",
-    addr(q), q.scheduledAt ? dt(q.scheduledAt) : "", q.timeWindow || "",
-    q.assignedStaff?.name || "",
-    Number(q.total || 0).toFixed(2),
-    q.depositPaidAt ? dt(q.depositPaidAt) : "Unpaid",
-    q.finalPaidAt   ? dt(q.finalPaidAt)   : "Unpaid",
-    statusLabel(q.status),
-  ].map(v => `"${String(v).replace(/"/g, '""')}"`));
-
-  const csv = [headers.map(h => `"${h}"`).join(","), ...rows.map(r => r.join(","))].join("\n");
-  const a = Object.assign(document.createElement("a"), {
-    href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" })),
-    download: `TMG_Audit_${format(new Date(), "yyyy-MM-dd")}.csv`,
-  });
-  a.click();
 }
 
 /* ─── Print trigger ──────────────────────────────────────────── */
@@ -613,45 +592,39 @@ export default function ExportPDF() {
               {/* Mobile: back from detail to list */}
               {mobileView === "detail" ? (
                 <button onClick={() => setMobileView("list")}
-                  className="flex items-center gap-1.5 text-sm font-bold text-slate-300 hover:text-white transition-colors shrink-0 sm:hidden">
-                  <ArrowLeft className="w-4 h-4" /> Jobs
+                  className="flex items-center gap-1.5 text-[10px] font-black text-slate-300 hover:text-white transition-colors shrink-0 sm:hidden uppercase tracking-[0.1em]">
+                  <ArrowLeft className="w-3.5 h-3.5" /> Jobs
                 </button>
               ) : (
-                <Link href="/admin" className="flex items-center gap-1.5 text-sm font-bold text-slate-500 hover:text-slate-300 transition-colors shrink-0">
-                  <ArrowLeft className="w-4 h-4" />
+                <Link href="/admin" className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 hover:text-slate-300 transition-colors shrink-0 uppercase tracking-[0.1em]">
+                  <ArrowLeft className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Dashboard</span>
                 </Link>
               )}
               <div className="min-w-0">
-                <p className="text-sm font-black text-white truncate">Audit Report</p>
+                <p className="text-xs font-black text-white uppercase tracking-[0.15em] truncate">Audit Report</p>
                 <p className="text-[10px] text-slate-500 truncate">
                   {filteredJobs.length}{filteredJobs.length !== baseJobs.length ? ` / ${baseJobs.length}` : ""} closed jobs
-                  {hasFilter && <span className="text-violet-400"> · filtered</span>}
+                  {hasFilter && <span className="text-white/50"> · filtered</span>}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <button onClick={() => setShowFilters(f => !f)}
-                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${showFilters || hasFilter ? "border-violet-500 bg-violet-600 text-white" : "border-white/20 bg-white/10 text-white"}`}
+                className={`flex items-center gap-1 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] border transition-all ${showFilters || hasFilter ? "border-white bg-white text-black" : "border-white/20 bg-white/10 text-white hover:bg-white/15"}`}
                 data-testid="button-toggle-filters">
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline ml-1">Filter</span>
-              </button>
-              <button onClick={() => downloadCSV(filteredJobs)}
-                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-500 transition-colors"
-                data-testid="button-export-csv">
-                <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline ml-1">CSV</span>
+                <SlidersHorizontal className="w-3 h-3" />
+                <span className="ml-1">Filter</span>
               </button>
               <button onClick={() => doPrint("summary")}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-white/20 text-white text-xs font-bold rounded-lg hover:bg-white/10 transition-colors"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-white/20 text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-white/10 transition-colors"
                 data-testid="button-print-summary">
-                <Printer className="w-3.5 h-3.5" /> Summary
+                <Printer className="w-3 h-3" /> Summary
               </button>
               <button onClick={() => doPrint("full")}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-900 text-xs font-bold rounded-lg hover:bg-gray-100 transition-colors"
-                data-testid="button-print-full">
-                <Printer className="w-3.5 h-3.5" /> Full Report
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-white text-black text-[10px] font-black uppercase tracking-[0.1em] hover:bg-white/90 transition-colors"
+                data-testid="button-export-pdf">
+                <Printer className="w-3 h-3" /> Export PDF
               </button>
             </div>
           </div>
@@ -661,7 +634,7 @@ export default function ExportPDF() {
               <div className="flex flex-wrap gap-1.5">
                 {[["all","All time"],["month","This month"],["last","Last month"],["year","This year"]].map(([v,l]) => (
                   <button key={v} onClick={() => preset(v)}
-                    className="px-2.5 py-1.5 text-xs font-semibold border border-white/20 rounded-lg hover:bg-white/10 text-white transition-colors">{l}</button>
+                    className="px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] border border-white/20 hover:bg-white/10 text-white transition-colors">{l}</button>
                 ))}
               </div>
               <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
@@ -679,7 +652,7 @@ export default function ExportPDF() {
                   <div className="flex gap-1.5 flex-wrap">
                     {([["all","All"],["final_paid","Paid"],["closed","Unpaid"]] as const).map(([v,l]) => (
                       <button key={v} onClick={() => setStatusFilter(v)}
-                        className={`flex-1 sm:flex-none px-3 py-2 text-xs font-bold rounded-lg transition-all ${statusFilter === v ? "bg-violet-600 text-white" : "border border-white/20 text-white hover:bg-white/10"}`}>{l}</button>
+                        className={`flex-1 sm:flex-none px-3 py-2 text-[10px] font-black uppercase tracking-[0.08em] transition-all ${statusFilter === v ? "bg-white text-black" : "border border-white/20 text-white hover:bg-white/10"}`}>{l}</button>
                     ))}
                   </div>
                 </div>

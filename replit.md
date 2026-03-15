@@ -112,18 +112,25 @@ Also: `cancelled` (any time via admin)
 
 ---
 
-## Admin Design System (Mobile-First)
+## Admin Design System — "Yeezy" Aesthetic (Mobile-First)
 
-All admin pages follow a consistent visual language:
+All admin pages follow a consistent flat, editorial visual language inspired by Yeezy.com:
 
 - **Page wrapper**: `bg-slate-50 overflow-x-hidden` with `pt-14 pb-32 lg:pb-20`
-- **Dark hero header**: `bg-slate-950 text-white` with `max-w-5xl mx-auto px-4 sm:px-6`
-- **Cards**: `bg-white rounded-2xl border border-slate-200 shadow-sm` (never `bg-card`)
+- **Dark hero header**: `bg-slate-950 text-white` with h1 using `font-heading font-black uppercase tracking-[-0.02em]`
+- **Cards**: `bg-white border border-black/[0.07]` — NO rounding (`rounded-none`), NO shadows
+- **Buttons (primary)**: `bg-black text-white font-black uppercase tracking-[0.1em] hover:bg-neutral-800` — flat, square
+- **Buttons (on dark bg)**: `bg-white text-black font-black uppercase tracking-[0.1em] hover:bg-white/90` — flat, square
+- **Buttons (secondary)**: `border border-black/10 font-black uppercase tracking-[0.1em] hover:bg-slate-50` — flat, square
+- **Section labels**: `text-[10px] font-black text-black/35 uppercase tracking-[0.2em]`
+- **Section header accent**: `w-1.5 h-4` flat colored bar + uppercase tracking label (no rounded dots)
+- **Form inputs**: `border border-black/10 outline-none focus:border-black bg-white` — no rounding
 - **Grids**: Always use `grid-cols-1` prefix — e.g. `grid grid-cols-1 lg:grid-cols-2` (prevents mobile overflow)
-- **Typography**: Section labels `text-xs font-bold text-slate-400 uppercase tracking-widest`
-- **Violet accent**: `violet-600` for primary actions, `violet-500` for icons
-- **AdminBottomNav**: `fixed bottom-0 sm:hidden z-50 h-16` — all floating action bars must use `bottom-16 sm:bottom-0`
-- **Mobile action bars**: `fixed bottom-16 sm:bottom-0 inset-x-0 lg:hidden z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200`
+- **Toggle/sub-tab switchers**: `border border-black/10` container, active = `bg-black text-white`, inactive = `hover:bg-slate-50`
+- **Stat grids**: `grid gap-px bg-black/[0.06]` cells each `bg-white p-4` — creates ruled grid effect
+- **AdminBottomNav**: `fixed bottom-0 sm:hidden z-50 h-16`; active tab = flat `bg-white` square with black icon; labels `text-[9px] font-black uppercase tracking-[0.12em]`
+- **Mobile action bars**: `fixed bottom-16 sm:bottom-0 inset-x-0 lg:hidden z-40 bg-white border-t border-black/10`
+- **Empty states**: `border border-dashed border-black/20` (no rounded corners)
 - **Overflow fix rule**: Never use responsive-only `grid X:grid-cols-N` — always add explicit `grid-cols-1`
 
 ### QuoteDetail specifics

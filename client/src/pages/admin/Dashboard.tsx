@@ -136,7 +136,7 @@ function BookedQuoteRow({ quote }: { quote: any }) {
           ) : (
             <div className="flex items-center gap-2" onClick={e => e.preventDefault()}>
               <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}
-                className="flex-1 min-w-0 text-sm border border-slate-200 rounded-xl px-3 py-2.5 bg-white"
+                className="flex-1 min-w-0 text-sm border border-black/10 px-3 py-2.5 bg-white outline-none focus:border-black"
                 data-testid={`select-quick-staff-${quote.id}`}>
                 <option value="">Select staff…</option>
                 {staffList?.map((s: any) => (
@@ -144,7 +144,7 @@ function BookedQuoteRow({ quote }: { quote: any }) {
                 ))}
               </select>
               <button onClick={handleAssign} disabled={!selectedStaff || updateStatus.isPending}
-                className="text-sm font-bold bg-violet-600 text-white px-4 py-2.5 rounded-xl disabled:opacity-50 shrink-0"
+                className="text-[10px] font-black bg-black text-white uppercase tracking-[0.1em] px-4 py-2.5 disabled:opacity-50 shrink-0 hover:bg-neutral-800 transition-colors"
                 data-testid={`button-confirm-assign-${quote.id}`}>
                 Assign
               </button>
@@ -176,16 +176,16 @@ function SectionPanel({
   const ac = ACCENT[accentColor] || ACCENT.violet;
 
   return (
-    <div className={`w-full bg-white rounded-2xl border overflow-hidden shadow-sm ${
-      urgent && quotes.length > 0 ? "border-orange-200" : ac.border
+    <div className={`w-full bg-white border overflow-hidden ${
+      urgent && quotes.length > 0 ? "border-orange-200" : "border-black/[0.08]"
     }`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
-        <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${ac.dot}`} />
-          <h2 className="font-bold text-sm text-slate-800">{title}</h2>
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/[0.06]">
+        <div className="flex items-center gap-2.5">
+          <span className={`w-1.5 h-4 shrink-0 ${ac.dot}`} />
+          <h2 className="font-black text-[11px] text-slate-800 uppercase tracking-[0.12em]">{title}</h2>
         </div>
-        <span className={`min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center text-xs font-black ${
+        <span className={`min-w-[22px] h-[22px] px-1.5 flex items-center justify-center text-xs font-black ${
           quotes.length > 0 ? ac.badge : "bg-slate-100 text-slate-400"
         }`}>
           {quotes.length}
@@ -288,44 +288,41 @@ export default function AdminDashboard() {
           {/* Top row: greeting + revenue */}
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <Sparkles className="w-3 h-3 text-violet-400" />
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Good {greeting()}</p>
-              </div>
-              <h1 className="text-lg font-black text-white tracking-tight leading-tight">Operations</h1>
-              <p className="text-slate-500 text-xs mt-0.5">{format(new Date(), "EEE, d MMM yyyy")}</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mb-2">Good {greeting()}</p>
+              <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-3xl leading-none">Operations</h1>
+              <p className="text-slate-500 text-xs mt-2">{format(new Date(), "EEE, d MMM yyyy")}</p>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Revenue</p>
-              <p className="text-xl font-black text-white leading-none">{formatMoney(totalRevenue)}</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Revenue</p>
+              <p className="text-2xl font-black text-white leading-none tabular-nums">{formatMoney(totalRevenue)}</p>
               <Link href="/admin/schedule" data-testid="link-schedule"
-                className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-lg transition-colors">
+                className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-white text-black font-black text-[10px] uppercase tracking-[0.12em] hover:bg-white/90 transition-colors">
                 <Calendar className="w-3 h-3" /> Schedule
               </Link>
             </div>
           </div>
 
           {/* Stat grid — 3-col on mobile */}
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-4">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-px mt-5 border border-white/10">
             {statCards.map((card) => (
               <div key={card.label}
-                className={`rounded-xl px-3 py-3 border ${
+                className={`px-3 py-3 ${
                   card.urgent && card.value > 0
-                    ? "bg-orange-500/15 border-orange-500/30"
-                    : "bg-white/5 border-white/10"
+                    ? "bg-orange-500/15"
+                    : "bg-white/5"
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${accentIconBg[card.accent]}`}>
+                  <div className={`w-6 h-6 flex items-center justify-center shrink-0 ${accentIconBg[card.accent]}`}>
                     <card.icon className="w-3 h-3" />
                   </div>
-                  <span className={`text-xl font-black tabular-nums ${
+                  <span className={`text-2xl font-black tabular-nums leading-none ${
                     card.urgent && card.value > 0 ? "text-orange-300" :
                     card.value > 0 ? "text-white" : "text-slate-600"
                   }`}>{card.value}</span>
                 </div>
-                <p className="text-[10px] font-semibold text-slate-500 leading-tight">{card.label}</p>
-                <div className={`mt-1.5 h-[2px] rounded-full ${card.value > 0 ? accentBar[card.accent] : "bg-white/10"}`} />
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.15em] leading-tight">{card.label}</p>
+                <div className={`mt-1.5 h-[2px] ${card.value > 0 ? accentBar[card.accent] : "bg-white/10"}`} />
               </div>
             ))}
           </div>
@@ -337,13 +334,13 @@ export default function AdminDashboard() {
 
         {/* Attention banner */}
         {urgentCount > 0 && (
-          <div className="mt-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+          <div className="mt-5 flex items-center gap-3 bg-amber-50 border-l-4 border-amber-500 border-t border-r border-b border-amber-200 px-4 py-3">
             <Clock className="w-4 h-4 text-amber-500 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-amber-800 truncate">
+              <p className="text-xs font-black text-amber-800 uppercase tracking-[0.1em] truncate">
                 {urgentCount} item{urgentCount !== 1 ? "s" : ""} need attention
               </p>
-              <p className="text-xs text-amber-600 truncate">
+              <p className="text-xs text-amber-600 truncate mt-0.5">
                 {[
                   newQuotes.length > 0 && `${newQuotes.length} new`,
                   awaitingPayment.length > 0 && `${awaitingPayment.length} awaiting payment`,
@@ -355,7 +352,7 @@ export default function AdminDashboard() {
         )}
 
         {/* Section grid — single column on mobile, 2-col on desktop */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-5">
           <SectionPanel
             title="New Quote Requests"
             accentColor="violet"
@@ -395,22 +392,22 @@ export default function AdminDashboard() {
         </div>
 
         {/* Quick-nav cards */}
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-px border border-black/[0.08]">
           {[
-            { href: "/admin/schedule", label: "Manage Schedule",  icon: Calendar,      desc: "Block dates & confirm bookings" },
-            { href: "/admin/staff",    label: "Staff & HR",       icon: Users,         desc: "Payroll, leave & amendments" },
-            { href: "/admin/export",   label: "Audit & Export",   icon: TrendingUp,    desc: "Generate reports & CSV export" },
+            { href: "/admin/schedule", label: "Schedule",     icon: Calendar,   desc: "Block dates & confirm bookings" },
+            { href: "/admin/staff",    label: "Staff & HR",   icon: Users,      desc: "Payroll, leave & amendments" },
+            { href: "/admin/export",   label: "Audit Export", icon: TrendingUp, desc: "Generate reports & PDF export" },
           ].map(({ href, label, icon: Icon, desc }) => (
             <Link key={href} href={href} className="block w-full">
-              <div className="group flex items-center gap-3 bg-white border border-slate-200 rounded-2xl p-4 hover:border-violet-300 hover:shadow-sm transition-all active:bg-slate-50">
-                <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-violet-100 flex items-center justify-center transition-colors shrink-0">
-                  <Icon className="w-4 h-4 text-slate-500 group-hover:text-violet-600 transition-colors" />
+              <div className="group flex items-center gap-3 bg-white p-5 hover:bg-slate-50 transition-all active:bg-slate-100 border-b sm:border-b-0 border-black/[0.06] last:border-0">
+                <div className="w-8 h-8 bg-black flex items-center justify-center shrink-0 group-hover:bg-neutral-700 transition-colors">
+                  <Icon className="w-3.5 h-3.5 text-white" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-bold text-sm text-slate-800">{label}</p>
-                  <p className="text-xs text-slate-400 truncate">{desc}</p>
+                  <p className="font-black text-[11px] text-slate-900 uppercase tracking-[0.12em]">{label}</p>
+                  <p className="text-xs text-slate-400 truncate mt-0.5">{desc}</p>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-violet-400 shrink-0 transition-colors" />
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 shrink-0 transition-colors" />
               </div>
             </Link>
           ))}
