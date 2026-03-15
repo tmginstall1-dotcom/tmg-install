@@ -60,11 +60,21 @@ function useAddressSuggestions(query: string) {
           `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(query)}&returnGeom=Y&getAddrDetails=Y&pageNum=1`
         );
         const data = await res.json();
-        const results = (data.results || []).slice(0, 6).map((r: any) => ({
-          address: `${r.ADDRESS}${r.BUILDING && r.BUILDING !== "NIL" ? ", " + r.BUILDING : ""} Singapore ${r.POSTAL}`,
-          lat: parseFloat(r.LATITUDE),
-          lng: parseFloat(r.LONGITUDE),
-        }));
+        function toTitle(s: string): string {
+          return s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+        }
+        const results = (data.results || []).slice(0, 6).map((r: any) => {
+          const parts: string[] = [];
+          if (r.BLK_NO && r.BLK_NO !== "NIL") parts.push(r.BLK_NO);
+          if (r.ROAD_NAME && r.ROAD_NAME !== "NIL") parts.push(toTitle(r.ROAD_NAME));
+          if (r.BUILDING && r.BUILDING !== "NIL") parts.push(toTitle(r.BUILDING));
+          parts.push(`Singapore ${r.POSTAL}`);
+          return {
+            address: parts.join(", "),
+            lat: parseFloat(r.LATITUDE),
+            lng: parseFloat(r.LONGITUDE),
+          };
+        });
         setSuggestions(results);
       } catch { setSuggestions([]); }
       setLoading(false);

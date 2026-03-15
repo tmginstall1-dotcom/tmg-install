@@ -27,7 +27,7 @@ function StatusBadge({ status }: { status: string }) {
     rejected: "bg-red-100 text-red-700",
   };
   return (
-    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${map[status] || "bg-gray-100 text-gray-600"}`}>
+    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 uppercase tracking-[0.1em] ${map[status] || "bg-gray-100 text-gray-600"}`}>
       {status}
     </span>
   );
@@ -687,7 +687,7 @@ function GpsLocationPill({ lat, lng, label, color }: { lat: string; lng: string;
     : "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900";
   return (
     <a href={mapsUrl} target="_blank" rel="noreferrer"
-      className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border hover:opacity-80 transition-opacity ${colorCls}`}
+      className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 border hover:opacity-80 transition-opacity ${colorCls}`}
       title={`${label}: ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)} — Open in Google Maps`}>
       <MapPin className="w-2.5 h-2.5 shrink-0" />
       {label} · {address || `${parseFloat(lat).toFixed(4)}, ${parseFloat(lng).toFixed(4)}`}
@@ -734,7 +734,7 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <GpsLocationPill lat={log.clockInLat} lng={log.clockInLng} label="In" color="green" />
                   <button onClick={() => setMapOpen(p => p === "in" ? null : "in")}
-                    className={`text-[10px] px-2 py-0.5 rounded-full border font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                    className={`text-[10px] px-2 py-0.5 border font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
                     data-testid={`button-map-in-${staff.id}`}>
                     {mapOpen === "in" ? "Hide map ▲" : "Map ▾"}
                   </button>
@@ -758,7 +758,7 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
                   <>
                     <GpsLocationPill lat={log.clockInLat} lng={log.clockInLng} label="In" color="green" />
                     <button onClick={() => setMapOpen(p => p === "in" ? null : "in")}
-                      className={`text-[10px] px-2 py-0.5 rounded-full border font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      className={`text-[10px] px-2 py-0.5 border font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
                       data-testid={`button-map-in-${staff.id}`}>
                       {mapOpen === "in" ? "▲" : "Map ▾"}
                     </button>
@@ -768,7 +768,7 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
                   <>
                     <GpsLocationPill lat={log.clockOutLat} lng={log.clockOutLng} label="Out" color="red" />
                     <button onClick={() => setMapOpen(p => p === "out" ? null : "out")}
-                      className={`text-[10px] px-2 py-0.5 rounded-full border font-bold transition-colors ${mapOpen === "out" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      className={`text-[10px] px-2 py-0.5 border font-bold transition-colors ${mapOpen === "out" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
                       data-testid={`button-map-out-${staff.id}`}>
                       {mapOpen === "out" ? "▲" : "Map ▾"}
                     </button>
@@ -1190,7 +1190,7 @@ function TimesheetsView() {
               )}
             </>
           ) : (
-            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">Still in</span>
+            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5">Still in</span>
           )}
         </td>
         <td className="px-3 py-2.5 text-right">

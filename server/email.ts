@@ -66,16 +66,18 @@ body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;line
 .svc-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#999;display:block;margin-top:3px}
 /* ── Totals ── */
 .tot-wrap{border-top:2px solid #111;margin-top:2px}
-.tot-row{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;font-size:14px;border-bottom:1px solid #f2f2f2;color:#444}
-.tot-row:last-child{border-bottom:none}
-.tot-row.grand{font-size:16px;font-weight:800;color:#111;padding-top:16px;border-top:1px solid #e0e0e0;margin-top:4px;border-bottom:none}
-.tot-row.dep{color:#15803d;font-weight:600}
-.tot-row.bal{color:#999;font-size:13px}
+.tot-tbl{width:100%;border-collapse:collapse}
+.tot-tbl td{padding:11px 0;font-size:14px;vertical-align:baseline;border-bottom:1px solid #f2f2f2;color:#444}
+.tot-tbl td.tv{text-align:right;font-weight:700;white-space:nowrap;padding-left:16px}
+.tot-tbl tr:last-child td{border-bottom:none}
+.tot-tbl tr.grand td{font-size:16px;font-weight:800;color:#111;padding-top:16px;border-top:1px solid #e0e0e0;border-bottom:none}
+.tot-tbl tr.dep td{color:#15803d;font-weight:600}
+.tot-tbl tr.bal td{color:#999;font-size:13px}
 /* ── CTA block ── */
 .cta{text-align:center;padding:44px 36px;background:#fafafa;border-top:1px solid #ebebeb;border-bottom:1px solid #ebebeb;margin:40px 0}
 .cta-lbl{font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#999;margin-bottom:12px}
-.cta-amt{font-size:44px;font-weight:900;color:#111;margin-bottom:28px;line-height:1;letter-spacing:-2px;font-family:'Arial Black',Arial,sans-serif}
-.cta-btn{display:inline-block;background:#111;color:#fff!important;padding:17px 48px;text-decoration:none;font-size:12px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase}
+.cta-amt{font-size:40px;font-weight:900;color:#111;margin-bottom:28px;line-height:1;letter-spacing:-1px;font-family:'Arial Black',Arial,sans-serif;white-space:nowrap}
+.cta-btn{display:inline-block;background:#111;color:#fff!important;padding:17px 48px;text-decoration:none;font-size:12px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;white-space:nowrap}
 .cta-btn.grn{background:#15803d}
 .cta-sub{font-size:11px;color:#bbb;margin-top:16px;line-height:1.6}
 /* ── Notice ── */
@@ -209,15 +211,21 @@ function itemsTable(items: any[]): string {
     </table>`;
 }
 
+function totRow(cls: string, label: string, value: string): string {
+  return `<tr class="${cls}"><td>${label}</td><td class="tv">${value}</td></tr>`;
+}
+
 function totals(subtotal: any, transport: any, total: any, deposit: any, balance: any): string {
   const hasTransport = Number(transport || 0) > 0;
   return `
     <div class="tot-wrap">
-      <div class="tot-row"><span>Labour</span><span>$${Number(subtotal || 0).toFixed(2)}</span></div>
-      ${hasTransport ? `<div class="tot-row"><span>Transport &amp; logistics</span><span>$${Number(transport || 0).toFixed(2)}</span></div>` : ''}
-      <div class="tot-row grand"><span>Total</span><span>$${Number(total || 0).toFixed(2)}</span></div>
-      <div class="tot-row dep"><span>Deposit paid &nbsp;(50%)</span><span>$${Number(deposit || 0).toFixed(2)}</span></div>
-      <div class="tot-row bal"><span>Balance on completion &nbsp;(50%)</span><span>$${Number(balance || 0).toFixed(2)}</span></div>
+      <table class="tot-tbl"><tbody>
+        ${totRow('', 'Labour', `$${Number(subtotal || 0).toFixed(2)}`)}
+        ${hasTransport ? totRow('', 'Transport &amp; logistics', `$${Number(transport || 0).toFixed(2)}`) : ''}
+        ${totRow('grand', 'Total', `$${Number(total || 0).toFixed(2)}`)}
+        ${totRow('dep', 'Deposit paid (50%)', `$${Number(deposit || 0).toFixed(2)}`)}
+        ${totRow('bal', 'Balance on completion (50%)', `$${Number(balance || 0).toFixed(2)}`)}
+      </tbody></table>
     </div>`;
 }
 
@@ -366,9 +374,11 @@ export function depositReceivedEmail(quote: any): string {
 
     ${section("Payment Summary", `
       <div class="tot-wrap">
-        <div class="tot-row dep"><span>Deposit paid &nbsp;(50%)</span><span>$${Number(quote.depositAmount || 0).toFixed(2)}</span></div>
-        <div class="tot-row bal"><span>Balance due on completion &nbsp;(50%)</span><span>$${Number(quote.finalAmount || 0).toFixed(2)}</span></div>
-        <div class="tot-row grand"><span>Total</span><span>$${Number(quote.total || 0).toFixed(2)}</span></div>
+        <table class="tot-tbl"><tbody>
+          ${totRow('dep', 'Deposit paid (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`)}
+          ${totRow('bal', 'Balance due on completion (50%)', `$${Number(quote.finalAmount || 0).toFixed(2)}`)}
+          ${totRow('grand', 'Total', `$${Number(quote.total || 0).toFixed(2)}`)}
+        </tbody></table>
       </div>
     `)}
 
@@ -457,9 +467,11 @@ export function bookingConfirmationEmail(quote: any): string {
 
     ${section("Payment", `
       <div class="tot-wrap">
-        <div class="tot-row dep"><span>Deposit paid &nbsp;(50%)</span><span>$${Number(quote.depositAmount || 0).toFixed(2)}</span></div>
-        <div class="tot-row bal"><span>Balance due on completion &nbsp;(50%)</span><span>$${Number(quote.finalAmount || 0).toFixed(2)}</span></div>
-        <div class="tot-row grand"><span>Total</span><span>$${Number(quote.total || 0).toFixed(2)}</span></div>
+        <table class="tot-tbl"><tbody>
+          ${totRow('dep', 'Deposit paid (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`)}
+          ${totRow('bal', 'Balance due on completion (50%)', `$${Number(quote.finalAmount || 0).toFixed(2)}`)}
+          ${totRow('grand', 'Total', `$${Number(quote.total || 0).toFixed(2)}`)}
+        </tbody></table>
       </div>
     `)}
 
@@ -564,9 +576,11 @@ export function caseClosedEmail(quote: any): string {
 
     ${section("Payment Receipt", `
       <div class="tot-wrap">
-        <div class="tot-row dep"><span>Deposit &nbsp;(50%)</span><span>$${Number(quote.depositAmount || 0).toFixed(2)}</span></div>
-        <div class="tot-row dep"><span>Final payment &nbsp;(50%)</span><span>$${Number(quote.finalAmount || 0).toFixed(2)}</span></div>
-        <div class="tot-row grand"><span>Total Paid</span><span>$${Number(quote.total || 0).toFixed(2)}</span></div>
+        <table class="tot-tbl"><tbody>
+          ${totRow('dep', 'Deposit (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`)}
+          ${totRow('dep', 'Final payment (50%)', `$${Number(quote.finalAmount || 0).toFixed(2)}`)}
+          ${totRow('grand', 'Total Paid', `$${Number(quote.total || 0).toFixed(2)}`)}
+        </tbody></table>
       </div>
     `)}
 

@@ -319,7 +319,7 @@ export default function AdminQuoteDetail() {
                   </div>{/* end overflow-x-auto */}
                   {/* Cancelled state */}
                   {isCancelled && (
-                    <div className="mt-2 text-center text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl py-2">
+                    <div className="mt-2 text-center text-xs font-semibold text-red-600 bg-red-50 border border-red-200 py-2">
                       This job was cancelled
                     </div>
                   )}
@@ -342,36 +342,36 @@ export default function AdminQuoteDetail() {
                       { label: 'Phone', key: 'phone' },
                     ].map(f => (
                       <div key={f.key}>
-                        <label className="text-xs font-semibold text-muted-foreground mb-1 block">{f.label}</label>
+                        <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-1 block">{f.label}</label>
                         <input value={editCustomer[f.key] || ''} onChange={e => setEditCustomer({ ...editCustomer, [f.key]: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border bg-background text-sm outline-none focus:border-primary transition-colors"
+                          className="w-full px-3 py-2.5 border border-black/10 bg-white text-sm outline-none focus:border-black transition-colors"
                           data-testid={`input-edit-${f.key}`} />
                       </div>
                     ))}
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Service Address</label>
+                    <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-1 block">Service Address</label>
                     <input value={editQuoteData.serviceAddress || ''} onChange={e => setEditQuoteData({ ...editQuoteData, serviceAddress: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border bg-background text-sm outline-none focus:border-primary transition-colors"
+                      className="w-full px-3 py-2.5 border border-black/10 bg-white text-sm outline-none focus:border-black transition-colors"
                       data-testid="input-edit-address" />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Pickup Address (relocation)</label>
+                      <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-1 block">Pickup Address</label>
                       <input value={editQuoteData.pickupAddress || ''} onChange={e => setEditQuoteData({ ...editQuoteData, pickupAddress: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl border bg-background text-sm outline-none focus:border-primary transition-colors" />
+                        className="w-full px-3 py-2.5 border border-black/10 bg-white text-sm outline-none focus:border-black transition-colors" />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Dropoff Address (relocation)</label>
+                      <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-1 block">Dropoff Address</label>
                       <input value={editQuoteData.dropoffAddress || ''} onChange={e => setEditQuoteData({ ...editQuoteData, dropoffAddress: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl border bg-background text-sm outline-none focus:border-primary transition-colors" />
+                        className="w-full px-3 py-2.5 border border-black/10 bg-white text-sm outline-none focus:border-black transition-colors" />
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Internal Notes</label>
+                    <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-1 block">Internal Notes</label>
                     <textarea value={editQuoteData.notes || ''} onChange={e => setEditQuoteData({ ...editQuoteData, notes: e.target.value })}
                       rows={2}
-                      className="w-full px-3 py-2 rounded-xl border bg-background text-sm outline-none focus:border-primary transition-colors resize-none"
+                      className="w-full px-3 py-2.5 border border-black/10 bg-white text-sm outline-none focus:border-black transition-colors resize-none"
                       placeholder="Internal admin notes..." />
                   </div>
                 </div>
@@ -382,17 +382,17 @@ export default function AdminQuoteDetail() {
                     <p className="font-bold text-lg leading-tight">{quote.customer?.name}</p>
                     <p className="text-sm text-muted-foreground">{quote.customer?.email}</p>
                     <p className="text-sm text-muted-foreground">{quote.customer?.phone}</p>
-                    <div className="grid grid-cols-3 gap-2 mt-4">
+                    <div className="grid grid-cols-3 gap-1.5 mt-4">
                       <a href={`tel:${quote.customer?.phone}`} data-testid="button-call"
-                        className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors">
+                        className="flex flex-col items-center gap-1 px-2 py-2.5 border border-black/10 text-slate-700 text-[10px] font-black uppercase tracking-[0.08em] hover:bg-slate-50 transition-colors">
                         <Phone className="w-4 h-4" /> Call
                       </a>
                       <a href={`https://wa.me/${quote.customer?.phone?.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" data-testid="button-whatsapp"
-                        className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-colors">
+                        className="flex flex-col items-center gap-1 px-2 py-2.5 border border-emerald-500 text-emerald-700 text-[10px] font-black uppercase tracking-[0.08em] hover:bg-emerald-50 transition-colors">
                         <MessageCircle className="w-4 h-4" /> WhatsApp
                       </a>
                       <a href={`mailto:${quote.customer?.email}`} data-testid="button-email"
-                        className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors">
+                        className="flex flex-col items-center gap-1 px-2 py-2.5 border border-black/10 text-slate-700 text-[10px] font-black uppercase tracking-[0.08em] hover:bg-slate-50 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
                         Email
                       </a>
@@ -414,13 +414,13 @@ export default function AdminQuoteDetail() {
                       </div>
                     )}
                     {quote.distanceKm && Number(quote.distanceKm) > 0 && (
-                      <div className="mt-2 inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 text-xs font-bold text-blue-700">
+                      <div className="mt-2 inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs font-bold text-blue-700">
                         <MapPin className="w-3 h-3" /> Route: {Number(quote.distanceKm).toFixed(1)} km
                       </div>
                     )}
                     {quote.preferredDate && !quote.scheduledAt && (
-                      <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
-                        <p className="text-xs text-amber-700 font-semibold">Customer's Requested Slot</p>
+                      <div className="mt-3 p-3 bg-amber-50 border border-amber-200">
+                        <p className="text-[10px] font-black text-amber-700 uppercase tracking-[0.12em] mb-1">Customer's Requested Slot</p>
                         <p className="font-bold text-sm mt-1 flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-amber-600" />
                           {format(new Date(quote.preferredDate + "T12:00:00"), 'EEE, MMM d, yyyy')} · {quote.preferredTimeWindow}
@@ -428,8 +428,8 @@ export default function AdminQuoteDetail() {
                       </div>
                     )}
                     {quote.scheduledAt && (
-                      <div className="mt-3 p-3 rounded-xl bg-secondary/50 border">
-                        <p className="text-xs text-muted-foreground font-semibold">Confirmed Slot</p>
+                      <div className="mt-3 p-3 bg-slate-50 border border-black/10">
+                        <p className="text-[10px] font-black text-black/35 uppercase tracking-[0.12em] mb-1">Confirmed Slot</p>
                         <p className="font-bold text-sm mt-1 flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-primary" />
                           {format(new Date(quote.scheduledAt), 'EEE, MMM d, yyyy')} · {quote.timeWindow}
@@ -449,12 +449,12 @@ export default function AdminQuoteDetail() {
                 </h3>
                 {isEditing && (
                   <button onClick={addEditItem} data-testid="button-add-item"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors">
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-black/15 text-black text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors">
                     <Plus className="w-3.5 h-3.5" /> Add Item
                   </button>
                 )}
                 {!isEditing && quote.aiConfidenceScore && quote.aiConfidenceScore < 80 && (
-                  <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                  <div className="bg-amber-100 text-amber-700 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" /> Low Confidence
                   </div>
                 )}
@@ -462,10 +462,10 @@ export default function AdminQuoteDetail() {
 
               {/* AI photo scan thumbnail */}
               {!isEditing && quote.detectionPhotoUrl && (
-                <div className="flex items-start gap-4 mb-5 p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                <div className="flex items-start gap-4 mb-5 p-4 bg-emerald-50 border border-emerald-200">
                   <button type="button" onClick={() => setLightboxPhoto(quote.detectionPhotoUrl)} className="focus:outline-none group relative shrink-0" data-testid="button-ai-photo">
-                    <img src={quote.detectionPhotoUrl} alt="Customer submitted photo" className="w-20 h-20 rounded-xl object-cover border-2 border-emerald-300 group-hover:border-emerald-500 transition-colors" />
-                    <div className="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
+                    <img src={quote.detectionPhotoUrl} alt="Customer submitted photo" className="w-20 h-20 object-cover border-2 border-emerald-300 group-hover:border-emerald-500 transition-colors" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
                       <span className="text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">View</span>
                     </div>
                   </button>
@@ -481,33 +481,33 @@ export default function AdminQuoteDetail() {
               {isEditing ? (
                 <div className="space-y-2">
                   {editItems.map((item, i) => (
-                    <div key={i} className="p-3 rounded-xl border bg-secondary/30 space-y-2" data-testid={`edit-item-${i}`}>
+                    <div key={i} className="p-3 border border-black/10 bg-slate-50 space-y-2" data-testid={`edit-item-${i}`}>
                       <div className="flex gap-2">
                         <input value={item.detectedName || item.originalDescription} onChange={e => updateEditItem(i, 'detectedName', e.target.value)}
-                          placeholder="Item name" className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border bg-background text-sm outline-none focus:border-primary" />
-                        <button onClick={() => removeEditItem(i)} className="w-8 h-8 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors flex items-center justify-center shrink-0">
+                          placeholder="Item name" className="flex-1 min-w-0 px-3 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black" />
+                        <button onClick={() => removeEditItem(i)} className="w-8 h-8 hover:bg-red-50 hover:text-red-500 transition-colors flex items-center justify-center shrink-0 border border-black/10">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <select value={item.serviceType} onChange={e => updateEditItem(i, 'serviceType', e.target.value)}
-                          className="px-2 py-1.5 rounded-lg border bg-background text-xs outline-none focus:border-primary">
+                          className="px-2 py-2 border border-black/10 bg-white text-xs outline-none focus:border-black">
                           <option value="install">Install</option>
                           <option value="dismantle">Dismantle</option>
                           <option value="relocate">Relocate</option>
                         </select>
                         <input type="number" min="1" value={item.quantity} onChange={e => updateEditItem(i, 'quantity', parseInt(e.target.value) || 1)}
-                          placeholder="Qty" className="px-2 py-1.5 rounded-lg border bg-background text-sm outline-none focus:border-primary text-center" />
+                          placeholder="Qty" className="px-2 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black text-center" />
                         <input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => updateEditItem(i, 'unitPrice', e.target.value)}
-                          className="px-2 py-1.5 rounded-lg border bg-background text-sm outline-none focus:border-primary" placeholder="$Price" />
+                          className="px-2 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black" placeholder="$Price" />
                       </div>
                     </div>
                   ))}
                   <div className="flex gap-3 mt-3 pt-3 border-t">
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground block mb-1">Transport Fee ($)</label>
+                      <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] block mb-1">Transport Fee ($)</label>
                       <input type="number" min="0" step="0.01" value={editQuoteData.transportFee || '0'} onChange={e => setEditQuoteData({ ...editQuoteData, transportFee: e.target.value })}
-                        className="w-28 px-3 py-1.5 rounded-lg border bg-background text-sm outline-none focus:border-primary" />
+                        className="w-28 px-3 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black" />
                     </div>
                     <div className="ml-auto text-right">
                       <p className="text-xs text-muted-foreground">Subtotal: <strong>${editSubtotal.toFixed(2)}</strong></p>
@@ -516,13 +516,13 @@ export default function AdminQuoteDetail() {
                       <p className="text-xs text-emerald-600 font-semibold">50% Deposit: ${(editTotal * 0.5).toFixed(2)}</p>
                     </div>
                   </div>
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex gap-2 pt-2">
                     <button onClick={handleSaveEdit} disabled={editQuote.isPending} data-testid="button-save-edit"
-                      className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
+                      className="flex items-center gap-1.5 px-5 py-2.5 bg-black text-white font-black text-[10px] uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors disabled:opacity-50">
                       <Save className="w-4 h-4" /> {editQuote.isPending ? "Saving..." : "Save Changes"}
                     </button>
                     <button onClick={() => setIsEditing(false)} data-testid="button-cancel-edit"
-                      className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-secondary border font-bold text-sm hover:bg-border transition-colors">
+                      className="flex items-center gap-1.5 px-5 py-2.5 border border-black/15 font-black text-[10px] uppercase tracking-[0.12em] hover:bg-slate-50 transition-colors">
                       <X className="w-4 h-4" /> Cancel
                     </button>
                   </div>
@@ -592,7 +592,7 @@ export default function AdminQuoteDetail() {
 
                         {/* Field event — arrival or completion: show prominent timestamp block */}
                         {isFieldEvent ? (
-                          <div className={`rounded-2xl border p-4 mb-3 ${
+                          <div className={`border p-4 mb-3 ${
                             isArrival    ? 'bg-blue-50 border-blue-200' :
                             'bg-emerald-50 border-emerald-200'
                           }`}>
@@ -645,7 +645,7 @@ export default function AdminQuoteDetail() {
 
                         {/* GPS Proof */}
                         {update.gpsLat && (
-                          <div className="mt-2 inline-flex items-center gap-2 bg-white border border-blue-200 rounded-xl px-3 py-2">
+                          <div className="mt-2 inline-flex items-center gap-2 bg-white border border-blue-200 px-3 py-2">
                             <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
                             <span className="text-xs font-semibold text-blue-800">
                               {Number(update.gpsLat).toFixed(5)}, {Number(update.gpsLng).toFixed(5)}
@@ -654,7 +654,7 @@ export default function AdminQuoteDetail() {
                               href={`https://maps.google.com/?q=${update.gpsLat},${update.gpsLng}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-xs font-bold text-blue-600 underline hover:text-blue-800 ml-1"
+                              className="text-xs font-black text-blue-600 hover:text-blue-800 ml-1 uppercase tracking-[0.08em]"
                             >
                               Maps ↗
                             </a>
@@ -664,16 +664,16 @@ export default function AdminQuoteDetail() {
                         {/* Photo Proof */}
                         {photos.length > 0 && (
                           <div className="mt-3">
-                            <p className="text-xs font-semibold text-muted-foreground mb-2">
-                              📷 Photo Proof ({photos.length} photo{photos.length !== 1 ? 's' : ''})
+                            <p className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-2">
+                              Photo Proof ({photos.length})
                             </p>
                             <div className="flex flex-wrap gap-2">
                               {photos.map((p: string, i: number) => (
                                 <button key={i} type="button" onClick={() => setLightboxPhoto(p)}
                                   className="focus:outline-none group relative" data-testid={`button-photo-${i}`}>
                                   <img src={p} alt={`proof-${i + 1}`}
-                                    className="w-24 h-24 rounded-xl object-cover border-2 border-border group-hover:border-primary transition-colors shadow-sm" />
-                                  <div className="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                    className="w-24 h-24 object-cover border-2 border-slate-200 group-hover:border-slate-400 transition-colors" />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                                     <span className="text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">View</span>
                                   </div>
                                 </button>
@@ -706,7 +706,7 @@ export default function AdminQuoteDetail() {
               {/* ── PHASE 1: New / Under Review ── */}
               {['submitted', 'under_review'].includes(quote.status) && (
                 <div className="space-y-3">
-                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3.5 text-sm">
+                  <div className="bg-blue-50 border border-blue-200 p-3.5 text-sm">
                     <p className="font-bold text-blue-800 flex items-center gap-1.5 mb-1">
                       <ClipboardList className="w-4 h-4" /> Quote Received
                     </p>
@@ -741,7 +741,7 @@ export default function AdminQuoteDetail() {
                   </p>
                   <p className="text-xs text-emerald-700">Deposit of {formatMoney(quote.depositAmount)} confirmed. Customer will now select a booking slot — you'll be notified once they submit a request.</p>
                   {quote.preferredDate && (
-                    <div className="mt-2 bg-white border border-emerald-200 rounded-xl px-3 py-2 text-xs">
+                    <div className="mt-2 bg-white border border-emerald-200 px-3 py-2 text-xs">
                       <p className="text-muted-foreground mb-0.5">Preferred slot (from estimate)</p>
                       <p className="font-bold text-foreground flex items-center gap-1.5">
                         <Calendar className="w-3 h-3 text-emerald-600" />
@@ -756,7 +756,7 @@ export default function AdminQuoteDetail() {
               {quote.status === 'booked' && (
                 <div className="space-y-3">
                   {quote.scheduledAt && (
-                    <div className="bg-violet-50 border border-violet-200 rounded-2xl p-3.5 text-sm">
+                    <div className="bg-violet-50 border border-violet-200 p-3.5 text-sm">
                       <p className="font-bold text-violet-800 flex items-center gap-1.5 mb-1">
                         <CalendarCheck className="w-4 h-4" /> Booking Confirmed
                       </p>
@@ -766,11 +766,11 @@ export default function AdminQuoteDetail() {
                     </div>
                   )}
                   <div>
-                    <label className="text-xs font-bold mb-2 block text-muted-foreground uppercase tracking-wide">
+                    <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-2 block">
                       Assign Staff or Team
                     </label>
                     <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)} data-testid="select-staff"
-                      className="w-full px-4 py-2.5 rounded-xl bg-secondary border mb-3 outline-none focus:border-primary text-sm">
+                      className="w-full px-4 py-2.5 bg-white border border-black/10 mb-3 outline-none focus:border-black text-sm">
                       <option value="">Select staff or team...</option>
                       {teamsList.length > 0 && (
                         <optgroup label="── Teams">
@@ -797,7 +797,7 @@ export default function AdminQuoteDetail() {
               {quote.status === 'assigned' && (
                 <div className="space-y-3">
                   {quote.scheduledAt && (
-                    <div className="bg-violet-50 border border-violet-200 rounded-2xl p-3.5 text-sm">
+                    <div className="bg-violet-50 border border-violet-200 p-3.5 text-sm">
                       <p className="font-bold text-violet-800 flex items-center gap-1.5 mb-1">
                         <CalendarCheck className="w-4 h-4" /> Booking Confirmed
                       </p>
@@ -808,9 +808,9 @@ export default function AdminQuoteDetail() {
                   )}
                   {/* Show assigned team */}
                   {(quote as any).assignedTeam && (
-                    <div className="bg-secondary/60 rounded-2xl px-4 py-3 text-sm">
+                    <div className="bg-slate-50 border border-black/10 px-4 py-3 text-sm">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+                        <div className="w-8 h-8 flex items-center justify-center text-white text-sm font-bold shrink-0"
                           style={{ background: (quote as any).assignedTeam.color || "#6366f1" }}>
                           👥
                         </div>
@@ -822,7 +822,7 @@ export default function AdminQuoteDetail() {
                       {(quote as any).assignedTeam.members?.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           {(quote as any).assignedTeam.members.map((m: any) => (
-                            <span key={m.id} className="bg-background border rounded-full px-2.5 py-0.5 text-xs font-medium">{m.name}</span>
+                            <span key={m.id} className="bg-white border border-black/10 px-2.5 py-0.5 text-xs font-medium">{m.name}</span>
                           ))}
                         </div>
                       )}
@@ -830,8 +830,8 @@ export default function AdminQuoteDetail() {
                   )}
                   {/* Show assigned individual staff */}
                   {quote.assignedStaff && !(quote as any).assignedTeam && (
-                    <div className="bg-secondary/60 rounded-2xl px-4 py-3 text-sm flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-sm shrink-0">
+                    <div className="bg-slate-50 border border-black/10 px-4 py-3 text-sm flex items-center gap-3">
+                      <div className="w-8 h-8 bg-black text-white font-bold flex items-center justify-center text-sm shrink-0">
                         {quote.assignedStaff.name.charAt(0)}
                       </div>
                       <div>
@@ -853,7 +853,7 @@ export default function AdminQuoteDetail() {
               {/* ── PHASE 4: In Progress ── */}
               {quote.status === 'in_progress' && (
                 <div className="space-y-3">
-                  <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4 text-sm">
+                  <div className="bg-pink-50 border border-pink-200 p-4 text-sm">
                     <p className="font-bold text-pink-800 flex items-center gap-1.5 mb-1">
                       <Zap className="w-4 h-4" /> Job In Progress
                     </p>
@@ -869,7 +869,7 @@ export default function AdminQuoteDetail() {
               {/* ── PHASE 4b: Completed — request final payment ── */}
               {quote.status === 'completed' && (
                 <div className="space-y-3">
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 text-sm">
+                  <div className="bg-emerald-50 border border-emerald-200 p-3.5 text-sm">
                     <p className="font-bold text-emerald-800 flex items-center gap-1.5 mb-1">
                       <CheckCircle2 className="w-4 h-4" /> Job Completed
                     </p>
@@ -885,12 +885,12 @@ export default function AdminQuoteDetail() {
               {/* ── PHASE 5a: Awaiting Final Payment ── */}
               {quote.status === 'final_payment_requested' && (
                 <div className="space-y-3">
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+                  <div className="bg-amber-50 border border-amber-200 p-4 space-y-2">
                     <p className="font-bold text-amber-800 flex items-center gap-1.5 text-sm">
                       <DollarSign className="w-4 h-4" /> Awaiting Final Payment
                     </p>
                     <p className="text-xs text-amber-700">Payment request sent. Waiting for customer to pay the remaining balance.</p>
-                    <div className="bg-amber-100 rounded-xl px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
+                    <div className="bg-amber-100 px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
                       <span>Balance due</span>
                       <span className="font-black">{formatMoney(quote.finalAmount)}</span>
                     </div>
@@ -999,7 +999,7 @@ export default function AdminQuoteDetail() {
                     {(quote as any).assignedTeam.members?.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {(quote as any).assignedTeam.members.map((m: any) => (
-                          <span key={m.id} className="bg-secondary border rounded-full px-2.5 py-0.5 text-xs font-medium">{m.name}</span>
+                          <span key={m.id} className="bg-slate-100 border border-black/10 px-2.5 py-0.5 text-xs font-medium">{m.name}</span>
                         ))}
                       </div>
                     )}

@@ -117,8 +117,8 @@ function BookedQuoteRow({ quote }: { quote: any }) {
             </p>
           </div>
           {quote.assignedStaffId
-            ? <span className="shrink-0 text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">ASSIGNED</span>
-            : <span className="shrink-0 text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-1 rounded-full">UNASSIGNED</span>
+            ? <span className="shrink-0 text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1">ASSIGNED</span>
+            : <span className="shrink-0 text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-1">UNASSIGNED</span>
           }
           <div className="shrink-0 text-right">
             <p className="text-sm font-bold text-slate-800 tabular-nums">{formatMoney(quote.total)}</p>
@@ -422,11 +422,11 @@ export default function AdminDashboard() {
               Clear test data
             </button>
           ) : (
-            <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+            <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200">
               <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
               <p className="text-xs text-red-700 font-semibold flex-1">Delete ALL quotes & data?</p>
               <button onClick={() => clearAllMutation.mutate()} disabled={clearAllMutation.isPending}
-                className="text-xs font-black text-white bg-red-600 px-3 py-1.5 rounded-lg disabled:opacity-50">
+                className="text-xs font-black text-white bg-red-600 px-3 py-1.5 disabled:opacity-50">
                 {clearAllMutation.isPending ? "…" : "Delete"}
               </button>
               <button onClick={() => setShowClearConfirm(false)}
