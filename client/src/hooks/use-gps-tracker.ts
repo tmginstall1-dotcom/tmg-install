@@ -1,8 +1,12 @@
 import { useEffect, useRef, useCallback } from "react";
 import { apiRequest } from "@/lib/queryClient";
 
-const TRACK_INTERVAL_MS = 30_000; // send a point every 30 seconds
-const MIN_DISTANCE_M = 5;         // ignore tiny GPS jitter
+// Minimum distance to trigger an immediate send on movement
+const MOVE_THRESHOLD_M = 15;
+// Heartbeat: always send at least once every N seconds even if stationary
+const HEARTBEAT_MS = 30_000;
+// Minimum gap between any two sends (debounce rapid GPS bursts)
+const MIN_GAP_MS = 5_000;
 
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -15,58 +19,67 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
 }
 
 export function useGpsTracker(enabled: boolean) {
-  const lastSentRef = useRef<{ lat: number; lng: number; ts: number } | null>(null);
-  const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
-  const posRef      = useRef<GeolocationPosition | null>(null);
+  const lastSentRef  = useRef<{ lat: number; lng: number; ts: number } | null>(null);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const latestPosRef = useRef<GeolocationPosition | null>(null);
 
   const sendPoint = useCallback(async (pos: GeolocationPosition) => {
     const { latitude: lat, longitude: lng, accuracy, speed, heading } = pos.coords;
     const now = Date.now();
 
-    if (lastSentRef.current) {
-      const dist = haversineM(lastSentRef.current.lat, lastSentRef.current.lng, lat, lng);
-      const elapsed = now - lastSentRef.current.ts;
-      if (dist < MIN_DISTANCE_M && elapsed < TRACK_INTERVAL_MS * 1.5) return;
-    }
+    // Debounce: never send more often than MIN_GAP_MS
+    if (lastSentRef.current && now - lastSentRef.current.ts < MIN_GAP_MS) return;
 
     try {
       await apiRequest("POST", "/api/staff/gps-track", {
         lat: String(lat),
         lng: String(lng),
         accuracy: accuracy != null ? String(accuracy) : undefined,
-        speed: speed != null ? String(speed) : undefined,
-        heading: heading != null ? String(heading) : undefined,
+        speed:    speed    != null ? String(speed)    : undefined,
+        heading:  heading  != null ? String(heading)  : undefined,
         recordedAt: new Date(pos.timestamp).toISOString(),
       });
       lastSentRef.current = { lat, lng, ts: now };
     } catch {
-      // silently ignore — we don't want GPS errors to surface to staff
+      // silent — never surface GPS errors to staff
     }
   }, []);
+
+  const onPosition = useCallback((pos: GeolocationPosition) => {
+    latestPosRef.current = pos;
+    const { latitude: lat, longitude: lng } = pos.coords;
+
+    if (!lastSentRef.current) {
+      // Very first fix — send immediately
+      sendPoint(pos);
+      return;
+    }
+
+    const dist = haversineM(lastSentRef.current.lat, lastSentRef.current.lng, lat, lng);
+    if (dist >= MOVE_THRESHOLD_M) {
+      // Device has moved — send right away (native-style reactive tracking)
+      sendPoint(pos);
+    }
+    // Stationary: heartbeat timer will handle it
+  }, [sendPoint]);
 
   useEffect(() => {
     if (!enabled || !navigator.geolocation) return;
 
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => { posRef.current = pos; },
+      onPosition,
       () => {},
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
     );
 
-    // Send an initial point immediately
-    navigator.geolocation.getCurrentPosition(
-      (pos) => sendPoint(pos),
-      () => {},
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
-    );
-
-    timerRef.current = setInterval(() => {
-      if (posRef.current) sendPoint(posRef.current);
-    }, TRACK_INTERVAL_MS);
+    // Heartbeat — keeps stationary staff visible on the map
+    heartbeatRef.current = setInterval(() => {
+      if (latestPosRef.current) sendPoint(latestPosRef.current);
+    }, HEARTBEAT_MS);
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     };
-  }, [enabled, sendPoint]);
+  }, [enabled, onPosition, sendPoint]);
 }
