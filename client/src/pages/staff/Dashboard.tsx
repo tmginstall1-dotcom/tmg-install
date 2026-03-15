@@ -29,12 +29,16 @@ export default function StaffDashboard() {
     refetchOnWindowFocus: true,
     staleTime: 0,
   });
-  const { data: attendance, isLoading: attLoading } = useQuery<any>({
-    queryKey: ["/api/attendance/today"],
-    refetchInterval: 30000,
+  // Use the same /api/staff/attendance source as the HR page and derive today client-side
+  // This avoids any server-side UTC vs SGT timezone mismatch with /api/attendance/today
+  const { data: allAttendance, isLoading: attLoading } = useQuery<any[]>({
+    queryKey: ["/api/staff/attendance"],
+    refetchInterval: 10000,      // poll every 10 s
     refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     staleTime: 0,
   });
+  const attendance = allAttendance?.find((l: any) => isToday(new Date(l.clockInAt))) ?? null;
 
   const allJobs = quotes || [];
   const activeNow = allJobs.filter((q: any) => q.status === "in_progress");
@@ -212,6 +216,11 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
       );
     });
 
+  const refreshAttendance = () => {
+    qc.invalidateQueries({ queryKey: ["/api/staff/attendance"] });
+    qc.invalidateQueries({ queryKey: ["/api/attendance/today"] });
+  };
+
   const clockInMut = useMutation({
     mutationFn: async () => {
       setGpsState("loading");
@@ -222,10 +231,19 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
       return apiRequest("POST", "/api/attendance/clock-in", { lat: gps.lat, lng: gps.lng });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/attendance/today"] });
+      refreshAttendance();
       toast({ title: "Clocked in", description: `${format(new Date(), "HH:mm")} — location recorded` });
     },
-    onError: (e: any) => toast({ title: "Clock-in failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      // Always refresh so the UI reflects the real server state
+      refreshAttendance();
+      const msg = e.message || "";
+      if (msg.includes("409") || msg.toLowerCase().includes("already clocked in")) {
+        toast({ title: "Already clocked in", description: "Your clock-in was already recorded.", variant: "default" });
+      } else {
+        toast({ title: "Clock-in failed", description: msg, variant: "destructive" });
+      }
+    },
   });
 
   const clockOutMut = useMutation({
@@ -238,10 +256,13 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
       return apiRequest("POST", "/api/attendance/clock-out", { lat: gps.lat, lng: gps.lng });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/attendance/today"] });
+      refreshAttendance();
       toast({ title: "Clocked out", description: "See you next time!" });
     },
-    onError: (e: any) => toast({ title: "Clock-out failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      refreshAttendance();
+      toast({ title: "Clock-out failed", description: e.message, variant: "destructive" });
+    },
   });
 
   const isClockedIn = attendance && !attendance.clockOutAt;
