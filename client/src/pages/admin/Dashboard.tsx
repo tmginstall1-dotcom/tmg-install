@@ -143,7 +143,7 @@ function BookedQuoteRow({ quote }: { quote: any }) {
           ) : (
             <div className="flex items-center gap-2" onClick={e => e.preventDefault()}>
               <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}
-                className="flex-1 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                 data-testid={`select-quick-staff-${quote.id}`}>
                 <option value="">Select staff…</option>
                 {staffList?.map((s: any) => (
@@ -151,12 +151,12 @@ function BookedQuoteRow({ quote }: { quote: any }) {
                 ))}
               </select>
               <button onClick={handleAssign} disabled={!selectedStaff || updateStatus.isPending}
-                className="text-xs font-bold bg-violet-600 text-white px-3 py-1.5 rounded-lg disabled:opacity-50 hover:bg-violet-700 transition-colors"
+                className="text-sm font-bold bg-violet-600 text-white px-4 py-2.5 rounded-xl disabled:opacity-50 hover:bg-violet-700 transition-colors shrink-0"
                 data-testid={`button-confirm-assign-${quote.id}`}>
                 Assign
               </button>
               <button onClick={() => setExpanded(false)}
-                className="text-xs text-slate-400 hover:text-slate-600 transition-colors px-1">✕</button>
+                className="p-2.5 text-slate-400 hover:text-slate-600 transition-colors rounded-lg">✕</button>
             </div>
           )}
         </div>
@@ -314,43 +314,45 @@ export default function AdminDashboard() {
               <p className="text-slate-500 text-sm mt-0.5">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
             </div>
 
-            {/* Right: revenue + actions */}
-            <div className="flex items-center gap-3 flex-wrap">
+            {/* Right: revenue + actions — stacks cleanly on mobile */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               {/* Revenue spotlight */}
-              <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+              <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 sm:py-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
                   <TrendingUp className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-0.5">Revenue</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-0.5">Closed Revenue</p>
                   <p className="text-lg font-black text-white leading-none">{formatMoney(totalRevenue)}</p>
                 </div>
               </div>
 
-              <Link href="/admin/schedule" data-testid="link-schedule">
-                <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm transition-colors shadow-sm shadow-violet-900/30">
-                  <Calendar className="w-4 h-4" /> Schedule
-                </div>
-              </Link>
-
-              <button onClick={handleClearAll} disabled={clearAllMutation.isPending}
-                data-testid="button-clear-all-data"
-                className="inline-flex items-center gap-2 px-3 py-2.5 rounded-xl border border-red-900/60 bg-red-950/40 text-red-400 font-bold text-sm hover:bg-red-900/30 transition-colors disabled:opacity-50"
-                title="Clear all test data">
-                <Trash2 className="w-4 h-4" />
-                {clearAllMutation.isPending ? "Clearing…" : "Clear Data"}
-              </button>
+              {/* Action buttons — full-width on mobile, auto on sm+ */}
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+                <Link href="/admin/schedule" data-testid="link-schedule">
+                  <div className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm transition-colors shadow-sm shadow-violet-900/30 w-full">
+                    <Calendar className="w-4 h-4" /> Schedule
+                  </div>
+                </Link>
+                <button onClick={handleClearAll} disabled={clearAllMutation.isPending}
+                  data-testid="button-clear-all-data"
+                  className="flex items-center justify-center gap-2 px-3 py-3 sm:py-2.5 rounded-xl border border-red-900/60 bg-red-950/40 text-red-400 font-bold text-sm hover:bg-red-900/30 transition-colors disabled:opacity-50"
+                  title="Clear all test data">
+                  <Trash2 className="w-4 h-4" />
+                  {clearAllMutation.isPending ? "Clearing…" : "Clear Data"}
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Stat strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6">
+          {/* Stat strip — horizontal scroll on mobile, grid on larger screens */}
+          <div className="flex sm:grid sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible scrollbar-none">
             {statCards.map((card, i) => (
               <motion.div key={card.label}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className={`relative rounded-xl px-4 py-3.5 border transition-all ${
+                className={`relative rounded-xl px-4 py-3.5 border transition-all min-w-[150px] sm:min-w-0 shrink-0 sm:shrink ${
                   card.urgent && card.value > 0
                     ? "bg-orange-500/10 border-orange-500/20"
                     : "bg-white/5 border-white/8 hover:bg-white/8"

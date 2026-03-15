@@ -257,46 +257,48 @@ export default function AdminSchedule() {
                   data-testid={`pending-booking-${quote.id}`}>
                   <div className="h-1 bg-amber-400" />
                   <div className="p-5">
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-[11px] font-mono font-bold text-slate-400">{quote.referenceNo}</span>
-                          <StatusBadge status={quote.status} />
-                          {quote.rescheduledCount > 0 && (
-                            <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded-full">
-                              Reschedule #{quote.rescheduledCount}
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="font-bold text-lg text-slate-900 leading-tight">{quote.customer?.name}</h3>
-                        <div className="mt-2.5 space-y-1.5">
-                          <p className="text-sm flex items-center gap-2 text-slate-500">
-                            <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />{quote.serviceAddress}
-                          </p>
-                          <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
-                            <Clock className="w-3.5 h-3.5 shrink-0" />
-                            <span>Requested: <strong>{scheduledDate}</strong> · {quote.timeWindow}</span>
-                          </div>
+                    {/* Info row */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[11px] font-mono font-bold text-slate-400">{quote.referenceNo}</span>
+                        <StatusBadge status={quote.status} />
+                        {quote.rescheduledCount > 0 && (
+                          <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded-full">
+                            Reschedule #{quote.rescheduledCount}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-bold text-lg text-slate-900 leading-tight">{quote.customer?.name}</h3>
+                      <div className="mt-2.5 space-y-1.5">
+                        <p className="text-sm flex items-center gap-2 text-slate-500">
+                          <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />{quote.serviceAddress}
+                        </p>
+                        <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
+                          <span>Requested: <strong>{scheduledDate}</strong> · {quote.timeWindow}</span>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="flex sm:flex-col gap-2 shrink-0">
+                    {/* Action buttons — confirm prominent, contact secondary */}
+                    <div className="mt-4 grid gap-2">
+                      <button onClick={() => handleConfirm(quote.id)} disabled={confirmBooking.isPending}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition-colors disabled:opacity-50 shadow-sm shadow-emerald-900/20"
+                        data-testid={`confirm-booking-${quote.id}`}>
+                        <CheckCircle2 className="w-4 h-4" /> Confirm Booking
+                      </button>
+                      <div className="grid grid-cols-2 gap-2">
                         <a href={`tel:${quote.customer?.phone}`}
-                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold hover:bg-slate-200 transition-colors"
+                          className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold hover:bg-slate-200 transition-colors"
                           data-testid={`call-${quote.id}`}>
                           <Phone className="w-3.5 h-3.5" /> Call
                         </a>
                         <a href={`https://wa.me/${quote.customer?.phone?.replace(/\D/g, "")}`}
                           target="_blank" rel="noreferrer"
-                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition-colors border border-emerald-200"
+                          className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition-colors border border-emerald-200"
                           data-testid={`whatsapp-${quote.id}`}>
-                          <MessageCircle className="w-3.5 h-3.5" /> WA
+                          <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
                         </a>
-                        <button onClick={() => handleConfirm(quote.id)} disabled={confirmBooking.isPending}
-                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition-colors disabled:opacity-50 shadow-sm shadow-emerald-900/20"
-                          data-testid={`confirm-booking-${quote.id}`}>
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Confirm
-                        </button>
                       </div>
                     </div>
 

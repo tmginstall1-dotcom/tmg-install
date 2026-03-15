@@ -110,19 +110,20 @@ export default function StaffManagement() {
             </div>
           </div>
 
-          {/* Tab bar — inside dark header */}
-          <div className="flex gap-1 mt-6 overflow-x-auto pb-px">
+          {/* Tab bar — inside dark header, touch-friendly horizontal scroll */}
+          <div className="flex gap-1.5 mt-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
             {tabs.map(({ key, label, icon: Icon, badge }) => (
               <button key={key} onClick={() => switchTab(key)}
-                className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
+                className={`relative flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
                   tab === key
-                    ? "bg-white text-slate-900"
-                    : "text-slate-400 hover:text-white hover:bg-white/8"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-400 hover:text-white hover:bg-white/10"
                 }`}
                 data-testid={`tab-${key}`}>
-                <Icon className="w-3.5 h-3.5" /> {label}
+                <Icon className="w-4 h-4 shrink-0" />
+                <span>{label}</span>
                 {badge > 0 && (
-                  <span className="ml-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
+                  <span className="min-w-[20px] h-5 px-1 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
                     {badge}
                   </span>
                 )}

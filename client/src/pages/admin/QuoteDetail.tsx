@@ -218,8 +218,8 @@ export default function AdminQuoteDetail() {
 
       {/* ── CONTENT GRID ── */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6">
-        <div className="grid lg:grid-cols-[1fr_340px] gap-8">
-          <div className="space-y-6">
+        <div className="grid lg:grid-cols-[1fr_340px] gap-6 lg:gap-8">
+          <div className="space-y-6 order-2 lg:order-1">
 
             {/* ── Job Status Pipeline ── */}
             {(() => {
@@ -674,8 +674,8 @@ export default function AdminQuoteDetail() {
             </div>
           </div>
 
-          {/* Sidebar Actions */}
-          <div className="space-y-5">
+          {/* Sidebar Actions — appears first on mobile, second on desktop */}
+          <div className="space-y-5 order-1 lg:order-2">
             {/* ── Next Action Card ── */}
             <div className="bg-card rounded-3xl p-5 border shadow-sm space-y-4">
 

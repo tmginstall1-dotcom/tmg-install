@@ -225,7 +225,7 @@ export function Navbar() {
               {!isStaffArea && (
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
-                  className={`sm:hidden p-2 rounded-lg transition-colors ${
+                  className={`sm:hidden p-2.5 rounded-xl transition-colors ${
                     isAdminArea
                       ? "text-white/60 hover:text-white hover:bg-white/10"
                       : "text-muted-foreground hover:bg-gray-100"
@@ -282,7 +282,7 @@ export function Navbar() {
                   try { await logout(); } catch {}
                   window.location.replace(loginUrl);
                 }}
-                className="w-full flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-500/10 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-500/10 transition-colors"
                 data-testid="button-mobile-logout"
               >
                 <LogOut className="w-4 h-4" /> Sign Out
