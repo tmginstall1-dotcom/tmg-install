@@ -8,6 +8,7 @@ import NotFound from "@/pages/not-found";
 // Components
 import { Navbar } from "@/components/layout/Navbar";
 import { StaffBottomNav } from "@/components/layout/StaffBottomNav";
+import { AdminBottomNav } from "@/components/layout/AdminBottomNav";
 
 // Pages
 import Landing from "@/pages/customer/Landing";
@@ -53,6 +54,7 @@ function Router() {
     <>
       <Navbar />
       <StaffBottomNav />
+      <AdminBottomNav />
       <Switch>
         {/* Customer Routes */}
         <Route path="/" component={Landing} />

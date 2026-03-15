@@ -221,15 +221,11 @@ export function Navbar() {
                 )}
               </div>
 
-              {/* Mobile hamburger — admin only (staff has bottom nav) */}
-              {!isStaffArea && (
+              {/* Mobile hamburger — customer area only; admin uses bottom nav, staff uses bottom nav */}
+              {isCustomerArea && (
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
-                  className={`sm:hidden p-2.5 rounded-xl transition-colors ${
-                    isAdminArea
-                      ? "text-white/60 hover:text-white hover:bg-white/10"
-                      : "text-muted-foreground hover:bg-gray-100"
-                  }`}
+                  className="sm:hidden p-2.5 rounded-xl transition-colors text-muted-foreground hover:bg-gray-100"
                   aria-label={menuOpen ? "Close menu" : "Open menu"}
                   data-testid="button-mobile-menu"
                 >

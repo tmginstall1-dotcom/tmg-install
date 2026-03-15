@@ -213,19 +213,19 @@ function TeamsTab() {
           </div>
 
           {addingStaff && (
-            <div className="mb-3 p-3 bg-secondary/30 rounded-xl space-y-2">
+            <div className="mb-3 p-4 bg-secondary/30 border border-primary/20 rounded-2xl space-y-3">
               <input value={newStaff.name} onChange={e => setNewStaff(s => ({ ...s, name: e.target.value }))}
-                placeholder="Full name" className="w-full px-3 py-1.5 text-sm border rounded-lg bg-background" data-testid="input-staff-name" />
+                placeholder="Full name" className="w-full px-3 py-2.5 text-sm border rounded-xl bg-background" data-testid="input-staff-name" />
               <input value={newStaff.username} onChange={e => setNewStaff(s => ({ ...s, username: e.target.value }))}
-                placeholder="Username" className="w-full px-3 py-1.5 text-sm border rounded-lg bg-background" data-testid="input-staff-username" />
+                placeholder="Username" className="w-full px-3 py-2.5 text-sm border rounded-xl bg-background" data-testid="input-staff-username" />
               <input value={newStaff.password} onChange={e => setNewStaff(s => ({ ...s, password: e.target.value }))}
-                type="password" placeholder="Password (min 6)" className="w-full px-3 py-1.5 text-sm border rounded-lg bg-background" data-testid="input-staff-password" />
+                type="password" placeholder="Password (min 6)" className="w-full px-3 py-2.5 text-sm border rounded-xl bg-background" data-testid="input-staff-password" />
               <div className="flex gap-2">
                 <button onClick={() => createStaffMut.mutate()} disabled={createStaffMut.isPending}
-                  className="flex-1 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg" data-testid="button-create-staff">
-                  {createStaffMut.isPending ? "Creating..." : "Create"}
+                  className="flex-1 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-xl" data-testid="button-create-staff">
+                  {createStaffMut.isPending ? "Creating..." : "Create Account"}
                 </button>
-                <button onClick={() => setAddingStaff(false)} className="px-3 py-1.5 border text-xs rounded-lg">Cancel</button>
+                <button onClick={() => setAddingStaff(false)} className="px-4 py-2.5 border text-sm rounded-xl font-medium">Cancel</button>
               </div>
             </div>
           )}
@@ -334,7 +334,7 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">S$</span>
         <input type="number" step="0.01" min="0" value={form[key]}
           onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-          className="w-full pl-8 pr-3 py-1.5 text-sm border rounded-lg bg-background font-mono"
+          className="w-full pl-8 pr-3 py-2.5 text-sm border rounded-xl bg-background font-mono"
           data-testid={testId} />
       </div>
     </div>
@@ -367,7 +367,7 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
         </div>
         <input type="number" min="0" max="30" value={form.annualLeaveEntitlement}
           onChange={e => setForm(f => ({ ...f, annualLeaveEntitlement: parseInt(e.target.value) || 0 }))}
-          className="w-full px-3 py-1.5 text-sm border rounded-lg bg-background"
+          className="w-full px-3 py-2.5 text-sm border rounded-xl bg-background"
           data-testid="input-leave-entitlement" />
       </div>
 
@@ -390,47 +390,49 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings 
   const hasPayConfig = monthly > 0 || hourly > 0;
 
   return (
-    <div className="py-2 border-b last:border-0">
+    <div className="py-3 border-b last:border-0">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold truncate">{staff.name}</p>
-          <p className="text-xs text-muted-foreground">{staff.username}</p>
-          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          <p className="text-xs text-muted-foreground">@{staff.username}</p>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {team && (
-              <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full"
                 style={{ background: team.color + "22", color: team.color }}>
                 {team.name}
               </span>
             )}
+            {!team && (
+              <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                Unassigned
+              </span>
+            )}
             {hasPayConfig && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400">
                 <DollarSign className="w-2.5 h-2.5" />
                 {monthly > 0 ? `S$${monthly.toFixed(0)}/mo` : `S$${hourly.toFixed(2)}/hr`}
               </span>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button onClick={onPaySettings} title="Pay settings"
-            className="p-1 text-muted-foreground hover:text-primary transition-colors"
+            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
             data-testid={`button-pay-settings-${staff.id}`}>
-            <Settings2 className="w-3.5 h-3.5" />
+            <Settings2 className="w-4 h-4" />
           </button>
-          {staff.teamId && (
-            <button onClick={onUnassign} title="Remove from team"
-              className="p-1 text-muted-foreground hover:text-destructive transition-colors">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-          <select onChange={e => { if (e.target.value) onAssign(parseInt(e.target.value)); e.target.value = ""; }}
-            className="text-xs border rounded-lg px-1 py-1 bg-background max-w-[90px]"
-            defaultValue="">
+          <select onChange={e => { if (e.target.value === "__unassign__") onUnassign(); else if (e.target.value) onAssign(parseInt(e.target.value)); e.target.value = ""; }}
+            className="text-sm border rounded-lg px-2 py-2 bg-background max-w-[110px]"
+            defaultValue=""
+            data-testid={`select-assign-team-${staff.id}`}>
             <option value="" disabled>{staff.teamId ? "Move" : "Assign"}</option>
-            {teams.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            {staff.teamId && <option value="__unassign__">— Remove</option>}
+            {teams.filter((t: any) => t.id !== staff.teamId).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
           <button onClick={onDelete} title="Delete staff"
-            className="p-1 text-muted-foreground hover:text-destructive transition-colors">
-            <Trash2 className="w-3.5 h-3.5" />
+            className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+            data-testid={`button-delete-staff-${staff.id}`}>
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -480,16 +482,18 @@ function TeamCard({ team, allStaff, onDelete, onRemoveMember, onAddMember }: any
 
       <div className="p-4">
         {team.members?.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-2">No members — assign staff from the left panel</p>
+          <p className="text-sm text-muted-foreground text-center py-4">No members yet — assign staff from the panel on the left</p>
         ) : (
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap gap-2 mb-4">
             {team.members.map((m: any) => (
-              <div key={m.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-background text-sm font-semibold">
-                <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-black"
+              <div key={m.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-background text-sm font-semibold">
+                <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] font-black shrink-0"
                   style={{ background: team.color }}>{m.name.charAt(0)}</span>
                 {m.name}
-                <button onClick={() => onRemoveMember(m.id)} className="text-muted-foreground hover:text-destructive transition-colors ml-0.5">
-                  <X className="w-3 h-3" />
+                <button onClick={() => onRemoveMember(m.id)}
+                  className="text-muted-foreground hover:text-destructive transition-colors ml-0.5 p-0.5"
+                  data-testid={`button-remove-member-${m.id}`}>
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             ))}
@@ -497,14 +501,17 @@ function TeamCard({ team, allStaff, onDelete, onRemoveMember, onAddMember }: any
         )}
 
         {nonMembers.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground">Add:</span>
-            {nonMembers.map((s: any) => (
-              <button key={s.id} onClick={() => onAddMember(s.id)}
-                className="flex items-center gap-1 px-2 py-1 border rounded-lg text-xs font-semibold hover:bg-secondary transition-colors">
-                <Plus className="w-3 h-3" /> {s.name}
-              </button>
-            ))}
+          <div>
+            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide mb-2">Add member</p>
+            <div className="flex flex-wrap gap-2">
+              {nonMembers.map((s: any) => (
+                <button key={s.id} onClick={() => onAddMember(s.id)}
+                  className="flex items-center gap-1.5 px-3 py-2 border rounded-xl text-sm font-semibold hover:bg-secondary transition-colors"
+                  data-testid={`button-add-member-${s.id}`}>
+                  <Plus className="w-3.5 h-3.5" /> {s.name}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -876,7 +883,7 @@ function EditLogForm({ log, queryKeys, onClose }: { log: any; queryKeys: any[]; 
                 <LogIn className="w-3 h-3 text-emerald-500" /> Clock In
               </label>
               <input type="datetime-local" value={inVal} onChange={e => setInVal(e.target.value)}
-                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+                className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
                 data-testid={`input-edit-clockin-${log.id}`} />
             </div>
             <div>
@@ -885,14 +892,14 @@ function EditLogForm({ log, queryKeys, onClose }: { log: any; queryKeys: any[]; 
                 <span className="ml-1 text-[10px] text-muted-foreground font-normal">(leave blank = still in)</span>
               </label>
               <input type="datetime-local" value={outVal} onChange={e => setOutVal(e.target.value)}
-                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+                className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
                 data-testid={`input-edit-clockout-${log.id}`} />
             </div>
           </div>
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Admin Notes</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional note…"
-              className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+              className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
               data-testid={`input-edit-notes-${log.id}`} />
           </div>
           {previewMins !== null && previewMins >= 0 && (
@@ -988,7 +995,7 @@ function AddRecordForm({
             <LogIn className="w-3 h-3 text-emerald-500" /> Clock In
           </label>
           <input type="datetime-local" value={inVal} onChange={e => setInVal(e.target.value)}
-            className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+            className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
             data-testid="input-add-clockin" />
         </div>
 
@@ -999,7 +1006,7 @@ function AddRecordForm({
             <span className="text-[10px] text-muted-foreground font-normal ml-1">(optional)</span>
           </label>
           <input type="datetime-local" value={outVal} onChange={e => setOutVal(e.target.value)}
-            className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+            className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
             data-testid="input-add-clockout" />
         </div>
 
@@ -1008,7 +1015,7 @@ function AddRecordForm({
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Notes / Reason</label>
           <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="e.g. Staff forgot to clock in — manually added by admin"
-            className="w-full px-3 py-1.5 border rounded-lg text-sm bg-background"
+            className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background"
             data-testid="input-add-notes" />
         </div>
       </div>
@@ -1292,7 +1299,7 @@ function TimesheetsView() {
               <div>
                 <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Date</label>
                 <input type="date" value={dailyDate} onChange={e => setDailyDate(e.target.value)}
-                  className="px-3 py-1.5 border rounded-lg text-sm bg-background" data-testid="input-daily-date" />
+                  className="px-3 py-2.5 border rounded-xl text-sm bg-background" data-testid="input-daily-date" />
               </div>
               <button onClick={() => { const d = new Date(dailyDate); d.setDate(d.getDate()+1); setDailyDate(format(d,"yyyy-MM-dd")); }}
                 className="p-2 border rounded-lg hover:bg-secondary transition-colors mt-4" title="Next day">
@@ -1308,17 +1315,17 @@ function TimesheetsView() {
               <div>
                 <label className="text-[11px] font-bold text-muted-foreground mb-1 block">From</label>
                 <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-                  className="px-3 py-1.5 border rounded-lg text-sm bg-background" data-testid="input-from-date" />
+                  className="px-3 py-2.5 border rounded-xl text-sm bg-background" data-testid="input-from-date" />
               </div>
               <div>
                 <label className="text-[11px] font-bold text-muted-foreground mb-1 block">To</label>
                 <input type="date" value={to} onChange={e => setTo(e.target.value)}
-                  className="px-3 py-1.5 border rounded-lg text-sm bg-background" data-testid="input-to-date" />
+                  className="px-3 py-2.5 border rounded-xl text-sm bg-background" data-testid="input-to-date" />
               </div>
               <div>
                 <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Staff</label>
                 <select value={filterUid} onChange={e => setFilterUid(e.target.value)}
-                  className="px-3 py-1.5 border rounded-lg text-sm bg-background min-w-[130px]" data-testid="select-staff-filter">
+                  className="px-3 py-2.5 border rounded-xl text-sm bg-background min-w-[130px]" data-testid="select-staff-filter">
                   <option value="">All Staff</option>
                   {(staff as any[]).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>

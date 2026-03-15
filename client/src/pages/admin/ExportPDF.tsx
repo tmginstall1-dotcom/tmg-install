@@ -602,8 +602,8 @@ export default function ExportPDF() {
 
   return (
     <>
-      {/* ══ FULL-HEIGHT WRAPPER (below fixed navbar) ══ */}
-      <div className="screen-only fixed inset-0 top-14 flex flex-col bg-gray-50">
+      {/* ══ FULL-HEIGHT WRAPPER (below fixed navbar, above mobile bottom nav) ══ */}
+      <div className="screen-only fixed inset-x-0 top-14 bottom-16 sm:bottom-0 flex flex-col bg-gray-50">
 
         {/* ── Toolbar ── */}
         <div className="bg-white border-b px-5 py-2.5 shrink-0 z-20">

@@ -369,14 +369,19 @@ export default function AdminQuoteDetail() {
                     <p className="font-bold text-lg leading-tight">{quote.customer?.name}</p>
                     <p className="text-sm text-muted-foreground">{quote.customer?.email}</p>
                     <p className="text-sm text-muted-foreground">{quote.customer?.phone}</p>
-                    <div className="flex gap-2 mt-3">
+                    <div className="flex flex-wrap gap-2 mt-4">
                       <a href={`tel:${quote.customer?.phone}`} data-testid="button-call"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border text-xs font-bold hover:bg-border transition-colors">
-                        <Phone className="w-3.5 h-3.5" /> Call
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary border text-sm font-bold hover:bg-border transition-colors">
+                        <Phone className="w-4 h-4" /> Call
                       </a>
                       <a href={`https://wa.me/${quote.customer?.phone?.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" data-testid="button-whatsapp"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-colors">
-                        <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition-colors">
+                        <MessageCircle className="w-4 h-4" /> WhatsApp
+                      </a>
+                      <a href={`mailto:${quote.customer?.email}`} data-testid="button-email"
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm font-bold hover:bg-blue-100 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                        Email
                       </a>
                     </div>
                   </div>
