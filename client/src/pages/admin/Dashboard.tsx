@@ -413,13 +413,14 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        {/* Danger zone — tucked away */}
+        {/* Danger zone */}
         <div className="mt-6 mb-2">
           {!showClearConfirm ? (
             <button onClick={() => setShowClearConfirm(true)}
-              className="text-[11px] font-semibold text-slate-300 hover:text-red-400 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-500 hover:bg-red-50 transition-colors text-[11px] font-black uppercase tracking-[0.1em]"
               data-testid="button-clear-all-data">
-              Clear test data
+              <Trash2 className="w-3.5 h-3.5" />
+              Clear all job data
             </button>
           ) : (
             <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200">
