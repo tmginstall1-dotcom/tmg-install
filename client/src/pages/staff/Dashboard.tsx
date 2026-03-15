@@ -97,8 +97,12 @@ export default function StaffDashboard() {
               <Briefcase className="w-5 h-5 text-violet-600" />
             </div>
             <div className="min-w-0">
-              <p className="font-bold text-sm leading-tight">{allJobs.length} Jobs</p>
-              <p className="text-xs text-muted-foreground">{activeNow.length} active now</p>
+              <p className="font-bold text-sm leading-tight">
+                {totalVisible === 0 ? "No active jobs" : `${totalVisible} Job${totalVisible !== 1 ? "s" : ""}`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {activeNow.length > 0 ? `${activeNow.length} active now` : upcoming.length > 0 ? `${upcoming.length} upcoming` : "All done!"}
+              </p>
             </div>
           </div>
         </div>
@@ -144,8 +148,17 @@ export default function StaffDashboard() {
             {totalVisible === 0 && (
               <div className="text-center py-14 bg-secondary/30 rounded-3xl border-2 border-dashed">
                 <CalendarDays className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <p className="font-bold text-muted-foreground">No jobs assigned</p>
-                <p className="text-sm text-muted-foreground mt-1">Jobs will appear once booked and assigned to you.</p>
+                {allJobs.length > 0 ? (
+                  <>
+                    <p className="font-bold text-muted-foreground">All jobs completed</p>
+                    <p className="text-sm text-muted-foreground mt-1">Great work! No active or upcoming jobs right now.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-bold text-muted-foreground">No jobs assigned</p>
+                    <p className="text-sm text-muted-foreground mt-1">Jobs will appear once booked and assigned to you.</p>
+                  </>
+                )}
               </div>
             )}
           </>
