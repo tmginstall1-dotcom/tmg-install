@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, ClipboardList, LogOut, ChevronUp, Briefcase, Shield } from "lucide-react";
+import { LayoutDashboard, ClipboardList, LogOut, Briefcase, Shield, Download, Share } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import { format } from "date-fns";
 
 const AVATAR_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6","#06b6d4","#84cc16"];
@@ -11,6 +12,8 @@ export function StaffBottomNav() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [showIOSSteps, setShowIOSSteps] = useState(false);
+  const { install, showIOSGuide, canNativeInstall, installed } = useInstallPrompt();
 
   if (!location.startsWith("/staff") || location === "/staff/login") return null;
 
@@ -70,6 +73,52 @@ export function StaffBottomNav() {
                 <p className="text-xs font-black mt-0.5 capitalize">{user?.payType || "—"}</p>
               </div>
             </div>
+
+            {/* Install app button — shown when not yet installed */}
+            {!installed && (canNativeInstall || showIOSGuide) && (
+              <div className="px-6 pt-3 border-t space-y-2">
+                {canNativeInstall && (
+                  <button
+                    onClick={async () => { await install(); setProfileOpen(false); }}
+                    data-testid="button-install-app"
+                    className="w-full flex items-center justify-center gap-2.5 py-3 bg-black text-white font-bold rounded-2xl hover:bg-neutral-800 transition-colors text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Add to Home Screen
+                  </button>
+                )}
+                {showIOSGuide && (
+                  <div>
+                    <button
+                      onClick={() => setShowIOSSteps(v => !v)}
+                      data-testid="button-ios-install-guide"
+                      className="w-full flex items-center justify-center gap-2.5 py-3 bg-black text-white font-bold rounded-2xl hover:bg-neutral-800 transition-colors text-sm"
+                    >
+                      <Download className="w-4 h-4" />
+                      Add to Home Screen
+                    </button>
+                    {showIOSSteps && (
+                      <div className="mt-2 bg-slate-100 rounded-2xl p-4 space-y-2.5">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">3 steps to install</p>
+                        {[
+                          { icon: Share, step: "1", text: "Tap the Share icon at the bottom of Safari" },
+                          { icon: null,  step: "2", text: 'Scroll and tap "Add to Home Screen"' },
+                          { icon: null,  step: "3", text: 'Tap "Add" — done!' },
+                        ].map(({ icon: Icon, step, text }) => (
+                          <div key={step} className="flex items-start gap-2.5">
+                            <span className="w-5 h-5 rounded-full bg-slate-300 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 text-slate-700">{step}</span>
+                            <div className="flex items-start gap-1.5 flex-1">
+                              {Icon && <Icon className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />}
+                              <p className="text-xs text-slate-600 leading-relaxed">{text}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="px-6 py-3 border-t">
               <button

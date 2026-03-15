@@ -1,49 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { Eye, EyeOff, Loader2, Download, Smartphone, Share, X, ShieldCheck, ClipboardList, Users, Calendar, BarChart3, MapPin, Clock, Zap } from "lucide-react";
-
-function useInstallPrompt() {
-  const [prompt, setPrompt] = useState<any>(null);
-  const [installed, setInstalled] = useState(false);
-  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem("pwa-dismissed") === "1");
-
-  useEffect(() => {
-    if (window.matchMedia("(display-mode: standalone)").matches) {
-      setInstalled(true);
-      return;
-    }
-    const handler = (e: any) => { e.preventDefault(); setPrompt(e); };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  const install = async () => {
-    if (!prompt) return;
-    prompt.prompt();
-    const { outcome } = await prompt.userChoice;
-    if (outcome === "accepted") setInstalled(true);
-    setPrompt(null);
-  };
-
-  const dismiss = () => {
-    sessionStorage.setItem("pwa-dismissed", "1");
-    setDismissed(true);
-  };
-
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !(window as any).MSStream;
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-  const showIOSGuide = isIOS && isSafari && !installed;
-
-  return { prompt, installed, dismissed, install, dismiss, showIOSGuide };
-}
+import { Eye, EyeOff, Loader2, Download, Share, X, ShieldCheck, ClipboardList, Users, Calendar, BarChart3, MapPin, Clock, Zap } from "lucide-react";
+import { useInstallPrompt } from "@/hooks/use-install-prompt";
 
 function InstallBanner() {
-  const { prompt, installed, dismissed, install, dismiss, showIOSGuide } = useInstallPrompt();
-  const [showIOSSteps, setShowIOSSteps] = useState(false);
+  const { install, dismiss, showIOSGuide, canNativeInstall, showBanner } = useInstallPrompt();
 
-  if (installed || dismissed) return null;
-  if (!prompt && !showIOSGuide) return null;
+  if (!showBanner) return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-2">
@@ -63,7 +27,9 @@ function InstallBanner() {
         <p className="px-5 pb-4 text-xs text-white/60 leading-relaxed">
           Install the staff app for fast access to clock-in, jobs, and HR — works even offline.
         </p>
-        {prompt && (
+
+        {/* Android / Chrome — one tap install */}
+        {canNativeInstall && (
           <div className="px-5 pb-5">
             <button onClick={install} data-testid="button-install-pwa"
               className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold text-sm py-3 rounded-xl hover:bg-white/90 transition-colors">
@@ -72,32 +38,26 @@ function InstallBanner() {
             </button>
           </div>
         )}
+
+        {/* iOS Safari — show steps immediately, no extra tap needed */}
         {showIOSGuide && (
-          <div className="px-5 pb-5 space-y-3">
-            {!showIOSSteps ? (
-              <button onClick={() => setShowIOSSteps(true)} data-testid="button-show-ios-steps"
-                className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold text-sm py-3 rounded-xl hover:bg-white/90 transition-colors">
-                <Smartphone className="w-4 h-4" />
-                How to Install on iPhone
-              </button>
-            ) : (
-              <div className="bg-white/10 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-bold text-white/80 uppercase tracking-wider mb-2">3 steps to install</p>
-                {[
-                  { icon: Share, step: "1", text: 'Tap the Share button at the bottom of Safari' },
-                  { icon: null,  step: "2", text: 'Scroll down and tap "Add to Home Screen"' },
-                  { icon: null,  step: "3", text: 'Tap "Add" — done! Launch from your home screen' },
-                ].map(({ icon: Icon, step, text }) => (
-                  <div key={step} className="flex items-start gap-3">
-                    <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">{step}</span>
-                    <div className="flex items-start gap-1.5 flex-1">
-                      {Icon && <Icon className="w-3.5 h-3.5 text-white/60 mt-0.5 shrink-0" />}
-                      <p className="text-xs text-white/70 leading-relaxed">{text}</p>
-                    </div>
+          <div className="px-5 pb-5">
+            <div className="bg-white/10 rounded-xl p-4 space-y-3">
+              <p className="text-xs font-bold text-white/80 uppercase tracking-wider mb-2">3 steps to install on iPhone</p>
+              {[
+                { icon: Share, step: "1", text: "Tap the Share icon at the bottom of Safari" },
+                { icon: null,  step: "2", text: 'Scroll and tap "Add to Home Screen"' },
+                { icon: null,  step: "3", text: 'Tap "Add" — done! Open from your home screen' },
+              ].map(({ icon: Icon, step, text }) => (
+                <div key={step} className="flex items-start gap-3">
+                  <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">{step}</span>
+                  <div className="flex items-start gap-1.5 flex-1">
+                    {Icon && <Icon className="w-3.5 h-3.5 text-white/60 mt-0.5 shrink-0" />}
+                    <p className="text-xs text-white/70 leading-relaxed">{text}</p>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
