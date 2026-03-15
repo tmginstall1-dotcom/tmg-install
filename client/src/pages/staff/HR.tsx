@@ -142,7 +142,10 @@ function AttendanceTab() {
     if (!l.clockOutAt) return acc;
     return acc + differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
   }, 0);
-  const daysWorked = activeLogs.filter((l: any) => l.clockOutAt).length;
+  // Count unique calendar days (multiple sessions on same day = 1 day)
+  const daysWorked = new Set(
+    activeLogs.filter((l: any) => l.clockOutAt).map((l: any) => format(new Date(l.clockInAt), "yyyy-MM-dd"))
+  ).size;
   const monthLabel = format(new Date(activeKey + "-01"), "MMMM yyyy");
 
   return (

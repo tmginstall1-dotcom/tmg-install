@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   MapPin, CalendarDays, ChevronRight, Phone, MessageCircle,
   Clock, Timer, CheckCircle2, Wifi, WifiOff,
-  Package, TrendingUp, AlertTriangle
+  Package, TrendingUp, AlertTriangle, RefreshCw
 } from "lucide-react";
 import { format, isToday, differenceInMinutes, startOfWeek } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,7 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 
-function fmtHHMM(secs: number) {
+function fmtHHMMSS(secs: number) {
   if (secs < 0) secs = 0;
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
@@ -44,7 +44,17 @@ export default function StaffDashboard() {
     staleTime: 0,
   });
 
-  const attendance = allAttendance?.find((l: any) => isToday(new Date(l.clockInAt))) ?? null;
+  // All of today's records (server returns newest first)
+  const todayLogs: any[] = (allAttendance || []).filter((l: any) => isToday(new Date(l.clockInAt)));
+
+  // The currently open session (clocked in, not yet clocked out)
+  const activeSession = todayLogs.find((l: any) => !l.clockOutAt) ?? null;
+
+  // Sum of all fully-completed sessions today (minutes)
+  const todayCompletedMins = todayLogs.reduce((acc: number, l: any) => {
+    if (!l.clockOutAt) return acc;
+    return acc + differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
+  }, 0);
 
   const allJobs = quotes || [];
   const activeNow = allJobs.filter((q: any) => q.status === "in_progress");
@@ -57,7 +67,7 @@ export default function StaffDashboard() {
     });
   const totalVisible = activeNow.length + upcoming.length;
 
-  // Weekly hours
+  // Weekly hours (all completed sessions this week)
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const weekMins = (allAttendance || []).reduce((acc: number, l: any) => {
     if (!l.clockOutAt) return acc;
@@ -70,7 +80,13 @@ export default function StaffDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <ClockHero attendance={attendance} user={user} isLoading={attLoading} firstName={firstName} />
+      <ClockHero
+        todayLogs={todayLogs}
+        activeSession={activeSession}
+        todayCompletedMins={todayCompletedMins}
+        isLoading={attLoading}
+        firstName={firstName}
+      />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-5 pb-28 -mt-2 relative z-10">
 
@@ -82,12 +98,14 @@ export default function StaffDashboard() {
               iconColor: "text-emerald-600",
               bg: "bg-emerald-50 dark:bg-emerald-950/20",
               label: "Today",
-              value: attLoading ? "—" : attendance?.clockOutAt
-                ? fmtHM(differenceInMinutes(new Date(attendance.clockOutAt), new Date(attendance.clockInAt)))
-                : attendance
-                ? "Active"
-                : "—",
-              highlight: attendance && !attendance.clockOutAt,
+              value: attLoading
+                ? "—"
+                : todayLogs.length === 0
+                ? "—"
+                : fmtHM(todayCompletedMins + (activeSession
+                    ? differenceInMinutes(new Date(), new Date(activeSession.clockInAt))
+                    : 0)),
+              highlight: !!activeSession,
             },
             {
               icon: TrendingUp,
@@ -184,8 +202,18 @@ export default function StaffDashboard() {
 
 // ─── Clock Hero ──────────────────────────────────────────────────────────────
 
-function ClockHero({ attendance, user, isLoading, firstName }: {
-  attendance: any; user: any; isLoading: boolean; firstName: string;
+function ClockHero({
+  todayLogs,
+  activeSession,
+  todayCompletedMins,
+  isLoading,
+  firstName,
+}: {
+  todayLogs: any[];
+  activeSession: any | null;
+  todayCompletedMins: number;
+  isLoading: boolean;
+  firstName: string;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -244,13 +272,17 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
     },
     onSuccess: () => {
       refreshAttendance();
-      toast({ title: "Clocked in ✓", description: `${format(new Date(), "HH:mm")} — location recorded` });
+      const sessionNum = todayLogs.length + 1;
+      toast({
+        title: `Clocked In ✓`,
+        description: `Session ${sessionNum} started at ${format(new Date(), "HH:mm")}`,
+      });
     },
     onError: (e: any) => {
       refreshAttendance();
       const msg = e.message || "";
       if (msg.includes("409") || msg.toLowerCase().includes("already clocked in")) {
-        toast({ title: "Already clocked in", description: "Your clock-in was already recorded." });
+        toast({ title: "Already clocked in", description: "You have an active session." });
       } else {
         toast({ title: "Clock-in failed", description: msg, variant: "destructive" });
       }
@@ -268,7 +300,7 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
     },
     onSuccess: () => {
       refreshAttendance();
-      toast({ title: "Clocked out", description: "See you next time!" });
+      toast({ title: "Clocked Out ✓", description: "Session ended. Clock in again when ready." });
     },
     onError: (e: any) => {
       refreshAttendance();
@@ -276,19 +308,22 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
     },
   });
 
-  const isClockedIn = attendance && !attendance.clockOutAt;
-  const isClockedOut = attendance && attendance.clockOutAt;
+  const isClockedIn = !!activeSession;
   const isPending = clockInMut.isPending || clockOutMut.isPending || gpsState === "loading";
 
-  const workedSecs = isClockedOut
-    ? Math.floor((new Date(attendance.clockOutAt).getTime() - new Date(attendance.clockInAt).getTime()) / 1000)
-    : isClockedIn
-    ? Math.floor((now.getTime() - new Date(attendance.clockInAt).getTime()) / 1000)
+  // Live total seconds = completed sessions + current open session
+  const completedSecs = todayCompletedMins * 60;
+  const activeSecs = activeSession
+    ? Math.floor((now.getTime() - new Date(activeSession.clockInAt).getTime()) / 1000)
     : 0;
+  const workedSecs = completedSecs + activeSecs;
 
   const mapLat = coords?.lat ?? 1.3521;
   const mapLng = coords?.lng ?? 103.8198;
   const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${mapLng - 0.008},${mapLat - 0.008},${mapLng + 0.008},${mapLat + 0.008}&layer=mapnik&marker=${mapLat},${mapLng}`;
+
+  // Last completed session (for display)
+  const lastCompleted = todayLogs.find((l: any) => l.clockOutAt);
 
   return (
     <div className="relative w-full" style={{ minHeight: 340 }}>
@@ -301,7 +336,6 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
             <MapPin className="w-16 h-16 text-slate-600" />
           </div>
         )}
-        {/* Gradient overlays */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/80" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent" />
       </div>
@@ -313,7 +347,6 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
           <p className="text-white font-black text-2xl leading-tight mt-0.5">Hi, {firstName}</p>
         </div>
 
-        {/* GPS pill */}
         <button
           onClick={gpsState === "denied" ? requestLocation : undefined}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-sm border transition-all ${
@@ -336,6 +369,16 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
         </button>
       </div>
 
+      {/* Session count badge */}
+      {todayLogs.length > 0 && (
+        <div className="absolute top-16 left-5 mt-12">
+          <span className="flex items-center gap-1 bg-white/10 backdrop-blur-sm border border-white/20 text-white/70 text-[10px] font-bold px-2 py-1 rounded-full">
+            <RefreshCw className="w-2.5 h-2.5" />
+            {todayLogs.length} session{todayLogs.length !== 1 ? "s" : ""} today
+          </span>
+        </div>
+      )}
+
       {/* Bottom panel */}
       <div className="absolute bottom-0 left-0 right-0 px-5 pb-6">
         <div className="flex items-end justify-between gap-4">
@@ -343,76 +386,72 @@ function ClockHero({ attendance, user, isLoading, firstName }: {
           {/* Timer + status */}
           <div className="flex-1">
             {/* Status label */}
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               {isClockedIn && (
                 <span className="flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Clocked In · since {format(new Date(attendance.clockInAt), "HH:mm")}
+                  Session {todayLogs.length} · In since {format(new Date(activeSession.clockInAt), "HH:mm")}
                 </span>
               )}
-              {isClockedOut && (
-                <span className="flex items-center gap-1.5 bg-white/10 border border-white/20 text-white/70 text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
+
+              {/* Not clocked in but had sessions today — show last session info */}
+              {!isClockedIn && lastCompleted && (
+                <span className="flex items-center gap-1.5 bg-white/10 border border-white/20 text-white/60 text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
                   <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                  Done · {format(new Date(attendance.clockInAt), "HH:mm")}–{format(new Date(attendance.clockOutAt), "HH:mm")}
+                  Last out {format(new Date(lastCompleted.clockOutAt), "HH:mm")} · Tap to start new session
                 </span>
               )}
-              {!attendance && !isLoading && (
+
+              {!isClockedIn && todayLogs.length === 0 && !isLoading && (
                 <span className="text-white/50 text-xs font-semibold">Not clocked in today</span>
               )}
             </div>
 
-            {/* Big timer */}
+            {/* Big timer — shows accumulated total */}
             <div className="flex items-baseline gap-2">
               <Timer className="w-4 h-4 text-white/50 mb-1" />
               <span className="text-white font-mono font-black text-4xl tracking-tight leading-none">
-                {fmtHHMM(workedSecs).slice(0, 5)}
+                {fmtHHMMSS(workedSecs).slice(0, 5)}
               </span>
-              <span className="text-white/50 text-sm font-semibold">hrs today</span>
+              <span className="text-white/50 text-sm font-semibold">total today</span>
             </div>
           </div>
 
-          {/* Clock button */}
-          {isClockedOut ? (
-            <div className="w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex flex-col items-center justify-center gap-1 shrink-0">
-              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-              <span className="text-white text-xs font-bold">Signed Off</span>
-            </div>
-          ) : (
-            <div className="flex flex-col items-end gap-2 shrink-0">
-              {gpsState === "denied" && (
-                <div className="bg-red-500/90 backdrop-blur text-white text-[11px] font-bold px-3 py-2 rounded-xl max-w-[180px] text-right leading-tight">
-                  📍 Enable GPS<br />
-                  <span className="font-normal opacity-90 text-[10px]">Required for clock-in/out</span>
-                </div>
+          {/* Clock button — always available (no permanent locked state) */}
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            {gpsState === "denied" && (
+              <div className="bg-red-500/90 backdrop-blur text-white text-[11px] font-bold px-3 py-2 rounded-xl max-w-[180px] text-right leading-tight">
+                📍 Enable GPS<br />
+                <span className="font-normal opacity-90 text-[10px]">Required for clock-in/out</span>
+              </div>
+            )}
+            <button
+              onClick={() => isClockedIn ? clockOutMut.mutate() : clockInMut.mutate()}
+              disabled={isPending || gpsState === "denied"}
+              data-testid={isClockedIn ? "button-clock-out" : "button-clock-in"}
+              className={`w-20 h-20 rounded-2xl flex flex-col items-center justify-center gap-1.5 font-black shadow-2xl transition-all active:scale-95 disabled:opacity-50 ${
+                isClockedIn
+                  ? "bg-red-500 text-white shadow-red-500/40"
+                  : gpsState === "denied"
+                  ? "bg-white/20 text-white/50 cursor-not-allowed"
+                  : "bg-white text-black shadow-white/20"
+              }`}
+            >
+              {isPending ? (
+                <div className="w-6 h-6 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+              ) : gpsState === "denied" ? (
+                <>
+                  <WifiOff className="w-6 h-6" />
+                  <span className="text-[10px]">No GPS</span>
+                </>
+              ) : (
+                <>
+                  <Clock className="w-7 h-7" />
+                  <span className="text-[10px]">{isClockedIn ? "Clock Out" : "Clock In"}</span>
+                </>
               )}
-              <button
-                onClick={() => isClockedIn ? clockOutMut.mutate() : clockInMut.mutate()}
-                disabled={isPending || gpsState === "denied"}
-                data-testid={isClockedIn ? "button-clock-out" : "button-clock-in"}
-                className={`w-20 h-20 rounded-2xl flex flex-col items-center justify-center gap-1.5 font-black shadow-2xl transition-all active:scale-95 disabled:opacity-50 ${
-                  isClockedIn
-                    ? "bg-red-500 text-white shadow-red-500/40"
-                    : gpsState === "denied"
-                    ? "bg-white/20 text-white/50 cursor-not-allowed"
-                    : "bg-white text-black shadow-white/20"
-                }`}
-              >
-                {isPending ? (
-                  <div className="w-6 h-6 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-                ) : gpsState === "denied" ? (
-                  <>
-                    <WifiOff className="w-6 h-6" />
-                    <span className="text-[10px]">No GPS</span>
-                  </>
-                ) : (
-                  <>
-                    <Clock className="w-7 h-7" />
-                    <span className="text-[10px]">{isClockedIn ? "Clock Out" : "Clock In"}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -442,13 +481,11 @@ function JobCard({ job, variant, myUserId }: {
         }`}
         data-testid={`job-card-${job.id}`}
       >
-        {/* Top colored accent bar for active jobs */}
         {variant === "active" && (
           <div className="h-1 w-full bg-gradient-to-r from-orange-400 to-red-500" />
         )}
 
         <div className="p-4">
-          {/* Header row */}
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
@@ -464,7 +501,6 @@ function JobCard({ job, variant, myUserId }: {
             <StatusBadge status={job.status} className="scale-90 origin-top-right shrink-0" />
           </div>
 
-          {/* Details */}
           <div className="space-y-1.5 mb-3">
             <div className="flex items-start gap-2">
               <MapPin className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
@@ -483,7 +519,6 @@ function JobCard({ job, variant, myUserId }: {
             )}
           </div>
 
-          {/* Action row */}
           <div className="flex items-center gap-2 pt-3 border-t border-border/60">
             <a
               href={`tel:${job.customer?.phone}`}
