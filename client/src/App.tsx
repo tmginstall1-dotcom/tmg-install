@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 
 // Components
 import { Navbar } from "@/components/layout/Navbar";
+import { StaffBottomNav } from "@/components/layout/StaffBottomNav";
 
 // Pages
 import Landing from "@/pages/customer/Landing";
@@ -51,6 +52,7 @@ function Router() {
   return (
     <>
       <Navbar />
+      <StaffBottomNav />
       <Switch>
         {/* Customer Routes */}
         <Route path="/" component={Landing} />
@@ -58,11 +60,11 @@ function Router() {
         <Route path="/quotes/:id" component={QuoteStatus} />
         <Route path="/terms" component={Terms} />
         <Route path="/privacy" component={Privacy} />
-        
+
         {/* Auth Routes */}
         <Route path="/admin/login" component={Login} />
         <Route path="/staff/login" component={Login} />
-        
+
         {/* Admin Routes */}
         <Route path="/admin">
           {() => <AdminRoute component={AdminDashboard} />}

@@ -191,15 +191,17 @@ export function Navbar() {
 
               {/* Desktop logout (hidden — logout now in avatar dropdown) */}
 
-              {/* Mobile hamburger */}
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="sm:hidden p-2 rounded-lg text-muted-foreground hover:bg-gray-100 transition-colors"
-                aria-label={menuOpen ? "Close menu" : "Open menu"}
-                data-testid="button-mobile-menu"
-              >
-                {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
+              {/* Mobile hamburger — only for admin (staff uses bottom nav) */}
+              {!isStaffArea && (
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="sm:hidden p-2 rounded-lg text-muted-foreground hover:bg-gray-100 transition-colors"
+                  aria-label={menuOpen ? "Close menu" : "Open menu"}
+                  data-testid="button-mobile-menu"
+                >
+                  {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
+              )}
             </>
           )}
         </div>
