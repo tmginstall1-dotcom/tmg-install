@@ -283,20 +283,32 @@ function AmendmentForm({ log }: { log: any }) {
   const [clockOut, setClockOut] = useState(log.clockOutAt ? format(new Date(log.clockOutAt), "yyyy-MM-dd'T'HH:mm") : "");
   const [reason, setReason] = useState("");
 
+  const MIN_REASON = 5;
+  const reasonOk = reason.trim().length >= MIN_REASON;
+
   const mut = useMutation({
     mutationFn: () => apiRequest("POST", "/api/attendance/amendment", {
       attendanceLogId: log.id,
       requestedClockIn: clockIn ? new Date(clockIn).toISOString() : undefined,
       requestedClockOut: clockOut ? new Date(clockOut).toISOString() : undefined,
-      reason,
+      reason: reason.trim(),
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/attendance/amendments"] });
       setOpen(false);
       setReason("");
-      toast({ title: "Amendment submitted", description: "Admin will review your request." });
+      toast({ title: "Amendment submitted", description: "Your request has been sent to admin for review." });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      // Parse server error — extract just the message part from "400: {...}" format
+      let msg = e.message || "Something went wrong. Please try again.";
+      try {
+        const jsonPart = msg.includes(": ") ? msg.substring(msg.indexOf(": ") + 2) : msg;
+        const parsed = JSON.parse(jsonPart);
+        if (parsed.message) msg = parsed.message;
+      } catch {}
+      toast({ title: "Could not submit amendment", description: msg, variant: "destructive" });
+    },
   });
 
   if (!open) return (
@@ -309,7 +321,10 @@ function AmendmentForm({ log }: { log: any }) {
 
   return (
     <div className="bg-card border-2 border-dashed border-primary/30 rounded-xl p-3 space-y-2.5">
-      <p className="text-xs font-bold uppercase tracking-wide text-foreground">Request Amendment</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-wide text-foreground">Request Amendment</p>
+        <p className="text-[10px] text-muted-foreground">Correct the clock-in / clock-out times below</p>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Correct Clock In</label>
@@ -322,15 +337,40 @@ function AmendmentForm({ log }: { log: any }) {
             className="w-full px-2 py-1.5 text-xs border rounded-lg bg-background" />
         </div>
       </div>
-      <textarea value={reason} onChange={e => setReason(e.target.value)}
-        placeholder="Reason for amendment (min 5 chars)"
-        rows={2} className="w-full px-2 py-1.5 text-xs border rounded-lg bg-background resize-none" />
-      <div className="flex gap-2">
-        <button onClick={() => mut.mutate()} disabled={mut.isPending || reason.length < 5}
-          className="flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg disabled:opacity-50">
-          {mut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Submit
+      <div>
+        <textarea value={reason} onChange={e => setReason(e.target.value)}
+          placeholder="Enter reason for amendment (required, at least 5 characters)"
+          rows={3}
+          data-testid={`textarea-amend-reason-${log.id}`}
+          className={`w-full px-2 py-1.5 text-xs border rounded-lg bg-background resize-none transition-colors ${
+            reason.length > 0 && !reasonOk ? "border-destructive" : ""
+          }`} />
+        <div className="flex items-center justify-between mt-1">
+          {reason.length > 0 && !reasonOk ? (
+            <p className="text-[10px] text-destructive font-semibold">
+              Reason too short — {MIN_REASON - reason.trim().length} more character{MIN_REASON - reason.trim().length !== 1 ? "s" : ""} needed
+            </p>
+          ) : (
+            <p className="text-[10px] text-muted-foreground">
+              {reasonOk ? "✓ Reason looks good" : "A reason is required before submitting"}
+            </p>
+          )}
+          <p className={`text-[10px] tabular-nums ${reasonOk ? "text-muted-foreground" : "text-muted-foreground/60"}`}>
+            {reason.trim().length}/{MIN_REASON}+
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <button
+          onClick={() => mut.mutate()}
+          disabled={mut.isPending || !reasonOk}
+          data-testid={`btn-submit-amend-${log.id}`}
+          title={!reasonOk ? "Please enter a reason (at least 5 characters)" : "Submit amendment request"}
+          className="flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-opacity">
+          {mut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+          {mut.isPending ? "Submitting…" : "Submit Request"}
         </button>
-        <button onClick={() => setOpen(false)} className="px-3 py-1.5 border text-xs rounded-lg hover:bg-secondary transition-colors">
+        <button onClick={() => { setOpen(false); setReason(""); }} className="px-3 py-1.5 border text-xs rounded-lg hover:bg-secondary transition-colors">
           Cancel
         </button>
       </div>
