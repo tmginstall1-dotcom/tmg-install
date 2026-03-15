@@ -50,24 +50,24 @@ function QuoteRow({ quote, showDate = false }: { quote: any; showDate?: boolean 
     <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}
       className="block w-full">
       <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100 last:border-0">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${avatarBg(quote.id)}`}>
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${avatarBg(quote.id)}`}>
           {initials(quote.customer?.name)}
         </div>
         <div className="flex-1 min-w-0 overflow-hidden">
-          <p className="font-semibold text-sm text-slate-800 truncate leading-tight">
+          <p className="font-bold text-sm text-slate-800 truncate leading-tight">
             {quote.customer?.name || "Unknown"}
           </p>
           <p className="text-xs text-slate-400 truncate mt-0.5">
             {quote.serviceAddress || "No address"}
           </p>
         </div>
-        <div className="shrink-0 text-right ml-2">
-          <p className="text-sm font-bold text-slate-800 tabular-nums">{formatMoney(quote.total)}</p>
-          <p className="text-[11px] text-slate-400 tabular-nums">
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-black text-slate-900 tabular-nums">{formatMoney(quote.total)}</p>
+          <p className="text-[11px] text-slate-400 tabular-nums mt-0.5">
             {showDate && slotDate ? slotDate : format(new Date(quote.createdAt), "d MMM")}
           </p>
         </div>
-        <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 group-hover:text-violet-400 transition-colors" />
+        <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 group-hover:text-violet-500 transition-colors" />
       </div>
     </Link>
   );

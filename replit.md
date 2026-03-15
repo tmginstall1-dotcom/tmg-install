@@ -109,3 +109,25 @@ Also: `cancelled` (any time via admin)
 - Sales email: sales@tmginstall.com
 - WhatsApp: +65 8088 0757 (link: https://wa.me/6580880757)
 - Admin notifications to: sales@tmginstall.com
+
+---
+
+## Admin Design System (Mobile-First)
+
+All admin pages follow a consistent visual language:
+
+- **Page wrapper**: `bg-slate-50 overflow-x-hidden` with `pt-14 pb-32 lg:pb-20`
+- **Dark hero header**: `bg-slate-950 text-white` with `max-w-5xl mx-auto px-4 sm:px-6`
+- **Cards**: `bg-white rounded-2xl border border-slate-200 shadow-sm` (never `bg-card`)
+- **Grids**: Always use `grid-cols-1` prefix — e.g. `grid grid-cols-1 lg:grid-cols-2` (prevents mobile overflow)
+- **Typography**: Section labels `text-xs font-bold text-slate-400 uppercase tracking-widest`
+- **Violet accent**: `violet-600` for primary actions, `violet-500` for icons
+- **AdminBottomNav**: `fixed bottom-0 sm:hidden z-50 h-16` — all floating action bars must use `bottom-16 sm:bottom-0`
+- **Mobile action bars**: `fixed bottom-16 sm:bottom-0 inset-x-0 lg:hidden z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200`
+- **Overflow fix rule**: Never use responsive-only `grid X:grid-cols-N` — always add explicit `grid-cols-1`
+
+### QuoteDetail specifics
+- Hero: reference no + customer name (left), total amount (right) on dark bg
+- Pipeline card: no `overflow-hidden`, uses inner `overflow-x-auto -mx-4 px-4`
+- Contact buttons: `grid grid-cols-3 gap-2`, each `flex flex-col items-center`
+- Payment Status: "Total Contract Value" header + numbered deposit/balance rows with color states

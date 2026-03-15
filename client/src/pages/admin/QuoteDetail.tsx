@@ -182,33 +182,38 @@ export default function AdminQuoteDetail() {
 
       {/* Dark hero header */}
       <div className="bg-slate-950 text-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-          <Link href="/admin" className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors mb-4 uppercase tracking-wider">
-            <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
+          <Link href="/admin" className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-slate-300 transition-colors mb-4 uppercase tracking-widest">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
           </Link>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <span className="text-[11px] font-mono font-bold text-slate-500 bg-white/8 px-2 py-0.5 rounded-md">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span className="text-[10px] font-mono font-bold text-slate-500 bg-white/[0.07] border border-white/10 px-2 py-0.5 rounded-md tracking-widest">
                   {quote.referenceNo}
                 </span>
                 <StatusBadge status={quote.status} />
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">{quote.customer?.name}</h1>
-              <p className="text-slate-500 text-sm mt-0.5">
-                Created {format(new Date(quote.createdAt), "d MMM yyyy, HH:mm")}
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight truncate">{quote.customer?.name}</h1>
+              <p className="text-slate-500 text-xs mt-1">
+                Submitted {format(new Date(quote.createdAt), "d MMM yyyy, h:mm a")}
                 {quote.scheduledAt && (
                   <span className="ml-2 text-violet-400 font-semibold">
-                    · Job {format(new Date(quote.scheduledAt), "d MMM")}
+                    · Job {format(new Date(quote.scheduledAt), "d MMM, h:mm a")}
                   </span>
                 )}
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Total + edit button */}
+            <div className="shrink-0 flex flex-col items-end gap-2">
+              <div className="text-right">
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Total</p>
+                <p className="text-xl font-black text-white tabular-nums leading-none">{formatMoney(quote.total)}</p>
+              </div>
               {canEdit && !isEditing && (
                 <button onClick={handleStartEdit} data-testid="button-edit-quote"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/15 text-white text-sm font-bold transition-colors">
-                  <Edit2 className="w-4 h-4" /> Edit Quote
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/15 bg-white/[0.07] hover:bg-white/[0.13] text-white text-xs font-bold transition-colors">
+                  <Edit2 className="w-3.5 h-3.5" /> Edit
                 </button>
               )}
             </div>
@@ -218,7 +223,7 @@ export default function AdminQuoteDetail() {
 
       {/* ── CONTENT GRID ── */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6">
-        <div className="grid lg:grid-cols-[1fr_340px] gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5 lg:gap-8">
           <div className="space-y-6 order-2 lg:order-1">
 
             {/* ── Job Status Pipeline ── */}
@@ -251,11 +256,11 @@ export default function AdminQuoteDetail() {
               };
 
               return (
-                <div className="bg-card rounded-3xl border shadow-sm px-5 py-5 overflow-hidden" data-testid="status-pipeline">
-                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">Job Pipeline</p>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4" data-testid="status-pipeline">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4">Job Pipeline</p>
                   {/* Stepper — horizontal scroll on mobile */}
-                  <div className="overflow-x-auto -mx-5 px-5 pb-1">
-                  <div className="flex items-start min-w-[440px]">
+                  <div className="overflow-x-auto -mx-4 px-4 pb-2">
+                  <div className="flex items-start min-w-[380px]">
                     {PIPELINE.map((phase, i) => {
                       const isDone     = !isCancelled && activeIdx > i;
                       const isActive   = !isCancelled && activeIdx === i;
@@ -315,14 +320,14 @@ export default function AdminQuoteDetail() {
             })()}
 
             {/* Customer + Address */}
-            <div className="bg-card p-6 rounded-3xl border shadow-sm">
-              <h3 className="text-lg font-bold mb-5 flex items-center gap-2">
-                <MapPin className="text-primary w-5 h-5" /> Customer & Location
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <h3 className="text-[15px] font-bold mb-5 text-slate-900 flex items-center gap-2">
+                <MapPin className="text-violet-500 w-4 h-4" /> Customer & Location
               </h3>
               
               {isEditing ? (
                 <div className="space-y-4">
-                  <div className="grid sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { label: 'Name', key: 'name' },
                       { label: 'Email', key: 'email' },
@@ -342,7 +347,7 @@ export default function AdminQuoteDetail() {
                       className="w-full px-3 py-2 rounded-xl border bg-background text-sm outline-none focus:border-primary transition-colors"
                       data-testid="input-edit-address" />
                   </div>
-                  <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1 block">Pickup Address (relocation)</label>
                       <input value={editQuoteData.pickupAddress || ''} onChange={e => setEditQuoteData({ ...editQuoteData, pickupAddress: e.target.value })}
@@ -363,23 +368,23 @@ export default function AdminQuoteDetail() {
                   </div>
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground mb-2">Customer Info</p>
                     <p className="font-bold text-lg leading-tight">{quote.customer?.name}</p>
                     <p className="text-sm text-muted-foreground">{quote.customer?.email}</p>
                     <p className="text-sm text-muted-foreground">{quote.customer?.phone}</p>
-                    <div className="flex flex-wrap gap-2 mt-4">
+                    <div className="grid grid-cols-3 gap-2 mt-4">
                       <a href={`tel:${quote.customer?.phone}`} data-testid="button-call"
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary border text-sm font-bold hover:bg-border transition-colors">
+                        className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors">
                         <Phone className="w-4 h-4" /> Call
                       </a>
                       <a href={`https://wa.me/${quote.customer?.phone?.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" data-testid="button-whatsapp"
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition-colors">
+                        className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-colors">
                         <MessageCircle className="w-4 h-4" /> WhatsApp
                       </a>
                       <a href={`mailto:${quote.customer?.email}`} data-testid="button-email"
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm font-bold hover:bg-blue-100 transition-colors">
+                        className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
                         Email
                       </a>
@@ -429,10 +434,10 @@ export default function AdminQuoteDetail() {
             </div>
 
             {/* Items & Pricing */}
-            <div className="bg-card p-6 rounded-3xl border shadow-sm">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex justify-between items-center mb-5">
-                <h3 className="text-lg font-bold flex items-center gap-2">
-                  <Receipt className="text-accent w-5 h-5" /> Items & Pricing
+                <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
+                  <Receipt className="text-violet-500 w-4 h-4" /> Items & Pricing
                 </h3>
                 {isEditing && (
                   <button onClick={addEditItem} data-testid="button-add-item"
@@ -553,9 +558,9 @@ export default function AdminQuoteDetail() {
             </div>
 
             {/* Timeline */}
-            <div className="bg-card p-6 rounded-3xl border shadow-sm">
-              <h3 className="font-bold mb-5 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-muted-foreground" /> Job Timeline &amp; Field Proof
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <h3 className="text-[15px] font-bold mb-5 text-slate-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-slate-400" /> Job Timeline &amp; Field Proof
               </h3>
               <div className="space-y-4">
                 {quote.updates?.map((update: any) => {
@@ -682,7 +687,7 @@ export default function AdminQuoteDetail() {
           {/* Sidebar Actions — appears first on mobile, second on desktop */}
           <div className="space-y-5 order-1 lg:order-2">
             {/* ── Next Action Card ── */}
-            <div className="bg-card rounded-3xl p-5 border shadow-sm space-y-4">
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
 
               {/* Section heading */}
               <div className="flex items-center gap-2">
@@ -918,25 +923,48 @@ export default function AdminQuoteDetail() {
             </div>
 
             {/* Payment Summary */}
-            <div className="bg-card rounded-3xl p-5 border shadow-sm">
-              <h3 className="font-bold mb-4 flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-muted-foreground" /> Payment Status
-              </h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Grand Total</span>
-                  <span className="font-bold">{formatMoney(quote.total)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Deposit (50%)</span>
-                  <span className={`font-semibold ${quote.depositPaidAt ? 'text-emerald-600' : ''}`}>
-                    {quote.depositPaidAt ? '✓ ' : ''}{formatMoney(quote.depositAmount)}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              {/* Total header */}
+              <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Contract Value</p>
+                <p className="text-2xl font-black text-slate-900 tabular-nums">{formatMoney(quote.total)}</p>
+              </div>
+              {/* Payment rows */}
+              <div className="p-4 space-y-2">
+                {/* Deposit row */}
+                <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm ${
+                  quote.depositPaidAt
+                    ? 'bg-emerald-50 border border-emerald-200'
+                    : 'bg-slate-50 border border-slate-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                      quote.depositPaidAt ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-white'
+                    }`}>{quote.depositPaidAt ? '✓' : '1'}</div>
+                    <span className={`font-semibold text-xs ${quote.depositPaidAt ? 'text-emerald-700' : 'text-slate-500'}`}>
+                      Deposit (50%)
+                    </span>
+                  </div>
+                  <span className={`font-black tabular-nums text-sm ${quote.depositPaidAt ? 'text-emerald-700' : 'text-slate-700'}`}>
+                    {formatMoney(quote.depositAmount)}
                   </span>
                 </div>
-                <div className="flex justify-between pt-2 border-t">
-                  <span className="text-muted-foreground">Balance (50%)</span>
-                  <span className={`font-semibold ${quote.finalPaidAt ? 'text-emerald-600' : ''}`}>
-                    {quote.finalPaidAt ? '✓ ' : ''}{formatMoney(quote.finalAmount)}
+                {/* Balance row */}
+                <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm ${
+                  quote.finalPaidAt
+                    ? 'bg-emerald-50 border border-emerald-200'
+                    : 'bg-slate-50 border border-slate-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                      quote.finalPaidAt ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-white'
+                    }`}>{quote.finalPaidAt ? '✓' : '2'}</div>
+                    <span className={`font-semibold text-xs ${quote.finalPaidAt ? 'text-emerald-700' : 'text-slate-500'}`}>
+                      Balance (50%)
+                    </span>
+                  </div>
+                  <span className={`font-black tabular-nums text-sm ${quote.finalPaidAt ? 'text-emerald-700' : 'text-slate-700'}`}>
+                    {formatMoney(quote.finalAmount)}
                   </span>
                 </div>
               </div>
@@ -944,8 +972,8 @@ export default function AdminQuoteDetail() {
 
             {/* Staff / Team Assignment */}
             {((quote as any).assignedTeam || quote.assignedStaff) && (
-              <div className="bg-card rounded-3xl p-5 border shadow-sm">
-                <h3 className="font-bold mb-3 text-sm text-muted-foreground uppercase tracking-wide">
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <h3 className="font-bold mb-3 text-xs text-slate-400 uppercase tracking-widest">
                   {(quote as any).assignedTeam ? "Assigned Team" : "Assigned Staff"}
                 </h3>
                 {(quote as any).assignedTeam ? (
@@ -984,9 +1012,9 @@ export default function AdminQuoteDetail() {
 
             {/* Internal Notes */}
             {quote.notes && (
-              <div className="bg-amber-50 rounded-3xl p-5 border border-amber-200">
-                <h3 className="font-bold mb-2 text-sm text-amber-700">Internal Notes</h3>
-                <p className="text-sm text-amber-800">{quote.notes}</p>
+              <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200">
+                <h3 className="font-bold mb-2 text-xs text-amber-600 uppercase tracking-widest">Internal Notes</h3>
+                <p className="text-sm text-amber-800 leading-relaxed">{quote.notes}</p>
               </div>
             )}
           </div>
@@ -994,8 +1022,8 @@ export default function AdminQuoteDetail() {
         </div>
       </div>
 
-      {/* Mobile sticky bottom action bar */}
-      <div className="fixed bottom-0 inset-x-0 lg:hidden bg-background/95 backdrop-blur-xl border-t z-40 p-3">
+      {/* Mobile sticky bottom action bar — sits above AdminBottomNav (h-16) */}
+      <div className="fixed bottom-16 sm:bottom-0 inset-x-0 lg:hidden bg-white/95 backdrop-blur-xl border-t border-slate-200 z-40 p-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
         {['submitted', 'under_review'].includes(quote.status) && (
           <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending} data-testid="button-mobile-approve"
             className="w-full btn-primary-gradient py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 text-sm disabled:opacity-50">

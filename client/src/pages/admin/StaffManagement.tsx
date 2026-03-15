@@ -203,9 +203,9 @@ function TeamsTab() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left: Staff Pool */}
       <div className="lg:col-span-1 space-y-4">
-        <div className="bg-card border rounded-2xl p-4">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-sm uppercase tracking-wide text-muted-foreground">All Staff</h2>
+            <h2 className="font-bold text-xs uppercase tracking-widest text-slate-400">All Staff</h2>
             <button onClick={() => setAddingStaff(true)}
               className="flex items-center gap-1 text-xs font-bold text-primary hover:underline">
               <UserPlus className="w-3.5 h-3.5" /> Add
@@ -347,7 +347,7 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
       </p>
 
       {/* 3 pay components */}
-      <div className="bg-card rounded-xl border divide-y overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 divide-y overflow-hidden shadow-sm">
         <div className="px-3 py-2.5">
           {field("Monthly Salary", "SGD / month", "monthlyRate", "input-monthly-rate")}
         </div>
@@ -1252,7 +1252,7 @@ function TimesheetsView() {
   return (
     <div className="space-y-5">
       {/* ── Controls bar ─────────────────────────────────────────────── */}
-      <div className="bg-card border rounded-2xl p-4 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-4">
         {/* View toggle */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-xl border overflow-hidden">
@@ -1366,7 +1366,7 @@ function TimesheetsView() {
             { label: "Overtime", val: fmt(grandTotals.otMins), color: "text-amber-600" },
             { label: "Staff w/ Records", val: `${staffRows.filter((r:any)=>r.days>0).length} / ${staffRows.length}`, color: "" },
           ].map(c => (
-            <div key={c.label} className="bg-card border rounded-2xl p-4">
+            <div key={c.label} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
               <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide mb-1">{c.label}</p>
               <p className={`text-xl font-black ${c.color}`}>{c.val}</p>
             </div>
@@ -1525,7 +1525,7 @@ function AmendmentsTab() {
   return (
     <div className="space-y-3">
       {amendments.map((a: any) => (
-        <div key={a.id} className="bg-card border rounded-2xl overflow-hidden">
+        <div key={a.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
@@ -1682,7 +1682,7 @@ function LeaveTab() {
             const isAnnual = l.leaveType === "annual";
 
             return (
-              <div key={l.id} className="bg-card border rounded-2xl overflow-hidden">
+              <div key={l.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
                 {/* Card header */}
                 <div className="px-4 pt-3 pb-2">
                   <div className="flex items-start justify-between gap-3">

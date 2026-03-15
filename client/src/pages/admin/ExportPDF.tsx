@@ -664,22 +664,22 @@ export default function ExportPDF() {
                     className="px-2.5 py-1.5 text-xs font-semibold border border-white/20 rounded-lg hover:bg-white/10 text-white transition-colors">{l}</button>
                 ))}
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
                 <div>
                   <p className="text-[10px] text-slate-500 mb-1 font-bold uppercase tracking-wide">From</p>
                   <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                    className="px-3 py-2 border border-white/20 rounded-lg text-xs bg-white/10 text-white focus:outline-none focus:border-violet-400" data-testid="input-filter-from" />
+                    className="w-full px-3 py-2 border border-white/20 rounded-lg text-xs bg-white/10 text-white focus:outline-none focus:border-violet-400" data-testid="input-filter-from" />
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-500 mb-1 font-bold uppercase tracking-wide">To</p>
                   <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                    className="px-3 py-2 border border-white/20 rounded-lg text-xs bg-white/10 text-white focus:outline-none focus:border-violet-400" data-testid="input-filter-to" />
+                    className="w-full px-3 py-2 border border-white/20 rounded-lg text-xs bg-white/10 text-white focus:outline-none focus:border-violet-400" data-testid="input-filter-to" />
                 </div>
-                <div className="flex flex-col justify-end">
-                  <div className="flex gap-1.5">
+                <div className="col-span-2 sm:col-span-1 flex flex-col justify-end">
+                  <div className="flex gap-1.5 flex-wrap">
                     {([["all","All"],["final_paid","Paid"],["closed","Unpaid"]] as const).map(([v,l]) => (
                       <button key={v} onClick={() => setStatusFilter(v)}
-                        className={`px-3 py-2 text-xs font-bold rounded-lg transition-all ${statusFilter === v ? "bg-violet-600 text-white" : "border border-white/20 text-white hover:bg-white/10"}`}>{l}</button>
+                        className={`flex-1 sm:flex-none px-3 py-2 text-xs font-bold rounded-lg transition-all ${statusFilter === v ? "bg-violet-600 text-white" : "border border-white/20 text-white hover:bg-white/10"}`}>{l}</button>
                     ))}
                   </div>
                 </div>
