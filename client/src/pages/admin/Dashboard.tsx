@@ -345,17 +345,17 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Stat strip — horizontal scroll on mobile, grid on larger screens */}
-          <div className="flex sm:grid sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible scrollbar-none">
+          {/* Stat strip — 2-col grid on mobile, 3-col sm, 5-col lg */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6">
             {statCards.map((card, i) => (
               <motion.div key={card.label}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className={`relative rounded-xl px-4 py-3.5 border transition-all min-w-[150px] sm:min-w-0 shrink-0 sm:shrink ${
+                className={`relative rounded-xl px-4 py-3.5 border transition-all ${
                   card.urgent && card.value > 0
                     ? "bg-orange-500/10 border-orange-500/20"
-                    : "bg-white/5 border-white/8 hover:bg-white/8"
+                    : "bg-white/5 border-white/10 hover:bg-white/8"
                 }`}
               >
                 <div className="flex items-center justify-between mb-2.5">
@@ -368,7 +368,7 @@ export default function AdminDashboard() {
                   }`}>{card.value}</span>
                 </div>
                 <p className="text-xs font-semibold text-slate-400 leading-snug">{card.label}</p>
-                <div className={`mt-2 h-[2px] rounded-full ${card.value > 0 ? accentBar[card.accent] : "bg-white/8"}`} />
+                <div className={`mt-2 h-[2px] rounded-full ${card.value > 0 ? accentBar[card.accent] : "bg-white/10"}`} />
               </motion.div>
             ))}
           </div>
