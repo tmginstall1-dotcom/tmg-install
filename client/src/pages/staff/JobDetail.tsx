@@ -1,10 +1,9 @@
 import { useParams, Link } from "wouter";
 import { useQuote, useStaffArrived, useStaffCompleted } from "@/hooks/use-quotes";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
-  ArrowLeft, MapPin, Phone, CheckCircle2, Camera, Map, Navigation, MessageCircle,
-  Upload, X, Loader2, Clock, Package, User, CalendarDays, ChevronRight,
-  Navigation2, AlertTriangle, ZoomIn, ImagePlus
+  ArrowLeft, CheckCircle2, Camera, X, Loader2, Clock, Package, User, CalendarDays,
+  Upload, AlertTriangle, ZoomIn, ImagePlus, Navigation2, MapPin
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
@@ -15,8 +14,8 @@ async function captureGPS(): Promise<{ lat: number; lng: number }> {
     if (!navigator.geolocation) { reject(new Error("Geolocation not supported")); return; }
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => reject(new Error(`GPS error: ${err.message}`)),
-      { timeout: 15000, enableHighAccuracy: true }
+      (err) => reject(new Error(`Location unavailable: ${err.message}`)),
+      { timeout: 20000, enableHighAccuracy: true, maximumAge: 0 }
     );
   });
 }
@@ -61,12 +60,26 @@ export default function JobDetail() {
 
   const [photos, setPhotos] = useState<{ file: File; dataUrl: string }[]>([]);
   const [note, setNote] = useState("");
-  const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [gpsTimestamp, setGpsTimestamp] = useState<Date | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [actionType, setActionType] = useState<'arrived' | 'completed' | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-capture GPS silently as soon as modal opens
+  useEffect(() => {
+    if (!actionType) return;
+    setGpsStatus('loading');
+    setGpsCoords(null);
+    captureGPS()
+      .then(coords => {
+        setGpsCoords(coords);
+        setGpsStatus('ok');
+      })
+      .catch(() => {
+        setGpsStatus('error');
+      });
+  }, [actionType]);
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -86,19 +99,6 @@ export default function JobDetail() {
     </div>
   );
 
-  const handleGetGPS = async () => {
-    setGpsStatus('loading');
-    try {
-      const coords = await captureGPS();
-      setGpsCoords(coords);
-      setGpsTimestamp(new Date());
-      setGpsStatus('ok');
-    } catch (err: any) {
-      setGpsStatus('error');
-      toast({ title: "GPS Error", description: err.message, variant: "destructive" });
-    }
-  };
-
   const handleAddPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -114,25 +114,52 @@ export default function JobDetail() {
 
   const handleRemovePhoto = (i: number) => setPhotos(prev => prev.filter((_, idx) => idx !== i));
 
+  const closeModal = () => {
+    setActionType(null);
+    setPhotos([]);
+    setGpsCoords(null);
+    setGpsStatus('idle');
+    setNote("");
+  };
+
   const handleAction = async () => {
     if (!actionType) return;
-    if (!gpsCoords) {
-      toast({ title: "GPS Required", description: "Please capture your location first.", variant: "destructive" });
-      return;
-    }
+
     if (photos.length === 0) {
       toast({ title: "Photo Required", description: "Please take at least one photo.", variant: "destructive" });
       return;
     }
+
+    // If GPS still loading, wait briefly for it
+    if (gpsStatus === 'loading') {
+      toast({ title: "Getting Location…", description: "Please wait a moment." });
+      return;
+    }
+
+    // If GPS failed, retry once before blocking
+    let coords = gpsCoords;
+    if (!coords) {
+      try {
+        setGpsStatus('loading');
+        coords = await captureGPS();
+        setGpsCoords(coords);
+        setGpsStatus('ok');
+      } catch {
+        setGpsStatus('error');
+        toast({ title: "Location Required", description: "Please enable location services and try again.", variant: "destructive" });
+        return;
+      }
+    }
+
     try {
       if (actionType === 'arrived') {
-        await arrivedMutation.mutateAsync({ id: id!, gpsLat: gpsCoords.lat, gpsLng: gpsCoords.lng, photoUrls: photos.map(p => p.dataUrl), note: note || undefined });
-        toast({ title: "✓ Arrived — Checked In", description: "Location and photo recorded." });
+        await arrivedMutation.mutateAsync({ id: id!, gpsLat: coords.lat, gpsLng: coords.lng, photoUrls: photos.map(p => p.dataUrl), note: note || undefined });
+        toast({ title: "✓ Checked In", description: "Arrival recorded successfully." });
       } else {
-        await completedMutation.mutateAsync({ id: id!, gpsLat: gpsCoords.lat, gpsLng: gpsCoords.lng, photoUrls: photos.map(p => p.dataUrl), note: note || undefined });
-        toast({ title: "✓ Job Completed", description: "Completion recorded with proof." });
+        await completedMutation.mutateAsync({ id: id!, gpsLat: coords.lat, gpsLng: coords.lng, photoUrls: photos.map(p => p.dataUrl), note: note || undefined });
+        toast({ title: "✓ Job Completed", description: "Completion submitted successfully." });
       }
-      setActionType(null); setPhotos([]); setGpsCoords(null); setGpsTimestamp(null); setGpsStatus('idle'); setNote("");
+      closeModal();
     } catch (err: any) {
       toast({ title: "Failed", description: err.message, variant: "destructive" });
     }
@@ -198,86 +225,62 @@ export default function JobDetail() {
                         ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
                         : "bg-border text-muted-foreground"
                     }`}>
-                      {i < stepIdx ? (
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                      ) : (
-                        <span className="text-[10px] font-black">{i + 1}</span>
-                      )}
+                      {i < stepIdx ? <CheckCircle2 className="w-3.5 h-3.5" /> : <span className="text-[10px] font-black">{i + 1}</span>}
                     </div>
-                    <p className={`text-[9px] font-bold mt-1 whitespace-nowrap ${
-                      i <= stepIdx ? "text-foreground" : "text-muted-foreground"
-                    }`}>{step.label}</p>
+                    <span className={`text-[9px] font-bold mt-1 ${i === stepIdx ? "text-primary" : i < stepIdx ? "text-emerald-600" : "text-muted-foreground"}`}>
+                      {step.label}
+                    </span>
                   </div>
                   {i < STATUS_STEPS.length - 1 && (
-                    <div className={`flex-1 h-0.5 mx-1 mb-4 transition-all ${i < stepIdx ? "bg-emerald-500" : "bg-border"}`} />
+                    <div className={`flex-1 h-0.5 mx-1 transition-colors ${i < stepIdx ? "bg-emerald-400" : "bg-border"}`} />
                   )}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Contact row */}
-          <div className="px-5 py-3 border-b flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <User className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground font-medium">Customer</p>
-              <p className="font-bold text-sm truncate">{job.customer?.name}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <a
-                href={`tel:${job.customer?.phone}`}
-                data-testid="button-call"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary text-xs font-bold hover:bg-border transition-colors"
-              >
-                <Phone className="w-3.5 h-3.5" /> {job.customer?.phone}
-              </a>
-              <a
-                href={`https://wa.me/${job.customer?.phone?.replace(/\D/g, '')}`}
-                target="_blank" rel="noreferrer"
-                data-testid="button-whatsapp"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold hover:bg-emerald-200 transition-colors"
-              >
-                <MessageCircle className="w-3.5 h-3.5" /> WA
-              </a>
-            </div>
-          </div>
-
-          {/* Location */}
-          <div className="px-5 py-4 border-b">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                <MapPin className="w-5 h-5 text-primary" />
+          {/* Job details */}
+          <div className="px-5 py-4 space-y-3">
+            {job.serviceAddress && (
+              <div className="flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wide mb-0.5">Service Address</p>
+                  <p className="text-sm font-semibold">{job.serviceAddress}</p>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-xs text-muted-foreground font-medium mb-0.5">Service Location</p>
-                <p className="font-bold leading-snug">{job.serviceAddress}</p>
-                <a
-                  href={`https://maps.google.com/?q=${encodeURIComponent(job.serviceAddress)}`}
-                  target="_blank" rel="noreferrer"
-                  data-testid="button-maps"
-                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-xs font-bold hover:bg-border transition-colors"
-                >
-                  <Map className="w-3.5 h-3.5" /> Open in Google Maps
-                </a>
+            )}
+            {(job.pickupAddress || job.dropoffAddress) && (
+              <div className="flex items-start gap-2.5">
+                <Navigation2 className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="space-y-0.5">
+                  {job.pickupAddress && <p className="text-sm"><span className="font-bold text-muted-foreground text-xs">Pickup: </span>{job.pickupAddress}</p>}
+                  {job.dropoffAddress && <p className="text-sm"><span className="font-bold text-muted-foreground text-xs">Dropoff: </span>{job.dropoffAddress}</p>}
+                </div>
               </div>
-            </div>
+            )}
+            {job.customer?.phone && (
+              <div className="flex items-center gap-2.5">
+                <User className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wide mb-0.5">Customer</p>
+                  <p className="text-sm font-semibold">{job.customer.name} · {job.customer.phone}</p>
+                </div>
+              </div>
+            )}
           </div>
+        </div>
 
-          {/* Task list */}
-          <div className="px-5 py-4">
-            <div className="flex items-center gap-2 mb-3">
+        {/* Items */}
+        {job.items && job.items.length > 0 && (
+          <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-5 py-3 border-b bg-secondary/30 flex items-center gap-2">
               <Package className="w-4 h-4 text-muted-foreground" />
-              <p className="font-black text-sm">Tasks ({job.items?.length || 0})</p>
+              <p className="font-black text-sm">Items to Handle ({job.items.length})</p>
             </div>
-            <div className="space-y-2">
-              {job.items?.map((item: any, i: number) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-secondary/40 border border-transparent"
-                  data-testid={`task-${item.id}`}
-                >
+            <div className="divide-y">
+              {job.items.map((item: any, i: number) => (
+                <div key={item.id ?? i} className="px-5 py-3 flex items-center gap-3">
                   <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                     <span className="text-xs font-black text-primary">{i + 1}</span>
                   </div>
@@ -292,7 +295,7 @@ export default function JobDetail() {
               ))}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Check-in action panel */}
         {actionType && (
@@ -311,63 +314,39 @@ export default function JobDetail() {
                   {actionType === 'arrived' ? 'Confirm you have arrived at the location' : 'Submit proof of job completion'}
                 </p>
               </div>
-              <button
-                onClick={() => { setActionType(null); setPhotos([]); setGpsCoords(null); setGpsTimestamp(null); setGpsStatus('idle'); setNote(""); }}
-                className="w-8 h-8 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors"
-                data-testid="button-cancel-action"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Silent GPS status indicator — subtle, not labelled as "tracking" */}
+                <div className="flex items-center gap-1" title="Location">
+                  <div className={`w-1.5 h-1.5 rounded-full ${
+                    gpsStatus === 'ok' ? 'bg-green-300' :
+                    gpsStatus === 'loading' ? 'bg-yellow-300 animate-pulse' :
+                    gpsStatus === 'error' ? 'bg-red-400' : 'bg-white/20'
+                  }`} />
+                  <MapPin className={`w-3.5 h-3.5 ${gpsStatus === 'ok' ? 'text-green-300' : 'text-white/40'}`} />
+                </div>
+                <button
+                  onClick={closeModal}
+                  className="w-8 h-8 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors"
+                  data-testid="button-cancel-action"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <div className="px-5 py-4 space-y-5">
-              {/* Step 1: GPS */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                    gpsStatus === 'ok' ? "bg-emerald-500 text-white" : "bg-primary text-primary-foreground"
-                  }`}>
-                    {gpsStatus === 'ok' ? <CheckCircle2 className="w-3.5 h-3.5" /> : "1"}
-                  </div>
-                  <p className="font-bold text-sm">Capture GPS Location <span className="text-red-500">*</span></p>
-                </div>
 
-                <button
-                  onClick={handleGetGPS}
-                  disabled={gpsStatus === 'loading'}
-                  data-testid="button-get-gps"
-                  className={`w-full flex items-center justify-center gap-2.5 py-3 rounded-xl text-sm font-bold transition-all border-2 ${
-                    gpsStatus === 'ok'
-                      ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400"
-                      : gpsStatus === 'error'
-                      ? "bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700 text-red-600"
-                      : "bg-secondary border-border hover:border-primary/40 text-foreground"
-                  }`}
-                >
-                  {gpsStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
-                  {gpsStatus === 'idle' && 'Tap to Get My Location'}
-                  {gpsStatus === 'loading' && 'Getting Location…'}
-                  {gpsStatus === 'ok' && `✓ ${gpsCoords?.lat.toFixed(5)}, ${gpsCoords?.lng.toFixed(5)}`}
-                  {gpsStatus === 'error' && 'Retry GPS Location'}
-                </button>
-
-                {gpsStatus === 'ok' && gpsTimestamp && (
-                  <p className="mt-1.5 text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    Captured at {gpsTimestamp.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </p>
-                )}
-              </div>
-
-              {/* Step 2: Photos */}
+              {/* Step 1: Photos */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
                     photos.length > 0 ? "bg-emerald-500 text-white" : "bg-primary text-primary-foreground"
                   }`}>
-                    {photos.length > 0 ? <CheckCircle2 className="w-3.5 h-3.5" /> : "2"}
+                    {photos.length > 0 ? <CheckCircle2 className="w-3.5 h-3.5" /> : "1"}
                   </div>
-                  <p className="font-bold text-sm">Take Photo(s) <span className="text-red-500">*</span></p>
+                  <p className="font-bold text-sm">
+                    Take Photo(s) <span className="text-red-500">*</span>
+                  </p>
                   {photos.length > 0 && <span className="text-xs font-bold text-emerald-600 ml-1">{photos.length} added</span>}
                 </div>
 
@@ -412,10 +391,10 @@ export default function JobDetail() {
                 />
               </div>
 
-              {/* Step 3: Note */}
+              {/* Step 2: Note */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-6 h-6 rounded-full bg-secondary text-muted-foreground flex items-center justify-center text-xs font-black shrink-0">3</div>
+                  <div className="w-6 h-6 rounded-full bg-secondary text-muted-foreground flex items-center justify-center text-xs font-black shrink-0">2</div>
                   <p className="font-bold text-sm text-muted-foreground">Note <span className="font-normal">(optional)</span></p>
                 </div>
                 <textarea
@@ -428,19 +407,36 @@ export default function JobDetail() {
                 />
               </div>
 
+              {/* GPS error hint (non-alarming) */}
+              {gpsStatus === 'error' && (
+                <p className="text-xs text-amber-600 flex items-center gap-1.5 -mt-2">
+                  <MapPin className="w-3.5 h-3.5 shrink-0" />
+                  Location services unavailable — please enable GPS and try again.
+                </p>
+              )}
+
               {/* Submit */}
               <button
                 onClick={handleAction}
-                disabled={isPending}
+                disabled={isPending || gpsStatus === 'loading'}
                 data-testid="button-submit-checkin"
-                className={`w-full py-4 rounded-2xl font-black text-white flex items-center justify-center gap-2.5 disabled:opacity-60 transition-all shadow-lg active:scale-[0.98] ${
+                className={`w-full py-4 rounded-2xl font-black text-white flex items-center justify-center gap-2.5 transition-all shadow-lg active:scale-[0.98] ${
+                  isPending || gpsStatus === 'loading'
+                    ? "opacity-70 cursor-wait"
+                    : ""
+                } ${
                   actionType === 'arrived'
                     ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-blue-500/25"
                     : "bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-emerald-500/25"
                 }`}
               >
-                {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                {isPending ? "Uploading…" : actionType === 'arrived' ? "Confirm Arrived" : "Confirm Job Completed"}
+                {isPending ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" /> Uploading…</>
+                ) : gpsStatus === 'loading' ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" /> Getting location…</>
+                ) : (
+                  <><Upload className="w-5 h-5" /> {actionType === 'arrived' ? "Confirm Arrived" : "Confirm Job Completed"}</>
+                )}
               </button>
             </div>
           </div>
