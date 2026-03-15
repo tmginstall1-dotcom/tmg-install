@@ -47,9 +47,9 @@ export default function Landing() {
             {/* ── LEFT: Copy ── */}
             <motion.div {...fadeUp}>
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-black/15 bg-black/[0.03] mb-8">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-black/15 bg-black/[0.03] mb-8">
                 <Zap className="w-3.5 h-3.5 text-black" />
-                <span className="text-xs font-semibold tracking-wide text-black uppercase" style={{ letterSpacing: "0.08em" }}>
+                <span className="text-[10px] font-black tracking-[0.18em] text-black uppercase">
                   Singapore's Furniture Installation Specialists
                 </span>
               </div>
@@ -71,8 +71,7 @@ export default function Landing() {
                 <Link
                   href="/estimate"
                   data-testid="hero-cta-guided"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-semibold text-sm tracking-wide hover:bg-black/85 transition-colors"
-                  style={{ letterSpacing: "0.04em" }}
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
                 >
                   GET ESTIMATE <ArrowRight className="w-4 h-4" />
                 </Link>
@@ -81,8 +80,7 @@ export default function Landing() {
                   target="_blank"
                   rel="noopener noreferrer"
                   data-testid="hero-cta-whatsapp"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-semibold text-sm tracking-wide hover:border-black/50 hover:bg-gray-50 transition-all"
-                  style={{ letterSpacing: "0.04em" }}
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/50 hover:bg-gray-50 transition-all"
                 >
                   <MessageCircle className="w-4 h-4" /> WHATSAPP US
                 </a>
@@ -96,9 +94,7 @@ export default function Landing() {
                   { icon: Clock, label: "Flexible Same-Week Scheduling" },
                 ].map(({ icon: Icon, label }) => (
                   <div key={label} className="flex items-center gap-2 text-sm text-gray-500">
-                    <div className="w-4 h-4 rounded-full border border-black/20 flex items-center justify-center flex-shrink-0">
-                      <div className="w-1.5 h-1.5 rounded-full bg-black" />
-                    </div>
+                    <div className="w-1.5 h-1.5 bg-black/40 flex-shrink-0" />
                     <span>{label}</span>
                   </div>
                 ))}
@@ -396,8 +392,7 @@ export default function Landing() {
               <Link
                 href="/estimate"
                 data-testid="bottom-cta-estimate"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-semibold text-sm hover:bg-black/85 transition-colors"
-                style={{ letterSpacing: "0.04em" }}
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
               >
                 GET ESTIMATE <ArrowRight className="w-4 h-4" />
               </Link>
@@ -406,8 +401,7 @@ export default function Landing() {
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="bottom-cta-whatsapp"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-semibold text-sm hover:border-black/50 hover:bg-gray-50 transition-all"
-                style={{ letterSpacing: "0.04em" }}
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/50 hover:bg-gray-50 transition-all"
               >
                 <MessageCircle className="w-4 h-4" /> WHATSAPP US
               </a>

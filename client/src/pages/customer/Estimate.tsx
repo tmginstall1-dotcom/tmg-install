@@ -89,9 +89,9 @@ function AddressInput({ value, onSelect, placeholder, label, required }: {
   }, []);
   return (
     <div ref={ref} className="relative">
-      <label className="text-sm font-semibold text-foreground block mb-2">{label}{required && <span className="text-destructive ml-1">*</span>}</label>
+      <label className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 block mb-2">{label}{required && <span className="text-black ml-1">*</span>}</label>
       <div className="relative">
-        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30" />
         <input
           required={required}
           value={value}
@@ -99,15 +99,15 @@ function AddressInput({ value, onSelect, placeholder, label, required }: {
           onFocus={() => setShow(true)}
           placeholder={placeholder || "Start typing an address…"}
           data-testid={`input-address-${label.toLowerCase().replace(/\s+/g, "-")}`}
-          className="w-full pl-9 pr-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none"
+          className="w-full pl-9 pr-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm"
         />
-        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
+        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-black/30" />}
       </div>
       {show && suggestions.length > 0 && (
-        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-card border rounded-xl shadow-xl overflow-hidden">
+        <div className="absolute z-50 top-full mt-0.5 left-0 right-0 bg-white border border-black/10 overflow-hidden">
           {suggestions.map((s, i) => (
             <button key={i} type="button" onMouseDown={() => { onSelect(s.address, s.lat, s.lng); setShow(false); }}
-              className="w-full text-left px-4 py-3 hover:bg-secondary text-sm border-b last:border-0 transition-colors"
+              className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm border-b border-black/6 last:border-0 transition-colors"
             >{s.address}</button>
           ))}
         </div>
@@ -133,8 +133,8 @@ function groupCatalog(items: CatalogItem[]): CatalogGroup[] {
 }
 
 function serviceBadge(s: ServiceType) {
-  const map = { install: "bg-emerald-100 text-emerald-700", dismantle: "bg-amber-100 text-amber-700", relocate: "bg-blue-100 text-blue-700" };
-  return <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${map[s]}`}>{s}</span>;
+  const map = { install: "border-black/20 text-black/60", dismantle: "border-black/20 text-black/60", relocate: "border-black/20 text-black/60" };
+  return <span className={`text-[10px] font-black uppercase tracking-[0.08em] px-2 py-0.5 border ${map[s]}`}>{s}</span>;
 }
 
 // ── Main Wizard ─────────────────────────────────────────────────────────────
@@ -536,22 +536,22 @@ export default function EstimateWizard() {
 
   return (
     <>
-    <div className="min-h-screen pt-16 pb-20 bg-secondary/30">
+    <div className="min-h-screen pt-16 pb-20 bg-white">
       {/* Step indicator */}
-      <div className="sticky top-16 z-40 bg-background/90 backdrop-blur-md border-b">
+      <div className="sticky top-16 z-40 bg-white border-b border-black/10">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-2">
             {STEPS.map((s, i) => (
               <div key={s.num} className="flex items-center gap-2 flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 transition-all ${
-                  step > s.num ? "bg-primary text-primary-foreground" :
-                  step === s.num ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-110" :
-                  "bg-secondary text-muted-foreground"
+                <div className={`w-7 h-7 flex items-center justify-center text-xs font-black shrink-0 transition-all ${
+                  step > s.num ? "bg-black text-white" :
+                  step === s.num ? "bg-black text-white" :
+                  "bg-black/[0.05] text-black/25"
                 }`}>
-                  {step > s.num ? <Check className="w-4 h-4" /> : s.num}
+                  {step > s.num ? <Check className="w-3.5 h-3.5" /> : s.num}
                 </div>
-                <span className={`text-sm font-medium hidden sm:block transition-colors ${step === s.num ? "text-foreground" : "text-muted-foreground"}`}>{s.label}</span>
-                {i < STEPS.length - 1 && <div className={`flex-1 h-0.5 rounded-full transition-colors ${step > s.num ? "bg-primary" : "bg-border"}`} />}
+                <span className={`text-[10px] font-black uppercase tracking-[0.12em] hidden sm:block transition-colors ${step === s.num ? "text-black" : "text-black/30"}`}>{s.label}</span>
+                {i < STEPS.length - 1 && <div className={`flex-1 h-px transition-colors ${step > s.num ? "bg-black/30" : "bg-black/[0.08]"}`} />}
               </div>
             ))}
           </div>
@@ -566,66 +566,55 @@ export default function EstimateWizard() {
             {step === 1 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-3xl font-display font-bold mb-1">What do you need?</h2>
-                  <p className="text-muted-foreground">Select one or more services — you can mix and match.</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-3">Step 1 of 5</p>
+                  <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">What do you need?</h2>
+                  <p className="text-sm text-black/45">Select one or more services — you can mix and match.</p>
                 </div>
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 gap-3">
                   {([
                     {
                       type: "install" as ServiceType,
-                      icon: <Wrench className="w-7 h-7" />,
+                      icon: <Wrench className="w-6 h-6" />,
                       label: "Installation",
                       desc: "Assemble and install furniture at your location",
-                      cardActive: "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 shadow-lg",
-                      iconActive: "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600",
-                      iconInactive: "bg-secondary text-emerald-600",
-                      dotActive: "border-emerald-500 bg-emerald-500",
                     },
                     {
                       type: "dismantle" as ServiceType,
-                      icon: <Scissors className="w-7 h-7" />,
+                      icon: <Scissors className="w-6 h-6" />,
                       label: "Dismantling",
                       desc: "Carefully take apart and pack existing furniture",
-                      cardActive: "border-amber-400 bg-amber-50 dark:bg-amber-950/30 shadow-lg",
-                      iconActive: "bg-amber-100 dark:bg-amber-900/50 text-amber-600",
-                      iconInactive: "bg-secondary text-amber-600",
-                      dotActive: "border-amber-500 bg-amber-500",
                     },
                     {
                       type: "relocate" as ServiceType,
-                      icon: <Truck className="w-7 h-7" />,
+                      icon: <Truck className="w-6 h-6" />,
                       label: "Relocation / Move",
                       desc: "Move furniture between locations — pickup & delivery",
-                      cardActive: "border-blue-400 bg-blue-50 dark:bg-blue-950/30 shadow-lg",
-                      iconActive: "bg-blue-100 dark:bg-blue-900/50 text-blue-600",
-                      iconInactive: "bg-secondary text-blue-600",
-                      dotActive: "border-blue-500 bg-blue-500",
                     },
-                  ]).map(({ type, icon, label, desc, cardActive, iconActive, iconInactive, dotActive }) => {
+                  ]).map(({ type, icon, label, desc }) => {
                     const active = services.includes(type);
                     return (
                       <button
                         key={type}
                         data-testid={`service-${type}`}
                         onClick={() => setServices(prev => active ? prev.filter(s => s !== type) : [...prev, type])}
-                        className={`group relative rounded-2xl border-2 p-5 text-left transition-all duration-200 ${
-                          active ? cardActive : "border-border bg-card hover:border-border/80 hover:shadow-md"
+                        className={`group relative border p-5 text-left transition-all duration-150 ${
+                          active ? "border-black bg-black/[0.025]" : "border-black/10 bg-white hover:border-black/30 hover:bg-slate-50"
                         }`}
                       >
                         <div className="flex items-start gap-4">
-                          <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${
-                            active ? iconActive : iconInactive
+                          <div className={`w-12 h-12 flex items-center justify-center flex-shrink-0 transition-colors ${
+                            active ? "bg-black text-white" : "bg-black/[0.05] text-black/50"
                           }`}>
                             {icon}
                           </div>
                           <div className="flex-1">
-                            <p className="font-bold text-lg">{label}</p>
-                            <p className="text-sm text-muted-foreground mt-0.5">{desc}</p>
+                            <p className="font-black text-base uppercase tracking-[0.04em]">{label}</p>
+                            <p className="text-sm text-black/45 mt-0.5">{desc}</p>
                           </div>
-                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-1 transition-all ${
-                            active ? dotActive : "border-border"
+                          <div className={`w-5 h-5 border flex items-center justify-center shrink-0 mt-1 transition-all ${
+                            active ? "bg-black border-black" : "border-black/20"
                           }`}>
-                            {active && <Check className="w-3.5 h-3.5 text-white" />}
+                            {active && <Check className="w-3 h-3 text-white" />}
                           </div>
                         </div>
                       </button>
@@ -635,8 +624,8 @@ export default function EstimateWizard() {
                 {services.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2">
                     {services.map(s => (
-                      <span key={s} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium capitalize">
-                        <Check className="w-3.5 h-3.5" /> {s}
+                      <span key={s} className="inline-flex items-center gap-1.5 px-3 py-1 border border-black/15 text-black bg-black/[0.03] text-xs font-black uppercase tracking-[0.08em]">
+                        <Check className="w-3 h-3" /> {s}
                       </span>
                     ))}
                   </div>
@@ -648,14 +637,15 @@ export default function EstimateWizard() {
             {step === 2 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-3xl font-display font-bold mb-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-3">Step 2 of 5</p>
+                  <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">
                     {isRelocation ? "Pickup & Dropoff" : "Service Location"}
                   </h2>
-                  <p className="text-muted-foreground">
+                  <p className="text-sm text-black/45">
                     {isRelocation ? "Where should we pick up and deliver?" : "Where will the work take place?"}
                   </p>
                 </div>
-                <div className="bg-card rounded-2xl border p-6 space-y-5">
+                <div className="bg-white border border-black/10 p-6 space-y-5">
                   {isRelocation ? (
                     <>
                       <AddressInput required label="Pickup Address" value={pickupAddress}
@@ -675,10 +665,10 @@ export default function EstimateWizard() {
 
                       {/* Route distance badge */}
                       {pickupAddress && dropoffAddress && (
-                        <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium ${
-                          distanceLoading ? "bg-secondary text-muted-foreground" :
-                          distanceKm > 0 ? "bg-blue-50 text-blue-700 border border-blue-200" :
-                          distanceError ? "bg-red-50 text-red-700 border border-red-200" : "bg-secondary text-muted-foreground"
+                        <div className={`flex items-center gap-2 px-4 py-2.5 text-sm border ${
+                          distanceLoading ? "border-black/10 bg-black/[0.025] text-black/40" :
+                          distanceKm > 0 ? "border-black/15 bg-black/[0.025] text-black/70" :
+                          distanceError ? "border-black/15 bg-black/[0.025] text-black/60" : "border-black/10 bg-black/[0.025] text-black/40"
                         }`}>
                           {distanceLoading
                             ? <><Loader2 className="w-4 h-4 animate-spin" /> Calculating route distance…</>
@@ -691,46 +681,46 @@ export default function EstimateWizard() {
                         </div>
                       )}
                       <div>
-                        <p className="text-sm font-semibold mb-3">Floor details <span className="text-muted-foreground font-normal">(affects pricing)</span></p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-3">Floor details <span className="text-black/25 font-normal normal-case tracking-normal">(affects pricing)</span></p>
                         {floors.map((floor, i) => (
                           <div key={i} className="flex items-center gap-3 mb-3">
                             <div className="flex items-center gap-2 flex-1">
-                              <span className="text-sm text-muted-foreground w-12 shrink-0">Floor {i + 1}</span>
+                              <span className="text-xs text-black/40 w-12 shrink-0 font-black uppercase">Floor {i + 1}</span>
                               <input
                                 type="number" min="1" max="50"
                                 value={floor.level}
                                 onChange={e => setFloors(prev => prev.map((f, fi) => fi === i ? { ...f, level: e.target.value } : f))}
-                                className="w-20 px-3 py-2 rounded-lg bg-background border text-center outline-none focus:border-primary"
+                                className="w-20 px-3 py-2 bg-white border border-black/10 text-center outline-none focus:border-black text-sm"
                                 data-testid={`input-floor-level-${i}`}
                               />
                             </div>
-                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                            <label className="flex items-center gap-2 text-sm cursor-pointer text-black/60">
                               <input type="checkbox" checked={floor.hasLift}
                                 onChange={e => setFloors(prev => prev.map((f, fi) => fi === i ? { ...f, hasLift: e.target.checked } : f))}
-                                className="w-4 h-4 accent-primary"
+                                className="w-4 h-4 accent-black"
                               />
                               Has lift
                             </label>
                             {floors.length > 1 && (
-                              <button onClick={() => setFloors(prev => prev.filter((_, fi) => fi !== i))} className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition-colors">
+                              <button onClick={() => setFloors(prev => prev.filter((_, fi) => fi !== i))} className="text-black/30 hover:text-black hover:bg-slate-100 p-1.5 transition-colors">
                                 <X className="w-4 h-4" />
                               </button>
                             )}
                           </div>
                         ))}
                         <button onClick={() => setFloors(prev => [...prev, { level: "1", hasLift: true }])}
-                          className="text-sm text-primary font-medium hover:underline flex items-center gap-1">
-                          <Plus className="w-4 h-4" /> Add floor
+                          className="text-[10px] font-black uppercase tracking-[0.1em] text-black/40 hover:text-black flex items-center gap-1 transition-colors">
+                          <Plus className="w-3.5 h-3.5" /> Add floor
                         </button>
                       </div>
                       <div>
-                        <p className="text-sm font-semibold mb-3">Access difficulty</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-3">Access difficulty</p>
                         <div className="flex gap-2">
                           {(["easy", "medium", "hard"] as const).map(d => (
                             <button key={d} data-testid={`difficulty-${d}`}
                               onClick={() => setAccessDifficulty(d)}
-                              className={`flex-1 py-2.5 rounded-xl text-sm font-medium capitalize transition-all border-2 ${
-                                accessDifficulty === d ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground"
+                              className={`flex-1 py-2.5 text-xs font-black uppercase tracking-[0.08em] capitalize transition-all border ${
+                                accessDifficulty === d ? "border-black bg-black/[0.03] text-black" : "border-black/10 bg-white text-black/40 hover:border-black/30 hover:bg-slate-50"
                               }`}
                             >{d}</button>
                           ))}
@@ -748,15 +738,16 @@ export default function EstimateWizard() {
             {step === 3 && (
               <div className="space-y-5">
                 <div>
-                  <h2 className="text-3xl font-display font-bold mb-1">Add Your Items</h2>
-                  <p className="text-muted-foreground">Search our catalog, paste a list, or upload a photo.</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-3">Step 3 of 5</p>
+                  <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">Add Your Items</h2>
+                  <p className="text-sm text-black/45">Search our catalog, paste a list, or upload a photo.</p>
                 </div>
 
                 {/* Catalog Search */}
-                <div className="bg-card rounded-2xl border p-5">
-                  <p className="text-sm font-semibold mb-3 flex items-center gap-2"><Search className="w-4 h-4 text-primary" /> Search Catalog</p>
+                <div className="bg-white border border-black/10 p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-3 flex items-center gap-2"><Search className="w-3.5 h-3.5" /> Search Catalog</p>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/25 pointer-events-none" />
                     <input
                       value={catalogSearch}
                       onChange={e => setCatalogSearch(e.target.value)}
@@ -765,26 +756,26 @@ export default function EstimateWizard() {
                       placeholder="Search items e.g. wardrobe, bed, sofa…"
                       data-testid="input-catalog-search"
                       autoComplete="off"
-                      className="w-full pl-9 pr-10 py-3 rounded-xl bg-secondary border-2 border-border focus:border-primary focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm"
+                      className="w-full pl-9 pr-10 py-3 bg-white border border-black/10 focus:border-black transition-all outline-none text-sm"
                     />
                     {catalogSearch && (
-                      <button onClick={() => setCatalogSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      <button onClick={() => setCatalogSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-black/30 hover:text-black">
                         <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
 
                   {showCatalogResults && (
-                    <div className="mt-3 border rounded-xl overflow-hidden">
+                    <div className="mt-2 border border-black/10 overflow-hidden">
                       {filteredGroups.length === 0 ? (
-                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                        <div className="px-4 py-6 text-center text-sm text-black/40">
                           No items found for <strong>"{catalogSearch}"</strong>
                         </div>
                       ) : (
                         <>
                           {!catalogSearch.trim() && (
-                            <div className="px-4 py-2 bg-secondary/50 border-b">
-                              <p className="text-xs text-muted-foreground font-medium">Popular items — tap to add</p>
+                            <div className="px-4 py-2 bg-black/[0.02] border-b border-black/8">
+                              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-black/35">Popular items — tap to add</p>
                             </div>
                           )}
                           {filteredGroups.map(group => (
@@ -792,11 +783,11 @@ export default function EstimateWizard() {
                               key={group.name}
                               onClick={() => { addCatalogGroup(group, 1); setCatalogSearch(""); setCatalogFocused(false); }}
                               data-testid={`catalog-item-${group.name.toLowerCase().replace(/\s+/g, "-")}`}
-                              className="w-full text-left px-4 py-3 hover:bg-secondary active:bg-secondary border-b last:border-0 transition-colors flex items-center justify-between gap-3"
+                              className="w-full text-left px-4 py-3 hover:bg-slate-50 active:bg-slate-100 border-b border-black/6 last:border-0 transition-colors flex items-center justify-between gap-3"
                             >
                               <div className="min-w-0">
                                 <p className="font-semibold text-sm truncate">{group.name}</p>
-                                <p className="text-xs text-muted-foreground">{group.category}</p>
+                                <p className="text-xs text-black/35">{group.category}</p>
                               </div>
                               <div className="text-right shrink-0 space-y-0.5">
                                 {group.entries.filter(e => services.includes(e.serviceType)).map(e => (
@@ -815,24 +806,24 @@ export default function EstimateWizard() {
                 </div>
 
                 {/* Photo Upload */}
-                <div className="bg-card rounded-2xl border p-5">
-                  <p className="text-sm font-semibold mb-3 flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-accent" /> AI Photo Detection
-                    <span className="text-muted-foreground font-normal text-xs">(optional)</span>
+                <div className="bg-white border border-black/10 p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-3 flex items-center gap-2">
+                    <Camera className="w-3.5 h-3.5" /> AI Photo Detection
+                    <span className="text-black/25 font-normal normal-case tracking-normal">(optional)</span>
                   </p>
                   <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handlePhotoUpload} />
 
                   {/* Success state — thumbnail + re-scan option */}
                   {detectedPhotoUrl && !photoDetecting ? (
                     <div className="flex items-start gap-4">
-                      <img src={detectedPhotoUrl} alt="detected" className="w-20 h-20 rounded-xl object-cover border-2 border-emerald-300 shrink-0" />
+                      <img src={detectedPhotoUrl} alt="detected" className="w-20 h-20 object-cover border border-black/15 shrink-0" />
                       <div className="flex-1">
-                        <p className="text-sm font-bold text-emerald-700 flex items-center gap-1.5 mb-1">
+                        <p className="text-sm font-black text-black flex items-center gap-1.5 mb-1">
                           <Check className="w-4 h-4" /> {detectedCount} item{detectedCount !== 1 ? 's' : ''} detected
                         </p>
-                        <p className="text-xs text-muted-foreground mb-2">Items added below. Review and adjust quantities.</p>
+                        <p className="text-xs text-black/40 mb-2">Items added below. Review and adjust quantities.</p>
                         <button onClick={() => { setDetectedPhotoUrl(""); setDetectedCount(0); fileInputRef.current?.click(); }}
-                          className="text-xs font-semibold text-primary underline hover:no-underline">
+                          className="text-[10px] font-black uppercase tracking-[0.1em] text-black/50 hover:text-black transition-colors">
                           Scan another photo
                         </button>
                       </div>
@@ -841,27 +832,27 @@ export default function EstimateWizard() {
                     <button onClick={() => fileInputRef.current?.click()}
                       disabled={photoDetecting}
                       data-testid="button-upload-photo"
-                      className="w-full border-2 border-dashed border-border rounded-xl py-5 flex flex-col items-center gap-2 hover:border-accent hover:bg-accent/5 transition-all text-muted-foreground hover:text-accent disabled:opacity-60"
+                      className="w-full border border-dashed border-black/20 py-5 flex flex-col items-center gap-2 hover:border-black/40 hover:bg-slate-50 transition-all text-black/35 hover:text-black/60 disabled:opacity-60"
                     >
                       {photoDetecting
-                        ? <><Loader2 className="w-6 h-6 animate-spin" /><span className="text-sm font-semibold">Scanning photo with AI…</span><span className="text-xs">This may take a few seconds</span></>
-                        : <><Camera className="w-7 h-7" /><span className="text-sm font-semibold">Take or upload a photo</span><span className="text-xs">AI will identify your furniture automatically</span></>
+                        ? <><Loader2 className="w-6 h-6 animate-spin" /><span className="text-sm font-black">Scanning photo with AI…</span><span className="text-xs">This may take a few seconds</span></>
+                        : <><Camera className="w-7 h-7" /><span className="text-sm font-black">Take or upload a photo</span><span className="text-xs">AI will identify your furniture automatically</span></>
                       }
                     </button>
                   )}
 
                   {photoError && (
-                    <p className="text-sm text-destructive mt-3 flex items-center gap-1.5 bg-red-50 rounded-xl px-3 py-2 border border-red-200">
+                    <p className="text-sm text-black/60 mt-3 flex items-center gap-1.5 border border-black/15 px-3 py-2">
                       <AlertCircle className="w-4 h-4 shrink-0" />{photoError}
                     </p>
                   )}
                 </div>
 
                 {/* Paste List */}
-                <div className="bg-card rounded-2xl border p-5">
+                <div className="bg-white border border-black/10 p-5">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-semibold flex items-center gap-2"><ClipboardList className="w-4 h-4 text-blue-500" /> Paste Item List <span className="text-muted-foreground font-normal text-xs">(optional)</span></p>
-                    <button onClick={() => setShowPaste(s => !s)} className="text-xs text-primary font-medium hover:underline">{showPaste ? "Close" : "Open"}</button>
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 flex items-center gap-2"><ClipboardList className="w-3.5 h-3.5" /> Paste Item List <span className="text-black/25 font-normal normal-case tracking-normal">(optional)</span></p>
+                    <button onClick={() => setShowPaste(s => !s)} className="text-[10px] font-black uppercase tracking-[0.1em] text-black/40 hover:text-black transition-colors">{showPaste ? "Close" : "Open"}</button>
                   </div>
                   {showPaste && (
                     <div className="space-y-3">
@@ -871,12 +862,12 @@ export default function EstimateWizard() {
                         rows={5}
                         placeholder={"2 queen bed\n6 office chair\n1 dining table"}
                         data-testid="input-paste-list"
-                        className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary outline-none resize-none text-sm font-mono"
+                        className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none resize-none text-sm font-mono"
                       />
-                      <p className="text-xs text-muted-foreground">One item per line. Format: "2 queen bed" or "dining table x4"</p>
+                      <p className="text-xs text-black/35">One item per line. Format: "2 queen bed" or "dining table x4"</p>
                       <button onClick={applyPaste} disabled={!pasteText.trim()}
                         data-testid="button-apply-paste"
-                        className="btn-primary-gradient px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50">
+                        className="bg-black text-white px-5 py-2.5 text-xs font-black uppercase tracking-[0.1em] disabled:opacity-50 hover:bg-neutral-800 transition-colors">
                         Add Items
                       </button>
                     </div>
@@ -885,74 +876,74 @@ export default function EstimateWizard() {
 
                 {/* Items list */}
                 {items.length > 0 && (
-                  <div className="bg-card rounded-2xl border overflow-hidden">
-                    <div className="px-5 py-4 border-b flex items-center justify-between">
-                      <p className="font-bold flex items-center gap-2"><Package className="w-4 h-4 text-primary" /> Selected Items ({items.length})</p>
-                      <p className="font-bold text-primary">${subtotal.toFixed(2)}</p>
+                  <div className="bg-white border border-black/10 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-black/8 flex items-center justify-between">
+                      <p className="font-black text-sm flex items-center gap-2 uppercase tracking-[0.06em]"><Package className="w-4 h-4 text-black/40" /> Items ({items.length})</p>
+                      <p className="font-black text-sm">${subtotal.toFixed(2)}</p>
                     </div>
-                    <div className="divide-y">
+                    <div className="divide-y divide-black/6">
                       {items.map(item => (
                         <div key={item.id} data-testid={`item-${item.id}`} className="px-5 py-4 flex items-center gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <p className="font-semibold text-sm truncate">{item.name}</p>
-                              {item.sku && <span className="text-xs bg-secondary px-2 py-0.5 rounded font-mono text-muted-foreground">{item.sku}</span>}
-                              {item.isCustom && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">Custom</span>}
+                              {item.sku && <span className="text-[10px] border border-black/10 px-2 py-0.5 font-mono text-black/40">{item.sku}</span>}
+                              {item.isCustom && <span className="text-[10px] border border-black/15 px-2 py-0.5 font-black uppercase tracking-[0.06em] text-black/50">Custom</span>}
                             </div>
                             <div className="flex items-center gap-2">
                               {serviceBadge(item.serviceType)}
-                              {item.category && <span className="text-xs text-muted-foreground">{item.category}</span>}
+                              {item.category && <span className="text-xs text-black/35">{item.category}</span>}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <button onClick={() => setItems(prev => prev.map(i => i.id === item.id && i.quantity > 1 ? { ...i, quantity: i.quantity - 1 } : i))}
                               data-testid={`button-decrease-${item.id}`}
-                              className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center hover:bg-border transition-colors">
+                              className="w-7 h-7 border border-black/10 flex items-center justify-center hover:bg-slate-50 transition-colors">
                               <Minus className="w-3.5 h-3.5" />
                             </button>
-                            <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
+                            <span className="w-6 text-center text-sm font-black">{item.quantity}</span>
                             <button onClick={() => setItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i))}
                               data-testid={`button-increase-${item.id}`}
-                              className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center hover:bg-border transition-colors">
+                              className="w-7 h-7 border border-black/10 flex items-center justify-center hover:bg-slate-50 transition-colors">
                               <Plus className="w-3.5 h-3.5" />
                             </button>
                           </div>
                           <div className="text-right w-20">
-                            <p className="font-bold text-sm">${(item.unitPrice * item.quantity).toFixed(2)}</p>
-                            <p className="text-xs text-muted-foreground">${item.unitPrice.toFixed(2)} ea</p>
+                            <p className="font-black text-sm">${(item.unitPrice * item.quantity).toFixed(2)}</p>
+                            <p className="text-xs text-black/35">${item.unitPrice.toFixed(2)} ea</p>
                           </div>
                           <button onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))}
                             data-testid={`button-remove-${item.id}`}
-                            className="text-muted-foreground hover:text-destructive p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
+                            className="text-black/25 hover:text-black p-1.5 hover:bg-slate-100 transition-colors">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       ))}
                     </div>
-                    <div className="px-5 py-4 bg-secondary/50 space-y-1.5 text-sm">
-                      <div className="flex justify-between text-muted-foreground"><span>Labor subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                    <div className="px-5 py-4 bg-black/[0.025] space-y-1.5 text-sm border-t border-black/8">
+                      <div className="flex justify-between text-black/45"><span>Labor subtotal</span><span>${subtotal.toFixed(2)}</span></div>
                       {pricingResult.discountLine && (
-                        <div className="flex justify-between text-emerald-700 font-medium">
+                        <div className="flex justify-between text-black/60 font-medium">
                           <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5" />{pricingResult.discountLine.label}</span>
                           <span>-${pricingResult.discountAmount.toFixed(2)}</span>
                         </div>
                       )}
                       {pricingResult.feeLines.map((fee, i) => (
-                        <div key={i} className="flex justify-between text-muted-foreground">
+                        <div key={i} className="flex justify-between text-black/45">
                           <span>{fee.label}</span><span>+${fee.amount.toFixed(2)}</span>
                         </div>
                       ))}
-                      <div className="flex justify-between font-bold text-base pt-1.5 border-t border-border mt-2">
-                        <span>Estimated Total</span><span className="text-primary">${total.toFixed(2)}</span>
+                      <div className="flex justify-between font-black text-base pt-1.5 border-t border-black/10 mt-2">
+                        <span className="uppercase tracking-[0.06em] text-sm">Estimated Total</span><span>${total.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
                 )}
 
                 {items.length === 0 && (
-                  <div className="bg-card rounded-2xl border-2 border-dashed p-10 text-center text-muted-foreground">
+                  <div className="border border-dashed border-black/20 p-10 text-center text-black/35">
                     <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">No items yet — search above or paste a list</p>
+                    <p className="font-black text-sm uppercase tracking-[0.06em]">No items yet — search above or paste a list</p>
                   </div>
                 )}
               </div>
@@ -995,21 +986,22 @@ export default function EstimateWizard() {
               return (
                 <div className="space-y-5">
                   <div>
-                    <h2 className="text-3xl font-display font-bold mb-1">Pick a Slot</h2>
-                    <p className="text-muted-foreground">Tap a date, then choose morning or afternoon.</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-3">Step 4 of 5</p>
+                    <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">Pick a Slot</h2>
+                    <p className="text-sm text-black/45">Tap a date, then choose morning or afternoon.</p>
                   </div>
 
                   {/* Calendar card */}
-                  <div className="bg-card rounded-2xl border p-4 space-y-3">
+                  <div className="bg-white border border-black/10 p-4 space-y-3">
                     {/* Month navigation */}
                     <div className="flex items-center justify-between px-1">
                       <button onClick={prevMonth} data-testid="button-cal-prev"
-                        className="p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
+                        className="p-2 hover:bg-slate-100 transition-colors text-black/40 hover:text-black">
                         <ChevronLeft className="w-5 h-5" />
                       </button>
-                      <p className="font-bold text-sm">{monthLabel}</p>
+                      <p className="font-black text-sm uppercase tracking-[0.08em]">{monthLabel}</p>
                       <button onClick={nextMonth} data-testid="button-cal-next"
-                        className="p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
+                        className="p-2 hover:bg-slate-100 transition-colors text-black/40 hover:text-black">
                         <ChevronRight className="w-5 h-5" />
                       </button>
                     </div>
@@ -1017,7 +1009,7 @@ export default function EstimateWizard() {
                     {/* Day-of-week headers */}
                     <div className="grid grid-cols-7 text-center">
                       {["Mo","Tu","We","Th","Fr","Sa","Su"].map(d => (
-                        <div key={d} className="text-[11px] font-bold text-muted-foreground py-1">{d}</div>
+                        <div key={d} className="text-[10px] font-black text-black/30 py-1 uppercase">{d}</div>
                       ))}
                     </div>
 
@@ -1038,24 +1030,24 @@ export default function EstimateWizard() {
                             disabled={past || status === "full"}
                             onClick={() => { setSlotDateStr(ds); setSlotTime(""); }}
                             className={[
-                              "relative flex flex-col items-center justify-center h-10 rounded-xl text-sm font-medium transition-all select-none",
+                              "relative flex flex-col items-center justify-center h-10 text-sm font-medium transition-all select-none",
                               isSelected
-                                ? "bg-primary text-primary-foreground font-bold shadow-md"
+                                ? "bg-black text-white font-black"
                                 : status === "full"
-                                  ? "bg-muted/20 text-muted-foreground/40 cursor-not-allowed line-through text-xs"
+                                  ? "bg-black/[0.03] text-black/20 cursor-not-allowed line-through text-xs"
                                   : past
-                                    ? "text-muted-foreground/25 cursor-not-allowed"
-                                    : "hover:bg-primary/10 hover:text-primary cursor-pointer",
-                              isToday && !isSelected ? "ring-2 ring-primary/40 ring-offset-1" : "",
+                                    ? "text-black/15 cursor-not-allowed"
+                                    : "hover:bg-slate-100 hover:text-black cursor-pointer text-black/70",
+                              isToday && !isSelected ? "ring-1 ring-black/25" : "",
                             ].join(" ")}
                           >
                             {day}
                             {/* Availability dot */}
                             {!past && !isSelected && status === "partial" && (
-                              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-amber-400" />
+                              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-black/30" />
                             )}
                             {!past && !isSelected && status === "available" && (
-                              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-emerald-400" />
+                              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-black/20" />
                             )}
                           </button>
                         );
@@ -1063,9 +1055,9 @@ export default function EstimateWizard() {
                     </div>
 
                     {/* Legend */}
-                    <div className="flex items-center gap-4 pt-2 border-t text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" /> Available</span>
-                      <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" /> Partial</span>
+                    <div className="flex items-center gap-4 pt-2 border-t border-black/8 text-[10px] text-black/35 font-black uppercase tracking-[0.08em]">
+                      <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-black/20 shrink-0" /> Available</span>
+                      <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-black/30 shrink-0" /> Partial</span>
                       <span className="flex items-center gap-1.5 opacity-40 line-through">31</span>
                       <span className="opacity-40">Full</span>
                     </div>
@@ -1073,9 +1065,9 @@ export default function EstimateWizard() {
 
                   {/* Time slot picker — shown once a date is selected */}
                   {slotDateStr ? (
-                    <div className="bg-card rounded-2xl border p-5 space-y-4">
-                      <p className="font-bold flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-primary" />
+                    <div className="bg-white border border-black/10 p-5 space-y-4">
+                      <p className="font-black text-sm flex items-center gap-2 uppercase tracking-[0.06em]">
+                        <Clock className="w-4 h-4 text-black/40" />
                         {new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "short", year: "numeric" })}
                       </p>
                       <div className="grid grid-cols-2 gap-3">
@@ -1087,45 +1079,45 @@ export default function EstimateWizard() {
                               onClick={() => !taken && setSlotTime(slot.value)}
                               data-testid={`button-slot-${slot.value}`}
                               className={[
-                                "relative flex flex-col items-center gap-1.5 py-5 rounded-2xl border-2 transition-all font-medium",
-                                taken ? "border-border bg-muted/40 text-muted-foreground cursor-not-allowed opacity-50"
-                                  : sel ? "border-primary bg-primary/10 text-primary shadow-md"
-                                  : "border-border bg-card hover:border-primary/50 hover:bg-primary/5 cursor-pointer",
+                                "relative flex flex-col items-center gap-1.5 py-5 border transition-all",
+                                taken ? "border-black/5 bg-black/[0.02] text-black/20 cursor-not-allowed opacity-50"
+                                  : sel ? "border-black bg-black text-white"
+                                  : "border-black/10 bg-white hover:border-black/30 hover:bg-slate-50 cursor-pointer",
                               ].join(" ")}
                             >
-                              {slot.value === "09:00-12:00" ? <Sun className="w-6 h-6" /> : <Sunset className="w-6 h-6" />}
-                              <span className="font-bold">{slot.label}</span>
-                              <span className="text-xs text-muted-foreground">{slot.time}</span>
-                              {taken && <span className="absolute top-2 right-2 text-[10px] text-muted-foreground flex items-center gap-0.5"><Ban className="w-2.5 h-2.5" />Full</span>}
-                              {sel && !taken && <span className="absolute top-2 right-2 text-[10px] text-primary flex items-center gap-0.5"><Check className="w-2.5 h-2.5" />Chosen</span>}
+                              {slot.value === "09:00-12:00" ? <Sun className={`w-6 h-6 ${sel ? "text-white" : "text-black/40"}`} /> : <Sunset className={`w-6 h-6 ${sel ? "text-white" : "text-black/40"}`} />}
+                              <span className={`font-black text-sm uppercase tracking-[0.06em] ${sel ? "text-white" : "text-black"}`}>{slot.label}</span>
+                              <span className={`text-xs ${sel ? "text-white/70" : "text-black/35"}`}>{slot.time}</span>
+                              {taken && <span className="absolute top-2 right-2 text-[10px] text-black/25 flex items-center gap-0.5 font-black uppercase"><Ban className="w-2.5 h-2.5" />Full</span>}
+                              {sel && !taken && <span className="absolute top-2 right-2 text-[10px] text-white/70 flex items-center gap-0.5 font-black uppercase"><Check className="w-2.5 h-2.5" />OK</span>}
                             </button>
                           );
                         })}
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-muted/30 rounded-2xl border border-dashed p-6 text-center text-muted-foreground text-sm">
+                    <div className="border border-dashed border-black/20 p-6 text-center text-black/35 text-sm">
                       <CalendarDays className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                      Select a date on the calendar above
+                      <p className="font-black uppercase tracking-[0.06em] text-xs">Select a date above</p>
                     </div>
                   )}
 
                   {/* Confirmation banner */}
                   {slotDateStr && slotTime && !isSlotTaken(slotDateStr, slotTime) && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
-                      <Check className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="border border-black/12 bg-black/[0.02] p-4 flex items-start gap-3">
+                      <Check className="w-4 h-4 text-black shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-semibold text-emerald-800">Slot Available!</p>
-                        <p className="text-sm text-emerald-700">
+                        <p className="font-black text-sm uppercase tracking-[0.06em]">Slot Available</p>
+                        <p className="text-sm text-black/60 mt-0.5">
                           {new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "short", year: "numeric" })},&nbsp;{TIME_SLOTS.find(t => t.value === slotTime)?.time}
                         </p>
-                        <p className="text-xs text-emerald-600 mt-1">Held for 48 hours once your quote is submitted.</p>
+                        <p className="text-xs text-black/35 mt-1">Held for 48 hours once your quote is submitted.</p>
                       </div>
                     </div>
                   )}
 
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-                    <p className="text-xs text-amber-700">
+                  <div className="border border-black/10 bg-black/[0.015] px-4 py-3">
+                    <p className="text-xs text-black/50">
                       <strong>Note:</strong> This is your <em>preferred</em> slot — our team confirms it after deposit is paid.
                     </p>
                   </div>
@@ -1137,113 +1129,118 @@ export default function EstimateWizard() {
             {step === 5 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-3xl font-display font-bold mb-1">Your Details</h2>
-                  <p className="text-muted-foreground">Review your estimate and enter your contact info.</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-3">Step 5 of 5</p>
+                  <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">Your Details</h2>
+                  <p className="text-sm text-black/45">Review your estimate and enter your contact info.</p>
                 </div>
 
                 {/* Customer details form */}
-                <div className="bg-card rounded-2xl border p-6 space-y-4">
-                  <p className="font-bold">Contact Information</p>
+                <div className="bg-white border border-black/10 p-6 space-y-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40">Contact Information</p>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-sm font-semibold mb-1.5 block">Full Name <span className="text-destructive">*</span></label>
+                      <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Full Name <span className="text-black">*</span></label>
                       <input required value={name} onChange={e => setName(e.target.value)} data-testid="input-name"
-                        placeholder="Ahmad Bin Ismail" className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                        placeholder="Ahmad Bin Ismail" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
                     </div>
                     <div>
-                      <label className="text-sm font-semibold mb-1.5 block">Phone <span className="text-destructive">*</span></label>
+                      <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Phone <span className="text-black">*</span></label>
                       <input required value={phone} onChange={e => setPhone(e.target.value)} data-testid="input-phone"
-                        placeholder="+65 8123 4567" className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                        placeholder="+65 8123 4567" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
                     </div>
                   </div>
                   <div>
-                    <label className="text-sm font-semibold mb-1.5 block">Email <span className="text-destructive">*</span></label>
+                    <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Email <span className="text-black">*</span></label>
                     <input required type="email" value={email} onChange={e => setEmail(e.target.value)} data-testid="input-email"
-                      placeholder="ahmadismail@gmail.com" className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      placeholder="ahmadismail@gmail.com" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
                   </div>
                 </div>
 
                 {/* Slot summary */}
                 {slotDateStr && slotTime && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
-                    <p className="text-xs font-semibold text-emerald-700 uppercase mb-3 tracking-wide">Preferred Appointment Slot</p>
-                    <div className="flex items-center gap-2 font-bold text-emerald-800">
-                      <CalendarDays className="w-4 h-4 text-emerald-600" />
+                  <div className="border border-black/10 bg-black/[0.02] p-5">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-black/40 mb-3">Preferred Appointment Slot</p>
+                    <div className="flex items-center gap-2 font-black text-sm text-black">
+                      <CalendarDays className="w-4 h-4 text-black/40" />
                       {new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-emerald-700 mt-1.5">
-                      <Clock className="w-4 h-4 text-emerald-500" />
+                    <div className="flex items-center gap-2 text-sm text-black/50 mt-1.5">
+                      <Clock className="w-4 h-4 text-black/30" />
                       {TIME_SLOTS.find(t => t.value === slotTime)?.label} — {TIME_SLOTS.find(t => t.value === slotTime)?.time}
                     </div>
                   </div>
                 )}
 
                 {/* Summary */}
-                <div className="bg-card rounded-2xl border overflow-hidden">
-                  <div className="px-5 py-4 border-b">
-                    <p className="font-bold flex items-center gap-2"><Star className="w-4 h-4 text-amber-500" /> Estimate Summary</p>
+                <div className="bg-white border border-black/10 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-black/8 flex items-center gap-2">
+                    <Star className="w-3.5 h-3.5 text-black/40" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/50">Estimate Summary</p>
                   </div>
-                  <div className="px-5 py-4 space-y-4 divide-y">
+                  <div className="px-5 py-4 space-y-4 divide-y divide-black/6">
                     <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Services</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-black/35 mb-2">Services</p>
                       <div className="flex flex-wrap gap-2">
                         {services.map(s => (
-                          <span key={s} className="capitalize px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">{s}</span>
+                          <span key={s} className="capitalize border border-black/15 px-3 py-1 text-xs font-black uppercase tracking-[0.06em] text-black">{s}</span>
                         ))}
                       </div>
                     </div>
                     <div className="pt-4">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Location</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-black/35 mb-2">Location</p>
                       {isRelocation ? (
-                        <div className="space-y-1 text-sm">
-                          <p className="flex gap-2"><span className="font-medium w-16 shrink-0">Pickup:</span><span>{pickupAddress}</span></p>
-                          <p className="flex gap-2"><span className="font-medium w-16 shrink-0">Dropoff:</span><span>{dropoffAddress}</span></p>
+                        <div className="space-y-1 text-sm text-black/70">
+                          <p className="flex gap-2"><span className="font-black text-black/40 w-16 shrink-0 uppercase text-[10px] tracking-[0.08em]">Pickup</span><span>{pickupAddress}</span></p>
+                          <p className="flex gap-2"><span className="font-black text-black/40 w-16 shrink-0 uppercase text-[10px] tracking-[0.08em]">Dropoff</span><span>{dropoffAddress}</span></p>
                         </div>
                       ) : (
-                        <p className="text-sm">{serviceAddress}</p>
+                        <p className="text-sm text-black/70">{serviceAddress}</p>
                       )}
                     </div>
                     <div className="pt-4">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase mb-3">Items ({items.length})</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-black/35 mb-3">Items ({items.length})</p>
                       <div className="space-y-2">
                         {items.map(item => (
                           <div key={item.id} className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2">
                               {serviceBadge(item.serviceType)}
-                              <span>{item.name} ×{item.quantity}</span>
-                              {item.isCustom && <span className="text-xs text-muted-foreground">(TBD)</span>}
+                              <span className="text-black/70">{item.name} ×{item.quantity}</span>
+                              {item.isCustom && <span className="text-xs text-black/30">(TBD)</span>}
                             </div>
-                            <span className="font-medium">{item.isCustom ? "TBD" : `$${(item.unitPrice * item.quantity).toFixed(2)}`}</span>
+                            <span className="font-black text-sm">{item.isCustom ? "TBD" : `$${(item.unitPrice * item.quantity).toFixed(2)}`}</span>
                           </div>
                         ))}
                       </div>
                     </div>
                     <div className="pt-4 space-y-2 text-sm">
-                      <div className="flex justify-between text-muted-foreground"><span>Labor subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-black/45"><span>Labor subtotal</span><span>${subtotal.toFixed(2)}</span></div>
                       {pricingResult.discountLine && (
-                        <div className="flex justify-between text-emerald-700 font-medium">
+                        <div className="flex justify-between text-black/60 font-medium">
                           <span className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" />{pricingResult.discountLine.label}</span>
                           <span>−${pricingResult.discountAmount.toFixed(2)}</span>
                         </div>
                       )}
                       {pricingResult.feeLines.map((fee, i) => (
-                        <div key={i} className="flex justify-between text-muted-foreground">
+                        <div key={i} className="flex justify-between text-black/45">
                           <span>{fee.label}</span><span>+${fee.amount.toFixed(2)}</span>
                         </div>
                       ))}
                       {isRelocation && distanceKm > 0 && (
-                        <div className="flex justify-between text-blue-600 text-xs mt-1">
+                        <div className="flex justify-between text-black/50 text-xs mt-1">
                           <span className="flex items-center gap-1"><Navigation className="w-3 h-3" /> Route distance</span>
                           <span>{distanceKm} km</span>
                         </div>
                       )}
-                      <div className="flex justify-between font-bold text-base pt-2 border-t"><span>Grand Total (estimated)</span><span className="text-primary">${total.toFixed(2)}</span></div>
-                      <div className="flex justify-between text-muted-foreground"><span>Deposit due now (50%)</span><span className="font-semibold">${deposit.toFixed(2)}</span></div>
-                      <div className="flex justify-between text-muted-foreground"><span>Balance on completion (50%)</span><span>${finalAmt.toFixed(2)}</span></div>
+                      <div className="flex justify-between font-black text-base pt-2 border-t border-black/10">
+                        <span className="uppercase tracking-[0.06em] text-sm">Grand Total</span>
+                        <span>${total.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-black/45"><span>Deposit due now (50%)</span><span className="font-black">${deposit.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-black/45"><span>Balance on completion (50%)</span><span>${finalAmt.toFixed(2)}</span></div>
                       {pricingResult.requiresAdminReview && (
-                        <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                          <p className="text-xs text-amber-700">This quote includes items requiring admin review — final pricing may be adjusted.</p>
+                        <div className="mt-2 flex items-start gap-2 border border-black/10 bg-black/[0.015] px-3 py-2">
+                          <AlertCircle className="w-4 h-4 text-black/40 shrink-0 mt-0.5" />
+                          <p className="text-xs text-black/55">This quote includes items requiring admin review — final pricing may be adjusted.</p>
                         </div>
                       )}
                     </div>
@@ -1251,7 +1248,7 @@ export default function EstimateWizard() {
                 </div>
 
                 {submitError && (
-                  <div className="bg-destructive/10 text-destructive rounded-xl px-4 py-3 flex items-center gap-2 text-sm font-medium">
+                  <div className="border border-black/15 bg-black/[0.03] px-4 py-3 flex items-center gap-2 text-sm font-medium text-black">
                     <AlertCircle className="w-4 h-4 shrink-0" /> {submitError}
                   </div>
                 )}
@@ -1263,21 +1260,21 @@ export default function EstimateWizard() {
 
         {/* T&C checkbox — step 5 only */}
         {step === 5 && (
-          <div className="mt-6 p-4 rounded-xl border-2 border-border bg-secondary/30">
+          <div className="mt-6 p-4 border border-black/10 bg-black/[0.015]">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={termsAccepted}
                 onChange={e => setTermsAccepted(e.target.checked)}
                 data-testid="checkbox-terms"
-                className="mt-0.5 w-4 h-4 rounded accent-primary shrink-0"
+                className="mt-0.5 w-4 h-4 accent-black shrink-0"
               />
-              <span className="text-sm text-muted-foreground leading-relaxed">
+              <span className="text-sm text-black/55 leading-relaxed">
                 I have read and agree to the{" "}
                 <button
                   type="button"
                   onClick={() => setShowTermsModal(true)}
-                  className="text-primary font-semibold underline underline-offset-2 hover:text-primary/80 transition-colors"
+                  className="text-black font-black underline underline-offset-2 hover:text-black/70 transition-colors"
                   data-testid="button-view-terms"
                 >
                   Terms & Conditions
@@ -1292,14 +1289,14 @@ export default function EstimateWizard() {
         <div className="flex items-center justify-between mt-4 gap-4">
           {step > 1 ? (
             <button onClick={back} data-testid="button-back"
-              className="flex items-center gap-2 px-6 py-3 rounded-xl border-2 border-border bg-card font-semibold hover:bg-secondary transition-colors">
+              className="flex items-center gap-2 px-6 py-3 border border-black/15 font-black text-xs uppercase tracking-[0.1em] hover:bg-slate-50 hover:border-black/30 transition-colors">
               <ChevronLeft className="w-4 h-4" /> Back
             </button>
           ) : <div />}
 
           {step < 5 ? (
             <button onClick={next} disabled={!canNext()} data-testid="button-next"
-              className="btn-primary-gradient flex items-center gap-2 px-8 py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 disabled:shadow-none">
+              className="bg-black text-white flex items-center gap-2 px-8 py-3 font-black text-xs uppercase tracking-[0.1em] hover:bg-neutral-800 disabled:opacity-35 disabled:cursor-not-allowed transition-colors">
               Next <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
@@ -1307,7 +1304,7 @@ export default function EstimateWizard() {
               onClick={handleSubmit}
               disabled={isSubmitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
               data-testid="button-submit"
-              className="btn-primary-gradient flex items-center gap-2 px-8 py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 disabled:shadow-none"
+              className="bg-black text-white flex items-center gap-2 px-8 py-3 font-black text-xs uppercase tracking-[0.1em] hover:bg-neutral-800 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
             >
               {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</> : <>Get Estimate <ArrowRight className="w-4 h-4" /></>}
             </button>
@@ -1320,23 +1317,23 @@ export default function EstimateWizard() {
     {showTermsModal && (
       <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowTermsModal(false)}>
         <div
-          className="bg-background rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col"
+          className="bg-white border border-black/15 max-w-2xl w-full max-h-[85vh] flex flex-col"
           onClick={e => e.stopPropagation()}
         >
           {/* Modal header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-black/10 shrink-0">
             <div>
-              <h2 className="text-lg font-bold">Terms & Conditions</h2>
-              <p className="text-xs text-muted-foreground">The Moving Guy Pte Ltd · UEN 202424156H</p>
+              <h2 className="font-black text-base uppercase tracking-[0.04em]">Terms & Conditions</h2>
+              <p className="text-[10px] text-black/40 mt-0.5 font-black uppercase tracking-[0.12em]">The Moving Guy Pte Ltd · UEN 202424156H</p>
             </div>
-            <button onClick={() => setShowTermsModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-secondary transition-colors text-muted-foreground" data-testid="button-close-terms">✕</button>
+            <button onClick={() => setShowTermsModal(false)} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 transition-colors text-black/40 hover:text-black" data-testid="button-close-terms">✕</button>
           </div>
 
           {/* Scrollable body */}
-          <div className="overflow-y-auto px-6 py-5 space-y-5 text-sm text-foreground/80 leading-relaxed">
+          <div className="overflow-y-auto px-6 py-5 space-y-5 text-sm text-black/65 leading-relaxed">
 
             <section>
-              <h3 className="font-bold text-foreground mb-1">1. Incomplete or Missing Parts</h3>
+              <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">1. Incomplete or Missing Parts</h3>
               <p>If our team arrives on-site and discovers that the furniture to be installed, dismantled, or relocated is incomplete, missing parts, damaged beyond assembly, or otherwise in a condition that prevents safe or proper installation, The Moving Guy Pte Ltd reserves the right to halt work without completion. In such cases:</p>
               <ul className="list-disc pl-5 mt-2 space-y-1">
                 <li>The deposit paid will be <strong>non-refundable</strong>.</li>
@@ -1346,7 +1343,7 @@ export default function EstimateWizard() {
             </section>
 
             <section>
-              <h3 className="font-bold text-foreground mb-1">2. Deposit & Payment Policy</h3>
+              <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">2. Deposit & Payment Policy</h3>
               <ul className="list-disc pl-5 space-y-1">
                 <li>A <strong>50% non-refundable deposit</strong> is required to confirm your booking.</li>
                 <li>The remaining <strong>50% balance is due upon completion</strong> of the work. Once our admin team has verified the completed work, a payment link will be sent to your email for the balance payment.</li>
@@ -1356,7 +1353,7 @@ export default function EstimateWizard() {
             </section>
 
             <section>
-              <h3 className="font-bold text-foreground mb-1">3. Cancellation Policy</h3>
+              <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">3. Cancellation Policy</h3>
               <ul className="list-disc pl-5 space-y-1">
                 <li>Cancellations made <strong>more than 48 hours</strong> before the scheduled appointment: deposit refunded less a <strong>$30 administrative fee</strong>.</li>
                 <li>Cancellations made <strong>within 48 hours</strong> of the scheduled appointment: <strong>deposit is forfeited</strong> in full.</li>
@@ -1365,7 +1362,7 @@ export default function EstimateWizard() {
             </section>
 
             <section>
-              <h3 className="font-bold text-foreground mb-1">4. Rescheduling Policy</h3>
+              <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">4. Rescheduling Policy</h3>
               <ul className="list-disc pl-5 space-y-1">
                 <li>Each customer is entitled to <strong>one (1) free reschedule</strong>, with a minimum of <strong>24 hours' notice</strong> before the appointment.</li>
                 <li>Rescheduling requests made with less than 24 hours' notice will be treated as a cancellation.</li>
@@ -1374,7 +1371,7 @@ export default function EstimateWizard() {
             </section>
 
             <section>
-              <h3 className="font-bold text-foreground mb-1">5. Scope of Work & Additional Charges</h3>
+              <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">5. Scope of Work & Additional Charges</h3>
               <ul className="list-disc pl-5 space-y-1">
                 <li>The estimate provided is based on the items and services described at the time of booking. Any additional items or services discovered on-site will be quoted separately and must be agreed upon before work commences.</li>
                 <li>Additional charges may apply for <strong>stairs access</strong> (if no lift is available), <strong>difficult access</strong>, or <strong>disposal of old furniture</strong> (if requested).</li>
@@ -1383,7 +1380,7 @@ export default function EstimateWizard() {
             </section>
 
             <section>
-              <h3 className="font-bold text-foreground mb-1">6. Damage & Liability</h3>
+              <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">6. Damage & Liability</h3>
               <ul className="list-disc pl-5 space-y-1">
                 <li>Our team will exercise reasonable care during all work. However, The Moving Guy Pte Ltd is <strong>not liable</strong> for: pre-existing damage or wear; damage resulting from furniture with manufacturing defects or poor structural integrity; superficial marks to walls from standard drilling or fixing.</li>
                 <li>Any damage claims must be reported <strong>immediately on the day of service</strong>, before our team departs.</li>
@@ -1392,7 +1389,7 @@ export default function EstimateWizard() {
             </section>
 
             <section>
-              <h3 className="font-bold text-foreground mb-1">7. Site Access & Customer Responsibilities</h3>
+              <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">7. Site Access & Customer Responsibilities</h3>
               <ul className="list-disc pl-5 space-y-1">
                 <li>The customer is responsible for securing all necessary <strong>permits, lift access bookings, and HDB/condo approvals</strong> prior to the appointment.</li>
                 <li>The customer must ensure the site is safe, accessible, and free of obstructions before our team arrives.</li>
@@ -1401,27 +1398,27 @@ export default function EstimateWizard() {
             </section>
 
             <section>
-              <h3 className="font-bold text-foreground mb-1">8. Warranty</h3>
+              <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">8. Warranty</h3>
               <p>TMG Install provides a <strong>7-day workmanship warranty</strong> on all installations. This covers defects directly resulting from our installation work. It does not cover damage from misuse, unauthorised modification, or manufacturer defects.</p>
             </section>
 
             <section>
-              <h3 className="font-bold text-foreground mb-1">9. Privacy</h3>
+              <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">9. Privacy</h3>
               <p>Your personal information (name, phone, email, address) is collected solely for the purpose of delivering our services and communicating with you regarding your booking. We do not sell or share your data with third parties, in accordance with Singapore's <strong>Personal Data Protection Act (PDPA)</strong>.</p>
             </section>
 
             <section>
-              <h3 className="font-bold text-foreground mb-1">10. Governing Law</h3>
+              <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">10. Governing Law</h3>
               <p>These Terms & Conditions are governed by the laws of the <strong>Republic of Singapore</strong>. Any disputes shall be subject to the exclusive jurisdiction of the Singapore courts. The Moving Guy Pte Ltd (UEN: 202424156H) reserves the right to update these terms at any time.</p>
             </section>
 
-            <p className="text-xs text-muted-foreground border-t pt-4">Last updated: March 2026 · The Moving Guy Pte Ltd · UEN 202424156H · tmginstall.com</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.1em] text-black/30 border-t border-black/8 pt-4">Last updated: March 2026 · The Moving Guy Pte Ltd · UEN 202424156H · tmginstall.com</p>
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t shrink-0 flex justify-end gap-3">
-            <button onClick={() => setShowTermsModal(false)} className="px-5 py-2.5 rounded-xl border font-semibold text-sm hover:bg-secondary transition-colors" data-testid="button-decline-terms">Close</button>
-            <button onClick={() => { setTermsAccepted(true); setShowTermsModal(false); }} className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors" data-testid="button-accept-terms">I Agree</button>
+          <div className="px-6 py-4 border-t border-black/10 shrink-0 flex justify-end gap-3">
+            <button onClick={() => setShowTermsModal(false)} className="px-5 py-2.5 border border-black/15 font-black text-xs uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors" data-testid="button-decline-terms">Close</button>
+            <button onClick={() => { setTermsAccepted(true); setShowTermsModal(false); }} className="px-5 py-2.5 bg-black text-white font-black text-xs uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors" data-testid="button-accept-terms">I Agree</button>
           </div>
         </div>
       </div>
