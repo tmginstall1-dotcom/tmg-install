@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type QuoteRequest } from "@shared/routes";
 import { apiRequest } from "@/lib/queryClient";
 
+const TERMINAL_STATUSES = ['closed', 'cancelled'];
+const PAYMENT_PENDING_STATUSES = ['deposit_requested', 'final_payment_requested'];
+
 export function useQuotes(statusFilter?: string) {
   return useQuery({
     queryKey: [api.quotes.list.path, statusFilter],
@@ -14,6 +17,12 @@ export function useQuotes(statusFilter?: string) {
       if (!res.ok) throw new Error("Failed to fetch quotes");
       return res.json();
     },
+    refetchInterval: (query) => {
+      const data: any[] = query.state.data ?? [];
+      const hasPaymentPending = Array.isArray(data) && data.some((q: any) => PAYMENT_PENDING_STATUSES.includes(q.status));
+      if (hasPaymentPending) return 5_000;
+      return 30_000;
+    },
   });
 }
 
@@ -25,10 +34,9 @@ export function useSchedule() {
       if (!res.ok) throw new Error("Failed to fetch schedule");
       return res.json() as Promise<{ pending: any[]; confirmed: any[] }>;
     },
+    refetchInterval: 30_000,
   });
 }
-
-const TERMINAL_STATUSES = ['closed', 'cancelled'];
 
 export function useQuote(id: string | number) {
   return useQuery({
@@ -45,6 +53,7 @@ export function useQuote(id: string | number) {
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data || TERMINAL_STATUSES.includes(data.status)) return false;
+      if (PAYMENT_PENDING_STATUSES.includes(data.status)) return 5_000;
       return 15_000;
     },
   });

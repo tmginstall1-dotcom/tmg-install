@@ -12,6 +12,8 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
+const TERMINAL_STATUSES_UI = ['closed', 'cancelled'];
+
 function formatMoney(v: any) {
   return `$${Number(v || 0).toFixed(2)}`;
 }
@@ -20,7 +22,7 @@ export default function AdminQuoteDetail() {
   const params = useParams();
   const id = params.id!;
   
-  const { data: quote, isLoading } = useQuote(id);
+  const { data: quote, isLoading, isFetching } = useQuote(id);
   const { data: staffList } = useStaffList();
   const { data: teamsList = [] } = useQuery<any[]>({ queryKey: ["/api/teams"] });
   const updateStatus = useUpdateQuoteStatus();
@@ -193,6 +195,12 @@ export default function AdminQuoteDetail() {
                   {quote.referenceNo}
                 </span>
                 <StatusBadge status={quote.status} />
+                {!TERMINAL_STATUSES_UI.includes(quote.status) && (
+                  <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.15em] text-slate-500" title="Page auto-refreshes every few seconds">
+                    <span className={`w-1.5 h-1.5 rounded-full ${isFetching ? 'bg-green-400 animate-pulse' : 'bg-slate-600'}`} />
+                    Live
+                  </span>
+                )}
               </div>
               <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-2xl sm:text-3xl leading-none truncate">{quote.customer?.name}</h1>
               <p className="text-slate-500 text-xs mt-2">
