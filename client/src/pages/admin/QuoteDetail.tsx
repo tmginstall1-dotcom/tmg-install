@@ -178,32 +178,48 @@ export default function AdminQuoteDetail() {
   const editTotal = editSubtotal + editTransport;
 
   return (
-    <div className="min-h-screen pt-20 pb-32 lg:pt-28 lg:pb-20 bg-secondary/30">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        
-        <Link href="/admin" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary mb-8 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-        </Link>
+    <div className="min-h-screen pt-14 pb-32 lg:pb-20 bg-slate-50">
 
-        <div className="grid lg:grid-cols-[1fr_340px] gap-8">
-          
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="bg-card p-6 rounded-3xl border shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h1 className="text-3xl font-display font-bold mb-1">Quote #{quote.referenceNo}</h1>
-                <p className="text-muted-foreground text-sm">Created {format(new Date(quote.createdAt), 'MMM dd, yyyy HH:mm')}</p>
+      {/* Dark hero header */}
+      <div className="bg-slate-950 text-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+          <Link href="/admin" className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors mb-4 uppercase tracking-wider">
+            <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
+          </Link>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <span className="text-[11px] font-mono font-bold text-slate-500 bg-white/8 px-2 py-0.5 rounded-md">
+                  {quote.referenceNo}
+                </span>
+                <StatusBadge status={quote.status} />
               </div>
-              <div className="flex items-center gap-3">
-                <StatusBadge status={quote.status} className="text-sm px-4 py-2" />
-                {canEdit && !isEditing && (
-                  <button onClick={handleStartEdit} data-testid="button-edit-quote"
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-secondary border text-sm font-bold hover:bg-border transition-colors">
-                    <Edit2 className="w-4 h-4" /> Edit
-                  </button>
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">{quote.customer?.name}</h1>
+              <p className="text-slate-500 text-sm mt-0.5">
+                Created {format(new Date(quote.createdAt), "d MMM yyyy, HH:mm")}
+                {quote.scheduledAt && (
+                  <span className="ml-2 text-violet-400 font-semibold">
+                    · Job {format(new Date(quote.scheduledAt), "d MMM")}
+                  </span>
                 )}
-              </div>
+              </p>
             </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {canEdit && !isEditing && (
+                <button onClick={handleStartEdit} data-testid="button-edit-quote"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/15 text-white text-sm font-bold transition-colors">
+                  <Edit2 className="w-4 h-4" /> Edit Quote
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CONTENT GRID ── */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6">
+        <div className="grid lg:grid-cols-[1fr_340px] gap-8">
+          <div className="space-y-6">
 
             {/* ── Job Status Pipeline ── */}
             {(() => {

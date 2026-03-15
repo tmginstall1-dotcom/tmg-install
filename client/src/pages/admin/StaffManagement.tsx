@@ -86,31 +86,53 @@ export default function StaffManagement() {
     { key: "payslips" as const, label: "Payslips", icon: FileText, badge: 0 },
   ];
 
+  // Staff count for header display
+  const { data: allStaffForHeader = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
+
   return (
-    <div className="min-h-screen pt-20 pb-16 bg-background">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-display font-black">Staff Management</h1>
-          <p className="text-muted-foreground">Manage staff accounts, teams, attendance and payroll</p>
-        </div>
+    <div className="min-h-screen pt-14 pb-16 bg-slate-50">
 
-        <div className="flex gap-0 mb-6 border-b overflow-x-auto">
-          {tabs.map(({ key, label, icon: Icon, badge }) => (
-            <button key={key} onClick={() => switchTab(key)}
-              className={`relative flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px ${
-                tab === key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid={`tab-${key}`}>
-              <Icon className="w-4 h-4" /> {label}
-              {badge > 0 && (
-                <span className="ml-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
-                  {badge}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+      {/* Dark hero header */}
+      <div className="bg-slate-950 text-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Operations</p>
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">Staff & HR</h1>
+              <p className="text-slate-500 text-sm mt-0.5">
+                {(allStaffForHeader as any[]).length} staff members
+                {(pendingAmendCount + pendingLeaveCount) > 0 && (
+                  <span className="ml-2 text-amber-400 font-semibold">
+                    · {pendingAmendCount + pendingLeaveCount} pending review
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
 
+          {/* Tab bar — inside dark header */}
+          <div className="flex gap-1 mt-6 overflow-x-auto pb-px">
+            {tabs.map(({ key, label, icon: Icon, badge }) => (
+              <button key={key} onClick={() => switchTab(key)}
+                className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
+                  tab === key
+                    ? "bg-white text-slate-900"
+                    : "text-slate-400 hover:text-white hover:bg-white/8"
+                }`}
+                data-testid={`tab-${key}`}>
+                <Icon className="w-3.5 h-3.5" /> {label}
+                {badge > 0 && (
+                  <span className="ml-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
+                    {badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6">
         {tab === "teams" && <TeamsTab />}
         {tab === "payroll" && <PayrollTab />}
         {tab === "amendments" && <AmendmentsTab />}
