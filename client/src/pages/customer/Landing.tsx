@@ -50,20 +50,20 @@ export default function Landing() {
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-black/15 bg-black/[0.03] mb-8">
                 <Zap className="w-3.5 h-3.5 text-black" />
                 <span className="text-xs font-semibold tracking-wide text-black uppercase" style={{ letterSpacing: "0.08em" }}>
-                  AI-Powered Instant Quotes
+                  Singapore's Furniture Installation Specialists
                 </span>
               </div>
 
               {/* H1 */}
               <h1 className="hero-title text-black mb-6">
-                Furniture<br />Installation,<br />Made&nbsp;Effortless.
+                Installation,<br />Dismantling &amp;<br />Relocation.
               </h1>
 
               {/* Body */}
               <p className="font-body text-base sm:text-lg text-gray-500 mb-10 leading-relaxed max-w-md">
-                Tell us what needs to be built, moved, or dismantled.
-                Our AI generates a precise, transparent quote instantly —
-                no back-and-forth required.
+                From a single wardrobe to a full office fit-out — TMG Install
+                handles every job across Singapore with transparent, upfront pricing.
+                Get your quote in under 60 seconds, no calls required.
               </p>
 
               {/* CTAs */}
@@ -91,9 +91,9 @@ export default function Landing() {
               {/* Trust row */}
               <div className="flex flex-wrap gap-x-8 gap-y-3">
                 {[
-                  { icon: Building2, label: "Office / Home / Commercial" },
-                  { icon: MapPin, label: "Singapore-wide Coverage" },
-                  { icon: Clock, label: "Fast Scheduling" },
+                  { icon: Building2, label: "HDB / Condo / Office / Commercial" },
+                  { icon: MapPin, label: "All Singapore Districts" },
+                  { icon: Clock, label: "Flexible Same-Week Scheduling" },
                 ].map(({ icon: Icon, label }) => (
                   <div key={label} className="flex items-center gap-2 text-sm text-gray-500">
                     <div className="w-4 h-4 rounded-full border border-black/20 flex items-center justify-center flex-shrink-0">
@@ -220,10 +220,10 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-black/8">
             {[
-              { icon: Shield, label: "Expert Installers", sub: "Vetted & experienced" },
-              { icon: Zap, label: "Transparent Pricing", sub: "No hidden costs" },
-              { icon: Clock, label: "Fast Scheduling", sub: "Within 24–48 hours" },
-              { icon: Building2, label: "Resi & Commercial", sub: "All job sizes handled" },
+              { icon: Shield, label: "Experienced Installers", sub: "Skilled & professional team" },
+              { icon: Zap, label: "Upfront Pricing", sub: "No hidden costs, ever" },
+              { icon: Clock, label: "Fast Scheduling", sub: "Same-week availability" },
+              { icon: Building2, label: "Residential & Commercial", sub: "HDB, condo, office & more" },
             ].map(({ icon: Icon, label, sub }) => (
               <div key={label} className="sm:px-8 first:pl-0 last:pr-0 flex items-start sm:items-center gap-3">
                 <Icon className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
@@ -253,19 +253,19 @@ export default function Landing() {
                 n: "01",
                 icon: Zap,
                 title: "Select Service",
-                body: "Choose whether you need furniture installed, dismantled, or relocated — or any combination.",
+                body: "Choose installation, dismantling, relocation, or any combination — across home, office, or commercial spaces.",
               },
               {
                 n: "02",
                 icon: MapPin,
-                title: "Add Address",
-                body: "Confirm your location. We cover all of Singapore and calculate transport costs automatically.",
+                title: "Tell Us Your Location",
+                body: "Enter your Singapore address. We cover all districts — HDB, condo, landed, shophouse, and commercial premises.",
               },
               {
                 n: "03",
                 icon: Package,
-                title: "Item List & Quote",
-                body: "Search our 200+ item catalog, upload a photo, or paste a list. Our AI generates a precise quote instantly.",
+                title: "Pick Items & Get Quote",
+                body: "Browse our 450+ item catalog spanning beds, wardrobes, gym equipment, appliances, blinds, and more. Pricing is generated instantly.",
               },
             ].map(({ n, icon: Icon, title, body }, i) => (
               <motion.div
@@ -313,23 +313,23 @@ export default function Landing() {
             {[
               {
                 icon: Building2,
-                title: "Office Specialists",
-                body: "Workstations, partitions, ergonomic chairs, filing systems — we handle full office setups and teardowns.",
+                title: "Office & Commercial",
+                body: "Workstations, sit-stand desks, partitions, ergonomic chairs, reception counters — full office fits and strip-outs.",
               },
               {
                 icon: Home,
-                title: "Home Assembly",
-                body: "Bedroom furniture, wardrobes, storage systems, flat-pack assembly, and fragile item care.",
+                title: "Home & Residential",
+                body: "Beds, wardrobes, gym equipment, kitchen furniture, blinds, appliance relocation — all property types across Singapore.",
               },
               {
                 icon: Truck,
-                title: "Full Relocation",
-                body: "We dismantle, transport, and reinstall — complete end-to-end service anywhere in Singapore.",
+                title: "End-to-End Relocation",
+                body: "We dismantle, wrap, shift, and reinstall your furniture within the same unit, building, or across town.",
               },
               {
                 icon: MessageCircle,
-                title: "Clear Communication",
-                body: "Direct WhatsApp updates from your assigned team. No call centres, no guesswork.",
+                title: "Direct Team Updates",
+                body: "WhatsApp updates straight from your assigned crew. No call centres, no chasing — just real communication.",
               },
             ].map(({ icon: Icon, title, body }, i) => (
               <motion.div
@@ -354,19 +354,19 @@ export default function Landing() {
           <div className="grid md:grid-cols-3 gap-10 md:gap-16">
             {[
               {
-                stat: "200+",
+                stat: "450+",
                 label: "Item Catalog",
-                body: "Every piece of furniture — from standard flat-pack to custom fittings — priced upfront.",
+                body: "Beds, wardrobes, sofas, office furniture, gym equipment, kitchen pieces, blinds, appliances — all priced upfront.",
               },
               {
                 stat: "SG-Wide",
-                label: "Full Coverage",
-                body: "We operate across all districts — residential HDB, condo, office, and commercial spaces.",
+                label: "Island Coverage",
+                body: "All 28 districts — HDB, condo, landed, shophouse, commercial, and industrial premises.",
               },
               {
-                stat: "Instant",
-                label: "AI Quoting",
-                body: "Photo detection and smart catalog matching deliver a full estimate in under 60 seconds.",
+                stat: "60s",
+                label: "Instant Quote",
+                body: "Select your items and get a full, itemised quote with transport in under a minute — no calls, no waiting.",
               },
             ].map(({ stat, label, body }, i) => (
               <motion.div key={label} {...fadeUpDelayed(i * 0.1)}>
@@ -387,10 +387,10 @@ export default function Landing() {
               Ready to start?
             </p>
             <h2 className="section-title text-black mb-6">
-              Get your estimate<br />in under 60 seconds.
+              Get your quote<br />in under 60 seconds.
             </h2>
             <p className="font-body text-base text-gray-500 mb-10 max-w-md leading-relaxed">
-              No account required. No phone calls. Just tell us what you need and we'll handle the rest.
+              No account needed. No phone calls. Select your items, confirm your address, and receive a full itemised quote with transport included.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
@@ -424,8 +424,8 @@ export default function Landing() {
             <div className="md:col-span-2">
               <h3 className="brand-title text-white mb-4">TMG INSTALL</h3>
               <p className="font-body text-white/35 text-sm leading-relaxed max-w-xs">
-                Professional furniture installation, dismantling, and relocation services across Singapore.
-                Fast, transparent, reliable.
+                Professional furniture installation, dismantling, and relocation across all of Singapore —
+                HDB, condo, landed, office, and commercial. Transparent pricing, no hidden fees.
               </p>
               <div className="flex gap-3 mt-6">
                 <a
