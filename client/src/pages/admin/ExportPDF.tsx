@@ -546,6 +546,7 @@ export default function ExportPDF() {
   const [selectedId, setSelectedId]   = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [search, setSearch]           = useState("");
+  const [mobileView, setMobileView]   = useState<"list" | "detail">("list");
 
   const now = new Date();
   const [dateFrom, setDateFrom]         = useState("");
@@ -602,91 +603,126 @@ export default function ExportPDF() {
 
   return (
     <>
-      {/* ══ FULL-HEIGHT WRAPPER (below fixed navbar, above mobile bottom nav) ══ */}
+      {/* ══ FULL-HEIGHT WRAPPER ══ */}
       <div className="screen-only fixed inset-x-0 top-14 bottom-16 sm:bottom-0 flex flex-col bg-gray-50">
 
         {/* ── Toolbar ── */}
-        <div className="bg-white border-b px-5 py-2.5 shrink-0 z-20">
+        <div className="bg-slate-950 text-white px-4 py-3 shrink-0 z-20">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <Link href="/admin">
-                <button className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors shrink-0">
-                  <ArrowLeft className="w-4 h-4" /> Back
+              {/* Mobile: back from detail to list */}
+              {mobileView === "detail" ? (
+                <button onClick={() => setMobileView("list")}
+                  className="flex items-center gap-1.5 text-sm font-bold text-slate-300 hover:text-white transition-colors shrink-0 sm:hidden">
+                  <ArrowLeft className="w-4 h-4" /> Jobs
                 </button>
-              </Link>
-              <span className="text-gray-200">|</span>
-              <span className="text-sm font-semibold text-gray-700 truncate">Closed Jobs — Audit Report</span>
-              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full shrink-0">
-                {filteredJobs.length}{filteredJobs.length !== baseJobs.length ? ` / ${baseJobs.length}` : ""}
-              </span>
-              {hasFilter && (
-                <button onClick={clear} className="flex items-center gap-1 text-xs text-primary font-semibold shrink-0">
-                  <X className="w-3 h-3" /> Clear
-                </button>
+              ) : (
+                <Link href="/admin" className="flex items-center gap-1.5 text-sm font-bold text-slate-500 hover:text-slate-300 transition-colors shrink-0">
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Dashboard</span>
+                </Link>
               )}
+              <div className="min-w-0">
+                <p className="text-sm font-black text-white truncate">Audit Report</p>
+                <p className="text-[10px] text-slate-500 truncate">
+                  {filteredJobs.length}{filteredJobs.length !== baseJobs.length ? ` / ${baseJobs.length}` : ""} closed jobs
+                  {hasFilter && <span className="text-violet-400"> · filtered</span>}
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button onClick={() => setShowFilters(f => !f)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${showFilters || hasFilter ? "border-primary bg-primary/5 text-primary" : "border-gray-200 text-gray-600 hover:border-gray-400"}`}
+                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${showFilters || hasFilter ? "border-violet-500 bg-violet-600 text-white" : "border-white/20 bg-white/10 text-white"}`}
                 data-testid="button-toggle-filters">
-                <SlidersHorizontal className="w-3.5 h-3.5" /> Filter
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline ml-1">Filter</span>
               </button>
               <button onClick={() => downloadCSV(filteredJobs)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-500 transition-colors"
                 data-testid="button-export-csv">
-                <Download className="w-3.5 h-3.5" /> CSV
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline ml-1">CSV</span>
               </button>
               <button onClick={() => doPrint("summary")}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-white/20 text-white text-xs font-bold rounded-lg hover:bg-white/10 transition-colors"
                 data-testid="button-print-summary">
-                <Printer className="w-3.5 h-3.5" /> Print Summary
+                <Printer className="w-3.5 h-3.5" /> Summary
               </button>
               <button onClick={() => doPrint("full")}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-900 text-xs font-bold rounded-lg hover:bg-gray-100 transition-colors"
                 data-testid="button-print-full">
-                <Printer className="w-3.5 h-3.5" /> Print Full Report
+                <Printer className="w-3.5 h-3.5" /> Full Report
               </button>
             </div>
           </div>
 
           {showFilters && (
-            <div className="mt-2.5 pt-2.5 border-t flex flex-wrap items-end gap-3">
-              <div className="flex gap-1.5">
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
+              <div className="flex flex-wrap gap-1.5">
                 {[["all","All time"],["month","This month"],["last","Last month"],["year","This year"]].map(([v,l]) => (
                   <button key={v} onClick={() => preset(v)}
-                    className="px-2.5 py-1 text-xs border rounded-md hover:bg-gray-50 transition-colors">{l}</button>
+                    className="px-2.5 py-1.5 text-xs font-semibold border border-white/20 rounded-lg hover:bg-white/10 text-white transition-colors">{l}</button>
                 ))}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-3">
                 <div>
-                  <p className="text-[10px] text-gray-400 mb-1">Job date from</p>
+                  <p className="text-[10px] text-slate-500 mb-1 font-bold uppercase tracking-wide">From</p>
                   <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                    className="px-2.5 py-1 border rounded-md text-xs bg-white" data-testid="input-filter-from" />
+                    className="px-3 py-2 border border-white/20 rounded-lg text-xs bg-white/10 text-white focus:outline-none focus:border-violet-400" data-testid="input-filter-from" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-400 mb-1">To</p>
+                  <p className="text-[10px] text-slate-500 mb-1 font-bold uppercase tracking-wide">To</p>
                   <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                    className="px-2.5 py-1 border rounded-md text-xs bg-white" data-testid="input-filter-to" />
+                    className="px-3 py-2 border border-white/20 rounded-lg text-xs bg-white/10 text-white focus:outline-none focus:border-violet-400" data-testid="input-filter-to" />
+                </div>
+                <div className="flex flex-col justify-end">
+                  <div className="flex gap-1.5">
+                    {([["all","All"],["final_paid","Paid"],["closed","Unpaid"]] as const).map(([v,l]) => (
+                      <button key={v} onClick={() => setStatusFilter(v)}
+                        className={`px-3 py-2 text-xs font-bold rounded-lg transition-all ${statusFilter === v ? "bg-violet-600 text-white" : "border border-white/20 text-white hover:bg-white/10"}`}>{l}</button>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="flex gap-1.5">
-                {([["all","All"],["final_paid","Fully paid"],["closed","Unpaid"]] as const).map(([v,l]) => (
-                  <button key={v} onClick={() => setStatusFilter(v)}
-                    className={`px-2.5 py-1 text-xs border-2 rounded-md transition-all ${statusFilter === v ? "border-primary bg-primary/5 text-primary" : "border-gray-200"}`}>{l}</button>
-                ))}
-              </div>
+              {hasFilter && (
+                <button onClick={clear} className="flex items-center gap-1 text-xs text-red-400 font-semibold">
+                  <X className="w-3 h-3" /> Clear filters
+                </button>
+              )}
             </div>
           )}
         </div>
 
-        {/* ── Split pane ── */}
+        {/* ── Stats strip (mobile only above list) ── */}
+        <div className="grid grid-cols-4 gap-px bg-gray-200 shrink-0 sm:hidden">
+          <div className="bg-white px-3 py-2">
+            <p className="text-[9px] text-gray-400 uppercase">Revenue</p>
+            <p className="text-xs font-black text-emerald-700 truncate">{money(rev)}</p>
+          </div>
+          <div className="bg-white px-3 py-2">
+            <p className="text-[9px] text-gray-400 uppercase">Paid</p>
+            <p className="text-xs font-black text-gray-800">{paid}/{filteredJobs.length}</p>
+          </div>
+          <div className="bg-white px-3 py-2">
+            <p className="text-[9px] text-gray-400 uppercase">Deposits</p>
+            <p className="text-xs font-bold text-gray-700 truncate">{money(dep)}</p>
+          </div>
+          <div className="bg-white px-3 py-2">
+            <p className="text-[9px] text-gray-400 uppercase">Finals</p>
+            <p className="text-xs font-bold text-gray-700 truncate">{money(fin)}</p>
+          </div>
+        </div>
+
+        {/* ── Desktop split pane / Mobile single pane ── */}
         <div className="flex-1 flex overflow-hidden">
 
-          {/* LEFT: Job list */}
-          <div className="w-80 xl:w-96 flex flex-col border-r bg-white shrink-0 overflow-hidden">
+          {/* LEFT / MOBILE LIST: Job list */}
+          <div className={`flex flex-col bg-white overflow-hidden
+            sm:w-80 xl:w-96 sm:border-r sm:shrink-0
+            ${mobileView === "detail" ? "hidden sm:flex" : "flex w-full"}`}>
 
-            {/* Stats strip */}
-            <div className="grid grid-cols-2 gap-px bg-gray-100 shrink-0">
+            {/* Stats strip — desktop only */}
+            <div className="hidden sm:grid grid-cols-2 gap-px bg-gray-100 shrink-0">
               <div className="bg-white px-4 py-2.5">
                 <p className="text-[10px] text-gray-400 uppercase tracking-wide">Revenue</p>
                 <p className="text-sm font-black text-emerald-700">{money(rev)}</p>
@@ -712,12 +748,12 @@ export default function ExportPDF() {
                 <input
                   value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Search ref, customer, staff…"
-                  className="w-full pl-8 pr-3 py-1.5 text-xs border rounded-lg bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  className="w-full pl-8 pr-3 py-2 text-sm border rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-all"
                   data-testid="input-search-jobs"
                 />
                 {search && (
                   <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    <X className="w-3 h-3" />
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
@@ -726,9 +762,9 @@ export default function ExportPDF() {
             {/* Job list */}
             <div className="flex-1 overflow-y-auto">
               {jobs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-400 text-xs py-12">
+                <div className="flex flex-col items-center justify-center h-full text-gray-400 text-xs py-12 px-4">
                   <FileText className="w-8 h-8 mb-2 opacity-30" />
-                  <p className="font-semibold">No jobs found</p>
+                  <p className="font-semibold text-center">No jobs found</p>
                   {(hasFilter || search) && (
                     <button onClick={() => { clear(); setSearch(""); }} className="mt-2 text-primary font-semibold underline">Clear filters</button>
                   )}
@@ -740,26 +776,26 @@ export default function ExportPDF() {
                     return (
                       <button
                         key={q.id}
-                        onClick={() => setSelectedId(q.id)}
-                        className={`w-full text-left px-4 py-3 transition-colors ${isSelected ? "bg-primary/5 border-l-2 border-primary" : "hover:bg-gray-50 border-l-2 border-transparent"}`}
+                        onClick={() => { setSelectedId(q.id); setMobileView("detail"); }}
+                        className={`w-full text-left px-4 py-3.5 transition-colors ${isSelected ? "bg-violet-50 border-l-2 border-violet-600" : "hover:bg-gray-50 border-l-2 border-transparent"}`}
                         data-testid={`row-job-${q.id}`}
                       >
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <span className="font-mono text-xs font-bold text-primary leading-tight">{q.referenceNo}</span>
+                          <span className="font-mono text-xs font-bold text-violet-700 leading-tight">{q.referenceNo}</span>
                           <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase shrink-0 ${statusCls(q.status)}`}>
                             {statusLabel(q.status)}
                           </span>
                         </div>
-                        <p className="text-xs font-semibold text-gray-800 truncate">{q.customer?.name || "—"}</p>
-                        <div className="flex items-center justify-between mt-1">
-                          <p className="text-[10px] text-gray-400">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{q.customer?.name || "—"}</p>
+                        <div className="flex items-center justify-between mt-1 gap-2">
+                          <p className="text-[11px] text-gray-400 truncate">
                             {q.scheduledAt ? format(new Date(q.scheduledAt), "d MMM yyyy") : dt(q.createdAt)}
                             {q.timeWindow ? ` · ${q.timeWindow}` : ""}
                           </p>
-                          <p className="text-xs font-bold text-gray-800">{money(q.total)}</p>
+                          <p className="text-sm font-bold text-gray-800 shrink-0">{money(q.total)}</p>
                         </div>
                         {q.assignedStaff?.name && (
-                          <p className="text-[10px] text-gray-400 mt-0.5 truncate">{q.assignedStaff.name}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5 truncate">{q.assignedStaff.name}</p>
                         )}
                       </button>
                     );
@@ -769,7 +805,7 @@ export default function ExportPDF() {
             </div>
 
             {/* List footer */}
-            <div className="border-t bg-gray-900 text-white px-4 py-2.5 shrink-0">
+            <div className="border-t bg-slate-950 text-white px-4 py-2.5 shrink-0">
               <div className="flex justify-between text-xs font-bold">
                 <span>{jobs.length} job{jobs.length !== 1 ? "s" : ""}{search ? ` matching "${search}"` : ""}</span>
                 <span>{money(jobs.reduce((s: number, q: any) => s + Number(q.total || 0), 0))}</span>
@@ -777,14 +813,16 @@ export default function ExportPDF() {
             </div>
           </div>
 
-          {/* RIGHT: Detail panel */}
-          <div className="flex-1 overflow-hidden bg-white">
+          {/* RIGHT / MOBILE DETAIL: Detail panel */}
+          <div className={`overflow-hidden bg-white
+            flex-1
+            ${mobileView === "list" ? "hidden sm:block" : "block w-full"}`}>
             {selectedJob ? (
               <DetailPanel q={selectedJob} />
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-300">
+              <div className="h-full flex flex-col items-center justify-center text-gray-300 px-4">
                 <FileText className="w-16 h-16 mb-4 opacity-30" />
-                <p className="text-sm font-semibold text-gray-400">Select a job to view details</p>
+                <p className="text-sm font-semibold text-gray-400 text-center">Select a job to view its details</p>
                 <p className="text-xs text-gray-300 mt-1">{jobs.length} job{jobs.length !== 1 ? "s" : ""} in the list</p>
               </div>
             )}

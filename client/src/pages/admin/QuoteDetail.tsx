@@ -518,12 +518,12 @@ export default function AdminQuoteDetail() {
                 <>
                   <div className="divide-y border-t border-b mb-5">
                     {quote.items?.map((item: any) => (
-                      <div key={item.id} className="py-3.5 flex justify-between items-center">
-                        <div>
+                      <div key={item.id} className="py-3.5 flex justify-between items-start gap-3">
+                        <div className="min-w-0 flex-1">
                           <p className="font-semibold text-sm">{item.detectedName || item.originalDescription}</p>
                           <p className="text-xs text-muted-foreground capitalize">{item.serviceType} × {item.quantity} @ {formatMoney(item.unitPrice)}</p>
                         </div>
-                        <p className="font-bold">{formatMoney(item.subtotal)}</p>
+                        <p className="font-bold shrink-0">{formatMoney(item.subtotal)}</p>
                       </div>
                     ))}
                     {(!quote.items || quote.items.length === 0) && (
@@ -531,21 +531,21 @@ export default function AdminQuoteDetail() {
                     )}
                   </div>
                   <div className="flex justify-end">
-                    <div className="w-64 space-y-2 text-sm">
-                      <div className="flex justify-between text-muted-foreground"><span>Labor subtotal</span><span>{formatMoney(quote.subtotal)}</span></div>
+                    <div className="w-full sm:w-72 space-y-2 text-sm">
+                      <div className="flex justify-between text-muted-foreground"><span>Labor subtotal</span><span className="shrink-0 ml-4">{formatMoney(quote.subtotal)}</span></div>
                       {Number(quote.discount || 0) > 0 && (
                         <div className="flex justify-between text-emerald-700 font-medium">
-                          <span>Bulk discount</span><span>−{formatMoney(quote.discount)}</span>
+                          <span>Bulk discount</span><span className="shrink-0 ml-4">−{formatMoney(quote.discount)}</span>
                         </div>
                       )}
                       {Number(quote.transportFee || 0) > 0 && (
                         <div className="flex justify-between text-muted-foreground">
-                          <span>Logistics fees</span><span>{formatMoney(quote.transportFee)}</span>
+                          <span>Logistics fees</span><span className="shrink-0 ml-4">{formatMoney(quote.transportFee)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between font-bold text-lg pt-2 border-t"><span>Total</span><span>{formatMoney(quote.total)}</span></div>
-                      <div className="flex justify-between text-emerald-600 font-semibold text-xs"><span>50% Deposit</span><span>{formatMoney(quote.depositAmount)}</span></div>
-                      <div className="flex justify-between text-muted-foreground text-xs"><span>Balance (50%)</span><span>{formatMoney(quote.finalAmount)}</span></div>
+                      <div className="flex justify-between font-bold text-lg pt-2 border-t"><span>Total</span><span className="shrink-0 ml-4">{formatMoney(quote.total)}</span></div>
+                      <div className="flex justify-between text-emerald-600 font-semibold text-xs"><span>50% Deposit</span><span className="shrink-0 ml-4">{formatMoney(quote.depositAmount)}</span></div>
+                      <div className="flex justify-between text-muted-foreground text-xs"><span>Balance (50%)</span><span className="shrink-0 ml-4">{formatMoney(quote.finalAmount)}</span></div>
                     </div>
                   </div>
                 </>

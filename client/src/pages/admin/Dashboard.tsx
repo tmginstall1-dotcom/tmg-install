@@ -6,9 +6,9 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { format } from "date-fns";
 import { useState } from "react";
 import {
-  ArrowRight, ClipboardList, DollarSign, CalendarCheck,
+  ClipboardList, DollarSign, CalendarCheck,
   Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2, UserPlus,
-  ArrowUpRight, ChevronRight, Clock, Sparkles, Users,
+  ChevronRight, Clock, Sparkles, Users, ArrowRight,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
@@ -33,9 +33,9 @@ function avatarBg(id: number) { return AVATAR_PALETTE[id % AVATAR_PALETTE.length
 
 function greeting() {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return "Morning";
+  if (h < 18) return "Afternoon";
+  return "Evening";
 }
 
 // ─── Quote row ───────────────────────────────────────────────────────────────
@@ -44,32 +44,31 @@ function QuoteRow({ quote, showDate = false }: { quote: any; showDate?: boolean 
   const slotDate = quote.scheduledAt
     ? format(new Date(quote.scheduledAt), "d MMM")
     : quote.preferredDate
-      ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM") + " (pref.)"
+      ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM")
       : null;
 
   return (
-    <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}>
-      <div className="group flex items-center gap-3.5 px-5 py-3.5 hover:bg-slate-50/80 transition-colors cursor-pointer border-b border-slate-100 last:border-0">
+    <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}
+      className="block w-full">
+      <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100 last:border-0">
         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${avatarBg(quote.id)}`}>
           {initials(quote.customer?.name)}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm text-slate-800 leading-tight truncate group-hover:text-violet-700 transition-colors">
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <p className="font-semibold text-sm text-slate-800 truncate leading-tight">
             {quote.customer?.name || "Unknown"}
           </p>
-          <p className="text-xs text-slate-400 truncate mt-0.5">{quote.serviceAddress}</p>
+          <p className="text-xs text-slate-400 truncate mt-0.5">
+            {quote.serviceAddress || "No address"}
+          </p>
         </div>
-        <span className="hidden md:inline text-[11px] font-mono font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
-          {quote.referenceNo}
-        </span>
-        <StatusBadge status={quote.status} className="hidden lg:inline-flex shrink-0" />
-        <div className="text-right shrink-0">
-          <p className="text-sm font-bold text-slate-800">{formatMoney(quote.total)}</p>
-          <p className="text-[11px] text-slate-400">
+        <div className="shrink-0 text-right ml-2">
+          <p className="text-sm font-bold text-slate-800 tabular-nums">{formatMoney(quote.total)}</p>
+          <p className="text-[11px] text-slate-400 tabular-nums">
             {showDate && slotDate ? slotDate : format(new Date(quote.createdAt), "d MMM")}
           </p>
         </div>
-        <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-violet-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+        <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 group-hover:text-violet-400 transition-colors" />
       </div>
     </Link>
   );
@@ -85,9 +84,9 @@ function BookedQuoteRow({ quote }: { quote: any }) {
   const [expanded, setExpanded] = useState(false);
 
   const slotDate = quote.scheduledAt
-    ? format(new Date(quote.scheduledAt), "d MMM")
+    ? format(new Date(quote.scheduledAt), "EEE d MMM")
     : quote.preferredDate
-      ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM")
+      ? format(new Date(quote.preferredDate + "T12:00:00"), "EEE d MMM")
       : null;
 
   const handleAssign = async (e: React.MouseEvent) => {
@@ -95,7 +94,7 @@ function BookedQuoteRow({ quote }: { quote: any }) {
     if (!selectedStaff) return;
     try {
       await updateStatus.mutateAsync({ id: quote.id, status: "assigned", assignedStaffId: parseInt(selectedStaff) });
-      toast({ title: "Staff assigned", description: "Job is now assigned." });
+      toast({ title: "Staff assigned" });
       setExpanded(false);
     } catch {
       toast({ title: "Failed to assign", variant: "destructive" });
@@ -104,46 +103,41 @@ function BookedQuoteRow({ quote }: { quote: any }) {
 
   return (
     <div className="border-b border-slate-100 last:border-0">
-      <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}>
-        <div className="group flex items-center gap-3.5 px-5 py-3.5 hover:bg-slate-50/80 transition-colors cursor-pointer">
+      <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}
+        className="block w-full">
+        <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors">
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${avatarBg(quote.id)}`}>
             {initials(quote.customer?.name)}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm text-slate-800 leading-tight truncate group-hover:text-violet-700 transition-colors">
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <p className="font-semibold text-sm text-slate-800 truncate leading-tight">
               {quote.customer?.name || "Unknown"}
             </p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-xs text-slate-400 truncate">{quote.serviceAddress}</p>
-              {slotDate && (
-                <span className="hidden sm:inline shrink-0 text-[10px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-md">{slotDate}</span>
-              )}
-            </div>
+            <p className="text-xs text-slate-400 truncate mt-0.5">
+              {slotDate || "No date set"}
+            </p>
           </div>
-          <span className="hidden md:inline text-[11px] font-mono font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
-            {quote.referenceNo}
-          </span>
           {quote.assignedStaffId
-            ? <StatusBadge status="assigned" className="shrink-0" />
-            : <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full shrink-0 tracking-wide">UNASSIGNED</span>
+            ? <span className="shrink-0 text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">ASSIGNED</span>
+            : <span className="shrink-0 text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-1 rounded-full">UNASSIGNED</span>
           }
-          <div className="text-right shrink-0">
-            <p className="text-sm font-bold text-slate-800">{formatMoney(quote.total)}</p>
-            {slotDate && <p className="text-[11px] text-slate-400">{slotDate}</p>}
+          <div className="shrink-0 text-right">
+            <p className="text-sm font-bold text-slate-800 tabular-nums">{formatMoney(quote.total)}</p>
           </div>
+          <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 group-hover:text-violet-400 transition-colors" />
         </div>
       </Link>
       {!quote.assignedStaffId && (
-        <div className="px-5 pb-3">
+        <div className="px-4 pb-3">
           {!expanded ? (
             <button onClick={() => setExpanded(true)} data-testid={`button-quick-assign-${quote.id}`}
-              className="flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors">
-              <UserPlus className="w-3.5 h-3.5" /> Quick Assign Staff
+              className="flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors py-1">
+              <UserPlus className="w-3.5 h-3.5" /> Assign Staff
             </button>
           ) : (
             <div className="flex items-center gap-2" onClick={e => e.preventDefault()}>
               <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}
-                className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                className="flex-1 min-w-0 text-sm border border-slate-200 rounded-xl px-3 py-2.5 bg-white"
                 data-testid={`select-quick-staff-${quote.id}`}>
                 <option value="">Select staff…</option>
                 {staffList?.map((s: any) => (
@@ -151,12 +145,11 @@ function BookedQuoteRow({ quote }: { quote: any }) {
                 ))}
               </select>
               <button onClick={handleAssign} disabled={!selectedStaff || updateStatus.isPending}
-                className="text-sm font-bold bg-violet-600 text-white px-4 py-2.5 rounded-xl disabled:opacity-50 hover:bg-violet-700 transition-colors shrink-0"
+                className="text-sm font-bold bg-violet-600 text-white px-4 py-2.5 rounded-xl disabled:opacity-50 shrink-0"
                 data-testid={`button-confirm-assign-${quote.id}`}>
                 Assign
               </button>
-              <button onClick={() => setExpanded(false)}
-                className="p-2.5 text-slate-400 hover:text-slate-600 transition-colors rounded-lg">✕</button>
+              <button onClick={() => setExpanded(false)} className="p-2 text-slate-400 shrink-0">✕</button>
             </div>
           )}
         </div>
@@ -167,57 +160,53 @@ function BookedQuoteRow({ quote }: { quote: any }) {
 
 // ─── Section panel ────────────────────────────────────────────────────────────
 
-const ACCENT_DOT: Record<string, string> = {
-  violet: "bg-violet-500",
-  amber:  "bg-amber-500",
-  cyan:   "bg-cyan-500",
-  orange: "bg-orange-500",
-  emerald:"bg-emerald-500",
+const ACCENT: Record<string, { dot: string; badge: string; border: string }> = {
+  violet:  { dot: "bg-violet-500",  badge: "bg-violet-600 text-white",   border: "border-slate-200" },
+  amber:   { dot: "bg-amber-500",   badge: "bg-amber-500 text-white",    border: "border-slate-200" },
+  cyan:    { dot: "bg-cyan-500",    badge: "bg-cyan-600 text-white",     border: "border-slate-200" },
+  orange:  { dot: "bg-orange-500",  badge: "bg-orange-500 text-white",   border: "border-orange-200" },
+  emerald: { dot: "bg-emerald-500", badge: "bg-emerald-600 text-white",  border: "border-slate-200" },
 };
 
 function SectionPanel({
-  title, icon: Icon, accentColor, quotes, emptyMsg, showDate, urgent = false, bookedStyle = false,
+  title, accentColor, quotes, emptyMsg, showDate, urgent = false, bookedStyle = false,
 }: {
-  title: string; icon: React.ElementType; accentColor: string;
+  title: string; accentColor: string;
   quotes: any[]; emptyMsg: string; showDate?: boolean; urgent?: boolean; bookedStyle?: boolean;
 }) {
-  const dot = ACCENT_DOT[accentColor] || "bg-slate-400";
-  const countBg = quotes.length > 0
-    ? urgent ? "bg-orange-500 text-white" : "bg-violet-600 text-white"
-    : "bg-slate-100 text-slate-400";
+  const ac = ACCENT[accentColor] || ACCENT.violet;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`bg-white rounded-2xl border overflow-hidden transition-shadow hover:shadow-md ${
-        urgent && quotes.length > 0 ? "border-orange-200 shadow-orange-100/60 shadow-sm" : "border-slate-200 shadow-sm"
+      className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${
+        urgent && quotes.length > 0 ? "border-orange-200" : ac.border
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-        <div className="flex items-center gap-2.5">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${ac.dot}`} />
           <h2 className="font-bold text-sm text-slate-800">{title}</h2>
-          {urgent && quotes.length > 0 && (
-            <span className="text-[10px] font-black text-orange-600 uppercase tracking-widest">URGENT</span>
-          )}
         </div>
-        <span className={`min-w-[1.5rem] h-6 px-2 rounded-full flex items-center justify-center text-xs font-black ${countBg}`}>
+        <span className={`min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center text-xs font-black ${
+          quotes.length > 0 ? ac.badge : "bg-slate-100 text-slate-400"
+        }`}>
           {quotes.length}
         </span>
       </div>
 
       {/* Rows */}
-      <div>
+      <div className="overflow-hidden">
         {quotes.map((q: any) => bookedStyle
           ? <BookedQuoteRow key={q.id} quote={q} />
           : <QuoteRow key={q.id} quote={q} showDate={showDate} />
         )}
         {quotes.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-300">
-            <CheckCircle2 className="w-6 h-6" />
-            <p className="text-sm font-medium">{emptyMsg}</p>
+          <div className="flex flex-col items-center justify-center py-8 gap-1.5 text-slate-300 overflow-hidden">
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <p className="text-xs font-medium text-center px-4">{emptyMsg}</p>
           </div>
         )}
       </div>
@@ -229,27 +218,25 @@ function SectionPanel({
 
 export default function AdminDashboard() {
   const { data: allQuotes, isLoading } = useQuotes();
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/admin/clear-all-data", { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to clear");
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/quotes"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      setShowClearConfirm(false);
+    },
   });
-
-  function handleClearAll() {
-    if (window.confirm("⚠️ Delete ALL quotes, customers and job data? This cannot be undone.")) {
-      clearAllMutation.mutate();
-    }
-  }
 
   if (isLoading) {
     return (
       <div className="min-h-screen pt-14 flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-[3px] border-violet-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-slate-500 font-medium">Loading dashboard…</p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-[3px] border-violet-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-slate-400 font-medium">Loading…</p>
         </div>
       </div>
     );
@@ -274,19 +261,19 @@ export default function AdminDashboard() {
   const urgentCount = newQuotes.length + awaitingPayment.length;
 
   const statCards = [
-    { label: "New Requests",       value: newQuotes.length,       icon: ClipboardList, accent: "violet",  urgent: newQuotes.length > 0 },
-    { label: "Awaiting Deposit",   value: awaitingDeposit.length, icon: DollarSign,    accent: "amber",   urgent: false },
-    { label: "Upcoming Bookings",  value: upcomingBooked.length,  icon: CalendarCheck, accent: "cyan",    urgent: false },
-    { label: "In Progress",        value: activeJobs.length,      icon: Zap,           accent: "orange",  urgent: false },
-    { label: "Awaiting Payment",   value: awaitingPayment.length, icon: AlertCircle,   accent: "emerald", urgent: awaitingPayment.length > 0 },
+    { label: "New",          value: newQuotes.length,       icon: ClipboardList, accent: "violet",  urgent: newQuotes.length > 0 },
+    { label: "Deposit",      value: awaitingDeposit.length, icon: DollarSign,    accent: "amber",   urgent: false },
+    { label: "Bookings",     value: upcomingBooked.length,  icon: CalendarCheck, accent: "cyan",    urgent: false },
+    { label: "In Progress",  value: activeJobs.length,      icon: Zap,           accent: "orange",  urgent: false },
+    { label: "Payment Due",  value: awaitingPayment.length, icon: AlertCircle,   accent: "emerald", urgent: awaitingPayment.length > 0 },
   ];
 
   const accentIconBg: Record<string, string> = {
-    violet:  "bg-violet-100 text-violet-600",
-    amber:   "bg-amber-100 text-amber-600",
-    cyan:    "bg-sky-100 text-sky-600",
-    orange:  "bg-orange-100 text-orange-600",
-    emerald: "bg-emerald-100 text-emerald-600",
+    violet:  "bg-violet-100 text-violet-500",
+    amber:   "bg-amber-100 text-amber-500",
+    cyan:    "bg-sky-100 text-sky-500",
+    orange:  "bg-orange-100 text-orange-500",
+    emerald: "bg-emerald-100 text-emerald-500",
   };
   const accentBar: Record<string, string> = {
     violet:  "bg-violet-500",
@@ -297,113 +284,89 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen pt-14 bg-slate-50">
+    <div className="min-h-screen pt-14 bg-slate-50 pb-24">
 
-      {/* ── PAGE HERO ─────────────────────────────────────────────────────── */}
+      {/* ── HERO ─────────────────────────────────────────────────────── */}
       <div className="bg-slate-950 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-5">
 
-            {/* Left: greeting */}
+          {/* Top row: greeting + revenue */}
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles className="w-3.5 h-3.5 text-violet-400" />
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{greeting()}</p>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <Sparkles className="w-3 h-3 text-violet-400" />
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Good {greeting()}</p>
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">Operations Dashboard</h1>
-              <p className="text-slate-500 text-sm mt-0.5">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
+              <h1 className="text-lg font-black text-white tracking-tight leading-tight">Operations</h1>
+              <p className="text-slate-500 text-xs mt-0.5">{format(new Date(), "EEE, d MMM yyyy")}</p>
             </div>
-
-            {/* Right: revenue + actions — stacks cleanly on mobile */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              {/* Revenue spotlight */}
-              <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 sm:py-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-0.5">Closed Revenue</p>
-                  <p className="text-lg font-black text-white leading-none">{formatMoney(totalRevenue)}</p>
-                </div>
-              </div>
-
-              {/* Action buttons — full-width on mobile, auto on sm+ */}
-              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
-                <Link href="/admin/schedule" data-testid="link-schedule">
-                  <div className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm transition-colors shadow-sm shadow-violet-900/30 w-full">
-                    <Calendar className="w-4 h-4" /> Schedule
-                  </div>
-                </Link>
-                <button onClick={handleClearAll} disabled={clearAllMutation.isPending}
-                  data-testid="button-clear-all-data"
-                  className="flex items-center justify-center gap-2 px-3 py-3 sm:py-2.5 rounded-xl border border-red-900/60 bg-red-950/40 text-red-400 font-bold text-sm hover:bg-red-900/30 transition-colors disabled:opacity-50"
-                  title="Clear all test data">
-                  <Trash2 className="w-4 h-4" />
-                  {clearAllMutation.isPending ? "Clearing…" : "Clear Data"}
-                </button>
-              </div>
+            <div className="text-right shrink-0">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Revenue</p>
+              <p className="text-xl font-black text-white leading-none">{formatMoney(totalRevenue)}</p>
+              <Link href="/admin/schedule" data-testid="link-schedule"
+                className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-lg transition-colors">
+                <Calendar className="w-3 h-3" /> Schedule
+              </Link>
             </div>
           </div>
 
-          {/* Stat strip — 2-col grid on mobile, 3-col sm, 5-col lg */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6">
+          {/* Stat grid — 3-col on mobile */}
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-4">
             {statCards.map((card, i) => (
               <motion.div key={card.label}
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className={`relative rounded-xl px-4 py-3.5 border transition-all ${
+                transition={{ delay: i * 0.04 }}
+                className={`rounded-xl px-3 py-3 border ${
                   card.urgent && card.value > 0
-                    ? "bg-orange-500/10 border-orange-500/20"
-                    : "bg-white/5 border-white/10 hover:bg-white/8"
+                    ? "bg-orange-500/15 border-orange-500/30"
+                    : "bg-white/5 border-white/10"
                 }`}
               >
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${accentIconBg[card.accent]}`}>
-                    <card.icon className="w-3.5 h-3.5" />
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${accentIconBg[card.accent]}`}>
+                    <card.icon className="w-3 h-3" />
                   </div>
-                  <span className={`text-2xl font-black tracking-tight ${
+                  <span className={`text-xl font-black tabular-nums ${
                     card.urgent && card.value > 0 ? "text-orange-300" :
                     card.value > 0 ? "text-white" : "text-slate-600"
                   }`}>{card.value}</span>
                 </div>
-                <p className="text-xs font-semibold text-slate-400 leading-snug">{card.label}</p>
-                <div className={`mt-2 h-[2px] rounded-full ${card.value > 0 ? accentBar[card.accent] : "bg-white/10"}`} />
+                <p className="text-[10px] font-semibold text-slate-500 leading-tight">{card.label}</p>
+                <div className={`mt-1.5 h-[2px] rounded-full ${card.value > 0 ? accentBar[card.accent] : "bg-white/10"}`} />
               </motion.div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* ── CONTENT ───────────────────────────────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+      {/* ── CONTENT ───────────────────────────────────────────────────── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        {/* Action required banner */}
+        {/* Attention banner */}
         {urgentCount > 0 && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-            className="mt-6 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3.5">
-            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4 text-amber-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-amber-800">
-                {urgentCount} item{urgentCount !== 1 ? "s" : ""} need your attention
+            className="mt-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+            <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-amber-800 truncate">
+                {urgentCount} item{urgentCount !== 1 ? "s" : ""} need attention
               </p>
-              <p className="text-xs text-amber-600 mt-0.5">
-                {newQuotes.length > 0 && `${newQuotes.length} new request${newQuotes.length > 1 ? "s" : ""}`}
-                {newQuotes.length > 0 && awaitingPayment.length > 0 && " · "}
-                {awaitingPayment.length > 0 && `${awaitingPayment.length} awaiting final payment`}
+              <p className="text-xs text-amber-600 truncate">
+                {[
+                  newQuotes.length > 0 && `${newQuotes.length} new`,
+                  awaitingPayment.length > 0 && `${awaitingPayment.length} awaiting payment`,
+                ].filter(Boolean).join(" · ")}
               </p>
             </div>
-            <ArrowRight className="w-4 h-4 text-amber-500 shrink-0" />
+            <ArrowRight className="w-4 h-4 text-amber-400 shrink-0" />
           </motion.div>
         )}
 
         {/* Section grid */}
-        <div className="grid md:grid-cols-2 gap-5 mt-6">
+        <div className="grid md:grid-cols-2 gap-4 mt-4">
           <SectionPanel
             title="New Quote Requests"
-            icon={ClipboardList}
             accentColor="violet"
             quotes={newQuotes}
             emptyMsg="No new requests — all clear"
@@ -411,14 +374,12 @@ export default function AdminDashboard() {
           />
           <SectionPanel
             title="Awaiting Deposit"
-            icon={DollarSign}
             accentColor="amber"
             quotes={awaitingDeposit}
             emptyMsg="No outstanding deposits"
           />
           <SectionPanel
-            title="Upcoming Confirmed Bookings"
-            icon={CalendarCheck}
+            title="Upcoming Bookings"
             accentColor="cyan"
             quotes={upcomingBooked}
             emptyMsg="No upcoming bookings"
@@ -427,7 +388,6 @@ export default function AdminDashboard() {
           />
           <SectionPanel
             title="Active / In Progress"
-            icon={Zap}
             accentColor="orange"
             quotes={activeJobs}
             emptyMsg="No active jobs right now"
@@ -436,7 +396,6 @@ export default function AdminDashboard() {
           <div className="md:col-span-2">
             <SectionPanel
               title="Awaiting Final Payment"
-              icon={AlertCircle}
               accentColor="emerald"
               quotes={awaitingPayment.concat(recentlyClosed)}
               emptyMsg="No jobs awaiting payment"
@@ -444,26 +403,48 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Quick-nav footer */}
-        <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {/* Quick-nav cards */}
+        <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { href: "/admin/schedule", label: "Manage Schedule", icon: Calendar, desc: "Block dates & confirm bookings" },
-            { href: "/admin/staff",    label: "Staff & HR",      icon: Users,    desc: "Payroll, leave & amendments" },
-            { href: "/admin/export",   label: "Export PDF",      icon: ArrowUpRight, desc: "Generate client reports" },
+            { href: "/admin/schedule", label: "Manage Schedule",  icon: Calendar,      desc: "Block dates & confirm bookings" },
+            { href: "/admin/staff",    label: "Staff & HR",       icon: Users,         desc: "Payroll, leave & amendments" },
+            { href: "/admin/export",   label: "Audit & Export",   icon: TrendingUp,    desc: "Generate reports & CSV export" },
           ].map(({ href, label, icon: Icon, desc }) => (
-            <Link key={href} href={href}>
-              <div className="group flex items-center gap-3.5 bg-white border border-slate-200 rounded-2xl p-4 hover:border-violet-300 hover:shadow-sm transition-all cursor-pointer">
+            <Link key={href} href={href} className="block w-full">
+              <div className="group flex items-center gap-3 bg-white border border-slate-200 rounded-2xl p-4 hover:border-violet-300 hover:shadow-sm transition-all active:bg-slate-50">
                 <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-violet-100 flex items-center justify-center transition-colors shrink-0">
                   <Icon className="w-4 h-4 text-slate-500 group-hover:text-violet-600 transition-colors" />
                 </div>
-                <div className="min-w-0">
-                  <p className="font-bold text-sm text-slate-800 group-hover:text-violet-700 transition-colors">{label}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-sm text-slate-800">{label}</p>
                   <p className="text-xs text-slate-400 truncate">{desc}</p>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-violet-400 ml-auto shrink-0 transition-colors" />
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-violet-400 shrink-0 transition-colors" />
               </div>
             </Link>
           ))}
+        </div>
+
+        {/* Danger zone — tucked away */}
+        <div className="mt-6 mb-2">
+          {!showClearConfirm ? (
+            <button onClick={() => setShowClearConfirm(true)}
+              className="text-[11px] font-semibold text-slate-300 hover:text-red-400 transition-colors"
+              data-testid="button-clear-all-data">
+              Clear test data
+            </button>
+          ) : (
+            <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+              <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
+              <p className="text-xs text-red-700 font-semibold flex-1">Delete ALL quotes & data?</p>
+              <button onClick={() => clearAllMutation.mutate()} disabled={clearAllMutation.isPending}
+                className="text-xs font-black text-white bg-red-600 px-3 py-1.5 rounded-lg disabled:opacity-50">
+                {clearAllMutation.isPending ? "…" : "Delete"}
+              </button>
+              <button onClick={() => setShowClearConfirm(false)}
+                className="text-xs font-semibold text-slate-500">Cancel</button>
+            </div>
+          )}
         </div>
       </div>
     </div>
