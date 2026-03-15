@@ -10,6 +10,7 @@ import {
   ArrowRight, DollarSign, ChevronLeft, ChevronRight, Navigation2, MoveRight, CircleDot
 } from "lucide-react";
 import OfficialPayslip from "@/components/OfficialPayslip";
+import GpsMap from "@/components/GpsMap";
 
 const TEAM_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6"];
 
@@ -2174,6 +2175,24 @@ function GpsTrackingTab() {
               <p className="text-lg font-black">{value}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Live map */}
+      {rawPoints.length > 0 && (
+        <div className="border border-black/[0.07] bg-white overflow-hidden">
+          <div className="px-4 py-3 border-b border-black/[0.07] flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40">
+              Route Map — {selectedStaff?.name ?? "—"} · {selectedDate}
+            </p>
+            <div className="flex items-center gap-3 text-[10px] text-black/40 font-semibold">
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Start</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-1 bg-blue-600 inline-block" /> Route</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-amber-400 inline-block" /> Stop</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block" /> Last seen</span>
+            </div>
+          </div>
+          <GpsMap points={rawPoints} height={400} />
         </div>
       )}
 
