@@ -190,7 +190,9 @@ export async function registerRoutes(
       }).parse(req.body);
       const existing = await storage.getUserByUsername(username);
       if (existing) return res.status(409).json({ message: "Username already taken" });
-      const user = await storage.createUser({ username, password, name, role: 'staff' });
+      const bcrypt = await import("bcryptjs");
+      const hashed = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({ username, password: hashed, name, role: 'staff' });
       res.json(user);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
@@ -201,10 +203,22 @@ export async function registerRoutes(
       const id = parseInt(req.params.id);
       const data = z.object({
         name: z.string().min(2).optional(),
+        username: z.string().min(2).optional(),
         password: z.string().min(6).optional(),
         teamId: z.number().nullable().optional(),
       }).parse(req.body);
-      const updated = await storage.updateUser(id, data);
+      // Check username uniqueness (excluding current user)
+      if (data.username) {
+        const existing = await storage.getUserByUsername(data.username);
+        if (existing && existing.id !== id) return res.status(409).json({ message: "Username already taken" });
+      }
+      // Hash password if provided
+      const bcrypt = await import("bcryptjs");
+      const updateData: any = { ...data };
+      if (data.password) {
+        updateData.password = await bcrypt.hash(data.password, 10);
+      }
+      const updated = await storage.updateUser(id, updateData);
       res.json(updated);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });

@@ -158,6 +158,7 @@ function TeamsTab() {
   const [newStaff, setNewStaff] = useState({ name: "", username: "", password: "" });
   const [addingStaff, setAddingStaff] = useState(false);
   const [paySettingsStaffId, setPaySettingsStaffId] = useState<number | null>(null);
+  const [editStaffId, setEditStaffId] = useState<number | null>(null);
 
   const { data: teams = [] } = useQuery<any[]>({ queryKey: ["/api/teams"] });
   const { data: allStaff = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
@@ -240,7 +241,9 @@ function TeamsTab() {
                   onAssign={(teamId) => assignMut.mutate({ teamId, userId: s.id })}
                   onUnassign={() => unassignMut.mutate(s.id)}
                   onDelete={() => { if (confirm(`Remove ${s.name}? This cannot be undone.`)) deleteStaffMut.mutate(s.id); }}
-                  onPaySettings={() => setPaySettingsStaffId(paySettingsStaffId === s.id ? null : s.id)} />
+                  onEdit={() => { setEditStaffId(editStaffId === s.id ? null : s.id); setPaySettingsStaffId(null); }}
+                  onPaySettings={() => { setPaySettingsStaffId(paySettingsStaffId === s.id ? null : s.id); setEditStaffId(null); }} />
+                {editStaffId === s.id && <EditStaffForm staff={s} onClose={() => setEditStaffId(null)} />}
                 {paySettingsStaffId === s.id && <PaySettingsForm staff={s} onClose={() => setPaySettingsStaffId(null)} />}
               </div>
             ))}
@@ -386,7 +389,7 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
   );
 }
 
-function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings }: any) {
+function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings, onEdit }: any) {
   const team = teams.find((t: any) => t.id === staff.teamId);
   const monthly = parseFloat(staff.monthlyRate || "0");
   const hourly  = parseFloat(staff.hourlyRate  || "0");
@@ -419,6 +422,11 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings 
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={onEdit} title="Edit account"
+            className="p-2 text-muted-foreground hover:text-black hover:bg-slate-100 transition-colors"
+            data-testid={`button-edit-staff-${staff.id}`}>
+            <Pencil className="w-4 h-4" />
+          </button>
           <button onClick={onPaySettings} title="Pay settings"
             className="p-2 text-muted-foreground hover:text-black hover:bg-slate-100 transition-colors"
             data-testid={`button-pay-settings-${staff.id}`}>
@@ -438,6 +446,63 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings 
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function EditStaffForm({ staff, onClose }: { staff: any; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [form, setForm] = useState({ name: staff.name, username: staff.username, password: "" });
+
+  const mut = useMutation({
+    mutationFn: () => {
+      const payload: any = { name: form.name, username: form.username };
+      if (form.password) payload.password = form.password;
+      return apiRequest("PATCH", `/api/admin/staff/${staff.id}`, payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/staff"] });
+      onClose();
+      toast({ title: "Account updated" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="mx-0 mb-2 p-4 bg-slate-50 border border-black/10 space-y-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Edit Account — {staff.name}</p>
+      <div className="space-y-2">
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 block mb-1">Full Name</label>
+          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black"
+            data-testid={`input-edit-name-${staff.id}`} />
+        </div>
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 block mb-1">Username</label>
+          <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+            className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black"
+            data-testid={`input-edit-username-${staff.id}`} />
+        </div>
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 block mb-1">New Password <span className="normal-case font-normal text-slate-400">(leave blank to keep current)</span></label>
+          <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+            placeholder="Min 6 characters"
+            className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black"
+            data-testid={`input-edit-password-${staff.id}`} />
+        </div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <button onClick={() => mut.mutate()} disabled={mut.isPending || !form.name || !form.username}
+          className="flex-1 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors disabled:opacity-50"
+          data-testid={`button-save-staff-${staff.id}`}>
+          {mut.isPending ? "Saving..." : "Save Changes"}
+        </button>
+        <button onClick={onClose} className="px-4 py-2.5 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-100 transition-colors">
+          Cancel
+        </button>
       </div>
     </div>
   );
