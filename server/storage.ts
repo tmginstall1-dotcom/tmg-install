@@ -1,13 +1,14 @@
 import { db } from "./db";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
-  attendanceAmendments, leaveRequests, payslips,
+  attendanceAmendments, leaveRequests, payslips, gpsTrackPoints,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
   type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser,
   type AttendanceAmendment, type AttendanceAmendmentWithUser,
   type LeaveRequest, type LeaveRequestWithUser,
-  type Payslip, type PayslipWithUser
+  type Payslip, type PayslipWithUser,
+  type GpsTrackPoint
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull } from "drizzle-orm";
 
@@ -37,6 +38,10 @@ export interface IStorage {
   createAttendanceLog(data: { userId: number; clockInAt: Date; clockOutAt?: Date | null; notes?: string }): Promise<AttendanceLog>;
   updateAttendanceLog(id: number, data: { clockInAt?: Date; clockOutAt?: Date | null; notes?: string }): Promise<AttendanceLog | undefined>;
   deleteAttendanceLog(id: number): Promise<void>;
+
+  // GPS Track Points
+  addGpsTrackPoint(data: { userId: number; lat: string; lng: string; accuracy?: string; speed?: string; heading?: string; recordedAt?: Date }): Promise<GpsTrackPoint>;
+  getGpsTrackPoints(userId: number, dateFrom: Date, dateTo: Date): Promise<GpsTrackPoint[]>;
 
   // Amendments
   createAmendment(data: Omit<typeof attendanceAmendments.$inferInsert, 'id' | 'createdAt'>): Promise<AttendanceAmendment>;
@@ -243,6 +248,30 @@ export class DatabaseStorage implements IStorage {
   async deleteAttendanceLog(id: number): Promise<void> {
     await db.delete(attendanceAmendments).where(eq(attendanceAmendments.attendanceLogId, id));
     await db.delete(attendanceLogs).where(eq(attendanceLogs.id, id));
+  }
+
+  // GPS Track Points
+  async addGpsTrackPoint(data: { userId: number; lat: string; lng: string; accuracy?: string; speed?: string; heading?: string; recordedAt?: Date }): Promise<GpsTrackPoint> {
+    const [pt] = await db.insert(gpsTrackPoints).values({
+      userId: data.userId,
+      lat: data.lat,
+      lng: data.lng,
+      accuracy: data.accuracy ?? null,
+      speed: data.speed ?? null,
+      heading: data.heading ?? null,
+      recordedAt: data.recordedAt ?? new Date(),
+    }).returning();
+    return pt;
+  }
+
+  async getGpsTrackPoints(userId: number, dateFrom: Date, dateTo: Date): Promise<GpsTrackPoint[]> {
+    return db.select().from(gpsTrackPoints)
+      .where(and(
+        eq(gpsTrackPoints.userId, userId),
+        gte(gpsTrackPoints.recordedAt, dateFrom),
+        lte(gpsTrackPoints.recordedAt, dateTo),
+      ))
+      .orderBy(gpsTrackPoints.recordedAt);
   }
 
   // Amendments

@@ -371,6 +371,41 @@ export async function registerRoutes(
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
+  // -- GPS Track Routes --
+  app.post("/api/staff/gps-track", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const { lat, lng, accuracy, speed, heading, recordedAt } = z.object({
+        lat: z.string(),
+        lng: z.string(),
+        accuracy: z.string().optional(),
+        speed: z.string().optional(),
+        heading: z.string().optional(),
+        recordedAt: z.string().optional(),
+      }).parse(req.body);
+      const pt = await storage.addGpsTrackPoint({
+        userId: req.session.userId,
+        lat, lng, accuracy, speed, heading,
+        recordedAt: recordedAt ? new Date(recordedAt) : undefined,
+      });
+      res.json(pt);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.get("/api/admin/staff/:userId/gps-track", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const userId = parseInt(req.params.userId);
+      const date = req.query.date as string || new Date().toISOString().split("T")[0];
+      const dateFrom = new Date(date + "T00:00:00");
+      const dateTo   = new Date(date + "T23:59:59");
+      const points = await storage.getGpsTrackPoints(userId, dateFrom, dateTo);
+      res.json(points);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
   // -- Amendment Routes --
   app.post("/api/attendance/amendment", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });

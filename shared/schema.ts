@@ -58,6 +58,20 @@ export const attendanceAmendments = pgTable("attendance_amendments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// GPS Track Points — continuous location history for staff
+export const gpsTrackPoints = pgTable("gps_track_points", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  lat: numeric("lat", { precision: 10, scale: 7 }).notNull(),
+  lng: numeric("lng", { precision: 10, scale: 7 }).notNull(),
+  accuracy: numeric("accuracy"),   // metres (browser accuracy estimate)
+  speed: numeric("speed"),         // m/s — null if unavailable
+  heading: numeric("heading"),     // degrees 0-360 — null if unavailable
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+});
+
+export type GpsTrackPoint = typeof gpsTrackPoints.$inferSelect;
+
 // Leave Requests
 export const leaveRequests = pgTable("leave_requests", {
   id: serial("id").primaryKey(),

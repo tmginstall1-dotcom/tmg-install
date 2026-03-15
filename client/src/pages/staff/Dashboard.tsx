@@ -1,4 +1,5 @@
 import { useAuth } from "@/hooks/use-auth";
+import { useGpsTracker } from "@/hooks/use-gps-tracker";
 import { Link } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
@@ -28,6 +29,9 @@ function fmtHM(mins: number) {
 
 export default function StaffDashboard() {
   const { user } = useAuth();
+
+  // Silent continuous GPS tracking — runs every 30s while staff are in the app
+  useGpsTracker(!!user && user.role === "staff");
 
   const { data: quotes, isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/quotes"],

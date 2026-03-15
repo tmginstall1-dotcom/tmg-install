@@ -7,7 +7,7 @@ import { format, differenceInMinutes, startOfMonth, endOfMonth, startOfWeek, end
 import {
   Plus, Trash2, Pencil, Check, X, Users, Clock, UserPlus, LogIn, LogOut,
   ChevronDown, ChevronUp, Calendar, FileText, Settings2, Loader2, AlertCircle, MapPin, Printer,
-  ArrowRight, DollarSign, ChevronLeft, ChevronRight
+  ArrowRight, DollarSign, ChevronLeft, ChevronRight, Navigation2, MoveRight, CircleDot
 } from "lucide-react";
 import OfficialPayslip from "@/components/OfficialPayslip";
 
@@ -45,7 +45,7 @@ export default function StaffManagement() {
   const [, navigate] = useLocation();
   const params = new URLSearchParams(search);
   const tabParam = params.get("tab");
-  const validTabs = ["teams", "payroll", "amendments", "leave", "payslips"] as const;
+  const validTabs = ["teams", "payroll", "amendments", "leave", "payslips", "tracking"] as const;
   type TabKey = typeof validTabs[number];
   const [tab, setTab] = useState<TabKey>(
     validTabs.includes(tabParam as TabKey) ? (tabParam as TabKey) : "teams"
@@ -84,6 +84,7 @@ export default function StaffManagement() {
     { key: "amendments" as const, label: "Amendments", icon: AlertCircle, badge: pendingAmendCount },
     { key: "leave" as const, label: "Leave", icon: Calendar, badge: pendingLeaveCount },
     { key: "payslips" as const, label: "Payslips", icon: FileText, badge: 0 },
+    { key: "tracking" as const, label: "GPS Track", icon: Navigation2, badge: 0 },
   ];
 
   // Staff count for header display
@@ -139,6 +140,7 @@ export default function StaffManagement() {
         {tab === "amendments" && <AmendmentsTab />}
         {tab === "leave" && <LeaveTab />}
         {tab === "payslips" && <PayslipsTab />}
+        {tab === "tracking" && <GpsTrackingTab />}
       </div>
     </div>
   );
@@ -2030,6 +2032,270 @@ function PayslipsTab() {
           payslip={printingPayslip}
           onClose={() => setPrintingPayslip(null)}
         />
+      )}
+    </div>
+  );
+}
+
+// ─── GPS Tracking Tab ─────────────────────────────────────────────────────────
+
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function fmtDist(m: number) {
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+}
+
+type TrackPoint = { id: number; lat: string; lng: string; accuracy: string | null; speed: string | null; heading: string | null; recordedAt: string };
+
+type Segment =
+  | { type: "stop"; lat: number; lng: number; startTime: Date; endTime: Date; durationMins: number }
+  | { type: "move"; distM: number; startTime: Date; endTime: Date; durationMins: number };
+
+function buildSegments(points: TrackPoint[]): Segment[] {
+  if (points.length < 2) return [];
+  const STOP_DIST_M = 50;     // within 50m = stationary
+  const STOP_MIN_PTS = 2;     // at least 2 consecutive stationary readings = stop
+
+  const segs: Segment[] = [];
+  let i = 0;
+  while (i < points.length - 1) {
+    const a = points[i];
+    const aLat = parseFloat(a.lat), aLng = parseFloat(a.lng);
+
+    // Collect consecutive stationary points
+    let j = i + 1;
+    while (j < points.length) {
+      const d = haversineM(aLat, aLng, parseFloat(points[j].lat), parseFloat(points[j].lng));
+      if (d <= STOP_DIST_M) j++;
+      else break;
+    }
+    const stationaryCount = j - i;
+
+    if (stationaryCount >= STOP_MIN_PTS) {
+      const start = new Date(a.recordedAt);
+      const end   = new Date(points[j - 1].recordedAt);
+      segs.push({ type: "stop", lat: aLat, lng: aLng, startTime: start, endTime: end, durationMins: differenceInMinutes(end, start) });
+      i = j;
+    } else {
+      // Movement: advance one step
+      const b = points[i + 1];
+      const distM = haversineM(aLat, aLng, parseFloat(b.lat), parseFloat(b.lng));
+      const start = new Date(a.recordedAt);
+      const end   = new Date(b.recordedAt);
+      // Merge consecutive move segments
+      const prev = segs[segs.length - 1];
+      if (prev && prev.type === "move") {
+        (prev as any).distM += distM;
+        (prev as any).endTime = end;
+        (prev as any).durationMins = differenceInMinutes(end, (prev as any).startTime);
+      } else {
+        segs.push({ type: "move", distM, startTime: start, endTime: end, durationMins: differenceInMinutes(end, start) });
+      }
+      i++;
+    }
+  }
+  return segs;
+}
+
+function GpsTrackingTab() {
+  const { data: allStaff = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
+  const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+
+  const staffId = selectedStaffId ?? (allStaff[0]?.id ?? null);
+
+  const { data: rawPoints = [], isLoading } = useQuery<TrackPoint[]>({
+    queryKey: ["/api/admin/staff", staffId, "gps-track", selectedDate],
+    queryFn: async () => {
+      if (!staffId) return [];
+      const r = await fetch(`/api/admin/staff/${staffId}/gps-track?date=${selectedDate}`);
+      return r.json();
+    },
+    enabled: !!staffId,
+    refetchInterval: 30000,
+  });
+
+  const selectedStaff = allStaff.find((s: any) => s.id === staffId);
+  const segments = buildSegments(rawPoints);
+  const totalDistM = segments.filter(s => s.type === "move").reduce((a, s) => a + (s as any).distM, 0);
+  const totalStops = segments.filter(s => s.type === "stop").length;
+  const firstSeen  = rawPoints.length > 0 ? new Date(rawPoints[0].recordedAt) : null;
+  const lastSeen   = rawPoints.length > 0 ? new Date(rawPoints[rawPoints.length - 1].recordedAt) : null;
+
+  function mapsLink(lat: number, lng: number) {
+    return `https://www.google.com/maps?q=${lat},${lng}`;
+  }
+
+  return (
+    <div className="pb-16 space-y-4">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-black/40 mb-1">Staff Member</label>
+          <select
+            value={staffId ?? ""}
+            onChange={e => setSelectedStaffId(Number(e.target.value))}
+            className="border border-black/10 bg-white text-sm px-3 py-2 h-9 focus:outline-none focus:border-black"
+            data-testid="select-gps-staff">
+            {(allStaff as any[]).map((s: any) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-black/40 mb-1">Date</label>
+          <input type="date" value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+            className="border border-black/10 bg-white text-sm px-3 py-2 h-9 focus:outline-none focus:border-black"
+            data-testid="input-gps-date" />
+        </div>
+      </div>
+
+      {/* Summary stats */}
+      {rawPoints.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Points Recorded", value: String(rawPoints.length) },
+            { label: "Total Distance", value: fmtDist(totalDistM) },
+            { label: "Stops", value: String(totalStops) },
+            { label: "Active Period", value: firstSeen && lastSeen ? `${format(firstSeen, "HH:mm")} – ${format(lastSeen, "HH:mm")}` : "—" },
+          ].map(({ label, value }) => (
+            <div key={label} className="border border-black/[0.07] bg-white p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-1">{label}</p>
+              <p className="text-lg font-black">{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Timeline */}
+      <div className="border border-black/[0.07] bg-white">
+        <div className="px-4 py-3 border-b border-black/[0.07]">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40">
+            Movement Timeline — {selectedStaff?.name ?? "—"} · {selectedDate}
+          </p>
+        </div>
+
+        {isLoading && (
+          <div className="flex items-center gap-2 px-4 py-8 text-black/40">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">Loading track data…</span>
+          </div>
+        )}
+
+        {!isLoading && rawPoints.length === 0 && (
+          <div className="px-4 py-10 text-center">
+            <Navigation2 className="w-8 h-8 text-black/15 mx-auto mb-2" />
+            <p className="text-sm font-bold text-black/40">No track data for this date</p>
+            <p className="text-xs text-black/30 mt-1">GPS points are recorded every 30 seconds when staff are active in the app.</p>
+          </div>
+        )}
+
+        {!isLoading && segments.length > 0 && (
+          <div className="divide-y divide-black/[0.05]">
+            {/* First point marker */}
+            <div className="flex items-center gap-3 px-4 py-2.5">
+              <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                <div className="w-2 h-2 bg-white rounded-full" />
+              </div>
+              <span className="text-xs font-bold text-emerald-600">
+                {firstSeen ? `Session started · ${format(firstSeen, "HH:mm:ss")}` : "Start"}
+              </span>
+            </div>
+
+            {segments.map((seg, idx) => {
+              if (seg.type === "stop") {
+                return (
+                  <div key={idx} className="flex items-start gap-3 px-4 py-3" data-testid={`gps-stop-${idx}`}>
+                    <div className="w-6 h-6 bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0 mt-0.5">
+                      <CircleDot className="w-3.5 h-3.5 text-amber-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span className="text-xs font-black uppercase tracking-[0.05em]">Stopped</span>
+                        <span className="text-[11px] text-black/50">
+                          {format(seg.startTime, "HH:mm")} – {format(seg.endTime, "HH:mm")}
+                          {seg.durationMins >= 1 && ` · ${seg.durationMins} min`}
+                        </span>
+                      </div>
+                      <a href={mapsLink(seg.lat, seg.lng)} target="_blank" rel="noreferrer"
+                        className="text-[11px] text-blue-600 hover:underline font-mono mt-0.5 inline-block">
+                        {seg.lat.toFixed(5)}, {seg.lng.toFixed(5)} ↗
+                      </a>
+                    </div>
+                  </div>
+                );
+              } else {
+                return (
+                  <div key={idx} className="flex items-center gap-3 px-4 py-2.5" data-testid={`gps-move-${idx}`}>
+                    <div className="w-6 flex justify-center shrink-0">
+                      <div className="w-px h-8 bg-black/10" />
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-black/40">
+                      <MoveRight className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <span>Moving · {fmtDist((seg as any).distM)}</span>
+                      {seg.durationMins > 0 && <span>· {seg.durationMins} min</span>}
+                    </div>
+                  </div>
+                );
+              }
+            })}
+
+            {/* Last point marker */}
+            <div className="flex items-center gap-3 px-4 py-2.5">
+              <div className="w-6 h-6 rounded-full bg-slate-400 flex items-center justify-center shrink-0">
+                <div className="w-2 h-2 bg-white rounded-full" />
+              </div>
+              <span className="text-xs font-bold text-black/50">
+                {lastSeen ? `Last seen · ${format(lastSeen, "HH:mm:ss")}` : "End"}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Raw points table (collapsed by default) */}
+      {rawPoints.length > 0 && (
+        <details className="border border-black/[0.07]">
+          <summary className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-black/40 cursor-pointer hover:bg-black/[0.02]">
+            Raw Points ({rawPoints.length})
+          </summary>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-black/[0.07] bg-slate-50">
+                  {["Time", "Lat", "Lng", "Accuracy", "Speed", "Map"].map(h => (
+                    <th key={h} className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.1em] text-black/40">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/[0.04]">
+                {rawPoints.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="px-3 py-1.5 font-mono">{format(new Date(p.recordedAt), "HH:mm:ss")}</td>
+                    <td className="px-3 py-1.5 font-mono">{parseFloat(p.lat).toFixed(5)}</td>
+                    <td className="px-3 py-1.5 font-mono">{parseFloat(p.lng).toFixed(5)}</td>
+                    <td className="px-3 py-1.5 text-black/50">{p.accuracy ? `${Math.round(parseFloat(p.accuracy))}m` : "—"}</td>
+                    <td className="px-3 py-1.5 text-black/50">{p.speed != null ? `${(parseFloat(p.speed) * 3.6).toFixed(1)} km/h` : "—"}</td>
+                    <td className="px-3 py-1.5">
+                      <a href={mapsLink(parseFloat(p.lat), parseFloat(p.lng))} target="_blank" rel="noreferrer"
+                        className="text-blue-600 hover:underline">↗</a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       )}
     </div>
   );
