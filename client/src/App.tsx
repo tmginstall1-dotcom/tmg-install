@@ -27,6 +27,7 @@ import StaffJobDetail from "@/pages/staff/JobDetail";
 import StaffHR from "@/pages/staff/HR";
 
 import { useAuth } from "@/hooks/use-auth";
+import { useGpsTracker } from "@/hooks/use-gps-tracker";
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
@@ -41,6 +42,9 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
 function StaffRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
+
+  // GPS tracker runs across the entire staff session — every page, not just Dashboard
+  useGpsTracker(!!user && user.role === "staff");
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
   if (!user) { setLocation('/staff/login'); return null; }
