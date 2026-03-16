@@ -660,9 +660,12 @@ export async function registerRoutes(
   app.get("/api/staff/team/today", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     try {
-      const today = new Date();
-      const from = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
-      const to   = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      // Use Singapore time (UTC+8) for day boundaries
+      const SGT = 8 * 3600000;
+      const sgtNow = new Date(Date.now() + SGT);
+      const y = sgtNow.getUTCFullYear(), mo = sgtNow.getUTCMonth(), d = sgtNow.getUTCDate();
+      const from = new Date(Date.UTC(y, mo, d, 0, 0, 0) - SGT);
+      const to   = new Date(Date.UTC(y, mo, d, 23, 59, 59, 999) - SGT);
       const [allStaff, logs] = await Promise.all([
         storage.getStaffMembers(),
         storage.getAttendanceLogs(from, to),

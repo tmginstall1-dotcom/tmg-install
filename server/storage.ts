@@ -191,8 +191,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTodayAttendance(userId: number): Promise<AttendanceLog | undefined> {
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+    // Use Singapore time (UTC+8) for day boundaries
+    const SGT = 8 * 3600000;
+    const sgtNow = new Date(Date.now() + SGT);
+    const y = sgtNow.getUTCFullYear(), mo = sgtNow.getUTCMonth(), d = sgtNow.getUTCDate();
+    const todayStart = new Date(Date.UTC(y, mo, d, 0, 0, 0) - SGT);
+    const todayEnd   = new Date(Date.UTC(y, mo, d, 23, 59, 59, 999) - SGT);
     const [log] = await db.select().from(attendanceLogs)
       .where(and(
         eq(attendanceLogs.userId, userId),

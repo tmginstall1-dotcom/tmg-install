@@ -632,7 +632,7 @@ function TodayRoster() {
     queryKey: ["/api/admin/attendance", date, date, ""],
     queryFn: async () => {
       if (!isValidDate) return [];
-      const params = new URLSearchParams({ from: date + "T00:00:00", to: date + "T23:59:59" });
+      const params = new URLSearchParams({ from: date + "T00:00:00+08:00", to: date + "T23:59:59+08:00" });
       const res = await fetch(`/api/admin/attendance?${params}`);
       if (!res.ok) return [];
       const data = await res.json();
@@ -1144,7 +1144,7 @@ function TimesheetsView() {
   // Shared fetcher
   const fetchLogs = async (f: string, t: string, uid: string) => {
     if (!isValid(f) || !isValid(t)) return [];
-    const params = new URLSearchParams({ from: f + "T00:00:00", to: t + "T23:59:59" });
+    const params = new URLSearchParams({ from: f + "T00:00:00+08:00", to: t + "T23:59:59+08:00" });
     if (uid) params.set("userId", uid);
     const res = await fetch(`/api/admin/attendance?${params}`);
     if (!res.ok) return [];
