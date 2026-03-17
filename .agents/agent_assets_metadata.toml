@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "z9UFy2TtkCJgeQIoNx0Xi"
+uri = "file://attached_assets/tmg_icon.png"
+type = "image"
+title = "TMG Staff App Icon"
