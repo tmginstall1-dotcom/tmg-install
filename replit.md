@@ -17,6 +17,7 @@ The app is a monorepo with a React frontend (Vite), Express backend, and Postgre
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+Always provide full file contents when editing any code file — never partial snippets or diffs.
 
 ---
 
