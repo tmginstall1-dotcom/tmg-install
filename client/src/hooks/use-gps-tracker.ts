@@ -46,11 +46,19 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Reliable native detection: checks custom user agent (set via capacitor.config.ts
+// android.appendUserAgent) AND the Capacitor bridge as fallback.
 function isCapacitorNative(): boolean {
-  return (
-    typeof (window as any).Capacitor !== "undefined" &&
-    (window as any).Capacitor.isNativePlatform?.() === true
-  );
+  // Primary: user agent appended by Capacitor config (works with remote URLs)
+  if (navigator.userAgent.includes("TMGStaffApp")) return true;
+  // Fallback: Capacitor bridge (works when bridge is injected)
+  try {
+    if (
+      typeof (window as any).Capacitor !== "undefined" &&
+      (window as any).Capacitor.isNativePlatform?.() === true
+    ) return true;
+  } catch {}
+  return false;
 }
 
 async function postCoords(
@@ -114,7 +122,7 @@ export function useGpsTracker(enabled: boolean) {
       );
       watcherIdRef.current = id;
 
-      // Heartbeat for stationary staff
+      // Heartbeat — sends last known position every 30s for stationary staff
       heartbeatRef.current = setInterval(() => {
         const p = latestPosRef.current;
         if (p) postCoords(p.lat, p.lng);
@@ -132,7 +140,7 @@ export function useGpsTracker(enabled: boolean) {
     }
   }, []);
 
-  // ─── BROWSER tracking (foreground-only) ────────────────────────────────────
+  // ─── BROWSER tracking (foreground-only fallback) ────────────────────────────
   const startBrowser = useCallback(() => {
     if (!navigator.geolocation) return;
 
