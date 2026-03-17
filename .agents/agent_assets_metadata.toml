@@ -6,3 +6,9 @@ id = "z9UFy2TtkCJgeQIoNx0Xi"
 uri = "file://attached_assets/tmg_icon.png"
 type = "image"
 title = "TMG Staff App Icon"
+
+[[outputs]]
+id = "tMk2Si2IpZE7S-swaPjkb"
+uri = "file://attached_assets/tmg_icon_v2.png"
+type = "image"
+title = "TMG Staff App Icon (White)"
