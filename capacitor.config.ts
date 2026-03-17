@@ -14,6 +14,8 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
     backgroundColor: "#111111",
+    // Appended to the WebView user agent — used by NativeRedirect to detect native context
+    appendUserAgent: "TMGStaffApp",
   },
   plugins: {
     BackgroundGeolocation: {

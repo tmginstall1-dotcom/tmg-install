@@ -56,6 +56,9 @@ function StaffRoute({ component: Component }: { component: React.ComponentType }
 
 
 function isNativeApp(): boolean {
+  // Primary: custom user agent string appended via capacitor.config.ts android.appendUserAgent
+  if (navigator.userAgent.includes("TMGStaffApp")) return true;
+  // Fallback: Capacitor bridge (works when loading local assets, not remote URLs)
   try {
     if (Capacitor.isNativePlatform()) return true;
   } catch {}
@@ -69,7 +72,7 @@ function NativeRedirect() {
   const [location, setLocation] = useLocation();
   useEffect(() => {
     if (isNativeApp() && (location === "/" || location === "")) {
-      setLocation("/staff");
+      setLocation("/staff/login");
     }
   }, [location, setLocation]);
   return null;
