@@ -55,10 +55,20 @@ function StaffRoute({ component: Component }: { component: React.ComponentType }
 }
 
 
+function isNativeApp(): boolean {
+  try {
+    if (Capacitor.isNativePlatform()) return true;
+  } catch {}
+  try {
+    if ((window as any).Capacitor?.isNativePlatform?.()) return true;
+  } catch {}
+  return false;
+}
+
 function NativeRedirect() {
   const [location, setLocation] = useLocation();
   useEffect(() => {
-    if (Capacitor.isNativePlatform() && (location === "/" || location === "")) {
+    if (isNativeApp() && (location === "/" || location === "")) {
       setLocation("/staff");
     }
   }, [location, setLocation]);
