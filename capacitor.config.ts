@@ -8,7 +8,7 @@ const config: CapacitorConfig = {
     // Loads the live production site — staff always get the latest version
     // without reinstalling the APK. Remove this block only if you want a
     // fully-offline bundled build.
-    url: "https://tmginstall.com",
+    url: "https://tmginstall.com/staff",
     cleartext: false,
   },
   android: {
