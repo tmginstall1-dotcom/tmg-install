@@ -512,13 +512,12 @@ export default function EstimateWizard() {
       if (!res.ok) { const e = await res.json(); throw new Error(e.message || "Submission failed"); }
       const quote = await res.json();
 
-      // Google Ads conversion tracking — fires on successful estimate submission
+      // Google Ads conversion tracking — fires on successful estimate submission only
       try {
         (window as any).gtag?.("event", "conversion", {
-          send_to: "AW-18012639714/aTxuCNC63IccBOKjjIID",
-          value: Number(quote.total) || 0,
+          send_to: "AW-18012639714/zTxuCNC63IccEOKjjI1D",
+          value: 1.0,
           currency: "SGD",
-          transaction_id: quote.referenceNo,
         });
       } catch (_) {}
 
