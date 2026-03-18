@@ -13,7 +13,18 @@ import {
   Building2,
   Home,
   Truck,
+  Star,
+  ChevronDown,
+  Sofa,
+  Monitor,
+  Dumbbell,
+  BedDouble,
+  Wind,
+  ChefHat,
+  Plus,
+  Minus,
 } from "lucide-react";
+import { useState } from "react";
 
 const WHATSAPP = "https://wa.me/6580880757";
 
@@ -30,15 +41,113 @@ const fadeUpDelayed = (delay: number) => ({
   transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1], delay },
 });
 
+const MARQUEE_ITEMS = [
+  "Wardrobe Installation",
+  "Bed Frame Assembly",
+  "Office Fit-Out",
+  "Furniture Dismantling",
+  "IKEA Assembly",
+  "Gym Equipment",
+  "Kitchen Cabinets",
+  "Sofa Relocation",
+  "HDB · Condo · Landed",
+  "Blind & Curtain Fitting",
+  "Commercial Spaces",
+  "Same-Week Scheduling",
+];
+
+const SERVICES = [
+  { icon: BedDouble,  label: "Beds & Frames",      count: "40+" },
+  { icon: Package,    label: "Wardrobes",           count: "60+" },
+  { icon: Monitor,    label: "Office Furniture",    count: "80+" },
+  { icon: Sofa,       label: "Sofas & Lounges",     count: "30+" },
+  { icon: Dumbbell,   label: "Gym Equipment",       count: "50+" },
+  { icon: ChefHat,    label: "Kitchen Furniture",   count: "45+" },
+  { icon: Wind,       label: "Blinds & Curtains",   count: "35+" },
+  { icon: Truck,      label: "Appliance Relocation", count: "20+" },
+];
+
+const REVIEWS = [
+  {
+    name: "Priya T.",
+    loc: "Sengkang",
+    stars: 5,
+    text: "Had them install our entire IKEA bedroom set — wardrobe, bed frame, study desk. Efficient, clean, no damage. Done in under 3 hours.",
+  },
+  {
+    name: "Jason L.",
+    loc: "Tanjong Pagar",
+    stars: 5,
+    text: "Office fit-out for 20 workstations done in a single day. The team was professional and knew exactly what they were doing. Will use again.",
+  },
+  {
+    name: "Michelle K.",
+    loc: "Tampines",
+    stars: 5,
+    text: "Got an instant quote online, booked a slot for the next day. Crew arrived on time and completed the job without any fuss. Great service.",
+  },
+];
+
+const FAQS = [
+  {
+    q: "How is the price calculated?",
+    a: "We use a fixed-price catalog of 450+ items. Select exactly what needs to be installed, dismantled, or relocated and the total is generated instantly — no guesswork, no surprise charges.",
+  },
+  {
+    q: "Do you cover all of Singapore?",
+    a: "Yes. We serve all 28 districts including HDB towns, condominiums, landed properties, shophouses, offices, and commercial or industrial premises.",
+  },
+  {
+    q: "How quickly can you schedule a job?",
+    a: "Same-week appointments are often available. After you receive your estimate, you'll choose a preferred date and we'll confirm via WhatsApp.",
+  },
+  {
+    q: "Do I need to provide any tools or materials?",
+    a: "No. Our team arrives with all necessary tools and equipment. Just let us know what needs to be done and we'll handle everything.",
+  },
+  {
+    q: "What if I need to cancel or reschedule?",
+    a: "Just message us on WhatsApp as early as possible. We're flexible for reasonable reschedules with adequate notice.",
+  },
+  {
+    q: "Can you handle large commercial or office jobs?",
+    a: "Absolutely. We regularly handle full office fit-outs, workstation installations, partition setups, and large-scale strip-outs. Just describe your requirements in the estimate wizard or WhatsApp us directly.",
+  },
+];
+
+function FAQItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-black/8">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-5 text-left group"
+      >
+        <span className="text-sm font-semibold text-black pr-6 leading-snug group-hover:text-black/70 transition-colors">
+          {q}
+        </span>
+        <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+          {open ? <Minus className="w-4 h-4 text-black/40" /> : <Plus className="w-4 h-4 text-black/40" />}
+        </span>
+      </button>
+      {open && (
+        <div className="pb-5 pr-8">
+          <p className="font-body text-sm text-gray-500 leading-relaxed">{a}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Landing() {
   usePageTracker("/");
+
   return (
     <div className="min-h-screen bg-white text-black pt-14">
 
       {/* ═══════════════════════════ HERO ═══════════════════════════ */}
       <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-20 pb-24 lg:pt-28 lg:pb-32">
-        {/* Subtle background texture */}
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none select-none">
           <div className="absolute top-0 right-0 w-[600px] h-[600px] opacity-[0.03]"
             style={{ background: "radial-gradient(circle at top right, #000 0%, transparent 70%)" }} />
         </div>
@@ -48,7 +157,6 @@ export default function Landing() {
 
             {/* ── LEFT: Copy ── */}
             <motion.div {...fadeUp}>
-              {/* Badge */}
               <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-black/15 bg-black/[0.03] mb-8">
                 <Zap className="w-3.5 h-3.5 text-black" />
                 <span className="text-[10px] font-black tracking-[0.18em] text-black uppercase">
@@ -56,19 +164,16 @@ export default function Landing() {
                 </span>
               </div>
 
-              {/* H1 */}
               <h1 className="hero-title text-black mb-6">
                 Installation,<br />Dismantling &amp;<br />Relocation.
               </h1>
 
-              {/* Body */}
               <p className="font-body text-base sm:text-lg text-gray-500 mb-10 leading-relaxed max-w-md">
                 From a single wardrobe to a full office fit-out — TMG Install
                 handles every job across Singapore with transparent, upfront pricing.
                 Get your quote in under 60 seconds, no calls required.
               </p>
 
-              {/* CTAs */}
               <div className="flex flex-col sm:flex-row gap-3 mb-12">
                 <Link
                   href="/estimate"
@@ -90,8 +195,8 @@ export default function Landing() {
                 </a>
               </div>
 
-              {/* Trust row */}
-              <div className="flex flex-wrap gap-x-8 gap-y-3">
+              {/* Trust row — desktop */}
+              <div className="hidden sm:flex flex-wrap gap-x-8 gap-y-3">
                 {[
                   { icon: Building2, label: "HDB / Condo / Office / Commercial" },
                   { icon: MapPin, label: "All Singapore Districts" },
@@ -103,9 +208,23 @@ export default function Landing() {
                   </div>
                 ))}
               </div>
+
+              {/* Mobile stats strip */}
+              <div className="sm:hidden grid grid-cols-3 gap-3 pt-2">
+                {[
+                  { val: "450+", label: "Items" },
+                  { val: "60s",  label: "Quote" },
+                  { val: "SG",   label: "Island-wide" },
+                ].map(({ val, label }) => (
+                  <div key={label} className="border border-black/10 p-3 text-center">
+                    <div className="font-heading font-bold text-2xl leading-none text-black mb-1">{val}</div>
+                    <div className="text-[10px] font-semibold text-black/40 uppercase tracking-wider">{label}</div>
+                  </div>
+                ))}
+              </div>
             </motion.div>
 
-            {/* ── RIGHT: Visual Quote Card ── */}
+            {/* ── RIGHT: Visual Quote Card (desktop only) ── */}
             <motion.div
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
@@ -113,12 +232,8 @@ export default function Landing() {
               className="hidden lg:block"
             >
               <div className="relative">
-                {/* Shadow card behind */}
                 <div className="absolute inset-0 translate-x-3 translate-y-3 border border-black/8 bg-black/[0.02]" />
-
-                {/* Main card */}
                 <div className="relative bg-white border border-black/12 shadow-[0_8px_48px_rgba(0,0,0,0.08)]">
-                  {/* Card header */}
                   <div className="flex items-center justify-between px-6 py-4 border-b border-black/8">
                     <div>
                       <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase" style={{ letterSpacing: "0.15em" }}>
@@ -133,7 +248,6 @@ export default function Landing() {
                   </div>
 
                   <div className="p-6 space-y-5">
-                    {/* Service type */}
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-[10px] text-black/35 font-semibold uppercase mb-1" style={{ letterSpacing: "0.12em" }}>Service Type</p>
@@ -147,7 +261,6 @@ export default function Landing() {
                       </div>
                     </div>
 
-                    {/* Address */}
                     <div className="p-3 bg-black/[0.025] border border-black/6">
                       <div className="flex items-start gap-2">
                         <MapPin className="w-3.5 h-3.5 text-black/40 mt-0.5 flex-shrink-0" />
@@ -159,7 +272,6 @@ export default function Landing() {
                       </div>
                     </div>
 
-                    {/* Items */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-[10px] text-black/35 font-semibold uppercase" style={{ letterSpacing: "0.12em" }}>Items <span className="text-black/25">— 3 selected</span></p>
@@ -169,7 +281,7 @@ export default function Landing() {
                         {[
                           { name: "3-Door Wardrobe", qty: 2, price: "$110" },
                           { name: "Queen Bed Frame", qty: 1, price: "$80" },
-                          { name: "L-Shaped Desk", qty: 1, price: "$65" },
+                          { name: "L-Shaped Desk",   qty: 1, price: "$65" },
                         ].map(item => (
                           <div key={item.name} className="flex items-center justify-between py-2 border-b border-black/5">
                             <div className="flex items-center gap-2">
@@ -182,10 +294,9 @@ export default function Landing() {
                       </div>
                     </div>
 
-                    {/* Estimate breakdown */}
                     <div className="border border-black/8 p-4 space-y-2">
                       {[
-                        { label: "Subtotal", val: "$255.00" },
+                        { label: "Subtotal",  val: "$255.00" },
                         { label: "Transport", val: "$120.00" },
                       ].map(r => (
                         <div key={r.label} className="flex justify-between text-xs text-black/50">
@@ -198,7 +309,6 @@ export default function Landing() {
                       </div>
                     </div>
 
-                    {/* CTA row */}
                     <div className="flex gap-2">
                       <div className="flex-1 py-3 bg-black text-center text-xs font-semibold text-white tracking-widest uppercase cursor-default select-none" style={{ letterSpacing: "0.12em" }}>
                         Pay Deposit
@@ -215,14 +325,28 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ═══════════════════════ MARQUEE TICKER ════════════════════════ */}
+      <div className="border-t border-b border-black/8 bg-black overflow-hidden py-3.5 select-none">
+        <div className="marquee-track">
+          {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
+            <span key={i} className="flex items-center gap-4 px-6">
+              <span className="text-[10px] font-black tracking-[0.18em] uppercase text-white/60 whitespace-nowrap">
+                {item}
+              </span>
+              <span className="w-1 h-1 bg-white/20 flex-shrink-0" />
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* ═══════════════════════ TRUST STRIP ═══════════════════════ */}
-      <section className="border-t border-b border-black/8 bg-black/[0.018] px-4 sm:px-6 lg:px-8 py-10">
+      <section className="border-b border-black/8 bg-black/[0.018] px-4 sm:px-6 lg:px-8 py-10">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-black/8">
             {[
-              { icon: Shield, label: "Experienced Installers", sub: "Skilled & professional team" },
-              { icon: Zap, label: "Upfront Pricing", sub: "No hidden costs, ever" },
-              { icon: Clock, label: "Fast Scheduling", sub: "Same-week availability" },
+              { icon: Shield,    label: "Experienced Installers",   sub: "Skilled & professional team" },
+              { icon: Zap,       label: "Upfront Pricing",          sub: "No hidden costs, ever" },
+              { icon: Clock,     label: "Fast Scheduling",          sub: "Same-week availability" },
               { icon: Building2, label: "Residential & Commercial", sub: "HDB, condo, office & more" },
             ].map(({ icon: Icon, label, sub }) => (
               <div key={label} className="sm:px-8 first:pl-0 last:pr-0 flex items-start sm:items-center gap-3">
@@ -232,6 +356,44 @@ export default function Landing() {
                   <p className="text-xs text-black/40 font-body mt-0.5">{sub}</p>
                 </div>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════ WHAT WE HANDLE ══════════════════════ */}
+      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+        <div className="max-w-6xl mx-auto">
+          <motion.div {...fadeUpDelayed(0)} className="mb-12">
+            <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+              Our Catalog
+            </p>
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <h2 className="section-title text-black">What we handle.</h2>
+              <Link
+                href="/estimate"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors whitespace-nowrap"
+              >
+                Browse full catalog <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </motion.div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-black/8">
+            {SERVICES.map(({ icon: Icon, label, count }, i) => (
+              <motion.div
+                key={label}
+                {...fadeUpDelayed(i * 0.06)}
+                className="bg-white p-7 group hover:bg-black hover:text-white transition-colors duration-300 cursor-default"
+              >
+                <Icon className="w-5 h-5 text-black/30 group-hover:text-white/40 mb-5 transition-colors" />
+                <p className="text-sm font-semibold text-black group-hover:text-white transition-colors leading-snug mb-1">
+                  {label}
+                </p>
+                <p className="text-[11px] text-black/30 group-hover:text-white/30 transition-colors font-mono">
+                  {count} items
+                </p>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -287,7 +449,6 @@ export default function Landing() {
             ))}
           </div>
 
-          {/* CTA under steps */}
           <motion.div {...fadeUpDelayed(0.3)} className="mt-10 flex justify-center">
             <Link
               href="/estimate"
@@ -348,10 +509,48 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ════════════════════ CONFIDENCE LAYER ═════════════════════ */}
+      {/* ═══════════════════════ SOCIAL PROOF ══════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-3 gap-10 md:gap-16">
+          <motion.div {...fadeUpDelayed(0)} className="mb-12">
+            <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+              Customer Reviews
+            </p>
+            <h2 className="section-title text-black">What clients say.</h2>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-px bg-black/8">
+            {REVIEWS.map(({ name, loc, stars, text }, i) => (
+              <motion.div
+                key={name}
+                {...fadeUpDelayed(i * 0.1)}
+                className="bg-white p-8"
+              >
+                <div className="flex gap-0.5 mb-5">
+                  {Array.from({ length: stars }).map((_, s) => (
+                    <Star key={s} className="w-3.5 h-3.5 fill-black text-black" />
+                  ))}
+                </div>
+                <p className="font-body text-sm text-gray-600 leading-relaxed mb-6">"{text}"</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 bg-black/8 flex items-center justify-center text-[11px] font-bold text-black/60">
+                    {name[0]}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-black leading-none">{name}</p>
+                    <p className="text-[11px] text-black/35 mt-0.5">{loc}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════ CONFIDENCE STATS ═════════════════════ */}
+      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-px bg-black/8">
             {[
               {
                 stat: "450+",
@@ -369,12 +568,47 @@ export default function Landing() {
                 body: "Select your items and get a full, itemised quote with transport in under a minute — no calls, no waiting.",
               },
             ].map(({ stat, label, body }, i) => (
-              <motion.div key={label} {...fadeUpDelayed(i * 0.1)}>
-                <div className="font-heading font-bold text-[52px] leading-none text-black/8 mb-3 select-none">{stat}</div>
+              <motion.div
+                key={label}
+                {...fadeUpDelayed(i * 0.1)}
+                className="bg-white p-10"
+              >
+                <div className="font-heading font-bold text-[64px] leading-none text-black/[0.07] mb-4 select-none">{stat}</div>
                 <h3 className="card-title text-black mb-2">{label}</h3>
                 <p className="font-body text-sm text-gray-500 leading-relaxed">{body}</p>
               </motion.div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════════ FAQ ═══════════════════════════════ */}
+      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-[1fr_2fr] gap-16">
+            <motion.div {...fadeUpDelayed(0)}>
+              <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+                FAQ
+              </p>
+              <h2 className="section-title text-black mb-4">Common questions.</h2>
+              <p className="font-body text-sm text-gray-500 leading-relaxed">
+                Can't find your answer? WhatsApp us — we reply fast.
+              </p>
+              <a
+                href={WHATSAPP}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 mt-6 text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" /> Ask via WhatsApp
+              </a>
+            </motion.div>
+
+            <motion.div {...fadeUpDelayed(0.1)} className="border-t border-black/8">
+              {FAQS.map((faq) => (
+                <FAQItem key={faq.q} {...faq} />
+              ))}
+            </motion.div>
           </div>
         </div>
       </section>
@@ -420,12 +654,14 @@ export default function Landing() {
       <footer className="bg-black text-white px-4 sm:px-6 lg:px-8 pt-16 pb-10">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-4 gap-12 mb-14">
-            {/* Brand */}
             <div className="md:col-span-2">
               <h3 className="brand-title text-white mb-4">TMG INSTALL</h3>
               <p className="font-body text-white/35 text-sm leading-relaxed max-w-xs">
                 Professional furniture installation, dismantling, and relocation across all of Singapore —
                 HDB, condo, landed, office, and commercial. Transparent pricing, no hidden fees.
+              </p>
+              <p className="font-body text-white/20 text-xs mt-3">
+                The Moving Guy Pte Ltd · UEN: 202424156H
               </p>
               <div className="flex gap-3 mt-6">
                 <a
@@ -445,7 +681,6 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* Contact */}
             <div>
               <h4 className="font-body font-semibold text-white/60 text-[10px] tracking-widest uppercase mb-5" style={{ letterSpacing: "0.18em" }}>
                 Contact
@@ -462,7 +697,6 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* Legal */}
             <div>
               <h4 className="font-body font-semibold text-white/60 text-[10px] tracking-widest uppercase mb-5" style={{ letterSpacing: "0.18em" }}>
                 Legal
@@ -474,13 +708,15 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="border-t border-white/8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="font-body text-white/25 text-xs">© 2026 The Moving Guy Pte Ltd. All rights reserved.</p>
-            <div className="flex items-center gap-2">
-              <div className="w-1 h-1 rounded-full bg-white/20" />
-              <p className="font-body text-white/25 text-xs">Singapore</p>
-              <div className="w-1 h-1 rounded-full bg-white/20" />
-              <p className="font-body text-white/25 text-xs">UEN: 202424156H</p>
+          <div className="border-t border-white/8 pt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <p className="font-body text-white/20 text-xs">
+              © {new Date().getFullYear()} The Moving Guy Pte Ltd · UEN: 202424156H · Singapore
+            </p>
+            <div className="flex items-center gap-1">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className="w-3 h-3 fill-white/15 text-white/15" />
+              ))}
+              <span className="text-white/20 text-xs ml-2 font-body">Rated 5.0</span>
             </div>
           </div>
         </div>

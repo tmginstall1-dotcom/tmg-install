@@ -1,5 +1,5 @@
 import { Switch, Route, useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Capacitor } from "@capacitor/core";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,36 +7,46 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 
-// Components
 import { Navbar } from "@/components/layout/Navbar";
 import { StaffBottomNav } from "@/components/layout/StaffBottomNav";
 import { AdminBottomNav } from "@/components/layout/AdminBottomNav";
 
-// Pages
 import Landing from "@/pages/customer/Landing";
-import QuoteStatus from "@/pages/customer/QuoteStatus";
-import EstimateWizard from "@/pages/customer/Estimate";
-import Terms from "@/pages/customer/Terms";
-import Privacy from "@/pages/customer/Privacy";
-import Login from "@/pages/admin/Login";
-import AdminDashboard from "@/pages/admin/Dashboard";
-import AdminQuoteDetail from "@/pages/admin/QuoteDetail";
-import AdminSchedule from "@/pages/admin/Schedule";
-import AdminExportPDF from "@/pages/admin/ExportPDF";
-import AdminStaffManagement from "@/pages/admin/StaffManagement";
-import AdminAnalytics from "@/pages/admin/Analytics";
-import StaffDashboard from "@/pages/staff/Dashboard";
-import StaffJobDetail from "@/pages/staff/JobDetail";
-import StaffHR from "@/pages/staff/HR";
+
+const QuoteStatus = lazy(() => import("@/pages/customer/QuoteStatus"));
+const EstimateWizard = lazy(() => import("@/pages/customer/Estimate"));
+const Terms = lazy(() => import("@/pages/customer/Terms"));
+const Privacy = lazy(() => import("@/pages/customer/Privacy"));
+const Login = lazy(() => import("@/pages/admin/Login"));
+const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
+const AdminQuoteDetail = lazy(() => import("@/pages/admin/QuoteDetail"));
+const AdminSchedule = lazy(() => import("@/pages/admin/Schedule"));
+const AdminExportPDF = lazy(() => import("@/pages/admin/ExportPDF"));
+const AdminStaffManagement = lazy(() => import("@/pages/admin/StaffManagement"));
+const AdminAnalytics = lazy(() => import("@/pages/admin/Analytics"));
+const StaffDashboard = lazy(() => import("@/pages/staff/Dashboard"));
+const StaffJobDetail = lazy(() => import("@/pages/staff/JobDetail"));
+const StaffHR = lazy(() => import("@/pages/staff/HR"));
 
 import { useAuth } from "@/hooks/use-auth";
 import { useGpsTracker } from "@/hooks/use-gps-tracker";
+
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-8 h-8 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+        <span className="text-[10px] font-black tracking-[0.2em] uppercase text-black/30">Loading</span>
+      </div>
+    </div>
+  );
+}
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
+  if (isLoading) return <PageLoader />;
   if (!user) { setLocation('/admin/login'); return null; }
   if (user.role !== 'admin') { setLocation('/staff'); return null; }
   return <Component />;
@@ -46,26 +56,18 @@ function StaffRoute({ component: Component }: { component: React.ComponentType }
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  // GPS tracker runs across the entire staff session — every page, not just Dashboard
   useGpsTracker(!!user && user.role === "staff");
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
+  if (isLoading) return <PageLoader />;
   if (!user) { setLocation('/staff/login'); return null; }
   if (user.role === 'admin') { setLocation('/admin'); return null; }
   return <Component />;
 }
 
-
 function isNativeApp(): boolean {
-  // Primary: custom user agent string appended via capacitor.config.ts android.appendUserAgent
   if (navigator.userAgent.includes("TMGStaffApp")) return true;
-  // Fallback: Capacitor bridge (works when loading local assets, not remote URLs)
-  try {
-    if (Capacitor.isNativePlatform()) return true;
-  } catch {}
-  try {
-    if ((window as any).Capacitor?.isNativePlatform?.()) return true;
-  } catch {}
+  try { if (Capacitor.isNativePlatform()) return true; } catch {}
+  try { if ((window as any).Capacitor?.isNativePlatform?.()) return true; } catch {}
   return false;
 }
 
@@ -86,52 +88,49 @@ function Router() {
       <Navbar />
       <StaffBottomNav />
       <AdminBottomNav />
-      <Switch>
-        {/* Customer Routes */}
-        <Route path="/" component={Landing} />
-        <Route path="/estimate" component={EstimateWizard} />
-        <Route path="/quotes/:id" component={QuoteStatus} />
-        <Route path="/terms" component={Terms} />
-        <Route path="/privacy" component={Privacy} />
+      <Suspense fallback={<PageLoader />}>
+        <Switch>
+          <Route path="/" component={Landing} />
+          <Route path="/estimate" component={EstimateWizard} />
+          <Route path="/quotes/:id" component={QuoteStatus} />
+          <Route path="/terms" component={Terms} />
+          <Route path="/privacy" component={Privacy} />
 
-        {/* Auth Routes */}
-        <Route path="/admin/login" component={Login} />
-        <Route path="/staff/login" component={Login} />
+          <Route path="/admin/login" component={Login} />
+          <Route path="/staff/login" component={Login} />
 
-        {/* Admin Routes */}
-        <Route path="/admin">
-          {() => <AdminRoute component={AdminDashboard} />}
-        </Route>
-        <Route path="/admin/schedule">
-          {() => <AdminRoute component={AdminSchedule} />}
-        </Route>
-        <Route path="/admin/quotes/:id">
-          {() => <AdminRoute component={AdminQuoteDetail} />}
-        </Route>
-        <Route path="/admin/export">
-          {() => <AdminRoute component={AdminExportPDF} />}
-        </Route>
-        <Route path="/admin/staff">
-          {() => <AdminRoute component={AdminStaffManagement} />}
-        </Route>
-        <Route path="/admin/analytics">
-          {() => <AdminRoute component={AdminAnalytics} />}
-        </Route>
+          <Route path="/admin">
+            {() => <AdminRoute component={AdminDashboard} />}
+          </Route>
+          <Route path="/admin/schedule">
+            {() => <AdminRoute component={AdminSchedule} />}
+          </Route>
+          <Route path="/admin/quotes/:id">
+            {() => <AdminRoute component={AdminQuoteDetail} />}
+          </Route>
+          <Route path="/admin/export">
+            {() => <AdminRoute component={AdminExportPDF} />}
+          </Route>
+          <Route path="/admin/staff">
+            {() => <AdminRoute component={AdminStaffManagement} />}
+          </Route>
+          <Route path="/admin/analytics">
+            {() => <AdminRoute component={AdminAnalytics} />}
+          </Route>
 
-        {/* Staff Routes */}
-        <Route path="/staff">
-          {() => <StaffRoute component={StaffDashboard} />}
-        </Route>
-        <Route path="/staff/jobs/:id">
-          {() => <StaffRoute component={StaffJobDetail} />}
-        </Route>
-        <Route path="/staff/hr">
-          {() => <StaffRoute component={StaffHR} />}
-        </Route>
+          <Route path="/staff">
+            {() => <StaffRoute component={StaffDashboard} />}
+          </Route>
+          <Route path="/staff/jobs/:id">
+            {() => <StaffRoute component={StaffJobDetail} />}
+          </Route>
+          <Route path="/staff/hr">
+            {() => <StaffRoute component={StaffHR} />}
+          </Route>
 
-        {/* Fallback */}
-        <Route component={NotFound} />
-      </Switch>
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </>
   );
 }

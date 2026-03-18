@@ -29,8 +29,9 @@ Always provide full file contents when editing any code file — never partial s
 - **State / data fetching**: TanStack Query (`@tanstack/react-query`)
 - **UI components**: shadcn/ui + Radix UI + Tailwind CSS
 - **Animations**: Framer Motion
+- **Code splitting**: All pages except Landing use `React.lazy` + `Suspense` for chunk-based loading. Vite `manualChunks` splits vendor deps (react, query, framer-motion, recharts, maps) into separate cacheable bundles.
 - **Key pages**:
-  - `/` — Landing page with AI quote widget
+  - `/` — Landing page (marquee ticker, catalog grid, 3-panel reviews, FAQ accordion, mobile stats strip)
   - `/estimate` — 5-step quote wizard (Services → Address → Items → Schedule → Review)
   - `/quotes/:id` — Customer quote status, booking, payment, reschedule
   - `/admin/login` — Login for admin/staff
