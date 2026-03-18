@@ -5,21 +5,19 @@ const config: CapacitorConfig = {
   appName: "TMG Staff",
   webDir: "dist/public",
   server: {
-    // Loads the live production site — staff always get the latest version
-    // without reinstalling the APK. Remove this block only if you want a
-    // fully-offline bundled build.
-    url: "https://tmginstall.com/staff/login",
+    // Points to the deployed Replit app — staff always get the latest version
+    // without reinstalling the APK.
+    // TODO: Replace with https://tmginstall.com once the domain is live.
+    url: "https://e8e39fa3-8d04-4454-8036-b60ebe21852f-00-2u43djm9l6hk.janeway.replit.dev/staff/login",
     cleartext: false,
   },
   android: {
     allowMixedContent: false,
     backgroundColor: "#111111",
-    // Appended to the WebView user agent — used by NativeRedirect to detect native context
     appendUserAgent: "TMGStaffApp",
   },
   plugins: {
     BackgroundGeolocation: {
-      // Android foreground-service notification shown while tracking
       backgroundMessage: "TMG Install is tracking your location for the active job.",
       backgroundTitle: "TMG Install — Location Active",
       requestPermissions: true,
