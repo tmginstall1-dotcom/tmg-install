@@ -4,13 +4,8 @@ const config: CapacitorConfig = {
   appId: "com.tmginstall.staff",
   appName: "TMG Staff",
   webDir: "dist/public",
-  server: {
-    // Point to the root so React Router handles /staff/login internally.
-    // Pointing to a specific path like /staff/login causes WebView reload
-    // conflicts when the keyboard or autofill interacts with the page.
-    url: "https://tmginstall.com",
-    cleartext: false,
-  },
+  // No server.url — app loads from local bundle inside the APK.
+  // API calls use absolute URLs (https://tmginstall.com/api/...) set via VITE_API_BASE.
   android: {
     allowMixedContent: false,
     backgroundColor: "#111111",
