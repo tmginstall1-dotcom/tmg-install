@@ -4,13 +4,14 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   MapPin, CalendarDays, ChevronRight, Phone, MessageCircle,
   Clock, Timer, CheckCircle2, Wifi, WifiOff,
-  Package, TrendingUp, AlertTriangle, RefreshCw
+  Package, TrendingUp, AlertTriangle, RefreshCw, Radio,
 } from "lucide-react";
 import { format, isToday, differenceInMinutes, startOfWeek } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useBackgroundLocation } from "@/hooks/use-background-location";
 
 function fmtHHMMSS(secs: number) {
   if (secs < 0) secs = 0;
@@ -28,6 +29,7 @@ function fmtHM(mins: number) {
 
 export default function StaffDashboard() {
   const { user } = useAuth();
+  const { isTracking, startTracking } = useBackgroundLocation();
 
   const { data: quotes, isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/quotes"],
@@ -58,6 +60,15 @@ export default function StaffDashboard() {
 
   const allJobs = quotes || [];
   const activeNow = allJobs.filter((q: any) => q.status === "in_progress");
+
+  // Auto-resume background tracking if there's an active in_progress job
+  // (covers app restart mid-job scenario)
+  useEffect(() => {
+    if (activeNow.length > 0 && user?.id && !isTracking) {
+      startTracking(user.id).catch(() => {});
+    }
+  }, [activeNow.length, user?.id]);
+
   const upcoming = allJobs
     .filter((q: any) => ["booked", "assigned"].includes(q.status))
     .sort((a: any, b: any) => {
@@ -137,9 +148,17 @@ export default function StaffDashboard() {
         {/* Active Jobs Banner */}
         {activeNow.length > 0 && (
           <div className="mb-5">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <p className="text-xs font-black text-red-600 uppercase tracking-widest">Live — In Progress</p>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <p className="text-xs font-black text-red-600 uppercase tracking-widest">Live — In Progress</p>
+              </div>
+              {isTracking && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-700 rounded-full" data-testid="tracking-indicator">
+                  <Radio className="w-3 h-3 text-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">GPS On</span>
+                </div>
+              )}
             </div>
             <div className="space-y-3">
               {activeNow.map((job: any) => (

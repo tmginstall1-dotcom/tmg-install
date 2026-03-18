@@ -2,12 +2,14 @@ import { useParams, Link } from "wouter";
 import { useQuote, useStaffArrived, useStaffCompleted } from "@/hooks/use-quotes";
 import { useState, useRef, useEffect } from "react";
 import {
-  ArrowLeft, CheckCircle2, Camera, X, Loader2, Clock, Package, User, CalendarDays,
-  Upload, AlertTriangle, ZoomIn, ImagePlus, Navigation2, MapPin
+  ArrowLeft, CheckCircle2, X, Loader2, Clock, Package, User, CalendarDays,
+  Upload, AlertTriangle, ZoomIn, ImagePlus, Navigation2, MapPin, Radio,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useBackgroundLocation } from "@/hooks/use-background-location";
+import { useAuth } from "@/hooks/use-auth";
 
 async function captureGPS(): Promise<{ lat: number; lng: number }> {
   return new Promise((resolve, reject) => {
@@ -57,6 +59,8 @@ export default function JobDetail() {
   const arrivedMutation = useStaffArrived();
   const completedMutation = useStaffCompleted();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { isTracking, startTracking, stopTracking } = useBackgroundLocation();
 
   const [photos, setPhotos] = useState<{ file: File; dataUrl: string }[]>([]);
   const [note, setNote] = useState("");
@@ -154,10 +158,16 @@ export default function JobDetail() {
     try {
       if (actionType === 'arrived') {
         await arrivedMutation.mutateAsync({ id: id!, gpsLat: coords.lat, gpsLng: coords.lng, photoUrls: photos.map(p => p.dataUrl), note: note || undefined });
-        toast({ title: "✓ Checked In", description: "Arrival recorded successfully." });
+        // Start continuous background location tracking
+        if (user?.id) {
+          startTracking(user.id).catch(() => {});
+        }
+        toast({ title: "✓ Checked In", description: "Arrival recorded. Location tracking started." });
       } else {
         await completedMutation.mutateAsync({ id: id!, gpsLat: coords.lat, gpsLng: coords.lng, photoUrls: photos.map(p => p.dataUrl), note: note || undefined });
-        toast({ title: "✓ Job Completed", description: "Completion submitted successfully." });
+        // Stop background location tracking
+        stopTracking().catch(() => {});
+        toast({ title: "✓ Job Completed", description: "Completion submitted. Location tracking stopped." });
       }
       closeModal();
     } catch (err: any) {
@@ -470,13 +480,23 @@ export default function JobDetail() {
           )}
 
           {job.status === 'in_progress' && !actionType && (
-            <button
-              onClick={() => setActionType('completed')}
-              data-testid="button-complete-job"
-              className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25 py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 hover:shadow-emerald-500/40 active:scale-[0.98] transition-all"
-            >
-              <CheckCircle2 className="w-6 h-6" /> Job Done — Submit Completion
-            </button>
+            <div className="space-y-2">
+              {/* GPS tracking indicator */}
+              {isTracking && (
+                <div className="flex items-center justify-center gap-2 py-1.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl">
+                  <Radio className="w-3 h-3 text-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Location tracking active</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                </div>
+              )}
+              <button
+                onClick={() => setActionType('completed')}
+                data-testid="button-complete-job"
+                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25 py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 hover:shadow-emerald-500/40 active:scale-[0.98] transition-all"
+              >
+                <CheckCircle2 className="w-6 h-6" /> Job Done — Submit Completion
+              </button>
+            </div>
           )}
 
           {isDone && (

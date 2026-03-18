@@ -42,6 +42,27 @@ Always provide full file contents when editing any code file — never partial s
   - `/staff/jobs/:id` — Staff job detail with GPS + photo check-in/checkout
 - **Admin layout**: `AdminSidebar` (`client/src/components/layout/AdminSidebar.tsx`) — fixed left sidebar (w-56, bg-slate-950) with live badge counts for pending items. Visible at `lg+` only; all admin pages have `lg:pl-56` offset. ExportPDF uses `lg:left-56` (fixed-position). Mobile: `AdminBottomNav` (5-tab, badge counts). Navbar admin links hidden at lg+ (sidebar takes over).
 
+### Android Native App (Capacitor)
+- **App ID**: `com.tmginstall.staff` · **appName**: TMG Staff
+- **WebView target**: `https://tmginstall.com/staff/login` (live URL — no APK reinstall needed for code updates)
+- **Background geolocation**: `@capacitor-community/background-geolocation@1.2.26` — foreground service keeps tracking alive when app is minimised or screen is off
+- **Hook**: `client/src/hooks/use-background-location.ts`
+  - On Android native: uses `BackgroundGeolocation.addWatcher` with a persistent foreground-service notification
+  - On web: falls back to `navigator.geolocation.watchPosition` (foreground only)
+  - Module-level singletons so tracking survives React re-renders/unmounts
+  - Throttle: sends at most once per 25 s OR if moved ≥ 20 m (whichever comes first)
+  - Pings `POST /api/staff/gps-track` with `{staffId, lat, lng, accuracy, speed, heading}`
+- **Integration points**:
+  - `JobDetail.tsx` — calls `startTracking(userId)` on "Arrived" check-in, `stopTracking()` on "Completed"
+  - `Dashboard.tsx` (staff) — auto-resumes tracking on mount if there's an `in_progress` job; shows "GPS On" pill
+- **AndroidManifest.xml permissions**: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION` (Android 10+), `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION` (Android 14+), `POST_NOTIFICATIONS`, `CAMERA`
+- **Android project**: `android/` folder (Capacitor-generated + background-geolocation plugin registered)
+- **Build**:
+  - Local: `bash build-android.sh` (requires JDK 17+, ANDROID_HOME set)
+  - CI: `.github/workflows/build-android.yml` — GitHub Actions builds a debug APK on every push to main, uploads as artifact
+  - Downloadable project: `tmg-android-project.tar.gz`
+- **GPS track data**: stored in `gps_track_points` table, viewable in Admin → Staff & HR → GPS Track tab
+
 ### Backend (Express + Node.js)
 - **Entry**: `server/index.ts` → `server/routes.ts` → `server/storage.ts`
 - **Auth**: Mock auth — simple password check. Credentials: admin/password123, staff1/password123. Login caches user client-side.

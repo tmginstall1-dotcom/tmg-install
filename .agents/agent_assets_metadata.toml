@@ -12,3 +12,9 @@ id = "tMk2Si2IpZE7S-swaPjkb"
 uri = "file://attached_assets/tmg_icon_v2.png"
 type = "image"
 title = "TMG Staff App Icon (White)"
+
+[[outputs]]
+id = "WG9WB0BJt5zq-xFl_Z8P0"
+uri = "file://tmg-android-project.tar.gz"
+type = "unspecified"
+title = "TMG Staff Android Project (with background GPS)"
