@@ -22,6 +22,19 @@ allprojects {
         google()
         mavenCentral()
     }
+
+    // Fix duplicate class errors from transitive dependency conflicts
+    configurations.all {
+        resolutionStrategy {
+            // Force consistent Kotlin stdlib versions across all modules
+            force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
+            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22'
+            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22'
+            force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22'
+        }
+        // Exclude the standalone listenablefuture artifact — it's already inside guava
+        exclude group: 'com.google.guava', module: 'listenablefuture'
+    }
 }
 
 task clean(type: Delete) {
