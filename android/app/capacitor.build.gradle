@@ -9,7 +9,7 @@ android {
 
 apply from: "../capacitor-cordova-android-plugins/cordova.variables.gradle"
 dependencies {
-    // BackgroundGeolocation plugin removed — was crashing on startup via bindService()
+    implementation project(':capacitor-geolocation')
 }
 
 

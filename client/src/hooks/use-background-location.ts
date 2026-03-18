@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import { Geolocation } from "@capacitor/geolocation";
 
 // ─── Module-level singletons so tracking survives component unmounts ─────────
 
+let nativeWatchId: string | null = null;
 let webWatcherId: number | null = null;
 let trackingStaffId: number | null = null;
 let lastSentAt = 0;
@@ -33,7 +36,7 @@ async function sendPoint(
   staffId: number,
   lat: number,
   lng: number,
-  accuracy?: number,
+  accuracy?: number | null,
   speed?: number | null,
   heading?: number | null,
 ) {
@@ -68,10 +71,12 @@ async function sendPoint(
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useBackgroundLocation() {
-  const [isTracking, setIsTracking] = useState(webWatcherId !== null);
+  const [isTracking, setIsTracking] = useState(
+    nativeWatchId !== null || webWatcherId !== null,
+  );
 
   async function startTracking(staffId: number) {
-    if (webWatcherId !== null) return;
+    if (nativeWatchId !== null || webWatcherId !== null) return;
 
     trackingStaffId = staffId;
     lastLat = 0;
@@ -79,27 +84,48 @@ export function useBackgroundLocation() {
     lastSentAt = 0;
 
     try {
-      if (!("geolocation" in navigator)) return;
+      if (Capacitor.isNativePlatform()) {
+        // ── Native Android: @capacitor/geolocation (Fused Location Provider) ──
+        await Geolocation.requestPermissions();
 
-      webWatcherId = navigator.geolocation.watchPosition(
-        (pos) => {
-          if (!trackingStaffId) return;
-          sendPoint(
-            trackingStaffId,
-            pos.coords.latitude,
-            pos.coords.longitude,
-            pos.coords.accuracy,
-            pos.coords.speed,
-            pos.coords.heading,
-          );
-        },
-        () => {},
-        {
-          enableHighAccuracy: true,
-          timeout: 30_000,
-          maximumAge: 5_000,
-        },
-      );
+        nativeWatchId = await Geolocation.watchPosition(
+          { enableHighAccuracy: true, timeout: 15000 },
+          (position, err) => {
+            if (err || !position || !trackingStaffId) return;
+            sendPoint(
+              trackingStaffId,
+              position.coords.latitude,
+              position.coords.longitude,
+              position.coords.accuracy,
+              position.coords.speed,
+              position.coords.heading,
+            );
+          },
+        );
+      } else {
+        // ── Web fallback: standard watchPosition (foreground only) ───────────
+        if (!("geolocation" in navigator)) return;
+
+        webWatcherId = navigator.geolocation.watchPosition(
+          (pos) => {
+            if (!trackingStaffId) return;
+            sendPoint(
+              trackingStaffId,
+              pos.coords.latitude,
+              pos.coords.longitude,
+              pos.coords.accuracy,
+              pos.coords.speed,
+              pos.coords.heading,
+            );
+          },
+          () => {},
+          {
+            enableHighAccuracy: true,
+            timeout: 30_000,
+            maximumAge: 5_000,
+          },
+        );
+      }
 
       setIsTracking(true);
     } catch {
@@ -108,8 +134,16 @@ export function useBackgroundLocation() {
   }
 
   async function stopTracking() {
-    if (webWatcherId !== null) {
-      navigator.geolocation?.clearWatch(webWatcherId);
+    try {
+      if (Capacitor.isNativePlatform() && nativeWatchId !== null) {
+        await Geolocation.clearWatch({ id: nativeWatchId });
+        nativeWatchId = null;
+      } else if (webWatcherId !== null) {
+        navigator.geolocation?.clearWatch(webWatcherId);
+        webWatcherId = null;
+      }
+    } catch {
+      nativeWatchId = null;
       webWatcherId = null;
     }
 

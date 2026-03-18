@@ -31,9 +31,6 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
     rollupOptions: {
-      // Native-only Capacitor plugins have no web entry point — exclude from bundle.
-      // At runtime on Android, Capacitor's bridge provides the native implementation.
-      external: ["@capacitor-community/background-geolocation"],
       output: {
         manualChunks: {
           "vendor-react":  ["react", "react-dom"],
