@@ -263,6 +263,12 @@ export const siteEvents = pgTable("site_events", {
   utmMedium: text("utm_medium"),
   utmCampaign: text("utm_campaign"),
   sessionId: text("session_id"),       // random ID stored in sessionStorage
+  country: text("country"),            // e.g. Singapore
+  countryCode: text("country_code"),   // e.g. SG
+  city: text("city"),                  // e.g. Singapore
+  latitude: text("latitude"),
+  longitude: text("longitude"),
+  deviceType: text("device_type"),     // mobile | tablet | desktop
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export type SiteEvent = typeof siteEvents.$inferSelect;

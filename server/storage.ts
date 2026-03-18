@@ -100,13 +100,18 @@ export interface IStorage {
   isSlotAvailable(date: string, timeWindow: string, excludeQuoteId?: number): Promise<boolean>;
 
   // Site Analytics
-  addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string }): Promise<SiteEvent>;
+  addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
+  updateSiteEventGeo(id: number, geo: { country?: string; countryCode?: string; city?: string; latitude?: string; longitude?: string }): Promise<void>;
   getSiteAnalytics(): Promise<{
     today: { pageViews: number; sessions: number; wizardStarts: number; wizardSubmits: number };
     yesterday: { pageViews: number; sessions: number; wizardStarts: number; wizardSubmits: number };
     last7Days: { date: string; pageViews: number }[];
     sources: { source: string; count: number }[];
     funnel: { step: string; count: number }[];
+    countries: { country: string; countryCode: string; count: number; lat: number; lng: number }[];
+    devices: { device: string; count: number }[];
+    hourly: { hour: number; count: number }[];
+    topPages: { page: string; count: number }[];
     recent: SiteEvent[];
   }>;
 }
@@ -787,7 +792,7 @@ export class DatabaseStorage implements IStorage {
     return !conflict;
   }
 
-  async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string }): Promise<SiteEvent> {
+  async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent> {
     const [evt] = await db.insert(siteEvents).values({
       event: data.event,
       page: data.page ?? null,
@@ -797,8 +802,19 @@ export class DatabaseStorage implements IStorage {
       utmMedium: data.utmMedium ?? null,
       utmCampaign: data.utmCampaign ?? null,
       sessionId: data.sessionId ?? null,
+      deviceType: data.deviceType ?? null,
     }).returning();
     return evt;
+  }
+
+  async updateSiteEventGeo(id: number, geo: { country?: string; countryCode?: string; city?: string; latitude?: string; longitude?: string }): Promise<void> {
+    await db.update(siteEvents).set({
+      country: geo.country ?? null,
+      countryCode: geo.countryCode ?? null,
+      city: geo.city ?? null,
+      latitude: geo.latitude ?? null,
+      longitude: geo.longitude ?? null,
+    }).where(eq(siteEvents.id, id));
   }
 
   async getSiteAnalytics() {
@@ -876,11 +892,52 @@ export class DatabaseStorage implements IStorage {
       { step: 'Submitted Lead', count: funnelSubmit },
     ];
 
+    // Countries breakdown (7 days, page_view only)
+    const countryCounts: Record<string, { count: number; lat: number; lng: number; countryCode: string }> = {};
+    for (const row of allRows.filter(r => r.event === 'page_view' && r.country)) {
+      const key = row.country!;
+      if (!countryCounts[key]) {
+        countryCounts[key] = { count: 0, lat: parseFloat(row.latitude ?? '0') || 0, lng: parseFloat(row.longitude ?? '0') || 0, countryCode: row.countryCode ?? '' };
+      }
+      countryCounts[key].count++;
+    }
+    const countries = Object.entries(countryCounts)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([country, d]) => ({ country, countryCode: d.countryCode, count: d.count, lat: d.lat, lng: d.lng }));
+
+    // Device breakdown (7 days)
+    const deviceCounts: Record<string, number> = {};
+    for (const row of allRows.filter(r => r.event === 'page_view')) {
+      const d = row.deviceType ?? 'desktop';
+      deviceCounts[d] = (deviceCounts[d] ?? 0) + 1;
+    }
+    const devices = Object.entries(deviceCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([device, count]) => ({ device, count }));
+
+    // Hourly traffic (today only, all events)
+    const hourly: { hour: number; count: number }[] = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
+    for (const row of todayRows.filter(r => r.event === 'page_view')) {
+      const h = row.createdAt.getHours();
+      hourly[h].count++;
+    }
+
+    // Top pages (7 days)
+    const pageCounts: Record<string, number> = {};
+    for (const row of allRows.filter(r => r.event === 'page_view' && r.page)) {
+      const p = row.page!;
+      pageCounts[p] = (pageCounts[p] ?? 0) + 1;
+    }
+    const topPages = Object.entries(pageCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([page, count]) => ({ page, count }));
+
     const recent = await db.select().from(siteEvents)
       .orderBy(desc(siteEvents.createdAt))
       .limit(60);
 
-    return { today: statsFor(todayRows), yesterday: statsFor(yesterdayRows), last7Days, sources, funnel, recent };
+    return { today: statsFor(todayRows), yesterday: statsFor(yesterdayRows), last7Days, sources, funnel, countries, devices, hourly, topPages, recent };
   }
 }
 

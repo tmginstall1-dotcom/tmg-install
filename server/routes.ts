@@ -386,6 +386,32 @@ export async function registerRoutes(
   });
 
   // -- Site Analytics Tracking (public — no auth required) --
+  function detectDevice(ua?: string): string {
+    if (!ua) return 'desktop';
+    const u = ua.toLowerCase();
+    if (/tablet|ipad/.test(u)) return 'tablet';
+    if (/mobile|iphone|android|blackberry|opera mini|opera mobi|windows phone/.test(u)) return 'mobile';
+    return 'desktop';
+  }
+
+  async function lookupGeoAndUpdate(eventId: number, ip: string): Promise<void> {
+    try {
+      const clean = ip.replace(/^::ffff:/, '');
+      if (!clean || clean === '127.0.0.1' || clean.startsWith('::1') || clean.startsWith('10.') || clean.startsWith('192.168.')) return;
+      const r = await fetch(`http://ip-api.com/json/${clean}?fields=status,country,countryCode,city,lat,lon`);
+      if (!r.ok) return;
+      const d = await r.json() as any;
+      if (d.status !== 'success') return;
+      await storage.updateSiteEventGeo(eventId, {
+        country: d.country,
+        countryCode: d.countryCode,
+        city: d.city,
+        latitude: String(d.lat),
+        longitude: String(d.lon),
+      });
+    } catch {}
+  }
+
   app.post("/api/track", async (req, res) => {
     try {
       const body = z.object({
@@ -398,8 +424,12 @@ export async function registerRoutes(
         utmCampaign: z.string().optional(),
         sessionId: z.string().optional(),
       }).parse(req.body);
-      await storage.addSiteEvent(body);
+      const deviceType = detectDevice(req.headers['user-agent']);
+      const evt = await storage.addSiteEvent({ ...body, deviceType });
       res.json({ ok: true });
+      // Async geo lookup after response is sent — doesn't block the user
+      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.ip ?? '';
+      lookupGeoAndUpdate(evt.id, ip);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
