@@ -1,10 +1,23 @@
 import { useState } from "react";
-import { Capacitor } from "@capacitor/core";
-import { Geolocation } from "@capacitor/geolocation";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+import type { PluginListenerHandle } from "@capacitor/core";
+
+// ─── Custom native plugin interface ─────────────────────────────────────────────
+interface TMGLocationPlugin {
+  startWatching(): Promise<void>;
+  stopWatching(): Promise<void>;
+  addListener(
+    event: "location",
+    handler: (data: { lat: number; lng: number; accuracy: number; speed: number; time: number }) => void,
+  ): Promise<PluginListenerHandle>;
+  removeAllListeners(): Promise<void>;
+}
+
+const TMGLocation = registerPlugin<TMGLocationPlugin>("TMGLocation");
 
 // ─── Module-level singletons so tracking survives component unmounts ─────────
 
-let nativeWatchId: string | null = null;
+let nativeListener: PluginListenerHandle | null = null;
 let webWatcherId: number | null = null;
 let trackingStaffId: number | null = null;
 let lastSentAt = 0;
@@ -14,10 +27,7 @@ let lastLng = 0;
 const MIN_INTERVAL_MS = 25_000;
 const MIN_DISTANCE_M  = 20;
 
-// Production API base — set as VITE_API_BASE env var at build time for native.
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
-
-// ─── Haversine distance ───────────────────────────────────────────────────────
 
 function distanceMetres(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6_371_000;
@@ -30,19 +40,15 @@ function distanceMetres(lat1: number, lng1: number, lat2: number, lng2: number) 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ─── Send a ping to the server ────────────────────────────────────────────────
-
 async function sendPoint(
   staffId: number,
   lat: number,
   lng: number,
   accuracy?: number | null,
   speed?: number | null,
-  heading?: number | null,
 ) {
   const now = Date.now();
   const moved = distanceMetres(lastLat, lastLng, lat, lng);
-
   if (now - lastSentAt < MIN_INTERVAL_MS && moved < MIN_DISTANCE_M) return;
 
   lastSentAt = now;
@@ -60,7 +66,7 @@ async function sendPoint(
         lng: String(lng),
         accuracy: accuracy ?? null,
         speed: speed ?? null,
-        heading: heading ?? null,
+        heading: null,
       }),
     });
   } catch {
@@ -72,11 +78,11 @@ async function sendPoint(
 
 export function useBackgroundLocation() {
   const [isTracking, setIsTracking] = useState(
-    nativeWatchId !== null || webWatcherId !== null,
+    nativeListener !== null || webWatcherId !== null,
   );
 
   async function startTracking(staffId: number) {
-    if (nativeWatchId !== null || webWatcherId !== null) return;
+    if (nativeListener !== null || webWatcherId !== null) return;
 
     trackingStaffId = staffId;
     lastLat = 0;
@@ -85,25 +91,14 @@ export function useBackgroundLocation() {
 
     try {
       if (Capacitor.isNativePlatform()) {
-        // ── Native Android: @capacitor/geolocation (Fused Location Provider) ──
-        await Geolocation.requestPermissions();
-
-        nativeWatchId = await Geolocation.watchPosition(
-          { enableHighAccuracy: true, timeout: 15000 },
-          (position, err) => {
-            if (err || !position || !trackingStaffId) return;
-            sendPoint(
-              trackingStaffId,
-              position.coords.latitude,
-              position.coords.longitude,
-              position.coords.accuracy,
-              position.coords.speed,
-              position.coords.heading,
-            );
-          },
-        );
+        // ── Native Android: TMGLocationPlugin (Java 17 foreground service) ──
+        nativeListener = await TMGLocation.addListener("location", (loc) => {
+          if (!trackingStaffId) return;
+          sendPoint(trackingStaffId, loc.lat, loc.lng, loc.accuracy, loc.speed);
+        });
+        await TMGLocation.startWatching();
       } else {
-        // ── Web fallback: standard watchPosition (foreground only) ───────────
+        // ── Web fallback: standard watchPosition ─────────────────────────────
         if (!("geolocation" in navigator)) return;
 
         webWatcherId = navigator.geolocation.watchPosition(
@@ -115,35 +110,33 @@ export function useBackgroundLocation() {
               pos.coords.longitude,
               pos.coords.accuracy,
               pos.coords.speed,
-              pos.coords.heading,
             );
           },
           () => {},
-          {
-            enableHighAccuracy: true,
-            timeout: 30_000,
-            maximumAge: 5_000,
-          },
+          { enableHighAccuracy: true, timeout: 30_000, maximumAge: 5_000 },
         );
       }
 
       setIsTracking(true);
     } catch {
-      // Geolocation unavailable — silently ignore
+      // Location unavailable — silently ignore
     }
   }
 
   async function stopTracking() {
     try {
-      if (Capacitor.isNativePlatform() && nativeWatchId !== null) {
-        await Geolocation.clearWatch({ id: nativeWatchId });
-        nativeWatchId = null;
+      if (Capacitor.isNativePlatform()) {
+        await TMGLocation.stopWatching();
+        if (nativeListener) {
+          await nativeListener.remove();
+          nativeListener = null;
+        }
       } else if (webWatcherId !== null) {
         navigator.geolocation?.clearWatch(webWatcherId);
         webWatcherId = null;
       }
     } catch {
-      nativeWatchId = null;
+      nativeListener = null;
       webWatcherId = null;
     }
 

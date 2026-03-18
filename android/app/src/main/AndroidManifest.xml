@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
         android:allowBackup="true"
@@ -39,22 +38,32 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
+        <!-- TMG background location tracking service (started only on check-in) -->
+        <service
+            android:name=".TMGLocationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
     </application>
 
-    <!-- ── Core network permission ───────────────────────────────────────── -->
+    <!-- ── Core ──────────────────────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- ── Location permissions ──────────────────────────────────────────── -->
+    <!-- ── Location ──────────────────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
-    <!-- ── Notifications ─────────────────────────────────────────────────── -->
+    <!-- ── Foreground service ─────────────────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- ── Other ─────────────────────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- ── Camera permission ──────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- Hardware feature declarations -->
+    <!-- Hardware features (not required — app works without dedicated GPS chip) -->
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 

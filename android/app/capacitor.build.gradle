@@ -9,7 +9,7 @@ android {
 
 apply from: "../capacitor-cordova-android-plugins/cordova.variables.gradle"
 dependencies {
-    implementation project(':capacitor-geolocation')
+    // No third-party Capacitor plugins — TMGLocationPlugin is compiled directly in :app
 }
 
 

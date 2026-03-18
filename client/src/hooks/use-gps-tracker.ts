@@ -1,7 +1,22 @@
 import { useEffect, useRef, useCallback } from "react";
-import { Capacitor } from "@capacitor/core";
-import { Geolocation } from "@capacitor/geolocation";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+import type { PluginListenerHandle } from "@capacitor/core";
 import { apiRequest } from "@/lib/queryClient";
+
+// ─── Custom native plugin interface ─────────────────────────────────────────────
+// TMGLocationPlugin is compiled directly into the APK (Java 17) — no third-party
+// plugin needed. Provides true background tracking via Android foreground service.
+interface TMGLocationPlugin {
+  startWatching(): Promise<void>;
+  stopWatching(): Promise<void>;
+  addListener(
+    event: "location",
+    handler: (data: { lat: number; lng: number; accuracy: number; speed: number; time: number }) => void,
+  ): Promise<PluginListenerHandle>;
+  removeAllListeners(): Promise<void>;
+}
+
+const TMGLocation = registerPlugin<TMGLocationPlugin>("TMGLocation");
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 const MOVE_THRESHOLD_M = 15;
@@ -38,13 +53,11 @@ async function postCoords(
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────────
-// Uses @capacitor/geolocation (Fused Location Provider) on native Android,
-// and the browser Geolocation API as a web fallback.
 export function useGpsTracker(enabled: boolean) {
   const lastSentRef    = useRef<{ lat: number; lng: number; ts: number } | null>(null);
   const latestPosRef   = useRef<{ lat: number; lng: number } | null>(null);
   const heartbeatRef   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const nativeWatchRef = useRef<string | null>(null);
+  const listenerRef    = useRef<PluginListenerHandle | null>(null);
   const browserWatchRef = useRef<number | null>(null);
 
   const maybeSend = useCallback(async (
@@ -63,39 +76,37 @@ export function useGpsTracker(enabled: boolean) {
     latestPosRef.current = { lat, lng };
   }, []);
 
-  // ─── NATIVE: @capacitor/geolocation (Fused Location Provider) ──────────────
+  // ─── NATIVE: TMGLocationPlugin foreground service ──────────────────────────
   const startNative = useCallback(async () => {
     try {
-      await Geolocation.requestPermissions();
+      // Attach listener before starting so no updates are missed
+      listenerRef.current = await TMGLocation.addListener("location", (loc) => {
+        latestPosRef.current = { lat: loc.lat, lng: loc.lng };
+        maybeSend(loc.lat, loc.lng, loc.accuracy, loc.speed, null, new Date(loc.time).toISOString());
+      });
 
-      nativeWatchRef.current = await Geolocation.watchPosition(
-        { enableHighAccuracy: true, timeout: 15000 },
-        (position, err) => {
-          if (err || !position) return;
-          const { latitude: lat, longitude: lng, accuracy, speed, heading } = position.coords;
-          latestPosRef.current = { lat, lng };
-          maybeSend(lat, lng, accuracy, speed, heading, new Date(position.timestamp).toISOString());
-        },
-      );
+      await TMGLocation.startWatching();
 
+      // Heartbeat — re-sends last known position every 30 s for stationary staff
       heartbeatRef.current = setInterval(() => {
         const p = latestPosRef.current;
         if (p) postCoords(p.lat, p.lng);
       }, HEARTBEAT_MS);
     } catch (err) {
-      console.warn("[GPS] Native geolocation failed, falling back to browser:", err);
+      console.warn("[GPS] Native plugin failed, falling back to browser:", err);
       startBrowser();
     }
   }, [maybeSend]);
 
   const stopNative = useCallback(async () => {
-    if (nativeWatchRef.current !== null) {
-      try { await Geolocation.clearWatch({ id: nativeWatchRef.current }); } catch {}
-      nativeWatchRef.current = null;
+    try { await TMGLocation.stopWatching(); } catch {}
+    if (listenerRef.current) {
+      try { await listenerRef.current.remove(); } catch {}
+      listenerRef.current = null;
     }
   }, []);
 
-  // ─── BROWSER: standard navigator.geolocation fallback ──────────────────────
+  // ─── BROWSER: navigator.geolocation fallback ────────────────────────────────
   const startBrowser = useCallback(() => {
     if (!navigator.geolocation) return;
 
