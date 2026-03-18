@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { Capacitor } from "@capacitor/core";
 
 // ─── Module-level singletons so tracking survives component unmounts ─────────
 
-let nativeWatcherId: string | null = null;
 let webWatcherId: number | null = null;
 let trackingStaffId: number | null = null;
 let lastSentAt = 0;
@@ -67,13 +65,10 @@ async function sendPoint(
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useBackgroundLocation() {
-  // Sync state with module-level tracking status
-  const [isTracking, setIsTracking] = useState(
-    nativeWatcherId !== null || webWatcherId !== null,
-  );
+  const [isTracking, setIsTracking] = useState(webWatcherId !== null);
 
   async function startTracking(staffId: number) {
-    if (nativeWatcherId !== null || webWatcherId !== null) return; // already tracking
+    if (webWatcherId !== null) return; // already tracking
 
     trackingStaffId = staffId;
     lastLat = 0;
@@ -81,88 +76,39 @@ export function useBackgroundLocation() {
     lastSentAt = 0;
 
     try {
-      if (Capacitor.isNativePlatform()) {
-        // ── Native Android: background geolocation with foreground service ──
-        const { BackgroundGeolocation } = await import(
-          "@capacitor-community/background-geolocation"
-        );
+      if (!("geolocation" in navigator)) return;
 
-        nativeWatcherId = await BackgroundGeolocation.addWatcher(
-          {
-            backgroundMessage:
-              "TMG Install is recording your location for the active job.",
-            backgroundTitle: "TMG Install — Location Active",
-            requestPermissions: true,
-            stale: false,
-            distanceFilter: MIN_DISTANCE_M,
-          },
-          (position: any, error: any) => {
-            if (error) {
-              if (error.code === "NOT_AUTHORIZED") {
-                // User denied location — stop trying
-                stopTracking();
-              }
-              return;
-            }
-            if (!trackingStaffId) return;
-            sendPoint(
-              trackingStaffId,
-              position.latitude,
-              position.longitude,
-              position.accuracy,
-              position.speed,
-              position.bearing,
-            );
-          },
-        );
-      } else {
-        // ── Web fallback: standard watchPosition (foreground only) ───────────
-        if (!("geolocation" in navigator)) return;
-
-        webWatcherId = navigator.geolocation.watchPosition(
-          (pos) => {
-            if (!trackingStaffId) return;
-            sendPoint(
-              trackingStaffId,
-              pos.coords.latitude,
-              pos.coords.longitude,
-              pos.coords.accuracy,
-              pos.coords.speed,
-              pos.coords.heading,
-            );
-          },
-          () => {
-            // Silently ignore errors on web
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 30_000,
-            maximumAge: 5_000,
-          },
-        );
-      }
+      webWatcherId = navigator.geolocation.watchPosition(
+        (pos) => {
+          if (!trackingStaffId) return;
+          sendPoint(
+            trackingStaffId,
+            pos.coords.latitude,
+            pos.coords.longitude,
+            pos.coords.accuracy,
+            pos.coords.speed,
+            pos.coords.heading,
+          );
+        },
+        () => {
+          // Silently ignore errors
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 30_000,
+          maximumAge: 5_000,
+        },
+      );
 
       setIsTracking(true);
     } catch {
-      // Plugin unavailable on this platform — silently ignore
+      // Ignore errors
     }
   }
 
   async function stopTracking() {
-    try {
-      if (Capacitor.isNativePlatform() && nativeWatcherId !== null) {
-        const { BackgroundGeolocation } = await import(
-          "@capacitor-community/background-geolocation"
-        );
-        await BackgroundGeolocation.removeWatcher({ id: nativeWatcherId });
-        nativeWatcherId = null;
-      } else if (webWatcherId !== null) {
-        navigator.geolocation?.clearWatch(webWatcherId);
-        webWatcherId = null;
-      }
-    } catch {
-      // Ignore cleanup errors
-      nativeWatcherId = null;
+    if (webWatcherId !== null) {
+      navigator.geolocation?.clearWatch(webWatcherId);
       webWatcherId = null;
     }
 
