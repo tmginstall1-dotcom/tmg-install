@@ -1,0 +1,55 @@
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+  WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+> System.Management.Automation.RemoteException
+  
+  > Configure project :app
+  WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+  [Incubating] Problems report is available at: file:///C:/tmg-android-project.tar/android/build/reports/problems/problems-report.html
+> System.Management.Automation.RemoteException
+> FAILURE: Build failed with an exception.
+> System.Management.Automation.RemoteException
+  * What went wrong:
+  Could not determine the dependencies of task ':app:compileDebugJavaWithJavac'.
+        > No matching variant of project :capacitor-community-background-geolocation was found. The consumer was configured to find a library for use during 
+compile-time, preferably optimized for Android, as well as attribute 'com.android.build.api.attributes.AgpVersionAttr' with value '8.7.2', attribute 
+'com.android.build.api.attributes.BuildTypeAttr' with value 'debug', attribute 'org.jetbrains.kotlin.platform.type' with value 'androidJvm' but:
+            - No variants exist.
+> System.Management.Automation.RemoteException
+  * Try:
+  > Creating consumable variants is explained in more detail at 
+https://docs.gradle.org/8.11.1/userguide/declaring_dependencies.html#sec:resolvable-consumable-configs.
+  > Run with --scan to get full insights.
+  > Get more help at https://help.gradle.org.
+> System.Management.Automation.RemoteException
+> * Exception is:
+> org.gradle.api.internal.tasks.TaskDependencyResolveException: Could not determine the dependencies of task ':app:compileDebugJavaWithJavac'.
+        at org.gradle.api.internal.tasks.CachingTaskDependencyResolveContext.getDependencies(CachingTaskDependencyResolveContext.java:70)
+        at org.gradle.execution.plan.TaskDependencyResolver.resolveDependenciesFor(TaskDependencyResolver.java:49)
+        at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+        at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+> Caused by: org.gradle.api.internal.artifacts.ivyservice.TypedResolveException: Could not resolve all dependencies for configuration 
+':app:debugCompileClasspath'.
+>       at org.gradle.api.internal.artifacts.ResolveExceptionMapper.mapFailures(ResolveExceptionMapper.java:56)
+        at org.gradle.api.internal.artifacts.configurations.DefaultConfiguration$DefaultResolutionHost.consolidateFailures(DefaultConfiguration.java:1995)
+        at org.gradle.api.internal.artifacts.configurations.ResolutionBackedFileCollection.visitDependencies(ResolutionBackedFileCollection.java:61)
+        at org.gradle.api.internal.tasks.CachingTaskDependencyResolveContext.getDependencies(CachingTaskDependencyResolveContext.java:67)
+        ... 139 more
+> Caused by: org.gradle.internal.resolve.ModuleVersionResolveException: Could not resolve project :capacitor-android.
+  Required by:
+      project :app
+> Caused by: org.gradle.internal.component.resolution.failure.exception.VariantSelectionByAttributesException: No matching variant of project 
+:capacitor-android was found. The consumer was configured to find a library for use during compile-time, preferably optimized for Android, as well as attribute 
+'com.android.build.api.attributes.AgpVersionAttr' with value '8.7.2', attribute 'com.android.build.api.attributes.BuildTypeAttr' with value 'debug', attribute 
+'org.jetbrains.kotlin.platform.type' with value 'androidJvm' but:
+    - No variants exist.
+        at 
+org.gradle.internal.component.resolution.failure.describer.NoCompatibleVariantsFailureDescriber.describeFailure(NoCompatibleVariantsFailureDescriber.java:58)
+        at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+        at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+> System.Management.Automation.RemoteException
+  
+  Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+  
+  For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+> System.Management.Automation.RemoteException
+> BUILD FAILED in 2s
