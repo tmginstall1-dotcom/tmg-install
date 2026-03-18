@@ -19,7 +19,8 @@
             android:launchMode="singleTask"
             android:exported="true"
             android:windowSoftInputMode="adjustResize"
-            android:hardwareAccelerated="true">
+            android:hardwareAccelerated="true"
+            android:importantForAutofill="noExcludeDescendants">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
