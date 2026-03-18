@@ -1,35 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { registerPlugin } from "@capacitor/core";
 import { apiRequest } from "@/lib/queryClient";
-
-// ─── Native plugin interface (matches @capacitor-community/background-geolocation) ─
-interface BgLocation {
-  latitude: number;
-  longitude: number;
-  accuracy: number;
-  speed: number | null;
-  bearing: number | null;
-  altitude: number | null;
-  time: number;
-  simulated: boolean;
-}
-interface BgGeoPlugin {
-  addWatcher(
-    options: {
-      backgroundMessage?: string;
-      backgroundTitle?: string;
-      requestPermissions?: boolean;
-      stale?: boolean;
-      distanceFilter?: number;
-    },
-    callback: (location?: BgLocation, error?: { code: string }) => void,
-  ): Promise<string>;
-  removeWatcher(options: { id: string }): Promise<void>;
-}
-
-// registerPlugin creates a proxy — in native it routes to the compiled plugin;
-// in browser it returns a stub (calls will reject, caught below).
-const BackgroundGeolocation = registerPlugin<BgGeoPlugin>("BackgroundGeolocation");
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 const MOVE_THRESHOLD_M = 15;
@@ -44,21 +14,6 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
   const Δλ = ((lng2 - lng1) * Math.PI) / 180;
   const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-// Reliable native detection: checks custom user agent (set via capacitor.config.ts
-// android.appendUserAgent) AND the Capacitor bridge as fallback.
-function isCapacitorNative(): boolean {
-  // Primary: user agent appended by Capacitor config (works with remote URLs)
-  if (navigator.userAgent.includes("TMGStaffApp")) return true;
-  // Fallback: Capacitor bridge (works when bridge is injected)
-  try {
-    if (
-      typeof (window as any).Capacitor !== "undefined" &&
-      (window as any).Capacitor.isNativePlatform?.() === true
-    ) return true;
-  } catch {}
-  return false;
 }
 
 async function postCoords(
@@ -81,11 +36,13 @@ async function postCoords(
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────────
+// Uses standard browser Geolocation API (works in Capacitor WebView on Android).
+// Note: This is foreground-only tracking — location updates pause when the app
+// is backgrounded. Full background tracking can be re-added once the app is stable.
 export function useGpsTracker(enabled: boolean) {
   const lastSentRef  = useRef<{ lat: number; lng: number; ts: number } | null>(null);
   const latestPosRef = useRef<{ lat: number; lng: number } | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const watcherIdRef = useRef<string | null>(null);
   const browserWatchRef = useRef<number | null>(null);
 
   const maybeSend = useCallback(async (
@@ -95,52 +52,15 @@ export function useGpsTracker(enabled: boolean) {
   ) => {
     const now = Date.now();
     if (lastSentRef.current && now - lastSentRef.current.ts < MIN_GAP_MS) return;
+    if (lastSentRef.current) {
+      const dist = haversineM(lastSentRef.current.lat, lastSentRef.current.lng, lat, lng);
+      if (dist < MOVE_THRESHOLD_M && now - lastSentRef.current.ts < HEARTBEAT_MS) return;
+    }
     await postCoords(lat, lng, accuracy, speed, heading, recordedAt);
     lastSentRef.current = { lat, lng, ts: now };
     latestPosRef.current = { lat, lng };
   }, []);
 
-  // ─── NATIVE tracking (Android background-capable) ──────────────────────────
-  const startNative = useCallback(async () => {
-    try {
-      const id = await BackgroundGeolocation.addWatcher(
-        {
-          backgroundMessage: "TMG Install is tracking your location for the active job.",
-          backgroundTitle:   "TMG Install — Location Active",
-          requestPermissions: true,
-          stale: false,
-          distanceFilter: MOVE_THRESHOLD_M,
-        },
-        (loc?: BgLocation, err?: { code: string }) => {
-          if (err || !loc) return;
-          maybeSend(
-            loc.latitude, loc.longitude,
-            loc.accuracy, loc.speed, loc.bearing,
-            new Date(loc.time).toISOString(),
-          );
-        },
-      );
-      watcherIdRef.current = id;
-
-      // Heartbeat — sends last known position every 30s for stationary staff
-      heartbeatRef.current = setInterval(() => {
-        const p = latestPosRef.current;
-        if (p) postCoords(p.lat, p.lng);
-      }, HEARTBEAT_MS);
-    } catch (err) {
-      console.warn("[GPS] Native plugin unavailable, falling back to browser:", err);
-      startBrowser();
-    }
-  }, [maybeSend]);
-
-  const stopNative = useCallback(async () => {
-    if (watcherIdRef.current) {
-      try { await BackgroundGeolocation.removeWatcher({ id: watcherIdRef.current }); } catch {}
-      watcherIdRef.current = null;
-    }
-  }, []);
-
-  // ─── BROWSER tracking (foreground-only fallback) ────────────────────────────
   const startBrowser = useCallback(() => {
     if (!navigator.geolocation) return;
 
@@ -148,14 +68,7 @@ export function useGpsTracker(enabled: boolean) {
       (pos) => {
         const { latitude: lat, longitude: lng, accuracy, speed, heading } = pos.coords;
         latestPosRef.current = { lat, lng };
-        if (!lastSentRef.current) {
-          maybeSend(lat, lng, accuracy, speed, heading, new Date(pos.timestamp).toISOString());
-          return;
-        }
-        const dist = haversineM(lastSentRef.current.lat, lastSentRef.current.lng, lat, lng);
-        if (dist >= MOVE_THRESHOLD_M) {
-          maybeSend(lat, lng, accuracy, speed, heading, new Date(pos.timestamp).toISOString());
-        }
+        maybeSend(lat, lng, accuracy, speed, heading, new Date(pos.timestamp).toISOString());
       },
       () => {},
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
@@ -174,21 +87,16 @@ export function useGpsTracker(enabled: boolean) {
     }
   }, []);
 
-  // ─── Lifecycle ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!enabled) return;
 
-    if (isCapacitorNative()) {
-      startNative();
-    } else {
-      startBrowser();
-    }
+    startBrowser();
 
     return () => {
       if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
-      if (isCapacitorNative()) { stopNative(); } else { stopBrowser(); }
+      stopBrowser();
       lastSentRef.current  = null;
       latestPosRef.current = null;
     };
-  }, [enabled, startNative, startBrowser, stopNative, stopBrowser]);
+  }, [enabled, startBrowser, stopBrowser]);
 }
