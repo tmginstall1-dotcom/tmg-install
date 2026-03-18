@@ -5,7 +5,10 @@ const config: CapacitorConfig = {
   appName: "TMG Staff",
   webDir: "dist/public",
   server: {
-    url: "https://tmginstall.com/staff/login",
+    // Point to the root so React Router handles /staff/login internally.
+    // Pointing to a specific path like /staff/login causes WebView reload
+    // conflicts when the keyboard or autofill interacts with the page.
+    url: "https://tmginstall.com",
     cleartext: false,
   },
   android: {
@@ -17,7 +20,6 @@ const config: CapacitorConfig = {
     BackgroundGeolocation: {
       backgroundMessage: "TMG Install is tracking your location for the active job.",
       backgroundTitle: "TMG Install — Location Active",
-      // Don't request permissions at startup — ask only when staff check in
       requestPermissions: false,
       stale: false,
       distanceFilter: 20,

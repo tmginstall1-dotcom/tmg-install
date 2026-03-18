@@ -9,11 +9,7 @@ android {
 
 apply from: "../capacitor-cordova-android-plugins/cordova.variables.gradle"
 dependencies {
-    // Note: capacitor-community-background-geolocation removed intentionally.
-    // The plugin's load() method auto-starts a foreground location service on
-    // app launch (via bindService BIND_AUTO_CREATE) which crashes on Android 12+
-    // before location permissions are granted.
-    // GPS tracking uses navigator.geolocation (web API) instead.
+    implementation project(':capacitor-community-background-geolocation')
 }
 
 
