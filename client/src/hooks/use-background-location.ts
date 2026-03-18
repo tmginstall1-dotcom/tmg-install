@@ -13,6 +13,9 @@ let lastLng = 0;
 const MIN_INTERVAL_MS = 25_000;
 const MIN_DISTANCE_M  = 20;
 
+// Production API base — set as VITE_API_BASE env var at build time for native.
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
+
 // ─── Haversine distance ───────────────────────────────────────────────────────
 
 function distanceMetres(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -46,7 +49,7 @@ async function sendPoint(
   lastLng = lng;
 
   try {
-    await fetch("https://tmginstall.com/api/staff/gps-track", {
+    await fetch(`${API_BASE}/api/staff/gps-track`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -82,8 +85,9 @@ export function useBackgroundLocation() {
     try {
       if (Capacitor.isNativePlatform()) {
         // ── Native Android: background geolocation with foreground service ──
+        // @vite-ignore: native-only module, no web build entry point
         const { BackgroundGeolocation } = await import(
-          "@capacitor-community/background-geolocation"
+          /* @vite-ignore */ "@capacitor-community/background-geolocation"
         );
 
         nativeWatcherId = await BackgroundGeolocation.addWatcher(
@@ -148,7 +152,7 @@ export function useBackgroundLocation() {
     try {
       if (Capacitor.isNativePlatform() && nativeWatcherId !== null) {
         const { BackgroundGeolocation } = await import(
-          "@capacitor-community/background-geolocation"
+          /* @vite-ignore */ "@capacitor-community/background-geolocation"
         );
         await BackgroundGeolocation.removeWatcher({ id: nativeWatcherId });
         nativeWatcherId = null;

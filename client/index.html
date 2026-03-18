@@ -67,7 +67,11 @@
     }
     </script>
     <script>
-      if ('serviceWorker' in navigator) {
+      // Never register a service worker in the Capacitor native app.
+      // SW fetch interception conflicts with Capacitor's WebView bridge and
+      // crashes the app when the keyboard or IME interacts with the page.
+      var isNativeApp = navigator.userAgent.indexOf('TMGStaffApp') !== -1;
+      if ('serviceWorker' in navigator && !isNativeApp) {
         window.addEventListener('load', function() {
           navigator.serviceWorker.register('/sw.js');
         });
