@@ -113,7 +113,7 @@ export default function Analytics() {
   const activeHours = data.hourly.filter(h => h.hour >= 6);
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-14 pb-24">
+    <div className="min-h-screen bg-slate-50 pt-14 lg:pl-56 pb-24">
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
 
         {/* Header */}

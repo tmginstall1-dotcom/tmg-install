@@ -123,8 +123,12 @@ export function Navbar() {
         <div className="flex items-center gap-1 sm:gap-2">
           {user && (
             <>
-              {/* Desktop nav links */}
-              <div className={`hidden sm:flex items-center ${isAdminArea ? "gap-1" : "gap-4 text-sm font-medium text-muted-foreground"}`}>
+              {/* Desktop nav links — hidden at lg for admin (sidebar takes over) */}
+              <div className={`hidden items-center ${
+                isAdminArea
+                  ? "sm:flex lg:hidden gap-1"
+                  : "sm:flex gap-4 text-sm font-medium text-muted-foreground"
+              }`}>
                 {navLinks.map(({ href, label, icon: Icon }) => (
                   isAdminArea ? (
                     <Link key={href} href={href} data-testid={`nav-${label.toLowerCase().replace(/\s/g, "-")}`}>

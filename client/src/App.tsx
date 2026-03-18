@@ -10,6 +10,7 @@ import NotFound from "@/pages/not-found";
 import { Navbar } from "@/components/layout/Navbar";
 import { StaffBottomNav } from "@/components/layout/StaffBottomNav";
 import { AdminBottomNav } from "@/components/layout/AdminBottomNav";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 import Landing from "@/pages/customer/Landing";
 
@@ -86,6 +87,7 @@ function Router() {
     <>
       <NativeRedirect />
       <Navbar />
+      <AdminSidebar />
       <StaffBottomNav />
       <AdminBottomNav />
       <Suspense fallback={<PageLoader />}>

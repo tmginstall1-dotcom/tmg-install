@@ -4,11 +4,11 @@ import { queryClient } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   ClipboardList, DollarSign, CalendarCheck,
   Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2, UserPlus,
-  ChevronRight, Clock, Sparkles, Users, ArrowRight, BarChart2,
+  ChevronRight, Clock, Users, ArrowRight, BarChart2, Search, X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -66,6 +66,37 @@ function QuoteRow({ quote, showDate = false }: { quote: any; showDate?: boolean 
           <p className="text-[11px] text-slate-400 tabular-nums mt-0.5">
             {showDate && slotDate ? slotDate : format(new Date(quote.createdAt), "d MMM")}
           </p>
+        </div>
+        <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 group-hover:text-violet-500 transition-colors" />
+      </div>
+    </Link>
+  );
+}
+
+// ─── Search result row ─────────────────────────────────────────────────────
+
+function SearchResultRow({ quote }: { quote: any }) {
+  return (
+    <Link href={`/admin/quotes/${quote.id}`} data-testid={`search-result-${quote.id}`}
+      className="block w-full">
+      <div className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100 last:border-0">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${avatarBg(quote.id)}`}>
+          {initials(quote.customer?.name)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <p className="font-bold text-sm text-slate-800 truncate leading-tight">
+              {quote.customer?.name || "Unknown"}
+            </p>
+            <StatusBadge status={quote.status} />
+          </div>
+          <p className="text-xs text-slate-400 truncate">
+            {quote.referenceNo} · {quote.serviceAddress || "No address"}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-black text-slate-900 tabular-nums">{formatMoney(quote.total)}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{format(new Date(quote.createdAt), "d MMM")}</p>
         </div>
         <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 group-hover:text-violet-500 transition-colors" />
       </div>
@@ -159,12 +190,12 @@ function BookedQuoteRow({ quote }: { quote: any }) {
 
 // ─── Section panel ────────────────────────────────────────────────────────────
 
-const ACCENT: Record<string, { dot: string; badge: string; border: string }> = {
-  violet:  { dot: "bg-violet-500",  badge: "bg-violet-600 text-white",   border: "border-slate-200" },
-  amber:   { dot: "bg-amber-500",   badge: "bg-amber-500 text-white",    border: "border-slate-200" },
-  cyan:    { dot: "bg-cyan-500",    badge: "bg-cyan-600 text-white",     border: "border-slate-200" },
-  orange:  { dot: "bg-orange-500",  badge: "bg-orange-500 text-white",   border: "border-orange-200" },
-  emerald: { dot: "bg-emerald-500", badge: "bg-emerald-600 text-white",  border: "border-slate-200" },
+const ACCENT: Record<string, { dot: string; badge: string }> = {
+  violet:  { dot: "bg-violet-500",  badge: "bg-violet-600 text-white" },
+  amber:   { dot: "bg-amber-500",   badge: "bg-amber-500 text-white" },
+  cyan:    { dot: "bg-cyan-500",    badge: "bg-cyan-600 text-white" },
+  orange:  { dot: "bg-orange-500",  badge: "bg-orange-500 text-white" },
+  emerald: { dot: "bg-emerald-500", badge: "bg-emerald-600 text-white" },
 };
 
 function SectionPanel({
@@ -179,7 +210,6 @@ function SectionPanel({
     <div className={`w-full bg-white border overflow-hidden ${
       urgent && quotes.length > 0 ? "border-orange-200" : "border-black/[0.08]"
     }`}>
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/[0.06]">
         <div className="flex items-center gap-2.5">
           <span className={`w-1.5 h-4 shrink-0 ${ac.dot}`} />
@@ -191,15 +221,13 @@ function SectionPanel({
           {quotes.length}
         </span>
       </div>
-
-      {/* Rows */}
       <div className="overflow-hidden">
         {quotes.map((q: any) => bookedStyle
           ? <BookedQuoteRow key={q.id} quote={q} />
           : <QuoteRow key={q.id} quote={q} showDate={showDate} />
         )}
         {quotes.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-8 gap-1.5 text-slate-300 overflow-hidden">
+          <div className="flex flex-col items-center justify-center py-8 gap-1.5 text-slate-300">
             <CheckCircle2 className="w-5 h-5 shrink-0" />
             <p className="text-xs font-medium text-center px-4">{emptyMsg}</p>
           </div>
@@ -214,6 +242,7 @@ function SectionPanel({
 export default function AdminDashboard() {
   const { data: allQuotes, isLoading } = useQuotes();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [search, setSearch] = useState("");
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
@@ -225,17 +254,6 @@ export default function AdminDashboard() {
       setShowClearConfirm(false);
     },
   });
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen pt-14 flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-[3px] border-violet-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-slate-400 font-medium">Loading…</p>
-        </div>
-      </div>
-    );
-  }
 
   const quotes = allQuotes || [];
 
@@ -253,14 +271,45 @@ export default function AdminDashboard() {
     .filter((q: any) => ["closed", "final_paid"].includes(q.status))
     .reduce((sum: number, q: any) => sum + Number(q.total || 0), 0);
 
+  const pipelineValue = quotes
+    .filter((q: any) => !["closed", "cancelled", "final_paid"].includes(q.status))
+    .reduce((sum: number, q: any) => sum + Number(q.total || 0), 0);
+
   const urgentCount = newQuotes.length + awaitingPayment.length;
 
+  // Search logic — must be before any early return
+  const searchResults = useMemo(() => {
+    if (!search.trim()) return [];
+    const q = search.toLowerCase().trim();
+    return (quotes as any[]).filter((quote: any) =>
+      quote.customer?.name?.toLowerCase().includes(q) ||
+      quote.referenceNo?.toLowerCase().includes(q) ||
+      quote.serviceAddress?.toLowerCase().includes(q) ||
+      quote.customer?.phone?.toLowerCase().includes(q) ||
+      quote.customer?.email?.toLowerCase().includes(q) ||
+      quote.pickupAddress?.toLowerCase().includes(q)
+    );
+  }, [quotes, search]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen pt-14 lg:pl-56 flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-[3px] border-violet-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-slate-400 font-medium">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isSearching = search.trim().length > 0;
+
   const statCards = [
-    { label: "New",          value: newQuotes.length,       icon: ClipboardList, accent: "violet",  urgent: newQuotes.length > 0 },
-    { label: "Deposit",      value: awaitingDeposit.length, icon: DollarSign,    accent: "amber",   urgent: false },
-    { label: "Bookings",     value: upcomingBooked.length,  icon: CalendarCheck, accent: "cyan",    urgent: false },
-    { label: "In Progress",  value: activeJobs.length,      icon: Zap,           accent: "orange",  urgent: false },
-    { label: "Payment Due",  value: awaitingPayment.length, icon: AlertCircle,   accent: "emerald", urgent: awaitingPayment.length > 0 },
+    { label: "New",         value: newQuotes.length,       icon: ClipboardList, accent: "violet",  urgent: newQuotes.length > 0 },
+    { label: "Deposit",     value: awaitingDeposit.length, icon: DollarSign,    accent: "amber",   urgent: false },
+    { label: "Bookings",    value: upcomingBooked.length,  icon: CalendarCheck, accent: "cyan",    urgent: false },
+    { label: "Live",        value: activeJobs.length,      icon: Zap,           accent: "orange",  urgent: false },
+    { label: "Payment Due", value: awaitingPayment.length, icon: AlertCircle,   accent: "emerald", urgent: awaitingPayment.length > 0 },
   ];
 
   const accentIconBg: Record<string, string> = {
@@ -279,37 +328,37 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen pt-14 bg-slate-50 pb-24 overflow-x-hidden">
+    <div className="min-h-screen pt-14 lg:pl-56 bg-slate-50 pb-24 overflow-x-hidden">
 
       {/* ── HERO ─────────────────────────────────────────────────────── */}
       <div className="bg-slate-950 text-white">
-        <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-5">
+        <div className="px-4 sm:px-6 max-w-6xl mx-auto py-5">
 
-          {/* Top row: greeting + revenue */}
+          {/* Top row: greeting + revenue + pipeline */}
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mb-2">Good {greeting()}</p>
-              <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-3xl leading-none">Operations</h1>
-              <p className="text-slate-500 text-xs mt-2">{format(new Date(), "EEE, d MMM yyyy")}</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mb-1.5">Good {greeting()}</p>
+              <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-2xl sm:text-3xl leading-none">Operations</h1>
+              <p className="text-slate-500 text-xs mt-1.5">{format(new Date(), "EEE, d MMM yyyy")}</p>
             </div>
-            <div className="text-right shrink-0">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Revenue</p>
-              <p className="text-2xl font-black text-white leading-none tabular-nums">{formatMoney(totalRevenue)}</p>
-              <Link href="/admin/schedule" data-testid="link-schedule"
-                className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-white text-black font-black text-[10px] uppercase tracking-[0.12em] hover:bg-white/90 transition-colors">
-                <Calendar className="w-3 h-3" /> Schedule
-              </Link>
+            <div className="shrink-0 flex gap-4 sm:gap-6 text-right">
+              <div>
+                <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.18em] mb-0.5">Collected</p>
+                <p className="text-xl sm:text-2xl font-black text-white leading-none tabular-nums">{formatMoney(totalRevenue)}</p>
+              </div>
+              <div className="pl-4 sm:pl-6 border-l border-white/10">
+                <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.18em] mb-0.5">Pipeline</p>
+                <p className="text-xl sm:text-2xl font-black text-emerald-400 leading-none tabular-nums">{formatMoney(pipelineValue)}</p>
+              </div>
             </div>
           </div>
 
-          {/* Stat grid — always 5-col, scrollable on tiny screens */}
-          <div className="grid grid-cols-5 gap-px mt-5 border border-white/10">
+          {/* Stat grid — always 5-col */}
+          <div className="grid grid-cols-5 gap-px mt-4 border border-white/10">
             {statCards.map((card) => (
               <div key={card.label}
                 className={`px-2 py-2.5 sm:px-3 sm:py-3 ${
-                  card.urgent && card.value > 0
-                    ? "bg-orange-500/15"
-                    : "bg-white/5"
+                  card.urgent && card.value > 0 ? "bg-orange-500/15" : "bg-white/5"
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
@@ -321,121 +370,179 @@ export default function AdminDashboard() {
                     card.value > 0 ? "text-white" : "text-slate-600"
                   }`}>{card.value}</span>
                 </div>
-                <p className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] sm:tracking-[0.15em] leading-tight truncate">{card.label}</p>
+                <p className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] leading-tight truncate">{card.label}</p>
                 <div className={`mt-1.5 h-[2px] ${card.value > 0 ? accentBar[card.accent] : "bg-white/10"}`} />
               </div>
             ))}
+          </div>
+
+          {/* Search bar */}
+          <div className="mt-4 relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search quotes by name, ref, address, phone…"
+              data-testid="input-quote-search"
+              className="w-full pl-9 pr-10 py-2.5 bg-white/[0.07] border border-white/10 text-white placeholder:text-slate-500 text-sm outline-none focus:border-white/30 focus:bg-white/[0.1] transition-all"
+            />
+            {isSearching && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                data-testid="button-clear-search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* ── CONTENT ───────────────────────────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
 
-        {/* Attention banner */}
-        {urgentCount > 0 && (
-          <div className="mt-5 flex items-center gap-3 bg-amber-50 border-l-4 border-amber-500 border-t border-r border-b border-amber-200 px-4 py-3">
-            <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-amber-800 uppercase tracking-[0.1em] truncate">
-                {urgentCount} item{urgentCount !== 1 ? "s" : ""} need attention
-              </p>
-              <p className="text-xs text-amber-600 truncate mt-0.5">
-                {[
-                  newQuotes.length > 0 && `${newQuotes.length} new`,
-                  awaitingPayment.length > 0 && `${awaitingPayment.length} awaiting payment`,
-                ].filter(Boolean).join(" · ")}
-              </p>
+        {/* ── SEARCH RESULTS ─ */}
+        {isSearching && (
+          <div className="mt-5">
+            <div className="bg-white border border-black/[0.08] overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/[0.06]">
+                <div className="flex items-center gap-2.5">
+                  <Search className="w-3.5 h-3.5 text-slate-400" />
+                  <h2 className="font-black text-[11px] text-slate-800 uppercase tracking-[0.12em]">
+                    Search Results
+                  </h2>
+                </div>
+                <span className={`min-w-[22px] h-[22px] px-1.5 flex items-center justify-center text-xs font-black ${
+                  searchResults.length > 0 ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-400"
+                }`}>
+                  {searchResults.length}
+                </span>
+              </div>
+              {searchResults.length > 0 ? (
+                <div>
+                  {searchResults.map((q: any) => (
+                    <SearchResultRow key={q.id} quote={q} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-300">
+                  <Search className="w-6 h-6" />
+                  <p className="text-xs font-medium">No quotes found for "{search}"</p>
+                </div>
+              )}
             </div>
-            <ArrowRight className="w-4 h-4 text-amber-400 shrink-0" />
           </div>
         )}
 
-        {/* Section grid — single column on mobile, 2-col on desktop */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-5">
-          <SectionPanel
-            title="New Quote Requests"
-            accentColor="violet"
-            quotes={newQuotes}
-            emptyMsg="No new requests — all clear"
-            urgent
-          />
-          <SectionPanel
-            title="Awaiting Deposit"
-            accentColor="amber"
-            quotes={awaitingDeposit}
-            emptyMsg="No outstanding deposits"
-          />
-          <SectionPanel
-            title="Upcoming Bookings"
-            accentColor="cyan"
-            quotes={upcomingBooked}
-            emptyMsg="No upcoming bookings"
-            showDate
-            bookedStyle
-          />
-          <SectionPanel
-            title="Active / In Progress"
-            accentColor="orange"
-            quotes={activeJobs}
-            emptyMsg="No active jobs right now"
-            urgent
-          />
-          <div className="lg:col-span-2">
-            <SectionPanel
-              title="Awaiting Final Payment"
-              accentColor="emerald"
-              quotes={awaitingPayment.concat(recentlyClosed)}
-              emptyMsg="No jobs awaiting payment"
-            />
-          </div>
-        </div>
-
-        {/* Quick-nav cards — 2×2 on mobile, 4-col on desktop */}
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-px bg-black/[0.08] border border-black/[0.08]">
-          {[
-            { href: "/admin/schedule",  label: "Schedule",     icon: Calendar,   desc: "Block dates & confirm bookings" },
-            { href: "/admin/staff",     label: "Staff & HR",   icon: Users,      desc: "Payroll, leave & amendments" },
-            { href: "/admin/analytics", label: "Analytics",    icon: BarChart2,  desc: "Site traffic & lead funnel" },
-            { href: "/admin/export",    label: "Audit Export", icon: TrendingUp, desc: "Generate reports & PDF export" },
-          ].map(({ href, label, icon: Icon, desc }) => (
-            <Link key={href} href={href} className="block w-full">
-              <div className="group flex items-center gap-3 bg-white p-4 sm:p-5 hover:bg-slate-50 transition-all active:bg-slate-100 h-full">
-                <div className="w-8 h-8 bg-black flex items-center justify-center shrink-0 group-hover:bg-neutral-700 transition-colors">
-                  <Icon className="w-3.5 h-3.5 text-white" />
+        {/* ── NORMAL DASHBOARD ─ shown when not searching */}
+        {!isSearching && (
+          <>
+            {/* Attention banner */}
+            {urgentCount > 0 && (
+              <div className="mt-5 flex items-center gap-3 bg-amber-50 border-l-4 border-amber-500 border-t border-r border-b border-amber-200 px-4 py-3">
+                <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-black text-amber-800 uppercase tracking-[0.1em] truncate">
+                    {urgentCount} item{urgentCount !== 1 ? "s" : ""} need attention
+                  </p>
+                  <p className="text-xs text-amber-600 truncate mt-0.5">
+                    {[
+                      newQuotes.length > 0 && `${newQuotes.length} new`,
+                      awaitingPayment.length > 0 && `${awaitingPayment.length} awaiting payment`,
+                    ].filter(Boolean).join(" · ")}
+                  </p>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-black text-[11px] text-slate-900 uppercase tracking-[0.12em]">{label}</p>
-                  <p className="text-xs text-slate-400 truncate mt-0.5 hidden sm:block">{desc}</p>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 shrink-0 transition-colors hidden sm:block" />
+                <ArrowRight className="w-4 h-4 text-amber-400 shrink-0" />
               </div>
-            </Link>
-          ))}
-        </div>
+            )}
 
-        {/* Danger zone */}
-        <div className="mt-6 mb-2">
-          {!showClearConfirm ? (
-            <button onClick={() => setShowClearConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-500 hover:bg-red-50 transition-colors text-[11px] font-black uppercase tracking-[0.1em]"
-              data-testid="button-clear-all-data">
-              <Trash2 className="w-3.5 h-3.5" />
-              Clear all job data
-            </button>
-          ) : (
-            <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200">
-              <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
-              <p className="text-xs text-red-700 font-semibold flex-1">Delete ALL quotes & data?</p>
-              <button onClick={() => clearAllMutation.mutate()} disabled={clearAllMutation.isPending}
-                className="text-xs font-black text-white bg-red-600 px-3 py-1.5 disabled:opacity-50">
-                {clearAllMutation.isPending ? "…" : "Delete"}
-              </button>
-              <button onClick={() => setShowClearConfirm(false)}
-                className="text-xs font-semibold text-slate-500">Cancel</button>
+            {/* Section grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-5">
+              <SectionPanel
+                title="New Quote Requests"
+                accentColor="violet"
+                quotes={newQuotes}
+                emptyMsg="No new requests — all clear"
+                urgent
+              />
+              <SectionPanel
+                title="Awaiting Deposit"
+                accentColor="amber"
+                quotes={awaitingDeposit}
+                emptyMsg="No outstanding deposits"
+              />
+              <SectionPanel
+                title="Upcoming Bookings"
+                accentColor="cyan"
+                quotes={upcomingBooked}
+                emptyMsg="No upcoming bookings"
+                showDate
+                bookedStyle
+              />
+              <SectionPanel
+                title="Active / In Progress"
+                accentColor="orange"
+                quotes={activeJobs}
+                emptyMsg="No active jobs right now"
+                urgent
+              />
+              <div className="lg:col-span-2">
+                <SectionPanel
+                  title="Awaiting Final Payment"
+                  accentColor="emerald"
+                  quotes={awaitingPayment.concat(recentlyClosed)}
+                  emptyMsg="No jobs awaiting payment"
+                />
+              </div>
             </div>
-          )}
-        </div>
+
+            {/* Quick-nav cards — 2×2 on mobile (sidebar hidden), hidden on desktop */}
+            <div className="mt-6 lg:hidden grid grid-cols-2 gap-px bg-black/[0.08] border border-black/[0.08]">
+              {[
+                { href: "/admin/schedule",  label: "Schedule",   icon: Calendar,   desc: "Bookings" },
+                { href: "/admin/staff",     label: "Staff & HR", icon: Users,      desc: "Payroll" },
+                { href: "/admin/analytics", label: "Analytics",  icon: BarChart2,  desc: "Traffic" },
+                { href: "/admin/export",    label: "Export",     icon: TrendingUp, desc: "Reports" },
+              ].map(({ href, label, icon: Icon, desc }) => (
+                <Link key={href} href={href} className="block w-full">
+                  <div className="group flex items-center gap-3 bg-white p-4 hover:bg-slate-50 transition-all active:bg-slate-100 h-full">
+                    <div className="w-8 h-8 bg-black flex items-center justify-center shrink-0 group-hover:bg-neutral-700 transition-colors">
+                      <Icon className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-black text-[11px] text-slate-900 uppercase tracking-[0.12em]">{label}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* Danger zone */}
+            <div className="mt-6 mb-2">
+              {!showClearConfirm ? (
+                <button onClick={() => setShowClearConfirm(true)}
+                  className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-500 hover:bg-red-50 transition-colors text-[11px] font-black uppercase tracking-[0.1em]"
+                  data-testid="button-clear-all-data">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Clear all job data
+                </button>
+              ) : (
+                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200">
+                  <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
+                  <p className="text-xs text-red-700 font-semibold flex-1">Delete ALL quotes & data?</p>
+                  <button onClick={() => clearAllMutation.mutate()} disabled={clearAllMutation.isPending}
+                    className="text-xs font-black text-white bg-red-600 px-3 py-1.5 disabled:opacity-50">
+                    {clearAllMutation.isPending ? "…" : "Delete"}
+                  </button>
+                  <button onClick={() => setShowClearConfirm(false)}
+                    className="text-xs font-semibold text-slate-500">Cancel</button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -35,11 +35,12 @@ Always provide full file contents when editing any code file — never partial s
   - `/estimate` — 5-step quote wizard (Services → Address → Items → Schedule → Review)
   - `/quotes/:id` — Customer quote status, booking, payment, reschedule
   - `/admin/login` — Login for admin/staff
-  - `/admin` — Admin dashboard (6-section: New/Awaiting Deposit/Pending Booking/Upcoming/Active/Final Payment)
+  - `/admin` — Admin dashboard (6-section: New/Awaiting Deposit/Pending Booking/Upcoming/Active/Final Payment, pipeline value metric, real-time quote search bar)
   - `/admin/schedule` — Schedule Management (pending + confirmed bookings)
   - `/admin/quotes/:id` — Quote detail with full editing, actions, timeline
   - `/staff` — Staff job list (deposit_paid+ status only)
   - `/staff/jobs/:id` — Staff job detail with GPS + photo check-in/checkout
+- **Admin layout**: `AdminSidebar` (`client/src/components/layout/AdminSidebar.tsx`) — fixed left sidebar (w-56, bg-slate-950) with live badge counts for pending items. Visible at `lg+` only; all admin pages have `lg:pl-56` offset. ExportPDF uses `lg:left-56` (fixed-position). Mobile: `AdminBottomNav` (5-tab, badge counts). Navbar admin links hidden at lg+ (sidebar takes over).
 
 ### Backend (Express + Node.js)
 - **Entry**: `server/index.ts` → `server/routes.ts` → `server/storage.ts`

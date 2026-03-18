@@ -583,7 +583,7 @@ export default function ExportPDF() {
   return (
     <>
       {/* ══ FULL-HEIGHT WRAPPER ══ */}
-      <div className="screen-only fixed inset-x-0 top-14 bottom-16 sm:bottom-0 flex flex-col bg-gray-50">
+      <div className="screen-only fixed inset-x-0 lg:left-56 top-14 bottom-16 sm:bottom-0 flex flex-col bg-gray-50">
 
         {/* ── Toolbar ── */}
         <div className="bg-slate-950 text-white px-4 py-3 shrink-0 z-20">

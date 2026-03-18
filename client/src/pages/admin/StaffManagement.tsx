@@ -92,7 +92,7 @@ export default function StaffManagement() {
   const { data: allStaffForHeader = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
 
   return (
-    <div className="min-h-screen pt-14 pb-16 bg-slate-50 overflow-x-hidden">
+    <div className="min-h-screen pt-14 pb-16 lg:pl-56 bg-slate-50 overflow-x-hidden">
 
       {/* Dark hero header */}
       <div className="bg-slate-950 text-white">
