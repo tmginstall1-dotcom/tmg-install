@@ -5,10 +5,7 @@ const config: CapacitorConfig = {
   appName: "TMG Staff",
   webDir: "dist/public",
   server: {
-    // Points to the deployed Replit app — staff always get the latest version
-    // without reinstalling the APK.
-    // TODO: Replace with https://tmginstall.com once the domain is live.
-    url: "https://e8e39fa3-8d04-4454-8036-b60ebe21852f-00-2u43djm9l6hk.janeway.replit.dev/staff/login",
+    url: "https://tmginstall.com/staff/login",
     cleartext: false,
   },
   android: {
@@ -20,7 +17,10 @@ const config: CapacitorConfig = {
     BackgroundGeolocation: {
       backgroundMessage: "TMG Install is tracking your location for the active job.",
       backgroundTitle: "TMG Install — Location Active",
-      requestPermissions: true,
+      // Don't request permissions at startup — ask only when staff check in
+      requestPermissions: false,
+      stale: false,
+      distanceFilter: 20,
     },
   },
 };
