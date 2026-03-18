@@ -201,6 +201,7 @@ export default function EstimateWizard() {
   const [photoError, setPhotoError] = useState("");
   const [detectedPhotoUrl, setDetectedPhotoUrl] = useState<string>("");
   const [detectedCount, setDetectedCount] = useState(0);
+  const [detectedNames, setDetectedNames] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Step 4: Schedule — calendar
   const todayDate = new Date();
@@ -467,6 +468,12 @@ export default function EstimateWizard() {
         });
         setDetectedPhotoUrl(thumbnail);
         setDetectedCount(matchCount);
+        // Store unique item names (with quantity hint) for display
+        const nameList: string[] = [];
+        detected.forEach(({ name, quantity }) => {
+          nameList.push(quantity > 1 ? `${name} ×${quantity}` : name);
+        });
+        setDetectedNames(nameList);
       }
     } catch (err: any) {
       console.error("Photo detection error:", err);
@@ -831,20 +838,31 @@ export default function EstimateWizard() {
                   </p>
                   <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handlePhotoUpload} />
 
-                  {/* Success state — thumbnail + re-scan option */}
+                  {/* Success state — thumbnail + detected item chips + re-scan option */}
                   {detectedPhotoUrl && !photoDetecting ? (
-                    <div className="flex items-start gap-4">
-                      <img src={detectedPhotoUrl} alt="detected" className="w-20 h-20 object-cover border border-black/15 shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm font-black text-black flex items-center gap-1.5 mb-1">
-                          <Check className="w-4 h-4" /> {detectedCount} item{detectedCount !== 1 ? 's' : ''} detected
-                        </p>
-                        <p className="text-xs text-black/40 mb-2">Items added below. Review and adjust quantities.</p>
-                        <button onClick={() => { setDetectedPhotoUrl(""); setDetectedCount(0); fileInputRef.current?.click(); }}
-                          className="text-[10px] font-black uppercase tracking-[0.1em] text-black/50 hover:text-black transition-colors">
-                          Scan another photo
-                        </button>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-4">
+                        <img src={detectedPhotoUrl} alt="detected" className="w-16 h-16 object-cover border border-black/15 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black text-black flex items-center gap-1.5 mb-0.5">
+                            <Check className="w-4 h-4" /> {detectedCount} furniture item{detectedCount !== 1 ? 's' : ''} detected
+                          </p>
+                          <p className="text-xs text-black/40">Review and adjust quantities below.</p>
+                        </div>
                       </div>
+                      {detectedNames.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {detectedNames.map((nm, i) => (
+                            <span key={i} className="inline-flex items-center text-[10px] font-black uppercase tracking-[0.08em] bg-black text-white px-2 py-0.5">
+                              {nm}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <button onClick={() => { setDetectedPhotoUrl(""); setDetectedCount(0); setDetectedNames([]); fileInputRef.current?.click(); }}
+                        className="text-[10px] font-black uppercase tracking-[0.1em] text-black/50 hover:text-black transition-colors">
+                        Scan another photo
+                      </button>
                     </div>
                   ) : (
                     <button onClick={() => fileInputRef.current?.click()}
@@ -853,8 +871,8 @@ export default function EstimateWizard() {
                       className="w-full border border-dashed border-black/20 py-5 flex flex-col items-center gap-2 hover:border-black/40 hover:bg-slate-50 transition-all text-black/35 hover:text-black/60 disabled:opacity-60"
                     >
                       {photoDetecting
-                        ? <><Loader2 className="w-6 h-6 animate-spin" /><span className="text-sm font-black">Scanning photo with AI…</span><span className="text-xs">This may take a few seconds</span></>
-                        : <><Camera className="w-7 h-7" /><span className="text-sm font-black">Take or upload a photo</span><span className="text-xs">AI will identify your furniture automatically</span></>
+                        ? <><Loader2 className="w-6 h-6 animate-spin" /><span className="text-sm font-black">Scanning photo with AI…</span><span className="text-xs">Identifying furniture only — this may take a few seconds</span></>
+                        : <><Camera className="w-7 h-7" /><span className="text-sm font-black">Take or upload a photo</span><span className="text-xs">AI detects furniture — beds, sofas, wardrobes, desks &amp; more</span></>
                       }
                     </button>
                   )}

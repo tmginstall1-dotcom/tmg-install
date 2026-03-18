@@ -390,4 +390,176 @@ export async function seedDatabase() {
       { name: "Miscellaneous Drilling & Fixing (per session)", sku: "DRILL-MISC", category: "Drilling Services", serviceType: "install", basePrice: "80.00" },
     ]);
   }
+
+  // Round 4: Gym equipment, appliances, SG-specific items (TREADMILL-INSTALL marker)
+  const r4 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "TREADMILL-INSTALL"));
+  if (r4.length === 0) {
+    await db.insert(catalogItems).values([
+
+      // ─── Gym & Fitness Equipment ──────────────────────────────────────────────
+      { name: "Treadmill",                       sku: "TREADMILL-INSTALL",   category: "Gym Equipment", serviceType: "install",   basePrice: "80.00" },
+      { name: "Treadmill",                       sku: "TREADMILL-DISMANTLE", category: "Gym Equipment", serviceType: "dismantle", basePrice: "60.00" },
+      { name: "Treadmill",                       sku: "TREADMILL-RELOCATE",  category: "Gym Equipment", serviceType: "relocate",  basePrice: "140.00" },
+
+      { name: "Elliptical Machine",              sku: "ELLIP-INSTALL",   category: "Gym Equipment", serviceType: "install",   basePrice: "80.00" },
+      { name: "Elliptical Machine",              sku: "ELLIP-DISMANTLE", category: "Gym Equipment", serviceType: "dismantle", basePrice: "60.00" },
+      { name: "Elliptical Machine",              sku: "ELLIP-RELOCATE",  category: "Gym Equipment", serviceType: "relocate",  basePrice: "130.00" },
+
+      { name: "Rowing Machine",                  sku: "ROW-INSTALL",   category: "Gym Equipment", serviceType: "install",   basePrice: "60.00" },
+      { name: "Rowing Machine",                  sku: "ROW-DISMANTLE", category: "Gym Equipment", serviceType: "dismantle", basePrice: "45.00" },
+      { name: "Rowing Machine",                  sku: "ROW-RELOCATE",  category: "Gym Equipment", serviceType: "relocate",  basePrice: "100.00" },
+
+      { name: "Exercise / Spin Bike",            sku: "BIKE-INSTALL",   category: "Gym Equipment", serviceType: "install",   basePrice: "50.00" },
+      { name: "Exercise / Spin Bike",            sku: "BIKE-DISMANTLE", category: "Gym Equipment", serviceType: "dismantle", basePrice: "40.00" },
+      { name: "Exercise / Spin Bike",            sku: "BIKE-RELOCATE",  category: "Gym Equipment", serviceType: "relocate",  basePrice: "90.00" },
+
+      { name: "Power Rack / Squat Rack",         sku: "RACK-INSTALL",   category: "Gym Equipment", serviceType: "install",   basePrice: "150.00" },
+      { name: "Power Rack / Squat Rack",         sku: "RACK-DISMANTLE", category: "Gym Equipment", serviceType: "dismantle", basePrice: "100.00" },
+      { name: "Power Rack / Squat Rack",         sku: "RACK-RELOCATE",  category: "Gym Equipment", serviceType: "relocate",  basePrice: "220.00" },
+
+      { name: "Adjustable Weight Bench",         sku: "BENCH-INSTALL",   category: "Gym Equipment", serviceType: "install",   basePrice: "40.00" },
+      { name: "Adjustable Weight Bench",         sku: "BENCH-DISMANTLE", category: "Gym Equipment", serviceType: "dismantle", basePrice: "30.00" },
+      { name: "Adjustable Weight Bench",         sku: "BENCH-RELOCATE",  category: "Gym Equipment", serviceType: "relocate",  basePrice: "70.00" },
+
+      { name: "Multi-Station Home Gym",          sku: "MULTIGYM-INSTALL",   category: "Gym Equipment", serviceType: "install",   basePrice: "200.00" },
+      { name: "Multi-Station Home Gym",          sku: "MULTIGYM-DISMANTLE", category: "Gym Equipment", serviceType: "dismantle", basePrice: "150.00" },
+      { name: "Multi-Station Home Gym",          sku: "MULTIGYM-RELOCATE",  category: "Gym Equipment", serviceType: "relocate",  basePrice: "320.00" },
+
+      { name: "Dumbbell Rack / Weight Storage",  sku: "DBRACK-INSTALL",   category: "Gym Equipment", serviceType: "install",   basePrice: "60.00" },
+      { name: "Dumbbell Rack / Weight Storage",  sku: "DBRACK-DISMANTLE", category: "Gym Equipment", serviceType: "dismantle", basePrice: "45.00" },
+      { name: "Dumbbell Rack / Weight Storage",  sku: "DBRACK-RELOCATE",  category: "Gym Equipment", serviceType: "relocate",  basePrice: "100.00" },
+
+      { name: "Pull-Up / Wall-Mounted Gym Bar",  sku: "PULLUP-INSTALL",   category: "Gym Equipment", serviceType: "install",   basePrice: "70.00" },
+      { name: "Pull-Up / Wall-Mounted Gym Bar",  sku: "PULLUP-DISMANTLE", category: "Gym Equipment", serviceType: "dismantle", basePrice: "40.00" },
+
+      // ─── Appliance Relocation ─────────────────────────────────────────────────
+      { name: "Refrigerator (2-Door / Standard)",  sku: "FRIDGE2-INSTALL",   category: "Appliances", serviceType: "install",   basePrice: "60.00" },
+      { name: "Refrigerator (2-Door / Standard)",  sku: "FRIDGE2-DISMANTLE", category: "Appliances", serviceType: "dismantle", basePrice: "40.00" },
+      { name: "Refrigerator (2-Door / Standard)",  sku: "FRIDGE2-RELOCATE",  category: "Appliances", serviceType: "relocate",  basePrice: "100.00" },
+
+      { name: "Refrigerator (French Door / 4-Door)", sku: "FRIDGE4-INSTALL",   category: "Appliances", serviceType: "install",   basePrice: "80.00" },
+      { name: "Refrigerator (French Door / 4-Door)", sku: "FRIDGE4-DISMANTLE", category: "Appliances", serviceType: "dismantle", basePrice: "55.00" },
+      { name: "Refrigerator (French Door / 4-Door)", sku: "FRIDGE4-RELOCATE",  category: "Appliances", serviceType: "relocate",  basePrice: "130.00" },
+
+      { name: "Washing Machine (Top Load)",      sku: "WM-TOP-INSTALL",   category: "Appliances", serviceType: "install",   basePrice: "60.00" },
+      { name: "Washing Machine (Top Load)",      sku: "WM-TOP-DISMANTLE", category: "Appliances", serviceType: "dismantle", basePrice: "40.00" },
+      { name: "Washing Machine (Top Load)",      sku: "WM-TOP-RELOCATE",  category: "Appliances", serviceType: "relocate",  basePrice: "100.00" },
+
+      { name: "Washing Machine (Front Load)",    sku: "WM-FRONT-INSTALL",   category: "Appliances", serviceType: "install",   basePrice: "70.00" },
+      { name: "Washing Machine (Front Load)",    sku: "WM-FRONT-DISMANTLE", category: "Appliances", serviceType: "dismantle", basePrice: "50.00" },
+      { name: "Washing Machine (Front Load)",    sku: "WM-FRONT-RELOCATE",  category: "Appliances", serviceType: "relocate",  basePrice: "110.00" },
+
+      { name: "Dryer / Washer-Dryer Combo",      sku: "DRYER-INSTALL",   category: "Appliances", serviceType: "install",   basePrice: "60.00" },
+      { name: "Dryer / Washer-Dryer Combo",      sku: "DRYER-DISMANTLE", category: "Appliances", serviceType: "dismantle", basePrice: "45.00" },
+      { name: "Dryer / Washer-Dryer Combo",      sku: "DRYER-RELOCATE",  category: "Appliances", serviceType: "relocate",  basePrice: "100.00" },
+
+      { name: "Dishwasher",                      sku: "DSHW-INSTALL",   category: "Appliances", serviceType: "install",   basePrice: "70.00" },
+      { name: "Dishwasher",                      sku: "DSHW-DISMANTLE", category: "Appliances", serviceType: "dismantle", basePrice: "50.00" },
+      { name: "Dishwasher",                      sku: "DSHW-RELOCATE",  category: "Appliances", serviceType: "relocate",  basePrice: "110.00" },
+
+      { name: "Wine Cooler / Beverage Fridge",   sku: "WINECOOL-INSTALL",   category: "Appliances", serviceType: "install",   basePrice: "50.00" },
+      { name: "Wine Cooler / Beverage Fridge",   sku: "WINECOOL-DISMANTLE", category: "Appliances", serviceType: "dismantle", basePrice: "35.00" },
+      { name: "Wine Cooler / Beverage Fridge",   sku: "WINECOOL-RELOCATE",  category: "Appliances", serviceType: "relocate",  basePrice: "80.00" },
+
+      // ─── Singapore-Specific Items ─────────────────────────────────────────────
+      { name: "Retractable Ceiling Clothes Rack", sku: "CEILRACK-INSTALL",   category: "Singapore-Specific", serviceType: "install",   basePrice: "80.00" },
+      { name: "Retractable Ceiling Clothes Rack", sku: "CEILRACK-DISMANTLE", category: "Singapore-Specific", serviceType: "dismantle", basePrice: "50.00" },
+
+      { name: "HDB Bomb Shelter Shelving",        sku: "BSHELV-INSTALL",   category: "Singapore-Specific", serviceType: "install",   basePrice: "120.00" },
+      { name: "HDB Bomb Shelter Shelving",        sku: "BSHELV-DISMANTLE", category: "Singapore-Specific", serviceType: "dismantle", basePrice: "80.00" },
+
+      { name: "Laundry / Utility Area Cabinet",   sku: "UTIL-INSTALL",   category: "Singapore-Specific", serviceType: "install",   basePrice: "80.00" },
+      { name: "Laundry / Utility Area Cabinet",   sku: "UTIL-DISMANTLE", category: "Singapore-Specific", serviceType: "dismantle", basePrice: "60.00" },
+
+      { name: "Wardrobe with Built-in Mirror",    sku: "WRDMIR-INSTALL",   category: "Wardrobes", serviceType: "install",   basePrice: "150.00" },
+      { name: "Wardrobe with Built-in Mirror",    sku: "WRDMIR-DISMANTLE", category: "Wardrobes", serviceType: "dismantle", basePrice: "110.00" },
+
+      { name: "Study / Computer Table",           sku: "STUDY-INSTALL",   category: "Bedroom", serviceType: "install",   basePrice: "60.00" },
+      { name: "Study / Computer Table",           sku: "STUDY-DISMANTLE", category: "Bedroom", serviceType: "dismantle", basePrice: "45.00" },
+      { name: "Study / Computer Table",           sku: "STUDY-RELOCATE",  category: "Bedroom", serviceType: "relocate",  basePrice: "90.00" },
+
+      { name: "Massage Chair",                    sku: "MASS-INSTALL",   category: "Living Room", serviceType: "install",   basePrice: "80.00" },
+      { name: "Massage Chair",                    sku: "MASS-DISMANTLE", category: "Living Room", serviceType: "dismantle", basePrice: "60.00" },
+      { name: "Massage Chair",                    sku: "MASS-RELOCATE",  category: "Living Room", serviceType: "relocate",  basePrice: "130.00" },
+
+      { name: "Piano (Upright)",                  sku: "PIANO-UP-RELOCATE", category: "Specialty", serviceType: "relocate",  basePrice: "350.00" },
+      { name: "Piano (Upright)",                  sku: "PIANO-UP-INSTALL",  category: "Specialty", serviceType: "install",   basePrice: "120.00" },
+
+      { name: "Piano (Grand)",                    sku: "PIANO-GR-RELOCATE", category: "Specialty", serviceType: "relocate",  basePrice: "600.00" },
+      { name: "Piano (Grand)",                    sku: "PIANO-GR-INSTALL",  category: "Specialty", serviceType: "install",   basePrice: "200.00" },
+
+      { name: "Safe / Gun Safe",                  sku: "SAFE-INSTALL",   category: "Specialty", serviceType: "install",   basePrice: "100.00" },
+      { name: "Safe / Gun Safe",                  sku: "SAFE-RELOCATE",  category: "Specialty", serviceType: "relocate",  basePrice: "160.00" },
+
+      { name: "Pool / Billiard Table",            sku: "POOL-INSTALL",   category: "Specialty", serviceType: "install",   basePrice: "350.00" },
+      { name: "Pool / Billiard Table",            sku: "POOL-DISMANTLE", category: "Specialty", serviceType: "dismantle", basePrice: "250.00" },
+      { name: "Pool / Billiard Table",            sku: "POOL-RELOCATE",  category: "Specialty", serviceType: "relocate",  basePrice: "550.00" },
+
+      { name: "Foosball / Game Table",            sku: "GAME-INSTALL",   category: "Specialty", serviceType: "install",   basePrice: "80.00" },
+      { name: "Foosball / Game Table",            sku: "GAME-DISMANTLE", category: "Specialty", serviceType: "dismantle", basePrice: "60.00" },
+      { name: "Foosball / Game Table",            sku: "GAME-RELOCATE",  category: "Specialty", serviceType: "relocate",  basePrice: "130.00" },
+    ]);
+  }
+
+  // Price corrections — Singapore market calibration (PC-R1-MARKER)
+  const pcR1 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "PC-R1-MARKER"));
+  if (pcR1.length === 0) {
+    // Insert a non-visible marker so this block only runs once
+    await db.insert(catalogItems).values({
+      name: "_Price Correction R1",
+      sku: "PC-R1-MARKER",
+      category: "_System",
+      serviceType: "install",
+      basePrice: "0.00",
+    });
+
+    // Murphy / Wall Bed — Singapore market is $400–600 install (complex wall mount + frame)
+    await db.update(catalogItems).set({ basePrice: "400.00" }).where(eq(catalogItems.sku, "MURPHY-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "280.00" }).where(eq(catalogItems.sku, "MURPHY-DISMANTLE"));
+
+    // Walk-in Wardrobe Frame System — full system is $400–600 in SG
+    await db.update(catalogItems).set({ basePrice: "450.00" }).where(eq(catalogItems.sku, "WALKIN-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "320.00" }).where(eq(catalogItems.sku, "WALKIN-DISMANTLE"));
+
+    // Ergonomic Chair — $40–60 install in SG (was $25 which is below market)
+    await db.update(catalogItems).set({ basePrice: "40.00" }).where(eq(catalogItems.sku, "EC-01"));
+    await db.update(catalogItems).set({ basePrice: "30.00" }).where(eq(catalogItems.sku, "EC-DISMANTLE"));
+    await db.update(catalogItems).set({ basePrice: "65.00" }).where(eq(catalogItems.sku, "EC-RELOCATE"));
+
+    // Hydraulic Bed King — complex mechanism, $200–250 in SG
+    await db.update(catalogItems).set({ basePrice: "200.00" }).where(eq(catalogItems.sku, "HYDR-K-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "140.00" }).where(eq(catalogItems.sku, "HYDR-K-DISMANTLE"));
+
+    // Hydraulic Bed Queen — $170–200 in SG
+    await db.update(catalogItems).set({ basePrice: "170.00" }).where(eq(catalogItems.sku, "HYDR-Q-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "120.00" }).where(eq(catalogItems.sku, "HYDR-Q-DISMANTLE"));
+
+    // Reception Counter — $250–350 install in SG
+    await db.update(catalogItems).set({ basePrice: "280.00" }).where(eq(catalogItems.sku, "RECPT-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "200.00" }).where(eq(catalogItems.sku, "RECPT-DISMANTLE"));
+
+    // Conference Table — large format, $200 install is correct; relocate bumped up
+    await db.update(catalogItems).set({ basePrice: "280.00" }).where(eq(catalogItems.sku, "CT-01"));
+
+    // Loft Bed with Desk — complex two-tier structure, $200 in SG
+    await db.update(catalogItems).set({ basePrice: "200.00" }).where(eq(catalogItems.sku, "LOFT-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "150.00" }).where(eq(catalogItems.sku, "LOFT-DISMANTLE"));
+
+    // Bunk Bed with Trundle — extra mechanism, $190 install
+    await db.update(catalogItems).set({ basePrice: "190.00" }).where(eq(catalogItems.sku, "BUNK-TRD-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "140.00" }).where(eq(catalogItems.sku, "BUNK-TRD-DISMANTLE"));
+
+    // Custom/Built-in Wardrobe — $250+ in SG for full unit
+    await db.update(catalogItems).set({ basePrice: "250.00" }).where(eq(catalogItems.sku, "CUST-WRD-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "180.00" }).where(eq(catalogItems.sku, "CUST-WRD-DISMANTLE"));
+
+    // Height-Adjustable Sit-Stand Desk — motorised units need more care, $160 install
+    await db.update(catalogItems).set({ basePrice: "160.00" }).where(eq(catalogItems.sku, "STND-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "120.00" }).where(eq(catalogItems.sku, "STND-DISMANTLE"));
+
+    // IKEA PAX Wardrobe — standard rate in SG is $160–200 for large unit
+    await db.update(catalogItems).set({ basePrice: "160.00" }).where(eq(catalogItems.sku, "PAX-01"));
+    await db.update(catalogItems).set({ basePrice: "110.00" }).where(eq(catalogItems.sku, "PAX-02"));
+    await db.update(catalogItems).set({ basePrice: "230.00" }).where(eq(catalogItems.sku, "PAX-RELOCATE"));
+  }
 }

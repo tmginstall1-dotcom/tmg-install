@@ -1421,38 +1421,105 @@ export async function registerRoutes(
     }
   });
 
-  // AI photo item detection
+  // AI photo item detection — furniture-only, confidence-filtered
   app.post("/api/catalog/detect-items", async (req, res) => {
     try {
       const { imageBase64, mimeType = "image/jpeg" } = req.body;
       if (!imageBase64) return res.status(400).json({ message: "Image required" });
 
-      // Fetch unique catalog item names so GPT can map detections to actual catalog entries
+      // Fetch unique catalog names organised by category for better GPT matching
       const allItems = await storage.getCatalogItems();
-      const uniqueNames = [...new Set(allItems.map(i => i.name))];
-      const catalogList = uniqueNames.join(", ");
+      const byCategory: Record<string, string[]> = {};
+      allItems.forEach(item => {
+        const cat = item.category || "General";
+        if (!byCategory[cat]) byCategory[cat] = [];
+        const n = item.name;
+        if (!byCategory[cat].includes(n)) byCategory[cat].push(n);
+      });
+      const catalogList = Object.entries(byCategory)
+        .map(([cat, names]) => `${cat}: ${names.join(" | ")}`)
+        .join("\n");
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: `You are a furniture identification assistant for TMG Install, a Singapore furniture installation company. When given an image, you identify furniture and items visible in the photo and map them to the closest name from the company's service catalog. You always respond with ONLY a valid JSON array and nothing else.`
+            content: `You are a professional furniture identification assistant for TMG Install, a Singapore furniture installation and relocation company.
+
+Your ONLY task is to identify pieces of FURNITURE and large FIXTURES visible in photos — specifically items that typically require professional installation, dismantling, assembly, or relocation.
+
+ALWAYS INCLUDE these furniture categories:
+- Beds and bed frames (single, super single, double, queen, king, bunk bed, loft bed, hydraulic storage bed, murphy/wall bed, tatami platform bed)
+- Wardrobes and clothes storage (sliding door, hinged door, walk-in, built-in, IKEA PAX, IKEA Hemnes, IKEA Kleppstad, etc.)
+- Sofas and seating furniture (2-seater, 3-seater, L-shaped/corner sofa, recliner, chaise lounge, sofa bed, armchair, accent chair)
+- Tables (dining table, coffee table, side table, console/hallway table, office desk, L-shaped desk, conference table, sit-stand desk, extendable dining table)
+- Chairs (dining chairs, office chairs, ergonomic chairs, bar stools — count each one individually)
+- Storage furniture (bookshelf, display cabinet, shoe cabinet, shoe rack, tall shoe cabinet, drawer chest, filing cabinet, sideboard, buffet cabinet, china cabinet)
+- Gym equipment (treadmill, elliptical machine, rowing machine, exercise bike, spin bike, power rack, weight bench, dumbbell rack, multi-station gym)
+- Large kitchen appliances ONLY when they require moving (refrigerator, washing machine, dryer, dishwasher)
+- Kids furniture (bunk bed, loft bed with desk, kids wardrobe, baby crib, toy storage unit, kids study desk with hutch)
+- IKEA furniture — identify model if visible (PAX, KALLAX, BILLY, MALM, HEMNES, BESTA, MICKE, LACK, ALEX, POÄNG, KIVIK, IVAR, TROFAST, STUVA, VITTSJO)
+- Wall-mounted items (floating shelf, wall cabinet, curtain track/rod, full-length mirror, TV wall mounting bracket)
+- Office furniture (workstation desk, office panel/partition, locker unit, reception counter, credenza, monitor arm)
+- Outdoor furniture (garden/patio furniture set, outdoor bench)
+- Meeting pods and phone booths
+- Specialty items (dressing table, bedside table, bar cabinet, entertainment feature wall unit)
+
+STRICTLY DO NOT LIST any of the following — return nothing for these:
+- Televisions, monitors, screens, projectors, or any consumer electronics
+- Computers, laptops, tablets, phones, printers, routers, or IT equipment
+- Decorative items: picture frames, artwork, vases, figurines, candles, ornaments
+- Plants, flowers, trees, or any living or artificial plants
+- Small household items: cushions, pillows, blankets, lamps, clocks, books, magazines, boxes, bags, luggage
+- Kitchen small appliances: microwave, kettle, toaster, blender, rice cooker, coffee machine, pots, pans, utensils
+- Curtains, drapes, rugs, carpets, or textiles (curtain RODS/TRACKS are OK to include)
+- People, animals, pets, or any living creatures
+- Walls, floors, ceilings, doors, windows, stairs, railings, or architectural surfaces
+- Food, beverages, bottles, or consumables
+- Mattresses, bedding, pillows, or linen (only the BED FRAME itself, not the mattress on top)
+- Lighting fixtures (ceiling lights, floor lamps, table lamps — unless it's a structural lamp that requires installation)
+
+COUNTING RULES:
+- Count individual chairs separately: 4 dining chairs around a table → quantity: 4
+- For a matching set of identical items, estimate total quantity visible
+- Large multi-piece items (L-shaped sofa, king bed) = quantity: 1 even if they have multiple sections
+- If quantity is unclear, default to 1
+
+CONFIDENCE RULES — include the confidence field:
+- "high": item is clearly visible, easily identifiable as furniture
+- "medium": item is partially visible or slightly ambiguous but likely furniture
+- Do NOT include any item with low confidence or that you are guessing at
+- Only list items you are genuinely confident are furniture requiring professional service
+
+CATALOG MATCHING:
+Map every detected item to the closest name from this catalog. Use the most specific match available.
+
+CATALOG (organised by category):
+${catalogList}
+
+If an item is not in the catalog, use a concise descriptive name (e.g., "Piano", "Pool Table", "Foosball Table").
+
+You MUST respond with ONLY valid JSON — no prose, no markdown, no explanation:
+[{"name": "exact catalog name or description", "quantity": 1, "confidence": "high"}]`
           },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `Look at this image and identify every piece of furniture, office fixture, or household item visible, even partially.
+                text: `Examine this image carefully.
 
-IMPORTANT: For each detected item, you MUST use the closest matching name from this catalog list:
-${catalogList}
+List ONLY the furniture pieces, gym equipment, or large fixtures that are clearly visible and would require professional installation, dismantling, assembly, or relocation service.
 
-Only use a name NOT in the catalog if there is absolutely no close match. Make your best guess even if items are partially visible. Respond with ONLY a valid JSON array — no prose, no explanation:
-[{"name": "exact catalog name or closest match", "quantity": 1}]
+DO NOT list: TVs, monitors, electronics, plants, decorations, small items, people, walls, floors, mattresses, or bedding.
 
-List up to 10 distinct items.`
+For each furniture item, map to the closest catalog name. Count chairs and identical repeated pieces individually.
+
+Only include items with "high" or "medium" confidence. List up to 15 distinct furniture items.
+
+Respond with ONLY a JSON array (no prose, no markdown):
+[{"name": "catalog name or description", "quantity": 1, "confidence": "high"}]`
               },
               {
                 type: "image_url",
@@ -1461,7 +1528,7 @@ List up to 10 distinct items.`
             ]
           }
         ],
-        max_tokens: 600,
+        max_tokens: 800,
       });
 
       const content = response.choices[0]?.message?.content || "";
@@ -1470,16 +1537,24 @@ List up to 10 distinct items.`
       let detected: { name: string; quantity: number }[] = [];
       if (content) {
         try {
-          // Strip markdown code fences if present
           let cleaned = content.replace(/```(?:json)?\n?/g, "").replace(/\n?```/g, "").trim();
-          // Extract JSON array if embedded in prose
           const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
           if (arrayMatch) cleaned = arrayMatch[0];
           const parsed = JSON.parse(cleaned);
           if (Array.isArray(parsed)) {
-            detected = parsed.filter(
-              (item: any) => typeof item === "object" && item !== null && typeof item.name === "string"
-            ).map((item: any) => ({ name: item.name, quantity: Number(item.quantity) || 1 }));
+            detected = parsed
+              .filter((item: any) =>
+                typeof item === "object" &&
+                item !== null &&
+                typeof item.name === "string" &&
+                item.name.trim().length > 0 &&
+                // Only keep high or medium confidence items — filter out low/unknown
+                (item.confidence === "high" || item.confidence === "medium" || !item.confidence)
+              )
+              .map((item: any) => ({
+                name: item.name.trim(),
+                quantity: Math.max(1, Math.min(50, Number(item.quantity) || 1)),
+              }));
           }
         } catch (parseErr) {
           console.error("[detect-items] JSON parse failed:", parseErr, "raw:", content);
