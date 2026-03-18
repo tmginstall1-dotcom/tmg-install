@@ -252,6 +252,21 @@ export const quoteItemsRelations = relations(quoteItems, ({ one }) => ({
   catalogItem: one(catalogItems, { fields: [quoteItems.catalogItemId], references: [catalogItems.id] }),
 }));
 
+// Site Analytics Events — tracks customer page views and clicks
+export const siteEvents = pgTable("site_events", {
+  id: serial("id").primaryKey(),
+  event: text("event").notNull(),      // page_view | cta_click | wizard_start | wizard_submit
+  page: text("page"),                  // /  /estimate  /quotes/:id
+  label: text("label"),                // button label or step name
+  referrer: text("referrer"),          // document.referrer
+  utmSource: text("utm_source"),
+  utmMedium: text("utm_medium"),
+  utmCampaign: text("utm_campaign"),
+  sessionId: text("session_id"),       // random ID stored in sessionStorage
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type SiteEvent = typeof siteEvents.$inferSelect;
+
 // Zod Schemas
 // Blocked Dates/Slots (admin-managed, prevents customer bookings)
 export const blockedSlots = pgTable("blocked_slots", {

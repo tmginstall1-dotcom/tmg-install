@@ -385,6 +385,34 @@ export async function registerRoutes(
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
+  // -- Site Analytics Tracking (public — no auth required) --
+  app.post("/api/track", async (req, res) => {
+    try {
+      const body = z.object({
+        event: z.string(),
+        page: z.string().optional(),
+        label: z.string().optional(),
+        referrer: z.string().optional(),
+        utmSource: z.string().optional(),
+        utmMedium: z.string().optional(),
+        utmCampaign: z.string().optional(),
+        sessionId: z.string().optional(),
+      }).parse(req.body);
+      await storage.addSiteEvent(body);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.get("/api/admin/analytics", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const data = await storage.getSiteAnalytics();
+      res.json(data);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // -- GPS Track Routes --
   app.post("/api/staff/gps-track", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });

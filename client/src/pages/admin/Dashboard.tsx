@@ -8,7 +8,7 @@ import { useState } from "react";
 import {
   ClipboardList, DollarSign, CalendarCheck,
   Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2, UserPlus,
-  ChevronRight, Clock, Sparkles, Users, ArrowRight,
+  ChevronRight, Clock, Sparkles, Users, ArrowRight, BarChart2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -392,11 +392,12 @@ export default function AdminDashboard() {
         </div>
 
         {/* Quick-nav cards */}
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-px border border-black/[0.08]">
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-px border border-black/[0.08]">
           {[
-            { href: "/admin/schedule", label: "Schedule",     icon: Calendar,   desc: "Block dates & confirm bookings" },
-            { href: "/admin/staff",    label: "Staff & HR",   icon: Users,      desc: "Payroll, leave & amendments" },
-            { href: "/admin/export",   label: "Audit Export", icon: TrendingUp, desc: "Generate reports & PDF export" },
+            { href: "/admin/schedule",  label: "Schedule",     icon: Calendar,   desc: "Block dates & confirm bookings" },
+            { href: "/admin/staff",     label: "Staff & HR",   icon: Users,      desc: "Payroll, leave & amendments" },
+            { href: "/admin/analytics", label: "Analytics",    icon: BarChart2,  desc: "Site traffic & lead funnel" },
+            { href: "/admin/export",    label: "Audit Export", icon: TrendingUp, desc: "Generate reports & PDF export" },
           ].map(({ href, label, icon: Icon, desc }) => (
             <Link key={href} href={href} className="block w-full">
               <div className="group flex items-center gap-3 bg-white p-5 hover:bg-slate-50 transition-all active:bg-slate-100 border-b sm:border-b-0 border-black/[0.06] last:border-0">

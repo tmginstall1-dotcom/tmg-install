@@ -1,11 +1,12 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Calendar, Users, FileDown } from "lucide-react";
+import { LayoutDashboard, Calendar, Users, FileDown, BarChart2 } from "lucide-react";
 
 const tabs = [
-  { href: "/admin",          label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/schedule", label: "Schedule",  icon: Calendar },
-  { href: "/admin/staff",    label: "Staff",     icon: Users },
-  { href: "/admin/export",   label: "Export",    icon: FileDown },
+  { href: "/admin",            label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/schedule",   label: "Schedule",  icon: Calendar },
+  { href: "/admin/staff",      label: "Staff",     icon: Users },
+  { href: "/admin/analytics",  label: "Analytics", icon: BarChart2 },
+  { href: "/admin/export",     label: "Export",    icon: FileDown },
 ];
 
 function isActive(href: string, location: string) {
@@ -21,7 +22,7 @@ export function AdminBottomNav() {
   return (
     <nav className="fixed bottom-0 inset-x-0 sm:hidden z-50 bg-slate-950 border-t border-white/10"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-      <div className="grid grid-cols-4 h-16">
+      <div className="grid grid-cols-5 h-16">
         {tabs.map(({ href, label, icon: Icon }) => {
           const active = isActive(href, location);
           return (

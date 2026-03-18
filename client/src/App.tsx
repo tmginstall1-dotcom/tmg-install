@@ -24,6 +24,7 @@ import AdminQuoteDetail from "@/pages/admin/QuoteDetail";
 import AdminSchedule from "@/pages/admin/Schedule";
 import AdminExportPDF from "@/pages/admin/ExportPDF";
 import AdminStaffManagement from "@/pages/admin/StaffManagement";
+import AdminAnalytics from "@/pages/admin/Analytics";
 import StaffDashboard from "@/pages/staff/Dashboard";
 import StaffJobDetail from "@/pages/staff/JobDetail";
 import StaffHR from "@/pages/staff/HR";
@@ -112,6 +113,9 @@ function Router() {
         </Route>
         <Route path="/admin/staff">
           {() => <AdminRoute component={AdminStaffManagement} />}
+        </Route>
+        <Route path="/admin/analytics">
+          {() => <AdminRoute component={AdminAnalytics} />}
         </Route>
 
         {/* Staff Routes */}

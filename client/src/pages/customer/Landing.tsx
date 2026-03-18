@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
+import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
 import {
   ArrowRight,
   CheckCircle2,
@@ -30,6 +31,7 @@ const fadeUpDelayed = (delay: number) => ({
 });
 
 export default function Landing() {
+  usePageTracker("/");
   return (
     <div className="min-h-screen bg-white text-black pt-14">
 
@@ -71,6 +73,7 @@ export default function Landing() {
                 <Link
                   href="/estimate"
                   data-testid="hero-cta-guided"
+                  onClick={() => trackEvent("cta_click", "/", "hero_get_estimate")}
                   className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
                 >
                   GET ESTIMATE <ArrowRight className="w-4 h-4" />
@@ -80,6 +83,7 @@ export default function Landing() {
                   target="_blank"
                   rel="noopener noreferrer"
                   data-testid="hero-cta-whatsapp"
+                  onClick={() => trackEvent("cta_click", "/", "hero_whatsapp")}
                   className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/50 hover:bg-gray-50 transition-all"
                 >
                   <MessageCircle className="w-4 h-4" /> WHATSAPP US
@@ -392,6 +396,7 @@ export default function Landing() {
               <Link
                 href="/estimate"
                 data-testid="bottom-cta-estimate"
+                onClick={() => trackEvent("cta_click", "/", "bottom_get_estimate")}
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
               >
                 GET ESTIMATE <ArrowRight className="w-4 h-4" />
@@ -401,6 +406,7 @@ export default function Landing() {
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="bottom-cta-whatsapp"
+                onClick={() => trackEvent("cta_click", "/", "bottom_whatsapp")}
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/50 hover:bg-gray-50 transition-all"
               >
                 <MessageCircle className="w-4 h-4" /> WHATSAPP US

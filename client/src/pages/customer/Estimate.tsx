@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
+import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -168,7 +169,14 @@ function toDateStr(y: number, m: number, d: number) {
 
 export default function EstimateWizard() {
   const [, setLocation] = useLocation();
+  usePageTracker("/estimate");
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const wizardStartFired = useRef(false);
+  useEffect(() => {
+    if (wizardStartFired.current) return;
+    wizardStartFired.current = true;
+    trackEvent("wizard_start", "/estimate");
+  }, []);
 
   // Step 1
   const [services, setServices] = useState<ServiceType[]>([]);
@@ -520,6 +528,7 @@ export default function EstimateWizard() {
           currency: "SGD",
         });
       } catch (_) {}
+      trackEvent("wizard_submit", "/estimate");
 
       setLocation(`/quotes/${quote.id}`);
     } catch (err: any) {

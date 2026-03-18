@@ -1,16 +1,16 @@
 import { db } from "./db";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
-  attendanceAmendments, leaveRequests, payslips, gpsTrackPoints,
+  attendanceAmendments, leaveRequests, payslips, gpsTrackPoints, siteEvents,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
   type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser,
   type AttendanceAmendment, type AttendanceAmendmentWithUser,
   type LeaveRequest, type LeaveRequestWithUser,
   type Payslip, type PayslipWithUser,
-  type GpsTrackPoint
+  type GpsTrackPoint, type SiteEvent
 } from "@shared/schema";
-import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull } from "drizzle-orm";
+import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -98,6 +98,17 @@ export interface IStorage {
   // Held Slots (active quotes that have a slot reserved)
   getHeldSlots(): Promise<{ date: string; timeSlot: string; quoteId: number }[]>;
   isSlotAvailable(date: string, timeWindow: string, excludeQuoteId?: number): Promise<boolean>;
+
+  // Site Analytics
+  addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string }): Promise<SiteEvent>;
+  getSiteAnalytics(): Promise<{
+    today: { pageViews: number; sessions: number; wizardStarts: number; wizardSubmits: number };
+    yesterday: { pageViews: number; sessions: number; wizardStarts: number; wizardSubmits: number };
+    last7Days: { date: string; pageViews: number }[];
+    sources: { source: string; count: number }[];
+    funnel: { step: string; count: number }[];
+    recent: SiteEvent[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -774,6 +785,102 @@ export class DatabaseStorage implements IStorage {
     });
 
     return !conflict;
+  }
+
+  async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string }): Promise<SiteEvent> {
+    const [evt] = await db.insert(siteEvents).values({
+      event: data.event,
+      page: data.page ?? null,
+      label: data.label ?? null,
+      referrer: data.referrer ?? null,
+      utmSource: data.utmSource ?? null,
+      utmMedium: data.utmMedium ?? null,
+      utmCampaign: data.utmCampaign ?? null,
+      sessionId: data.sessionId ?? null,
+    }).returning();
+    return evt;
+  }
+
+  async getSiteAnalytics() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 86400000);
+    const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+
+    function statsFor(rows: SiteEvent[]) {
+      return {
+        pageViews: rows.filter(r => r.event === 'page_view').length,
+        sessions: new Set(rows.filter(r => r.event === 'page_view').map(r => r.sessionId).filter(Boolean)).size,
+        wizardStarts: rows.filter(r => r.event === 'wizard_start').length,
+        wizardSubmits: rows.filter(r => r.event === 'wizard_submit').length,
+      };
+    }
+
+    const todayRows = await db.select().from(siteEvents)
+      .where(and(gte(siteEvents.createdAt, todayStart), lte(siteEvents.createdAt, todayEnd)));
+    const yesterdayRows = await db.select().from(siteEvents)
+      .where(and(gte(siteEvents.createdAt, yesterdayStart), lte(siteEvents.createdAt, todayStart)));
+
+    const sevenDaysAgo = new Date(todayStart.getTime() - 6 * 86400000);
+    const last7Rows = await db.select().from(siteEvents)
+      .where(and(gte(siteEvents.createdAt, sevenDaysAgo), eq(siteEvents.event, 'page_view')));
+    const last7Days: { date: string; pageViews: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(todayStart.getTime() - i * 86400000);
+      const ds = d.toISOString().split('T')[0];
+      const dEnd = new Date(d.getTime() + 86400000);
+      last7Days.push({ date: ds, pageViews: last7Rows.filter(r => r.createdAt >= d && r.createdAt < dEnd).length });
+    }
+
+    const allRows = await db.select().from(siteEvents)
+      .where(gte(siteEvents.createdAt, sevenDaysAgo));
+
+    function parseSource(row: SiteEvent): string {
+      if (row.utmSource) {
+        const s = row.utmSource.toLowerCase();
+        if (s.includes('google')) return 'Google';
+        if (s.includes('facebook') || s.includes('fb')) return 'Facebook';
+        if (s.includes('instagram') || s.includes('ig')) return 'Instagram';
+        if (s.includes('tiktok')) return 'TikTok';
+        return row.utmSource;
+      }
+      if (!row.referrer) return 'Direct';
+      try {
+        const hostname = new URL(row.referrer).hostname.replace('www.', '');
+        if (hostname.includes('google')) return 'Google';
+        if (hostname.includes('facebook') || hostname.includes('fb.com')) return 'Facebook';
+        if (hostname.includes('instagram')) return 'Instagram';
+        if (hostname.includes('tiktok')) return 'TikTok';
+        if (hostname.includes('bing')) return 'Bing';
+        if (hostname.includes('yahoo')) return 'Yahoo';
+        if (hostname.includes('tmginstall.com')) return 'Internal';
+        return hostname;
+      } catch { return 'Direct'; }
+    }
+
+    const sourceCounts: Record<string, number> = {};
+    for (const row of allRows.filter(r => r.event === 'page_view')) {
+      const src = parseSource(row);
+      sourceCounts[src] = (sourceCounts[src] ?? 0) + 1;
+    }
+    const sources = Object.entries(sourceCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([source, count]) => ({ source, count }));
+
+    const funnelLanding = allRows.filter(r => r.event === 'page_view' && r.page === '/').length;
+    const funnelStart = allRows.filter(r => r.event === 'wizard_start').length;
+    const funnelSubmit = allRows.filter(r => r.event === 'wizard_submit').length;
+    const funnel = [
+      { step: 'Visited Landing', count: funnelLanding },
+      { step: 'Started Estimate', count: funnelStart },
+      { step: 'Submitted Lead', count: funnelSubmit },
+    ];
+
+    const recent = await db.select().from(siteEvents)
+      .orderBy(desc(siteEvents.createdAt))
+      .limit(60);
+
+    return { today: statsFor(todayRows), yesterday: statsFor(yesterdayRows), last7Days, sources, funnel, recent };
   }
 }
 
