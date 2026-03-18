@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -42,12 +43,14 @@
             Runs as a foreground service so Android keeps it alive when the app
             is minimised or the screen is off. A persistent notification is shown
             (required by Android for foreground services of type "location").
+            tools:replace overrides the plugin's exported=true with our exported=false.
         -->
         <service
             android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location"
+            tools:replace="android:exported" />
 
     </application>
 
@@ -55,27 +58,16 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- ── Location permissions ──────────────────────────────────────────── -->
-    <!-- Coarse location (network-based) -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- Fine location (GPS) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <!--
-        Background location — REQUIRED for tracking when the app is not visible.
-        Android 10 (API 29) and above require this separate permission.
-        The user will see a "Allow all the time" option in the permission dialog.
-    -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <!-- ── Foreground service permissions ────────────────────────────────── -->
-    <!-- Allows starting a foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Android 14 (API 34)+ additionally requires this for type="location" -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <!-- Android 13 (API 33)+ requires this to show the tracking notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- ── Camera permission ──────────────────────────────────────────────── -->
-    <!-- Required for staff photo check-in / check-out -->
     <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- Hardware feature declarations -->
