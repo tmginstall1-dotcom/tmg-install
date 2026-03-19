@@ -438,7 +438,8 @@ export async function registerRoutes(
     const caller = await storage.getUserById(req.session.userId);
     if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
-      const data = await storage.getSiteAnalytics();
+      const days = Math.min(90, Math.max(1, parseInt(req.query.days as string) || 7));
+      const data = await storage.getSiteAnalytics(days);
       res.json(data);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

@@ -102,16 +102,19 @@ export interface IStorage {
   // Site Analytics
   addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
   updateSiteEventGeo(id: number, geo: { country?: string; countryCode?: string; city?: string; latitude?: string; longitude?: string }): Promise<void>;
-  getSiteAnalytics(): Promise<{
-    today: { pageViews: number; sessions: number; wizardStarts: number; wizardSubmits: number };
-    yesterday: { pageViews: number; sessions: number; wizardStarts: number; wizardSubmits: number };
-    last7Days: { date: string; pageViews: number }[];
+  getSiteAnalytics(days?: number): Promise<{
+    days: number;
+    today: { pageViews: number; sessions: number; wizardStarts: number; wizardSubmits: number; bounceRate: number; avgPagesPerSession: number };
+    yesterday: { pageViews: number; sessions: number; wizardStarts: number; wizardSubmits: number; bounceRate: number; avgPagesPerSession: number };
+    trend: { date: string; pageViews: number; sessions: number }[];
     sources: { source: string; count: number }[];
     funnel: { step: string; count: number }[];
     countries: { country: string; countryCode: string; count: number; lat: number; lng: number }[];
+    cities: { city: string; country: string; countryCode: string; count: number; lat: number; lng: number }[];
     devices: { device: string; count: number }[];
     hourly: { hour: number; count: number }[];
     topPages: { page: string; count: number }[];
+    utmCampaigns: { campaign: string; source: string; count: number }[];
     recent: SiteEvent[];
   }>;
 }
@@ -817,18 +820,27 @@ export class DatabaseStorage implements IStorage {
     }).where(eq(siteEvents.id, id));
   }
 
-  async getSiteAnalytics() {
+  async getSiteAnalytics(days: number = 7) {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart.getTime() + 86400000);
     const yesterdayStart = new Date(todayStart.getTime() - 86400000);
 
     function statsFor(rows: SiteEvent[]) {
+      const pvRows = rows.filter(r => r.event === 'page_view');
+      const sessions = new Set(pvRows.map(r => r.sessionId).filter(Boolean)) as Set<string>;
+      // Bounce rate: sessions where only 1 page_view event exists
+      const sessPageCount: Record<string, number> = {};
+      for (const r of pvRows) { if (r.sessionId) sessPageCount[r.sessionId] = (sessPageCount[r.sessionId] ?? 0) + 1; }
+      const bounceSessions = Object.values(sessPageCount).filter(n => n === 1).length;
+      const totalSessions = sessions.size || 1;
       return {
-        pageViews: rows.filter(r => r.event === 'page_view').length,
-        sessions: new Set(rows.filter(r => r.event === 'page_view').map(r => r.sessionId).filter(Boolean)).size,
+        pageViews: pvRows.length,
+        sessions: totalSessions,
         wizardStarts: rows.filter(r => r.event === 'wizard_start').length,
         wizardSubmits: rows.filter(r => r.event === 'wizard_submit').length,
+        bounceRate: Math.round((bounceSessions / totalSessions) * 100),
+        avgPagesPerSession: Math.round((pvRows.length / totalSessions) * 10) / 10,
       };
     }
 
@@ -837,19 +849,22 @@ export class DatabaseStorage implements IStorage {
     const yesterdayRows = await db.select().from(siteEvents)
       .where(and(gte(siteEvents.createdAt, yesterdayStart), lte(siteEvents.createdAt, todayStart)));
 
-    const sevenDaysAgo = new Date(todayStart.getTime() - 6 * 86400000);
-    const last7Rows = await db.select().from(siteEvents)
-      .where(and(gte(siteEvents.createdAt, sevenDaysAgo), eq(siteEvents.event, 'page_view')));
-    const last7Days: { date: string; pageViews: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(todayStart.getTime() - i * 86400000);
-      const ds = d.toISOString().split('T')[0];
-      const dEnd = new Date(d.getTime() + 86400000);
-      last7Days.push({ date: ds, pageViews: last7Rows.filter(r => r.createdAt >= d && r.createdAt < dEnd).length });
-    }
-
+    const windowStart = new Date(todayStart.getTime() - (days - 1) * 86400000);
     const allRows = await db.select().from(siteEvents)
-      .where(gte(siteEvents.createdAt, sevenDaysAgo));
+      .where(gte(siteEvents.createdAt, windowStart));
+
+    // Build trend (one entry per day in the window)
+    const trend: { date: string; pageViews: number; sessions: number }[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(todayStart.getTime() - i * 86400000);
+      const dEnd = new Date(d.getTime() + 86400000);
+      const dayRows = allRows.filter(r => r.createdAt >= d && r.createdAt < dEnd && r.event === 'page_view');
+      trend.push({
+        date: d.toISOString().split('T')[0],
+        pageViews: dayRows.length,
+        sessions: new Set(dayRows.map(r => r.sessionId).filter(Boolean)).size,
+      });
+    }
 
     function parseSource(row: SiteEvent): string {
       if (row.utmSource) {
@@ -858,6 +873,7 @@ export class DatabaseStorage implements IStorage {
         if (s.includes('facebook') || s.includes('fb')) return 'Facebook';
         if (s.includes('instagram') || s.includes('ig')) return 'Instagram';
         if (s.includes('tiktok')) return 'TikTok';
+        if (s.includes('whatsapp')) return 'WhatsApp';
         return row.utmSource;
       }
       if (!row.referrer) return 'Direct';
@@ -869,6 +885,7 @@ export class DatabaseStorage implements IStorage {
         if (hostname.includes('tiktok')) return 'TikTok';
         if (hostname.includes('bing')) return 'Bing';
         if (hostname.includes('yahoo')) return 'Yahoo';
+        if (hostname.includes('whatsapp')) return 'WhatsApp';
         if (hostname.includes('tmginstall.com')) return 'Internal';
         return hostname;
       } catch { return 'Direct'; }
@@ -892,7 +909,7 @@ export class DatabaseStorage implements IStorage {
       { step: 'Submitted Lead', count: funnelSubmit },
     ];
 
-    // Countries breakdown (7 days, page_view only)
+    // Countries breakdown (page_view only)
     const countryCounts: Record<string, { count: number; lat: number; lng: number; countryCode: string }> = {};
     for (const row of allRows.filter(r => r.event === 'page_view' && r.country)) {
       const key = row.country!;
@@ -905,7 +922,20 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => b[1].count - a[1].count)
       .map(([country, d]) => ({ country, countryCode: d.countryCode, count: d.count, lat: d.lat, lng: d.lng }));
 
-    // Device breakdown (7 days)
+    // City-level breakdown (for map dots — more granular than country)
+    const cityCounts: Record<string, { count: number; lat: number; lng: number; country: string; countryCode: string }> = {};
+    for (const row of allRows.filter(r => r.event === 'page_view' && r.city && r.latitude && r.longitude)) {
+      const key = `${row.city}||${row.countryCode}`;
+      if (!cityCounts[key]) {
+        cityCounts[key] = { count: 0, lat: parseFloat(row.latitude!), lng: parseFloat(row.longitude!), country: row.country ?? '', countryCode: row.countryCode ?? '' };
+      }
+      cityCounts[key].count++;
+    }
+    const cities = Object.entries(cityCounts)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([key, d]) => ({ city: key.split('||')[0], country: d.country, countryCode: d.countryCode, count: d.count, lat: d.lat, lng: d.lng }));
+
+    // Device breakdown
     const deviceCounts: Record<string, number> = {};
     for (const row of allRows.filter(r => r.event === 'page_view')) {
       const d = row.deviceType ?? 'desktop';
@@ -915,29 +945,38 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => b[1] - a[1])
       .map(([device, count]) => ({ device, count }));
 
-    // Hourly traffic (today only, all events)
+    // Hourly traffic (today only, page_view)
     const hourly: { hour: number; count: number }[] = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
     for (const row of todayRows.filter(r => r.event === 'page_view')) {
-      const h = row.createdAt.getHours();
-      hourly[h].count++;
+      hourly[row.createdAt.getHours()].count++;
     }
 
-    // Top pages (7 days)
+    // Top pages
     const pageCounts: Record<string, number> = {};
     for (const row of allRows.filter(r => r.event === 'page_view' && r.page)) {
-      const p = row.page!;
-      pageCounts[p] = (pageCounts[p] ?? 0) + 1;
+      pageCounts[row.page!] = (pageCounts[row.page!] ?? 0) + 1;
     }
     const topPages = Object.entries(pageCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([page, count]) => ({ page, count }));
 
+    // UTM Campaigns
+    const campaignCounts: Record<string, { count: number; source: string }> = {};
+    for (const row of allRows.filter(r => r.utmCampaign)) {
+      const key = row.utmCampaign!;
+      if (!campaignCounts[key]) campaignCounts[key] = { count: 0, source: row.utmSource ?? '' };
+      campaignCounts[key].count++;
+    }
+    const utmCampaigns = Object.entries(campaignCounts)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([campaign, d]) => ({ campaign, source: d.source, count: d.count }));
+
     const recent = await db.select().from(siteEvents)
       .orderBy(desc(siteEvents.createdAt))
-      .limit(60);
+      .limit(100);
 
-    return { today: statsFor(todayRows), yesterday: statsFor(yesterdayRows), last7Days, sources, funnel, countries, devices, hourly, topPages, recent };
+    return { days, today: statsFor(todayRows), yesterday: statsFor(yesterdayRows), trend, sources, funnel, countries, cities, devices, hourly, topPages, utmCampaigns, recent };
   }
 }
 
