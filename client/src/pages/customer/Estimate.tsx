@@ -562,6 +562,10 @@ export default function EstimateWizard() {
           value: 1.0,
           currency: "SGD",
         });
+        (window as any).gtag?.("event", "conversion", {
+          send_to: "AW-18012639714/g1fTCM6xsYscEOKjjI1D",
+          transaction_id: "",
+        });
       } catch (_) {}
       trackEvent("wizard_submit", "/estimate");
 
