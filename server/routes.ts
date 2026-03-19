@@ -513,6 +513,13 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // -- Android crash reporter (unauthenticated — fires from native crash handler) --
+  app.post("/api/crash-report", (req, res) => {
+    const report = req.body?.crash ?? JSON.stringify(req.body);
+    console.error("[ANDROID CRASH REPORT]", report);
+    res.json({ ok: true });
+  });
+
   // -- GPS Track Routes --
   app.post("/api/staff/gps-track", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });

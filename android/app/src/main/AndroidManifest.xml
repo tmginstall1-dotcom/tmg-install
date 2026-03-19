@@ -56,24 +56,7 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- TMG foreground location tracking service (started on job check-in) -->
-        <service
-            android:name=".TMGLocationService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="location" />
-
-        <!-- BootReceiver: restarts GPS service after device reboot if tracking was active -->
-        <receiver
-            android:name=".BootReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </receiver>
+        <!-- TMGLocationService and BootReceiver temporarily disabled for crash diagnosis -->
 
     </application>
 
