@@ -91,7 +91,7 @@ function countryFlag(code: string) {
 }
 
 export default function Analytics() {
-  const { data, isLoading } = useQuery<AnalyticsData>({ queryKey: ["/api/admin/analytics"] });
+  const { data, isLoading } = useQuery<AnalyticsData>({ queryKey: ["/api/admin/analytics"], refetchInterval: 60_000 });
 
   if (isLoading) {
     return (

@@ -108,7 +108,7 @@ function SearchResultRow({ quote }: { quote: any }) {
 
 function BookedQuoteRow({ quote }: { quote: any }) {
   const { toast } = useToast();
-  const { data: staffList } = useQuery<any[]>({ queryKey: ["/api/staff"] });
+  const { data: staffList } = useQuery<any[]>({ queryKey: ["/api/staff"], refetchInterval: 30_000 });
   const updateStatus = useUpdateQuoteStatus();
   const [selectedStaff, setSelectedStaff] = useState("");
   const [expanded, setExpanded] = useState(false);

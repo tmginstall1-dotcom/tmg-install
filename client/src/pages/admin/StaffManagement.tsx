@@ -67,6 +67,7 @@ export default function StaffManagement() {
   const { data: pendingAmendments = [] } = useQuery<any[]>({
     queryKey: ["/api/admin/attendance/amendments"],
     select: (d) => d.filter((a: any) => a.status === "pending"),
+    refetchInterval: 30_000,
   });
   const { data: pendingLeave = [] } = useQuery<any[]>({
     queryKey: ["/api/admin/leave", "pending"],
@@ -74,6 +75,7 @@ export default function StaffManagement() {
       const res = await fetch("/api/admin/leave?status=pending");
       return res.json();
     },
+    refetchInterval: 30_000,
   });
 
   const pendingAmendCount = (pendingAmendments as any[]).length;
@@ -160,8 +162,8 @@ function TeamsTab() {
   const [paySettingsStaffId, setPaySettingsStaffId] = useState<number | null>(null);
   const [editStaffId, setEditStaffId] = useState<number | null>(null);
 
-  const { data: teams = [] } = useQuery<any[]>({ queryKey: ["/api/teams"] });
-  const { data: allStaff = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
+  const { data: teams = [] } = useQuery<any[]>({ queryKey: ["/api/teams"], refetchInterval: 30_000 });
+  const { data: allStaff = [] } = useQuery<any[]>({ queryKey: ["/api/staff"], refetchInterval: 30_000 });
 
   const unassigned = allStaff.filter((s: any) => !s.teamId);
 
@@ -1158,6 +1160,7 @@ function TimesheetsView() {
     queryKey: periodKey,
     queryFn: () => fetchLogs(from, to, filterUid),
     enabled: view === "period",
+    refetchInterval: 30_000,
   });
 
   // Daily logs
@@ -1566,7 +1569,7 @@ function TimesheetsView() {
 function AmendmentsTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: amendments = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/attendance/amendments"] });
+  const { data: amendments = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/attendance/amendments"], refetchInterval: 30_000 });
   const [notes, setNotes] = useState<Record<number, string>>({});
 
   const reviewMut = useMutation({
@@ -1685,6 +1688,7 @@ function LeaveTab() {
       const res = await fetch(`/api/admin/leave${params}`);
       return res.json();
     },
+    refetchInterval: 30_000,
   });
 
   // Fetch all leaves for the year to compute balances
@@ -1694,6 +1698,7 @@ function LeaveTab() {
       const res = await fetch("/api/admin/leave");
       return res.json();
     },
+    refetchInterval: 30_000,
   });
 
   // Build per-staff used days map (approved annual leave only)
@@ -1859,6 +1864,7 @@ function PayslipsTab() {
       const res = await fetch(`/api/admin/payslips${params}`);
       return res.json();
     },
+    refetchInterval: 30_000,
   });
 
   const generateMut = useMutation({

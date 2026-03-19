@@ -104,9 +104,11 @@ export default function StaffHR() {
 function AttendanceTab() {
   const { data: myLogs = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/attendance"],
+    refetchInterval: 30_000,
   });
   const { data: amendments = [] } = useQuery<any[]>({
     queryKey: ["/api/attendance/amendments"],
+    refetchInterval: 30_000,
   });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
@@ -455,10 +457,11 @@ function LeaveTab({ userId }: { userId?: number }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ leaveType: "annual", startDate: "", endDate: "", reason: "" });
 
-  const { data: leaves = [] } = useQuery<any[]>({ queryKey: ["/api/leave"] });
+  const { data: leaves = [] } = useQuery<any[]>({ queryKey: ["/api/leave"], refetchInterval: 30_000 });
   const { data: balance } = useQuery<any>({
     queryKey: ["/api/leave/balance", year],
     queryFn: () => fetch(`/api/leave/balance?year=${year}`).then(r => r.json()),
+    refetchInterval: 30_000,
   });
 
   const totalDays = form.startDate && form.endDate
@@ -661,7 +664,7 @@ function LeaveTab({ userId }: { userId?: number }) {
 
 function PayslipsTab() {
   const { user } = useAuth();
-  const { data: payslips = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/staff/payslips"] });
+  const { data: payslips = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/staff/payslips"], refetchInterval: 30_000 });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [printingPayslip, setPrintingPayslip] = useState<any | null>(null);
 
