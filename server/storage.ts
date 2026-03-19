@@ -145,6 +145,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: number) {
+    // Nullify FK references before deleting to avoid constraint errors
+    await db.update(quotes).set({ assignedStaffId: null }).where(eq(quotes.assignedStaffId, id));
+    await db.update(attendanceAmendments).set({ reviewedBy: null } as any).where(eq(attendanceAmendments.reviewedBy, id));
+    await db.update(leaveRequests).set({ reviewedBy: null } as any).where(eq(leaveRequests.reviewedBy, id));
+    await db.update(payslips).set({ generatedBy: null } as any).where(eq(payslips.generatedBy, id));
+    // Delete owned records
+    await db.delete(gpsTrackPoints).where(eq(gpsTrackPoints.userId, id));
+    // Delete amendment records that reference this user's attendance logs
+    const userLogs = await db.select({ id: attendanceLogs.id }).from(attendanceLogs).where(eq(attendanceLogs.userId, id));
+    if (userLogs.length > 0) {
+      const logIds = userLogs.map(l => l.id);
+      await db.delete(attendanceAmendments).where(inArray(attendanceAmendments.attendanceLogId, logIds));
+    }
+    await db.delete(attendanceAmendments).where(eq(attendanceAmendments.userId, id));
+    await db.delete(attendanceLogs).where(eq(attendanceLogs.userId, id));
+    await db.delete(leaveRequests).where(eq(leaveRequests.userId, id));
+    await db.delete(payslips).where(eq(payslips.userId, id));
     await db.delete(users).where(eq(users.id, id));
   }
 

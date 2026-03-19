@@ -199,6 +199,9 @@ export async function registerRoutes(
 
   // Update staff member
   app.patch("/api/admin/staff/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const data = z.object({
@@ -206,6 +209,13 @@ export async function registerRoutes(
         username: z.string().min(2).optional(),
         password: z.string().min(6).optional(),
         teamId: z.number().nullable().optional(),
+        // HR fields
+        phone: z.string().optional().nullable(),
+        email: z.string().email().optional().nullable(),
+        nricFin: z.string().optional().nullable(),
+        startDate: z.string().optional().nullable(),
+        emergencyName: z.string().optional().nullable(),
+        emergencyPhone: z.string().optional().nullable(),
       }).parse(req.body);
       // Check username uniqueness (excluding current user)
       if (data.username) {
@@ -215,6 +225,7 @@ export async function registerRoutes(
       // Hash password if provided
       const bcrypt = await import("bcryptjs");
       const updateData: any = { ...data };
+      delete updateData.password;
       if (data.password) {
         updateData.password = await bcrypt.hash(data.password, 10);
       }
@@ -225,8 +236,12 @@ export async function registerRoutes(
 
   // Delete staff member
   app.delete("/api/admin/staff/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
+      if (id === req.session.userId) return res.status(400).json({ message: "Cannot delete your own account" });
       await storage.deleteUser(id);
       res.json({ ok: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }

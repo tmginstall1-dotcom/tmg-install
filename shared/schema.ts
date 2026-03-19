@@ -33,6 +33,13 @@ export const users = pgTable("users", {
   role: text("role").notNull().default('staff'), // 'admin' | 'staff'
   name: text("name").notNull(),
   teamId: integer("team_id").references(() => teams.id),
+  // HR / Contact fields
+  phone: text("phone"),
+  email: text("email"),
+  nricFin: text("nric_fin"),                          // NRIC or FIN (Singapore)
+  startDate: text("start_date"),                      // Employment start date YYYY-MM-DD
+  emergencyName: text("emergency_name"),
+  emergencyPhone: text("emergency_phone"),
   // Payroll fields
   payType: text("pay_type").default("hourly"),        // 'hourly' | 'monthly'
   monthlyRate: numeric("monthly_rate").default("0"),  // SGD per month base salary

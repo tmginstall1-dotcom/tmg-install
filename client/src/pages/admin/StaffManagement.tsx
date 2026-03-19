@@ -396,6 +396,7 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings,
   const monthly = parseFloat(staff.monthlyRate || "0");
   const hourly  = parseFloat(staff.hourlyRate  || "0");
   const hasPayConfig = monthly > 0 || hourly > 0;
+  const missingDetails = !staff.phone && !staff.nricFin;
 
   return (
     <div className="py-3 border-b last:border-0">
@@ -403,6 +404,11 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings,
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold truncate">{staff.name}</p>
           <p className="text-xs text-muted-foreground">@{staff.username}</p>
+          {(staff.phone || staff.email) && (
+            <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+              {[staff.phone, staff.email].filter(Boolean).join(" · ")}
+            </p>
+          )}
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {team && (
               <span className="inline-block text-[9px] font-black px-2 py-0.5 uppercase tracking-[0.08em]"
@@ -419,6 +425,11 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings,
               <span className="inline-flex items-center gap-0.5 text-[9px] font-black px-2 py-0.5 bg-emerald-50 text-emerald-700">
                 <DollarSign className="w-2.5 h-2.5" />
                 {monthly > 0 ? `S$${monthly.toFixed(0)}/mo` : `S$${hourly.toFixed(2)}/hr`}
+              </span>
+            )}
+            {missingDetails && (
+              <span className="inline-block text-[9px] font-black px-2 py-0.5 uppercase tracking-[0.08em] bg-amber-50 text-amber-600">
+                Profile incomplete
               </span>
             )}
           </div>
@@ -456,55 +467,114 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings,
 function EditStaffForm({ staff, onClose }: { staff: any; onClose: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [form, setForm] = useState({ name: staff.name, username: staff.username, password: "" });
+  const [form, setForm] = useState({
+    name: staff.name || "",
+    username: staff.username || "",
+    password: "",
+    phone: staff.phone || "",
+    email: staff.email || "",
+    nricFin: staff.nricFin || "",
+    startDate: staff.startDate || "",
+    emergencyName: staff.emergencyName || "",
+    emergencyPhone: staff.emergencyPhone || "",
+  });
+
+  const set = (key: keyof typeof form) => (e: any) => setForm(f => ({ ...f, [key]: e.target.value }));
 
   const mut = useMutation({
     mutationFn: () => {
-      const payload: any = { name: form.name, username: form.username };
+      const payload: any = {
+        name: form.name,
+        username: form.username,
+        phone: form.phone || null,
+        email: form.email || null,
+        nricFin: form.nricFin || null,
+        startDate: form.startDate || null,
+        emergencyName: form.emergencyName || null,
+        emergencyPhone: form.emergencyPhone || null,
+      };
       if (form.password) payload.password = form.password;
       return apiRequest("PATCH", `/api/admin/staff/${staff.id}`, payload);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/staff"] });
       onClose();
-      toast({ title: "Account updated" });
+      toast({ title: "Staff profile updated" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  return (
-    <div className="mx-0 mb-2 p-4 bg-slate-50 border border-black/10 space-y-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Edit Account — {staff.name}</p>
-      <div className="space-y-2">
-        <div>
-          <label className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 block mb-1">Full Name</label>
-          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black"
-            data-testid={`input-edit-name-${staff.id}`} />
-        </div>
-        <div>
-          <label className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 block mb-1">Username</label>
-          <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-            className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black"
-            data-testid={`input-edit-username-${staff.id}`} />
-        </div>
-        <div>
-          <label className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 block mb-1">New Password <span className="normal-case font-normal text-slate-400">(leave blank to keep current)</span></label>
-          <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-            placeholder="Min 6 characters"
-            className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black"
-            data-testid={`input-edit-password-${staff.id}`} />
-        </div>
+  const sectionLabel = (text: string) => (
+    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mt-4 mb-2 first:mt-0 pb-1 border-b border-black/05">{text}</p>
+  );
+
+  const field = (label: string, key: keyof typeof form, opts?: { type?: string; placeholder?: string; hint?: string }) => (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between">
+        <label className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</label>
+        {opts?.hint && <span className="text-[10px] text-slate-400 normal-case font-normal">{opts.hint}</span>}
       </div>
-      <div className="flex gap-2 pt-1">
-        <button onClick={() => mut.mutate()} disabled={mut.isPending || !form.name || !form.username}
-          className="flex-1 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors disabled:opacity-50"
-          data-testid={`button-save-staff-${staff.id}`}>
-          {mut.isPending ? "Saving..." : "Save Changes"}
-        </button>
-        <button onClick={onClose} className="px-4 py-2.5 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-100 transition-colors">
-          Cancel
-        </button>
+      <input
+        type={opts?.type || "text"}
+        value={form[key]}
+        onChange={set(key)}
+        placeholder={opts?.placeholder}
+        className="w-full px-3 py-2 text-sm border border-black/10 bg-white outline-none focus:border-black"
+        data-testid={`input-edit-${key}-${staff.id}`}
+      />
+    </div>
+  );
+
+  return (
+    <div className="mx-0 mb-3 bg-slate-50 border border-black/10">
+      <div className="px-4 py-3 border-b border-black/[0.06] flex items-center justify-between">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Staff Profile — {staff.name}</p>
+        <button onClick={onClose} className="p-1 text-slate-400 hover:text-black transition-colors"><X className="w-3.5 h-3.5" /></button>
+      </div>
+
+      <div className="p-4 space-y-3">
+        {/* Account */}
+        {sectionLabel("Account")}
+        <div className="grid grid-cols-2 gap-2">
+          {field("Full Name", "name")}
+          {field("Username", "username")}
+        </div>
+        {field("New Password", "password", { type: "password", placeholder: "Leave blank to keep current", hint: "optional" })}
+
+        {/* Contact */}
+        {sectionLabel("Contact Details")}
+        <div className="grid grid-cols-2 gap-2">
+          {field("Phone", "phone", { placeholder: "+65 9xxx xxxx" })}
+          {field("Email", "email", { type: "email", placeholder: "name@example.com" })}
+        </div>
+
+        {/* Employment */}
+        {sectionLabel("Employment")}
+        <div className="grid grid-cols-2 gap-2">
+          {field("NRIC / FIN", "nricFin", { placeholder: "S1234567A" })}
+          {field("Start Date", "startDate", { type: "date" })}
+        </div>
+
+        {/* Emergency */}
+        {sectionLabel("Emergency Contact")}
+        <div className="grid grid-cols-2 gap-2">
+          {field("Contact Name", "emergencyName", { placeholder: "Full name" })}
+          {field("Contact Phone", "emergencyPhone", { placeholder: "+65 9xxx xxxx" })}
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending || !form.name || !form.username}
+            className="flex-1 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors disabled:opacity-50"
+            data-testid={`button-save-staff-${staff.id}`}
+          >
+            {mut.isPending ? "Saving..." : "Save Profile"}
+          </button>
+          <button onClick={onClose} className="px-4 py-2.5 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-100 transition-colors">
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
