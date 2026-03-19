@@ -24,13 +24,6 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
     },
-    BackgroundGeolocation: {
-      backgroundMessage: "TMG Install is tracking your location for the active job.",
-      backgroundTitle: "TMG Install — Location Active",
-      requestPermissions: false,
-      stale: false,
-      distanceFilter: 20,
-    },
   },
 };
 

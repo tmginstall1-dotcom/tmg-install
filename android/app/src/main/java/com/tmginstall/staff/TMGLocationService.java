@@ -36,7 +36,7 @@ public class TMGLocationService extends Service {
     private static final String TAG              = "TMGLocationService";
     private static final String CHANNEL_ID       = "tmg_location";
     private static final int    NOTIFICATION_ID  = 9001;
-    private static final String API_BASE         = "https://tmginstall.com";
+    private static final String API_BASE         = "https://tmg-install-project--tmginstall.replit.app";
 
     // Throttle: send at most once per 20 s, or if moved >= 15 m
     private static final long  MIN_INTERVAL_MS = 20_000L;
