@@ -187,7 +187,6 @@ export default function Login() {
                 id="username"
                 required
                 autoComplete="username"
-                autoFocus
                 value={username}
                 onChange={e => { setUsername(e.target.value); setError(""); }}
                 placeholder="Enter your username"
