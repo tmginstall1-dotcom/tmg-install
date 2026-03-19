@@ -5,6 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import Stripe from "stripe";
+import admin from "firebase-admin";
 import { openai } from "./replit_integrations/audio/client";
 import { 
   sendEmail, 
@@ -23,40 +24,56 @@ import {
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
 // ── Firebase Cloud Messaging push notification helper ─────────────────────────
-// Requires FIREBASE_SERVER_KEY env var (Legacy HTTP API).
-// To enable: create Firebase project → Project Settings → Cloud Messaging → Server key.
+// Uses Firebase Admin SDK (FCM V1 API) — no legacy server key needed.
+// Requires FIREBASE_SERVICE_ACCOUNT env var: the full JSON content of your
+// Firebase service account key file (from Project Settings → Service accounts →
+// Generate new private key).
+let firebaseInitialized = false;
+
+function initFirebase() {
+  if (firebaseInitialized) return true;
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!raw) return false;
+  try {
+    const serviceAccount = JSON.parse(raw);
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    firebaseInitialized = true;
+    console.log("[FCM] Firebase Admin initialized ✓");
+    return true;
+  } catch (e) {
+    console.error("[FCM] Failed to initialize Firebase Admin:", e);
+    return false;
+  }
+}
+
 async function sendPushNotification(
   tokens: string[],
   title: string,
   body: string,
   data?: Record<string, string>
 ) {
-  const serverKey = process.env.FIREBASE_SERVER_KEY;
-  if (!serverKey || tokens.length === 0) return; // Not configured — skip silently
-
-  try {
-    const payload = JSON.stringify({
-      registration_ids: tokens,
-      notification: { title, body, sound: "default" },
-      data: data || {},
-      priority: "high",
-    });
-
-    const res = await fetch("https://fcm.googleapis.com/fcm/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `key=${serverKey}`,
-      },
-      body: payload,
-    });
-
-    if (!res.ok) {
-      console.error("[FCM] Push failed:", res.status, await res.text());
-    }
-  } catch (err) {
-    console.error("[FCM] Push error:", err);
+  if (tokens.length === 0) return;
+  if (!initFirebase()) {
+    // Not configured — skip silently
+    return;
   }
+
+  const results = await Promise.allSettled(
+    tokens.map((token) =>
+      admin.messaging().send({
+        token,
+        notification: { title, body },
+        data: data || {},
+        android: { priority: "high", notification: { sound: "default" } },
+      })
+    )
+  );
+
+  results.forEach((r, i) => {
+    if (r.status === "rejected") {
+      console.error(`[FCM] Push failed for token ${i}:`, r.reason);
+    }
+  });
 }
 
 const stripe = process.env.STRIPE_SECRET_KEY
