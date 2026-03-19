@@ -440,19 +440,47 @@ export default function EstimateWizard() {
         // Stem a word: "desks" → "desk", "cabinets" → "cabinet"
         const stem = (w: string) => w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w;
 
-        const fuzzyMatch = (detected: string, catalog: string): boolean => {
+        // Strip parenthetical qualifiers for comparison: "Mirror Cabinet (Small)" → "Mirror Cabinet"
+        const stripParens = (s: string) => s.replace(/\s*\(.*?\)/g, "").trim();
+
+        // Score how well two names match (higher = better)
+        const matchScore = (detected: string, catalog: string): number => {
           const d = detected.toLowerCase();
           const c = catalog.toLowerCase();
-          // 1. Direct substring match
-          if (c.includes(d) || d.includes(c)) return true;
-          // 2. Word-level match: any significant word from detected appears in catalog name (with stemming)
-          const words = d.split(/\s+/).filter(w => w.length > 3).map(stem);
-          return words.some(w => c.includes(w) || c.includes(stem(w)));
+          const dClean = stripParens(d);
+          const cClean = stripParens(c);
+          // Exact match (case-insensitive)
+          if (d === c) return 100;
+          // Exact match ignoring parentheticals
+          if (dClean === cClean) return 90;
+          // One fully contains the other
+          if (c.includes(d) || d.includes(c)) return 80;
+          if (cClean.includes(dClean) || dClean.includes(cClean)) return 75;
+          // IKEA model name match: both contain the same all-caps model word (PAX, HEMNES, etc.)
+          const ikeaModel = d.match(/\b(pax|kallax|billy|malm|hemnes|besta|micke|lack|alex|poäng|kivik|ivar|trofast|stuva|vittsjo|lillångén|lillangen|godmorgon|kleppstad)\b/i);
+          if (ikeaModel && c.includes(ikeaModel[1].toLowerCase())) return 70;
+          // Significant word overlap (words > 3 chars, stemmed)
+          const dWords = dClean.split(/\s+/).filter(w => w.length > 3).map(stem);
+          const cWords = cClean.split(/\s+/).filter(w => w.length > 3).map(stem);
+          const overlap = dWords.filter(w => cWords.some(cw => cw.includes(w) || w.includes(cw)));
+          if (overlap.length >= 2) return 60;
+          if (overlap.length >= 1) return 40;
+          return 0;
+        };
+
+        // For each detected item, find the best-scoring catalog match
+        const bestCatalogMatch = (detectedName: string) => {
+          let best: { group: typeof catalogGroups[0]; score: number } | null = null;
+          catalogGroups.forEach(g => {
+            const score = matchScore(detectedName, g.name);
+            if (score > 0 && (!best || score > best.score)) best = { group: g, score };
+          });
+          return best && best.score >= 40 ? best.group : null;
         };
 
         let matchCount = 0;
         detected.forEach(({ name, quantity }) => {
-          const matched = catalogGroups.find(g => fuzzyMatch(name, g.name));
+          const matched = bestCatalogMatch(name);
           if (matched) {
             addCatalogGroup(matched, quantity || 1);
             matchCount++;

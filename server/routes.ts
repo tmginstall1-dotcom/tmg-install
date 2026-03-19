@@ -1460,6 +1460,7 @@ ALWAYS INCLUDE these furniture categories:
 - Large kitchen appliances ONLY when they require moving (refrigerator, washing machine, dryer, dishwasher)
 - Kids furniture (bunk bed, loft bed with desk, kids wardrobe, baby crib, toy storage unit, kids study desk with hutch)
 - IKEA furniture — identify model if visible (PAX, KALLAX, BILLY, MALM, HEMNES, BESTA, MICKE, LACK, ALEX, POÄNG, KIVIK, IVAR, TROFAST, STUVA, VITTSJO)
+- Bathroom fixtures (mirror cabinet, mirror medicine cabinet, washroom mirror cabinet, bathroom vanity unit, over-toilet storage cabinet, bathroom shelving, towel rack — IKEA LILLÅNGEN, GODMORGON, HEMNES mirror cabinets)
 - Wall-mounted items (floating shelf, wall cabinet, curtain track/rod, full-length mirror, TV wall mounting bracket)
 - Office furniture (workstation desk, office panel/partition, locker unit, reception counter, credenza, monitor arm)
 - Outdoor furniture (garden/patio furniture set, outdoor bench)
@@ -1510,7 +1511,9 @@ You MUST respond with ONLY valid JSON — no prose, no markdown, no explanation:
                 type: "text",
                 text: `Examine this image carefully.
 
-List ONLY the furniture pieces, gym equipment, or large fixtures that are clearly visible and would require professional installation, dismantling, assembly, or relocation service.
+List ONLY the furniture pieces, gym equipment, bathroom fixtures, or large fixtures that are clearly visible and would require professional installation, dismantling, assembly, or relocation service.
+
+INCLUDE bathroom fixtures when visible: mirror cabinets, washroom mirror cabinets (IKEA LILLÅNGEN, GODMORGON, HEMNES), bathroom vanity units, over-toilet storage cabinets, bathroom shelving, and towel racks.
 
 DO NOT list: TVs, monitors, electronics, plants, decorations, small items, people, walls, floors, mattresses, or bedding.
 
