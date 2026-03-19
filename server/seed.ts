@@ -562,4 +562,21 @@ export async function seedDatabase() {
     await db.update(catalogItems).set({ basePrice: "110.00" }).where(eq(catalogItems.sku, "PAX-02"));
     await db.update(catalogItems).set({ basePrice: "230.00" }).where(eq(catalogItems.sku, "PAX-RELOCATE"));
   }
+
+  // Round 5: Bathroom mirror cabinets (LILLANGEN-INSTALL marker)
+  const r5 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "LILLANGEN-INSTALL"));
+  if (r5.length === 0) {
+    await db.insert(catalogItems).values([
+      { name: "IKEA LILLÅNGEN Mirror Cabinet", sku: "LILLANGEN-INSTALL",   category: "Bathroom", serviceType: "install",   basePrice: "60.00" },
+      { name: "IKEA LILLÅNGEN Mirror Cabinet", sku: "LILLANGEN-DISMANTLE", category: "Bathroom", serviceType: "dismantle", basePrice: "40.00" },
+      { name: "IKEA GODMORGON Mirror Cabinet", sku: "GODMORGON-INSTALL",   category: "Bathroom", serviceType: "install",   basePrice: "70.00" },
+      { name: "IKEA GODMORGON Mirror Cabinet", sku: "GODMORGON-DISMANTLE", category: "Bathroom", serviceType: "dismantle", basePrice: "45.00" },
+      { name: "IKEA HEMNES Mirror Cabinet",    sku: "HEMNES-MC-INSTALL",   category: "Bathroom", serviceType: "install",   basePrice: "80.00" },
+      { name: "IKEA HEMNES Mirror Cabinet",    sku: "HEMNES-MC-DISMANTLE", category: "Bathroom", serviceType: "dismantle", basePrice: "55.00" },
+      { name: "Washroom Mirror Cabinet (Small, up to 60cm)", sku: "WMC-SM-INSTALL",   category: "Bathroom", serviceType: "install",   basePrice: "65.00" },
+      { name: "Washroom Mirror Cabinet (Small, up to 60cm)", sku: "WMC-SM-DISMANTLE", category: "Bathroom", serviceType: "dismantle", basePrice: "40.00" },
+      { name: "Washroom Mirror Cabinet (Large, 60cm+)",      sku: "WMC-LG-INSTALL",   category: "Bathroom", serviceType: "install",   basePrice: "85.00" },
+      { name: "Washroom Mirror Cabinet (Large, 60cm+)",      sku: "WMC-LG-DISMANTLE", category: "Bathroom", serviceType: "dismantle", basePrice: "55.00" },
+    ]);
+  }
 }
