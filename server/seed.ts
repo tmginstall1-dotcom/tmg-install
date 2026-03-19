@@ -676,4 +676,119 @@ export async function seedDatabase() {
       await db.update(catalogItems).set({ volumeM3: u.volumeM3 }).where(eq(catalogItems.sku, u.sku));
     }
   }
+
+  // Round 8: Add missing relocate variants + comprehensive volumeM3 for all relocate items
+  const r8 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "VOL2-UPDATED"));
+  if (r8.length === 0) {
+    await db.insert(catalogItems).values([
+      { name: "__volume_seed_r8_marker__", sku: "VOL2-UPDATED", category: "System", serviceType: "install", basePrice: "0", active: false },
+    ]);
+
+    // ── Add missing relocate variants ────────────────────────────────────────
+    await db.insert(catalogItems).values([
+      // Office Panel / Partition — relocate (move configured panels to new office)
+      { name: "Office Panel / Partition",             sku: "PANEL-RELOCATE",      category: "Office",      serviceType: "relocate", basePrice: "80.00",  volumeM3: "0.15" },
+      // Monitor Arm / Desk Mount — relocate
+      { name: "Monitor Arm / Desk Mount",             sku: "MONARM-RELOCATE",     category: "Office",      serviceType: "relocate", basePrice: "50.00",  volumeM3: "0.05" },
+      // Modular Pod Panel — relocate
+      { name: "Modular Pod Panel (per panel)",        sku: "PODPANEL-RELOCATE",   category: "Office",      serviceType: "relocate", basePrice: "90.00",  volumeM3: "0.18" },
+      // Desk Privacy Screen — relocate
+      { name: "Desk Privacy Screen or Modesty Panel", sku: "OFF-DESK-SCREEN-RELOCATE", category: "Office", serviceType: "relocate", basePrice: "45.00",  volumeM3: "0.06" },
+      // Locker unit — relocate
+      { name: "Locker Unit (Staff / School)",         sku: "LOCK-RELOCATE",       category: "Office",      serviceType: "relocate", basePrice: "90.00",  volumeM3: "0.40" },
+      // Height-Adjustable Sit-Stand Desk — relocate
+      { name: "Height-Adjustable Sit-Stand Desk",     sku: "STND-RELOCATE",       category: "Office",      serviceType: "relocate", basePrice: "220.00", volumeM3: "0.55" },
+      // Conference Table — relocate
+      { name: "Conference Table",                     sku: "CT-RELOCATE",         category: "Office",      serviceType: "relocate", basePrice: "250.00", volumeM3: "1.20" },
+      // Credenza / Office Storage Cabinet — relocate
+      { name: "Credenza / Office Storage Cabinet",    sku: "CRED-RELOCATE",       category: "Office",      serviceType: "relocate", basePrice: "130.00", volumeM3: "0.55" },
+      // Whiteboard — relocate
+      { name: "Whiteboard or Pinboard (wall-mount)",  sku: "OFF-WHITEBOARD-RELOCATE", category: "Office",  serviceType: "relocate", basePrice: "100.00", volumeM3: "0.12" },
+    ]).onConflictDoNothing();
+
+    // ── Comprehensive volumeM3 for all relocate items ────────────────────────
+    const v2: { sku: string; volumeM3: string }[] = [
+      // Office
+      { sku: "OD-RELOCATE",            volumeM3: "0.50" },
+      { sku: "EC-RELOCATE",            volumeM3: "0.28" },
+      { sku: "L-DESK-RELOCATE",        volumeM3: "0.80" },
+      { sku: "CT-01",                  volumeM3: "1.20" },
+      { sku: "CT-RELOCATE",            volumeM3: "1.20" },
+      { sku: "FC-RELOCATE",            volumeM3: "0.35" },
+      { sku: "CRED-RELOCATE",          volumeM3: "0.55" },
+      { sku: "LOCK-RELOCATE",          volumeM3: "0.40" },
+      { sku: "STND-RELOCATE",          volumeM3: "0.55" },
+      { sku: "OFF-SOFA-RELOCATE",      volumeM3: "1.20" },
+      { sku: "OFF-TRAINING-TBL-RELOCATE", volumeM3: "0.40" },
+      { sku: "PANEL-RELOCATE",         volumeM3: "0.15" },
+      { sku: "MONARM-RELOCATE",        volumeM3: "0.05" },
+      { sku: "PODPANEL-RELOCATE",      volumeM3: "0.18" },
+      { sku: "OFF-DESK-SCREEN-RELOCATE", volumeM3: "0.06" },
+      // Living room
+      { sku: "CFT-RELOCATE",           volumeM3: "0.25" },
+      { sku: "LVG-OTTOMAN-RELOCATE",   volumeM3: "0.15" },
+      { sku: "LVG-NESTING-RELOCATE",   volumeM3: "0.12" },
+      // Bedroom / Study
+      { sku: "BS-RELOCATE",            volumeM3: "0.50" },
+      { sku: "STD-BOOKCASE-RELOCATE",  volumeM3: "0.60" },
+      { sku: "STD-DESK-RELOCATE",      volumeM3: "0.40" },
+      { sku: "STD-CORNER-DESK-RELOCATE", volumeM3: "0.80" },
+      { sku: "BED-CHEST3-RELOCATE",    volumeM3: "0.40" },
+      { sku: "BED-CHEST5-RELOCATE",    volumeM3: "0.55" },
+      { sku: "BED-NIGHTSTAND-RELOCATE", volumeM3: "0.20" },
+      // Dining
+      { sku: "DT-01",                  volumeM3: "0.60" },
+      { sku: "DC-RELOCATE",            volumeM3: "0.12" },
+      // Appliances
+      { sku: "FRIDGE2-RELOCATE",       volumeM3: "0.60" },
+      { sku: "FRIDGE4-RELOCATE",       volumeM3: "0.85" },
+      { sku: "WM-TOP-RELOCATE",        volumeM3: "0.50" },
+      { sku: "WM-FRONT-RELOCATE",      volumeM3: "0.50" },
+      { sku: "DRYER-RELOCATE",         volumeM3: "0.50" },
+      { sku: "DSHW-RELOCATE",          volumeM3: "0.45" },
+      { sku: "WINECOOL-RELOCATE",      volumeM3: "0.35" },
+      // Gym
+      { sku: "TREADMILL-RELOCATE",     volumeM3: "0.80" },
+      { sku: "ELLIP-RELOCATE",         volumeM3: "0.60" },
+      { sku: "ROW-RELOCATE",           volumeM3: "0.40" },
+      { sku: "BIKE-RELOCATE",          volumeM3: "0.30" },
+      { sku: "RACK-RELOCATE",          volumeM3: "0.70" },
+      { sku: "BENCH-RELOCATE",         volumeM3: "0.20" },
+      { sku: "MULTIGYM-RELOCATE",      volumeM3: "1.50" },
+      { sku: "DBRACK-RELOCATE",        volumeM3: "0.35" },
+      // Specialty
+      { sku: "MASS-RELOCATE",          volumeM3: "0.80" },
+      { sku: "PIANO-UP-RELOCATE",      volumeM3: "1.20" },
+      { sku: "PIANO-GR-RELOCATE",      volumeM3: "2.50" },
+      { sku: "PIANO-GRAND-RELOCATE",   volumeM3: "2.50" },
+      { sku: "SAFE-RELOCATE",          volumeM3: "0.20" },
+      { sku: "POOL-RELOCATE",          volumeM3: "2.00" },
+      { sku: "GAME-RELOCATE",          volumeM3: "0.60" },
+      // Wardrobes
+      { sku: "WRDMIR-RELOCATE",        volumeM3: "0.90" },
+      // Decor
+      { sku: "DECOR-RUG-RELOCATE",     volumeM3: "0.20" },
+      // Bathroom
+      { sku: "BATH-VANITY-RELOCATE",   volumeM3: "0.50" },
+      // Singapore-specific
+      { sku: "STUDY-RELOCATE",         volumeM3: "0.40" },
+      // AV / Media
+      { sku: "ENT-AVRAK-RELOCATE",     volumeM3: "0.30" },
+      // Misc relocate items that exist
+      { sku: "APPL-AIRFRYER-RELOCATE", volumeM3: "0.10" },
+      { sku: "SOFA-1-RELOCATE",        volumeM3: "0.80" },
+      { sku: "SOFA-3-RELOCATE",        volumeM3: "1.80" },
+      { sku: "SOFA-4-RELOCATE",        volumeM3: "2.20" },
+      { sku: "SOFA-MOD-RELOCATE",      volumeM3: "2.50" },
+      { sku: "RECLINER-RELOCATE",      volumeM3: "0.70" },
+      { sku: "BUNK-RELOCATE",          volumeM3: "0.65" },
+      { sku: "BUNK-TRD-RELOCATE",      volumeM3: "0.65" },
+      { sku: "SB-RELOCATE-01",         volumeM3: "0.35" },
+      { sku: "CUST-WRD-RELOCATE",      volumeM3: "0.90" },
+    ];
+
+    for (const u of v2) {
+      await db.update(catalogItems).set({ volumeM3: u.volumeM3 }).where(eq(catalogItems.sku, u.sku));
+    }
+  }
 }
