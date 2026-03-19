@@ -32,7 +32,6 @@ const StaffHR = lazy(() => import("@/pages/staff/HR"));
 
 import { useAuth } from "@/hooks/use-auth";
 import { useGpsTracker } from "@/hooks/use-gps-tracker";
-import { usePushNotifications, useDeepLinks } from "@/hooks/use-push-notifications";
 
 function PageLoader() {
   return (
@@ -107,10 +106,6 @@ function SplashHider() {
 }
 
 function Router() {
-  // Register push notifications + deep link listeners (native only)
-  usePushNotifications();
-  useDeepLinks();
-
   return (
     <>
       <NativeRedirect />
