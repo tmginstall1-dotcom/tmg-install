@@ -36,6 +36,9 @@ export const PricingConfig = {
       { upTo: Infinity, ratePerKm: 3 },  // 20km+ extra: $3/km
     ] as { upTo: number; ratePerKm: number }[],
   },
+  hiace: {
+    capacityM3: 6.0,  // Toyota Hiace usable cargo volume per trip (cubic metres)
+  },
   deposit: {
     pct: 0.50, // 50% deposit, 50% final
   },
@@ -56,6 +59,7 @@ export interface PricingItem {
   serviceType: 'install' | 'dismantle' | 'relocate';
   quantity: number;
   unitPrice: number; // 0 = no catalog price available (will trigger fallback)
+  volumeM3?: number; // cubic metres per unit (optional — used for trip calculation)
 }
 
 export interface PricingFloor {
@@ -79,6 +83,7 @@ export interface ItemLine {
   unitPrice: number;
   subtotal: number;
   fallbackUsed: boolean;
+  volumeM3?: number;
 }
 
 export interface FeeLine {
@@ -98,6 +103,10 @@ export interface PricingResult {
   finalAmount: number;
   requiresAdminReview: boolean;
   reviewReasons: string[];
+  // Volume / trip data
+  totalVolumeM3: number;        // sum of all item volumes (0 if no volume data)
+  numTrips: number;             // Toyota Hiace trips needed (1 if no volume data)
+  hasVolumeData: boolean;       // true if at least one item has volumeM3
 }
 
 // --------------------------------------------------------------------------
@@ -194,6 +203,7 @@ export function computePricing(input: PricingInput): PricingResult {
       unitPrice,
       subtotal: round2(unitPrice * qty),
       fallbackUsed,
+      volumeM3: item.volumeM3,
     };
   });
 
@@ -213,14 +223,32 @@ export function computePricing(input: PricingInput): PricingResult {
 
   const laborAfterDiscount = round2(laborSubtotal - discountAmount);
 
-  // ── D) Fee lines ────────────────────────────────────────────────────────
+  // ── D) Volume / trip calculation ────────────────────────────────────────
+
+  const hasVolumeData = itemLines.some(l => l.volumeM3 != null && l.volumeM3! > 0);
+  const totalVolumeM3 = hasVolumeData
+    ? round2(itemLines.reduce((s, l) => s + (l.volumeM3 ?? 0) * l.quantity, 0))
+    : 0;
+  const numTrips = hasVolumeData
+    ? Math.max(1, Math.ceil(totalVolumeM3 / cfg.hiace.capacityM3))
+    : 1;
+
+  // ── E) Fee lines ────────────────────────────────────────────────────────
 
   const feeLines: FeeLine[] = [];
 
-  // Transport fee (relocation only)
+  // Transport fee (relocation only) — multiplied by number of trips
   if (input.needsRelocation) {
-    const transportFee = calcTransportFee(input.distanceKm);
-    feeLines.push({ label: 'Transport / Relocation Logistics', amount: transportFee });
+    const feePerTrip = calcTransportFee(input.distanceKm);
+    const transportFee = round2(feePerTrip * numTrips);
+    if (numTrips > 1) {
+      feeLines.push({
+        label: `Transport / Relocation Logistics (${numTrips} trips × $${feePerTrip.toFixed(0)})`,
+        amount: transportFee,
+      });
+    } else {
+      feeLines.push({ label: 'Transport / Relocation Logistics', amount: transportFee });
+    }
     if (input.distanceKm === 0) {
       requiresAdminReview = true;
       reviewReasons.push('Distance calculation failed — transport fee is provisional at minimum rate');
@@ -252,7 +280,7 @@ export function computePricing(input: PricingInput): PricingResult {
     });
   }
 
-  // ── E) Totals ───────────────────────────────────────────────────────────
+  // ── F) Totals ───────────────────────────────────────────────────────────
 
   const logisticsSubtotal = round2(feeLines.reduce((s, f) => s + f.amount, 0));
   const grandTotal = round2(laborAfterDiscount + logisticsSubtotal);
@@ -271,6 +299,9 @@ export function computePricing(input: PricingInput): PricingResult {
     finalAmount,
     requiresAdminReview,
     reviewReasons,
+    totalVolumeM3,
+    numTrips,
+    hasVolumeData,
   };
 }
 

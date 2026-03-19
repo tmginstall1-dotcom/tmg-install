@@ -83,7 +83,7 @@ Always provide full file contents when editing any code file — never partial s
   - `POST /api/quotes/:id/request-final-payment` — Admin sends final payment email
   - `POST /api/quotes/:id/close` — Admin manual close
   - `GET /api/slots/availability` — Returns blocked dates + held slots from active quotes (used by wizard Step 4)
-  - `GET /api/catalog` — Catalog items (optional ?search=)
+  - `GET /api/catalog` — Catalog items (optional ?search=). Items now include `volumeM3` field for Toyota Hiace trip calculation.
   - `POST /api/catalog/detect-items` — GPT-4o vision photo item detection
 
 ### Email System (`server/email.ts`)

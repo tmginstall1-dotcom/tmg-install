@@ -23,6 +23,7 @@ interface LineItem {
   serviceType: ServiceType;
   quantity: number;
   unitPrice: number;
+  volumeM3?: number;
   isCustom: boolean;
 }
 
@@ -34,7 +35,7 @@ interface Floor {
 interface CatalogGroup {
   name: string;
   category: string;
-  entries: { id: number; sku: string; serviceType: ServiceType; basePrice: string }[];
+  entries: { id: number; sku: string; serviceType: ServiceType; basePrice: string; volumeM3?: number }[];
 }
 
 function uid() {
@@ -137,7 +138,13 @@ function groupCatalog(items: CatalogItem[]): CatalogGroup[] {
     // Deduplicate by serviceType — keep only first entry per service type
     const alreadyHasType = map[key].entries.some(e => e.serviceType === item.serviceType);
     if (!alreadyHasType) {
-      map[key].entries.push({ id: item.id, sku: item.sku || "", serviceType: item.serviceType as ServiceType, basePrice: item.basePrice });
+      map[key].entries.push({
+        id: item.id,
+        sku: item.sku || "",
+        serviceType: item.serviceType as ServiceType,
+        basePrice: item.basePrice,
+        volumeM3: item.volumeM3 ? parseFloat(item.volumeM3) : undefined,
+      });
     }
   });
   return Object.values(map);
@@ -306,6 +313,7 @@ export default function EstimateWizard() {
       serviceType: i.serviceType,
       quantity: i.quantity,
       unitPrice: i.unitPrice,
+      volumeM3: i.volumeM3,
     })),
     needsRelocation: isRelocation,
     floors: floors.map(f => ({ level: parseInt(f.level) || 0, hasLift: f.hasLift })),
@@ -337,7 +345,7 @@ export default function EstimateWizard() {
           if (existing) {
             updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
           } else {
-            updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), isCustom: false });
+            updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), volumeM3: entry.volumeM3, isCustom: false });
           }
         });
       }
@@ -368,7 +376,7 @@ export default function EstimateWizard() {
       if (matched) {
         const relevant = matched.entries.filter(e => services.includes(e.serviceType));
         relevant.forEach(entry => {
-          newItems.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: matched.name, category: matched.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), isCustom: false });
+          newItems.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: matched.name, category: matched.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), volumeM3: entry.volumeM3, isCustom: false });
         });
       } else {
         services.forEach(st => {
@@ -1001,6 +1009,12 @@ export default function EstimateWizard() {
                           <span>{fee.label}</span><span>+${fee.amount.toFixed(2)}</span>
                         </div>
                       ))}
+                      {isRelocation && pricingResult.hasVolumeData && (
+                        <div className="flex justify-between text-black/40 text-xs pt-1">
+                          <span className="flex items-center gap-1"><Truck className="w-3 h-3" /> {pricingResult.totalVolumeM3.toFixed(2)} m³</span>
+                          <span>{pricingResult.numTrips} {pricingResult.numTrips === 1 ? "trip" : "trips"}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between font-black text-base pt-1.5 border-t border-black/10 mt-2">
                         <span className="uppercase tracking-[0.06em] text-sm">Estimated Total</span><span>${total.toFixed(2)}</span>
                       </div>
@@ -1297,6 +1311,21 @@ export default function EstimateWizard() {
                         <div className="flex justify-between text-black/50 text-xs mt-1">
                           <span className="flex items-center gap-1"><Navigation className="w-3 h-3" /> Route distance</span>
                           <span>{distanceKm} km</span>
+                        </div>
+                      )}
+                      {isRelocation && pricingResult.hasVolumeData && (
+                        <div className="mt-2 border border-black/8 bg-black/[0.015] px-3 py-2 space-y-1">
+                          <div className="flex justify-between text-xs text-black/50">
+                            <span className="flex items-center gap-1"><Truck className="w-3 h-3" /> Total volume</span>
+                            <span>{pricingResult.totalVolumeM3.toFixed(2)} m³</span>
+                          </div>
+                          <div className="flex justify-between text-xs font-black text-black/70">
+                            <span>Toyota Hiace trips needed</span>
+                            <span>{pricingResult.numTrips} {pricingResult.numTrips === 1 ? "trip" : "trips"}</span>
+                          </div>
+                          {pricingResult.numTrips > 1 && (
+                            <p className="text-[10px] text-black/40 mt-1">Load exceeds one van — an additional trip is included in the transport fee.</p>
+                          )}
                         </div>
                       )}
                       <div className="flex justify-between font-black text-base pt-2 border-t border-black/10">

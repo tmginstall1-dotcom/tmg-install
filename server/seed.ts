@@ -579,4 +579,101 @@ export async function seedDatabase() {
       { name: "Washroom Mirror Cabinet (Large, 60cm+)",      sku: "WMC-LG-DISMANTLE", category: "Bathroom", serviceType: "dismantle", basePrice: "55.00" },
     ]);
   }
+
+  // Round 6: Carton boxes for moving (CBX-SM marker)
+  // Volumes (L × W × H): S=40×30×30cm, M=50×40×40cm, L=60×50×45cm, XL=70×60×55cm, Wardrobe=125×55×50cm
+  const r6 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "CBX-SM"));
+  if (r6.length === 0) {
+    await db.insert(catalogItems).values([
+      {
+        name: "Carton Box — Small (40×30×30 cm)",
+        sku: "CBX-SM",
+        category: "Moving Boxes",
+        serviceType: "relocate",
+        basePrice: "3.50",
+        volumeM3: "0.036",
+      },
+      {
+        name: "Carton Box — Medium (50×40×40 cm)",
+        sku: "CBX-MD",
+        category: "Moving Boxes",
+        serviceType: "relocate",
+        basePrice: "5.50",
+        volumeM3: "0.080",
+      },
+      {
+        name: "Carton Box — Large (60×50×45 cm)",
+        sku: "CBX-LG",
+        category: "Moving Boxes",
+        serviceType: "relocate",
+        basePrice: "8.00",
+        volumeM3: "0.135",
+      },
+      {
+        name: "Carton Box — XL (70×60×55 cm)",
+        sku: "CBX-XL",
+        category: "Moving Boxes",
+        serviceType: "relocate",
+        basePrice: "12.00",
+        volumeM3: "0.231",
+      },
+      {
+        name: "Carton Box — Wardrobe (125×55×50 cm)",
+        sku: "CBX-WRD",
+        category: "Moving Boxes",
+        serviceType: "relocate",
+        basePrice: "18.00",
+        volumeM3: "0.344",
+      },
+    ]);
+  }
+
+  // Round 7: Add volumeM3 to key furniture items for Toyota Hiace trip calculation
+  const r7 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "VOL-UPDATED"));
+  if (r7.length === 0) {
+    // Marker — insert a dummy disabled record so this round only runs once
+    await db.insert(catalogItems).values([
+      { name: "__volume_seed_marker__", sku: "VOL-UPDATED", category: "System", serviceType: "install", basePrice: "0", active: false },
+    ]);
+
+    // Volumes based on typical disassembled/packed furniture footprint in a van (m³)
+    const volumeUpdates: { sku: string; volumeM3: string }[] = [
+      // Wardrobes
+      { sku: "PAX-01",          volumeM3: "0.80" },
+      { sku: "PAX-02",          volumeM3: "0.80" },
+      { sku: "PAX-RELOCATE",    volumeM3: "0.80" },
+      // Beds
+      { sku: "QB-INSTALL",      volumeM3: "0.50" },
+      { sku: "QB-DISMANTLE",    volumeM3: "0.50" },
+      { sku: "QB-RELOCATE",     volumeM3: "0.50" },
+      { sku: "KB-INSTALL",      volumeM3: "0.70" },
+      { sku: "KB-DISMANTLE",    volumeM3: "0.70" },
+      { sku: "KB-RELOCATE",     volumeM3: "0.70" },
+      { sku: "SB-INSTALL",      volumeM3: "0.35" },
+      { sku: "SB-DISMANTLE",    volumeM3: "0.35" },
+      { sku: "SB-RELOCATE",     volumeM3: "0.35" },
+      // Bedroom
+      { sku: "DT-INSTALL",      volumeM3: "0.30" },
+      { sku: "DT-DISMANTLE",    volumeM3: "0.30" },
+      { sku: "DT-RELOCATE",     volumeM3: "0.30" },
+      { sku: "BT-INSTALL",      volumeM3: "0.10" },
+      { sku: "BT-DISMANTLE",    volumeM3: "0.10" },
+      { sku: "BT-RELOCATE",     volumeM3: "0.10" },
+      // Sofas
+      { sku: "SF3-INSTALL",     volumeM3: "1.80" },
+      { sku: "SF3-DISMANTLE",   volumeM3: "1.80" },
+      { sku: "SF3-RELOCATE",    volumeM3: "1.80" },
+      { sku: "SF2-INSTALL",     volumeM3: "1.30" },
+      { sku: "SF2-DISMANTLE",   volumeM3: "1.30" },
+      { sku: "SF2-RELOCATE",    volumeM3: "1.30" },
+      // Living room
+      { sku: "TVC-INSTALL",     volumeM3: "0.40" },
+      { sku: "TVC-DISMANTLE",   volumeM3: "0.40" },
+      { sku: "TVC-RELOCATE",    volumeM3: "0.40" },
+    ];
+
+    for (const u of volumeUpdates) {
+      await db.update(catalogItems).set({ volumeM3: u.volumeM3 }).where(eq(catalogItems.sku, u.sku));
+    }
+  }
 }
