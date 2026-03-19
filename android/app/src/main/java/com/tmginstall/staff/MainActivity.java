@@ -46,7 +46,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         // Show the crash from the previous launch NOW — Activity is fully ready
         if (pendingCrashReport != null && !pendingCrashReport.isEmpty()) {
