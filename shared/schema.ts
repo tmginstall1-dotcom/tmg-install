@@ -46,6 +46,8 @@ export const users = pgTable("users", {
   hourlyRate: numeric("hourly_rate").default("0"),    // SGD per hour, first 8 hrs/day
   overtimeRate: numeric("overtime_rate").default("0"),// SGD per hour, after 8 hrs/day
   annualLeaveEntitlement: integer("annual_leave_entitlement").default(14), // days per year
+  // Push notification token (Firebase Cloud Messaging — registered from Android app)
+  fcmToken: text("fcm_token"),
 });
 
 // Attendance Amendment Requests

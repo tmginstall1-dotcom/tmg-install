@@ -96,7 +96,9 @@ export function useBackgroundLocation() {
           if (!trackingStaffId) return;
           sendPoint(trackingStaffId, loc.lat, loc.lng, loc.accuracy, loc.speed);
         });
-        await TMGLocation.startWatching();
+        // Pass staffId so the service can persist it in SharedPreferences and
+        // submit GPS points directly when the app is backgrounded/killed.
+        await TMGLocation.startWatching({ staffId });
       } else {
         // ── Web fallback: standard watchPosition ─────────────────────────────
         if (!("geolocation" in navigator)) return;

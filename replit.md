@@ -43,7 +43,7 @@ Always provide full file contents when editing any code file — never partial s
 - **Admin layout**: `AdminSidebar` (`client/src/components/layout/AdminSidebar.tsx`) — fixed left sidebar (w-56, bg-slate-950) with live badge counts for pending items. Visible at `lg+` only; all admin pages have `lg:pl-56` offset. ExportPDF uses `lg:left-56` (fixed-position). Mobile: `AdminBottomNav` (5-tab, badge counts). Navbar admin links hidden at lg+ (sidebar takes over).
 
 ### Android Native App (Capacitor)
-- **App ID**: `com.tmginstall.staff` · **appName**: TMG Staff
+- **App ID**: `com.tmginstall.staff` · **appName**: TMG Staff · **versionCode**: 2, **versionName**: 1.1
 - **WebView target**: `https://tmginstall.com/staff/login` (live URL — no APK reinstall needed for code updates)
 - **Background geolocation**: `@capacitor-community/background-geolocation@1.2.26` — foreground service keeps tracking alive when app is minimised or screen is off
 - **Hook**: `client/src/hooks/use-background-location.ts`
@@ -52,14 +52,34 @@ Always provide full file contents when editing any code file — never partial s
   - Module-level singletons so tracking survives React re-renders/unmounts
   - Throttle: sends at most once per 25 s OR if moved ≥ 20 m (whichever comes first)
   - Pings `POST /api/staff/gps-track` with `{staffId, lat, lng, accuracy, speed, heading}`
+- **Always-on GPS (post-boot)**: `TMGLocationService.java` — `START_STICKY` foreground service that persists after app is killed. Posts GPS directly to `https://tmginstall.com/api/staff/gps-track`. `BootReceiver.java` restarts the service on `BOOT_COMPLETED` if tracking was active (detected via SharedPreferences). Exposed to React via `TMGLocationPlugin.java`.
 - **Integration points**:
   - `JobDetail.tsx` — calls `startTracking(userId)` on "Arrived" check-in, `stopTracking()` on "Completed"
   - `Dashboard.tsx` (staff) — auto-resumes tracking on mount if there's an `in_progress` job; shows "GPS On" pill
-- **AndroidManifest.xml permissions**: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION` (Android 10+), `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION` (Android 14+), `POST_NOTIFICATIONS`, `CAMERA`
-- **Android project**: `android/` folder (Capacitor-generated + background-geolocation plugin registered)
+- **Push notifications**:
+  - Backend: `sendPushNotification(token, title, body, data)` in `server/email.ts` sends via Firebase FCM API
+  - `POST /api/staff/fcm-token` — stores FCM token per user (fcm_token column on users table)
+  - Push sent on job assignment (admin assigning a quote to staff)
+  - Frontend hook: `client/src/hooks/use-push-notifications.ts` — registers device, stores token, handles deep-link taps
+  - **Firebase setup required by user**: add `google-services.json` to `android/app/` and set `FIREBASE_SERVER_KEY` env var
+- **Deep links**: `tmginstall://job/:id` (custom scheme) + `https://tmginstall.com/staff/jobs/*` (App Link). `useDeepLinks()` hook in `App.tsx` handles navigation.
+- **Splash screen**: `@capacitor/splash-screen` with `launchAutoHide: false`; `SplashHider` component in `App.tsx` hides after 1.5 s + auth check.
+- **Offline mode**:
+  - `client/src/hooks/use-offline-cache.ts` — `useOnlineStatus()`, `useWithOfflineCache(key, data, loading)`, `useOfflineBanner()`
+  - Staff Dashboard uses `useWithOfflineCache` to serve cached jobs when offline; shows "Offline — showing cached data" / "Back online" banner
+- **App icons**: TMG-branded (black background, white shield/mountain logo, TMG text). All 6 Android mipmap densities (mdpi → xxxhdpi) + adaptive icon XML. Play Store icon (512×512) + feature graphic (1024×500) in `attached_assets/`.
+- **Notification icon**: `android/app/src/main/res/drawable/ic_stat_tmg.png` (white-on-transparent, small icon spec)
+- **AndroidManifest.xml permissions**: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION` (Android 10+), `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION` (Android 14+), `POST_NOTIFICATIONS`, `CAMERA`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`, `VIBRATE`
+- **Signing (release builds)**:
+  - Keystore: `android/app/tmg-staff-release.keystore` (alias: `tmg-staff`, 2048-bit RSA, 10 000-day validity)
+  - Credentials: `KEYSTORE_PASSWORD=TMGInstall2024!`, `KEY_ALIAS=tmg-staff`
+  - Base64 for GitHub Actions: `android/app/tmg-staff-release.keystore.b64` (set as `KEYSTORE_BASE64` secret)
+  - `build.gradle` reads signing config from env vars `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`
 - **Build**:
-  - Local: `bash build-android.sh` (requires JDK 17+, ANDROID_HOME set)
-  - CI: `.github/workflows/build-android.yml` — GitHub Actions builds a debug APK on every push to main, uploads as artifact
+  - Local debug: `bash build-android.sh` (requires JDK 17+, `ANDROID_HOME` set)
+  - Local release: `RELEASE=1 bash build-android.sh` (also produces `.aab` for Play Store)
+  - CI: `.github/workflows/build-android.yml` — always builds debug APK; builds signed release APK + AAB when `KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` GitHub secrets are set
+  - CI artifacts: `tmg-staff-debug-apk` (30-day), `tmg-staff-release-aab` (90-day), `tmg-staff-release-apk` (90-day)
   - Downloadable project: `tmg-android-project.tar.gz`
 - **GPS track data**: stored in `gps_track_points` table, viewable in Admin → Staff & HR → GPS Track tab
 

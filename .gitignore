@@ -4,3 +4,7 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+# Android keystore files (contains private signing keys — never commit)
+*.keystore
+*.keystore.b64
+!android/app/tmg-staff-release.keystore.b64

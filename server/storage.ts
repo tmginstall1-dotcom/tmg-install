@@ -58,6 +58,8 @@ export interface IStorage {
 
   // Pay Settings
   updatePaySettings(userId: number, settings: { payType?: string; monthlyRate?: string; hourlyRate?: string; overtimeRate?: string; annualLeaveEntitlement?: number }): Promise<typeof users.$inferSelect | undefined>;
+  updateFcmToken(userId: number, token: string): Promise<void>;
+  getFcmTokensByUserIds(userIds: number[]): Promise<string[]>;
 
   // Payslips
   generatePayslip(data: Omit<typeof payslips.$inferInsert, 'id' | 'createdAt'>): Promise<Payslip>;
@@ -403,6 +405,20 @@ export class DatabaseStorage implements IStorage {
   async updatePaySettings(userId: number, settings: { payType?: string; monthlyRate?: string; hourlyRate?: string; overtimeRate?: string; annualLeaveEntitlement?: number }) {
     const [updated] = await db.update(users).set(settings as any).where(eq(users.id, userId)).returning();
     return updated;
+  }
+
+  async updateFcmToken(userId: number, token: string): Promise<void> {
+    await db.update(users).set({ fcmToken: token } as any).where(eq(users.id, userId));
+  }
+
+  async getFcmTokensByUserIds(userIds: number[]): Promise<string[]> {
+    if (userIds.length === 0) return [];
+    const rows = await db.select({ fcmToken: (users as any).fcmToken })
+      .from(users)
+      .where(inArray(users.id, userIds));
+    return rows
+      .map((r: any) => r.fcmToken as string | null)
+      .filter((t): t is string => typeof t === "string" && t.length > 0);
   }
 
   // Payslips

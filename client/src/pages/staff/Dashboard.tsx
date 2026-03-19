@@ -4,8 +4,9 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   MapPin, CalendarDays, ChevronRight, Phone, MessageCircle,
   Clock, Timer, CheckCircle2, Wifi, WifiOff,
-  Package, TrendingUp, AlertTriangle, RefreshCw, Radio,
+  Package, TrendingUp, AlertTriangle, RefreshCw, Radio, CloudOff,
 } from "lucide-react";
+import { useOfflineBanner, useWithOfflineCache } from "@/hooks/use-offline-cache";
 import { format, isToday, differenceInMinutes, startOfWeek } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -30,13 +31,17 @@ function fmtHM(mins: number) {
 export default function StaffDashboard() {
   const { user } = useAuth();
   const { isTracking, startTracking } = useBackgroundLocation();
+  const { showBanner, isOnline } = useOfflineBanner();
 
-  const { data: quotes, isLoading: jobsLoading } = useQuery<any[]>({
+  const { data: rawQuotes, isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/quotes"],
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
     staleTime: 0,
   });
+
+  // Cache jobs for offline access
+  const { data: quotes } = useWithOfflineCache<any[]>("staff-jobs", rawQuotes, jobsLoading);
 
   const { data: allAttendance, isLoading: attLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/attendance"],
@@ -98,6 +103,21 @@ export default function StaffDashboard() {
         isLoading={attLoading}
         firstName={firstName}
       />
+
+      {/* Offline / Reconnected banner */}
+      {showBanner && (
+        <div className={`fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-2 py-2 text-xs font-black uppercase tracking-widest transition-all ${
+          isOnline
+            ? "bg-emerald-500 text-white"
+            : "bg-slate-900 text-white"
+        }`}>
+          {isOnline ? (
+            <><Wifi className="w-3 h-3" /> Back online</>
+          ) : (
+            <><CloudOff className="w-3 h-3" /> Offline — showing cached data</>
+          )}
+        </div>
+      )}
 
       <div className="max-w-2xl mx-auto px-4 sm:px-5 pb-28 -mt-2 relative z-10">
 

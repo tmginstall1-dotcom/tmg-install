@@ -31,6 +31,7 @@ const StaffHR = lazy(() => import("@/pages/staff/HR"));
 
 import { useAuth } from "@/hooks/use-auth";
 import { useGpsTracker } from "@/hooks/use-gps-tracker";
+import { usePushNotifications, useDeepLinks } from "@/hooks/use-push-notifications";
 
 function PageLoader() {
   return (
@@ -82,10 +83,37 @@ function NativeRedirect() {
   return null;
 }
 
+/** Hides the native splash screen once the app is fully mounted */
+function SplashHider() {
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const { SplashScreen } = await import("@capacitor/splash-screen");
+        // Brief delay so the first frame renders before hiding
+        setTimeout(async () => {
+          if (!mounted) return;
+          await SplashScreen.hide({ fadeOutDuration: 400 });
+        }, 300);
+      } catch {
+        // SplashScreen not available — ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+  return null;
+}
+
 function Router() {
+  // Register push notifications + deep link listeners (native only)
+  usePushNotifications();
+  useDeepLinks();
+
   return (
     <>
       <NativeRedirect />
+      <SplashHider />
       <Navbar />
       <AdminSidebar />
       <StaffBottomNav />

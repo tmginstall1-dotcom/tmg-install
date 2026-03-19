@@ -22,6 +22,43 @@ import {
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
+// ── Firebase Cloud Messaging push notification helper ─────────────────────────
+// Requires FIREBASE_SERVER_KEY env var (Legacy HTTP API).
+// To enable: create Firebase project → Project Settings → Cloud Messaging → Server key.
+async function sendPushNotification(
+  tokens: string[],
+  title: string,
+  body: string,
+  data?: Record<string, string>
+) {
+  const serverKey = process.env.FIREBASE_SERVER_KEY;
+  if (!serverKey || tokens.length === 0) return; // Not configured — skip silently
+
+  try {
+    const payload = JSON.stringify({
+      registration_ids: tokens,
+      notification: { title, body, sound: "default" },
+      data: data || {},
+      priority: "high",
+    });
+
+    const res = await fetch("https://fcm.googleapis.com/fcm/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `key=${serverKey}`,
+      },
+      body: payload,
+    });
+
+    if (!res.ok) {
+      console.error("[FCM] Push failed:", res.status, await res.text());
+    }
+  } catch (err) {
+    console.error("[FCM] Push error:", err);
+  }
+}
+
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
   : null;
@@ -477,6 +514,16 @@ export async function registerRoutes(
         recordedAt: recordedAt ? new Date(recordedAt) : undefined,
       });
       res.json(pt);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  // Register / update FCM push notification token for the logged-in staff member
+  app.post("/api/staff/fcm-token", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const { token } = z.object({ token: z.string().min(1) }).parse(req.body);
+      await storage.updateFcmToken(req.session.userId, token);
+      res.json({ ok: true });
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
@@ -995,7 +1042,41 @@ export async function registerRoutes(
       );
       
       if (!quote) return res.status(404).json({ message: "Quote not found" });
-      
+
+      // Send push notification when a job is assigned to staff
+      if (input.assignedStaffId) {
+        const tokens = await storage.getFcmTokensByUserIds([input.assignedStaffId]);
+        if (tokens.length > 0) {
+          const addr = quote.serviceAddress?.split(",")[0] || "New job";
+          await sendPushNotification(
+            tokens,
+            "Job Assigned — TMG Install",
+            `You've been assigned to ${addr}`,
+            { jobId: String(quote.id), path: `/staff/jobs/${quote.id}` }
+          );
+        }
+      }
+
+      // Send push notification when job status changes to in_progress (staff arrival confirmed)
+      if (input.status === "booked" || input.status === "assigned") {
+        const staffIds: number[] = [];
+        if (quote.assignedStaffId) staffIds.push(quote.assignedStaffId);
+        if (staffIds.length > 0) {
+          const tokens = await storage.getFcmTokensByUserIds(staffIds);
+          if (tokens.length > 0) {
+            const date = quote.scheduledAt
+              ? new Date(quote.scheduledAt).toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short" })
+              : "your scheduled date";
+            await sendPushNotification(
+              tokens,
+              "Job Confirmed — TMG Install",
+              `Job ${quote.referenceNo} confirmed for ${date}`,
+              { jobId: String(quote.id), path: `/staff/jobs/${quote.id}` }
+            );
+          }
+        }
+      }
+
       // Send deposit request email when admin approves
       if (input.status === "deposit_requested" && quote.customer) {
         const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.3;

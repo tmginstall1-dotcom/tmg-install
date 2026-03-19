@@ -15,8 +15,8 @@ android {
         applicationId "com.tmginstall.staff"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -24,10 +24,36 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    // ── Release signing ────────────────────────────────────────────────────────
+    // Keystore credentials are read from environment variables so they can be
+    // stored as GitHub Actions secrets and never hard-coded.
+    //
+    // Required env vars:
+    //   KEYSTORE_BASE64     — base64-encoded tmg-staff-release.keystore
+    //   KEYSTORE_PASSWORD   — keystore / key password
+    //   KEY_ALIAS           — key alias (tmg-staff)
+    //
+    // For local builds: place tmg-staff-release.keystore in android/app/ and
+    // set the environment variables before running ./gradlew assembleRelease.
+    signingConfigs {
+        release {
+            def keystoreFile = System.getenv("KEYSTORE_PATH") ?: "${projectDir}/tmg-staff-release.keystore"
+            storeFile file(keystoreFile)
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "TMGInstall2024!"
+            keyAlias System.getenv("KEY_ALIAS") ?: "tmg-staff"
+            keyPassword System.getenv("KEYSTORE_PASSWORD") ?: "TMGInstall2024!"
+        }
+    }
+
     buildTypes {
+        debug {
+            debuggable true
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 }

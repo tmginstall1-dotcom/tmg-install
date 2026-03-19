@@ -26,6 +26,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Deep link: tmginstall://job/123 — used by push notification taps -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tmginstall" />
+            </intent-filter>
+
+            <!-- Web deep link: https://tmginstall.com/staff/jobs/123 -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                      android:host="tmginstall.com"
+                      android:pathPrefix="/staff/jobs" />
+            </intent-filter>
+
         </activity>
 
         <provider
@@ -38,17 +56,30 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- TMG background location tracking service (started only on check-in) -->
+        <!-- TMG foreground location tracking service (started on job check-in) -->
         <service
             android:name=".TMGLocationService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <!-- BootReceiver: restarts GPS service after device reboot if tracking was active -->
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
     <!-- ── Core ──────────────────────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- ── Location ──────────────────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />

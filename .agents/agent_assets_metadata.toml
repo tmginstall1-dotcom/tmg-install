@@ -18,3 +18,9 @@ id = "WG9WB0BJt5zq-xFl_Z8P0"
 uri = "file://tmg-android-project.tar.gz"
 type = "unspecified"
 title = "TMG Staff Android — v14 (Android 12 SecurityException fix)"
+
+[[outputs]]
+id = "zzC3PWjq8sp273ipSM-ID"
+uri = "file://play-store-listing.md"
+type = "text"
+title = "Google Play Store Listing — TMG Staff"
