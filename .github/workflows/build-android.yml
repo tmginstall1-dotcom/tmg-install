@@ -14,6 +14,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 
     steps:
       - name: Checkout repo
@@ -54,8 +58,8 @@ jobs:
 
       - name: Update Java compatibility to 21 (re-apply after sync)
         run: |
-          sed -i 's/VERSION_17/VERSION_21/g' android/app/capacitor.build.gradle
-          sed -i 's/VERSION_17/VERSION_21/g' android/app/build.gradle
+          sed -i 's/VERSION_17/VERSION_21/g' android/app/capacitor.build.gradle || true
+          sed -i 's/VERSION_17/VERSION_21/g' android/app/build.gradle || true
 
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
@@ -66,9 +70,6 @@ jobs:
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -80,23 +81,21 @@ jobs:
       # ── Release AAB (Play Store) — requires keystore secrets ─────────────────
 
       - name: Decode keystore
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/tmg-staff-release.keystore
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/tmg-staff-release.keystore
 
       - name: Build Release AAB (Android App Bundle for Play Store)
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
         run: |
           cd android
           ./gradlew bundleRelease --no-daemon
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
           KEYSTORE_PATH: ${{ github.workspace }}/android/app/tmg-staff-release.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 
       - name: Upload Release AAB
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: tmg-staff-release-aab
@@ -104,18 +103,16 @@ jobs:
           retention-days: 90
 
       - name: Build Release APK (signed — for direct install)
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
         run: |
           cd android
           ./gradlew assembleRelease --no-daemon
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
           KEYSTORE_PATH: ${{ github.workspace }}/android/app/tmg-staff-release.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 
       - name: Upload Signed Release APK
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: tmg-staff-release-apk
