@@ -687,11 +687,11 @@ export async function seedDatabase() {
     // ── Add missing relocate variants ────────────────────────────────────────
     await db.insert(catalogItems).values([
       // Office Panel / Partition — relocate (move configured panels to new office)
-      { name: "Office Panel / Partition",             sku: "PANEL-RELOCATE",      category: "Office",      serviceType: "relocate", basePrice: "80.00",  volumeM3: "0.15" },
+      { name: "Office Panel / Partition",             sku: "PANEL-RELOCATE",      category: "Office",      serviceType: "relocate", basePrice: "80.00",  volumeM3: "0.30" },
       // Monitor Arm / Desk Mount — relocate
       { name: "Monitor Arm / Desk Mount",             sku: "MONARM-RELOCATE",     category: "Office",      serviceType: "relocate", basePrice: "50.00",  volumeM3: "0.05" },
       // Modular Pod Panel — relocate
-      { name: "Modular Pod Panel (per panel)",        sku: "PODPANEL-RELOCATE",   category: "Office",      serviceType: "relocate", basePrice: "90.00",  volumeM3: "0.18" },
+      { name: "Modular Pod Panel (per panel)",        sku: "PODPANEL-RELOCATE",   category: "Office",      serviceType: "relocate", basePrice: "90.00",  volumeM3: "0.30" },
       // Desk Privacy Screen — relocate
       { name: "Desk Privacy Screen or Modesty Panel", sku: "OFF-DESK-SCREEN-RELOCATE", category: "Office", serviceType: "relocate", basePrice: "45.00",  volumeM3: "0.06" },
       // Locker unit — relocate
@@ -720,9 +720,9 @@ export async function seedDatabase() {
       { sku: "STND-RELOCATE",          volumeM3: "0.55" },
       { sku: "OFF-SOFA-RELOCATE",      volumeM3: "1.20" },
       { sku: "OFF-TRAINING-TBL-RELOCATE", volumeM3: "0.40" },
-      { sku: "PANEL-RELOCATE",         volumeM3: "0.15" },
+      { sku: "PANEL-RELOCATE",         volumeM3: "0.30" },
       { sku: "MONARM-RELOCATE",        volumeM3: "0.05" },
-      { sku: "PODPANEL-RELOCATE",      volumeM3: "0.18" },
+      { sku: "PODPANEL-RELOCATE",      volumeM3: "0.30" },
       { sku: "OFF-DESK-SCREEN-RELOCATE", volumeM3: "0.06" },
       // Living room
       { sku: "CFT-RELOCATE",           volumeM3: "0.25" },
@@ -1017,9 +1017,9 @@ export async function seedDatabase() {
       { sku:"STND-INSTALL", vol:"0.55" },  { sku:"STND-DISMANTLE", vol:"0.55" },
       { sku:"OFF-SOFA-INSTALL", vol:"1.20" },{ sku:"OFF-SOFA-DISMANTLE", vol:"1.20" },
       { sku:"CT-INSTALL", vol:"1.20" },    { sku:"CT-DISMANTLE", vol:"1.20" },
-      { sku:"PANEL-INSTALL", vol:"0.15" }, { sku:"PANEL-DISMANTLE", vol:"0.15" },
+      { sku:"PANEL-INSTALL", vol:"0.30" }, { sku:"PANEL-DISMANTLE", vol:"0.30" },
       { sku:"MONARM-INSTALL", vol:"0.05" },{ sku:"MONARM-DISMANTLE", vol:"0.05" },
-      { sku:"PODPANEL-INSTALL", vol:"0.18" },{ sku:"PODPANEL-DISMANTLE", vol:"0.18" },
+      { sku:"PODPANEL-INSTALL", vol:"0.30" },{ sku:"PODPANEL-DISMANTLE", vol:"0.30" },
       { sku:"OFF-DESK-SCREEN-INSTALL", vol:"0.06" },{ sku:"OFF-DESK-SCREEN-DISMANTLE", vol:"0.06" },
       { sku:"OFF-TRAINING-TBL-INSTALL", vol:"0.40" },{ sku:"OFF-TRAINING-TBL-DISMANTLE", vol:"0.40" },
       { sku:"OFF-WHITEBOARD-INSTALL", vol:"0.12" },{ sku:"OFF-WHITEBOARD-DISMANTLE", vol:"0.12" },
