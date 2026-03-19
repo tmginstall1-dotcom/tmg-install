@@ -51,40 +51,45 @@ export function usePushNotifications() {
     initialized.current = true;
 
     (async () => {
-      await loadPlugins();
-      if (!PushNotifications) return;
+      try {
+        await loadPlugins();
+        if (!PushNotifications) return;
 
-      // Request permission
-      const result = await PushNotifications.requestPermissions();
-      if (result.receive !== "granted") return;
+        // Request permission
+        const result = await PushNotifications.requestPermissions();
+        if (result.receive !== "granted") return;
 
-      await PushNotifications.register();
+        await PushNotifications.register();
 
-      // Token received — send to backend
-      await PushNotifications.addListener("registration", (token: { value: string }) => {
-        registerToken(token.value);
-      });
+        // Token received — send to backend
+        await PushNotifications.addListener("registration", (token: { value: string }) => {
+          registerToken(token.value);
+        });
 
-      // Notification tapped while app was in background/closed
-      await PushNotifications.addListener(
-        "pushNotificationActionPerformed",
-        (action: { notification: { data?: { jobId?: string; path?: string } } }) => {
-          const data = action.notification?.data;
-          if (data?.path) {
-            setLocation(data.path);
-          } else if (data?.jobId) {
-            setLocation(`/staff/jobs/${data.jobId}`);
+        // Notification tapped while app was in background/closed
+        await PushNotifications.addListener(
+          "pushNotificationActionPerformed",
+          (action: { notification: { data?: { jobId?: string; path?: string } } }) => {
+            const data = action.notification?.data;
+            if (data?.path) {
+              setLocation(data.path);
+            } else if (data?.jobId) {
+              setLocation(`/staff/jobs/${data.jobId}`);
+            }
           }
-        }
-      );
+        );
 
-      // Notification received while app is in foreground — show as in-app toast
-      await PushNotifications.addListener(
-        "pushNotificationReceived",
-        (_notification: any) => {
-          // The app is already open — we rely on query refetch to show updates
-        }
-      );
+        // Notification received while app is in foreground — show as in-app toast
+        await PushNotifications.addListener(
+          "pushNotificationReceived",
+          (_notification: any) => {
+            // The app is already open — we rely on query refetch to show updates
+          }
+        );
+      } catch (e) {
+        // Push notifications failed to initialise — app continues without them
+        console.warn("[Push] Init failed:", e);
+      }
     })();
 
     return () => {
@@ -109,17 +114,21 @@ export function useDeepLinks() {
     initialized.current = true;
 
     (async () => {
-      await loadPlugins();
-      if (!App) return;
+      try {
+        await loadPlugins();
+        if (!App) return;
 
-      // Handle URL that launched the app
-      const launchUrl = await App.getLaunchUrl();
-      if (launchUrl?.url) handleUrl(launchUrl.url, setLocation);
+        // Handle URL that launched the app
+        const launchUrl = await App.getLaunchUrl();
+        if (launchUrl?.url) handleUrl(launchUrl.url, setLocation);
 
-      // Handle URLs while the app is already running
-      App.addListener("appUrlOpen", (data: { url: string }) => {
-        handleUrl(data.url, setLocation);
-      });
+        // Handle URLs while the app is already running
+        App.addListener("appUrlOpen", (data: { url: string }) => {
+          handleUrl(data.url, setLocation);
+        });
+      } catch (e) {
+        console.warn("[DeepLinks] Init failed:", e);
+      }
     })();
 
     return () => {
