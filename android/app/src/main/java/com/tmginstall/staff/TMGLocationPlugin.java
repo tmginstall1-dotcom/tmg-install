@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
 
+import androidx.core.content.ContextCompat;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -18,10 +20,17 @@ public class TMGLocationPlugin extends Plugin {
     public static final String LOCATION_BROADCAST = "com.tmginstall.staff.LOCATION_UPDATE";
 
     private BroadcastReceiver locationReceiver;
+    private boolean receiverRegistered = false;
 
     @Override
     public void load() {
-        // Only registers a broadcast receiver — no service binding, completely safe on all devices
+        // Intentionally empty — receiver is registered lazily in startWatching()
+        // to avoid SecurityException on Android 12+ during app startup.
+    }
+
+    private void registerLocationReceiver() {
+        if (receiverRegistered) return;
+
         locationReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -36,15 +45,22 @@ public class TMGLocationPlugin extends Plugin {
         };
 
         IntentFilter filter = new IntentFilter(LOCATION_BROADCAST);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getContext().registerReceiver(locationReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            getContext().registerReceiver(locationReceiver, filter);
-        }
+        // ContextCompat.registerReceiver handles the RECEIVER_NOT_EXPORTED flag
+        // correctly on all Android versions (including Android 12 / API 31+).
+        ContextCompat.registerReceiver(
+            getContext(),
+            locationReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        );
+        receiverRegistered = true;
     }
 
     @PluginMethod
     public void startWatching(PluginCall call) {
+        // Register receiver here (lazily) to avoid startup crash on Android 12+
+        registerLocationReceiver();
+
         Intent serviceIntent = new Intent(getContext(), TMGLocationService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getContext().startForegroundService(serviceIntent);
@@ -64,10 +80,11 @@ public class TMGLocationPlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         super.handleOnDestroy();
-        if (locationReceiver != null) {
+        if (receiverRegistered && locationReceiver != null) {
             try {
                 getContext().unregisterReceiver(locationReceiver);
             } catch (Exception ignored) {}
+            receiverRegistered = false;
         }
         Intent serviceIntent = new Intent(getContext(), TMGLocationService.class);
         getContext().stopService(serviceIntent);
