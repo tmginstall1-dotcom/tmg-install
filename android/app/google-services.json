@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "60658996983",
+    "project_id": "tmg-staff",
+    "storage_bucket": "tmg-staff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:60658996983:android:a3826a9e680fa5a73325f2",
+        "android_client_info": {
+          "package_name": "com.tmginstall.staff"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7tM-aPr781dLOtHr5ywWvSvX0qKhkh3s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
