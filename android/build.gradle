@@ -34,6 +34,10 @@ allprojects {
         }
         // Exclude the standalone listenablefuture artifact — it's already inside guava
         exclude group: 'com.google.guava', module: 'listenablefuture'
+        // Exclude profileinstaller — its concurrent-futures dependency is missing from
+        // the APK, causing NoClassDefFoundError on a background thread at startup.
+        // ProfileInstaller is a pure startup-optimisation library with no functional impact.
+        exclude group: 'androidx.profileinstaller', module: 'profileinstaller'
     }
 }
 
