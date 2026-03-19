@@ -1478,7 +1478,7 @@ ALWAYS INCLUDE these furniture categories:
 - IKEA furniture — identify model if visible (PAX, KALLAX, BILLY, MALM, HEMNES, BESTA, MICKE, LACK, ALEX, POÄNG, KIVIK, IVAR, TROFAST, STUVA, VITTSJO)
 - Bathroom fixtures (mirror cabinet, mirror medicine cabinet, washroom mirror cabinet, bathroom vanity unit, over-toilet storage cabinet, bathroom shelving, towel rack — IKEA LILLÅNGEN, GODMORGON, HEMNES mirror cabinets)
 - Wall-mounted items (floating shelf, wall cabinet, curtain track/rod, full-length mirror, TV wall mounting bracket)
-- Office furniture (workstation desk, office panel/partition, locker unit, reception counter, credenza, monitor arm)
+- Office furniture: identify desk SHAPE carefully — if a desk has two surfaces forming an L or corner, it is an "L-Shaped Executive Desk" (NOT "Office Desk"); a straight single-surface desk is "Office Desk". Panel partitions surrounding workstations are "Office Panel / Partition". Locker unit, reception counter, credenza, monitor arm, conference table, sit-stand height-adjustable desk.
 - Outdoor furniture (garden/patio furniture set, outdoor bench)
 - Meeting pods and phone booths
 - Specialty items (dressing table, bedside table, bar cabinet, entertainment feature wall unit)
@@ -1501,6 +1501,7 @@ COUNTING RULES:
 - Count individual chairs separately: 4 dining chairs around a table → quantity: 4
 - For a matching set of identical items, estimate total quantity visible
 - Large multi-piece items (L-shaped sofa, king bed) = quantity: 1 even if they have multiple sections
+- OFFICE WORKSTATIONS: each workstation = 1 desk. Count them by the number of individual work areas/seats, not by panel count. If the desk surface is L-shaped or corner-shaped, use "L-Shaped Executive Desk". Count surrounding partition panels SEPARATELY as "Office Panel / Partition" — a typical workstation has 3–6 panels around it.
 - If quantity is unclear, default to 1
 
 CONFIDENCE RULES — include the confidence field:
@@ -1534,6 +1535,8 @@ INCLUDE bathroom fixtures when visible: mirror cabinets, washroom mirror cabinet
 DO NOT list: TVs, monitors, electronics, plants, decorations, small items, people, walls, floors, mattresses, or bedding.
 
 For each furniture item, map to the closest catalog name. Count chairs and identical repeated pieces individually.
+
+IMPORTANT for OFFICE PHOTOS: Look at each desk carefully — if the desk surface wraps around into an L or corner shape, call it "L-Shaped Executive Desk". Count partition panels separately from the desks. Count each individual workstation seat as one desk unit.
 
 Only include items with "high" or "medium" confidence. List up to 15 distinct furniture items.
 
