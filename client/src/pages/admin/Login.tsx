@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 
-const APP_VERSION = "v1.0.25";
+const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string) || "v1.0.0";
 
 // ─── Logo Mark ────────────────────────────────────────────────────────────────
 function LogoMark({ size = 64, className = "" }: { size?: number; className?: string }) {
