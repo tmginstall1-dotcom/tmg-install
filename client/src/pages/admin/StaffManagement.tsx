@@ -2224,6 +2224,27 @@ function PayslipsTab() {
 
 // ─── GPS Tracking Tab ─────────────────────────────────────────────────────────
 
+/** Ticks every second — used for live stop timers */
+function useLiveClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+/** Format a duration in seconds into "Xh Ym Zs" */
+function fmtDuration(totalSeconds: number): string {
+  if (totalSeconds < 0) totalSeconds = 0;
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
   const φ1 = (lat1 * Math.PI) / 180;
@@ -2240,54 +2261,178 @@ function fmtDist(m: number) {
 
 type TrackPoint = { id: number; lat: string; lng: string; accuracy: string | null; speed: string | null; heading: string | null; recordedAt: string };
 
-type Segment =
-  | { type: "stop"; lat: number; lng: number; startTime: Date; endTime: Date; durationMins: number }
-  | { type: "move"; distM: number; startTime: Date; endTime: Date; durationMins: number };
+type StopSegment = { type: "stop"; lat: number; lng: number; startTime: Date; endTime: Date; isOngoing: boolean };
+type MoveSegment = { type: "move"; distM: number; startTime: Date; endTime: Date; avgSpeedKmh: number };
+type Segment = StopSegment | MoveSegment;
 
-function buildSegments(points: TrackPoint[]): Segment[] {
+function buildSegments(points: TrackPoint[], isToday: boolean): Segment[] {
   if (points.length < 2) return [];
-  const STOP_DIST_M = 50;     // within 50m = stationary
-  const STOP_MIN_PTS = 2;     // at least 2 consecutive stationary readings = stop
+  const STOP_DIST_M = 50;
+  const STOP_MIN_PTS = 2;
 
   const segs: Segment[] = [];
   let i = 0;
+
   while (i < points.length - 1) {
     const a = points[i];
     const aLat = parseFloat(a.lat), aLng = parseFloat(a.lng);
 
-    // Collect consecutive stationary points
     let j = i + 1;
     while (j < points.length) {
       const d = haversineM(aLat, aLng, parseFloat(points[j].lat), parseFloat(points[j].lng));
       if (d <= STOP_DIST_M) j++;
       else break;
     }
-    const stationaryCount = j - i;
 
-    if (stationaryCount >= STOP_MIN_PTS) {
+    if (j - i >= STOP_MIN_PTS) {
       const start = new Date(a.recordedAt);
       const end   = new Date(points[j - 1].recordedAt);
-      segs.push({ type: "stop", lat: aLat, lng: aLng, startTime: start, endTime: end, durationMins: differenceInMinutes(end, start) });
+      segs.push({ type: "stop", lat: aLat, lng: aLng, startTime: start, endTime: end, isOngoing: false });
       i = j;
     } else {
-      // Movement: advance one step
       const b = points[i + 1];
       const distM = haversineM(aLat, aLng, parseFloat(b.lat), parseFloat(b.lng));
       const start = new Date(a.recordedAt);
       const end   = new Date(b.recordedAt);
-      // Merge consecutive move segments
+      const secs  = Math.max(1, (end.getTime() - start.getTime()) / 1000);
+      const speedKmh = (distM / secs) * 3.6;
       const prev = segs[segs.length - 1];
       if (prev && prev.type === "move") {
-        (prev as any).distM += distM;
-        (prev as any).endTime = end;
-        (prev as any).durationMins = differenceInMinutes(end, (prev as any).startTime);
+        (prev as MoveSegment).distM += distM;
+        (prev as MoveSegment).endTime = end;
+        (prev as MoveSegment).avgSpeedKmh = Math.max((prev as MoveSegment).avgSpeedKmh, speedKmh);
       } else {
-        segs.push({ type: "move", distM, startTime: start, endTime: end, durationMins: differenceInMinutes(end, start) });
+        segs.push({ type: "move", distM, startTime: start, endTime: end, avgSpeedKmh: speedKmh });
       }
       i++;
     }
   }
+
+  // Mark last stop as ongoing if viewing today and last point was < 5 min ago
+  if (isToday && segs.length > 0) {
+    const last = segs[segs.length - 1];
+    const lastPoint = points[points.length - 1];
+    const ageMs = Date.now() - new Date(lastPoint.recordedAt).getTime();
+    if (last.type === "stop" && ageMs < 5 * 60 * 1000) {
+      (last as StopSegment).isOngoing = true;
+    }
+  }
+
   return segs;
+}
+
+/** Reverse geocode a lat/lng to a short street address */
+function useStopAddress(lat: number, lng: number) {
+  const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  const [addr, setAddr] = useState<string>("");
+  useEffect(() => {
+    if (geocodeCache[key]) { setAddr(geocodeCache[key]); return; }
+    let cancelled = false;
+    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=17&addressdetails=1`, {
+      headers: { "Accept-Language": "en" },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        const a = data?.address;
+        const parts = [
+          a?.road || a?.pedestrian || a?.footway || a?.path,
+          a?.suburb || a?.neighbourhood || a?.quarter || a?.city_district || a?.town || a?.village || a?.city,
+        ].filter(Boolean);
+        const result = parts.length ? parts.join(", ") : (data?.display_name?.split(",").slice(0, 2).join(", ") || key);
+        geocodeCache[key] = result;
+        if (!cancelled) setAddr(result);
+      })
+      .catch(() => { if (!cancelled) setAddr(key); });
+    return () => { cancelled = true; };
+  }, [key]);
+  return addr;
+}
+
+/** One stop row — has its own live clock if ongoing */
+function StopRow({ seg, idx, now }: { seg: StopSegment; idx: number; now: Date }) {
+  const addr = useStopAddress(seg.lat, seg.lng);
+  const mapsUrl = `https://www.google.com/maps?q=${seg.lat},${seg.lng}`;
+  const endTime = seg.isOngoing ? now : seg.endTime;
+  const durationSec = Math.floor((endTime.getTime() - seg.startTime.getTime()) / 1000);
+
+  return (
+    <div className="flex items-stretch gap-0" data-testid={`gps-stop-${idx}`}>
+      {/* Timeline spine */}
+      <div className="flex flex-col items-center w-10 shrink-0">
+        <div className="w-px flex-1 bg-amber-200" />
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${seg.isOngoing ? "bg-amber-500" : "bg-amber-100 border-2 border-amber-400"}`}>
+          <CircleDot className={`w-4 h-4 ${seg.isOngoing ? "text-white" : "text-amber-600"}`} />
+        </div>
+        <div className="w-px flex-1 bg-amber-200" />
+      </div>
+
+      {/* Content */}
+      <div className={`flex-1 my-1 mr-2 rounded-xl px-4 py-3 ${seg.isOngoing ? "bg-amber-50 border border-amber-200" : "bg-white border border-black/[0.07]"}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-black uppercase tracking-[0.08em] text-amber-700">Stationary</span>
+              {seg.isOngoing && (
+                <span className="flex items-center gap-1 text-[10px] font-black text-red-600 bg-red-100 border border-red-200 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
+                  LIVE
+                </span>
+              )}
+            </div>
+            <p className="text-base font-black text-slate-900 mt-0.5 leading-tight">
+              {fmtDuration(durationSec)}
+              {seg.isOngoing && <span className="text-amber-600 text-sm font-bold ml-1">(ongoing)</span>}
+            </p>
+            <p className="text-[11px] text-black/50 mt-0.5">
+              {format(seg.startTime, "HH:mm:ss")} – {seg.isOngoing ? "now" : format(seg.endTime, "HH:mm:ss")}
+            </p>
+          </div>
+        </div>
+        <a href={mapsUrl} target="_blank" rel="noreferrer"
+          className="flex items-center gap-1.5 mt-2 text-[12px] text-blue-600 hover:text-blue-800 font-medium hover:underline">
+          <MapPin className="w-3 h-3 shrink-0" />
+          {addr || `${seg.lat.toFixed(5)}, ${seg.lng.toFixed(5)}`}
+          <span className="text-blue-400">↗</span>
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/** One move row */
+function MoveRow({ seg, idx }: { seg: MoveSegment; idx: number }) {
+  const durationSec = Math.floor((seg.endTime.getTime() - seg.startTime.getTime()) / 1000);
+  const speedLabel = seg.avgSpeedKmh > 0.5 ? `${seg.avgSpeedKmh.toFixed(1)} km/h` : null;
+
+  return (
+    <div className="flex items-stretch gap-0" data-testid={`gps-move-${idx}`}>
+      <div className="flex flex-col items-center w-10 shrink-0">
+        <div className="w-px flex-1 bg-blue-200" />
+        <div className="w-6 h-6 rounded-full bg-blue-100 border border-blue-300 flex items-center justify-center">
+          <MoveRight className="w-3 h-3 text-blue-600" />
+        </div>
+        <div className="w-px flex-1 bg-blue-200" />
+      </div>
+      <div className="flex-1 flex items-center gap-3 py-2 pr-2">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.08em] text-blue-600">Moving</p>
+          <div className="flex items-center gap-2 flex-wrap mt-0.5">
+            <span className="text-sm font-bold text-slate-700">{fmtDist(seg.distM)}</span>
+            <span className="text-[11px] text-black/40">·</span>
+            <span className="text-[11px] text-black/50">{fmtDuration(durationSec)}</span>
+            {speedLabel && <>
+              <span className="text-[11px] text-black/40">·</span>
+              <span className="text-[11px] text-black/50">{speedLabel}</span>
+            </>}
+          </div>
+          <p className="text-[10px] text-black/35 mt-0.5">
+            {format(seg.startTime, "HH:mm:ss")} → {format(seg.endTime, "HH:mm:ss")}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function GpsTrackingTab() {
@@ -2295,8 +2440,10 @@ function GpsTrackingTab() {
   const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
   const todayStr = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const now = useLiveClock();
 
   const staffId = selectedStaffId ?? (allStaff[0]?.id ?? null);
+  const isToday = selectedDate === todayStr;
 
   const { data: rawPoints = [], isLoading } = useQuery<TrackPoint[]>({
     queryKey: ["/api/admin/staff", staffId, "gps-track", selectedDate],
@@ -2310,31 +2457,29 @@ function GpsTrackingTab() {
   });
 
   const selectedStaff = allStaff.find((s: any) => s.id === staffId);
-  const segments = buildSegments(rawPoints);
-  // Cumulative odometer: sum consecutive point-to-point distances (ignores anchor-based stop bias)
+  const segments = buildSegments(rawPoints, isToday);
+
   const totalDistM = rawPoints.length < 2 ? 0 : rawPoints.reduce((sum, pt, i) => {
     if (i === 0) return sum;
     const prev = rawPoints[i - 1];
     const d = haversineM(parseFloat(prev.lat), parseFloat(prev.lng), parseFloat(pt.lat), parseFloat(pt.lng));
-    return d < 500 ? sum + d : sum; // ignore GPS jumps > 500m (bad fix)
+    return d < 500 ? sum + d : sum;
   }, 0);
-  const totalStops = segments.filter(s => s.type === "stop").length;
-  const firstSeen  = rawPoints.length > 0 ? new Date(rawPoints[0].recordedAt) : null;
-  const lastSeen   = rawPoints.length > 0 ? new Date(rawPoints[rawPoints.length - 1].recordedAt) : null;
 
-  function mapsLink(lat: number, lng: number) {
-    return `https://www.google.com/maps?q=${lat},${lng}`;
-  }
+  const totalStops  = segments.filter(s => s.type === "stop").length;
+  const firstSeen   = rawPoints.length > 0 ? new Date(rawPoints[0].recordedAt) : null;
+  const lastSeen    = rawPoints.length > 0 ? new Date(rawPoints[rawPoints.length - 1].recordedAt) : null;
+  const isLive      = isToday && lastSeen && (now.getTime() - lastSeen.getTime()) < 5 * 60 * 1000;
+  const onShiftSecs = firstSeen ? Math.floor((isLive ? now.getTime() : (lastSeen?.getTime() ?? now.getTime()) - firstSeen.getTime()) / 1000) : 0;
 
   return (
     <div className="pb-16 space-y-4">
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-black/40 mb-1">Staff Member</label>
-          <select
-            value={staffId ?? ""}
-            onChange={e => setSelectedStaffId(Number(e.target.value))}
+          <select value={staffId ?? ""} onChange={e => setSelectedStaffId(Number(e.target.value))}
             className="border border-black/10 bg-white text-sm px-3 py-2 h-9 focus:outline-none focus:border-black"
             data-testid="select-gps-staff">
             {(allStaff as any[]).map((s: any) => (
@@ -2344,21 +2489,26 @@ function GpsTrackingTab() {
         </div>
         <div>
           <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-black/40 mb-1">Date</label>
-          <input type="date" value={selectedDate}
-            onChange={e => setSelectedDate(e.target.value)}
+          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
             className="border border-black/10 bg-white text-sm px-3 py-2 h-9 focus:outline-none focus:border-black"
             data-testid="input-gps-date" />
         </div>
+        {isLive && (
+          <div className="flex items-center gap-1.5 h-9 px-3 bg-red-50 border border-red-200 text-red-600 text-[11px] font-black uppercase tracking-widest">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
+            Live Tracking
+          </div>
+        )}
       </div>
 
-      {/* Summary stats */}
+      {/* Stats bar */}
       {rawPoints.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Points Recorded", value: String(rawPoints.length) },
+            { label: "On Shift",       value: firstSeen ? fmtDuration(onShiftSecs) : "—" },
             { label: "Total Distance", value: fmtDist(totalDistM) },
-            { label: "Stops", value: String(totalStops) },
-            { label: "Active Period", value: firstSeen && lastSeen ? `${format(firstSeen, "HH:mm")} – ${format(lastSeen, "HH:mm")}` : "—" },
+            { label: "Stops",          value: String(totalStops) },
+            { label: "GPS Points",     value: String(rawPoints.length) },
           ].map(({ label, value }) => (
             <div key={label} className="border border-black/[0.07] bg-white p-3">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-1">{label}</p>
@@ -2368,144 +2518,105 @@ function GpsTrackingTab() {
         </div>
       )}
 
-      {/* Live map */}
+      {/* Map */}
       {rawPoints.length > 0 && (
         <div className="border border-black/[0.07] bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-black/[0.07] flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-black/[0.07] flex items-center justify-between flex-wrap gap-2">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40">
               Route Map — {selectedStaff?.name ?? "—"} · {selectedDate}
             </p>
             <div className="flex items-center gap-3 text-[10px] text-black/40 font-semibold">
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Start</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-1 bg-blue-600 inline-block" /> Route</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-amber-400 inline-block" /> Stop</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block" /> Last seen</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />Start</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-1 bg-blue-500 inline-block" />Route</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-amber-400 inline-block" />Stop</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block" />Last seen</span>
             </div>
           </div>
-          <GpsMap points={rawPoints} height={400} />
+          <GpsMap points={rawPoints} height={420} />
         </div>
       )}
 
       {/* Timeline */}
-      <div className="border border-black/[0.07] bg-white">
-        <div className="px-4 py-3 border-b border-black/[0.07]">
+      <div className="border border-black/[0.07] bg-slate-50 overflow-hidden">
+        <div className="px-4 py-3 border-b border-black/[0.07] bg-white flex items-center justify-between">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40">
-            Movement Timeline — {selectedStaff?.name ?? "—"} · {selectedDate}
+            Activity Timeline — {selectedStaff?.name ?? "—"} · {selectedDate}
           </p>
+          {isLive && lastSeen && (
+            <p className="text-[10px] text-black/30">
+              Updated {Math.floor((now.getTime() - lastSeen.getTime()) / 1000)}s ago
+            </p>
+          )}
         </div>
 
         {isLoading && (
-          <div className="flex items-center gap-2 px-4 py-8 text-black/40">
+          <div className="flex items-center gap-2 px-6 py-10 text-black/40">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm">Loading track data…</span>
+            <span className="text-sm">Loading…</span>
           </div>
         )}
 
         {!isLoading && rawPoints.length === 0 && (
-          <div className="px-4 py-10 text-center">
-            <Navigation2 className="w-8 h-8 text-black/15 mx-auto mb-2" />
-            <p className="text-sm font-bold text-black/40">No track data for this date</p>
-            <p className="text-xs text-black/30 mt-1">GPS points are recorded every 30 seconds when staff are active in the app.</p>
+          <div className="px-4 py-12 text-center">
+            <Navigation2 className="w-8 h-8 text-black/15 mx-auto mb-3" />
+            <p className="text-sm font-bold text-black/40">No GPS data for this date</p>
+            <p className="text-xs text-black/30 mt-1">Data records every 30 s when staff are clocked in.</p>
           </div>
         )}
 
         {!isLoading && segments.length > 0 && (
-          <div className="divide-y divide-black/[0.05]">
-            {/* First point marker */}
-            <div className="flex items-center gap-3 px-4 py-2.5">
-              <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
-                <div className="w-2 h-2 bg-white rounded-full" />
+          <div className="px-2 py-3">
+
+            {/* Session start */}
+            <div className="flex items-stretch gap-0">
+              <div className="flex flex-col items-center w-10 shrink-0">
+                <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
+                  <div className="w-3 h-3 rounded-full bg-white" />
+                </div>
+                <div className="w-px flex-1 bg-emerald-300" />
               </div>
-              <span className="text-xs font-bold text-emerald-600">
-                {firstSeen ? `Session started · ${format(firstSeen, "HH:mm:ss")}` : "Start"}
-              </span>
+              <div className="flex-1 flex items-center pb-1">
+                <div>
+                  <p className="text-[11px] font-black text-emerald-700 uppercase tracking-[0.08em]">Shift started</p>
+                  <p className="text-base font-black text-slate-900">{firstSeen ? format(firstSeen, "HH:mm:ss") : "—"}</p>
+                </div>
+              </div>
             </div>
 
-            {segments.map((seg, idx) => {
-              if (seg.type === "stop") {
-                return (
-                  <div key={idx} className="flex items-start gap-3 px-4 py-3" data-testid={`gps-stop-${idx}`}>
-                    <div className="w-6 h-6 bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0 mt-0.5">
-                      <CircleDot className="w-3.5 h-3.5 text-amber-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                        <span className="text-xs font-black uppercase tracking-[0.05em]">Stopped</span>
-                        <span className="text-[11px] text-black/50">
-                          {format(seg.startTime, "HH:mm")} – {format(seg.endTime, "HH:mm")}
-                          {seg.durationMins >= 1 && ` · ${seg.durationMins} min`}
-                        </span>
-                      </div>
-                      <a href={mapsLink(seg.lat, seg.lng)} target="_blank" rel="noreferrer"
-                        className="text-[11px] text-blue-600 hover:underline font-mono mt-0.5 inline-block">
-                        {seg.lat.toFixed(5)}, {seg.lng.toFixed(5)} ↗
-                      </a>
-                    </div>
-                  </div>
-                );
-              } else {
-                return (
-                  <div key={idx} className="flex items-center gap-3 px-4 py-2.5" data-testid={`gps-move-${idx}`}>
-                    <div className="w-6 flex justify-center shrink-0">
-                      <div className="w-px h-8 bg-black/10" />
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-black/40">
-                      <MoveRight className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                      <span>Moving · {fmtDist((seg as any).distM)}</span>
-                      {seg.durationMins > 0 && <span>· {seg.durationMins} min</span>}
-                    </div>
-                  </div>
-                );
-              }
-            })}
+            {/* Segments */}
+            {segments.map((seg, idx) =>
+              seg.type === "stop"
+                ? <StopRow key={idx} seg={seg} idx={idx} now={now} />
+                : <MoveRow key={idx} seg={seg} idx={idx} />
+            )}
 
-            {/* Last point marker */}
-            <div className="flex items-center gap-3 px-4 py-2.5">
-              <div className="w-6 h-6 rounded-full bg-slate-400 flex items-center justify-center shrink-0">
-                <div className="w-2 h-2 bg-white rounded-full" />
+            {/* Last seen / end */}
+            <div className="flex items-stretch gap-0">
+              <div className="flex flex-col items-center w-10 shrink-0">
+                <div className={`w-px flex-1 ${isLive ? "bg-red-300" : "bg-slate-300"}`} />
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isLive ? "bg-red-500" : "bg-slate-400"}`}>
+                  <div className="w-3 h-3 rounded-full bg-white" />
+                </div>
               </div>
-              <span className="text-xs font-bold text-black/50">
-                {lastSeen ? `Last seen · ${format(lastSeen, "HH:mm:ss")}` : "End"}
-              </span>
+              <div className="flex-1 flex items-center pt-1">
+                <div>
+                  <p className={`text-[11px] font-black uppercase tracking-[0.08em] ${isLive ? "text-red-600" : "text-black/40"}`}>
+                    {isLive ? "Currently here" : "Last seen"}
+                  </p>
+                  <p className="text-base font-black text-slate-900">
+                    {lastSeen ? format(lastSeen, "HH:mm:ss") : "—"}
+                  </p>
+                  {isLive && lastSeen && (
+                    <p className="text-[11px] text-red-500 font-bold">
+                      {fmtDuration(Math.floor((now.getTime() - lastSeen.getTime()) / 1000))} ago
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
       </div>
-
-      {/* Raw points table (collapsed by default) */}
-      {rawPoints.length > 0 && (
-        <details className="border border-black/[0.07]">
-          <summary className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-black/40 cursor-pointer hover:bg-black/[0.02]">
-            Raw Points ({rawPoints.length})
-          </summary>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-black/[0.07] bg-slate-50">
-                  {["Time", "Lat", "Lng", "Accuracy", "Speed", "Map"].map(h => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.1em] text-black/40">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/[0.04]">
-                {rawPoints.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="px-3 py-1.5 font-mono">{format(new Date(p.recordedAt), "HH:mm:ss")}</td>
-                    <td className="px-3 py-1.5 font-mono">{parseFloat(p.lat).toFixed(5)}</td>
-                    <td className="px-3 py-1.5 font-mono">{parseFloat(p.lng).toFixed(5)}</td>
-                    <td className="px-3 py-1.5 text-black/50">{p.accuracy ? `${Math.round(parseFloat(p.accuracy))}m` : "—"}</td>
-                    <td className="px-3 py-1.5 text-black/50">{p.speed != null ? `${(parseFloat(p.speed) * 3.6).toFixed(1)} km/h` : "—"}</td>
-                    <td className="px-3 py-1.5">
-                      <a href={mapsLink(parseFloat(p.lat), parseFloat(p.lng))} target="_blank" rel="noreferrer"
-                        className="text-blue-600 hover:underline">↗</a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      )}
     </div>
   );
 }
