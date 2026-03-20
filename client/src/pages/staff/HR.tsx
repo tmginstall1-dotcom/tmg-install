@@ -7,9 +7,11 @@ import { format, differenceInMinutes, differenceInCalendarDays, parseISO } from 
 import {
   Clock, Calendar, FileText, ChevronDown, ChevronUp, Edit3, Check, X,
   Loader2, Printer, LogIn, LogOut, ChevronLeft, ChevronRight,
-  AlertCircle, CheckCircle2, PlusCircle
+  AlertCircle, CheckCircle2, PlusCircle, TrendingDown, Heart, Briefcase,
 } from "lucide-react";
 import OfficialPayslip from "@/components/OfficialPayslip";
+
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
 type Tab = "attendance" | "leave" | "payslips";
 
@@ -457,10 +459,14 @@ function LeaveTab({ userId }: { userId?: number }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ leaveType: "annual", startDate: "", endDate: "", reason: "" });
 
-  const { data: leaves = [] } = useQuery<any[]>({ queryKey: ["/api/leave"], refetchInterval: 30_000 });
-  const { data: balance } = useQuery<any>({
+  const { data: leaves = [], isLoading: leavesLoading } = useQuery<any[]>({
+    queryKey: ["/api/leave"],
+    refetchInterval: 30_000,
+  });
+
+  const { data: balance, isLoading: balanceLoading } = useQuery<any>({
     queryKey: ["/api/leave/balance", year],
-    queryFn: () => fetch(`/api/leave/balance?year=${year}`).then(r => r.json()),
+    queryFn: () => fetch(`${API_BASE}/api/leave/balance?year=${year}`, { credentials: "include" }).then(r => r.json()),
     refetchInterval: 30_000,
   });
 
@@ -480,47 +486,126 @@ function LeaveTab({ userId }: { userId?: number }) {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  // Compute leave usage by type from the fetched leaves list
+  const yearLeaves = leaves.filter((l: any) => l.startDate?.startsWith(String(year)));
+  const medicalUsed = yearLeaves.filter((l: any) => l.leaveType === "medical" && l.status === "approved")
+    .reduce((s: number, l: any) => s + parseFloat(l.totalDays || 0), 0);
+  const medicalPending = yearLeaves.filter((l: any) => l.leaveType === "medical" && l.status === "pending")
+    .reduce((s: number, l: any) => s + parseFloat(l.totalDays || 0), 0);
+  const unpaidUsed = yearLeaves.filter((l: any) => l.leaveType === "unpaid" && l.status === "approved")
+    .reduce((s: number, l: any) => s + parseFloat(l.totalDays || 0), 0);
+
+  const annualRemaining = balance?.remaining ?? "—";
+  const annualEntitlement = balance?.entitlement ?? 14;
+  const annualUsed = balance?.used ?? 0;
+  const annualPending = balance?.pending ?? 0;
   const usedPercent = balance
-    ? Math.min(100, ((balance.used + balance.pending) / Math.max(1, balance.entitlement)) * 100)
+    ? Math.min(100, ((annualUsed + annualPending) / Math.max(1, annualEntitlement)) * 100)
     : 0;
 
   return (
     <div className="space-y-4">
-      {/* Balance card */}
-      {balance && (
-        <div className="bg-card border rounded-2xl overflow-hidden">
-          <div className="px-4 pt-4 pb-3 border-b">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs font-black text-muted-foreground uppercase tracking-wider">Annual Leave {year}</p>
-              <span className="text-2xl font-black text-emerald-600">{balance.remaining}d</span>
-            </div>
-            <p className="text-xs text-muted-foreground">remaining of {balance.entitlement} days entitlement</p>
-            <div className="mt-3 h-2 rounded-full bg-secondary overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
-                style={{ width: `${usedPercent}%` }}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 divide-x">
-            {[
-              { label: "Entitled", val: balance.entitlement, color: "" },
-              { label: "Used", val: balance.used, color: "text-red-600" },
-              { label: "Pending", val: balance.pending, color: "text-amber-600" },
-            ].map(({ label, val, color }) => (
-              <div key={label} className="px-3 py-2.5 text-center">
-                <p className={`text-lg font-black leading-tight ${color}`}>{val}</p>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase">{label}</p>
+
+      {/* ─── Leave Summary Cards ────────────────────────────── */}
+      {balanceLoading ? (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex items-center justify-center gap-3">
+          <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+          <span className="text-sm text-slate-500 font-medium">Loading leave balance…</span>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* Annual Leave — main card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 pt-4 pb-3">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center">
+                    <Calendar className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Annual Leave {year}</p>
+                    <p className="text-[11px] text-slate-400">{annualEntitlement} days entitlement</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className={`text-3xl font-black leading-none ${Number(annualRemaining) > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                    {annualRemaining}
+                  </span>
+                  <p className="text-[11px] text-slate-400 font-medium">days left</p>
+                </div>
               </div>
-            ))}
+
+              {/* Progress bar */}
+              <div className="mt-3 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${usedPercent >= 100 ? "bg-red-500" : usedPercent >= 75 ? "bg-amber-500" : "bg-emerald-500"}`}
+                  style={{ width: `${usedPercent}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1.5">
+                {annualUsed} day{annualUsed !== 1 ? "s" : ""} used
+                {annualPending > 0 && ` · ${annualPending} day${annualPending !== 1 ? "s" : ""} pending`}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 divide-x border-t border-slate-100">
+              {[
+                { label: "Entitled", val: annualEntitlement, icon: "🏖️", color: "text-slate-800" },
+                { label: "Used", val: annualUsed, icon: "✓", color: annualUsed > 0 ? "text-blue-700" : "text-slate-400" },
+                { label: "Remaining", val: annualRemaining, icon: "→", color: Number(annualRemaining) > 0 ? "text-emerald-600" : "text-red-600" },
+              ].map(({ label, val, icon, color }) => (
+                <div key={label} className="px-3 py-3 text-center">
+                  <p className={`text-xl font-black leading-tight ${color}`}>{val}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
           </div>
+
+          {/* Medical + Unpaid leave — smaller row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3.5">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 bg-red-50 rounded-lg flex items-center justify-center">
+                  <Heart className="w-3.5 h-3.5 text-red-500" />
+                </div>
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-wide">Medical {year}</p>
+              </div>
+              <p className={`text-2xl font-black ${medicalUsed > 0 ? "text-red-600" : "text-slate-300"}`}>{medicalUsed}d</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {medicalUsed > 0 ? "used" : "none taken"}
+                {medicalPending > 0 && ` · ${medicalPending}d pending`}
+              </p>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3.5">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 bg-amber-50 rounded-lg flex items-center justify-center">
+                  <TrendingDown className="w-3.5 h-3.5 text-amber-600" />
+                </div>
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-wide">Unpaid {year}</p>
+              </div>
+              <p className={`text-2xl font-black ${unpaidUsed > 0 ? "text-amber-600" : "text-slate-300"}`}>{unpaidUsed}d</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {unpaidUsed > 0 ? "taken" : "none taken"}
+              </p>
+            </div>
+          </div>
+
+          {annualPending > 0 && (
+            <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <p className="text-sm text-amber-700 font-semibold">
+                {annualPending} day{annualPending !== 1 ? "s" : ""} of annual leave pending admin approval
+              </p>
+            </div>
+          )}
         </div>
       )}
 
       {/* Apply button */}
       <button
         onClick={() => setShowForm(!showForm)}
-        className="w-full flex items-center justify-center gap-2 py-3.5 bg-primary text-primary-foreground font-bold rounded-2xl hover:opacity-90 transition-opacity"
+        className="w-full flex items-center justify-center gap-2 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-sm shadow-blue-200 transition-all active:scale-[0.98]"
         data-testid="button-apply-leave"
       >
         {showForm ? <X className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
@@ -560,7 +645,8 @@ function LeaveTab({ userId }: { userId?: number }) {
                 type="date"
                 value={form.startDate}
                 onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
-                className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background font-medium"
+                className="w-full px-3 py-3 border-2 border-slate-200 rounded-xl bg-white font-medium focus:border-blue-500 outline-none transition-colors"
+                style={{ fontSize: 16 }}
                 data-testid="input-leave-start"
               />
             </div>
@@ -571,7 +657,8 @@ function LeaveTab({ userId }: { userId?: number }) {
                 value={form.endDate}
                 min={form.startDate}
                 onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
-                className="w-full px-3 py-2.5 border rounded-xl text-sm bg-background font-medium"
+                className="w-full px-3 py-3 border-2 border-slate-200 rounded-xl bg-white font-medium focus:border-blue-500 outline-none transition-colors"
+                style={{ fontSize: 16 }}
                 data-testid="input-leave-end"
               />
             </div>
