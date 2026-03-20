@@ -4,9 +4,10 @@ import { useLocation } from "wouter";
 import {
   Eye, EyeOff, Loader2, Download, Share, X,
   ShieldCheck, ClipboardList, Users, Calendar, BarChart3,
-  MapPin, Clock, Zap, ArrowRight, Lock, User,
+  MapPin, Clock, Zap, ArrowRight, Lock, User, Smartphone, AlertTriangle,
 } from "lucide-react";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
+import { Capacitor } from "@capacitor/core";
 
 function InstallBanner() {
   const { install, dismiss, showIOSGuide, canNativeInstall, showBanner } = useInstallPrompt();
@@ -88,6 +89,57 @@ export default function Login() {
 
   const isStaffLogin = location === "/staff/login";
   const features = isStaffLogin ? STAFF_FEATURES : ADMIN_FEATURES;
+
+  // Block staff login from running in a browser — staff must use the native APK
+  if (isStaffLogin && !Capacitor.isNativePlatform()) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-6 text-center">
+        <div className="max-w-xs w-full space-y-8">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-20 h-20 bg-blue-600/20 border-2 border-blue-500/30 rounded-3xl flex items-center justify-center">
+              <Smartphone className="w-9 h-9 text-blue-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-white tracking-tight">TMG Install</h1>
+              <p className="text-blue-400 font-bold text-sm mt-0.5">Staff App</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-left">
+                <p className="text-white font-bold text-sm">App required</p>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  The staff portal is only accessible through the TMG Install Android app. Please open the app on your device.
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-700 pt-4 space-y-2">
+              {[
+                { icon: MapPin,      text: "GPS clock-in & clock-out" },
+                { icon: Zap,         text: "Live job assignments" },
+                { icon: Clock,       text: "Attendance & payslips" },
+                { icon: ShieldCheck, text: "Secure offline access" },
+              ].map(({ icon: Icon, text }) => (
+                <div key={text} className="flex items-center gap-2.5 text-left">
+                  <div className="w-6 h-6 bg-blue-600/20 rounded-lg flex items-center justify-center shrink-0">
+                    <Icon className="w-3.5 h-3.5 text-blue-400" />
+                  </div>
+                  <span className="text-xs text-slate-300 font-medium">{text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Contact your administrator if you have not received the app installation link.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const scrollFieldIntoView = (el: HTMLElement) => {
     setTimeout(() => {
