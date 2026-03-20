@@ -1,9 +1,9 @@
 import { useParams, useLocation } from "wouter";
-import { useQuote, useRequestBooking, useRescheduleBooking, useBlockedSlots } from "@/hooks/use-quotes";
+import { useQuote, useRescheduleBooking } from "@/hooks/use-quotes";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   CheckCircle2, CreditCard, CalendarDays, Receipt, Clock, MapPin,
-  RefreshCw, AlertCircle, MessageCircle, Loader2, ArrowRight, Package,
+  RefreshCw, AlertCircle, MessageCircle, Loader2, ArrowRight, Package, Check,
 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 import { format, differenceInHours } from "date-fns";
@@ -11,22 +11,11 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
+import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 
 const WHATSAPP_HREF = "https://wa.me/6580880757";
 const WHATSAPP_DISPLAY = "+65 8088 0757";
-
-const ALL_SLOTS = [
-  { value: "09:00-12:00", label: "Morning (09:00 – 12:00)" },
-  { value: "13:00-17:00", label: "Afternoon (13:00 – 17:00)" },
-];
-
-function getAvailableSlots(date: string, blockedSlots: { date: string; timeSlot: string | null }[]) {
-  if (!date) return ALL_SLOTS;
-  const dayBlocks = blockedSlots.filter(b => b.date === date);
-  if (dayBlocks.some(b => b.timeSlot === null)) return [];
-  const blockedTimes = new Set(dayBlocks.map(b => b.timeSlot));
-  return ALL_SLOTS.filter(s => !blockedTimes.has(s.value));
-}
 
 function formatMoney(amount: string | number | null | undefined) {
   return new Intl.NumberFormat("en-SG", { style: "currency", currency: "SGD" }).format(Number(amount || 0));
@@ -36,23 +25,6 @@ function getTodayPlus1() {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   return d.toISOString().split("T")[0];
-}
-
-const MONTHS = [
-  { v: "01", l: "Jan" }, { v: "02", l: "Feb" }, { v: "03", l: "Mar" },
-  { v: "04", l: "Apr" }, { v: "05", l: "May" }, { v: "06", l: "Jun" },
-  { v: "07", l: "Jul" }, { v: "08", l: "Aug" }, { v: "09", l: "Sep" },
-  { v: "10", l: "Oct" }, { v: "11", l: "Nov" }, { v: "12", l: "Dec" },
-];
-
-function daysInMonth(month: string, year: string) {
-  if (!month || !year) return 31;
-  return new Date(parseInt(year), parseInt(month), 0).getDate();
-}
-
-function buildDateStr(day: string, month: string, year: string) {
-  if (!day || !month || !year) return "";
-  return `${year}-${month}-${day.padStart(2, "0")}`;
 }
 
 const fadeUp = (delay = 0) => ({
@@ -67,15 +39,13 @@ export default function QuoteStatus() {
   const { data: quote, isLoading } = useQuote(id);
   const { toast } = useToast();
 
-  const bookMutation = useRequestBooking();
   const rescheduleMutation = useRescheduleBooking();
-  const { data: blockedSlotsList = [] } = useBlockedSlots();
 
-  const [selectedDate, setSelectedDate] = useState("");
-  const [selectedTime, setSelectedTime] = useState("");
-  const [selDay, setSelDay] = useState("");
-  const [selMonth, setSelMonth] = useState("");
-  const [selYear, setSelYear] = useState("");
+  const { data: slotAvailability = null } = useQuery<SlotAvailability>({
+    queryKey: ["/api/slots/availability"],
+    queryFn: () => fetch("/api/slots/availability").then(r => r.json()),
+  });
+
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
@@ -112,16 +82,6 @@ export default function QuoteStatus() {
       toast({ title: "Error", description: "Could not start payment. Please try again.", variant: "destructive" });
     } finally {
       setCheckoutLoading(false);
-    }
-  };
-
-  const handleBookingRequest = async () => {
-    if (!selectedDate || !selectedTime) return toast({ title: "Please select a date and time slot", variant: "destructive" });
-    try {
-      await bookMutation.mutateAsync({ id, scheduledAt: new Date(selectedDate).toISOString(), timeWindow: selectedTime });
-      toast({ title: "Booking Request Sent!", description: "Our team will confirm your slot within 24 hours." });
-    } catch (e: any) {
-      toast({ title: "Booking Failed", description: e.message, variant: "destructive" });
     }
   };
 
@@ -391,54 +351,48 @@ export default function QuoteStatus() {
                     </button>
                   ) : null}
 
-                  {showReschedule && canReschedule && (() => {
-                    const slots = getAvailableSlots(rescheduleDate, blockedSlotsList);
-                    const blocked = rescheduleDate && slots.length === 0;
-                    return (
-                      <div className="mt-4 border border-black/10">
-                        <div className="px-4 py-3 border-b border-black/8 bg-black/[0.02] flex items-center gap-2">
-                          <CalendarDays className="w-3.5 h-3.5 text-black/40" />
-                          <p className="text-[10px] font-semibold tracking-widest uppercase text-black/40" style={{ letterSpacing: "0.18em" }}>Select New Date & Time</p>
-                        </div>
-                        <div className="p-4 space-y-3">
-                          <div>
-                            <p className="text-[10px] font-semibold tracking-widest uppercase text-black/35 mb-1.5" style={{ letterSpacing: "0.15em" }}>Date</p>
-                            <input type="date" min={getTodayPlus1()} value={rescheduleDate}
-                              onChange={e => { setRescheduleDate(e.target.value); setRescheduleTime(""); }}
-                              className="w-full h-11 px-4 border border-black/15 bg-white text-sm outline-none focus:border-black/40 transition-all"
-                              data-testid="input-reschedule-date" />
+                  {showReschedule && canReschedule && (
+                    <div className="mt-4 border border-black/10">
+                      <div className="px-4 py-3 border-b border-black/8 bg-black/[0.02] flex items-center gap-2">
+                        <CalendarDays className="w-3.5 h-3.5 text-black/40" />
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-black/40">Choose New Date & Time</p>
+                      </div>
+                      <div className="p-4 space-y-4">
+                        <SlotPicker
+                          date={rescheduleDate}
+                          time={rescheduleTime}
+                          onDateChange={d => { setRescheduleDate(d); setRescheduleTime(""); }}
+                          onTimeChange={setRescheduleTime}
+                          availability={slotAvailability}
+                          minDate={getTodayPlus1()}
+                        />
+
+                        {rescheduleDate && rescheduleTime && (
+                          <div className="border-l-2 border-emerald-500 bg-emerald-50/60 px-3 py-2.5 flex items-start gap-2">
+                            <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                            <p className="text-xs text-black/60">
+                              {new Date(rescheduleDate + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "short", year: "numeric" })},{" "}
+                              {rescheduleTime === "09:00-12:00" ? "9am – 12pm" : "1pm – 5pm"}
+                            </p>
                           </div>
-                          <div>
-                            <p className="text-[10px] font-semibold tracking-widest uppercase text-black/35 mb-1.5" style={{ letterSpacing: "0.15em" }}>Time Window</p>
-                            {blocked ? (
-                              <div className="h-11 flex items-center gap-2 px-4 border border-black/15 bg-black/[0.03]">
-                                <AlertCircle className="w-4 h-4 text-black/40 shrink-0" />
-                                <p className="text-xs text-black/50">This date is fully booked — choose another</p>
-                              </div>
-                            ) : (
-                              <select value={rescheduleTime} onChange={e => setRescheduleTime(e.target.value)}
-                                className="w-full h-11 px-4 border border-black/15 bg-white text-sm outline-none focus:border-black/40 transition-all appearance-none"
-                                data-testid="select-reschedule-time">
-                                <option value="">Select a time window</option>
-                                {slots.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                              </select>
-                            )}
-                          </div>
-                          <div className="flex gap-2 pt-1">
-                            <button onClick={handleReschedule} disabled={rescheduleMutation.isPending || !!blocked || !rescheduleDate || !rescheduleTime} data-testid="button-confirm-reschedule"
-                              className="flex-1 h-11 bg-black text-white text-xs font-bold uppercase tracking-widest disabled:opacity-40 hover:bg-black/85 transition-colors"
-                              style={{ letterSpacing: "0.12em" }}>
-                              {rescheduleMutation.isPending ? "Sending…" : "Submit Reschedule"}
-                            </button>
-                            <button onClick={() => setShowReschedule(false)}
-                              className="h-11 px-5 border border-black/15 text-xs font-bold hover:border-black/30 transition-colors">
-                              Cancel
-                            </button>
-                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <button onClick={handleReschedule}
+                            disabled={rescheduleMutation.isPending || !rescheduleDate || !rescheduleTime}
+                            data-testid="button-confirm-reschedule"
+                            className="flex-1 h-11 bg-black text-white text-xs font-bold uppercase tracking-widest disabled:opacity-40 hover:bg-black/85 transition-colors"
+                            style={{ letterSpacing: "0.12em" }}>
+                            {rescheduleMutation.isPending ? "Sending…" : "Submit Reschedule"}
+                          </button>
+                          <button onClick={() => { setShowReschedule(false); setRescheduleDate(""); setRescheduleTime(""); }}
+                            className="h-11 px-5 border border-black/15 text-xs font-bold hover:border-black/30 transition-colors">
+                            Cancel
+                          </button>
                         </div>
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
                 </div>
               )}
             </motion.div>

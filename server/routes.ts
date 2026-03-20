@@ -874,14 +874,15 @@ export async function registerRoutes(
     res.json(items);
   });
 
-  // -- Slot Availability (blocked + held by active quotes) --
+  // -- Slot Availability (blocked + held by active quotes + per-slot capacity usage) --
   app.get("/api/slots/availability", async (req, res) => {
     try {
-      const [blocked, held] = await Promise.all([
+      const [blocked, held, capacities] = await Promise.all([
         storage.getBlockedSlots(),
         storage.getHeldSlots(),
+        storage.getSlotCapacities(),
       ]);
-      res.json({ blocked, held });
+      res.json({ blocked, held, capacities });
     } catch {
       res.status(500).json({ message: "Internal error" });
     }

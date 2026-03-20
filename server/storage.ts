@@ -99,6 +99,7 @@ export interface IStorage {
 
   // Held Slots (active quotes that have a slot reserved)
   getHeldSlots(): Promise<{ date: string; timeSlot: string; quoteId: number }[]>;
+  getSlotCapacities(): Promise<{ date: string; timeSlot: string; usedAmount: number }[]>;
   isSlotAvailable(date: string, timeWindow: string, excludeQuoteId?: number): Promise<boolean>;
 
   // Site Analytics
@@ -843,6 +844,40 @@ export class DatabaseStorage implements IStorage {
     }
 
     return result;
+  }
+
+  // Returns per-slot cumulative booking value for all active quotes (used by UI capacity bars)
+  async getSlotCapacities(): Promise<{ date: string; timeSlot: string; usedAmount: number }[]> {
+    const activeStatuses = [
+      'submitted', 'deposit_requested', 'deposit_paid',
+      'booking_requested', 'booked', 'assigned', 'in_progress',
+    ];
+    const activeQuotes = await db.select({
+      preferredDate: quotes.preferredDate,
+      preferredTimeWindow: quotes.preferredTimeWindow,
+      slotHeldUntil: quotes.slotHeldUntil,
+      status: quotes.status,
+      total: quotes.total,
+    }).from(quotes).where(inArray(quotes.status, activeStatuses));
+
+    const now = new Date();
+    const validQuotes = activeQuotes
+      .filter(q => q.preferredDate && q.preferredTimeWindow)
+      .filter(q => {
+        if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress'].includes(q.status)) return true;
+        return !q.slotHeldUntil || q.slotHeldUntil > now;
+      });
+
+    const slotTotals = new Map<string, number>();
+    for (const q of validQuotes) {
+      const key = `${q.preferredDate}|${q.preferredTimeWindow}`;
+      slotTotals.set(key, (slotTotals.get(key) ?? 0) + Number(q.total || 0));
+    }
+
+    return Array.from(slotTotals.entries()).map(([key, usedAmount]) => {
+      const [date, timeSlot] = key.split('|');
+      return { date, timeSlot, usedAmount };
+    });
   }
 
   // Returns true if the date+timeWindow slot has capacity remaining ($500 per slot rule).
