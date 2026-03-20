@@ -12,6 +12,31 @@ const httpServer = createServer(app);
 
 app.set("trust proxy", 1);
 
+// Capacitor Android apps send requests from capacitor://localhost or http://localhost.
+// Without explicit CORS headers the WebView blocks every cross-origin request.
+const ALLOWED_ORIGINS = new Set([
+  "capacitor://localhost",
+  "http://localhost",
+  "https://localhost",
+  "http://localhost:5000",
+  "https://tmg-install-project--tmginstall.replit.app",
+]);
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin as string | undefined;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  }
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
