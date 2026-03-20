@@ -764,8 +764,13 @@ export class DatabaseStorage implements IStorage {
     await db.delete(blockedSlots).where(eq(blockedSlots.id, id));
   }
 
-  // Return all slots currently held by active (non-cancelled/closed) quotes
+  // Return all slots currently held/full by active quotes.
+  // Slot capacity = $500 SGD. Multiple bookings can share a slot until the cumulative total hits $500.
+  // A single large job (e.g. $2000 = 4×$500) also blocks consecutive overflow slots.
   async getHeldSlots(): Promise<{ date: string; timeSlot: string; quoteId: number }[]> {
+    const SLOT_CAPACITY = 500;
+    const TIME_SLOTS = ['09:00-12:00', '13:00-17:00'];
+
     const activeStatuses = [
       'submitted', 'deposit_requested', 'deposit_paid',
       'booking_requested', 'booked', 'assigned', 'in_progress',
@@ -776,35 +781,83 @@ export class DatabaseStorage implements IStorage {
       preferredTimeWindow: quotes.preferredTimeWindow,
       slotHeldUntil: quotes.slotHeldUntil,
       status: quotes.status,
+      total: quotes.total,
     }).from(quotes).where(inArray(quotes.status, activeStatuses));
 
     const now = new Date();
-    return activeQuotes
+
+    // Helper: get N consecutive slots (morning → afternoon → next day morning → ...)
+    function getSlotSequence(startDate: string, startTimeWindow: string, count: number): { date: string; timeSlot: string }[] {
+      const result: { date: string; timeSlot: string }[] = [];
+      let d = new Date(startDate + 'T12:00:00');
+      let si = TIME_SLOTS.indexOf(startTimeWindow);
+      if (si === -1) si = 0;
+      for (let i = 0; i < count; i++) {
+        result.push({ date: d.toISOString().split('T')[0], timeSlot: TIME_SLOTS[si] });
+        si++;
+        if (si >= TIME_SLOTS.length) { si = 0; d = new Date(d.getTime() + 86400000); }
+      }
+      return result;
+    }
+
+    const validQuotes = activeQuotes
       .filter(q => q.preferredDate && q.preferredTimeWindow)
       .filter(q => {
-        // Held slots expire for non-deposit-paid quotes
-        if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress'].includes(q.status)) {
-          return true; // confirmed — always held
-        }
-        // submitted / deposit_requested — held until expiry
+        if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress'].includes(q.status)) return true;
         return !q.slotHeldUntil || q.slotHeldUntil > now;
-      })
-      .map(q => ({
-        date: q.preferredDate!,
-        timeSlot: q.preferredTimeWindow!,
-        quoteId: q.id,
-      }));
+      });
+
+    // Sum cumulative total per slot to determine if slot is full
+    const slotTotals = new Map<string, number>();
+    for (const q of validQuotes) {
+      const key = `${q.preferredDate}|${q.preferredTimeWindow}`;
+      slotTotals.set(key, (slotTotals.get(key) ?? 0) + Number(q.total || 0));
+    }
+
+    const heldSet = new Set<string>();
+    const result: { date: string; timeSlot: string; quoteId: number }[] = [];
+
+    for (const q of validQuotes) {
+      const jobTotal = Number(q.total || 0);
+      const slotsNeeded = Math.max(1, Math.ceil(jobTotal / SLOT_CAPACITY));
+      const slots = getSlotSequence(q.preferredDate!, q.preferredTimeWindow!, slotsNeeded);
+
+      // Primary slot: only mark held if cumulative value has reached $500 capacity
+      const primaryKey = `${q.preferredDate}|${q.preferredTimeWindow}`;
+      if ((slotTotals.get(primaryKey) ?? 0) >= SLOT_CAPACITY) {
+        const k = `${slots[0].date}|${slots[0].timeSlot}`;
+        if (!heldSet.has(k)) {
+          heldSet.add(k);
+          result.push({ date: slots[0].date, timeSlot: slots[0].timeSlot, quoteId: q.id });
+        }
+      }
+
+      // Overflow slots for large jobs (always block, regardless of cumulative total)
+      for (let i = 1; i < slots.length; i++) {
+        const k = `${slots[i].date}|${slots[i].timeSlot}`;
+        if (!heldSet.has(k)) {
+          heldSet.add(k);
+          result.push({ date: slots[i].date, timeSlot: slots[i].timeSlot, quoteId: q.id });
+        }
+      }
+    }
+
+    return result;
   }
 
-  // Returns true if the date+timeWindow combo is free (not blocked, not held)
+  // Returns true if the date+timeWindow slot has capacity remaining ($500 per slot rule).
+  // A slot is unavailable if: admin-blocked, OR cumulative booked value >= $500,
+  // OR it falls within the consecutive overflow of a large job.
   async isSlotAvailable(date: string, timeWindow: string, excludeQuoteId?: number): Promise<boolean> {
-    // Check admin-blocked slots
+    const SLOT_CAPACITY = 500;
+    const TIME_SLOTS = ['09:00-12:00', '13:00-17:00'];
+
+    // Check admin-blocked slots first
     const blocked = await db.select().from(blockedSlots)
       .where(eq(blockedSlots.date, date));
     const isBlocked = blocked.some(b => b.timeSlot === null || b.timeSlot === timeWindow);
     if (isBlocked) return false;
 
-    // Check active quote holds (race condition guard)
     const activeStatuses = [
       'submitted', 'deposit_requested', 'deposit_paid',
       'booking_requested', 'booked', 'assigned', 'in_progress',
@@ -815,17 +868,49 @@ export class DatabaseStorage implements IStorage {
       preferredTimeWindow: quotes.preferredTimeWindow,
       slotHeldUntil: quotes.slotHeldUntil,
       status: quotes.status,
+      total: quotes.total,
     }).from(quotes).where(inArray(quotes.status, activeStatuses));
 
     const now = new Date();
-    const conflict = held.some(q => {
+    const validQuotes = held.filter(q => {
       if (excludeQuoteId && q.id === excludeQuoteId) return false;
-      if (q.preferredDate !== date || q.preferredTimeWindow !== timeWindow) return false;
+      if (!q.preferredDate || !q.preferredTimeWindow) return false;
       if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress'].includes(q.status)) return true;
       return !q.slotHeldUntil || q.slotHeldUntil > now;
     });
 
-    return !conflict;
+    // Helper: get N consecutive slots
+    function getSlotSequence(startDate: string, startTimeWindow: string, count: number): { date: string; timeSlot: string }[] {
+      const result: { date: string; timeSlot: string }[] = [];
+      let d = new Date(startDate + 'T12:00:00');
+      let si = TIME_SLOTS.indexOf(startTimeWindow);
+      if (si === -1) si = 0;
+      for (let i = 0; i < count; i++) {
+        result.push({ date: d.toISOString().split('T')[0], timeSlot: TIME_SLOTS[si] });
+        si++;
+        if (si >= TIME_SLOTS.length) { si = 0; d = new Date(d.getTime() + 86400000); }
+      }
+      return result;
+    }
+
+    // Check: is this slot blocked by overflow from a large job booked on an earlier slot?
+    for (const q of validQuotes) {
+      const jobTotal = Number(q.total || 0);
+      const slotsNeeded = Math.max(1, Math.ceil(jobTotal / SLOT_CAPACITY));
+      if (slotsNeeded > 1) {
+        const overflowSlots = getSlotSequence(q.preferredDate!, q.preferredTimeWindow!, slotsNeeded);
+        if (overflowSlots.some(s => s.date === date && s.timeSlot === timeWindow)) return false;
+      }
+    }
+
+    // Check: has this slot's cumulative booked value reached $500 capacity?
+    const slotTotal = validQuotes
+      .filter(q => q.preferredDate === date && q.preferredTimeWindow === timeWindow)
+      .reduce((sum, q) => sum + Number(q.total || 0), 0);
+
+    if (slotTotal >= SLOT_CAPACITY) return false;
+
+    return true;
   }
 
   async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent> {
