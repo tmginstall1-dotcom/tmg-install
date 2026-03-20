@@ -58,7 +58,7 @@ function StaffRoute({ component: Component }: { component: React.ComponentType }
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  useGpsTracker(!!user && user.role === "staff");
+  useGpsTracker(!!user && user.role === "staff", user?.id);
 
   if (isLoading) return <PageLoader />;
   if (!user) { setLocation('/staff/login'); return null; }

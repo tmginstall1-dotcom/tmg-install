@@ -3,11 +3,8 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { apiRequest } from "@/lib/queryClient";
 
-// ─── Custom native plugin interface ─────────────────────────────────────────────
-// TMGLocationPlugin is compiled directly into the APK (Java 17) — no third-party
-// plugin needed. Provides true background tracking via Android foreground service.
 interface TMGLocationPlugin {
-  startWatching(): Promise<void>;
+  startWatching(options: { staffId: number }): Promise<void>;
   stopWatching(): Promise<void>;
   addListener(
     event: "location",
@@ -18,7 +15,6 @@ interface TMGLocationPlugin {
 
 const TMGLocation = registerPlugin<TMGLocationPlugin>("TMGLocation");
 
-// ─── Constants ──────────────────────────────────────────────────────────────────
 const MOVE_THRESHOLD_M = 15;
 const HEARTBEAT_MS     = 30_000;
 const MIN_GAP_MS       = 5_000;
@@ -48,12 +44,11 @@ async function postCoords(
       recordedAt: recordedAt ?? new Date().toISOString(),
     });
   } catch {
-    // silent — never surface GPS errors to staff
+    // silent
   }
 }
 
-// ─── Hook ────────────────────────────────────────────────────────────────────────
-export function useGpsTracker(enabled: boolean) {
+export function useGpsTracker(enabled: boolean, staffId?: number) {
   const lastSentRef    = useRef<{ lat: number; lng: number; ts: number } | null>(null);
   const latestPosRef   = useRef<{ lat: number; lng: number } | null>(null);
   const heartbeatRef   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -76,18 +71,15 @@ export function useGpsTracker(enabled: boolean) {
     latestPosRef.current = { lat, lng };
   }, []);
 
-  // ─── NATIVE: TMGLocationPlugin foreground service ──────────────────────────
-  const startNative = useCallback(async () => {
+  const startNative = useCallback(async (sid: number) => {
     try {
-      // Attach listener before starting so no updates are missed
       listenerRef.current = await TMGLocation.addListener("location", (loc) => {
         latestPosRef.current = { lat: loc.lat, lng: loc.lng };
         maybeSend(loc.lat, loc.lng, loc.accuracy, loc.speed, null, new Date(loc.time).toISOString());
       });
 
-      await TMGLocation.startWatching();
+      await TMGLocation.startWatching({ staffId: sid });
 
-      // Heartbeat — re-sends last known position every 30 s for stationary staff
       heartbeatRef.current = setInterval(() => {
         const p = latestPosRef.current;
         if (p) postCoords(p.lat, p.lng);
@@ -106,10 +98,8 @@ export function useGpsTracker(enabled: boolean) {
     }
   }, []);
 
-  // ─── BROWSER: navigator.geolocation fallback ────────────────────────────────
   const startBrowser = useCallback(() => {
     if (!navigator.geolocation) return;
-
     browserWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude: lat, longitude: lng, accuracy, speed, heading } = pos.coords;
@@ -119,7 +109,6 @@ export function useGpsTracker(enabled: boolean) {
       () => {},
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
     );
-
     heartbeatRef.current = setInterval(() => {
       const p = latestPosRef.current;
       if (p) postCoords(p.lat, p.lng);
@@ -133,12 +122,11 @@ export function useGpsTracker(enabled: boolean) {
     }
   }, []);
 
-  // ─── Lifecycle ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!enabled) return;
 
     if (Capacitor.isNativePlatform()) {
-      startNative();
+      if (staffId != null) startNative(staffId);
     } else {
       startBrowser();
     }
@@ -149,5 +137,5 @@ export function useGpsTracker(enabled: boolean) {
       lastSentRef.current  = null;
       latestPosRef.current = null;
     };
-  }, [enabled, startNative, startBrowser, stopNative, stopBrowser]);
+  }, [enabled, staffId, startNative, startBrowser, stopNative, stopBrowser]);
 }

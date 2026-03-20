@@ -51,15 +51,18 @@ public class TMGLocationService extends Service {
     private float lastLat    = 0f;
     private float lastLng    = 0f;
 
+    private String sessionCookie = "";
+
     @Override
     public void onCreate() {
         super.onCreate();
 
         networkExecutor = Executors.newSingleThreadExecutor();
 
-        // Read persisted staffId in case we were restarted by BootReceiver
+        // Read persisted staffId and session cookie (captured from WebView at login time)
         SharedPreferences prefs = getSharedPreferences(TMGLocationPlugin.PREFS, MODE_PRIVATE);
         staffId = prefs.getInt("staff_id", -1);
+        sessionCookie = prefs.getString(TMGLocationPlugin.PREF_SESSION_COOKIE, "");
 
         createNotificationChannel();
         startForeground(NOTIFICATION_ID, buildNotification());
@@ -141,6 +144,11 @@ public class TMGLocationService extends Service {
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setRequestProperty("User-Agent", "TMGStaffApp");
+            // Send the session cookie captured from the WebView at login time so the
+            // server can authenticate this background service request.
+            if (sessionCookie != null && !sessionCookie.isEmpty()) {
+                conn.setRequestProperty("Cookie", sessionCookie);
+            }
             conn.setDoOutput(true);
             conn.setConnectTimeout(10_000);
             conn.setReadTimeout(10_000);
