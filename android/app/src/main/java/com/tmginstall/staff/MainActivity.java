@@ -1,7 +1,11 @@
 package com.tmginstall.staff;
 
 import android.app.AlertDialog;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Log;
 import com.getcapacitor.BridgeActivity;
 import java.io.File;
@@ -21,14 +25,12 @@ public class MainActivity extends BridgeActivity {
     private static final String API_BASE = "https://tmg-install-project--tmginstall.replit.app";
 
     private String pendingCrashReport = null;
+    private boolean batteryPromptShown = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // 1. Read any crash from the PREVIOUS launch before we install a new handler
         pendingCrashReport = readAndDeleteCrashFile();
 
-        // 2. Install uncaught-exception reporter BEFORE super.onCreate() so any
-        //    crash inside Capacitor bridge init is captured.
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             StringWriter sw = new StringWriter();
             throwable.printStackTrace(new PrintWriter(sw));
@@ -39,16 +41,15 @@ public class MainActivity extends BridgeActivity {
             android.os.Process.killProcess(android.os.Process.myPid());
         });
 
-        // 3. Register custom plugins
         registerPlugin(TMGLocationPlugin.class);
-
         super.onCreate(savedInstanceState);
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        // Show the crash from the previous launch NOW — Activity is fully ready
+
+        // Show crash dialog from previous launch
         if (pendingCrashReport != null && !pendingCrashReport.isEmpty()) {
             String msg = pendingCrashReport;
             pendingCrashReport = null;
@@ -57,6 +58,36 @@ public class MainActivity extends BridgeActivity {
                 .setMessage(msg.length() > 2000 ? msg.substring(0, 2000) + "\n…" : msg)
                 .setPositiveButton("OK", null)
                 .show();
+            return; // don't stack dialogs
+        }
+
+        // Ask to disable battery optimisation (only once per session, only if not already granted)
+        if (!batteryPromptShown) {
+            requestBatteryOptimisationExemption();
+            batteryPromptShown = true;
+        }
+    }
+
+    /**
+     * Checks whether this app is already exempt from battery optimisation.
+     * If not, fires the system dialog — one tap "Allow" and done. No Settings navigation needed.
+     */
+    private void requestBatteryOptimisationExemption() {
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm == null) return;
+            String pkg = getPackageName();
+            if (pm.isIgnoringBatteryOptimizations(pkg)) {
+                Log.d(TAG, "Battery optimisation already disabled — GPS will stay active");
+                return;
+            }
+            // Fire the system popup: "Allow TMG Install to always run in the background?"
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + pkg));
+            startActivity(intent);
+            Log.d(TAG, "Battery optimisation exemption dialog shown");
+        } catch (Exception e) {
+            Log.w(TAG, "Could not request battery exemption: " + e.getMessage());
         }
     }
 
@@ -92,7 +123,6 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void sendCrashToServer(String report) {
-        // Fire-and-forget on the crashing thread (last resort — ignore failures)
         try {
             String body = "{\"crash\":" + jsonString(report) + "}";
             URL url = new URL(API_BASE + "/api/crash-report");
