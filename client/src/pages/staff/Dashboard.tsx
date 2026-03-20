@@ -66,13 +66,13 @@ export default function StaffDashboard() {
   const allJobs = quotes || [];
   const activeNow = allJobs.filter((q: any) => q.status === "in_progress");
 
-  // Auto-resume background tracking if there's an active in_progress job
-  // (covers app restart mid-job scenario)
+  // Auto-resume background tracking if clocked in OR has an active in_progress job
+  // (covers app restart mid-shift/job scenario)
   useEffect(() => {
-    if (activeNow.length > 0 && user?.id && !isTracking) {
+    if ((activeSession || activeNow.length > 0) && user?.id && !isTracking) {
       startTracking(user.id).catch(() => {});
     }
-  }, [activeNow.length, user?.id]);
+  }, [!!activeSession, activeNow.length, user?.id]);
 
   const upcoming = allJobs
     .filter((q: any) => ["booked", "assigned"].includes(q.status))
@@ -102,6 +102,7 @@ export default function StaffDashboard() {
         todayCompletedMins={todayCompletedMins}
         isLoading={attLoading}
         firstName={firstName}
+        userId={user?.id}
       />
 
       {/* Offline / Reconnected banner */}
@@ -247,15 +248,18 @@ function ClockHero({
   todayCompletedMins,
   isLoading,
   firstName,
+  userId,
 }: {
   todayLogs: any[];
   activeSession: any | null;
   todayCompletedMins: number;
   isLoading: boolean;
   firstName: string;
+  userId?: number;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { startTracking, stopTracking } = useBackgroundLocation();
   const [now, setNow] = useState(new Date());
   const [gpsState, setGpsState] = useState<"idle" | "loading" | "ok" | "denied">("idle");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -316,6 +320,8 @@ function ClockHero({
         title: `Clocked In ✓`,
         description: `Session ${sessionNum} started at ${format(new Date(), "HH:mm")}`,
       });
+      // Start GPS tracking so admin can see staff location
+      if (userId) startTracking(userId).catch(() => {});
     },
     onError: (e: any) => {
       refreshAttendance();
@@ -340,6 +346,8 @@ function ClockHero({
     onSuccess: () => {
       refreshAttendance();
       toast({ title: "Clocked Out ✓", description: "Session ended. Clock in again when ready." });
+      // Stop GPS tracking when shift ends
+      stopTracking().catch(() => {});
     },
     onError: (e: any) => {
       refreshAttendance();

@@ -522,7 +522,9 @@ export async function registerRoutes(
 
   // -- GPS Track Routes --
   app.post("/api/staff/gps-track", async (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    // Accept session userId OR staffId from body (native background service fallback)
+    const resolvedUserId = req.session.userId ?? (req.body?.staffId ? parseInt(req.body.staffId) : undefined);
+    if (!resolvedUserId) return res.status(401).json({ message: "Not logged in" });
     try {
       const { lat, lng, accuracy, speed, heading, recordedAt } = z.object({
         lat: z.string(),
@@ -531,9 +533,10 @@ export async function registerRoutes(
         speed: z.string().optional(),
         heading: z.string().optional(),
         recordedAt: z.string().optional(),
+        staffId: z.any().optional(),
       }).parse(req.body);
       const pt = await storage.addGpsTrackPoint({
-        userId: req.session.userId,
+        userId: resolvedUserId,
         lat, lng, accuracy, speed, heading,
         recordedAt: recordedAt ? new Date(recordedAt) : undefined,
       });
