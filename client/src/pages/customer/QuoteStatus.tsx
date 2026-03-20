@@ -100,15 +100,15 @@ export default function QuoteStatus() {
     if (quote?.status !== "booked") return false;
     if ((quote?.rescheduledCount || 0) >= 1) return false;
     if (!quote?.scheduledAt) return false;
-    return differenceInHours(new Date(quote.scheduledAt), new Date()) >= 24;
+    return differenceInHours(new Date(quote.scheduledAt), new Date()) >= 48;
   })();
 
   const rescheduleBlockedReason = (() => {
     if (quote?.status !== "booked") return null;
-    if ((quote?.rescheduledCount || 0) >= 1) return "You've already used your free reschedule. Please contact us on WhatsApp.";
+    if ((quote?.rescheduledCount || 0) >= 1) return "You've already used your 1 complimentary reschedule. Further rescheduling incurs a S$30 fee — please contact us on WhatsApp.";
     if (!quote?.scheduledAt) return null;
-    if (differenceInHours(new Date(quote.scheduledAt), new Date()) < 24)
-      return "Your appointment is less than 24 hours away. Please contact us on WhatsApp to reschedule.";
+    if (differenceInHours(new Date(quote.scheduledAt), new Date()) < 48)
+      return "Reschedule requests must be made at least 48 hours before your appointment. A S$30 fee applies for late rescheduling — please contact us on WhatsApp.";
     return null;
   })();
 
@@ -358,6 +358,14 @@ export default function QuoteStatus() {
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-black/40">Choose New Date & Time</p>
                       </div>
                       <div className="p-4 space-y-4">
+                        {/* Policy note */}
+                        <div className="border border-amber-200 bg-amber-50/60 px-3 py-2.5">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-amber-700 mb-1">Reschedule Policy</p>
+                          <p className="text-xs text-black/55 leading-relaxed">
+                            1 complimentary reschedule, min. <strong>48 hours</strong> notice required. Late or subsequent requests incur a <strong>S$30 fee</strong> — contact us on WhatsApp.
+                          </p>
+                        </div>
+
                         <SlotPicker
                           date={rescheduleDate}
                           time={rescheduleTime}

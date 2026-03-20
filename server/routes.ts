@@ -1365,11 +1365,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Free reschedule already used. Please contact us on WhatsApp." });
       }
 
-      // Check 24hr cutoff
+      // Check 48hr cutoff (per Terms of Service)
       if (existingQuote.scheduledAt) {
         const hoursDiff = (new Date(existingQuote.scheduledAt).getTime() - Date.now()) / (1000 * 60 * 60);
-        if (hoursDiff < 24) {
-          return res.status(400).json({ message: "Reschedule must be requested at least 24 hours before your appointment. Please contact us on WhatsApp." });
+        if (hoursDiff < 48) {
+          return res.status(400).json({ message: "Reschedule requests must be made at least 48 hours before your appointment. A S$30 fee applies for late rescheduling — please contact us on WhatsApp." });
         }
       }
 
