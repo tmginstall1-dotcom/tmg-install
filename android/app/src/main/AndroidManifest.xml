@@ -60,7 +60,17 @@
         <service
             android:name=".TMGLocationService"
             android:foregroundServiceType="location"
-            android:exported="false" />
+            android:exported="false"
+            android:stopWithTask="false" />
+
+        <!-- AlarmManager keepalive receiver — (re)starts the service every 5 min -->
+        <receiver
+            android:name=".TMGAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.tmginstall.staff.KEEPALIVE" />
+            </intent-filter>
+        </receiver>
 
         <!-- Restart tracking service after device reboot -->
         <receiver
@@ -68,6 +78,7 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>

@@ -8,37 +8,36 @@ import android.os.Build;
 import android.util.Log;
 
 /**
- * Restarts the location service after device reboot or app update,
- * if tracking was active when the device was shut down.
+ * Receives the 5-minute AlarmManager keepalive intent.
+ * If tracking_active is true it (re)starts TMGLocationService.
+ * This fires even in Doze mode via setExactAndAllowWhileIdle, so it acts
+ * as a belt-and-suspenders restart when Android kills the service.
  */
-public class BootReceiver extends BroadcastReceiver {
+public class TMGAlarmReceiver extends BroadcastReceiver {
 
-    private static final String TAG = "TMGBootReceiver";
+    private static final String TAG = "TMGAlarmReceiver";
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        String action = intent == null ? "" : (intent.getAction() == null ? "" : intent.getAction());
-        Log.d(TAG, "onReceive action=" + action);
-
         SharedPreferences prefs = context.getSharedPreferences(
             TMGLocationPlugin.PREFS, Context.MODE_PRIVATE);
-        boolean wasTracking = prefs.getBoolean("tracking_active", false);
-        int staffId         = prefs.getInt("staff_id", -1);
+        boolean active = prefs.getBoolean("tracking_active", false);
+        int staffId    = prefs.getInt("staff_id", -1);
 
-        if (!wasTracking || staffId < 0) {
-            Log.d(TAG, "Not restarting — wasTracking=" + wasTracking + " staffId=" + staffId);
-            return;
-        }
+        Log.d(TAG, "Alarm fired — tracking_active=" + active + " staffId=" + staffId);
 
-        Log.d(TAG, "Restarting location service for staffId=" + staffId);
+        if (!active || staffId < 0) return;
+
         Intent svcIntent = new Intent(context, TMGLocationService.class);
         svcIntent.putExtra("staff_id", staffId);
+        svcIntent.putExtra("from_alarm", true);
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(svcIntent);
             } else {
                 context.startService(svcIntent);
             }
+            Log.d(TAG, "Service (re)started from alarm");
         } catch (Exception e) {
             Log.w(TAG, "Could not start service: " + e.getMessage());
         }
