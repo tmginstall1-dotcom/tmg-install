@@ -22,7 +22,7 @@ const TIME_SLOTS = [
   { value: "13:00-17:00", label: "Afternoon", time: "1pm – 5pm",  duration: "4 hrs", Icon: Sunset },
 ] as const;
 
-const SLOT_CAPACITY = 500;
+const SLOT_CAPS: Record<string, number> = { "09:00-12:00": 500, "13:00-17:00": 700 };
 
 function toDateStr(y: number, m: number, d: number) {
   return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -190,7 +190,8 @@ export function SlotPicker({ date, time, onDateChange, onTimeChange, availabilit
               const taken  = isSlotTaken(date, slot.value);
               const sel    = time === slot.value;
               const used   = getUsedAmount(date, slot.value);
-              const pct    = Math.min(100, Math.round((used / SLOT_CAPACITY) * 100));
+              const cap    = SLOT_CAPS[slot.value] ?? 500;
+              const pct    = Math.min(100, Math.round((used / cap) * 100));
               const barColor = pct >= 100 ? "bg-red-400" : pct >= 80 ? "bg-orange-400" : pct >= 50 ? "bg-amber-400" : "bg-emerald-400";
 
               return (
@@ -240,7 +241,7 @@ export function SlotPicker({ date, time, onDateChange, onTimeChange, availabilit
                         />
                       </div>
                       <p className={`text-[9px] font-black uppercase tracking-wider ${sel ? "text-white/50" : "text-black/30"}`}>
-                        {pct === 0 ? "Open" : `S$${Math.round(used)} / S$${SLOT_CAPACITY}`}
+                        {pct === 0 ? "Open" : pct < 50 ? "Available" : pct < 80 ? "Filling Up" : "Limited"}
                       </p>
                     </div>
                   )}

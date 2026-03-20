@@ -766,10 +766,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Return all slots currently held/full by active quotes.
-  // Slot capacity = $500 SGD. Multiple bookings can share a slot until the cumulative total hits $500.
-  // A single large job (e.g. $2000 = 4×$500) also blocks consecutive overflow slots.
+  // Slot capacity rules:
+  //   Morning  (09:00-12:00): $500 max cumulative
+  //   Afternoon (13:00-17:00): $700 max cumulative
+  //   Daily big-order cap: a single job ≥ $1000 blocks the entire day (both slots)
+  //   Large job overflow: if a single job's value exceeds a slot's cap, it spills into
+  //   the next consecutive slot (morning → afternoon → next-day morning → …)
   async getHeldSlots(): Promise<{ date: string; timeSlot: string; quoteId: number }[]> {
-    const SLOT_CAPACITY = 500;
+    const SLOT_CAPS: Record<string, number> = { "09:00-12:00": 500, "13:00-17:00": 700 };
+    const DAILY_BIG_ORDER_CAP = 1000;
     const TIME_SLOTS = ['09:00-12:00', '13:00-17:00'];
 
     const activeStatuses = [
@@ -787,14 +792,19 @@ export class DatabaseStorage implements IStorage {
 
     const now = new Date();
 
-    // Helper: get N consecutive slots (morning → afternoon → next day morning → ...)
-    function getSlotSequence(startDate: string, startTimeWindow: string, count: number): { date: string; timeSlot: string }[] {
+    // Helper: walk through slots consuming capacity until jobTotal is covered.
+    // Returns every slot that the job occupies (primary + overflow).
+    function getSlotsConsumed(startDate: string, startTimeWindow: string, jobTotal: number): { date: string; timeSlot: string }[] {
       const result: { date: string; timeSlot: string }[] = [];
+      let remaining = jobTotal;
       let d = new Date(startDate + 'T12:00:00');
       let si = TIME_SLOTS.indexOf(startTimeWindow);
       if (si === -1) si = 0;
-      for (let i = 0; i < count; i++) {
-        result.push({ date: d.toISOString().split('T')[0], timeSlot: TIME_SLOTS[si] });
+      while (remaining > 0) {
+        const ts = TIME_SLOTS[si];
+        const cap = SLOT_CAPS[ts] ?? 500;
+        result.push({ date: d.toISOString().split('T')[0], timeSlot: ts });
+        remaining -= cap;
         si++;
         if (si >= TIME_SLOTS.length) { si = 0; d = new Date(d.getTime() + 86400000); }
       }
@@ -808,7 +818,7 @@ export class DatabaseStorage implements IStorage {
         return !q.slotHeldUntil || q.slotHeldUntil > now;
       });
 
-    // Sum cumulative total per slot to determine if slot is full
+    // Cumulative total per slot (for threshold check on primary slot)
     const slotTotals = new Map<string, number>();
     for (const q of validQuotes) {
       const key = `${q.preferredDate}|${q.preferredTimeWindow}`;
@@ -818,28 +828,34 @@ export class DatabaseStorage implements IStorage {
     const heldSet = new Set<string>();
     const result: { date: string; timeSlot: string; quoteId: number }[] = [];
 
+    const addHeld = (date: string, timeSlot: string, quoteId: number) => {
+      const k = `${date}|${timeSlot}`;
+      if (!heldSet.has(k)) { heldSet.add(k); result.push({ date, timeSlot, quoteId }); }
+    };
+
     for (const q of validQuotes) {
       const jobTotal = Number(q.total || 0);
-      const slotsNeeded = Math.max(1, Math.ceil(jobTotal / SLOT_CAPACITY));
-      const slots = getSlotSequence(q.preferredDate!, q.preferredTimeWindow!, slotsNeeded);
+      const date = q.preferredDate!;
+      const timeWindow = q.preferredTimeWindow!;
 
-      // Primary slot: only mark held if cumulative value has reached $500 capacity
-      const primaryKey = `${q.preferredDate}|${q.preferredTimeWindow}`;
-      if ((slotTotals.get(primaryKey) ?? 0) >= SLOT_CAPACITY) {
-        const k = `${slots[0].date}|${slots[0].timeSlot}`;
-        if (!heldSet.has(k)) {
-          heldSet.add(k);
-          result.push({ date: slots[0].date, timeSlot: slots[0].timeSlot, quoteId: q.id });
-        }
+      // Rule 1: single job ≥ $1000 blocks the entire day
+      if (jobTotal >= DAILY_BIG_ORDER_CAP) {
+        for (const ts of TIME_SLOTS) addHeld(date, ts, q.id);
+        continue;
       }
 
-      // Overflow slots for large jobs (always block, regardless of cumulative total)
-      for (let i = 1; i < slots.length; i++) {
-        const k = `${slots[i].date}|${slots[i].timeSlot}`;
-        if (!heldSet.has(k)) {
-          heldSet.add(k);
-          result.push({ date: slots[i].date, timeSlot: slots[i].timeSlot, quoteId: q.id });
-        }
+      // Rule 2: large job overflow — compute all slots this job consumes
+      const consumed = getSlotsConsumed(date, timeWindow, jobTotal);
+
+      // Primary slot: mark held only when cumulative has reached that slot's cap
+      const primaryCap = SLOT_CAPS[timeWindow] ?? 500;
+      if ((slotTotals.get(`${date}|${timeWindow}`) ?? 0) >= primaryCap) {
+        addHeld(consumed[0].date, consumed[0].timeSlot, q.id);
+      }
+
+      // Overflow slots: always held once a single large job spills over
+      for (let i = 1; i < consumed.length; i++) {
+        addHeld(consumed[i].date, consumed[i].timeSlot, q.id);
       }
     }
 
@@ -880,11 +896,12 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  // Returns true if the date+timeWindow slot has capacity remaining ($500 per slot rule).
-  // A slot is unavailable if: admin-blocked, OR cumulative booked value >= $500,
-  // OR it falls within the consecutive overflow of a large job.
+  // Returns true if the date+timeWindow slot has capacity remaining.
+  // Morning cap: $500 | Afternoon cap: $700 | Single job ≥ $1000 → whole day blocked.
+  // Also blocks slots that fall within overflow of a large job from an earlier slot.
   async isSlotAvailable(date: string, timeWindow: string, excludeQuoteId?: number): Promise<boolean> {
-    const SLOT_CAPACITY = 500;
+    const SLOT_CAPS: Record<string, number> = { "09:00-12:00": 500, "13:00-17:00": 700 };
+    const DAILY_BIG_ORDER_CAP = 1000;
     const TIME_SLOTS = ['09:00-12:00', '13:00-17:00'];
 
     // Check admin-blocked slots first
@@ -914,36 +931,47 @@ export class DatabaseStorage implements IStorage {
       return !q.slotHeldUntil || q.slotHeldUntil > now;
     });
 
-    // Helper: get N consecutive slots
-    function getSlotSequence(startDate: string, startTimeWindow: string, count: number): { date: string; timeSlot: string }[] {
+    // Helper: walk through slots consuming per-slot capacity until jobTotal is covered
+    function getSlotsConsumed(startDate: string, startTimeWindow: string, jobTotal: number): { date: string; timeSlot: string }[] {
       const result: { date: string; timeSlot: string }[] = [];
+      let remaining = jobTotal;
       let d = new Date(startDate + 'T12:00:00');
       let si = TIME_SLOTS.indexOf(startTimeWindow);
       if (si === -1) si = 0;
-      for (let i = 0; i < count; i++) {
-        result.push({ date: d.toISOString().split('T')[0], timeSlot: TIME_SLOTS[si] });
+      while (remaining > 0) {
+        const ts = TIME_SLOTS[si];
+        result.push({ date: d.toISOString().split('T')[0], timeSlot: ts });
+        remaining -= (SLOT_CAPS[ts] ?? 500);
         si++;
         if (si >= TIME_SLOTS.length) { si = 0; d = new Date(d.getTime() + 86400000); }
       }
       return result;
     }
 
-    // Check: is this slot blocked by overflow from a large job booked on an earlier slot?
+    // Rule 1: any active job on this day ≥ $1000 blocks the entire day
+    const hasBigOrder = validQuotes.some(
+      q => q.preferredDate === date && Number(q.total || 0) >= DAILY_BIG_ORDER_CAP
+    );
+    if (hasBigOrder) return false;
+
+    // Rule 2: large job overflow — does any active job's overflow reach this slot?
     for (const q of validQuotes) {
       const jobTotal = Number(q.total || 0);
-      const slotsNeeded = Math.max(1, Math.ceil(jobTotal / SLOT_CAPACITY));
-      if (slotsNeeded > 1) {
-        const overflowSlots = getSlotSequence(q.preferredDate!, q.preferredTimeWindow!, slotsNeeded);
-        if (overflowSlots.some(s => s.date === date && s.timeSlot === timeWindow)) return false;
+      if (jobTotal >= DAILY_BIG_ORDER_CAP) continue; // handled above
+      const slotCap = SLOT_CAPS[q.preferredTimeWindow!] ?? 500;
+      if (jobTotal > slotCap) {
+        const consumed = getSlotsConsumed(q.preferredDate!, q.preferredTimeWindow!, jobTotal);
+        if (consumed.some(s => s.date === date && s.timeSlot === timeWindow)) return false;
       }
     }
 
-    // Check: has this slot's cumulative booked value reached $500 capacity?
+    // Rule 3: cumulative booked value for this slot has reached the slot's cap
+    const slotCap = SLOT_CAPS[timeWindow] ?? 500;
     const slotTotal = validQuotes
       .filter(q => q.preferredDate === date && q.preferredTimeWindow === timeWindow)
       .reduce((sum, q) => sum + Number(q.total || 0), 0);
 
-    if (slotTotal >= SLOT_CAPACITY) return false;
+    if (slotTotal >= slotCap) return false;
 
     return true;
   }
