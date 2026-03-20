@@ -123,13 +123,12 @@ jobs:
 
       # ── Publish APK to GitHub Releases (permanent public download link) ───────
 
-      - name: Pick APK to publish
-        id: pick_apk
+      - name: Prepare APK for release (consistent filename)
         run: |
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            echo "path=android/app/build/outputs/apk/release/app-release.apk" >> $GITHUB_OUTPUT
+            cp android/app/build/outputs/apk/release/app-release.apk tmg-install.apk
           else
-            echo "path=android/app/build/outputs/apk/debug/app-debug.apk" >> $GITHUB_OUTPUT
+            cp android/app/build/outputs/apk/debug/app-debug.apk tmg-install.apk
           fi
 
       - name: Publish APK as GitHub Release (latest-build)
@@ -140,10 +139,10 @@ jobs:
           body: |
             **TMG Install Staff App**
 
-            Tap the link below on your Android device to download and install the app.
+            Tap the **tmg-install.apk** link below on your Android device to download and install.
 
-            > Enable **Install unknown apps** in Android Settings if prompted after downloading.
-          files: ${{ steps.pick_apk.outputs.path }}
+            > If prompted, enable **Install unknown apps** in Android Settings.
+          files: tmg-install.apk
           fail_on_unmatched_files: true
           make_latest: true
           token: ${{ secrets.GITHUB_TOKEN }}
