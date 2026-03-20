@@ -2,6 +2,8 @@ import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Calendar, Users, FileDown, BarChart2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
+
 function isActive(href: string, location: string) {
   if (href === "/admin") return location === "/admin";
   return location.startsWith(href);
@@ -18,7 +20,7 @@ export function AdminBottomNav() {
   const { data: pendingLeave = [] } = useQuery<any[]>({
     queryKey: ["/api/admin/leave", "pending"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/leave?status=pending");
+      const res = await fetch(`${API_BASE}/api/admin/leave?status=pending`, { credentials: "include" });
       return res.json();
     },
   });

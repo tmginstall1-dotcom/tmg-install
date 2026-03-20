@@ -12,6 +12,8 @@ import {
 import OfficialPayslip from "@/components/OfficialPayslip";
 import GpsMap from "@/components/GpsMap";
 
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
+
 const TEAM_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6"];
 
 function fmt(mins: number) {
@@ -72,7 +74,7 @@ export default function StaffManagement() {
   const { data: pendingLeave = [] } = useQuery<any[]>({
     queryKey: ["/api/admin/leave", "pending"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/leave?status=pending");
+      const res = await fetch(`${API_BASE}/api/admin/leave?status=pending`, { credentials: "include" });
       return res.json();
     },
     refetchInterval: 30_000,
@@ -705,7 +707,7 @@ function TodayRoster() {
     queryFn: async () => {
       if (!isValidDate) return [];
       const params = new URLSearchParams({ from: date + "T00:00:00+08:00", to: date + "T23:59:59+08:00" });
-      const res = await fetch(`/api/admin/attendance?${params}`);
+      const res = await fetch(`${API_BASE}/api/admin/attendance?${params}`, { credentials: "include" });
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data) ? data : [];
@@ -1218,7 +1220,7 @@ function TimesheetsView() {
     if (!isValid(f) || !isValid(t)) return [];
     const params = new URLSearchParams({ from: f + "T00:00:00+08:00", to: t + "T23:59:59+08:00" });
     if (uid) params.set("userId", uid);
-    const res = await fetch(`/api/admin/attendance?${params}`);
+    const res = await fetch(`${API_BASE}/api/admin/attendance?${params}`, { credentials: "include" });
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data) ? data : [];
@@ -1755,7 +1757,7 @@ function LeaveTab() {
     queryKey: ["/api/admin/leave", statusFilter],
     queryFn: async () => {
       const params = statusFilter !== "all" ? `?status=${statusFilter}` : "";
-      const res = await fetch(`/api/admin/leave${params}`);
+      const res = await fetch(`${API_BASE}/api/admin/leave${params}`, { credentials: "include" });
       return res.json();
     },
     refetchInterval: 30_000,
@@ -1765,7 +1767,7 @@ function LeaveTab() {
   const { data: allLeaves = [] } = useQuery<any[]>({
     queryKey: ["/api/admin/leave", "all"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/leave");
+      const res = await fetch(`${API_BASE}/api/admin/leave`, { credentials: "include" });
       return res.json();
     },
     refetchInterval: 30_000,
@@ -1931,7 +1933,7 @@ function PayslipsTab() {
     queryKey: ["/api/admin/payslips", filterUserId],
     queryFn: async () => {
       const params = filterUserId ? `?userId=${filterUserId}` : "";
-      const res = await fetch(`/api/admin/payslips${params}`);
+      const res = await fetch(`${API_BASE}/api/admin/payslips${params}`, { credentials: "include" });
       return res.json();
     },
     refetchInterval: 30_000,
@@ -2259,7 +2261,7 @@ function GpsTrackingTab() {
     queryKey: ["/api/admin/staff", staffId, "gps-track", selectedDate],
     queryFn: async () => {
       if (!staffId) return [];
-      const r = await fetch(`/api/admin/staff/${staffId}/gps-track?date=${selectedDate}`);
+      const r = await fetch(`${API_BASE}/api/admin/staff/${staffId}/gps-track?date=${selectedDate}`, { credentials: "include" });
       return r.json();
     },
     enabled: !!staffId,

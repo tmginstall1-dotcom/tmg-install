@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
 type AnalyticsData = {
   days: number;
@@ -128,7 +129,7 @@ export default function Analytics() {
   const { data, isLoading, refetch, isFetching } = useQuery<AnalyticsData>({
     queryKey: ["/api/admin/analytics", days],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/analytics?days=${days}`, { credentials: "include" });
+      const res = await fetch(`${API_BASE}/api/admin/analytics?days=${days}`, { credentials: "include" });
       return res.json();
     },
     refetchInterval: 60_000,

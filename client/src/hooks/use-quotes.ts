@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type QuoteRequest } from "@shared/routes";
 import { apiRequest } from "@/lib/queryClient";
 
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 const TERMINAL_STATUSES = ['closed', 'cancelled'];
 const PAYMENT_PENDING_STATUSES = ['deposit_requested', 'final_payment_requested'];
 
@@ -9,7 +10,8 @@ export function useQuotes(statusFilter?: string) {
   return useQuery({
     queryKey: [api.quotes.list.path, statusFilter],
     queryFn: async () => {
-      const url = new URL(api.quotes.list.path, window.location.origin);
+      const base = `${API_BASE}${api.quotes.list.path}`;
+      const url = new URL(base.startsWith("http") ? base : `${window.location.origin}${base}`);
       if (statusFilter && statusFilter !== 'all') {
         url.searchParams.append('status', statusFilter);
       }
@@ -126,7 +128,7 @@ export function useRequestBooking() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, scheduledAt, timeWindow }: { id: number | string; scheduledAt: string; timeWindow: string }) => {
-      const res = await fetch(`/api/quotes/${id}/booking-request`, {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/booking-request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scheduledAt, timeWindow }),
@@ -150,7 +152,7 @@ export function useConfirmBooking() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number | string) => {
-      const res = await fetch(`/api/quotes/${id}/booking-confirm`, {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/booking-confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -173,7 +175,7 @@ export function useRescheduleBooking() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, scheduledAt, timeWindow }: { id: number | string; scheduledAt: string; timeWindow: string }) => {
-      const res = await fetch(`/api/quotes/${id}/booking-reschedule`, {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/booking-reschedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scheduledAt, timeWindow }),
@@ -196,7 +198,7 @@ export function useStaffArrived() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, gpsLat, gpsLng, photoUrls, note }: { id: number | string; gpsLat: number; gpsLng: number; photoUrls: string[]; note?: string }) => {
-      const res = await fetch(`/api/quotes/${id}/arrived`, {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/arrived`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gpsLat, gpsLng, photoUrls, note }),
@@ -220,7 +222,7 @@ export function useStaffCompleted() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, gpsLat, gpsLng, photoUrls, note }: { id: number | string; gpsLat: number; gpsLng: number; photoUrls: string[]; note?: string }) => {
-      const res = await fetch(`/api/quotes/${id}/completed-checkout`, {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/completed-checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gpsLat, gpsLng, photoUrls, note }),
@@ -244,7 +246,7 @@ export function useEditQuote() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...data }: { id: number | string; customerUpdates?: any; quoteUpdates?: any; items?: any[] }) => {
-      const res = await fetch(`/api/quotes/${id}/edit`, {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/edit`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -267,7 +269,7 @@ export function useRequestFinalPayment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number | string) => {
-      const res = await fetch(`/api/quotes/${id}/request-final-payment`, {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/request-final-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -286,7 +288,7 @@ export function useCloseQuote() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, reason }: { id: number | string; reason?: string }) => {
-      const res = await fetch(`/api/quotes/${id}/close`, {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/close`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
@@ -337,7 +339,7 @@ export function useUpdateQuoteBooking() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, scheduledAt, timeWindow }: { id: number | string; scheduledAt: string; timeWindow: string }) => {
-      const res = await fetch(`/api/quotes/${id}/booking-request`, {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/booking-request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scheduledAt, timeWindow }),

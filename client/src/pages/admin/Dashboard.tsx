@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
+
 function formatMoney(v: any) {
   return `$${Number(v || 0).toLocaleString("en-SG", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
@@ -246,7 +248,7 @@ export default function AdminDashboard() {
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/admin/clear-all-data", { method: "DELETE" });
+      const res = await fetch(`${API_BASE}/api/admin/clear-all-data`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("Failed to clear");
     },
     onSuccess: () => {
