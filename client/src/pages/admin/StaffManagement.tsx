@@ -702,6 +702,8 @@ function TodayRoster() {
   const [date, setDate] = useState(todayStr);
   const { data: staff = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
   const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(new Date(date).getTime());
+  const isToday = date === todayStr;
+
   const { data: logs = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/attendance", date, date, ""],
     queryFn: async () => {
@@ -716,6 +718,18 @@ function TodayRoster() {
     refetchInterval: 30000,
   });
 
+  // Live GPS locations for currently clocked-in staff (today only, refresh every 30s)
+  const { data: liveLocations = {} } = useQuery<Record<number, { lat: string; lng: string; recordedAt: string }>>({
+    queryKey: ["/api/admin/live-locations"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/admin/live-locations`, { credentials: "include" });
+      if (!res.ok) return {};
+      return res.json();
+    },
+    enabled: isToday,
+    refetchInterval: 30000,
+  });
+
   // Build roster: each staff member with their log for the day (if any)
   const roster = (staff as any[]).map((s: any) => {
     const log = (logs as any[]).find((l: any) => l.userId === s.id);
@@ -725,8 +739,6 @@ function TodayRoster() {
   const clockedIn = roster.filter(r => r.log && !r.log.clockOutAt);
   const clockedOut = roster.filter(r => r.log && r.log.clockOutAt);
   const notClockedIn = roster.filter(r => !r.log);
-
-  const isToday = date === todayStr;
 
   return (
     <div className="space-y-5">
@@ -772,7 +784,7 @@ function TodayRoster() {
           )}
           {/* Clocked In section */}
           {clockedIn.map(({ staff: s, log }) => (
-            <RosterRow key={s.id} staff={s} log={log} status="in" />
+            <RosterRow key={s.id} staff={s} log={log} status="in" liveLocation={liveLocations[s.id]} />
           ))}
           {/* Clocked Out section */}
           {clockedOut.map(({ staff: s, log }) => (
@@ -837,8 +849,11 @@ function GpsLocationPill({ lat, lng, label, color }: { lat: string; lng: string;
   );
 }
 
-function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" | "out" | "absent" }) {
-  const [mapOpen, setMapOpen] = useState<"in" | "out" | null>(null);
+function RosterRow({ staff, log, status, liveLocation }: {
+  staff: any; log: any; status: "in" | "out" | "absent";
+  liveLocation?: { lat: string; lng: string; recordedAt: string };
+}) {
+  const [mapOpen, setMapOpen] = useState<"in" | "out" | "live" | null>(null);
   const mins = log?.clockOutAt
     ? differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt))
     : null;
@@ -850,10 +865,16 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
     ? { lat: log.clockOutLat, lng: log.clockOutLng }
     : mapOpen === "in" && hasInGps
     ? { lat: log.clockInLat,  lng: log.clockInLng  }
+    : mapOpen === "live" && liveLocation
+    ? { lat: liveLocation.lat, lng: liveLocation.lng }
     : null;
 
   const osmSrc = activeGps
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${+activeGps.lng - 0.003},${+activeGps.lat - 0.003},${+activeGps.lng + 0.003},${+activeGps.lat + 0.003}&layer=mapnik&marker=${activeGps.lat},${activeGps.lng}`
+    : null;
+
+  const liveMinutesAgo = liveLocation
+    ? Math.floor((Date.now() - new Date(liveLocation.recordedAt).getTime()) / 60000)
     : null;
 
   return (
@@ -872,17 +893,37 @@ function RosterRow({ staff, log, status }: { staff: any; log: any; status: "in" 
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 <span className="text-xs font-bold text-emerald-600">Clocked in · {format(new Date(log.clockInAt), "h:mm a")}</span>
               </div>
-              {hasInGps && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {hasInGps && (
+                  <>
+                    <GpsLocationPill lat={log.clockInLat} lng={log.clockInLng} label="In" color="green" />
+                    <button onClick={() => setMapOpen(p => p === "in" ? null : "in")}
+                      className={`text-[10px] px-2 py-0.5 border font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      data-testid={`button-map-in-${staff.id}`}>
+                      {mapOpen === "in" ? "▲" : "Map ▾"}
+                    </button>
+                  </>
+                )}
+                {!hasInGps && <span className="text-[10px] text-amber-600 font-bold">⚠ No GPS at clock-in</span>}
+              </div>
+              {/* Live location */}
+              {liveLocation && (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <GpsLocationPill lat={log.clockInLat} lng={log.clockInLng} label="In" color="green" />
-                  <button onClick={() => setMapOpen(p => p === "in" ? null : "in")}
-                    className={`text-[10px] px-2 py-0.5 border font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
-                    data-testid={`button-map-in-${staff.id}`}>
-                    {mapOpen === "in" ? "Hide map ▲" : "Map ▾"}
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5">
+                    <Navigation2 className="w-2.5 h-2.5 animate-pulse shrink-0" />
+                    Live · {liveMinutesAgo === 0 ? "just now" : `${liveMinutesAgo}m ago`}
+                  </div>
+                  <GpsLocationPill lat={liveLocation.lat} lng={liveLocation.lng} label="Now" color="green" />
+                  <button onClick={() => setMapOpen(p => p === "live" ? null : "live")}
+                    className={`text-[10px] px-2 py-0.5 border font-bold transition-colors ${mapOpen === "live" ? "bg-blue-700 text-white border-blue-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                    data-testid={`button-map-live-${staff.id}`}>
+                    {mapOpen === "live" ? "▲" : "Map ▾"}
                   </button>
                 </div>
               )}
-              {!hasInGps && <span className="text-[10px] text-amber-600 font-bold">⚠ No GPS recorded</span>}
+              {!liveLocation && (
+                <span className="text-[10px] text-slate-400 font-medium">No live GPS yet — updates every 30 s</span>
+              )}
             </div>
           )}
 
@@ -2270,7 +2311,13 @@ function GpsTrackingTab() {
 
   const selectedStaff = allStaff.find((s: any) => s.id === staffId);
   const segments = buildSegments(rawPoints);
-  const totalDistM = segments.filter(s => s.type === "move").reduce((a, s) => a + (s as any).distM, 0);
+  // Cumulative odometer: sum consecutive point-to-point distances (ignores anchor-based stop bias)
+  const totalDistM = rawPoints.length < 2 ? 0 : rawPoints.reduce((sum, pt, i) => {
+    if (i === 0) return sum;
+    const prev = rawPoints[i - 1];
+    const d = haversineM(parseFloat(prev.lat), parseFloat(prev.lng), parseFloat(pt.lat), parseFloat(pt.lng));
+    return d < 500 ? sum + d : sum; // ignore GPS jumps > 500m (bad fix)
+  }, 0);
   const totalStops = segments.filter(s => s.type === "stop").length;
   const firstSeen  = rawPoints.length > 0 ? new Date(rawPoints[0].recordedAt) : null;
   const lastSeen   = rawPoints.length > 0 ? new Date(rawPoints[rawPoints.length - 1].recordedAt) : null;

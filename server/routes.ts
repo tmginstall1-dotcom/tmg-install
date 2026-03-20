@@ -568,6 +568,31 @@ export async function registerRoutes(
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
+  // Live locations: last GPS point today for every currently-clocked-in staff member
+  app.get("/api/admin/live-locations", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const dateFrom = new Date(todayStr + "T00:00:00");
+      const dateTo   = new Date(todayStr + "T23:59:59");
+      // Get all attendance logs for today where staff are still clocked in
+      const logs = await storage.getAttendanceLogs(dateFrom, dateTo);
+      const activeUserIds = logs.filter((l: any) => !l.clockOutAt).map((l: any) => l.userId);
+      // Fetch last GPS point for each active user
+      const result: Record<number, any> = {};
+      await Promise.all(activeUserIds.map(async (uid: number) => {
+        const pts = await storage.getGpsTrackPoints(uid, dateFrom, dateTo);
+        if (pts.length > 0) {
+          const last = pts[pts.length - 1];
+          result[uid] = { lat: last.lat, lng: last.lng, recordedAt: last.recordedAt };
+        }
+      }));
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // -- Amendment Routes --
   app.post("/api/attendance/amendment", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
