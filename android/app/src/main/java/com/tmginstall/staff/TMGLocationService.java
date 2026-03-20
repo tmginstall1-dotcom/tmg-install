@@ -10,8 +10,10 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.location.Location;
 import android.os.Build;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -33,24 +35,25 @@ import java.util.concurrent.Executors;
 
 public class TMGLocationService extends Service {
 
-    private static final String TAG              = "TMGLocationService";
-    private static final String CHANNEL_ID       = "tmg_location";
-    private static final int    NOTIFICATION_ID  = 9001;
-    private static final String API_BASE         = "https://tmg-install-project--tmginstall.replit.app";
+    private static final String TAG             = "TMGLocationService";
+    private static final String CHANNEL_ID      = "tmg_location";
+    private static final int    NOTIFICATION_ID = 9001;
+    private static final String API_BASE        = "https://tmg-install-project--tmginstall.replit.app";
 
-    // Throttle: send at most once per 20 s, or if moved >= 15 m
+    // Send at most once per 20 s, or if moved >= 15 m
     private static final long  MIN_INTERVAL_MS = 20_000L;
     private static final float MIN_DISTANCE_M  = 15f;
 
     private FusedLocationProviderClient fusedLocationClient;
     private LocationCallback            locationCallback;
+    private HandlerThread               locationThread;
     private ExecutorService             networkExecutor;
+    private PowerManager.WakeLock       wakeLock;
 
-    private int   staffId    = -1;
-    private long  lastSentAt = 0;
-    private float lastLat    = 0f;
-    private float lastLng    = 0f;
-
+    private int    staffId       = -1;
+    private long   lastSentAt    = 0;
+    private float  lastLat       = 0f;
+    private float  lastLng       = 0f;
     private String sessionCookie = "";
 
     @Override
@@ -59,10 +62,22 @@ public class TMGLocationService extends Service {
 
         networkExecutor = Executors.newSingleThreadExecutor();
 
-        // Read persisted staffId and session cookie (captured from WebView at login time)
+        // Read persisted staffId and session cookie
         SharedPreferences prefs = getSharedPreferences(TMGLocationPlugin.PREFS, MODE_PRIVATE);
-        staffId = prefs.getInt("staff_id", -1);
+        staffId       = prefs.getInt("staff_id", -1);
         sessionCookie = prefs.getString(TMGLocationPlugin.PREF_SESSION_COOKIE, "");
+
+        // Acquire a PARTIAL_WAKE_LOCK so the CPU stays on even with the screen off.
+        // Without this, Android Doze mode can suspend the process and stop location
+        // callbacks from firing (seen as ~12-18 min gaps in the tracking data).
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm != null) {
+            wakeLock = pm.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "TMGInstall:LocationWakeLock"
+            );
+            wakeLock.acquire();
+        }
 
         createNotificationChannel();
         startForeground(NOTIFICATION_ID, buildNotification());
@@ -79,17 +94,27 @@ public class TMGLocationService extends Service {
             }
         };
 
-        startLocationUpdates();
+        // Use a dedicated background HandlerThread instead of the main looper.
+        // The main looper can be throttled/paused on some Android OEM firmware when
+        // the screen is off — the HandlerThread keeps running independently.
+        locationThread = new HandlerThread("TMGLocationThread");
+        locationThread.start();
+
+        startLocationUpdates(locationThread.getLooper());
         Log.d(TAG, "Service started. staffId=" + staffId);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // Update staffId if passed via intent (e.g., from fresh startForegroundService call)
         if (intent != null) {
             int newStaffId = intent.getIntExtra("staff_id", -1);
             if (newStaffId >= 0) {
                 staffId = newStaffId;
+                // Persist updated staffId in case service is restarted by OS
+                getSharedPreferences(TMGLocationPlugin.PREFS, MODE_PRIVATE)
+                    .edit()
+                    .putInt("staff_id", staffId)
+                    .apply();
                 Log.d(TAG, "onStartCommand: staffId updated to " + staffId);
             }
         }
@@ -98,7 +123,7 @@ public class TMGLocationService extends Service {
     }
 
     private void onNewLocation(Location loc) {
-        // Broadcast to plugin (for JS layer when app is in foreground)
+        // Broadcast to plugin (for JS layer while app is in foreground)
         Intent broadcast = new Intent(TMGLocationPlugin.LOCATION_BROADCAST);
         broadcast.setPackage(getPackageName());
         broadcast.putExtra("lat", loc.getLatitude());
@@ -108,11 +133,12 @@ public class TMGLocationService extends Service {
         broadcast.putExtra("time", loc.getTime());
         sendBroadcast(broadcast);
 
-        // Also call API directly — so tracking works even when app is fully closed
         if (staffId < 0) return;
 
-        long now = System.currentTimeMillis();
-        float moved = distanceMetres(lastLat, lastLng, (float) loc.getLatitude(), (float) loc.getLongitude());
+        long  now   = System.currentTimeMillis();
+        float moved = distanceMetres(lastLat, lastLng,
+                                     (float) loc.getLatitude(),
+                                     (float) loc.getLongitude());
         if (now - lastSentAt < MIN_INTERVAL_MS && moved < MIN_DISTANCE_M) return;
 
         lastSentAt = now;
@@ -144,8 +170,6 @@ public class TMGLocationService extends Service {
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setRequestProperty("User-Agent", "TMGStaffApp");
-            // Send the session cookie captured from the WebView at login time so the
-            // server can authenticate this background service request.
             if (sessionCookie != null && !sessionCookie.isEmpty()) {
                 conn.setRequestProperty("Cookie", sessionCookie);
             }
@@ -165,7 +189,7 @@ public class TMGLocationService extends Service {
         }
     }
 
-    private void startLocationUpdates() {
+    private void startLocationUpdates(Looper looper) {
         try {
             LocationRequest request = new LocationRequest.Builder(
                 Priority.PRIORITY_HIGH_ACCURACY, 15_000L
@@ -174,9 +198,7 @@ public class TMGLocationService extends Service {
             .setMaxUpdateDelayMillis(30_000L)
             .build();
 
-            fusedLocationClient.requestLocationUpdates(
-                request, locationCallback, Looper.getMainLooper()
-            );
+            fusedLocationClient.requestLocationUpdates(request, locationCallback, looper);
         } catch (SecurityException e) {
             Log.w(TAG, "Location permission denied: " + e.getMessage());
             stopSelf();
@@ -186,18 +208,22 @@ public class TMGLocationService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (networkExecutor != null) networkExecutor.shutdownNow();
+        if (networkExecutor != null)  networkExecutor.shutdownNow();
         if (fusedLocationClient != null && locationCallback != null) {
             fusedLocationClient.removeLocationUpdates(locationCallback);
+        }
+        if (locationThread != null) {
+            locationThread.quitSafely();
+        }
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
         }
         Log.d(TAG, "Service destroyed");
     }
 
     @Nullable
     @Override
-    public IBinder onBind(Intent intent) {
-        return null;
-    }
+    public IBinder onBind(Intent intent) { return null; }
 
     // ── Notification ──────────────────────────────────────────────────────────
 
@@ -208,7 +234,7 @@ public class TMGLocationService extends Service {
                 "TMG Location Tracking",
                 NotificationManager.IMPORTANCE_LOW
             );
-            channel.setDescription("Active location tracking during your job");
+            channel.setDescription("Keeps location active during your shift");
             channel.setShowBadge(false);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) manager.createNotificationChannel(channel);
@@ -224,8 +250,8 @@ public class TMGLocationService extends Service {
         );
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("TMG Install — Location Active")
-            .setContentText("Tracking your location for the active job")
+            .setContentTitle("TMG Install — Shift Active")
+            .setContentText("Location tracking is on during your shift")
             .setSmallIcon(R.drawable.ic_stat_tmg)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
