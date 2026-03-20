@@ -529,36 +529,66 @@ export default function AdminQuoteDetail() {
                 </div>
               ) : (
                 <>
-                  <div className="divide-y border-t border-b mb-5">
-                    {quote.items?.map((item: any) => (
-                      <div key={item.id} className="py-3.5 flex justify-between items-start gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-sm">{item.detectedName || item.originalDescription}</p>
-                          <p className="text-xs text-muted-foreground capitalize">{item.serviceType} × {item.quantity} @ {formatMoney(item.unitPrice)}</p>
+                  {/* Items table */}
+                  <div className="border border-black/[0.07] overflow-hidden mb-5">
+                    <div className="grid grid-cols-[1fr_auto_auto] bg-slate-50 border-b border-black/[0.06]">
+                      <span className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Item</span>
+                      <span className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] text-center">Qty</span>
+                      <span className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] text-right">Amount</span>
+                    </div>
+                    {quote.items?.map((item: any, idx: number) => (
+                      <div key={item.id} className={`grid grid-cols-[1fr_auto_auto] items-start border-b border-black/[0.04] last:border-0 ${idx % 2 === 1 ? "bg-slate-50/40" : "bg-white"}`}>
+                        <div className="px-4 py-3 min-w-0">
+                          <p className="font-semibold text-[13px] text-slate-800 leading-tight">{item.detectedName || item.originalDescription}</p>
+                          <p className="text-[11px] text-slate-400 capitalize mt-0.5">{item.serviceType} · ${Number(item.unitPrice).toFixed(0)}/unit</p>
                         </div>
-                        <p className="font-bold shrink-0">{formatMoney(item.subtotal)}</p>
+                        <div className="px-4 py-3 text-center">
+                          <span className="text-sm font-bold text-slate-700 tabular-nums">×{item.quantity}</span>
+                        </div>
+                        <div className="px-4 py-3 text-right">
+                          <span className="text-sm font-black text-slate-900 tabular-nums">{formatMoney(item.subtotal)}</span>
+                        </div>
                       </div>
                     ))}
                     {(!quote.items || quote.items.length === 0) && (
-                      <p className="py-4 text-sm text-muted-foreground text-center">No items</p>
+                      <p className="py-6 text-sm text-slate-400 text-center">No items</p>
                     )}
                   </div>
+                  {/* Pricing breakdown */}
                   <div className="flex justify-end">
-                    <div className="w-full sm:w-72 space-y-2 text-sm">
-                      <div className="flex justify-between text-muted-foreground"><span>Labor subtotal</span><span className="shrink-0 ml-4">{formatMoney(quote.subtotal)}</span></div>
-                      {Number(quote.discount || 0) > 0 && (
-                        <div className="flex justify-between text-emerald-700 font-medium">
-                          <span>Bulk discount</span><span className="shrink-0 ml-4">−{formatMoney(quote.discount)}</span>
+                    <div className="w-full sm:w-64 border border-black/[0.07] overflow-hidden">
+                      <div className="divide-y divide-black/[0.05]">
+                        <div className="flex justify-between px-4 py-2.5 text-sm">
+                          <span className="text-slate-500">Labor subtotal</span>
+                          <span className="font-semibold text-slate-700 tabular-nums">{formatMoney(quote.subtotal)}</span>
                         </div>
-                      )}
-                      {Number(quote.transportFee || 0) > 0 && (
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>Logistics fees</span><span className="shrink-0 ml-4">{formatMoney(quote.transportFee)}</span>
+                        {Number(quote.discount || 0) > 0 && (
+                          <div className="flex justify-between px-4 py-2.5 text-sm">
+                            <span className="text-emerald-600">Bulk discount</span>
+                            <span className="font-semibold text-emerald-600 tabular-nums">−{formatMoney(quote.discount)}</span>
+                          </div>
+                        )}
+                        {Number(quote.transportFee || 0) > 0 && (
+                          <div className="flex justify-between px-4 py-2.5 text-sm">
+                            <span className="text-slate-500">Logistics fees</span>
+                            <span className="font-semibold text-slate-700 tabular-nums">{formatMoney(quote.transportFee)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex justify-between items-center px-4 py-3 bg-slate-950 text-white">
+                        <span className="text-[11px] font-black uppercase tracking-[0.15em]">Total</span>
+                        <span className="text-lg font-black tabular-nums">{formatMoney(quote.total)}</span>
+                      </div>
+                      <div className="divide-y divide-black/[0.05]">
+                        <div className="flex justify-between px-4 py-2 text-xs">
+                          <span className="text-emerald-600 font-semibold">50% Deposit</span>
+                          <span className="font-black text-emerald-700 tabular-nums">{formatMoney(quote.depositAmount)}</span>
                         </div>
-                      )}
-                      <div className="flex justify-between font-bold text-lg pt-2 border-t"><span>Total</span><span className="shrink-0 ml-4">{formatMoney(quote.total)}</span></div>
-                      <div className="flex justify-between text-emerald-600 font-semibold text-xs"><span>50% Deposit</span><span className="shrink-0 ml-4">{formatMoney(quote.depositAmount)}</span></div>
-                      <div className="flex justify-between text-muted-foreground text-xs"><span>Balance (50%)</span><span className="shrink-0 ml-4">{formatMoney(quote.finalAmount)}</span></div>
+                        <div className="flex justify-between px-4 py-2 text-xs">
+                          <span className="text-slate-400">Balance (50%)</span>
+                          <span className="font-semibold text-slate-600 tabular-nums">{formatMoney(quote.finalAmount)}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </>
@@ -570,8 +600,8 @@ export default function AdminQuoteDetail() {
               <h3 className="text-[11px] font-black mb-5 text-slate-900 flex items-center gap-2 uppercase tracking-[0.15em]">
                 <Clock className="w-4 h-4" /> Job Timeline &amp; Field Proof
               </h3>
-              <div className="space-y-4">
-                {quote.updates?.map((update: any) => {
+              <div className="space-y-0">
+                {quote.updates?.map((update: any, updateIdx: number) => {
                   const isArrival   = update.statusChange === 'in_progress' && update.gpsLat;
                   const isCompletion = update.statusChange === 'completed' && update.gpsLat;
                   const isFieldEvent = isArrival || isCompletion;
@@ -583,12 +613,17 @@ export default function AdminQuoteDetail() {
 
                   return (
                     <div key={update.id} className="flex gap-3 items-start">
-                      <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-1 ${
-                        isArrival    ? 'bg-blue-100 border-blue-500' :
-                        isCompletion ? 'bg-emerald-100 border-emerald-500' :
-                        'bg-primary/20 border-primary'
-                      }`}></div>
-                      <div className="flex-1 pb-4 border-b last:border-0">
+                      <div className="flex flex-col items-center shrink-0 mt-1">
+                        <div className={`w-4 h-4 rounded-full border-2 ${
+                          isArrival    ? 'bg-blue-100 border-blue-500' :
+                          isCompletion ? 'bg-emerald-100 border-emerald-500' :
+                          'bg-primary/10 border-primary/60'
+                        }`} />
+                        {updateIdx < (quote.updates?.length ?? 1) - 1 && (
+                          <div className="w-px flex-1 bg-black/[0.06] min-h-[24px] mt-1" />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-5">
 
                         {/* Field event — arrival or completion: show prominent timestamp block */}
                         {isFieldEvent ? (

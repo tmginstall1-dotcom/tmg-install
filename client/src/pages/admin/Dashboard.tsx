@@ -51,21 +51,21 @@ function QuoteRow({ quote, showDate = false }: { quote: any; showDate?: boolean 
   return (
     <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}
       className="block w-full">
-      <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100 last:border-0">
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${avatarBg(quote.id)}`}>
+      <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/80 active:bg-slate-100 transition-colors border-b border-black/[0.04] last:border-0">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${avatarBg(quote.id)}`}>
           {initials(quote.customer?.name)}
         </div>
         <div className="flex-1 min-w-0 overflow-hidden">
-          <p className="font-bold text-sm text-slate-800 truncate leading-tight">
+          <p className="font-bold text-[13px] text-slate-800 truncate leading-tight">
             {quote.customer?.name || "Unknown"}
           </p>
-          <p className="text-xs text-slate-400 truncate mt-0.5">
+          <p className="text-[11px] text-slate-400 truncate mt-0.5">
             {quote.serviceAddress || "No address"}
           </p>
         </div>
         <div className="shrink-0 text-right">
           <p className="text-sm font-black text-slate-900 tabular-nums">{formatMoney(quote.total)}</p>
-          <p className="text-[11px] text-slate-400 tabular-nums mt-0.5">
+          <p className="text-[10px] text-slate-400 tabular-nums mt-0.5">
             {showDate && slotDate ? slotDate : format(new Date(quote.createdAt), "d MMM")}
           </p>
         </div>
@@ -134,29 +134,29 @@ function BookedQuoteRow({ quote }: { quote: any }) {
   };
 
   return (
-    <div className="border-b border-slate-100 last:border-0">
+    <div className="border-b border-black/[0.04] last:border-0">
       <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}
         className="block w-full">
-        <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${avatarBg(quote.id)}`}>
+        <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/80 active:bg-slate-100 transition-colors">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${avatarBg(quote.id)}`}>
             {initials(quote.customer?.name)}
           </div>
           <div className="flex-1 min-w-0 overflow-hidden">
-            <p className="font-semibold text-sm text-slate-800 truncate leading-tight">
+            <p className="font-bold text-[13px] text-slate-800 truncate leading-tight">
               {quote.customer?.name || "Unknown"}
             </p>
-            <p className="text-xs text-slate-400 truncate mt-0.5">
+            <p className="text-[11px] text-slate-400 truncate mt-0.5">
               {slotDate || "No date set"}
             </p>
           </div>
           {quote.assignedStaffId
-            ? <span className="shrink-0 text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1">ASSIGNED</span>
-            : <span className="shrink-0 text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-1">UNASSIGNED</span>
+            ? <span className="shrink-0 text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 uppercase tracking-[0.08em]">Assigned</span>
+            : <span className="shrink-0 text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 uppercase tracking-[0.08em]">Unassigned</span>
           }
           <div className="shrink-0 text-right">
-            <p className="text-sm font-bold text-slate-800 tabular-nums">{formatMoney(quote.total)}</p>
+            <p className="text-sm font-black text-slate-900 tabular-nums">{formatMoney(quote.total)}</p>
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 group-hover:text-violet-400 transition-colors" />
+          <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 group-hover:text-violet-500 transition-colors" />
         </div>
       </Link>
       {!quote.assignedStaffId && (
@@ -209,21 +209,21 @@ function SectionPanel({
   const ac = ACCENT[accentColor] || ACCENT.violet;
 
   return (
-    <div className={`w-full bg-white rounded-xl overflow-hidden shadow-sm ${
-      urgent && quotes.length > 0 ? "border border-orange-200" : "border border-slate-200"
+    <div className={`w-full bg-white overflow-hidden ${
+      urgent && quotes.length > 0 ? "border border-orange-200" : "border border-black/[0.07]"
     }`}>
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100 bg-slate-50/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.05] bg-slate-50">
         <div className="flex items-center gap-2.5">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${ac.dot}`} />
-          <h2 className="font-black text-[11px] text-slate-700 uppercase tracking-[0.12em]">{title}</h2>
+          <span className={`w-1.5 h-4 shrink-0 ${ac.dot}`} />
+          <h2 className="font-black text-[10px] text-slate-700 uppercase tracking-[0.18em]">{title}</h2>
         </div>
-        <span className={`min-w-[22px] h-[22px] px-1.5 rounded-md flex items-center justify-center text-xs font-black ${
+        <span className={`min-w-[22px] h-[18px] px-1.5 flex items-center justify-center text-[10px] font-black ${
           quotes.length > 0 ? ac.badge : "bg-slate-100 text-slate-400"
         }`}>
           {quotes.length}
         </span>
       </div>
-      <div className="overflow-hidden divide-y divide-slate-50">
+      <div className="overflow-hidden">
         {quotes.map((q: any) => bookedStyle
           ? <BookedQuoteRow key={q.id} quote={q} />
           : <QuoteRow key={q.id} quote={q} showDate={showDate} />
@@ -356,23 +356,23 @@ export default function AdminDashboard() {
           </div>
 
           {/* Stat grid — 5-col */}
-          <div className="grid grid-cols-5 gap-2 mt-4">
+          <div className="grid grid-cols-5 gap-1.5 mt-4">
             {statCards.map((card) => (
               <div key={card.label}
-                className={`rounded-xl px-2 py-3 sm:px-3 flex flex-col items-center gap-1 ${
+                className={`px-2 py-3 sm:px-3 flex flex-col items-center gap-1.5 ${
                   card.urgent && card.value > 0
-                    ? "bg-orange-500/20 border border-orange-500/30"
-                    : "bg-white/[0.07] border border-white/10"
+                    ? "bg-orange-500/15 border border-orange-500/25"
+                    : "bg-white/[0.06] border border-white/[0.08]"
                 }`}
               >
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${accentIconBg[card.accent]}`}>
-                  <card.icon className="w-3.5 h-3.5" />
+                <div className={`w-6 h-6 flex items-center justify-center ${accentIconBg[card.accent]}`}>
+                  <card.icon className="w-3 h-3" />
                 </div>
-                <span className={`text-2xl font-black tabular-nums leading-none ${
+                <span className={`text-2xl sm:text-3xl font-black tabular-nums leading-none ${
                   card.urgent && card.value > 0 ? "text-orange-300" :
                   card.value > 0 ? "text-white" : "text-slate-600"
                 }`}>{card.value}</span>
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide leading-tight text-center truncate w-full">{card.label}</p>
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] leading-tight text-center truncate w-full">{card.label}</p>
               </div>
             ))}
           </div>
@@ -407,15 +407,15 @@ export default function AdminDashboard() {
         {/* ── SEARCH RESULTS ─ */}
         {isSearching && (
           <div className="mt-5">
-            <div className="bg-white border border-black/[0.08] overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/[0.06]">
+            <div className="bg-white border border-black/[0.07] overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.05] bg-slate-50">
                 <div className="flex items-center gap-2.5">
-                  <Search className="w-3.5 h-3.5 text-slate-400" />
-                  <h2 className="font-black text-[11px] text-slate-800 uppercase tracking-[0.12em]">
+                  <span className="w-1.5 h-4 bg-violet-500 shrink-0" />
+                  <h2 className="font-black text-[10px] text-slate-700 uppercase tracking-[0.18em]">
                     Search Results
                   </h2>
                 </div>
-                <span className={`min-w-[22px] h-[22px] px-1.5 flex items-center justify-center text-xs font-black ${
+                <span className={`min-w-[22px] h-[18px] px-1.5 flex items-center justify-center text-[10px] font-black ${
                   searchResults.length > 0 ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-400"
                 }`}>
                   {searchResults.length}
@@ -442,17 +442,17 @@ export default function AdminDashboard() {
           <>
             {/* Attention banner */}
             {urgentCount > 0 && (
-              <div className="mt-5 flex items-center gap-3 bg-amber-50 border-l-4 border-amber-500 border-t border-r border-b border-amber-200 px-4 py-3">
+              <div className="mt-5 flex items-center gap-3 bg-amber-50 border border-amber-200 border-l-[3px] border-l-amber-500 px-4 py-3">
                 <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-black text-amber-800 uppercase tracking-[0.1em] truncate">
+                  <p className="text-[11px] font-black text-amber-800 uppercase tracking-[0.12em]">
                     {urgentCount} item{urgentCount !== 1 ? "s" : ""} need attention
                   </p>
-                  <p className="text-xs text-amber-600 truncate mt-0.5">
+                  <p className="text-xs text-amber-600 mt-0.5">
                     {[
-                      newQuotes.length > 0 && `${newQuotes.length} new`,
+                      newQuotes.length > 0 && `${newQuotes.length} new quote${newQuotes.length !== 1 ? "s" : ""}`,
                       awaitingPayment.length > 0 && `${awaitingPayment.length} awaiting payment`,
-                    ].filter(Boolean).join(" · ")}
+                    ].filter(Boolean).join("  ·  ")}
                   </p>
                 </div>
                 <ArrowRight className="w-4 h-4 text-amber-400 shrink-0" />
@@ -500,22 +500,23 @@ export default function AdminDashboard() {
             </div>
 
             {/* Quick-nav cards — 2×2 on mobile (sidebar hidden), hidden on desktop */}
-            <div className="mt-6 lg:hidden grid grid-cols-2 gap-3">
+            <div className="mt-6 lg:hidden grid grid-cols-2 gap-2">
               {[
-                { href: "/admin/schedule",  label: "Schedule",   icon: Calendar,   desc: "Bookings & jobs",    color: "bg-sky-50 border-sky-200 text-sky-700" },
-                { href: "/admin/staff",     label: "Staff & HR", icon: Users,      desc: "Payroll & leave",    color: "bg-violet-50 border-violet-200 text-violet-700" },
-                { href: "/admin/analytics", label: "Analytics",  icon: BarChart2,  desc: "Traffic & stats",    color: "bg-emerald-50 border-emerald-200 text-emerald-700" },
-                { href: "/admin/export",    label: "Export",     icon: TrendingUp, desc: "Download reports",   color: "bg-amber-50 border-amber-200 text-amber-700" },
-              ].map(({ href, label, icon: Icon, desc, color }) => (
+                { href: "/admin/schedule",  label: "Schedule",   icon: Calendar,   desc: "Bookings & jobs",    iconBg: "bg-sky-100 text-sky-600" },
+                { href: "/admin/staff",     label: "Staff & HR", icon: Users,      desc: "Payroll & leave",    iconBg: "bg-violet-100 text-violet-600" },
+                { href: "/admin/analytics", label: "Analytics",  icon: BarChart2,  desc: "Traffic & stats",    iconBg: "bg-emerald-100 text-emerald-600" },
+                { href: "/admin/export",    label: "Export",     icon: TrendingUp, desc: "Download reports",   iconBg: "bg-amber-100 text-amber-600" },
+              ].map(({ href, label, icon: Icon, desc, iconBg }) => (
                 <Link key={href} href={href} className="block w-full">
-                  <div className={`group flex items-center gap-3 bg-white rounded-xl border p-4 hover:shadow-md active:scale-[0.98] transition-all h-full shadow-sm border-slate-200`}>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
-                      <Icon className="w-4.5 h-4.5" />
+                  <div className="group flex items-center gap-3 bg-white border border-black/[0.07] p-4 hover:border-black/20 active:bg-slate-50 transition-all h-full">
+                    <div className={`w-9 h-9 flex items-center justify-center shrink-0 ${iconBg}`}>
+                      <Icon className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="font-bold text-[13px] text-slate-800 leading-tight">{label}</p>
                       <p className="text-[11px] text-slate-400 mt-0.5">{desc}</p>
                     </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
                   </div>
                 </Link>
               ))}

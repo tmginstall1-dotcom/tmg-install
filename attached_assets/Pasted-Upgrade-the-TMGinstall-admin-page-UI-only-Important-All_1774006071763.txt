@@ -1,0 +1,154 @@
+Upgrade the TMGinstall admin page UI only.
+
+Important:
+All functions, workflow, logic, backend, database, API, Supabase, Stripe, email flow, status flow, and existing actions are already correct. Do NOT change any business logic. Do NOT add new features unless they are purely visual/UI usability improvements. This task is only to improve the design, spacing, alignment, layout, hierarchy, and overall professional app feel.
+
+Scope:
+- Admin page only
+- UI/UX polish only
+- Layout and visual improvements only
+- Responsive improvement allowed only if it does not affect logic
+- Use existing data, components, routes, functions, and actions
+- Full-file replacements only when editing files
+
+Strict no-change rules:
+1. Do NOT change backend logic.
+2. Do NOT change database tables, schema, policies, edge functions, triggers, or API contracts.
+3. Do NOT change quote flow, payment flow, booking flow, job flow, or status logic.
+4. Do NOT remove working features.
+5. Do NOT create duplicate pages, duplicate components, duplicate routes, or duplicate logic.
+6. Do NOT rename important variables/functions unless absolutely required for UI refactor safety.
+7. Do NOT break any current admin actions or forms.
+8. Keep all existing buttons and actions working exactly the same.
+9. No placeholder/demo data.
+10. Focus on professional visual upgrade only.
+
+Design goal:
+Make the admin page feel like a polished professional SaaS operations app. It should look premium, clean, structured, efficient, modern, and trustworthy. The result should feel closer to a real production dashboard used by logistics / operations teams, not a basic template.
+
+Visual direction:
+- Clean modern SaaS dashboard
+- Strong alignment and spacing consistency
+- Better visual hierarchy
+- Better typography sizing/weight consistency
+- Cleaner cards and tables
+- Professional status badges
+- Better section separation
+- Better use of whitespace
+- Better responsive layout
+- Better form alignment
+- Better action button grouping
+- Better readability for dense operational data
+- Improve without overdesigning
+- Minimize clutter
+- Keep it practical and premium
+
+Main tasks:
+1. Audit the current admin page layout and identify visual issues:
+   - inconsistent spacing
+   - misaligned cards/tables/forms
+   - poor typography hierarchy
+   - weak button placement
+   - crowded sections
+   - uneven margins/paddings
+   - inconsistent widths/heights
+   - poor mobile/tablet behavior
+   - unclear information hierarchy
+
+2. Redesign the page structure using the existing content:
+   - cleaner page header
+   - better top summary section
+   - consistent card grid layout
+   - aligned content containers
+   - better section titles and spacing
+   - cleaner table/list presentation
+   - clear filter/search/action areas
+   - better drawer/modal/panel styling if present
+   - sticky action bar where useful
+   - improve scanability of quotes/jobs/payments data
+
+3. Improve visual consistency across:
+   - page containers
+   - cards
+   - tables
+   - tabs
+   - filters
+   - search bars
+   - form fields
+   - labels
+   - badges
+   - buttons
+   - modals/drawers
+   - empty states
+   - loading states
+   - error/success messages
+
+4. Improve alignment and spacing everywhere:
+   - consistent outer page padding
+   - consistent internal card padding
+   - consistent vertical rhythm between sections
+   - aligned buttons and fields
+   - aligned columns in tables/forms
+   - better breakpoint behavior on tablet/mobile
+   - prevent cramped layouts
+   - reduce visual noise
+
+5. Upgrade the admin page styling to feel premium:
+   - refined typography scale
+   - more polished component styling
+   - better hover/focus/active states
+   - clearer selected states
+   - professional shadows/borders/radius usage
+   - cleaner status color usage
+   - better contrast and readability
+   - polished interactive feel
+
+6. Improve admin efficiency visually without changing logic:
+   - surface important actions more clearly
+   - group related actions properly
+   - reduce confusion in dense areas
+   - make status/progress easier to understand
+   - make tables easier to scan
+   - make totals / important figures more prominent
+   - make admin notes / internal sections visually distinct if already present
+
+7. Responsive polish:
+   - desktop should feel like a premium dashboard
+   - tablet should remain clean and usable
+   - mobile should not look broken or cramped
+   - no overflowing tables/buttons
+   - maintain proper spacing and readability across breakpoints
+
+Implementation rules:
+- Reuse existing design system/components where possible
+- If current styling is messy, refactor only the presentation layer safely
+- Prefer improving existing shared admin UI components rather than making one-off hacks
+- Keep styling maintainable and production-ready
+- Avoid unnecessary animation or flashy effects
+- Do not introduce visual changes that make the app slower or harder to use
+- Do not change the meaning of any status or action
+
+Acceptance standard:
+The admin page should look like a serious professional app after the upgrade:
+- visually aligned
+- well spaced
+- clean and modern
+- easy to scan
+- premium but practical
+- consistent across sections
+- much more polished than before
+- no broken logic
+- no broken layout
+- no duplicate code or messy patchwork
+
+Execution steps:
+1. Inspect the current admin page structure and existing components first.
+2. Identify what can be improved only in the UI layer.
+3. Refactor the design carefully without touching business logic.
+4. Apply consistent spacing, layout, and component styling across the full admin page.
+5. Test all existing actions to ensure no logic broke.
+6. Clean up any old styling causing inconsistency.
+7. Deliver a polished, production-quality admin page UI.
+
+Final instruction:
+This is a design and alignment upgrade only. Preserve all existing TMGinstall admin logic exactly as-is. Make it feel like a premium pro app without changing how the system works.
