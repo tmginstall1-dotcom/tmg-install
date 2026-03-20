@@ -206,9 +206,8 @@ export default function EstimateWizard() {
   const [showPaste, setShowPaste] = useState(false);
   const [photoDetecting, setPhotoDetecting] = useState(false);
   const [photoError, setPhotoError] = useState("");
-  const [detectedPhotoUrl, setDetectedPhotoUrl] = useState<string>("");
-  const [detectedCount, setDetectedCount] = useState(0);
-  const [detectedNames, setDetectedNames] = useState<string[]>([]);
+  const [detectedPhotos, setDetectedPhotos] = useState<{ thumbnail: string; names: string[]; count: number }[]>([]);
+  const [detectingProgress, setDetectingProgress] = useState<{ current: number; total: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Step 4: Schedule — calendar
   const todayDate = new Date();
@@ -421,77 +420,67 @@ export default function EstimateWizard() {
     });
   }
 
+  // Shared matching logic
+  const stem = (w: string) => w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w;
+  const stripParens = (s: string) => s.replace(/\s*\(.*?\)/g, "").trim();
+  const matchScore = (det: string, cat: string): number => {
+    const d = det.toLowerCase(), c = cat.toLowerCase();
+    const dC = stripParens(d), cC = stripParens(c);
+    if (d === c) return 100;
+    if (dC === cC) return 90;
+    if (c.includes(d) || d.includes(c)) return 80;
+    if (cC.includes(dC) || dC.includes(cC)) return 75;
+    const ikeaModel = d.match(/\b(pax|kallax|billy|malm|hemnes|besta|micke|lack|alex|poäng|kivik|ivar|trofast|stuva|vittsjo|lillångén|lillangen|godmorgon|kleppstad)\b/i);
+    if (ikeaModel && c.includes(ikeaModel[1].toLowerCase())) return 70;
+    const dWords = dC.split(/\s+/).filter(w => w.length > 3).map(stem);
+    const cWords = cC.split(/\s+/).filter(w => w.length > 3).map(stem);
+    const overlap = dWords.filter(w => cWords.some(cw => cw.includes(w) || w.includes(cw)));
+    if (overlap.length >= 2) return 60;
+    if (overlap.length >= 1) return 40;
+    return 0;
+  };
+  const bestCatalogMatch = (detectedName: string) => {
+    let best: { group: typeof catalogGroups[0]; score: number } | null = null;
+    catalogGroups.forEach(g => {
+      const score = matchScore(detectedName, g.name);
+      if (score > 0 && (!best || score > best.score)) best = { group: g, score };
+    });
+    return best && best.score >= 40 ? best.group : null;
+  };
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     if (fileInputRef.current) fileInputRef.current.value = "";
 
     setPhotoDetecting(true);
     setPhotoError("");
 
-    try {
-      const { base64, thumbnail, mimeType } = await compressImage(file, 1536);
+    let anyDetected = false;
 
-      const res = await fetch("/api/catalog/detect-items", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Detection failed");
+    for (let i = 0; i < files.length; i++) {
+      setDetectingProgress({ current: i + 1, total: files.length });
+      try {
+        const { base64, thumbnail, mimeType } = await compressImage(files[i], 1536);
+        const res = await fetch("/api/catalog/detect-items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: base64, mimeType }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Detection failed");
 
-      const detected: { name: string; quantity: number }[] = data.detected || [];
+        const detected: { name: string; quantity: number }[] = data.detected || [];
+        if (detected.length === 0) continue;
 
-      if (detected.length === 0) {
-        setPhotoError("No furniture detected — try a clearer photo or add items manually.");
-      } else {
-        // Stem a word: "desks" → "desk", "cabinets" → "cabinet"
-        const stem = (w: string) => w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w;
-
-        // Strip parenthetical qualifiers for comparison: "Mirror Cabinet (Small)" → "Mirror Cabinet"
-        const stripParens = (s: string) => s.replace(/\s*\(.*?\)/g, "").trim();
-
-        // Score how well two names match (higher = better)
-        const matchScore = (detected: string, catalog: string): number => {
-          const d = detected.toLowerCase();
-          const c = catalog.toLowerCase();
-          const dClean = stripParens(d);
-          const cClean = stripParens(c);
-          // Exact match (case-insensitive)
-          if (d === c) return 100;
-          // Exact match ignoring parentheticals
-          if (dClean === cClean) return 90;
-          // One fully contains the other
-          if (c.includes(d) || d.includes(c)) return 80;
-          if (cClean.includes(dClean) || dClean.includes(cClean)) return 75;
-          // IKEA model name match: both contain the same all-caps model word (PAX, HEMNES, etc.)
-          const ikeaModel = d.match(/\b(pax|kallax|billy|malm|hemnes|besta|micke|lack|alex|poäng|kivik|ivar|trofast|stuva|vittsjo|lillångén|lillangen|godmorgon|kleppstad)\b/i);
-          if (ikeaModel && c.includes(ikeaModel[1].toLowerCase())) return 70;
-          // Significant word overlap (words > 3 chars, stemmed)
-          const dWords = dClean.split(/\s+/).filter(w => w.length > 3).map(stem);
-          const cWords = cClean.split(/\s+/).filter(w => w.length > 3).map(stem);
-          const overlap = dWords.filter(w => cWords.some(cw => cw.includes(w) || w.includes(cw)));
-          if (overlap.length >= 2) return 60;
-          if (overlap.length >= 1) return 40;
-          return 0;
-        };
-
-        // For each detected item, find the best-scoring catalog match
-        const bestCatalogMatch = (detectedName: string) => {
-          let best: { group: typeof catalogGroups[0]; score: number } | null = null;
-          catalogGroups.forEach(g => {
-            const score = matchScore(detectedName, g.name);
-            if (score > 0 && (!best || score > best.score)) best = { group: g, score };
-          });
-          return best && best.score >= 40 ? best.group : null;
-        };
-
+        anyDetected = true;
         let matchCount = 0;
+        const nameList: string[] = [];
+
         detected.forEach(({ name, quantity }) => {
           const matched = bestCatalogMatch(name);
           if (matched) {
             addCatalogGroup(matched, quantity || 1);
-            matchCount++;
           } else {
             services.forEach(st => {
               setItems(prev => [...prev, {
@@ -499,24 +488,23 @@ export default function EstimateWizard() {
                 serviceType: st, quantity: quantity || 1, unitPrice: 0, isCustom: true,
               }]);
             });
-            matchCount++;
           }
-        });
-        setDetectedPhotoUrl(thumbnail);
-        setDetectedCount(matchCount);
-        // Store unique item names (with quantity hint) for display
-        const nameList: string[] = [];
-        detected.forEach(({ name, quantity }) => {
+          matchCount++;
           nameList.push(quantity > 1 ? `${name} ×${quantity}` : name);
         });
-        setDetectedNames(nameList);
+
+        setDetectedPhotos(prev => [...prev, { thumbnail, names: nameList, count: matchCount }]);
+      } catch (err: any) {
+        console.error("Photo detection error:", err);
+        // continue processing remaining photos
       }
-    } catch (err: any) {
-      console.error("Photo detection error:", err);
-      setPhotoError(err.message || "Detection failed — please add items manually.");
-    } finally {
-      setPhotoDetecting(false);
     }
+
+    if (!anyDetected) {
+      setPhotoError("No furniture detected in the photos — try clearer shots or add items manually.");
+    }
+    setPhotoDetecting(false);
+    setDetectingProgress(null);
   };
 
   // ── Submit ────────────────────────────────────────────────────────────────
@@ -551,7 +539,7 @@ export default function EstimateWizard() {
         logisticsFee: pricingResult.logisticsSubtotal,
         discount: pricingResult.discountAmount,
         distanceKm: distanceKm > 0 ? distanceKm : undefined,
-        detectedPhotoUrl: detectedPhotoUrl || undefined,
+        detectedPhotoUrl: detectedPhotos[0]?.thumbnail || undefined,
         preferredDate: slotDateStr || undefined,
         preferredTimeWindow: slotTime || undefined,
       };
@@ -874,46 +862,83 @@ export default function EstimateWizard() {
                 <div className="bg-white border border-black/10 p-5">
                   <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-3 flex items-center gap-2">
                     <Camera className="w-3.5 h-3.5" /> AI Photo Detection
-                    <span className="text-black/25 font-normal normal-case tracking-normal">(optional)</span>
+                    <span className="text-black/25 font-normal normal-case tracking-normal">(optional · multiple photos)</span>
                   </p>
-                  <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                  <input type="file" ref={fileInputRef} accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
 
-                  {/* Success state — thumbnail + detected item chips + re-scan option */}
-                  {detectedPhotoUrl && !photoDetecting ? (
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-4">
-                        <img src={detectedPhotoUrl} alt="detected" className="w-16 h-16 object-cover border border-black/15 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-black text-black flex items-center gap-1.5 mb-0.5">
-                            <Check className="w-4 h-4" /> {detectedCount} furniture item{detectedCount !== 1 ? 's' : ''} detected
-                          </p>
-                          <p className="text-xs text-black/40">Review and adjust quantities below.</p>
-                        </div>
-                      </div>
-                      {detectedNames.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {detectedNames.map((nm, i) => (
-                            <span key={i} className="inline-flex items-center text-[10px] font-black uppercase tracking-[0.08em] bg-black text-white px-2 py-0.5">
-                              {nm}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <button onClick={() => { setDetectedPhotoUrl(""); setDetectedCount(0); setDetectedNames([]); fileInputRef.current?.click(); }}
-                        className="text-[10px] font-black uppercase tracking-[0.1em] text-black/50 hover:text-black transition-colors">
-                        Scan another photo
-                      </button>
+                  {/* While scanning */}
+                  {photoDetecting && (
+                    <div className="w-full border border-dashed border-black/20 py-6 flex flex-col items-center gap-2 text-black/50">
+                      <Loader2 className="w-7 h-7 animate-spin" />
+                      <span className="text-sm font-black">
+                        {detectingProgress && detectingProgress.total > 1
+                          ? `Scanning photo ${detectingProgress.current} of ${detectingProgress.total}…`
+                          : "Scanning photo with AI…"}
+                      </span>
+                      <span className="text-xs text-black/35">Identifying furniture — this may take a few seconds</span>
                     </div>
-                  ) : (
+                  )}
+
+                  {/* Success state — photo grid + item chips + add more */}
+                  {!photoDetecting && detectedPhotos.length > 0 && (
+                    <div className="space-y-4">
+                      {/* Thumbnail grid */}
+                      <div className="flex flex-wrap gap-3">
+                        {detectedPhotos.map((photo, idx) => (
+                          <div key={idx} className="relative" data-testid={`detected-photo-${idx}`}>
+                            <img src={photo.thumbnail} alt={`Photo ${idx + 1}`}
+                              className="w-20 h-20 object-cover border border-black/15" />
+                            {/* Item count badge */}
+                            <div className="absolute -top-2 -right-2 w-6 h-6 bg-black text-white text-[11px] font-black flex items-center justify-center rounded-full">
+                              {photo.count}
+                            </div>
+                            {/* Remove photo */}
+                            <button
+                              onClick={() => setDetectedPhotos(prev => prev.filter((_, i) => i !== idx))}
+                              className="absolute -bottom-2 -right-2 w-5 h-5 bg-white border border-black/20 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors"
+                              data-testid={`button-remove-photo-${idx}`}>
+                              <X className="w-3 h-3 text-black/60" />
+                            </button>
+                          </div>
+                        ))}
+
+                        {/* Add more photos tile */}
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          data-testid="button-add-more-photos"
+                          className="w-20 h-20 border-2 border-dashed border-black/20 flex flex-col items-center justify-center gap-1 hover:border-black/50 hover:bg-slate-50 transition-all text-black/35 hover:text-black/60">
+                          <Plus className="w-5 h-5" />
+                          <span className="text-[9px] font-black uppercase tracking-wide leading-tight text-center">Add<br/>More</span>
+                        </button>
+                      </div>
+
+                      {/* Summary */}
+                      <p className="text-sm font-black flex items-center gap-1.5">
+                        <Check className="w-4 h-4" />
+                        {detectedPhotos.reduce((t, p) => t + p.count, 0)} item{detectedPhotos.reduce((t, p) => t + p.count, 0) !== 1 ? "s" : ""} detected from {detectedPhotos.length} photo{detectedPhotos.length !== 1 ? "s" : ""}
+                      </p>
+
+                      {/* All detected names as chips */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {detectedPhotos.flatMap(p => p.names).map((nm, i) => (
+                          <span key={i} className="inline-flex items-center text-[10px] font-black uppercase tracking-[0.08em] bg-black text-white px-2 py-0.5">
+                            {nm}
+                          </span>
+                        ))}
+                      </div>
+
+                      <p className="text-xs text-black/40">Review and adjust quantities in the item list below.</p>
+                    </div>
+                  )}
+
+                  {/* Initial upload zone */}
+                  {!photoDetecting && detectedPhotos.length === 0 && (
                     <button onClick={() => fileInputRef.current?.click()}
-                      disabled={photoDetecting}
                       data-testid="button-upload-photo"
-                      className="w-full border border-dashed border-black/20 py-5 flex flex-col items-center gap-2 hover:border-black/40 hover:bg-slate-50 transition-all text-black/35 hover:text-black/60 disabled:opacity-60"
-                    >
-                      {photoDetecting
-                        ? <><Loader2 className="w-6 h-6 animate-spin" /><span className="text-sm font-black">Scanning photo with AI…</span><span className="text-xs">Identifying furniture only — this may take a few seconds</span></>
-                        : <><Camera className="w-7 h-7" /><span className="text-sm font-black">Take or upload a photo</span><span className="text-xs">AI detects furniture — beds, sofas, wardrobes, desks &amp; more</span></>
-                      }
+                      className="w-full border border-dashed border-black/20 py-6 flex flex-col items-center gap-2 hover:border-black/40 hover:bg-slate-50 transition-all text-black/35 hover:text-black/60">
+                      <Camera className="w-7 h-7" />
+                      <span className="text-sm font-black">Take or upload photos</span>
+                      <span className="text-xs text-center">Select multiple photos at once — AI detects furniture from each one</span>
                     </button>
                   )}
 
