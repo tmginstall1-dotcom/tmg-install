@@ -39,8 +39,8 @@ public class MainActivity extends BridgeActivity {
             android.os.Process.killProcess(android.os.Process.myPid());
         });
 
-        // 3. No custom plugins registered — testing bare Capacitor
-        // registerPlugin(TMGLocationPlugin.class);
+        // 3. Register custom plugins
+        registerPlugin(TMGLocationPlugin.class);
 
         super.onCreate(savedInstanceState);
     }

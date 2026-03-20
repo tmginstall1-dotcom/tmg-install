@@ -56,7 +56,21 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- TMGLocationService and BootReceiver temporarily disabled for crash diagnosis -->
+        <!-- GPS foreground tracking service -->
+        <service
+            android:name=".TMGLocationService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
+        <!-- Restart tracking service after device reboot -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 
