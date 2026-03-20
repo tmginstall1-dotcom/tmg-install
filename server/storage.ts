@@ -792,25 +792,6 @@ export class DatabaseStorage implements IStorage {
 
     const now = new Date();
 
-    // Helper: walk through slots consuming capacity until jobTotal is covered.
-    // Returns every slot that the job occupies (primary + overflow).
-    function getSlotsConsumed(startDate: string, startTimeWindow: string, jobTotal: number): { date: string; timeSlot: string }[] {
-      const result: { date: string; timeSlot: string }[] = [];
-      let remaining = jobTotal;
-      let d = new Date(startDate + 'T12:00:00');
-      let si = TIME_SLOTS.indexOf(startTimeWindow);
-      if (si === -1) si = 0;
-      while (remaining > 0) {
-        const ts = TIME_SLOTS[si];
-        const cap = SLOT_CAPS[ts] ?? 500;
-        result.push({ date: d.toISOString().split('T')[0], timeSlot: ts });
-        remaining -= cap;
-        si++;
-        if (si >= TIME_SLOTS.length) { si = 0; d = new Date(d.getTime() + 86400000); }
-      }
-      return result;
-    }
-
     const validQuotes = activeQuotes
       .filter(q => q.preferredDate && q.preferredTimeWindow)
       .filter(q => {
@@ -833,29 +814,58 @@ export class DatabaseStorage implements IStorage {
       if (!heldSet.has(k)) { heldSet.add(k); result.push({ date, timeSlot, quoteId }); }
     };
 
-    for (const q of validQuotes) {
-      const jobTotal = Number(q.total || 0);
-      const date = q.preferredDate!;
-      const timeWindow = q.preferredTimeWindow!;
+    // Helper: find any quote booked on a date (for quoteId association)
+    const anyQuoteOnDate = (date: string) =>
+      validQuotes.find(q => q.preferredDate === date)?.id ?? validQuotes[0]?.id ?? 0;
 
-      // Rule 1: single job ≥ $1000 blocks the entire day
-      if (jobTotal >= DAILY_BIG_ORDER_CAP) {
-        for (const ts of TIME_SLOTS) addHeld(date, ts, q.id);
+    // Process each affected date using combined-slot carryover.
+    // Morning total + any prior overflow → if ≥ cap → morning full, excess carries to afternoon.
+    // Afternoon total + morning carryover → if ≥ cap → afternoon full, excess carries to next-day morning.
+    // A single job ≥ $1000 always blocks the entire day first.
+    const allDates = [...new Set(validQuotes.map(q => q.preferredDate!))].sort();
+
+    // Track cross-day carryover: key = date string, value = amount carried into that day's morning
+    const dayCarryover = new Map<string, number>();
+
+    for (const date of allDates) {
+      // Rule 1: any single job ≥ $1000 on this day → block both slots
+      const bigOrderQuote = validQuotes.find(
+        q => q.preferredDate === date && Number(q.total || 0) >= DAILY_BIG_ORDER_CAP
+      );
+      if (bigOrderQuote) {
+        for (const ts of TIME_SLOTS) addHeld(date, ts, bigOrderQuote.id);
         continue;
       }
 
-      // Rule 2: large job overflow — compute all slots this job consumes
-      const consumed = getSlotsConsumed(date, timeWindow, jobTotal);
+      let carry = dayCarryover.get(date) ?? 0;
 
-      // Primary slot: mark held only when cumulative has reached that slot's cap
-      const primaryCap = SLOT_CAPS[timeWindow] ?? 500;
-      if ((slotTotals.get(`${date}|${timeWindow}`) ?? 0) >= primaryCap) {
-        addHeld(consumed[0].date, consumed[0].timeSlot, q.id);
+      for (const ts of TIME_SLOTS) {
+        const tsCap = SLOT_CAPS[ts] ?? 500;
+        const tsDirect = slotTotals.get(`${date}|${ts}`) ?? 0;
+        const tsEffective = tsDirect + carry;
+
+        if (tsEffective >= tsCap) {
+          const quoteId = validQuotes.find(q => q.preferredDate === date && q.preferredTimeWindow === ts)?.id
+            ?? anyQuoteOnDate(date);
+          addHeld(date, ts, quoteId);
+          carry = tsEffective - tsCap; // excess rolls into next slot
+        } else {
+          carry = 0; // slot absorbed all carry, chain stops
+        }
       }
 
-      // Overflow slots: always held once a single large job spills over
-      for (let i = 1; i < consumed.length; i++) {
-        addHeld(consumed[i].date, consumed[i].timeSlot, q.id);
+      // If carry remains after the day's last slot, it rolls into next calendar day's morning
+      if (carry > 0) {
+        const nextD = new Date(date + 'T12:00:00');
+        nextD.setDate(nextD.getDate() + 1);
+        const nextDate = nextD.toISOString().split('T')[0];
+        dayCarryover.set(nextDate, (dayCarryover.get(nextDate) ?? 0) + carry);
+        // If the carry alone fills the next day's morning, pre-block it now if it's not in allDates
+        const nextMorningCap = SLOT_CAPS[TIME_SLOTS[0]] ?? 500;
+        const nextMorningDirect = slotTotals.get(`${nextDate}|${TIME_SLOTS[0]}`) ?? 0;
+        if (nextMorningDirect + carry >= nextMorningCap) {
+          addHeld(nextDate, TIME_SLOTS[0], anyQuoteOnDate(date));
+        }
       }
     }
 
@@ -931,49 +941,55 @@ export class DatabaseStorage implements IStorage {
       return !q.slotHeldUntil || q.slotHeldUntil > now;
     });
 
-    // Helper: walk through slots consuming per-slot capacity until jobTotal is covered
-    function getSlotsConsumed(startDate: string, startTimeWindow: string, jobTotal: number): { date: string; timeSlot: string }[] {
-      const result: { date: string; timeSlot: string }[] = [];
-      let remaining = jobTotal;
-      let d = new Date(startDate + 'T12:00:00');
-      let si = TIME_SLOTS.indexOf(startTimeWindow);
-      if (si === -1) si = 0;
-      while (remaining > 0) {
-        const ts = TIME_SLOTS[si];
-        result.push({ date: d.toISOString().split('T')[0], timeSlot: ts });
-        remaining -= (SLOT_CAPS[ts] ?? 500);
-        si++;
-        if (si >= TIME_SLOTS.length) { si = 0; d = new Date(d.getTime() + 86400000); }
-      }
-      return result;
-    }
-
-    // Rule 1: any active job on this day ≥ $1000 blocks the entire day
+    // Rule 1: any single active job on this day ≥ $1000 → whole day blocked
     const hasBigOrder = validQuotes.some(
       q => q.preferredDate === date && Number(q.total || 0) >= DAILY_BIG_ORDER_CAP
     );
     if (hasBigOrder) return false;
 
-    // Rule 2: large job overflow — does any active job's overflow reach this slot?
-    for (const q of validQuotes) {
-      const jobTotal = Number(q.total || 0);
-      if (jobTotal >= DAILY_BIG_ORDER_CAP) continue; // handled above
-      const slotCap = SLOT_CAPS[q.preferredTimeWindow!] ?? 500;
-      if (jobTotal > slotCap) {
-        const consumed = getSlotsConsumed(q.preferredDate!, q.preferredTimeWindow!, jobTotal);
-        if (consumed.some(s => s.date === date && s.timeSlot === timeWindow)) return false;
+    // Rule 2 & 3: combined carryover — walk morning → afternoon with accumulated carry.
+    // Also account for carryover arriving from the previous day's afternoon overflow.
+    const prevD = new Date(date + 'T12:00:00');
+    prevD.setDate(prevD.getDate() - 1);
+    const prevDate = prevD.toISOString().split('T')[0];
+
+    // Compute previous day's carryover into today's morning
+    let prevCarry = 0;
+    const prevBig = validQuotes.some(
+      q => q.preferredDate === prevDate && Number(q.total || 0) >= DAILY_BIG_ORDER_CAP
+    );
+    if (!prevBig) {
+      let c = 0;
+      for (const ts of TIME_SLOTS) {
+        const tsCap = SLOT_CAPS[ts] ?? 500;
+        const tsDirect = validQuotes
+          .filter(q => q.preferredDate === prevDate && q.preferredTimeWindow === ts)
+          .reduce((sum, q) => sum + Number(q.total || 0), 0);
+        const tsEff = tsDirect + c;
+        c = tsEff >= tsCap ? tsEff - tsCap : 0;
       }
+      prevCarry = c; // whatever remains after prev day's afternoon is today's morning carry
     }
 
-    // Rule 3: cumulative booked value for this slot has reached the slot's cap
-    const slotCap = SLOT_CAPS[timeWindow] ?? 500;
-    const slotTotal = validQuotes
-      .filter(q => q.preferredDate === date && q.preferredTimeWindow === timeWindow)
-      .reduce((sum, q) => sum + Number(q.total || 0), 0);
+    // Now walk today's slots up to (and including) the target slot
+    let carry = prevCarry;
+    for (const ts of TIME_SLOTS) {
+      const tsCap = SLOT_CAPS[ts] ?? 500;
+      const tsDirect = validQuotes
+        .filter(q => q.preferredDate === date && q.preferredTimeWindow === ts)
+        .reduce((sum, q) => sum + Number(q.total || 0), 0);
+      const tsEffective = tsDirect + carry;
 
-    if (slotTotal >= slotCap) return false;
+      if (ts === timeWindow) {
+        // This is the slot we're checking — is there remaining capacity?
+        return tsEffective < tsCap;
+      }
 
-    return true;
+      // Carry forward: if this earlier slot is over cap, excess rolls into next
+      carry = tsEffective >= tsCap ? tsEffective - tsCap : 0;
+    }
+
+    return true; // timeWindow not found in TIME_SLOTS (shouldn't happen)
   }
 
   async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent> {
