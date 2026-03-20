@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
   Eye, EyeOff, Loader2, Download, Share, X,
   ShieldCheck, ClipboardList, Users, Calendar, BarChart3,
-  MapPin, Clock, Zap, ArrowRight, Lock, User, Smartphone, AlertTriangle,
+  MapPin, Clock, Zap, ArrowRight, Lock, User, Smartphone, AlertTriangle, ExternalLink,
 } from "lucide-react";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import { Capacitor } from "@capacitor/core";
@@ -105,25 +105,32 @@ export default function Login() {
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
+          {/* Download button */}
+          <a
+            href="https://github.com/tmginstall1-dotcom/tmg-install/releases/download/latest-build/tmg-install.apk"
+            className="flex items-center justify-center gap-3 w-full py-4 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-black text-base rounded-2xl shadow-lg shadow-blue-900/50 transition-colors"
+            data-testid="link-download-apk"
+          >
+            <Download className="w-5 h-5 shrink-0" />
+            Download Android App
+          </a>
+
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div className="text-left">
-                <p className="text-white font-bold text-sm">App required</p>
-                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  The staff portal is only accessible through the TMG Install Android app. Please open the app on your device.
-                </p>
-              </div>
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-slate-400 text-xs leading-relaxed text-left">
+                Tap <span className="text-white font-bold">Download Android App</span> above, then open the file to install. You may need to allow <span className="text-white font-semibold">Install unknown apps</span> in your Android settings.
+              </p>
             </div>
 
-            <div className="border-t border-slate-700 pt-4 space-y-2">
+            <div className="border-t border-slate-800 pt-4 space-y-2.5">
               {[
                 { icon: MapPin,      text: "GPS clock-in & clock-out" },
                 { icon: Zap,         text: "Live job assignments" },
                 { icon: Clock,       text: "Attendance & payslips" },
                 { icon: ShieldCheck, text: "Secure offline access" },
               ].map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-center gap-2.5 text-left">
+                <div key={text} className="flex items-center gap-2.5">
                   <div className="w-6 h-6 bg-blue-600/20 rounded-lg flex items-center justify-center shrink-0">
                     <Icon className="w-3.5 h-3.5 text-blue-400" />
                   </div>
@@ -133,9 +140,14 @@ export default function Login() {
             </div>
           </div>
 
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Contact your administrator if you have not received the app installation link.
-          </p>
+          <a
+            href="https://github.com/tmginstall1-dotcom/tmg-install/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1.5 text-xs text-slate-600 hover:text-slate-400 transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" /> View all releases
+          </a>
         </div>
       </div>
     );

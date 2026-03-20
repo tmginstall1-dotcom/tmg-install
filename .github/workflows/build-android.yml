@@ -118,3 +118,35 @@ jobs:
           name: tmg-staff-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 90
+
+      # ── Publish APK to GitHub Releases (permanent public download link) ───────
+
+      - name: Publish APK as latest GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use signed APK if available, otherwise fall back to debug build
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            APK="android/app/build/outputs/apk/release/app-release.apk"
+            LABEL="TMG Install (signed)"
+          else
+            APK="android/app/build/outputs/apk/debug/app-debug.apk"
+            LABEL="TMG Install (debug)"
+          fi
+
+          BUILD_NUM=$(git rev-list --count HEAD)
+          COMMIT=$(git rev-parse --short HEAD)
+
+          # Remove previous latest-build release + tag so we can recreate it
+          gh release delete latest-build --yes 2>/dev/null || true
+          git push --delete origin latest-build 2>/dev/null || true
+
+          # Create fresh release — URL is always the same after each build
+          gh release create latest-build \
+            --title "${LABEL} — Build #${BUILD_NUM}" \
+            --notes "**TMG Install Staff App — Build #${BUILD_NUM}** (\`${COMMIT}\`)
+
+          Tap the link below on your Android device to download and install the app.
+
+          > Enable **Install unknown apps** in Android settings if prompted." \
+            "${APK}#tmg-install.apk"
