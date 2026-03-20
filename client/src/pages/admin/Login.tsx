@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { Eye, EyeOff, Loader2, Download, Share, X, ShieldCheck, ClipboardList, Users, Calendar, BarChart3, MapPin, Clock, Zap } from "lucide-react";
+import {
+  Eye, EyeOff, Loader2, Download, Share, X,
+  ShieldCheck, ClipboardList, Users, Calendar, BarChart3,
+  MapPin, Clock, Zap, ArrowRight, Lock, User,
+} from "lucide-react";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
 
 function InstallBanner() {
   const { install, dismiss, showIOSGuide, canNativeInstall, showBanner } = useInstallPrompt();
-
   if (!showBanner) return null;
-
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-2">
       <div className="bg-slate-900 text-white rounded-2xl shadow-2xl overflow-hidden max-w-sm mx-auto">
@@ -27,8 +29,6 @@ function InstallBanner() {
         <p className="px-5 pb-4 text-xs text-white/60 leading-relaxed">
           Install the staff app for fast access to clock-in, jobs, and HR — works even offline.
         </p>
-
-        {/* Android / Chrome — one tap install */}
         {canNativeInstall && (
           <div className="px-5 pb-5">
             <button onClick={install} data-testid="button-install-pwa"
@@ -38,8 +38,6 @@ function InstallBanner() {
             </button>
           </div>
         )}
-
-        {/* iOS Safari — show steps immediately, no extra tap needed */}
         {showIOSGuide && (
           <div className="px-5 pb-5">
             <div className="bg-white/10 rounded-xl p-4 space-y-3">
@@ -66,16 +64,16 @@ function InstallBanner() {
 }
 
 const ADMIN_FEATURES = [
-  { icon: BarChart3,   text: "Real-time operations dashboard" },
+  { icon: BarChart3,    text: "Real-time operations dashboard" },
   { icon: ClipboardList, text: "Quote & job lifecycle management" },
-  { icon: Calendar,   text: "Scheduling & booking confirmations" },
-  { icon: Users,      text: "Staff HR, payroll & attendance" },
+  { icon: Calendar,    text: "Scheduling & booking confirmations" },
+  { icon: Users,       text: "Staff HR, payroll & attendance" },
 ];
 
 const STAFF_FEATURES = [
-  { icon: MapPin,  text: "GPS-verified clock-in & clock-out" },
-  { icon: Zap,     text: "Live job assignments & updates" },
-  { icon: Clock,   text: "Attendance history & payslips" },
+  { icon: MapPin,      text: "GPS-verified clock-in & clock-out" },
+  { icon: Zap,         text: "Live job assignments & updates" },
+  { icon: Clock,       text: "Attendance history & payslips" },
   { icon: ShieldCheck, text: "Photo & task check-in per job" },
 ];
 
@@ -86,9 +84,16 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const formRef = useRef<HTMLDivElement>(null);
 
   const isStaffLogin = location === "/staff/login";
   const features = isStaffLogin ? STAFF_FEATURES : ADMIN_FEATURES;
+
+  const scrollFieldIntoView = (el: HTMLElement) => {
+    setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 320);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,163 +108,192 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <>
+      <InstallBanner />
+      <div className="min-h-screen flex">
 
-      {/* ── LEFT PANEL ─────────────────────────────── */}
-      <div className={`hidden lg:flex lg:w-[45%] xl:w-1/2 flex-col justify-between p-12 relative overflow-hidden ${
-        isStaffLogin ? "bg-slate-800" : "bg-slate-950"
-      }`}>
-        {/* Subtle grid pattern */}
-        <div className="absolute inset-0 opacity-[0.04]"
-          style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "40px 40px" }} />
+        {/* ── LEFT PANEL ─────────────────────────────── */}
+        <div className={`hidden lg:flex lg:w-[45%] xl:w-1/2 flex-col justify-between p-12 relative overflow-hidden ${
+          isStaffLogin
+            ? "bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900"
+            : "bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950"
+        }`}>
+          <div className="absolute inset-0 opacity-[0.05]"
+            style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "40px 40px" }} />
 
-        {/* Top — brand */}
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-1">
-            <span className="brand-title text-white text-xl">TMG INSTALL</span>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full tracking-widest uppercase ${
-              isStaffLogin ? "bg-blue-500/20 text-blue-300" : "bg-violet-500/20 text-violet-300"
-            }`}>
-              {isStaffLogin ? "STAFF" : "ADMIN"}
-            </span>
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-1">
+              <span className="brand-title text-white text-xl tracking-wider">TMG INSTALL</span>
+              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full tracking-widest uppercase ${
+                isStaffLogin ? "bg-blue-500/20 text-blue-300 border border-blue-500/30" : "bg-violet-500/20 text-violet-300 border border-violet-500/30"
+              }`}>
+                {isStaffLogin ? "STAFF" : "ADMIN"}
+              </span>
+            </div>
+            <p className="text-slate-400 text-sm mt-1">
+              {isStaffLogin ? "Field Staff Portal" : "Operations Center"}
+            </p>
           </div>
-          <p className="text-slate-400 text-sm mt-1">
-            {isStaffLogin ? "Field Staff Portal" : "Operations Center"}
-          </p>
-        </div>
 
-        {/* Middle — headline + features */}
-        <div className="relative z-10">
-          <p className="text-white/30 text-xs font-bold uppercase tracking-widest mb-5">
-            {isStaffLogin ? "Everything you need on the field" : "Your command center for every job"}
-          </p>
-          <div className="space-y-4">
-            {features.map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-4">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                  isStaffLogin ? "bg-blue-500/15 border border-blue-500/20" : "bg-violet-500/15 border border-violet-500/20"
-                }`}>
-                  <Icon className={`w-4 h-4 ${isStaffLogin ? "text-blue-400" : "text-violet-400"}`} />
+          <div className="relative z-10">
+            <p className="text-white/30 text-xs font-bold uppercase tracking-widest mb-6">
+              {isStaffLogin ? "Everything you need on the field" : "Your command center for every job"}
+            </p>
+            <div className="space-y-5">
+              {features.map(({ icon: Icon, text }) => (
+                <div key={text} className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    isStaffLogin ? "bg-blue-500/15 border border-blue-500/25" : "bg-violet-500/15 border border-violet-500/25"
+                  }`}>
+                    <Icon className={`w-4.5 h-4.5 ${isStaffLogin ? "text-blue-400" : "text-violet-400"}`} />
+                  </div>
+                  <p className="text-slate-300 text-sm leading-snug">{text}</p>
                 </div>
-                <p className="text-slate-300 text-sm leading-snug">{text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Bottom — company */}
-        <div className="relative z-10">
-          <p className="text-slate-600 text-xs">The Moving Guy Pte Ltd · UEN 202424156H · Singapore</p>
-        </div>
-      </div>
-
-      {/* ── RIGHT PANEL — FORM ─────────────────────── */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-12 py-16 bg-white min-h-screen">
-        <div className="w-full max-w-[340px]">
-
-          {/* Mobile brand (hidden on desktop where left panel shows) */}
-          <div className="lg:hidden mb-10 text-center">
-            <span className="brand-title text-foreground">TMG INSTALL</span>
-            <p className="text-muted-foreground text-xs mt-1 tracking-widest uppercase">
-              {isStaffLogin ? "Staff Portal" : "Admin Panel"}
-            </p>
-          </div>
-
-          {/* Heading */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome back</h1>
-            <p className="text-slate-500 text-sm mt-1.5">
-              {isStaffLogin
-                ? "Sign in to access your jobs and attendance"
-                : "Sign in to the operations dashboard"}
-            </p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-
-            {/* Username */}
-            <div>
-              <label htmlFor="username" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Username
-              </label>
-              <input
-                id="username"
-                required
-                autoComplete="username"
-                value={username}
-                onChange={e => { setUsername(e.target.value); setError(""); }}
-                placeholder="Enter your username"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-slate-400 focus:ring-2 focus:ring-slate-900/8 outline-none transition-all"
-                data-testid="input-username"
-              />
+              ))}
             </div>
+          </div>
 
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  required
-                  autoComplete="current-password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); setError(""); }}
-                  placeholder="Enter your password"
-                  className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-slate-400 focus:ring-2 focus:ring-slate-900/8 outline-none transition-all"
-                  data-testid="input-password"
-                />
+          <div className="relative z-10">
+            <p className="text-slate-600 text-xs">The Moving Guy Pte Ltd · UEN 202424156H · Singapore</p>
+          </div>
+        </div>
+
+        {/* ── RIGHT PANEL — FORM ─────────────────────── */}
+        <div className="flex-1 overflow-y-auto bg-white">
+          <div ref={formRef} className="min-h-full flex flex-col items-center justify-center px-6 sm:px-10 py-16">
+            <div className="w-full max-w-[360px]">
+
+              {/* Mobile brand */}
+              <div className="lg:hidden mb-10 text-center">
+                <div className={`w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg ${
+                  isStaffLogin
+                    ? "bg-gradient-to-br from-blue-600 to-blue-800"
+                    : "bg-gradient-to-br from-indigo-600 to-violet-800"
+                }`}>
+                  {isStaffLogin ? (
+                    <Clock className="w-8 h-8 text-white" />
+                  ) : (
+                    <ShieldCheck className="w-8 h-8 text-white" />
+                  )}
+                </div>
+                <span className="brand-title text-slate-900 text-2xl">TMG INSTALL</span>
+                <p className="text-slate-500 text-sm mt-1 tracking-widest uppercase font-medium">
+                  {isStaffLogin ? "Staff Portal" : "Admin Panel"}
+                </p>
+              </div>
+
+              {/* Heading */}
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Welcome back</h1>
+                <p className="text-slate-500 text-[15px] mt-2 leading-relaxed">
+                  {isStaffLogin
+                    ? "Sign in to access your jobs and attendance"
+                    : "Sign in to the operations dashboard"}
+                </p>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="space-y-5">
+
+                {/* Username */}
+                <div>
+                  <label htmlFor="username" className="block text-[13px] font-bold text-slate-600 uppercase tracking-wider mb-2">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
+                    <input
+                      id="username"
+                      required
+                      autoComplete="username"
+                      value={username}
+                      onChange={e => { setUsername(e.target.value); setError(""); }}
+                      onFocus={e => scrollFieldIntoView(e.target)}
+                      placeholder="Enter your username"
+                      className="w-full pl-12 pr-4 py-4 rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-900 text-base placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-medium"
+                      data-testid="input-username"
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label htmlFor="password" className="block text-[13px] font-bold text-slate-600 uppercase tracking-wider mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
+                    <input
+                      id="password"
+                      required
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={e => { setPassword(e.target.value); setError(""); }}
+                      onFocus={e => scrollFieldIntoView(e.target)}
+                      placeholder="Enter your password"
+                      className="w-full pl-12 pr-14 py-4 rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-900 text-base placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-medium"
+                      data-testid="input-password"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword(v => !v)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                      data-testid="button-toggle-password"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Error */}
+                {error && (
+                  <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                    <p className="text-sm text-red-700 font-medium">{error}</p>
+                  </div>
+                )}
+
+                {/* Submit */}
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(v => !v)}
-                  tabIndex={-1}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
-                  data-testid="button-toggle-password"
+                  type="submit"
+                  disabled={isLoggingIn}
+                  data-testid="button-login"
+                  className={`w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-base transition-all active:scale-[0.98] disabled:opacity-60 shadow-lg ${
+                    isStaffLogin
+                      ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-blue-500/25"
+                      : "bg-gradient-to-r from-indigo-600 to-violet-700 hover:from-indigo-700 hover:to-violet-800 text-white shadow-indigo-500/25"
+                  }`}
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {isLoggingIn ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" /> Signing in…</>
+                  ) : (
+                    <>Sign In <ArrowRight className="w-5 h-5" /></>
+                  )}
                 </button>
+
+                {/* Footer link */}
+                <p className="text-center text-[13px] text-slate-500 mt-2">
+                  {isStaffLogin ? (
+                    <a href="/admin/login" className="text-slate-400 hover:text-slate-700 transition-colors font-medium">Admin? Sign in here →</a>
+                  ) : (
+                    <a href="/staff/login" className="text-slate-400 hover:text-slate-700 transition-colors font-medium">Staff portal →</a>
+                  )}
+                </p>
+              </form>
+
+              {/* Company footer */}
+              <div className="mt-12 pt-6 border-t border-slate-100">
+                <p className="text-[12px] text-slate-400 text-center leading-relaxed">
+                  The Moving Guy Pte Ltd<br />
+                  UEN 202424156H · Singapore
+                </p>
               </div>
             </div>
-
-            {/* Error */}
-            {error && (
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl px-4 py-3">
-                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                {error}
-              </div>
-            )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full mt-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm py-3.5 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
-              data-testid="button-login"
-            >
-              {isLoggingIn ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Signing in…
-                </>
-              ) : (
-                "Sign In"
-              )}
-            </button>
-          </form>
-
-          {/* Footer */}
-          <p className="mt-10 text-center text-[11px] text-slate-400 leading-relaxed">
-            Authorised personnel only<br />
-            <span className="text-slate-300">TMG Install · tmginstall.com</span>
-          </p>
+          </div>
         </div>
       </div>
-
-      {/* PWA install banner — staff login only */}
-      {isStaffLogin && <InstallBanner />}
-    </div>
+    </>
   );
 }

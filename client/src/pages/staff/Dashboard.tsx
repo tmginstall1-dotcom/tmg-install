@@ -456,7 +456,7 @@ function ClockHero({
             </div>
           </div>
 
-          {/* Clock button — always available (no permanent locked state) */}
+          {/* Clock button */}
           <div className="flex flex-col items-end gap-2 shrink-0">
             {gpsState === "denied" && (
               <div className="bg-red-500/90 backdrop-blur text-white text-[11px] font-bold px-3 py-2 rounded-xl max-w-[180px] text-right leading-tight">
@@ -468,25 +468,25 @@ function ClockHero({
               onClick={() => isClockedIn ? clockOutMut.mutate() : clockInMut.mutate()}
               disabled={isPending || gpsState === "denied"}
               data-testid={isClockedIn ? "button-clock-out" : "button-clock-in"}
-              className={`w-20 h-20 rounded-2xl flex flex-col items-center justify-center gap-1.5 font-black shadow-2xl transition-all active:scale-95 disabled:opacity-50 ${
+              className={`w-24 h-24 rounded-3xl flex flex-col items-center justify-center gap-1.5 font-black shadow-2xl transition-all active:scale-95 disabled:opacity-50 ${
                 isClockedIn
-                  ? "bg-red-500 text-white shadow-red-500/40"
+                  ? "bg-red-500 text-white shadow-red-500/50 pulse-ring-red"
                   : gpsState === "denied"
                   ? "bg-white/20 text-white/50 cursor-not-allowed"
-                  : "bg-white text-black shadow-white/20"
+                  : "bg-white text-slate-900 shadow-white/30 pulse-ring-green"
               }`}
             >
               {isPending ? (
-                <div className="w-6 h-6 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                <div className="w-7 h-7 border-[3px] border-current/30 border-t-current rounded-full animate-spin" />
               ) : gpsState === "denied" ? (
                 <>
-                  <WifiOff className="w-6 h-6" />
-                  <span className="text-[10px]">No GPS</span>
+                  <WifiOff className="w-7 h-7" />
+                  <span className="text-[10px] font-bold">No GPS</span>
                 </>
               ) : (
                 <>
-                  <Clock className="w-7 h-7" />
-                  <span className="text-[10px]">{isClockedIn ? "Clock Out" : "Clock In"}</span>
+                  <Clock className="w-8 h-8" />
+                  <span className="text-[11px] font-bold">{isClockedIn ? "Clock Out" : "Clock In"}</span>
                 </>
               )}
             </button>
@@ -513,44 +513,44 @@ function JobCard({ job, variant, myUserId }: {
   return (
     <Link href={`/staff/jobs/${job.id}`}>
       <div
-        className={`bg-card border rounded-2xl overflow-hidden hover:shadow-md active:scale-[0.99] transition-all cursor-pointer ${
+        className={`bg-white rounded-2xl overflow-hidden transition-all cursor-pointer active:scale-[0.99] ${
           variant === "active"
-            ? "border-orange-300 dark:border-orange-700 shadow-sm"
-            : "border-border hover:border-primary/20"
+            ? "border-2 border-orange-400 shadow-lg shadow-orange-100"
+            : "border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200"
         }`}
         data-testid={`job-card-${job.id}`}
       >
         {variant === "active" && (
-          <div className="h-1 w-full bg-gradient-to-r from-orange-400 to-red-500" />
+          <div className="h-1.5 w-full bg-gradient-to-r from-orange-400 via-red-400 to-red-500" />
         )}
 
         <div className="p-4">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-black text-base leading-tight truncate">{job.customer?.name}</h3>
+              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                <h3 className="font-black text-[15px] leading-tight text-slate-900 truncate">{job.customer?.name}</h3>
                 {isMyJob && (
-                  <span className="shrink-0 text-[10px] font-black bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                  <span className="shrink-0 text-[10px] font-black bg-blue-600 text-white px-2 py-0.5 rounded-full">
                     YOU
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground font-mono mt-0.5">{job.referenceNo}</p>
+              <p className="text-[11px] text-slate-400 font-mono">{job.referenceNo}</p>
             </div>
             <StatusBadge status={job.status} className="scale-90 origin-top-right shrink-0" />
           </div>
 
-          <div className="space-y-1.5 mb-3">
-            <div className="flex items-start gap-2">
-              <MapPin className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-              <span className="text-sm leading-snug font-medium text-foreground/80 line-clamp-2">
+          <div className="space-y-2 mb-3.5 bg-slate-50 rounded-xl px-3 py-2.5">
+            <div className="flex items-start gap-2.5">
+              <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+              <span className="text-[13px] leading-snug font-medium text-slate-700 line-clamp-2">
                 {job.serviceAddress}
               </span>
             </div>
             {scheduledDate && (
-              <div className="flex items-center gap-2">
-                <CalendarDays className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                <span className={`text-sm font-bold ${dateLabel === "Today" ? "text-orange-600" : "text-muted-foreground"}`}>
+              <div className="flex items-center gap-2.5">
+                <CalendarDays className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className={`text-[13px] font-bold ${dateLabel === "Today" ? "text-orange-600" : "text-slate-500"}`}>
                   {dateLabel}
                   {job.timeWindow && ` · ${job.timeWindow}`}
                 </span>
@@ -558,12 +558,12 @@ function JobCard({ job, variant, myUserId }: {
             )}
           </div>
 
-          <div className="flex items-center gap-2 pt-3 border-t border-border/60">
+          <div className="flex items-center gap-2">
             <a
               href={`tel:${job.customer?.phone}`}
               onClick={e => e.stopPropagation()}
               data-testid={`call-${job.id}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary text-xs font-bold hover:bg-secondary/70 transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors"
             >
               <Phone className="w-3.5 h-3.5" /> Call
             </a>
@@ -572,12 +572,12 @@ function JobCard({ job, variant, myUserId }: {
               target="_blank" rel="noreferrer"
               onClick={e => e.stopPropagation()}
               data-testid={`wa-${job.id}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold hover:bg-emerald-200 transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-colors"
             >
               <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
             </a>
-            <div className="ml-auto flex items-center gap-1 text-xs font-bold text-primary">
-              View <ChevronRight className="w-3.5 h-3.5" />
+            <div className="ml-auto flex items-center gap-1 text-xs font-bold text-blue-600">
+              View job <ChevronRight className="w-3.5 h-3.5" />
             </div>
           </div>
         </div>

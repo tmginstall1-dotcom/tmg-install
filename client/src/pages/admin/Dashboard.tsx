@@ -209,28 +209,28 @@ function SectionPanel({
   const ac = ACCENT[accentColor] || ACCENT.violet;
 
   return (
-    <div className={`w-full bg-white border overflow-hidden ${
-      urgent && quotes.length > 0 ? "border-orange-200" : "border-black/[0.08]"
+    <div className={`w-full bg-white rounded-xl overflow-hidden shadow-sm ${
+      urgent && quotes.length > 0 ? "border border-orange-200" : "border border-slate-200"
     }`}>
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/[0.06]">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100 bg-slate-50/50">
         <div className="flex items-center gap-2.5">
-          <span className={`w-1.5 h-4 shrink-0 ${ac.dot}`} />
-          <h2 className="font-black text-[11px] text-slate-800 uppercase tracking-[0.12em]">{title}</h2>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${ac.dot}`} />
+          <h2 className="font-black text-[11px] text-slate-700 uppercase tracking-[0.12em]">{title}</h2>
         </div>
-        <span className={`min-w-[22px] h-[22px] px-1.5 flex items-center justify-center text-xs font-black ${
+        <span className={`min-w-[22px] h-[22px] px-1.5 rounded-md flex items-center justify-center text-xs font-black ${
           quotes.length > 0 ? ac.badge : "bg-slate-100 text-slate-400"
         }`}>
           {quotes.length}
         </span>
       </div>
-      <div className="overflow-hidden">
+      <div className="overflow-hidden divide-y divide-slate-50">
         {quotes.map((q: any) => bookedStyle
           ? <BookedQuoteRow key={q.id} quote={q} />
           : <QuoteRow key={q.id} quote={q} showDate={showDate} />
         )}
         {quotes.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-8 gap-1.5 text-slate-300">
-            <CheckCircle2 className="w-5 h-5 shrink-0" />
+          <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-300">
+            <CheckCircle2 className="w-6 h-6 shrink-0" />
             <p className="text-xs font-medium text-center px-4">{emptyMsg}</p>
           </div>
         )}
@@ -355,43 +355,43 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Stat grid — always 5-col */}
-          <div className="grid grid-cols-5 gap-px mt-4 border border-white/10">
+          {/* Stat grid — 5-col */}
+          <div className="grid grid-cols-5 gap-2 mt-4">
             {statCards.map((card) => (
               <div key={card.label}
-                className={`px-2 py-2.5 sm:px-3 sm:py-3 ${
-                  card.urgent && card.value > 0 ? "bg-orange-500/15" : "bg-white/5"
+                className={`rounded-xl px-2 py-3 sm:px-3 flex flex-col items-center gap-1 ${
+                  card.urgent && card.value > 0
+                    ? "bg-orange-500/20 border border-orange-500/30"
+                    : "bg-white/[0.07] border border-white/10"
                 }`}
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className={`w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center shrink-0 ${accentIconBg[card.accent]}`}>
-                    <card.icon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                  </div>
-                  <span className={`text-xl sm:text-2xl font-black tabular-nums leading-none ${
-                    card.urgent && card.value > 0 ? "text-orange-300" :
-                    card.value > 0 ? "text-white" : "text-slate-600"
-                  }`}>{card.value}</span>
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${accentIconBg[card.accent]}`}>
+                  <card.icon className="w-3.5 h-3.5" />
                 </div>
-                <p className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] leading-tight truncate">{card.label}</p>
-                <div className={`mt-1.5 h-[2px] ${card.value > 0 ? accentBar[card.accent] : "bg-white/10"}`} />
+                <span className={`text-2xl font-black tabular-nums leading-none ${
+                  card.urgent && card.value > 0 ? "text-orange-300" :
+                  card.value > 0 ? "text-white" : "text-slate-600"
+                }`}>{card.value}</span>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide leading-tight text-center truncate w-full">{card.label}</p>
               </div>
             ))}
           </div>
 
           {/* Search bar */}
           <div className="mt-4 relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search quotes by name, ref, address, phone…"
+              placeholder="Search by name, ref, address, phone…"
               data-testid="input-quote-search"
-              className="w-full pl-9 pr-10 py-2.5 bg-white/[0.07] border border-white/10 text-white placeholder:text-slate-500 text-sm outline-none focus:border-white/30 focus:bg-white/[0.1] transition-all"
+              className="w-full pl-11 pr-10 py-3 bg-white/[0.08] border border-white/15 text-white placeholder:text-slate-500 text-sm outline-none focus:border-white/40 focus:bg-white/[0.12] transition-all rounded-xl"
+              style={{ fontSize: 16 }}
             />
             {isSearching && (
               <button
                 onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors p-1"
                 data-testid="button-clear-search"
               >
                 <X className="w-4 h-4" />
@@ -500,21 +500,21 @@ export default function AdminDashboard() {
             </div>
 
             {/* Quick-nav cards — 2×2 on mobile (sidebar hidden), hidden on desktop */}
-            <div className="mt-6 lg:hidden grid grid-cols-2 gap-px bg-black/[0.08] border border-black/[0.08]">
+            <div className="mt-6 lg:hidden grid grid-cols-2 gap-3">
               {[
-                { href: "/admin/schedule",  label: "Schedule",   icon: Calendar,   desc: "Bookings" },
-                { href: "/admin/staff",     label: "Staff & HR", icon: Users,      desc: "Payroll" },
-                { href: "/admin/analytics", label: "Analytics",  icon: BarChart2,  desc: "Traffic" },
-                { href: "/admin/export",    label: "Export",     icon: TrendingUp, desc: "Reports" },
-              ].map(({ href, label, icon: Icon, desc }) => (
+                { href: "/admin/schedule",  label: "Schedule",   icon: Calendar,   desc: "Bookings & jobs",    color: "bg-sky-50 border-sky-200 text-sky-700" },
+                { href: "/admin/staff",     label: "Staff & HR", icon: Users,      desc: "Payroll & leave",    color: "bg-violet-50 border-violet-200 text-violet-700" },
+                { href: "/admin/analytics", label: "Analytics",  icon: BarChart2,  desc: "Traffic & stats",    color: "bg-emerald-50 border-emerald-200 text-emerald-700" },
+                { href: "/admin/export",    label: "Export",     icon: TrendingUp, desc: "Download reports",   color: "bg-amber-50 border-amber-200 text-amber-700" },
+              ].map(({ href, label, icon: Icon, desc, color }) => (
                 <Link key={href} href={href} className="block w-full">
-                  <div className="group flex items-center gap-3 bg-white p-4 hover:bg-slate-50 transition-all active:bg-slate-100 h-full">
-                    <div className="w-8 h-8 bg-black flex items-center justify-center shrink-0 group-hover:bg-neutral-700 transition-colors">
-                      <Icon className="w-3.5 h-3.5 text-white" />
+                  <div className={`group flex items-center gap-3 bg-white rounded-xl border p-4 hover:shadow-md active:scale-[0.98] transition-all h-full shadow-sm border-slate-200`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+                      <Icon className="w-4.5 h-4.5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-black text-[11px] text-slate-900 uppercase tracking-[0.12em]">{label}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
+                      <p className="font-bold text-[13px] text-slate-800 leading-tight">{label}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{desc}</p>
                     </div>
                   </div>
                 </Link>

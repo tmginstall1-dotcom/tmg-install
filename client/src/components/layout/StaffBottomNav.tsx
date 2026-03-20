@@ -140,59 +140,52 @@ export function StaffBottomNav() {
       )}
 
       {/* Tab bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border">
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-lg"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="flex items-stretch h-16 max-w-2xl mx-auto">
 
           <Link href="/staff" className="flex-1">
             <div
-              className={`flex flex-col items-center justify-center h-full gap-0.5 relative transition-all ${
-                isHome ? "text-primary" : "text-muted-foreground"
+              className={`flex flex-col items-center justify-center h-full gap-1 relative transition-all ${
+                isHome ? "text-blue-600" : "text-slate-400"
               }`}
               data-testid="bottom-tab-home"
             >
-              {isHome && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary" />
-              )}
-              <LayoutDashboard className="w-5 h-5" strokeWidth={isHome ? 2.5 : 1.75} />
-              <span className="text-[10px] font-bold tracking-tight">Home</span>
+              <div className={`flex items-center justify-center w-12 h-7 rounded-full transition-all ${isHome ? "bg-blue-50" : ""}`}>
+                <LayoutDashboard className="w-5 h-5" strokeWidth={isHome ? 2.5 : 1.75} />
+              </div>
+              <span className={`text-[10px] font-bold tracking-tight ${isHome ? "text-blue-600" : "text-slate-400"}`}>Home</span>
             </div>
           </Link>
 
           <Link href="/staff/hr" className="flex-1">
             <div
-              className={`flex flex-col items-center justify-center h-full gap-0.5 relative transition-all ${
-                isHR ? "text-primary" : "text-muted-foreground"
+              className={`flex flex-col items-center justify-center h-full gap-1 relative transition-all ${
+                isHR ? "text-blue-600" : "text-slate-400"
               }`}
               data-testid="bottom-tab-hr"
             >
-              {isHR && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary" />
-              )}
-              <ClipboardList className="w-5 h-5" strokeWidth={isHR ? 2.5 : 1.75} />
-              <span className="text-[10px] font-bold tracking-tight">My HR</span>
+              <div className={`flex items-center justify-center w-12 h-7 rounded-full transition-all ${isHR ? "bg-blue-50" : ""}`}>
+                <ClipboardList className="w-5 h-5" strokeWidth={isHR ? 2.5 : 1.75} />
+              </div>
+              <span className={`text-[10px] font-bold tracking-tight ${isHR ? "text-blue-600" : "text-slate-400"}`}>My HR</span>
             </div>
           </Link>
 
           <button className="flex-1" onClick={() => setProfileOpen(v => !v)}>
             <div
-              className={`flex flex-col items-center justify-center h-full gap-0.5 relative transition-all ${
-                profileOpen ? "text-primary" : "text-muted-foreground"
-              }`}
+              className={`flex flex-col items-center justify-center h-full gap-1 relative transition-all`}
               data-testid="bottom-tab-profile"
             >
-              {profileOpen && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary" />
-              )}
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-white font-black text-[10px] ring-2 ring-offset-1 transition-all"
-                style={{
-                  backgroundColor: bgColor,
-                  ringColor: profileOpen ? bgColor : "transparent",
-                }}
-              >
-                {initials}
+              <div className={`relative flex items-center justify-center w-12 h-7 rounded-full transition-all ${profileOpen ? "bg-blue-50" : ""}`}>
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-white font-black text-[10px] transition-all ${profileOpen ? "ring-2 ring-offset-1 ring-blue-400" : ""}`}
+                  style={{ backgroundColor: bgColor }}
+                >
+                  {initials}
+                </div>
               </div>
-              <span className="text-[10px] font-bold tracking-tight">Me</span>
+              <span className={`text-[10px] font-bold tracking-tight ${profileOpen ? "text-blue-600" : "text-slate-400"}`}>Me</span>
             </div>
           </button>
         </div>

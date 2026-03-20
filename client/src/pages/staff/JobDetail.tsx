@@ -202,7 +202,7 @@ export default function JobDetail() {
         {/* Job header card */}
         <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
           {/* Header gradient */}
-          <div className="px-5 py-4 bg-gradient-to-br from-slate-900 to-slate-700 relative overflow-hidden">
+          <div className="px-5 py-4 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-800 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="relative">
               <div className="flex items-center justify-between mb-3">

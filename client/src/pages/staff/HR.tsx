@@ -62,24 +62,24 @@ export default function StaffHR() {
     <div className="min-h-screen bg-background">
 
       {/* Page header */}
-      <div className="bg-card border-b pt-16 pb-0 sticky top-0 z-20">
+      <div className="bg-white border-b sticky top-0 z-20 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 sm:px-5">
-          <div className="py-4">
-            <h1 className="text-2xl font-black">My HR</h1>
-            <p className="text-sm text-muted-foreground">Attendance, leave & payslips</p>
+          <div className="pt-16 pb-3">
+            <h1 className="text-2xl font-black text-slate-900">My HR</h1>
+            <p className="text-[13px] text-slate-500 mt-0.5">Attendance, leave & payslips</p>
           </div>
 
-          {/* Pill tab bar */}
-          <div className="flex gap-1.5 pb-3">
+          {/* Tab bar */}
+          <div className="flex gap-1 border-b border-slate-100">
             {tabs.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
                 data-testid={`tab-${key}`}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-bold transition-all relative border-b-2 -mb-px ${
                   tab === key
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
