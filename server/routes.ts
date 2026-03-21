@@ -21,6 +21,7 @@ import {
   ADMIN_EMAIL
 } from "./email";
 import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, downloadWhatsAppMedia, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
+import { calcTransportFee } from "@shared/pricing";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
@@ -551,12 +552,14 @@ export async function registerRoutes(
     const resolvedUserId = req.session.userId ?? (req.body?.staffId ? parseInt(req.body.staffId) : undefined);
     if (!resolvedUserId) return res.status(401).json({ message: "Not logged in" });
     try {
+      // Accept number or string for GPS fields (native app sends numbers)
+      const numOrStr = z.union([z.number(), z.string()]).transform(v => String(v));
       const { lat, lng, accuracy, speed, heading, recordedAt } = z.object({
-        lat: z.string(),
-        lng: z.string(),
-        accuracy: z.string().optional(),
-        speed: z.string().optional(),
-        heading: z.string().optional(),
+        lat: numOrStr,
+        lng: numOrStr,
+        accuracy: numOrStr.optional(),
+        speed: numOrStr.optional(),
+        heading: numOrStr.optional(),
         recordedAt: z.string().optional(),
         staffId: z.any().optional(),
       }).parse(req.body);
@@ -3143,7 +3146,7 @@ Return ONLY valid JSON.`,
         // ── Minimum charge: SGD 180 (same rule as web flow) ──────────────────
         const MIN_CHARGE = 180;
         const minAdjustment = totalEstimate < MIN_CHARGE ? MIN_CHARGE - totalEstimate : 0;
-        const grandTotal = totalEstimate + minAdjustment;
+        const laborTotal = totalEstimate + minAdjustment;
 
         if (minAdjustment > 0) {
           quoteItems.push({
@@ -3156,6 +3159,12 @@ Return ONLY valid JSON.`,
             catalogItemId: undefined,
           });
         }
+
+        // ── Transport fee (relocation only — same formula as web flow) ─────────
+        // Base $80 + tiered rate per km over the first 5 km included
+        const sessionDistKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
+        const transportFee = session.isRelocation ? calcTransportFee(sessionDistKm) : 0;
+        const grandTotal = laborTotal + transportFee;
         // ─────────────────────────────────────────────────────────────────────
 
         const depositAmount = (grandTotal * 0.50).toFixed(2);
@@ -3169,7 +3178,8 @@ Return ONLY valid JSON.`,
             status: "submitted",
             sourceChannel: "whatsapp",
             customerWhatsappPhone: from,
-            subtotal: totalEstimate.toFixed(2),
+            subtotal: laborTotal.toFixed(2),
+            transportFee: transportFee.toFixed(2),
             total: grandTotal.toFixed(2),
             depositAmount,
             finalAmount,

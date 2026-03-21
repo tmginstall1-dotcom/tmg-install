@@ -118,7 +118,7 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function calcTransportFee(distanceKm: number): number {
+export function calcTransportFee(distanceKm: number): number {
   const cfg = PricingConfig.transport;
   const billableKm = Math.max(0, distanceKm - cfg.includedKm);
 
