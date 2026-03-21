@@ -2,7 +2,8 @@ import { db } from "./db";
 import { appSettings } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || "1034436969754593";
+// Phone number ID from Meta Developer Console (not sensitive, safe to hardcode)
+const PHONE_NUMBER_ID = "1034436969754593";
 const WA_API_BASE = `https://graph.facebook.com/v19.0`;
 
 export const WHATSAPP_VERIFY_TOKEN = "tmg_install_verify_2024";
