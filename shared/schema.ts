@@ -158,6 +158,11 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   preferredDate: text("preferred_date"),        // display text shown in WhatsApp (e.g. "Saturday, 28 March 2026")
   preferredDateIso: text("preferred_date_iso"), // yyyy-MM-dd for quotes table — null if flexible
   preferredTimeWindow: text("preferred_time_window"), // e.g. "09:00-12:00" or "13:00-17:00" — null if flexible
+
+  // Relocation fields
+  isRelocation: boolean("is_relocation").default(false),
+  collectedToAddress: text("collected_to_address"),   // destination address (dropoff)
+  distanceKm: numeric("distance_km"),                  // computed route distance (OSRM)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

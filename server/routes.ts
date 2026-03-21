@@ -2072,6 +2072,9 @@ Message: "${text}"`
           preferredDate: null,
           preferredDateIso: null,
           preferredTimeWindow: null,
+          isRelocation: false,
+          collectedToAddress: null,
+          distanceKm: null,
         });
 
         if (extractedName && extractedAddress && extractedItems) {
@@ -2105,12 +2108,17 @@ Message: "${text}"`
           awaiting_address: "we still need your job address",
           awaiting_items: "we still need the furniture list",
           awaiting_items_verify: "please confirm the furniture list",
+          awaiting_to_address: "what is the destination address for the relocation?",
           awaiting_date: "when would you like this done?",
           awaiting_confirmation: "please confirm your full request",
         };
         let continueMsg = `Welcome back! 😊 Here's where we are:\n\n`;
         if (session.collectedName) continueMsg += `👤 *Name:* ${session.collectedName}\n`;
-        if (session.collectedAddress) continueMsg += `📍 *Address:* ${session.collectedAddress}\n`;
+        if (session.collectedAddress && session.isRelocation && session.collectedToAddress) {
+          continueMsg += `📦 *Type:* Relocation\n📍 *From:* ${session.collectedAddress}\n📍 *To:* ${session.collectedToAddress}\n`;
+        } else if (session.collectedAddress) {
+          continueMsg += `📍 *Address:* ${session.collectedAddress}\n`;
+        }
         if (session.collectedItems && session.collectedItems !== "__scanning__") continueMsg += `🛋️ *Items:*\n${session.collectedItems}\n`;
         if (session.preferredDate) {
           const twContinue = session.preferredTimeWindow === "09:00-12:00"
@@ -2405,21 +2413,46 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
               return;
             }
 
-            // Merge all results, de-duplicate bullet lines
-            const seenLines = new Set<string>();
-            const mergedLines: string[] = [];
-            for (const result of validResults) {
-              for (const line of result.split("\n")) {
-                const cleaned = line.trim();
-                if (!cleaned) continue;
-                const key = cleaned.toLowerCase().replace(/[•\-\*]\s*/, "").trim();
-                if (!seenLines.has(key)) {
-                  seenLines.add(key);
-                  mergedLines.push(cleaned.startsWith("•") ? cleaned : `• ${cleaned}`);
-                }
-              }
+            // Merge all results using GPT to intelligently combine without losing items
+            // Simple string dedup loses items when the same item is worded differently across photos
+            let allDetected: string;
+            if (validResults.length === 1) {
+              // Only one photo — just format the result directly
+              allDetected = validResults[0].split("\n")
+                .map(l => l.trim()).filter(Boolean)
+                .map(l => l.startsWith("•") ? l : `• ${l}`)
+                .join("\n");
+            } else {
+              // Multiple photos — use GPT to intelligently merge
+              const mergeRes = await openai.chat.completions.create({
+                model: "gpt-4o",
+                max_tokens: 600,
+                messages: [{
+                  role: "system",
+                  content: `You received furniture lists from ${validResults.length} different photos of a home or office.
+Your job: merge them into ONE complete, accurate list without losing any items.
+
+Rules:
+- KEEP every unique item — do NOT drop items that are real but described differently
+- DEDUPLICATE only when the SAME item clearly appears in MULTIPLE photos of the SAME room
+  (e.g. "4 dining chairs" in photo 1 AND "4 wooden dining chairs" in photo 2 of same dining room = 1 entry)
+- NEVER merge items that are clearly in DIFFERENT rooms or different photos of different areas
+- If uncertain whether two mentions are the same item, KEEP BOTH
+- Count quantities correctly — if photo 1 has "2 wardrobes" and photo 2 has "1 different wardrobe" in another room = 3 wardrobes total
+- Format: one bullet per line starting with "•", e.g. "• 4 dining chairs"
+
+Return ONLY the merged bullet list, nothing else.
+
+Raw lists from each photo:
+${validResults.map((r, i) => `[Photo ${i + 1}]\n${r}`).join("\n\n")}`
+                }]
+              });
+              const merged = (mergeRes.choices[0]?.message?.content || "").trim();
+              allDetected = merged.split("\n")
+                .map(l => l.trim()).filter(Boolean)
+                .map(l => l.startsWith("•") ? l : `• ${l}`)
+                .join("\n");
             }
-            const allDetected = mergedLines.join("\n");
 
             // ── Step 5: Save and send ONE combined summary ────────────────────
             await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: allDetected });
@@ -2644,15 +2677,17 @@ Return ONLY valid JSON with these fields:
 {
   "action": "confirm" | "add" | "update" | "redo" | "unclear",
   "updatedList": "the complete updated bullet list as a string (• item per line), or empty string if action is redo/unclear",
-  "reply": "your natural human reply in English (1-2 sentences max, friendly tone)"
+  "reply": "your natural human reply in English (1-2 sentences max, friendly tone)",
+  "isRelocation": true | false
 }
 
 Rules:
-- "confirm": customer is happy, wants to proceed (yes, ok, correct, looks right, good, etc.)
+- "confirm": customer is happy, wants to proceed (yes, ok, correct, looks right, good, etc.) — even if they ALSO mention relocation
 - "add": customer wants to ADD items to the current list. Merge current + new items into updatedList
 - "update": customer wants to CORRECT, REPLACE, or REMOVE specific items. Provide the corrected updatedList
 - "redo": customer wants to completely start fresh without specifying what (just "no", "redo", "wrong", etc.)
 - "unclear": you genuinely cannot understand what they want
+- isRelocation: true if customer mentions this is a relocation, moving, shifting, or transport job (not just install/dismantle)
 
 Smart parsing:
 - "remove X" / "delete X" / "take off X" / "no X" / "without X" → remove X from current list (action: update)
@@ -2674,9 +2709,24 @@ For reply: be natural and friendly, confirm what you did.`,
           const action = intent.action as string;
           const updatedList = (intent.updatedList as string || "").trim();
           const aiReply = (intent.reply as string || "").trim();
+          const intentIsRelocation = !!intent.isRelocation;
 
           if (action === "confirm") {
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_date", collectedItems: detectedItems });
+            // If relocation is mentioned and we don't have a destination address yet, ask for it
+            if (intentIsRelocation && !session.collectedToAddress) {
+              await storage.upsertWhatsAppSession(from, {
+                state: "awaiting_to_address",
+                collectedItems: detectedItems,
+                isRelocation: true,
+              });
+              await sendWhatsAppMessage(from,
+                `${aiReply ? aiReply + "\n\n" : ""}Got it — for relocation jobs we also need the *destination address* 📍\n\n` +
+                `What's the address you'd like the furniture moved *to*? (e.g. 123 Tampines Ave 3, #05-12)`
+              );
+              return;
+            }
+            // Normal confirm — proceed to date selection
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_date", collectedItems: detectedItems, isRelocation: intentIsRelocation });
             const { message: dateMenu } = await buildDateMenuMessage();
             await sendWhatsAppMessage(from, `${aiReply ? aiReply + "\n\n" : ""}${dateMenu}`);
             return;
@@ -2727,6 +2777,58 @@ For reply: be natural and friendly, confirm what you did.`,
           );
           return;
         }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // State: awaiting_to_address — collect destination address for relocation
+      // ─────────────────────────────────────────────────────────────────────────
+      if (state === "awaiting_to_address") {
+        if (text.length < 5) {
+          await sendWhatsAppMessage(from, `Please provide the *destination address* where the furniture should be moved to. 📍`);
+          return;
+        }
+        const toAddress = text.trim();
+
+        // Compute route distance using OneMap geocode + OSRM
+        let distanceKm: string | null = null;
+        let distanceDisplay = "";
+        try {
+          const fromAddr = session.collectedAddress!;
+          async function geocodeAddr(addr: string): Promise<{ lat: number; lng: number } | null> {
+            const url = `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(addr)}&returnGeom=Y&getAddrDetails=N&pageNum=1`;
+            const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+            const data = await r.json();
+            const first = data?.results?.[0];
+            if (!first) return null;
+            return { lat: parseFloat(first.LATITUDE), lng: parseFloat(first.LONGITUDE) };
+          }
+          const [fromCoord, toCoord] = await Promise.all([geocodeAddr(fromAddr), geocodeAddr(toAddress)]);
+          if (fromCoord && toCoord) {
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${fromCoord.lng},${fromCoord.lat};${toCoord.lng},${toCoord.lat}?overview=false`;
+            const osrmRes = await fetch(osrmUrl, { signal: AbortSignal.timeout(8000) });
+            const osrmData = await osrmRes.json();
+            const metres = osrmData?.routes?.[0]?.distance;
+            if (metres) {
+              const km = Math.round(metres / 100) / 10; // round to 1 decimal
+              distanceKm = km.toFixed(1);
+              distanceDisplay = `\n📏 *Route distance:* ~${distanceKm} km`;
+            }
+          }
+        } catch (e) {
+          console.warn("[WhatsApp] Distance calculation failed:", e);
+        }
+
+        await storage.upsertWhatsAppSession(from, {
+          state: "awaiting_date",
+          collectedToAddress: toAddress,
+          distanceKm: distanceKm,
+        });
+
+        const { message: dateMenu } = await buildDateMenuMessage();
+        await sendWhatsAppMessage(from,
+          `Got it! Moving *from:* ${session.collectedAddress}\n*To:* ${toAddress}${distanceDisplay}\n\nNow, let's sort the date. 📅\n\n${dateMenu}`
+        );
+        return;
       }
 
       // ─────────────────────────────────────────────────────────────────────────
@@ -2826,10 +2928,17 @@ Rules:
             : "";
 
         // Build the confirmation summary
+        const isRelocation = !!session.isRelocation;
+        const toAddr = session.collectedToAddress;
+        const distKm = session.distanceKm;
+        const addressBlock = isRelocation && toAddr
+          ? `📦 *Type:* Relocation\n📍 *From:* ${address}\n📍 *To:* ${toAddr}${distKm ? `\n📏 *Distance:* ~${distKm} km` : ""}`
+          : `📍 *Address:* ${address}`;
+
         await sendWhatsAppMessage(from,
           `Perfect! Here's a summary of your request:\n\n` +
           `👤 *Name:* ${name}\n` +
-          `📍 *Address:* ${address}\n` +
+          `${addressBlock}\n` +
           `🛋️ *Items:*\n${items}\n` +
           `📅 *Preferred date:* ${preferredDateDisplay}${twLabel}\n\n` +
           `Shall I send this to our team? Reply *YES* to submit.\n\n` +
@@ -3065,6 +3174,10 @@ Return ONLY valid JSON.`,
             depositAmount,
             finalAmount,
             requiresManualReview: true,
+            // Relocation: store pickup (from) and dropoff (to) addresses + distance
+            pickupAddress: session.isRelocation ? address : null,
+            dropoffAddress: session.collectedToAddress || null,
+            distanceKm: session.distanceKm || null,
             // Use the ISO date for the quotes.preferredDate column (admin panel expects yyyy-MM-dd).
             // If the customer said "anytime" / "flexible", preferredDateIso is null — safe.
             // Store the display text in notes so admin can see the customer's exact words.
