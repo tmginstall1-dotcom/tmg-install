@@ -24,6 +24,30 @@ import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, downlo
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
+// ── WhatsApp date-menu helper ─────────────────────────────────────────────────
+// Fetches the next available slots and returns both the formatted message text
+// and the slot array (so the caller can store/reference them).
+async function buildDateMenuMessage(): Promise<{ message: string; slots: { date: string; timeWindow: string; display: string }[] }> {
+  const slots = await storage.getNextAvailableSlots(6);
+  if (slots.length === 0) {
+    return {
+      slots,
+      message:
+        `📅 *When would you like this done?*\n\n` +
+        `_Please tell us your preferred date and we'll do our best to accommodate you._\n\n` +
+        `Reply *anytime* if you're flexible — our team will contact you to schedule. 😊`,
+    };
+  }
+  const lines = slots.map((s, i) => `${i + 1}. ${s.display}`).join("\n");
+  return {
+    slots,
+    message:
+      `📅 *When would you like this done?*\n\nHere are our next available slots:\n\n${lines}\n\n` +
+      `Reply with a *number* to choose, or type any other date if you prefer.\n` +
+      `Reply *anytime* if you're flexible — we'll schedule you in. 😊`,
+  };
+}
+
 // ── Firebase Cloud Messaging push notification helper ─────────────────────────
 // Uses Firebase Admin SDK (FCM V1 API) — no legacy server key needed.
 // Requires FIREBASE_SERVICE_ACCOUNT env var: the full JSON content of your
@@ -2047,6 +2071,7 @@ Message: "${text}"`
           previousItems: null,
           preferredDate: null,
           preferredDateIso: null,
+          preferredTimeWindow: null,
         });
 
         if (extractedName && extractedAddress && extractedItems) {
@@ -2087,7 +2112,14 @@ Message: "${text}"`
         if (session.collectedName) continueMsg += `👤 *Name:* ${session.collectedName}\n`;
         if (session.collectedAddress) continueMsg += `📍 *Address:* ${session.collectedAddress}\n`;
         if (session.collectedItems && session.collectedItems !== "__scanning__") continueMsg += `🛋️ *Items:*\n${session.collectedItems}\n`;
-        if (session.preferredDate) continueMsg += `📅 *Date:* ${session.preferredDate}\n`;
+        if (session.preferredDate) {
+          const twContinue = session.preferredTimeWindow === "09:00-12:00"
+            ? " — Morning (9am–12pm)"
+            : session.preferredTimeWindow === "13:00-17:00"
+              ? " — Afternoon (1pm–5pm)"
+              : "";
+          continueMsg += `📅 *Date:* ${session.preferredDate}${twContinue}\n`;
+        }
         continueMsg += `\n_Next step: ${stateLabel[session.state] || "let's continue"}_`;
         await sendWhatsAppMessage(from, continueMsg);
         return;
@@ -2137,7 +2169,8 @@ Do NOT classify as command if the message is answering the current state questio
               return;
             } else if (gc.command === "change_date" && !["awaiting_date"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_date" });
-              await sendWhatsAppMessage(from, `📅 When would you prefer to have this done?\n\n_e.g. This Saturday, next week, 20 April 2026, or reply *anytime* if flexible._`);
+              const { message: dateMenu } = await buildDateMenuMessage();
+              await sendWhatsAppMessage(from, `No problem! Let's update that. 😊\n\n${dateMenu}`);
               return;
             } else if (gc.command === "help") {
               const hasAddress = !!session?.collectedAddress;
@@ -2572,11 +2605,8 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
         // ── Quick exact-match shortcuts ───────────────────────────────────────
         if (textLower === "yes" || textLower === "ok" || textLower === "correct" || textLower === "looks good" || textLower === "confirm") {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_date", collectedItems: detectedItems });
-          await sendWhatsAppMessage(from,
-            `Great! One last question — 📅 *When would you like this done?*\n\n` +
-            `_e.g. This Saturday, next week, 15 April 2026_\n\n` +
-            `Reply *anytime* if you're flexible and our team will contact you to schedule.`
-          );
+          const { message: dateMenu } = await buildDateMenuMessage();
+          await sendWhatsAppMessage(from, `Great! One last thing before we wrap up. 😊\n\n${dateMenu}`);
           return;
         }
 
@@ -2644,11 +2674,8 @@ For reply: be natural and friendly, confirm what you did.`,
 
           if (action === "confirm") {
             await storage.upsertWhatsAppSession(from, { state: "awaiting_date", collectedItems: detectedItems });
-            await sendWhatsAppMessage(from,
-              `${aiReply ? aiReply + " " : ""}📅 *When would you like this done?*\n\n` +
-              `_e.g. This Saturday, next week, 20 April 2026_\n\n` +
-              `Reply *anytime* if you're flexible and our team will contact you to schedule.`
-            );
+            const { message: dateMenu } = await buildDateMenuMessage();
+            await sendWhatsAppMessage(from, `${aiReply ? aiReply + "\n\n" : ""}${dateMenu}`);
             return;
           }
 
@@ -2707,49 +2734,93 @@ For reply: be natural and friendly, confirm what you did.`,
         const address = session.collectedAddress!;
         const items = session.collectedItems!;
 
-        // Use GPT to parse the date — must return ISO yyyy-MM-dd when resolvable
-        // The preferredDate column on quotes expects yyyy-MM-dd (admin panel uses new Date(date + "T12:00:00"))
-        // If the customer is flexible or vague, we store null for preferredDate and put the text in notes instead
-        let preferredDateDisplay = text.trim();   // shown to customer in WhatsApp
-        let preferredDateIso: string | null = null; // yyyy-MM-dd for the quotes table
+        // Fetch the same slot list that was shown to the customer.
+        // We re-compute it fresh — slots are deterministic based on current bookings.
+        const { slots: availableSlots } = await buildDateMenuMessage();
+        const slotListForGpt = availableSlots.length > 0
+          ? availableSlots.map((s, i) => `${i + 1}. ${s.display} (${s.date} ${s.timeWindow})`).join("\n")
+          : "No specific slots listed — customer may type any date.";
+
+        let preferredDateDisplay = text.trim();
+        let preferredDateIso: string | null = null;
+        let preferredTimeWindow: string | null = null;
         let isFlexible = false;
+
         try {
           const today = new Date();
           const dateRes = await openai.chat.completions.create({
             model: "gpt-4o",
-            max_tokens: 120,
+            max_tokens: 200,
             response_format: { type: "json_object" },
             messages: [{
               role: "system",
               content: `Today is ${today.toISOString().slice(0, 10)} (${today.toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}).
-The customer was asked when they'd like their furniture installation job done.
-Return JSON:
+
+The customer was shown this numbered list of available slots and asked to choose:
+${slotListForGpt}
+
+They replied: "${text}"
+
+Interpret their reply and return JSON:
 {
+  "slotIndex": null or 1-based number matching a slot in the list,
   "isoDate": "yyyy-MM-dd or null",
-  "display": "friendly human-readable text",
+  "timeWindow": "09:00-12:00 or 13:00-17:00 or null",
+  "display": "friendly human-readable summary e.g. Saturday, 22 March 2026 — Morning (9am–12pm)",
   "flexible": boolean
 }
-- isoDate: the most likely specific date in yyyy-MM-dd format. null if flexible/anytime/no specific date.
-  Resolve relative dates: "this Saturday" → nearest Saturday's date, "next Monday" → date of next Monday, etc.
-- display: friendly text shown to customer (e.g. "Saturday, 28 March 2026", "Flexible — anytime", "Week of 20 April 2026")
-- flexible: true if customer said anytime/flexible/whenever/not sure/no preference
-
-Customer said: "${text}"`
+Rules:
+- If they say "1", "option 1", "first one", "the morning one on Saturday" etc → set slotIndex to the matching number; copy isoDate and timeWindow from that slot.
+- If they say "morning" without a day → find the first morning slot in the list.
+- If they type a specific date not in the list → set isoDate to that date in yyyy-MM-dd; timeWindow based on AM/PM if mentioned, else null.
+- Relative dates ("this Saturday", "next Monday") → resolve to actual yyyy-MM-dd.
+- "anytime", "flexible", "whenever", "no preference", "not sure" → flexible=true, isoDate=null, timeWindow=null.
+- display: always write a friendly readable summary of what was chosen.`
             }]
           });
           const dp = JSON.parse(dateRes.choices[0]?.message?.content || "{}");
-          if (dp.display) preferredDateDisplay = dp.display;
-          if (dp.isoDate && /^\d{4}-\d{2}-\d{2}$/.test(dp.isoDate)) preferredDateIso = dp.isoDate;
+
+          // If they picked a numbered slot, use that slot's exact data
+          if (dp.slotIndex && availableSlots[dp.slotIndex - 1]) {
+            const chosen = availableSlots[dp.slotIndex - 1];
+            preferredDateIso = chosen.date;
+            preferredTimeWindow = chosen.timeWindow;
+            preferredDateDisplay = dp.display || chosen.display;
+          } else {
+            if (dp.isoDate && /^\d{4}-\d{2}-\d{2}$/.test(dp.isoDate)) preferredDateIso = dp.isoDate;
+            if (dp.timeWindow && ["09:00-12:00", "13:00-17:00"].includes(dp.timeWindow)) preferredTimeWindow = dp.timeWindow;
+            if (dp.display) preferredDateDisplay = dp.display;
+          }
           isFlexible = !!dp.flexible;
         } catch {}
 
-        // Store display text in session (for WhatsApp messages) + ISO date separately
-        // preferredDateIso goes into the quotes.preferredDate column (yyyy-MM-dd — admin panel safe)
+        // Validate the chosen slot is actually available (if a specific slot was picked)
+        if (preferredDateIso && preferredTimeWindow) {
+          const stillAvailable = await storage.isSlotAvailable(preferredDateIso, preferredTimeWindow);
+          if (!stillAvailable) {
+            // That slot just got taken — show updated menu
+            const { message: freshMenu } = await buildDateMenuMessage();
+            await sendWhatsAppMessage(from,
+              `Sorry, that slot was just taken! Here are our current available slots:\n\n${freshMenu}`
+            );
+            return;
+          }
+        }
+
+        // Store display text in session (for WhatsApp messages) + ISO date + time window separately
         await storage.upsertWhatsAppSession(from, {
           state: "awaiting_confirmation",
           preferredDate: preferredDateDisplay,
           preferredDateIso: preferredDateIso,
+          preferredTimeWindow: preferredTimeWindow,
         });
+
+        // Build the time window label for the summary
+        const twLabel = preferredTimeWindow === "09:00-12:00"
+          ? " (Morning, 9am–12pm)"
+          : preferredTimeWindow === "13:00-17:00"
+            ? " (Afternoon, 1pm–5pm)"
+            : "";
 
         // Build the confirmation summary
         await sendWhatsAppMessage(from,
@@ -2757,7 +2828,7 @@ Customer said: "${text}"`
           `👤 *Name:* ${name}\n` +
           `📍 *Address:* ${address}\n` +
           `🛋️ *Items:*\n${items}\n` +
-          `📅 *Preferred date:* ${preferredDate}\n\n` +
+          `📅 *Preferred date:* ${preferredDateDisplay}${twLabel}\n\n` +
           `Shall I send this to our team? Reply *YES* to submit.\n\n` +
           `_Need to fix anything? Type *change name*, *change address*, *change items*, or *change date*._`
         );
@@ -2846,7 +2917,8 @@ For questions: answer briefly in reply (team confirms pricing after submission, 
               return;
             } else if (ci.action === "change_date") {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_date" });
-              await sendWhatsAppMessage(from, `${ci.reply || "Sure!"} 📅 When would you prefer to have this done?\n\n_e.g. This Saturday, next week, 20 April 2026, or reply *anytime* if flexible._`);
+              const { message: dateMenu } = await buildDateMenuMessage();
+              await sendWhatsAppMessage(from, `${ci.reply || "Sure!"} Let me pull up available slots for you.\n\n${dateMenu}`);
               return;
             } else if (ci.action === "redo_items") {
               // Complete redo — keep existing list in previousItems so user can reference it
@@ -2994,6 +3066,7 @@ Return ONLY valid JSON.`,
             // If the customer said "anytime" / "flexible", preferredDateIso is null — safe.
             // Store the display text in notes so admin can see the customer's exact words.
             preferredDate: session.preferredDateIso || null,
+            preferredTimeWindow: session.preferredTimeWindow || null,
             notes: session.preferredDate && !session.preferredDateIso
               ? `Customer's preferred date (flexible): ${session.preferredDate}`
               : session.preferredDate && session.preferredDateIso

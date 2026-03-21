@@ -157,6 +157,7 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   previousItems: text("previous_items"),
   preferredDate: text("preferred_date"),        // display text shown in WhatsApp (e.g. "Saturday, 28 March 2026")
   preferredDateIso: text("preferred_date_iso"), // yyyy-MM-dd for quotes table — null if flexible
+  preferredTimeWindow: text("preferred_time_window"), // e.g. "09:00-12:00" or "13:00-17:00" — null if flexible
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

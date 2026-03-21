@@ -1004,6 +1004,40 @@ export class DatabaseStorage implements IStorage {
     return true; // timeWindow not found in TIME_SLOTS (shouldn't happen)
   }
 
+  /**
+   * Returns the next `count` available date+slot pairs starting from tomorrow.
+   * Checks up to `daysAhead` calendar days. Skips Sundays (not working).
+   * Returns [{date, timeWindow, display}] — at most 2 per day (AM then PM).
+   */
+  async getNextAvailableSlots(count: number = 6, daysAhead: number = 30): Promise<{ date: string; timeWindow: string; display: string }[]> {
+    const TIME_SLOTS = ['09:00-12:00', '13:00-17:00'];
+    const slotLabel: Record<string, string> = {
+      '09:00-12:00': 'Morning (9am–12pm)',
+      '13:00-17:00': 'Afternoon (1pm–5pm)',
+    };
+    const results: { date: string; timeWindow: string; display: string }[] = [];
+    const base = new Date();
+    base.setHours(12, 0, 0, 0);
+
+    for (let d = 1; d <= daysAhead && results.length < count; d++) {
+      const day = new Date(base);
+      day.setDate(base.getDate() + d);
+      if (day.getDay() === 0) continue; // Skip Sundays
+
+      const dateStr = day.toISOString().split('T')[0];
+      const dayName = day.toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' });
+
+      for (const tw of TIME_SLOTS) {
+        if (results.length >= count) break;
+        const available = await this.isSlotAvailable(dateStr, tw);
+        if (available) {
+          results.push({ date: dateStr, timeWindow: tw, display: `${dayName} — ${slotLabel[tw]}` });
+        }
+      }
+    }
+    return results;
+  }
+
   async getWhatsAppSession(phone: string): Promise<WhatsAppSession | undefined> {
     const [session] = await db.select().from(whatsappSessions).where(eq(whatsappSessions.phone, phone));
     return session;
