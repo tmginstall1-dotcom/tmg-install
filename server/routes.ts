@@ -2166,6 +2166,7 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
         const quote = await storage.createQuote(
           { name, email: `wa_${from}@tmginstall.com`, phone: from },
           {
+            referenceNo: refNo,
             serviceAddress: address,
             status: "submitted",
             sourceChannel: "whatsapp",
