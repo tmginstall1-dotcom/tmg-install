@@ -2213,7 +2213,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
         const address = session.collectedAddress!;
         const itemsText = session.collectedItems!;
 
-        // Use OpenAI to parse items (same as web flow)
+        // Use OpenAI to parse items into structured quote lines
         let parsedItems: { detectedName: string; serviceType: string; quantity: number; unitPrice: number }[] = [];
         try {
           const aiResponse = await openai.chat.completions.create({
@@ -2221,17 +2221,54 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
             messages: [
               {
                 role: "system",
-                content: `You are a furniture installation quote assistant for TMG Install in Singapore. Parse the customer's furniture list into structured items. For each item return: detectedName, serviceType (install/dismantle/relocate), quantity (integer), unitPrice (SGD estimate based on Singapore market rates). Return JSON array only.`,
+                content: `You are a quoting assistant for TMG Install, a furniture installation company in Singapore.
+
+Given a customer's furniture list, return a JSON object in EXACTLY this format:
+{
+  "items": [
+    { "detectedName": "IKEA PAX 3-door wardrobe", "serviceType": "install", "quantity": 1, "unitPrice": 80 },
+    { "detectedName": "King bed frame", "serviceType": "install", "quantity": 1, "unitPrice": 60 }
+  ]
+}
+
+Rules:
+- serviceType must be "install", "dismantle", or "relocate" (default to "install" if unclear)
+- quantity must be an integer
+- unitPrice is in SGD based on Singapore market rates for furniture installation labour:
+  - Wardrobe (per door panel): ~$30-40, full PAX 2-door: ~$60-80
+  - Bed frame (queen/king): ~$50-80
+  - Dining table: ~$40-60
+  - Sofa assembly: ~$50-80
+  - Desk: ~$40-60
+  - Cabinet/shelf: ~$30-50
+  - Dismantling: ~60-70% of install price
+  - Relocation (per item): ~$40-80
+- Always return the "items" key even if the list has one item`,
               },
               { role: "user", content: itemsText },
             ],
             response_format: { type: "json_object" },
           });
-          const parsed = JSON.parse(aiResponse.choices[0].message.content || "{}");
-          parsedItems = parsed.items || [];
+          const raw = aiResponse.choices[0].message.content || "{}";
+          console.log("[WhatsApp] OpenAI item parse response:", raw);
+          const parsed = JSON.parse(raw);
+          // Handle both { items: [...] } and direct array responses
+          if (Array.isArray(parsed)) {
+            parsedItems = parsed;
+          } else if (Array.isArray(parsed.items)) {
+            parsedItems = parsed.items;
+          } else {
+            // Try any array-valued key as fallback
+            const firstArray = Object.values(parsed).find(v => Array.isArray(v));
+            parsedItems = (firstArray as any[]) || [];
+          }
         } catch (aiErr) {
           console.error("[WhatsApp] OpenAI parse error:", aiErr);
-          parsedItems = [{ detectedName: itemsText, serviceType: "install", quantity: 1, unitPrice: 0 }];
+        }
+
+        // Fallback: if parsing failed or returned nothing, create one manual item
+        if (!parsedItems.length) {
+          parsedItems = [{ detectedName: itemsText.substring(0, 200), serviceType: "install", quantity: 1, unitPrice: 0 }];
         }
 
         const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
