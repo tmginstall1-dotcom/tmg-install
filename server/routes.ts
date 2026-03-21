@@ -2105,14 +2105,28 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
         // ── Image sent: analyze with OpenAI Vision ────────────────────────
         if (msgType === "image" && msg.image?.id) {
-          await sendWhatsAppMessage(from,
-            `Got it! Give me a moment to scan that for you... 🔍`
-          );
-          // Lock state immediately so concurrent photo messages enter awaiting_items_verify instead
-          // Format: "__scanning__" or "__scanning__:MEDIA_ID1,MEDIA_ID2,..." for queued photos
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: "__scanning__" });
+          // ── Step 1: Register this photo's ID immediately, change state ──────
+          // Store the first ID in the queue; additional photos arriving in the
+          // next few seconds will append to "__scanning__:ID1,ID2,ID3..."
+          await storage.upsertWhatsAppSession(from, {
+            state: "awaiting_items_verify",
+            collectedItems: `__scanning__:${msg.image.id}`,
+          });
 
-          // Helper: scan one media ID and return detected text or null
+          // Send ONE acknowledgment — no matter how many photos follow
+          await sendWhatsAppMessage(from, `Got it! Give me a moment to scan your photo(s)... 🔍`);
+
+          // ── Step 2: Wait 3 s so all rapidly-sent photos can queue themselves ─
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          // ── Step 3: Re-read session to collect ALL photo IDs ─────────────────
+          const latestSession = await storage.getWhatsAppSession(from);
+          const queueStr = latestSession?.collectedItems ?? `__scanning__:${msg.image.id}`;
+          const allIds = queueStr.startsWith("__scanning__:")
+            ? [...new Set(queueStr.slice("__scanning__:".length).split(",").filter(Boolean))]
+            : [msg.image.id];
+
+          // ── Helper: scan one media ID ─────────────────────────────────────────
           async function scanPhoto(mediaId: string): Promise<string | null> {
             const media = await downloadWhatsAppMedia(mediaId);
             if (!media) return null;
@@ -2132,70 +2146,61 @@ Rules:
 - Identify BRAND/MODEL if visible (IKEA PAX, IKEA MALM, etc.)
 - Include ALL visible furniture — don't skip anything
 - DO NOT include TVs, electronics, decorative items, or small accessories
-- Format: one item per line, starting with quantity then item name
-
-Example output:
-• 1 queen bed frame
-• 1 3-door sliding wardrobe
-• 1 L-shaped office desk
-• 2 bedside tables
+- Format: one bullet per line starting with quantity then item name, e.g. "• 1 queen bed frame"
 
 If no installable furniture is visible, respond only with: NO_FURNITURE`,
                 },
                 {
                   role: "user",
                   content: [
-                    { type: "text", text: "Please carefully identify all furniture items in this photo that need professional installation or assembly." },
+                    { type: "text", text: "Identify all furniture items in this photo that need professional installation, assembly, dismantling, or relocation." },
                     { type: "image_url", image_url: { url: `data:${media.mimeType};base64,${media.base64}`, detail: "high" } },
                   ] as any,
                 },
               ],
             });
-            const text = (visionRes.choices[0]?.message?.content || "").trim();
-            return (!text || text.includes("NO_FURNITURE")) ? null : text;
+            const raw = (visionRes.choices[0]?.message?.content || "").trim();
+            return (!raw || raw.includes("NO_FURNITURE")) ? null : raw;
           }
 
+          // ── Step 4: Scan ALL queued photos in parallel ────────────────────────
           try {
-            const detected = await scanPhoto(msg.image.id);
+            const results = await Promise.all(allIds.map(id => scanPhoto(id).catch(() => null)));
+            const validResults = results.filter((r): r is string => !!r);
 
-            if (!detected) {
+            if (validResults.length === 0) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
               await sendWhatsAppMessage(from,
-                `Hmm, I couldn't spot any furniture in that photo. No worries — just *type out the items* you need help with, like:\n• 1 king bed frame\n• 3-door wardrobe\n• Dining table + 4 chairs`
+                `Hmm, I couldn't spot any furniture in ${allIds.length > 1 ? "those photos" : "that photo"}. No worries — just *type out the items* you need help with, like:\n• 1 king bed frame\n• 3-door wardrobe\n• Dining table + 4 chairs`
               );
               return;
             }
 
-            // Check if any photos were queued while we were scanning
-            const freshSession = await storage.getWhatsAppSession(from);
-            const freshItems = freshSession?.collectedItems || "";
-            let allDetected = detected;
-
-            // Parse queued media IDs: "__scanning__:ID1,ID2"
-            const queuedIds: string[] = [];
-            if (freshItems.startsWith("__scanning__:")) {
-              queuedIds.push(...freshItems.slice("__scanning__:".length).split(",").filter(Boolean));
-            }
-
-            // Scan any queued photos now
-            if (queuedIds.length > 0) {
-              await sendWhatsAppMessage(from,
-                `Got your other photo${queuedIds.length > 1 ? "s" : ""} too — scanning ${queuedIds.length > 1 ? "them" : "it"} now... 🔍`
-              );
-              for (const queuedId of queuedIds) {
-                const extra = await scanPhoto(queuedId).catch(() => null);
-                if (extra) allDetected = `${allDetected}\n${extra}`;
+            // Merge all results, de-duplicate bullet lines
+            const seenLines = new Set<string>();
+            const mergedLines: string[] = [];
+            for (const result of validResults) {
+              for (const line of result.split("\n")) {
+                const cleaned = line.trim();
+                if (!cleaned) continue;
+                const key = cleaned.toLowerCase().replace(/[•\-\*]\s*/, "").trim();
+                if (!seenLines.has(key)) {
+                  seenLines.add(key);
+                  mergedLines.push(cleaned.startsWith("•") ? cleaned : `• ${cleaned}`);
+                }
               }
             }
+            const allDetected = mergedLines.join("\n");
 
+            // ── Step 5: Save and send ONE combined summary ────────────────────
             await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: allDetected });
             await sendWhatsAppMessage(from,
-              `Here's what I found in your photo${queuedIds.length > 0 ? "s" : ""}:\n\n${allDetected}\n\n` +
+              `Here's what I found in your photo${allIds.length > 1 ? "s" : ""}:\n\n${allDetected}\n\n` +
               `Does this look right?\n` +
               `• Reply *YES* to proceed\n` +
-              `• *Type a correction* if anything's off\n` +
+              `• *Type a correction or addition* if anything's off\n` +
               `• Send *another photo* to add more items\n` +
-              `• Reply *NO* to start fresh`
+              `• Reply *NO* to redo the list`
             );
             return;
           } catch (err) {
@@ -2235,21 +2240,27 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
 
         // ── Additional photo sent: merge detections ───────────────────────
         if (msgType === "image" && msg.image?.id) {
-          // If still scanning the first photo, queue this photo's media ID instead of dropping it
+          // ── Still scanning first batch: silently append to queue ─────────────
+          // The primary scanner (3-second wait loop) will pick this up automatically
           if (existingItems.startsWith("__scanning__")) {
             const queuedSoFar = existingItems.startsWith("__scanning__:")
               ? existingItems.slice("__scanning__:".length)
               : "";
-            const newQueue = queuedSoFar ? `${queuedSoFar},${msg.image.id}` : msg.image.id;
-            await storage.upsertWhatsAppSession(from, { collectedItems: `__scanning__:${newQueue}` });
-            await sendWhatsAppMessage(from,
-              `Got your second photo! I'll scan it right after the first one. 🔍`
-            );
+            const idAlreadyQueued = queuedSoFar.split(",").includes(msg.image.id);
+            if (!idAlreadyQueued) {
+              const newQueue = queuedSoFar ? `${queuedSoFar},${msg.image.id}` : msg.image.id;
+              await storage.upsertWhatsAppSession(from, { collectedItems: `__scanning__:${newQueue}` });
+            }
+            // No message — the primary scanner will send ONE combined result
             return;
           }
+
+          // ── Scanning complete: user sent an additional photo to add more ─────
           try {
             const media = await downloadWhatsAppMedia(msg.image.id);
             if (!media) throw new Error("Could not download image");
+
+            await sendWhatsAppMessage(from, `Got your extra photo — scanning it now... 🔍`);
 
             const visionRes = await openai.chat.completions.create({
               model: "gpt-4o",
@@ -2264,7 +2275,7 @@ Rules:
 - Identify type precisely (size, doors, shape)
 - Identify BRAND/MODEL if visible
 - DO NOT include TVs, electronics, decorative items
-- Format: one item per line, starting with bullet • quantity name
+- Format: one bullet per line, e.g. "• 1 queen bed frame"
 If no installable furniture visible, respond only with: NO_FURNITURE`,
                 },
                 {
@@ -2281,21 +2292,32 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
 
             if (!newDetected || newDetected.includes("NO_FURNITURE")) {
               await sendWhatsAppMessage(from,
-                `Hmm, couldn't quite see any furniture in that one. Here's what I have so far:\n\n${existingItems}\n\n• Reply *YES* to confirm this list\n• *Type corrections* if anything's off\n• Send *another photo* to add more\n• Reply *NO* to start fresh`
+                `Hmm, couldn't spot any furniture in that one. Here's what I have so far:\n\n${existingItems}\n\n• Reply *YES* to confirm\n• *Type corrections or additions* if needed\n• Send *another photo* to add more\n• Reply *NO* to redo the list`
               );
               return;
             }
 
-            const base = existingItems && existingItems !== "__scanning__" ? existingItems : "";
-            const mergedItems = base ? `${base}\n${newDetected}` : newDetected;
+            // Merge new results into existing list, deduplicate
+            const seenLines = new Set<string>();
+            const mergedLines: string[] = [];
+            for (const line of [...existingItems.split("\n"), ...newDetected.split("\n")]) {
+              const cleaned = line.trim();
+              if (!cleaned) continue;
+              const key = cleaned.toLowerCase().replace(/[•\-\*]\s*/, "").trim();
+              if (!seenLines.has(key)) {
+                seenLines.add(key);
+                mergedLines.push(cleaned.startsWith("•") ? cleaned : `• ${cleaned}`);
+              }
+            }
+            const mergedItems = mergedLines.join("\n");
 
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: mergedItems });
+            await storage.upsertWhatsAppSession(from, { collectedItems: mergedItems });
             await sendWhatsAppMessage(from,
               `Here's the updated list from all your photos:\n\n${mergedItems}\n\n` +
               `• Reply *YES* if this is complete\n` +
-              `• *Type corrections* if anything's off\n` +
-              `• Send *another photo* to add more items\n` +
-              `• Reply *NO* to start fresh`
+              `• *Type any corrections or additions*\n` +
+              `• Send *another photo* to add more\n` +
+              `• Reply *NO* to redo the list`
             );
             return;
           } catch (err) {
