@@ -1978,10 +1978,85 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const session = await storage.getWhatsAppSession(from);
       const state = session?.state ?? "start";
 
-      if (textLower === "restart" || textLower === "start" || textLower === "hi" || textLower === "hello" || !session) {
-        await storage.upsertWhatsAppSession(from, { state: "awaiting_name", collectedName: null, collectedAddress: null, collectedItems: null });
+      const isGreeting = ["restart", "start over", "new quote", "start"].includes(textLower) || textLower.startsWith("hi") || textLower.startsWith("hello") || textLower.startsWith("hey");
+
+      // ── Smart resume: if user has an existing session, offer to continue ────
+      if (isGreeting && session && (session.collectedName || session.collectedAddress)) {
+        const isExplicitRestart = ["restart", "start over", "new quote"].includes(textLower);
+        if (!isExplicitRestart && text.length < 15) {
+          // Brief greeting with existing session — offer resume
+          const progress = session.state.replace(/_/g, " ");
+          await sendWhatsAppMessage(from,
+            `👋 Welcome back, *${session.collectedName || "there"}*!\n\nYou have a quote in progress (${progress}). Would you like to:\n\n• Type *continue* — pick up where you left off\n• Type *restart* — start a new quote`
+          );
+          return;
+        }
+      }
+
+      if (!session || isGreeting || textLower === "continue" && !session) {
+        // ── One-shot intake: try to extract name + address from the greeting ──
+        const looksDetailed = text.length > 25 && !isGreeting;
+        let extractedName: string | null = null;
+        let extractedAddress: string | null = null;
+
+        if (looksDetailed || (text.length > 15 && (text.toLowerCase().includes("blk") || text.toLowerCase().includes("street") || text.toLowerCase().includes("road") || text.toLowerCase().includes("avenue") || text.toLowerCase().includes("singapore")))) {
+          try {
+            const extractRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 200,
+              response_format: { type: "json_object" },
+              messages: [{
+                role: "system",
+                content: `Extract from the customer's WhatsApp message their name and Singapore address (if provided).
+Return JSON: { "name": string or null, "address": string or null }
+- name: their personal name only (not company). Null if not mentioned.
+- address: full Singapore address. Null if not mentioned. Normalise it (include block/unit/postal if given).
+Message: "${text}"`
+              }]
+            });
+            const extracted = JSON.parse(extractRes.choices[0]?.message?.content || "{}");
+            extractedName = extracted.name || null;
+            extractedAddress = extracted.address || null;
+          } catch {}
+        }
+
+        await storage.upsertWhatsAppSession(from, {
+          state: extractedAddress ? "awaiting_items" : extractedName ? "awaiting_address" : "awaiting_name",
+          collectedName: extractedName,
+          collectedAddress: extractedAddress,
+          collectedItems: null,
+          previousItems: null,
+        });
+
+        if (extractedAddress && extractedName) {
+          await sendWhatsAppMessage(from,
+            `👋 Hi *${extractedName}*! I've noted your address as *${extractedAddress}*.\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* and I'll identify everything for you, or just *type the list*.\n\nMention if it's for *installation, dismantling, or relocation* too!`
+          );
+        } else if (extractedName) {
+          await sendWhatsAppMessage(from,
+            `👋 Hi *${extractedName}*! Welcome to *TMG Install*.\n\n📍 What's the *job address*? This is where we'll be doing the work.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+          );
+        } else {
+          await sendWhatsAppMessage(from,
+            `👋 Hi! Welcome to *TMG Install* — we handle furniture *installation, dismantling & relocation* all across Singapore.\n\nLet me get you a quote in just a few steps!\n\nFirst up — what's your *full name*? 😊`
+          );
+        }
+        return;
+      }
+
+      if (textLower === "continue" && session) {
+        const stateLabel: Record<string, string> = {
+          awaiting_name: "we need your name",
+          awaiting_address: "we need your address",
+          awaiting_items: "we need the furniture list",
+          awaiting_items_verify: "please confirm the furniture list",
+          awaiting_confirmation: "please confirm your full request",
+        };
         await sendWhatsAppMessage(from,
-          `👋 Hi there! Welcome to *TMG Install* — we specialise in furniture *installation, dismantling, and relocation* across Singapore.\n\nI can get you a quote in just a few quick steps!\n\nFirst, what's your *full name*?`
+          `Welcome back! Picking up where we left off — ${stateLabel[session.state] || "let's continue"}. 😊\n\n` +
+          (session.collectedName ? `👤 *Name:* ${session.collectedName}\n` : "") +
+          (session.collectedAddress ? `📍 *Address:* ${session.collectedAddress}\n` : "") +
+          (session.collectedItems && session.collectedItems !== "__scanning__" ? `🛋️ *Items:*\n${session.collectedItems}\n` : "")
         );
         return;
       }
@@ -2042,58 +2117,109 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
       if (state === "awaiting_name") {
         if (text.length < 2) {
-          await sendWhatsAppMessage(from, "Could you share your full name so I can address you properly? 😊");
+          await sendWhatsAppMessage(from, `What's your *full name*? I just need something to address you by. 😊`);
           return;
         }
+        // Use GPT to extract the actual name from natural language
+        let extractedName = text;
+        try {
+          const nameRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 60,
+            response_format: { type: "json_object" },
+            messages: [{
+              role: "system",
+              content: `The customer was asked for their name. Extract their personal name from their message.
+Return JSON: { "name": string or null, "address": string or null }
+- name: their first name or full name only. Null if no name can be identified.
+- address: if they also mentioned a Singapore address in the same message, extract it. Otherwise null.
+Message: "${text}"`
+            }]
+          });
+          const parsed = JSON.parse(nameRes.choices[0]?.message?.content || "{}");
+          if (parsed.name) extractedName = parsed.name;
+          // Bonus: if they also gave their address, save it too
+          if (parsed.address) {
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedName: extractedName, collectedAddress: parsed.address });
+            await sendWhatsAppMessage(from,
+              `Nice to meet you, *${extractedName}*! 😊 I've also noted your address: *${parsed.address}*.\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* and I'll identify the items — or just *type the list* below.`
+            );
+            return;
+          }
+        } catch {}
+
         const alreadyHasAddress = !!session?.collectedAddress;
         const alreadyHasItemsToo = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
-        await storage.upsertWhatsAppSession(from, { collectedName: text });
+        await storage.upsertWhatsAppSession(from, { collectedName: extractedName });
+
         if (alreadyHasItemsToo) {
-          // Name correction after items collected — jump back to confirmation
           await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation" });
           await sendWhatsAppMessage(from,
-            `✅ Name updated! Here's your revised summary:\n\n` +
-            `👤 *Name:* ${text}\n` +
+            `✅ Got it, *${extractedName}*! Here's your updated summary:\n\n` +
+            `👤 *Name:* ${extractedName}\n` +
             `📍 *Address:* ${session!.collectedAddress}\n` +
             `🛋️ *Items:*\n${session!.collectedItems}\n\n` +
-            `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.\n\n` +
-            `_Type *change address* or *change items* to update other details._`
+            `Ready to submit? Reply *YES* to send to our team.`
           );
         } else if (alreadyHasAddress) {
-          // Name correction mid-flow — skip address, ask for items
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items" });
           await sendWhatsAppMessage(from,
-            `Got it, *${text}*! 👍\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`
+            `Got it, *${extractedName}*! 👍\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items, or *type the list* below.`
           );
         } else {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
           await sendWhatsAppMessage(from,
-            `Nice to meet you, *${text}*! 😊\n\n📍 What's the *job address*? (This can be your home, office, or any Singapore location.)\n\n_e.g. 261 Serangoon Central, #05-01, Singapore 550261_`
+            `Nice to meet you, *${extractedName}*! 😊\n\n📍 What's the *job address*? This is where we'll be doing the work.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
           );
         }
         return;
       }
 
       if (state === "awaiting_address") {
-        if (text.length < 5) {
-          await sendWhatsAppMessage(from, "Hmm, that doesn't look like a full address. Could you type it out in full? 🙏");
+        if (text.length < 4) {
+          await sendWhatsAppMessage(from, `Could you give me the *full address*? Include the block/unit number if applicable. 📍`);
           return;
         }
+        // Use GPT to extract and clean the Singapore address
+        let extractedAddress = text;
+        try {
+          const addrRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 100,
+            response_format: { type: "json_object" },
+            messages: [{
+              role: "system",
+              content: `The customer was asked for their Singapore job address. Extract and clean the address from their message.
+Return JSON: { "address": string or null, "valid": boolean }
+- address: cleaned Singapore address (include block, street, unit, postal if given). Null if no address found.
+- valid: true if it looks like a real Singapore location (has street/block/building name), false if too vague.
+Message: "${text}"`
+            }]
+          });
+          const parsed = JSON.parse(addrRes.choices[0]?.message?.content || "{}");
+          if (parsed.address) extractedAddress = parsed.address;
+          if (parsed.valid === false) {
+            await sendWhatsAppMessage(from,
+              `Hmm, I need a bit more detail for the address. Could you include the *block number, street name*, or *postal code*? 📍\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+            );
+            return;
+          }
+        } catch {}
+
         const alreadyHasItems = session?.collectedItems && session.collectedItems !== "__scanning__";
         if (alreadyHasItems) {
-          // Address correction — skip straight back to confirmation with updated address
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedAddress: text });
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedAddress: extractedAddress });
           await sendWhatsAppMessage(from,
-            `✅ Address updated! Here's your revised summary:\n\n` +
+            `✅ Address updated to *${extractedAddress}*! Here's your revised summary:\n\n` +
             `👤 *Name:* ${session.collectedName}\n` +
-            `📍 *Address:* ${text}\n` +
+            `📍 *Address:* ${extractedAddress}\n` +
             `🛋️ *Items:*\n${session.collectedItems}\n\n` +
-            `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.\n\n_Type *change address* anytime to update the address._`
+            `Shall I send this to our team? Reply *YES* to submit.`
           );
         } else {
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: text });
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: extractedAddress });
           await sendWhatsAppMessage(from,
-            `Got it! Now, what furniture do you need help with?\n\n📸 *Send a photo* of the items and I'll identify them for you automatically — or just *type the list* below.\n\nFeel free to mention if it's for *installation, dismantling, or relocation* too!\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle)\n• L-shaped sofa (relocate)\n\n_Made a mistake with the address? Type *change address* anytime._`
+            `Got it! 📍 *${extractedAddress}*\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* and I'll identify the items automatically — or *type the list* below.\n\nMention if it's for *installation, dismantling, or relocation* too!\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle)\n• L-shaped sofa (relocate)`
           );
         }
         return;
@@ -2213,22 +2339,51 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
           }
         }
 
-        // ── Text input ────────────────────────────────────────────────────
+        // ── Text input: use GPT to parse and format the item list ─────────
         if (text.length < 3) {
           await sendWhatsAppMessage(from,
-            `What furniture do you need help with? 😊\n\n📸 *Send a photo* and I'll detect the items for you — or just *type the list*.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
+            `What furniture do you need help with? 😊\n\n📸 *Send a photo* and I'll detect the items — or just *type the list* below.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
           );
           return;
         }
-        await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: text });
-        await sendWhatsAppMessage(from,
-          `Got it! Here's a quick summary:\n\n` +
-          `👤 *Name:* ${name}\n` +
-          `📍 *Address:* ${address}\n` +
-          `🛋️ *Items:*\n${text}\n\n` +
-          `Ready to submit this to our team? Reply *YES* to confirm, or *NO* to cancel.\n\n` +
-          `_Need to change something? Type *change name*, *change address*, or *change items* anytime._`
-        );
+
+        let formattedItems = text;
+        try {
+          const itemsRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 300,
+            response_format: { type: "json_object" },
+            messages: [{
+              role: "system",
+              content: `You are a quoting assistant for TMG Install, a furniture installation company in Singapore.
+The customer has described their furniture job in natural language. Parse and format it.
+Return JSON: { "items": string, "needsServiceType": boolean }
+- items: formatted bullet list (one • per line). Each line: "• [quantity] [item name] ([service type])"
+  - If service type is mentioned (install/dismantle/relocate), include it in brackets
+  - If not mentioned, leave out the brackets (don't guess)
+  - Quantity if mentioned, otherwise just the item name
+- needsServiceType: true if no service type was mentioned at all (so we should ask)
+Customer message: "${text}"`
+            }]
+          });
+          const parsed = JSON.parse(itemsRes.choices[0]?.message?.content || "{}");
+          if (parsed.items) formattedItems = parsed.items;
+
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: formattedItems });
+          await sendWhatsAppMessage(from,
+            `Got it! Here's what I have:\n\n${formattedItems}\n\n` +
+            (parsed.needsServiceType
+              ? `Is this for *installation, dismantling, or relocation*? You can type it or just reply *YES* if you're not sure and our team will confirm.\n\n`
+              : ``) +
+            `Does this look right?\n• Reply *YES* to proceed\n• *Type any corrections* if needed\n• Send a *photo* to add more items`
+          );
+        } catch {
+          // Fallback
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: formattedItems });
+          await sendWhatsAppMessage(from,
+            `Got it! Here's what I have:\n\n${formattedItems}\n\nDoes this look right?\n• Reply *YES* to proceed\n• *Type any corrections* if needed`
+          );
+        }
         return;
       }
 
@@ -2489,33 +2644,76 @@ For reply: be natural and friendly, confirm what you did.`,
         }
 
         if (textLower !== "yes") {
-          // Try to be helpful based on what they typed
-          const wantsToChange = ["change", "wrong", "update", "fix", "edit", "correct", "mistake", "error"].some(kw => textLower.includes(kw));
-          const asksQuestion = text.includes("?") || ["what", "when", "how", "where", "why", "who", "can you", "do you", "will you"].some(kw => textLower.startsWith(kw));
+          // Use GPT to understand what the customer wants at confirmation stage
+          try {
+            const confirmIntent = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 300,
+              response_format: { type: "json_object" },
+              messages: [{
+                role: "system",
+                content: `You are a WhatsApp assistant for TMG Install. The customer is at the final confirmation step.
+Their current request:
+- Name: ${session.collectedName}
+- Address: ${session.collectedAddress}
+- Items: ${session.collectedItems}
 
-          if (wantsToChange) {
+Customer said: "${text}"
+
+Determine their intent and return JSON:
+{
+  "action": "submit" | "change_name" | "change_address" | "change_items" | "question" | "cancel" | "unclear",
+  "reply": "your friendly natural response (1-2 sentences)"
+}
+
+- submit: they want to confirm/submit (yes, ok, send it, go ahead, confirm, etc.)
+- change_name: they want to change their name
+- change_address: they want to change the address
+- change_items: they want to change the furniture list
+- question: they have a question about the service/price/timing
+- cancel: they want to cancel
+- unclear: genuinely unclear
+
+For questions, answer briefly in the reply field (our team will confirm pricing after submission, typical response within 1 business day).`
+              }]
+            });
+            const ci = JSON.parse(confirmIntent.choices[0]?.message?.content || "{}");
+
+            if (ci.action === "submit") {
+              // Fall through to YES handler by re-triggering (set textLower override)
+              // We handle this by just proceeding with submission
+            } else if (ci.action === "change_name") {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
+              await sendWhatsAppMessage(from, `${ci.reply || "Sure!"} What's the correct name?`);
+              return;
+            } else if (ci.action === "change_address") {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
+              await sendWhatsAppMessage(from, `${ci.reply || "No problem!"} What's the correct address? 📍`);
+              return;
+            } else if (ci.action === "change_items") {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
+              await sendWhatsAppMessage(from, `${ci.reply || "Sure!"} What items do you need help with?\n\n📸 Send a photo or type the list below.`);
+              return;
+            } else if (ci.action === "cancel") {
+              await storage.deleteWhatsAppSession(from);
+              await sendWhatsAppMessage(from, `${ci.reply || "No worries!"} If you need a quote in future, just send *hi* anytime. 😊`);
+              return;
+            } else {
+              // question or unclear
+              await sendWhatsAppMessage(from,
+                `${ci.reply || "Our team will be in touch to confirm all the details!"} 😊\n\n` +
+                `Ready to go? Reply *YES* to submit, or type *change name / address / items* to fix anything.`
+              );
+              return;
+            }
+            // If action === "submit", fall through to YES processing below
+          } catch {
             await sendWhatsAppMessage(from,
-              `Sure, I can help you fix that! 😊\n\nWhat would you like to update?\n\n` +
-              `• Type *change name* — update your name\n` +
-              `• Type *change address* — fix the job address\n` +
-              `• Type *change items* — update the furniture list\n` +
-              `• Type *NO* — cancel this request`
+              `Almost there! 😊 Just reply *YES* to submit to our team, or tell me what you'd like to change.\n\n` +
+              `• *change name / address / items* — to fix details\n• *cancel* — to stop`
             );
-          } else if (asksQuestion) {
-            await sendWhatsAppMessage(from,
-              `Great question! Our team will be in touch to confirm all the details once you submit. 😊\n\n` +
-              `Ready to go? Reply *YES* to submit your request, or let me know if you'd like to update anything first.\n\n` +
-              `• Type *change name / address / items* to make corrections`
-            );
-          } else {
-            await sendWhatsAppMessage(from,
-              `Almost there! 😊 Just reply:\n\n` +
-              `• *YES* — to submit your request to our team\n` +
-              `• *NO* — to cancel\n` +
-              `• *change name / address / items* — to fix any details`
-            );
+            return;
           }
-          return;
         }
 
         const name = session.collectedName!;
