@@ -2163,7 +2163,7 @@ Do NOT classify as command if the message is answering the current state questio
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
               await sendWhatsAppMessage(from, `No problem! What's the correct job address? 📍`);
               return;
-            } else if (gc.command === "change_items" && !["awaiting_items"].includes(state)) {
+            } else if (gc.command === "change_items" && !["awaiting_items", "awaiting_items_verify"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null, previousItems: session.collectedItems });
               await sendWhatsAppMessage(from, `Sure! What items do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`);
               return;
@@ -2650,16 +2650,19 @@ Return ONLY valid JSON with these fields:
 Rules:
 - "confirm": customer is happy, wants to proceed (yes, ok, correct, looks right, good, etc.)
 - "add": customer wants to ADD items to the current list. Merge current + new items into updatedList
-- "update": customer wants to CORRECT or REPLACE specific items. Provide the corrected updatedList
+- "update": customer wants to CORRECT, REPLACE, or REMOVE specific items. Provide the corrected updatedList
 - "redo": customer wants to completely start fresh without specifying what (just "no", "redo", "wrong", etc.)
 - "unclear": you genuinely cannot understand what they want
 
 Smart parsing:
+- "remove X" / "delete X" / "take off X" / "no X" / "without X" → remove X from current list (action: update)
+- "just remove the X, the rest is fine" → remove only X from current list, keep everything else (action: update)
 - "short of X" or "missing X" or "also need X" → add X to current list (action: add)
 - "the first list is correct" or "the original was right" → use previousItems as base + any new items mentioned
 - "wrong" / "not X" / "should be Y instead" → correct that item (action: update)
 - "just X" or "only X" → replace the whole list with just X (action: update)
 - If they reference "the first list" and previousItems exists, use previousItems as the starting point
+- IMPORTANT: "remove" means DELETE the item from the list — do NOT add it with "(remove)" tag, just omit it entirely
 
 For updatedList: always format as bullet points starting with "•", one item per line.
 For reply: be natural and friendly, confirm what you did.`,
