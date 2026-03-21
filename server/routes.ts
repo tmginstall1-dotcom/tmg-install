@@ -2360,17 +2360,34 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
             messages: [{
               role: "system",
               content: `You are a quoting assistant for TMG Install, a furniture installation company in Singapore.
-The customer has described their furniture job in natural language. Parse and format it.
-Return JSON: { "items": string, "needsServiceType": boolean }
+The customer is being asked what furniture items they need help with.
+
+FIRST check: is this a general acknowledgment/done signal with NO actual furniture mentioned?
+Examples of done signals: "ok that's all", "nothing else", "done", "that's it", "all good", "ok", "sure", "yeah", "yes", "no more", "nothing more"
+If yes → return { "done": true, "items": null, "needsServiceType": false }
+
+Otherwise, parse the furniture description and return JSON:
+{ "done": false, "items": string, "needsServiceType": boolean }
 - items: formatted bullet list (one • per line). Each line: "• [quantity] [item name] ([service type])"
   - If service type is mentioned (install/dismantle/relocate), include it in brackets
   - If not mentioned, leave out the brackets (don't guess)
   - Quantity if mentioned, otherwise just the item name
-- needsServiceType: true if no service type was mentioned at all (so we should ask)
+- needsServiceType: true if NO service type was mentioned at all
+
 Customer message: "${text}"`
             }]
           });
           const parsed = JSON.parse(itemsRes.choices[0]?.message?.content || "{}");
+
+          if (parsed.done) {
+            await sendWhatsAppMessage(from,
+              `What furniture items do you need help with? 😊\n\n` +
+              `📸 *Send a photo* and I'll detect the items — or type the list below.\n\n` +
+              `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
+            );
+            return;
+          }
+
           if (parsed.items) formattedItems = parsed.items;
 
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: formattedItems });
@@ -2661,26 +2678,37 @@ Customer said: "${text}"
 
 Determine their intent and return JSON:
 {
-  "action": "submit" | "change_name" | "change_address" | "change_items" | "question" | "cancel" | "unclear",
-  "reply": "your friendly natural response (1-2 sentences)"
+  "action": "submit" | "edit_items" | "change_name" | "change_address" | "redo_items" | "question" | "cancel" | "unclear",
+  "reply": "your friendly 1-sentence confirmation of what you did/understood",
+  "updatedItems": "complete updated bullet list ONLY for edit_items action"
 }
 
-- submit: they want to confirm/submit (yes, ok, send it, go ahead, confirm, etc.)
+- submit: they want to confirm/submit (yes, ok, send it, go ahead, confirm, all good, etc.)
+- edit_items: they want to add, remove, or change a specific item (e.g. "remove dining table", "add 1 wardrobe", "change bed to queen size"). For this action, also return updatedItems = the FULL updated bullet list after applying their change to the Items above.
 - change_name: they want to change their name
 - change_address: they want to change the address
-- change_items: they want to change the furniture list
+- redo_items: they want to completely redo/replace the entire items list from scratch
 - question: they have a question about the service/price/timing
 - cancel: they want to cancel
 - unclear: genuinely unclear
 
-For questions, answer briefly in the reply field (our team will confirm pricing after submission, typical response within 1 business day).`
+For edit_items: compute the full updated list (apply their change to the existing Items list above) and return it in updatedItems.
+For questions: answer briefly in reply (our team will confirm pricing after submission, typical response within 1 business day).`
               }]
             });
             const ci = JSON.parse(confirmIntent.choices[0]?.message?.content || "{}");
 
             if (ci.action === "submit") {
-              // Fall through to YES handler by re-triggering (set textLower override)
-              // We handle this by just proceeding with submission
+              // Fall through to YES processing below
+            } else if (ci.action === "edit_items") {
+              // Apply the targeted add/remove/change directly — no list wipe
+              const updatedItems = ci.updatedItems || session.collectedItems || "";
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: updatedItems });
+              await sendWhatsAppMessage(from,
+                `${ci.reply || "Done!"} Here's your updated list:\n\n${updatedItems}\n\n` +
+                `Does this look right?\n• Reply *YES* to proceed\n• Tell me any other corrections needed\n• Send a photo to add more items`
+              );
+              return;
             } else if (ci.action === "change_name") {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
               await sendWhatsAppMessage(from, `${ci.reply || "Sure!"} What's the correct name?`);
@@ -2689,9 +2717,17 @@ For questions, answer briefly in the reply field (our team will confirm pricing 
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
               await sendWhatsAppMessage(from, `${ci.reply || "No problem!"} What's the correct address? 📍`);
               return;
-            } else if (ci.action === "change_items") {
-              await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
-              await sendWhatsAppMessage(from, `${ci.reply || "Sure!"} What items do you need help with?\n\n📸 Send a photo or type the list below.`);
+            } else if (ci.action === "redo_items") {
+              // Complete redo — keep existing list in previousItems so user can reference it
+              await storage.upsertWhatsAppSession(from, {
+                state: "awaiting_items",
+                collectedItems: null,
+                previousItems: session.collectedItems,
+              });
+              await sendWhatsAppMessage(from,
+                `${ci.reply || "Sure!"} What items do you need help with?\n\n` +
+                `📸 Send a photo or type the list below.`
+              );
               return;
             } else if (ci.action === "cancel") {
               await storage.deleteWhatsAppSession(from);
@@ -2701,7 +2737,7 @@ For questions, answer briefly in the reply field (our team will confirm pricing 
               // question or unclear
               await sendWhatsAppMessage(from,
                 `${ci.reply || "Our team will be in touch to confirm all the details!"} 😊\n\n` +
-                `Ready to go? Reply *YES* to submit, or type *change name / address / items* to fix anything.`
+                `Ready to go? Reply *YES* to submit, or tell me what you'd like to change.`
               );
               return;
             }
