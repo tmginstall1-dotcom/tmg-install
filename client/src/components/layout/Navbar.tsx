@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { LogOut, MessageCircle, Menu, X, LayoutDashboard, Calendar, FileDown, Briefcase, Users, ClipboardList, ChevronDown, Settings } from "lucide-react";
 
-const WHATSAPP = "https://wa.me/6580880757";
+const WHATSAPP = "https://wa.me/6580880757?text=hi";
 
 const AVATAR_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6","#06b6d4","#84cc16"];
 function avatarColor(id: number) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }

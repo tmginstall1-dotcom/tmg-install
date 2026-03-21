@@ -7,7 +7,7 @@ const UEN              = "202424156H";
 const BRAND            = "TMG Install";
 const ADDRESS          = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
 const EMAIL            = "sales@tmginstall.com";
-const WHATSAPP         = "https://wa.me/6580880757";
+const WHATSAPP         = "https://wa.me/6580880757?text=hi";
 const WEBSITE          = "https://tmginstall.com";
 
 export default function Privacy() {

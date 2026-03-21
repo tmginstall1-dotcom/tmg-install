@@ -14,7 +14,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 
-const WHATSAPP_HREF = "https://wa.me/6580880757";
+const WHATSAPP_HREF = "https://wa.me/6580880757?text=hi";
 const WHATSAPP_DISPLAY = "+65 8088 0757";
 
 function formatMoney(amount: string | number | null | undefined) {

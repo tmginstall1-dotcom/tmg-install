@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-const WHATSAPP = "https://wa.me/6580880757";
+const WHATSAPP = "https://wa.me/6580880757?text=hi";
 
 const fadeUp = {
   initial: { opacity: 0, y: 24 },

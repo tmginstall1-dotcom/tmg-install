@@ -6,7 +6,7 @@ const COMPANY = "The Moving Guy Pte Ltd";
 const UEN = "202424156H";
 const ADDRESS = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
 const EMAIL = "sales@tmginstall.com";
-const WHATSAPP = "https://wa.me/6580880757";
+const WHATSAPP = "https://wa.me/6580880757?text=hi";
 
 export default function Terms() {
   return (
