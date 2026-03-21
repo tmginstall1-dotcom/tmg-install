@@ -1986,12 +1986,56 @@ Respond with ONLY a JSON array (no prose, no markdown):
         return;
       }
 
-      // ── Global: allow address correction at any stage after name is collected ──
+      // ── Global correction & help commands (work from any state) ─────────────
+
+      // Change name
+      const isNameChangeCmd = ["change name", "wrong name", "update name", "my name is wrong", "incorrect name", "name wrong", "change my name"].some(kw => textLower.includes(kw));
+      if (isNameChangeCmd && session?.collectedName && state !== "awaiting_name") {
+        await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
+        await sendWhatsAppMessage(from, `Sure, no problem! What's the correct *full name* I should use? 😊`);
+        return;
+      }
+
+      // Change address
       const isAddressChangeCmd = ["change address", "wrong address", "update address", "edit address", "change my address", "wrong add", "address wrong", "incorrect address"].some(kw => textLower.includes(kw));
-      if (isAddressChangeCmd && session && session.collectedName && !["awaiting_name", "awaiting_address"].includes(state)) {
+      if (isAddressChangeCmd && session?.collectedName && !["awaiting_name", "awaiting_address"].includes(state)) {
         await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
+        await sendWhatsAppMessage(from, `No problem! Please type the *correct job address* and I'll update it right away. 📍`);
+        return;
+      }
+
+      // Change items
+      const isItemsChangeCmd = ["change item", "wrong item", "update item", "edit item", "add item", "add more item", "change furniture", "wrong furniture", "different item", "redo item", "change my item"].some(kw => textLower.includes(kw));
+      if (isItemsChangeCmd && session?.collectedAddress && !["awaiting_name", "awaiting_address", "awaiting_items"].includes(state)) {
+        await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
+        await sendWhatsAppMessage(from, `Sure! Let's update the furniture list. What items do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`);
+        return;
+      }
+
+      // Help command
+      if (["help", "what can i do", "options", "menu", "commands"].some(kw => textLower === kw || textLower.startsWith("help"))) {
+        const hasName = !!session?.collectedName;
+        const hasAddress = !!session?.collectedAddress;
+        const hasItems = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
+        let helpMsg = `Here's what you can do at any time:\n\n`;
+        if (hasName) helpMsg += `• Type *change name* — update your name\n`;
+        if (hasAddress) helpMsg += `• Type *change address* — fix the job address\n`;
+        if (hasItems) helpMsg += `• Type *change items* — update the furniture list\n`;
+        helpMsg += `• Type *hi* or *start over* — restart from the beginning\n\n`;
+        helpMsg += `_Currently: ${state.replace(/_/g, " ")}_`;
+        await sendWhatsAppMessage(from, helpMsg);
+        return;
+      }
+
+      // Pricing / services info
+      if (["price", "pricing", "how much", "cost", "rate", "charges", "what services", "what do you", "services", "what you do"].some(kw => textLower.includes(kw))) {
         await sendWhatsAppMessage(from,
-          `No problem! Please type the *correct job address* and I'll update it for you. 📍`
+          `*TMG Install* offers these services across Singapore:\n\n` +
+          `🔧 *Installation* — assembly of new furniture (IKEA, flat-pack, etc.)\n` +
+          `🔨 *Dismantling* — safe disassembly of existing furniture\n` +
+          `🚚 *Relocation* — moving furniture within or between locations\n\n` +
+          `Pricing is based on the items and service type. The minimum charge is *S$180*.\n\n` +
+          `To get an exact quote, just continue chatting — I'll collect your details and our team will confirm the final price! 😊`
         );
         return;
       }
@@ -2001,10 +2045,32 @@ Respond with ONLY a JSON array (no prose, no markdown):
           await sendWhatsAppMessage(from, "Could you share your full name so I can address you properly? 😊");
           return;
         }
-        await storage.upsertWhatsAppSession(from, { state: "awaiting_address", collectedName: text });
-        await sendWhatsAppMessage(from,
-          `Nice to meet you, *${text}*! 😊\n\n📍 What's the *job address*? (This can be your home, office, or any Singapore location.)\n\n_e.g. 261 Serangoon Central, #05-01, Singapore 550261_`
-        );
+        const alreadyHasAddress = !!session?.collectedAddress;
+        const alreadyHasItemsToo = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
+        await storage.upsertWhatsAppSession(from, { collectedName: text });
+        if (alreadyHasItemsToo) {
+          // Name correction after items collected — jump back to confirmation
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation" });
+          await sendWhatsAppMessage(from,
+            `✅ Name updated! Here's your revised summary:\n\n` +
+            `👤 *Name:* ${text}\n` +
+            `📍 *Address:* ${session!.collectedAddress}\n` +
+            `🛋️ *Items:*\n${session!.collectedItems}\n\n` +
+            `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.\n\n` +
+            `_Type *change address* or *change items* to update other details._`
+          );
+        } else if (alreadyHasAddress) {
+          // Name correction mid-flow — skip address, ask for items
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_items" });
+          await sendWhatsAppMessage(from,
+            `Got it, *${text}*! 👍\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`
+          );
+        } else {
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
+          await sendWhatsAppMessage(from,
+            `Nice to meet you, *${text}*! 😊\n\n📍 What's the *job address*? (This can be your home, office, or any Singapore location.)\n\n_e.g. 261 Serangoon Central, #05-01, Singapore 550261_`
+          );
+        }
         return;
       }
 
@@ -2145,7 +2211,7 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
         // ── Text input ────────────────────────────────────────────────────
         if (text.length < 3) {
           await sendWhatsAppMessage(from,
-            `What furniture do you need help with? You can type the list or *send a photo* 📸`
+            `What furniture do you need help with? 😊\n\n📸 *Send a photo* and I'll detect the items for you — or just *type the list*.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
           );
           return;
         }
@@ -2155,7 +2221,8 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
           `👤 *Name:* ${name}\n` +
           `📍 *Address:* ${address}\n` +
           `🛋️ *Items:*\n${text}\n\n` +
-          `Ready to submit this to our team? Reply *YES* to confirm, or *NO* to make changes.`
+          `Ready to submit this to our team? Reply *YES* to confirm, or *NO* to cancel.\n\n` +
+          `_Need to change something? Type *change name*, *change address*, or *change items* anytime._`
         );
         return;
       }
@@ -2240,9 +2307,11 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
           }
         }
 
-        if (textLower === "no") {
-          await storage.deleteWhatsAppSession(from);
-          await sendWhatsAppMessage(from, `No worries at all! Send *hi* anytime you're ready to get a quote. 😊`);
+        if (textLower === "no" || textLower === "wrong" || textLower === "incorrect" || textLower === "redo" || textLower === "retry") {
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
+          await sendWhatsAppMessage(from,
+            `No problem! Let's redo the item list. You can *type it out* or *send a new photo* 📸\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`
+          );
           return;
         }
 
@@ -2253,7 +2322,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
 
         if (textLower !== "yes" && text.length < 3) {
           await sendWhatsAppMessage(from,
-            `Reply *YES* to confirm the list, *NO* to start over, or type a corrected list.`
+            `Reply *YES* to confirm the list, *NO* to redo it, or just type the corrected list directly.`
           );
           return;
         }
@@ -2271,16 +2340,41 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
       }
 
       if (state === "awaiting_confirmation") {
-        if (textLower === "no") {
+        if (textLower === "no" || textLower === "cancel" || textLower === "nevermind" || textLower === "never mind" || textLower === "stop") {
           await storage.deleteWhatsAppSession(from);
           await sendWhatsAppMessage(from,
-            `No worries! Send *hi* anytime you'd like to start a new request. 😊`
+            `No worries at all! 😊 If you'd like to get a quote in the future, just send *hi* and I'll help you right away.`
           );
           return;
         }
 
         if (textLower !== "yes") {
-          await sendWhatsAppMessage(from, `Just reply *YES* to submit, or *NO* if you'd like to make changes.`);
+          // Try to be helpful based on what they typed
+          const wantsToChange = ["change", "wrong", "update", "fix", "edit", "correct", "mistake", "error"].some(kw => textLower.includes(kw));
+          const asksQuestion = text.includes("?") || ["what", "when", "how", "where", "why", "who", "can you", "do you", "will you"].some(kw => textLower.startsWith(kw));
+
+          if (wantsToChange) {
+            await sendWhatsAppMessage(from,
+              `Sure, I can help you fix that! 😊\n\nWhat would you like to update?\n\n` +
+              `• Type *change name* — update your name\n` +
+              `• Type *change address* — fix the job address\n` +
+              `• Type *change items* — update the furniture list\n` +
+              `• Type *NO* — cancel this request`
+            );
+          } else if (asksQuestion) {
+            await sendWhatsAppMessage(from,
+              `Great question! Our team will be in touch to confirm all the details once you submit. 😊\n\n` +
+              `Ready to go? Reply *YES* to submit your request, or let me know if you'd like to update anything first.\n\n` +
+              `• Type *change name / address / items* to make corrections`
+            );
+          } else {
+            await sendWhatsAppMessage(from,
+              `Almost there! 😊 Just reply:\n\n` +
+              `• *YES* — to submit your request to our team\n` +
+              `• *NO* — to cancel\n` +
+              `• *change name / address / items* — to fix any details`
+            );
+          }
           return;
         }
 
