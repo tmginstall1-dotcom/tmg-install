@@ -1989,7 +1989,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
         // ── Image sent: analyze with OpenAI Vision ────────────────────────
         if (msgType === "image" && msg.image?.id) {
           await sendWhatsAppMessage(from,
-            `📸 Got your photo! Analyzing the furniture... please wait a moment.`
+            `📸 Got your photo! Scanning for furniture items... please wait a moment.`
           );
           try {
             const media = await downloadWhatsAppMedia(msg.image.id);
@@ -1997,47 +1997,57 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
             const visionRes = await openai.chat.completions.create({
               model: "gpt-4o",
-              max_tokens: 600,
+              max_tokens: 800,
               messages: [
                 {
                   role: "system",
-                  content: `You are a furniture identification assistant for TMG Install, a Singapore furniture installation company.
-Identify ALL pieces of furniture visible in the photo that would need professional installation, assembly, or relocation.
-Return ONLY a plain bulleted list (using • as bullet), one item per line, with quantity prefix if more than one.
-Example:
-• 1 king bed frame
-• 3-door sliding wardrobe
-• Dining table
-• 4 dining chairs
-If you cannot identify any furniture, return: "No furniture detected".`,
+                  content: `You are an expert furniture identification assistant for TMG Install, a professional furniture installation company in Singapore.
+
+Your task: Carefully examine the photo and list ALL furniture items that require professional installation, assembly, dismantling, or relocation.
+
+Rules:
+- COUNT each piece individually (e.g. if you see 4 chairs, write "4 dining chairs")
+- Identify the TYPE precisely: bed frame (specify size if visible), wardrobe (number of doors), sofa (number of seats), desk (L-shaped or straight), etc.
+- Identify BRAND/MODEL if visible (IKEA PAX, IKEA MALM, etc.)
+- Include ALL visible furniture — don't skip anything
+- DO NOT include TVs, electronics, decorative items, or small accessories
+- Format: one item per line, starting with quantity then item name
+
+Example output:
+• 1 queen bed frame
+• 1 3-door sliding wardrobe
+• 1 L-shaped office desk
+• 2 bedside tables
+
+If no installable furniture is visible, respond only with: NO_FURNITURE`,
                 },
                 {
                   role: "user",
                   content: [
-                    { type: "text", text: "What furniture items do you see in this photo?" },
+                    { type: "text", text: "Please carefully identify all furniture items in this photo that need professional installation or assembly." },
                     { type: "image_url", image_url: { url: `data:${media.mimeType};base64,${media.base64}`, detail: "high" } },
                   ] as any,
                 },
               ],
             });
 
-            const detected = visionRes.choices[0]?.message?.content?.trim() || "";
+            const detected = (visionRes.choices[0]?.message?.content || "").trim();
 
-            if (!detected || detected.toLowerCase().includes("no furniture")) {
+            if (!detected || detected.includes("NO_FURNITURE")) {
               await sendWhatsAppMessage(from,
-                `🤔 I couldn't clearly identify furniture in that photo.\n\nPlease *type out the items* you need installed, for example:\n• 1 king bed frame\n• 2-door wardrobe\n• Dining table`
+                `🤔 I couldn't clearly identify furniture in that photo.\n\nPlease *type out the items* you need installed, for example:\n• 1 queen bed frame\n• 3-door wardrobe\n• Dining table with 4 chairs`
               );
               return;
             }
 
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: detected });
+            // Go to a verify step so customer can correct quantities
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: detected });
             await sendWhatsAppMessage(from,
-              `✅ I detected the following furniture from your photo:\n\n${detected}\n\n` +
-              `Here's your quote request summary:\n\n` +
-              `👤 *Name:* ${name}\n` +
-              `📍 *Address:* ${address}\n` +
-              `🛋️ *Items:*\n${detected}\n\n` +
-              `Reply *YES* to submit, *NO* to start over, or type corrections to the item list.`
+              `🔍 Here's what I detected from your photo:\n\n${detected}\n\n` +
+              `Please *check the items and quantities carefully*.\n\n` +
+              `• Reply *YES* if everything is correct\n` +
+              `• Type a *corrected list* if anything is wrong or missing\n` +
+              `• Reply *NO* to start over`
             );
             return;
           } catch (err) {
@@ -2063,6 +2073,39 @@ If you cannot identify any furniture, return: "No furniture detected".`,
           `📍 *Address:* ${address}\n` +
           `🛋️ *Items:*\n${text}\n\n` +
           `Reply *YES* to submit your quote request, or *NO* to start over.`
+        );
+        return;
+      }
+
+      // ── Customer rechecks AI-detected items (from photo) ────────────────────
+      if (state === "awaiting_items_verify") {
+        const name = session.collectedName!;
+        const address = session.collectedAddress!;
+        const detectedItems = session.collectedItems!;
+
+        if (textLower === "no") {
+          await storage.deleteWhatsAppSession(from);
+          await sendWhatsAppMessage(from, `No problem! Send *hi* anytime to start a new quote request. 😊`);
+          return;
+        }
+
+        // Accept YES (use detected list) or a typed correction
+        const finalItems = textLower === "yes" ? detectedItems : text;
+
+        if (textLower !== "yes" && text.length < 3) {
+          await sendWhatsAppMessage(from,
+            `Please reply *YES* to confirm, *NO* to restart, or type a corrected item list.`
+          );
+          return;
+        }
+
+        await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: finalItems });
+        await sendWhatsAppMessage(from,
+          `✅ Got it! Here's your final quote request:\n\n` +
+          `👤 *Name:* ${name}\n` +
+          `📍 *Address:* ${address}\n` +
+          `🛋️ *Items:*\n${finalItems}\n\n` +
+          `Reply *YES* to submit your quote, or *NO* to start over.`
         );
         return;
       }
