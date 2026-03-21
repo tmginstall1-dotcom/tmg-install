@@ -1992,11 +1992,13 @@ Respond with ONLY a JSON array (no prose, no markdown):
             `Got it! Give me a moment to scan that for you... 🔍`
           );
           // Lock state immediately so concurrent photo messages enter awaiting_items_verify instead
+          // Format: "__scanning__" or "__scanning__:MEDIA_ID1,MEDIA_ID2,..." for queued photos
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: "__scanning__" });
-          try {
-            const media = await downloadWhatsAppMedia(msg.image.id);
-            if (!media) throw new Error("Could not download image");
 
+          // Helper: scan one media ID and return detected text or null
+          async function scanPhoto(mediaId: string): Promise<string | null> {
+            const media = await downloadWhatsAppMedia(mediaId);
+            if (!media) return null;
             const visionRes = await openai.chat.completions.create({
               model: "gpt-4o",
               max_tokens: 800,
@@ -2032,10 +2034,14 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
                 },
               ],
             });
+            const text = (visionRes.choices[0]?.message?.content || "").trim();
+            return (!text || text.includes("NO_FURNITURE")) ? null : text;
+          }
 
-            const detected = (visionRes.choices[0]?.message?.content || "").trim();
+          try {
+            const detected = await scanPhoto(msg.image.id);
 
-            if (!detected || detected.includes("NO_FURNITURE")) {
+            if (!detected) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
               await sendWhatsAppMessage(from,
                 `Hmm, I couldn't spot any furniture in that photo. No worries — just *type out the items* you need help with, like:\n• 1 king bed frame\n• 3-door wardrobe\n• Dining table + 4 chairs`
@@ -2043,19 +2049,31 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
               return;
             }
 
-            // Wait briefly so any concurrent photo analysis can finish and save first
-            await new Promise(r => setTimeout(r, 1500));
-
-            // Merge with any items already detected (handles concurrent photo messages)
+            // Check if any photos were queued while we were scanning
             const freshSession = await storage.getWhatsAppSession(from);
-            const existingItems = freshSession?.collectedItems || "";
-            const mergedItems = existingItems && existingItems !== "__scanning__"
-              ? `${existingItems}\n${detected}`
-              : detected;
+            const freshItems = freshSession?.collectedItems || "";
+            let allDetected = detected;
 
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: mergedItems });
+            // Parse queued media IDs: "__scanning__:ID1,ID2"
+            const queuedIds: string[] = [];
+            if (freshItems.startsWith("__scanning__:")) {
+              queuedIds.push(...freshItems.slice("__scanning__:".length).split(",").filter(Boolean));
+            }
+
+            // Scan any queued photos now
+            if (queuedIds.length > 0) {
+              await sendWhatsAppMessage(from,
+                `Got your other photo${queuedIds.length > 1 ? "s" : ""} too — scanning ${queuedIds.length > 1 ? "them" : "it"} now... 🔍`
+              );
+              for (const queuedId of queuedIds) {
+                const extra = await scanPhoto(queuedId).catch(() => null);
+                if (extra) allDetected = `${allDetected}\n${extra}`;
+              }
+            }
+
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: allDetected });
             await sendWhatsAppMessage(from,
-              `Here's what I found in your photo:\n\n${mergedItems}\n\n` +
+              `Here's what I found in your photo${queuedIds.length > 0 ? "s" : ""}:\n\n${allDetected}\n\n` +
               `Does this look right?\n` +
               `• Reply *YES* to proceed\n` +
               `• *Type a correction* if anything's off\n` +
@@ -2099,10 +2117,15 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
 
         // ── Additional photo sent: merge detections ───────────────────────
         if (msgType === "image" && msg.image?.id) {
-          // If still scanning the first photo, don't start a parallel analysis — it causes duplicate messages
-          if (existingItems === "__scanning__") {
+          // If still scanning the first photo, queue this photo's media ID instead of dropping it
+          if (existingItems.startsWith("__scanning__")) {
+            const queuedSoFar = existingItems.startsWith("__scanning__:")
+              ? existingItems.slice("__scanning__:".length)
+              : "";
+            const newQueue = queuedSoFar ? `${queuedSoFar},${msg.image.id}` : msg.image.id;
+            await storage.upsertWhatsAppSession(from, { collectedItems: `__scanning__:${newQueue}` });
             await sendWhatsAppMessage(from,
-              `Still scanning your first photo, just a moment! 🔍\n\nOnce I show you the results, you can send another photo to add more items.`
+              `Got your second photo! I'll scan it right after the first one. 🔍`
             );
             return;
           }
