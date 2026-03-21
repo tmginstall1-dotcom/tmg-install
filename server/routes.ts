@@ -1953,31 +1953,31 @@ Respond with ONLY a JSON array (no prose, no markdown):
       if (textLower === "restart" || textLower === "start" || textLower === "hi" || textLower === "hello" || !session) {
         await storage.upsertWhatsAppSession(from, { state: "awaiting_name", collectedName: null, collectedAddress: null, collectedItems: null });
         await sendWhatsAppMessage(from,
-          `👋 Welcome to *TMG Install*!\n\nI can help you get a furniture installation quote in minutes.\n\nWhat is your *full name*?`
+          `👋 Hi there! Welcome to *TMG Install* — we specialise in furniture *installation, dismantling, and relocation* across Singapore.\n\nI can get you a quote in just a few quick steps!\n\nFirst, what's your *full name*?`
         );
         return;
       }
 
       if (state === "awaiting_name") {
         if (text.length < 2) {
-          await sendWhatsAppMessage(from, "Please enter your full name to continue.");
+          await sendWhatsAppMessage(from, "Could you share your full name so I can address you properly? 😊");
           return;
         }
         await storage.upsertWhatsAppSession(from, { state: "awaiting_address", collectedName: text });
         await sendWhatsAppMessage(from,
-          `Nice to meet you, *${text}*! 😊\n\n📍 What is your *installation address* in Singapore?\n\n_e.g. 123 Orchard Road, #05-01, Singapore 238867_`
+          `Nice to meet you, *${text}*! 😊\n\n📍 What's the *job address*? (This can be your home, office, or any Singapore location.)\n\n_e.g. 261 Serangoon Central, #05-01, Singapore 550261_`
         );
         return;
       }
 
       if (state === "awaiting_address") {
         if (text.length < 5) {
-          await sendWhatsAppMessage(from, "Please enter a valid Singapore address.");
+          await sendWhatsAppMessage(from, "Hmm, that doesn't look like a full address. Could you type it out in full? 🙏");
           return;
         }
         await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: text });
         await sendWhatsAppMessage(from,
-          `Got it! 🛋️ Now please tell me *what furniture items* you need installed.\n\nList each item on a new line, for example:\n• 1 king bed frame\n• 2-door wardrobe\n• Dining table with 4 chairs\n• TV console\n\nJust type them out and I'll process your quote!`
+          `Got it! Now, what furniture do you need help with?\n\n📸 *Send a photo* of the items and I'll identify them for you automatically — or just *type the list* below.\n\nFeel free to mention if it's for *installation, dismantling, or relocation* too!\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle)\n• L-shaped sofa (relocate)`
         );
         return;
       }
@@ -1989,7 +1989,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
         // ── Image sent: analyze with OpenAI Vision ────────────────────────
         if (msgType === "image" && msg.image?.id) {
           await sendWhatsAppMessage(from,
-            `📸 Got your photo! Scanning for furniture items... please wait a moment.`
+            `Got it! Give me a moment to scan that for you... 🔍`
           );
           // Lock state immediately so concurrent photo messages enter awaiting_items_verify instead
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: "__scanning__" });
@@ -2036,8 +2036,9 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
             const detected = (visionRes.choices[0]?.message?.content || "").trim();
 
             if (!detected || detected.includes("NO_FURNITURE")) {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
               await sendWhatsAppMessage(from,
-                `🤔 I couldn't clearly identify furniture in that photo.\n\nPlease *type out the items* you need installed, for example:\n• 1 queen bed frame\n• 3-door wardrobe\n• Dining table with 4 chairs`
+                `Hmm, I couldn't spot any furniture in that photo. No worries — just *type out the items* you need help with, like:\n• 1 king bed frame\n• 3-door wardrobe\n• Dining table + 4 chairs`
               );
               return;
             }
@@ -2054,18 +2055,19 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
 
             await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: mergedItems });
             await sendWhatsAppMessage(from,
-              `🔍 Here's what I detected from your photo${existingItems && existingItems !== "__scanning__" ? "s" : ""}:\n\n${mergedItems}\n\n` +
-              `Please *check the items and quantities carefully*.\n\n` +
-              `• Reply *YES* if the list is complete and correct\n` +
-              `• Type a *corrected list* if anything is wrong\n` +
+              `Here's what I found in your photo:\n\n${mergedItems}\n\n` +
+              `Does this look right?\n` +
+              `• Reply *YES* to proceed\n` +
+              `• *Type a correction* if anything's off\n` +
               `• Send *another photo* to add more items\n` +
-              `• Reply *NO* to start over`
+              `• Reply *NO* to start fresh`
             );
             return;
           } catch (err) {
             console.error("[WhatsApp] Image analysis error:", err);
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
             await sendWhatsAppMessage(from,
-              `Sorry, I had trouble analyzing that photo. Please *type out the furniture items* you need installed instead.`
+              `Sorry, had a bit of trouble with that photo. Could you *type out the furniture items* instead? 🙏`
             );
             return;
           }
@@ -2074,17 +2076,17 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
         // ── Text input ────────────────────────────────────────────────────
         if (text.length < 3) {
           await sendWhatsAppMessage(from,
-            `Please describe the furniture items you need installed, or send a *photo* of the room! 📸`
+            `What furniture do you need help with? You can type the list or *send a photo* 📸`
           );
           return;
         }
         await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: text });
         await sendWhatsAppMessage(from,
-          `Here's your quote request summary:\n\n` +
+          `Got it! Here's a quick summary:\n\n` +
           `👤 *Name:* ${name}\n` +
           `📍 *Address:* ${address}\n` +
           `🛋️ *Items:*\n${text}\n\n` +
-          `Reply *YES* to submit your quote request, or *NO* to start over.`
+          `Ready to submit this to our team? Reply *YES* to confirm, or *NO* to make changes.`
         );
         return;
       }
@@ -2097,6 +2099,13 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
 
         // ── Additional photo sent: merge detections ───────────────────────
         if (msgType === "image" && msg.image?.id) {
+          // If still scanning the first photo, don't start a parallel analysis — it causes duplicate messages
+          if (existingItems === "__scanning__") {
+            await sendWhatsAppMessage(from,
+              `Still scanning your first photo, just a moment! 🔍\n\nOnce I show you the results, you can send another photo to add more items.`
+            );
+            return;
+          }
           try {
             const media = await downloadWhatsAppMedia(msg.image.id);
             if (!media) throw new Error("Could not download image");
@@ -2131,7 +2140,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
 
             if (!newDetected || newDetected.includes("NO_FURNITURE")) {
               await sendWhatsAppMessage(from,
-                `🤔 Couldn't identify furniture in that photo. Here's what I have so far:\n\n${existingItems}\n\n• Reply *YES* to confirm\n• Type corrections\n• Send *another photo*\n• Reply *NO* to start over`
+                `Hmm, couldn't quite see any furniture in that one. Here's what I have so far:\n\n${existingItems}\n\n• Reply *YES* to confirm this list\n• *Type corrections* if anything's off\n• Send *another photo* to add more\n• Reply *NO* to start fresh`
               );
               return;
             }
@@ -2141,17 +2150,17 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
 
             await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: mergedItems });
             await sendWhatsAppMessage(from,
-              `🔍 Updated list from all your photos:\n\n${mergedItems}\n\n` +
-              `• Reply *YES* if everything is correct\n` +
-              `• Type a corrected list if anything is wrong\n` +
+              `Here's the updated list from all your photos:\n\n${mergedItems}\n\n` +
+              `• Reply *YES* if this is complete\n` +
+              `• *Type corrections* if anything's off\n` +
               `• Send *another photo* to add more items\n` +
-              `• Reply *NO* to start over`
+              `• Reply *NO* to start fresh`
             );
             return;
           } catch (err) {
             console.error("[WhatsApp] Image merge error:", err);
             await sendWhatsAppMessage(from,
-              `Sorry, couldn't analyze that photo. Here's what I have:\n\n${existingItems}\n\nReply *YES* to confirm or type corrections.`
+              `Oops, had trouble with that photo. Here's what I have so far:\n\n${existingItems}\n\nReply *YES* to confirm, or type any corrections.`
             );
             return;
           }
@@ -2159,7 +2168,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
 
         if (textLower === "no") {
           await storage.deleteWhatsAppSession(from);
-          await sendWhatsAppMessage(from, `No problem! Send *hi* anytime to start a new quote request. 😊`);
+          await sendWhatsAppMessage(from, `No worries at all! Send *hi* anytime you're ready to get a quote. 😊`);
           return;
         }
 
@@ -2170,18 +2179,18 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
 
         if (textLower !== "yes" && text.length < 3) {
           await sendWhatsAppMessage(from,
-            `Please reply *YES* to confirm, *NO* to restart, or type a corrected item list.`
+            `Reply *YES* to confirm the list, *NO* to start over, or type a corrected list.`
           );
           return;
         }
 
         await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: finalItems });
         await sendWhatsAppMessage(from,
-          `✅ Got it! Here's your final quote request:\n\n` +
+          `Here's a summary of your request:\n\n` +
           `👤 *Name:* ${name}\n` +
           `📍 *Address:* ${address}\n` +
           `🛋️ *Items:*\n${finalItems}\n\n` +
-          `Reply *YES* to submit your quote, or *NO* to start over.`
+          `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.`
         );
         return;
       }
@@ -2190,13 +2199,13 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
         if (textLower === "no") {
           await storage.deleteWhatsAppSession(from);
           await sendWhatsAppMessage(from,
-            `No problem! Send *hi* anytime to start a new quote request. 😊`
+            `No worries! Send *hi* anytime you'd like to start a new request. 😊`
           );
           return;
         }
 
         if (textLower !== "yes") {
-          await sendWhatsAppMessage(from, `Please reply *YES* to submit or *NO* to start over.`);
+          await sendWhatsAppMessage(from, `Just reply *YES* to submit, or *NO* if you'd like to make changes.`);
           return;
         }
 
@@ -2259,11 +2268,11 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
         await storage.deleteWhatsAppSession(from);
 
         await sendWhatsAppMessage(from,
-          `✅ *Quote request submitted!*\n\n` +
-          `Reference: *${quote.referenceNo}*\n\n` +
-          `Our team will review your request and send you a deposit payment link shortly.\n\n` +
-          `Track your quote at:\n${APP_URL}/status/${quote.referenceNo}\n\n` +
-          `_Reply *hi* anytime to start a new request._`
+          `✅ All done, *${name}*! Your request has been submitted.\n\n` +
+          `Your reference number is *${quote.referenceNo}*.\n\n` +
+          `Our team will review the details and follow up with a quote and next steps shortly.\n\n` +
+          `You can track your request here:\n${APP_URL}/status/${quote.referenceNo}\n\n` +
+          `Thanks for choosing TMG Install! 🙏 Reply *hi* anytime to make a new request.`
         );
 
         // Notify admin
@@ -2281,7 +2290,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
 
       // Fallback for submitted state
       await sendWhatsAppMessage(from,
-        `Your quote has already been submitted. Our team will be in touch soon! 😊\n\nReply *hi* to start a new request.`
+        `Your request has already been submitted — our team will be in touch soon! 😊\n\nReply *hi* to start a new request.`
       );
     } catch (err) {
       console.error("[WhatsApp] Webhook handler error:", err);
