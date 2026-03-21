@@ -1107,18 +1107,18 @@ export default function EstimateWizard() {
                     <div>
                       <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Full Name <span className="text-black">*</span></label>
                       <input required value={name} onChange={e => setName(e.target.value)} data-testid="input-name"
-                        placeholder="Ahmad Bin Ismail" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
+                        placeholder="e.g. James Tan Wei Ming" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
                     </div>
                     <div>
                       <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Phone <span className="text-black">*</span></label>
                       <input required value={phone} onChange={e => setPhone(e.target.value)} data-testid="input-phone"
-                        placeholder="+65 8123 4567" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
+                        placeholder="+65 9000 0000" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
                     </div>
                   </div>
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Email <span className="text-black">*</span></label>
                     <input required type="email" value={email} onChange={e => setEmail(e.target.value)} data-testid="input-email"
-                      placeholder="ahmadismail@gmail.com" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
+                      placeholder="e.g. james.tan@email.com" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
                   </div>
                 </div>
 
