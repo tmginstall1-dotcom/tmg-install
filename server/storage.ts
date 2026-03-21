@@ -1,14 +1,14 @@
 import { db } from "./db";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
-  attendanceAmendments, leaveRequests, payslips, gpsTrackPoints, siteEvents,
+  attendanceAmendments, leaveRequests, payslips, gpsTrackPoints, siteEvents, whatsappSessions,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
   type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser,
   type AttendanceAmendment, type AttendanceAmendmentWithUser,
   type LeaveRequest, type LeaveRequestWithUser,
   type Payslip, type PayslipWithUser,
-  type GpsTrackPoint, type SiteEvent
+  type GpsTrackPoint, type SiteEvent, type WhatsAppSession
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 
@@ -102,6 +102,11 @@ export interface IStorage {
   getHeldSlots(): Promise<{ date: string; timeSlot: string; quoteId: number }[]>;
   getSlotCapacities(): Promise<{ date: string; timeSlot: string; usedAmount: number }[]>;
   isSlotAvailable(date: string, timeWindow: string, excludeQuoteId?: number): Promise<boolean>;
+
+  // WhatsApp Sessions
+  getWhatsAppSession(phone: string): Promise<WhatsAppSession | undefined>;
+  upsertWhatsAppSession(phone: string, data: Partial<Omit<WhatsAppSession, 'id' | 'phone' | 'createdAt'>>): Promise<WhatsAppSession>;
+  deleteWhatsAppSession(phone: string): Promise<void>;
 
   // Site Analytics
   addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
@@ -997,6 +1002,33 @@ export class DatabaseStorage implements IStorage {
     }
 
     return true; // timeWindow not found in TIME_SLOTS (shouldn't happen)
+  }
+
+  async getWhatsAppSession(phone: string): Promise<WhatsAppSession | undefined> {
+    const [session] = await db.select().from(whatsappSessions).where(eq(whatsappSessions.phone, phone));
+    return session;
+  }
+
+  async upsertWhatsAppSession(phone: string, data: Partial<Omit<WhatsAppSession, 'id' | 'phone' | 'createdAt'>>): Promise<WhatsAppSession> {
+    const existing = await this.getWhatsAppSession(phone);
+    if (existing) {
+      const [updated] = await db
+        .update(whatsappSessions)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(whatsappSessions.phone, phone))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(whatsappSessions)
+        .values({ phone, ...data, updatedAt: new Date() })
+        .returning();
+      return created;
+    }
+  }
+
+  async deleteWhatsAppSession(phone: string): Promise<void> {
+    await db.delete(whatsappSessions).where(eq(whatsappSessions.phone, phone));
   }
 
   async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent> {

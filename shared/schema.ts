@@ -138,6 +138,19 @@ export const catalogItems = pgTable("catalog_items", {
   active: boolean("active").default(true),
 });
 
+// WhatsApp Conversation Sessions
+export const whatsappSessions = pgTable("whatsapp_sessions", {
+  id: serial("id").primaryKey(),
+  phone: text("phone").notNull().unique(),
+  state: text("state").notNull().default("awaiting_name"), // awaiting_name | awaiting_address | awaiting_items | awaiting_confirmation | submitted
+  collectedName: text("collected_name"),
+  collectedAddress: text("collected_address"),
+  collectedItems: text("collected_items"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type WhatsAppSession = typeof whatsappSessions.$inferSelect;
+
 // Quotes / Jobs
 // Status machine:
 // submitted → deposit_requested → deposit_paid → booking_requested → booked → assigned → in_progress → completed → final_payment_requested → final_paid → closed
@@ -148,6 +161,8 @@ export const quotes = pgTable("quotes", {
   customerId: integer("customer_id").references(() => customers.id),
   serviceAddress: text("service_address").notNull(),
   status: text("status").notNull().default("submitted"),
+  sourceChannel: text("source_channel").default("web"), // 'web' | 'whatsapp'
+  customerWhatsappPhone: text("customer_whatsapp_phone"),
 
   subtotal: numeric("subtotal").default("0"),
   discount: numeric("discount").default("0"),

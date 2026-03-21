@@ -20,6 +20,7 @@ import {
   newEstimateAdminAlert,
   ADMIN_EMAIL
 } from "./email";
+import { sendWhatsAppMessage, sendWhatsAppPaymentLink, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
@@ -1910,6 +1911,227 @@ Respond with ONLY a JSON array (no prose, no markdown):
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       console.error("Wizard quote error:", err);
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ── WhatsApp Webhook Verification (GET) ───────────────────────────────────
+  app.get("/api/webhooks/whatsapp", (req, res) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode === "subscribe" && token === WHATSAPP_VERIFY_TOKEN) {
+      console.log("[WhatsApp] Webhook verified ✓");
+      return res.status(200).send(challenge);
+    }
+    console.warn("[WhatsApp] Webhook verification failed — token mismatch");
+    return res.status(403).json({ message: "Forbidden" });
+  });
+
+  // ── WhatsApp Incoming Message Handler (POST) ──────────────────────────────
+  app.post("/api/webhooks/whatsapp", async (req, res) => {
+    res.status(200).json({ status: "ok" }); // Always ack quickly
+
+    try {
+      const body = req.body;
+      if (body.object !== "whatsapp_business_account") return;
+
+      const entry = body.entry?.[0];
+      const change = entry?.changes?.[0];
+      const value = change?.value;
+      if (!value?.messages?.length) return;
+
+      const msg = value.messages[0];
+      const from: string = msg.from; // sender phone e.g. "6591234567"
+      const text: string = (msg.text?.body || "").trim();
+      const textLower = text.toLowerCase();
+
+      const session = await storage.getWhatsAppSession(from);
+      const state = session?.state ?? "start";
+
+      if (textLower === "restart" || textLower === "start" || textLower === "hi" || textLower === "hello" || !session) {
+        await storage.upsertWhatsAppSession(from, { state: "awaiting_name", collectedName: null, collectedAddress: null, collectedItems: null });
+        await sendWhatsAppMessage(from,
+          `👋 Welcome to *TMG Install*!\n\nI can help you get a furniture installation quote in minutes.\n\nWhat is your *full name*?`
+        );
+        return;
+      }
+
+      if (state === "awaiting_name") {
+        if (text.length < 2) {
+          await sendWhatsAppMessage(from, "Please enter your full name to continue.");
+          return;
+        }
+        await storage.upsertWhatsAppSession(from, { state: "awaiting_address", collectedName: text });
+        await sendWhatsAppMessage(from,
+          `Nice to meet you, *${text}*! 😊\n\n📍 What is your *installation address* in Singapore?\n\n_e.g. 123 Orchard Road, #05-01, Singapore 238867_`
+        );
+        return;
+      }
+
+      if (state === "awaiting_address") {
+        if (text.length < 5) {
+          await sendWhatsAppMessage(from, "Please enter a valid Singapore address.");
+          return;
+        }
+        await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: text });
+        await sendWhatsAppMessage(from,
+          `Got it! 🛋️ Now please tell me *what furniture items* you need installed.\n\nList each item on a new line, for example:\n• 1 king bed frame\n• 2-door wardrobe\n• Dining table with 4 chairs\n• TV console\n\nJust type them out and I'll process your quote!`
+        );
+        return;
+      }
+
+      if (state === "awaiting_items") {
+        if (text.length < 3) {
+          await sendWhatsAppMessage(from, "Please describe the furniture items you need installed.");
+          return;
+        }
+        const name = session.collectedName!;
+        const address = session.collectedAddress!;
+        await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: text });
+        await sendWhatsAppMessage(from,
+          `Here's your quote request summary:\n\n` +
+          `👤 *Name:* ${name}\n` +
+          `📍 *Address:* ${address}\n` +
+          `🛋️ *Items:*\n${text}\n\n` +
+          `Reply *YES* to submit your quote request, or *NO* to start over.`
+        );
+        return;
+      }
+
+      if (state === "awaiting_confirmation") {
+        if (textLower === "no") {
+          await storage.deleteWhatsAppSession(from);
+          await sendWhatsAppMessage(from,
+            `No problem! Send *hi* anytime to start a new quote request. 😊`
+          );
+          return;
+        }
+
+        if (textLower !== "yes") {
+          await sendWhatsAppMessage(from, `Please reply *YES* to submit or *NO* to start over.`);
+          return;
+        }
+
+        const name = session.collectedName!;
+        const address = session.collectedAddress!;
+        const itemsText = session.collectedItems!;
+
+        // Use OpenAI to parse items (same as web flow)
+        let parsedItems: { detectedName: string; serviceType: string; quantity: number; unitPrice: number }[] = [];
+        try {
+          const aiResponse = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+              {
+                role: "system",
+                content: `You are a furniture installation quote assistant for TMG Install in Singapore. Parse the customer's furniture list into structured items. For each item return: detectedName, serviceType (install/dismantle/relocate), quantity (integer), unitPrice (SGD estimate based on Singapore market rates). Return JSON array only.`,
+              },
+              { role: "user", content: itemsText },
+            ],
+            response_format: { type: "json_object" },
+          });
+          const parsed = JSON.parse(aiResponse.choices[0].message.content || "{}");
+          parsedItems = parsed.items || [];
+        } catch (aiErr) {
+          console.error("[WhatsApp] OpenAI parse error:", aiErr);
+          parsedItems = [{ detectedName: itemsText, serviceType: "install", quantity: 1, unitPrice: 0 }];
+        }
+
+        const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
+        const quoteItems = parsedItems.map((item) => ({
+          originalDescription: itemsText,
+          detectedName: item.detectedName,
+          serviceType: item.serviceType || "install",
+          quantity: item.quantity || 1,
+          unitPrice: String(item.unitPrice || 0),
+          subtotal: String((item.quantity || 1) * (item.unitPrice || 0)),
+        }));
+
+        const subtotal = quoteItems.reduce((s, i) => s + parseFloat(i.subtotal), 0);
+        const depositAmount = (subtotal * 0.3).toFixed(2);
+        const finalAmount = (subtotal * 0.7).toFixed(2);
+
+        const quote = await storage.createQuote(
+          { name, email: `wa_${from}@tmginstall.com`, phone: from },
+          {
+            serviceAddress: address,
+            status: "submitted",
+            sourceChannel: "whatsapp",
+            customerWhatsappPhone: from,
+            subtotal: String(subtotal),
+            total: String(subtotal),
+            depositAmount,
+            finalAmount,
+            requiresManualReview: true,
+          } as any,
+          quoteItems as any
+        );
+
+        await storage.deleteWhatsAppSession(from);
+
+        await sendWhatsAppMessage(from,
+          `✅ *Quote request submitted!*\n\n` +
+          `Reference: *${quote.referenceNo}*\n\n` +
+          `Our team will review your request and send you a deposit payment link shortly.\n\n` +
+          `Track your quote at:\n${APP_URL}/status/${quote.referenceNo}\n\n` +
+          `_Reply *hi* anytime to start a new request._`
+        );
+
+        // Notify admin
+        try {
+          await sendEmail({
+            to: ADMIN_EMAIL,
+            subject: `📱 WhatsApp Quote — ${quote.referenceNo} from ${name}`,
+            html: `<p>New quote submitted via <strong>WhatsApp</strong> from ${name} (+${from}).</p><p>Reference: <strong>${quote.referenceNo}</strong></p><p>Address: ${address}</p><p>Items: ${itemsText}</p><p><a href="${APP_URL}/admin/quotes/${quote.id}">View in Admin Panel</a></p>`,
+          });
+        } catch (alertErr) {
+          console.error("[WhatsApp] Admin alert email error:", alertErr);
+        }
+        return;
+      }
+
+      // Fallback for submitted state
+      await sendWhatsAppMessage(from,
+        `Your quote has already been submitted. Our team will be in touch soon! 😊\n\nReply *hi* to start a new request.`
+      );
+    } catch (err) {
+      console.error("[WhatsApp] Webhook handler error:", err);
+    }
+  });
+
+  // ── Admin: Send Payment Link via WhatsApp ─────────────────────────────────
+  app.post("/api/admin/quotes/:id/send-whatsapp-payment", async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+    try {
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+
+      const phone = (quote as any).customerWhatsappPhone;
+      if (!phone) return res.status(400).json({ message: "No WhatsApp number on this quote" });
+
+      const depositAmount = String(quote.depositAmount || "0");
+
+      // Generate Stripe payment link if available
+      let paymentLink = `${APP_URL}/status/${quote.referenceNo}`;
+      if (stripe && parseFloat(depositAmount) > 0) {
+        const link = await createStripePaymentLink(
+          `Deposit for ${quote.referenceNo}`,
+          parseFloat(depositAmount),
+          { quoteId: String(id), type: "deposit" },
+          `${APP_URL}/status/${quote.referenceNo}`
+        );
+        if (link) paymentLink = link;
+      }
+
+      await sendWhatsAppPaymentLink(phone, quote.referenceNo, depositAmount, paymentLink);
+
+      res.json({ message: "Payment link sent via WhatsApp" });
+    } catch (err) {
+      console.error("[WhatsApp] Send payment link error:", err);
+      res.status(500).json({ message: "Failed to send WhatsApp message" });
     }
   });
 

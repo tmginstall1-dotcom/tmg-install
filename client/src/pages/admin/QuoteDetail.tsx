@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { 
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
-  ClipboardList, Banknote, CalendarCheck, Zap, BadgeCheck, AlertOctagon
+  ClipboardList, Banknote, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +50,16 @@ export default function AdminQuoteDetail() {
     },
     onError: (err: any) => {
       toast({ title: "Delete Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const sendWhatsAppPayment = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/admin/quotes/${id}/send-whatsapp-payment`),
+    onSuccess: () => {
+      toast({ title: "WhatsApp Sent", description: "Payment link sent to customer via WhatsApp." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed", description: err.message || "Could not send WhatsApp message.", variant: "destructive" });
     },
   });
 
@@ -783,11 +793,22 @@ export default function AdminQuoteDetail() {
                   <p className="font-black text-amber-800 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em]">
                     <Banknote className="w-4 h-4" /> Awaiting Deposit
                   </p>
-                  <p className="text-xs text-amber-700">Email sent. Waiting for customer to pay the 50% deposit of <strong>{formatMoney(quote.depositAmount)}</strong>.</p>
+                  <p className="text-xs text-amber-700">Email sent. Waiting for customer to pay the deposit of <strong>{formatMoney(quote.depositAmount)}</strong>.</p>
                   <div className="bg-amber-100 px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
                     <span>Deposit amount</span>
                     <span className="font-black">{formatMoney(quote.depositAmount)}</span>
                   </div>
+                  {(quote as any).customerWhatsappPhone && (
+                    <button
+                      onClick={() => sendWhatsAppPayment.mutate()}
+                      disabled={sendWhatsAppPayment.isPending}
+                      data-testid="button-send-whatsapp-payment"
+                      className="w-full mt-1 bg-green-600 hover:bg-green-700 text-white py-2 px-3 text-xs font-black uppercase tracking-[0.1em] flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      {sendWhatsAppPayment.isPending ? "Sending…" : "Send Payment Link via WhatsApp"}
+                    </button>
+                  )}
                 </div>
               )}
 
