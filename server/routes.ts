@@ -20,7 +20,7 @@ import {
   newEstimateAdminAlert,
   ADMIN_EMAIL
 } from "./email";
-import { sendWhatsAppMessage, sendWhatsAppPaymentLink, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
+import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
@@ -2132,6 +2132,21 @@ Respond with ONLY a JSON array (no prose, no markdown):
     } catch (err) {
       console.error("[WhatsApp] Send payment link error:", err);
       res.status(500).json({ message: "Failed to send WhatsApp message" });
+    }
+  });
+
+  // ── Admin: WhatsApp Token Settings ────────────────────────────────────────
+  app.post("/api/admin/settings/whatsapp-token", async (req, res) => {
+    const { token } = req.body as { token?: string };
+    if (!token || typeof token !== "string" || token.trim().length < 20) {
+      return res.status(400).json({ message: "Invalid token" });
+    }
+    try {
+      await updateAccessToken(token.trim());
+      res.json({ message: "WhatsApp token updated successfully" });
+    } catch (err) {
+      console.error("[Admin] Failed to update WhatsApp token:", err);
+      res.status(500).json({ message: "Failed to update token" });
     }
   });
 

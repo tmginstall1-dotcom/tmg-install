@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import {
-  LayoutDashboard, Calendar, Users, BarChart2, FileDown, LogOut,
+  LayoutDashboard, Calendar, Users, BarChart2, FileDown, LogOut, Settings,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -56,6 +56,7 @@ export function AdminSidebar() {
         { href: "/admin/staff",     icon: Users,           label: "Staff & HR", badge: staffBadge },
         { href: "/admin/analytics", icon: BarChart2,       label: "Analytics",  badge: 0 },
         { href: "/admin/export",    icon: FileDown,        label: "Export",     badge: 0 },
+        { href: "/admin/settings",  icon: Settings,        label: "Settings",   badge: 0 },
       ],
     },
   ];

@@ -138,6 +138,14 @@ export const catalogItems = pgTable("catalog_items", {
   active: boolean("active").default(true),
 });
 
+// App Settings (key-value store for runtime config)
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type AppSetting = typeof appSettings.$inferSelect;
+
 // WhatsApp Conversation Sessions
 export const whatsappSessions = pgTable("whatsapp_sessions", {
   id: serial("id").primaryKey(),

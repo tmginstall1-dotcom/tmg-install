@@ -1,10 +1,53 @@
+import { db } from "./db";
+import { appSettings } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WA_API_BASE = `https://graph.facebook.com/v19.0`;
 
 export const WHATSAPP_VERIFY_TOKEN = "tmg_install_verify_2024";
 
+// Cache the token in memory to avoid DB round-trip on every message
+let _cachedToken: string | null = null;
+let _cacheExpiry = 0;
+
+async function getAccessToken(): Promise<string | null> {
+  const now = Date.now();
+  if (_cachedToken && now < _cacheExpiry) return _cachedToken;
+
+  try {
+    const [row] = await db
+      .select()
+      .from(appSettings)
+      .where(eq(appSettings.key, "whatsapp_access_token"));
+    if (row?.value) {
+      _cachedToken = row.value;
+      _cacheExpiry = now + 5 * 60 * 1000; // cache 5 min
+      return _cachedToken;
+    }
+  } catch (err) {
+    console.warn("[WhatsApp] Could not read token from DB:", err);
+  }
+
+  // Fallback to env var
+  return process.env.WHATSAPP_ACCESS_TOKEN ?? null;
+}
+
+export async function updateAccessToken(token: string): Promise<void> {
+  await db
+    .insert(appSettings)
+    .values({ key: "whatsapp_access_token", value: token })
+    .onConflictDoUpdate({
+      target: appSettings.key,
+      set: { value: token, updatedAt: new Date() },
+    });
+  // Bust cache
+  _cachedToken = token;
+  _cacheExpiry = Date.now() + 5 * 60 * 1000;
+}
+
 export async function sendWhatsAppMessage(to: string, text: string): Promise<void> {
+  const ACCESS_TOKEN = await getAccessToken();
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
     console.warn("[WhatsApp] Credentials not configured — skipping message send");
     return;
