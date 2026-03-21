@@ -2159,13 +2159,39 @@ Customer said: "${text}"
 Is this message a GLOBAL COMMAND (a request to change name/address/items/date, or ask for help/pricing)?
 Or is it a NORMAL REPLY to the current question (not a command)?
 
-Return JSON: { "isCommand": boolean, "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"help"|"pricing"|"none" }
-- isCommand: true ONLY if clearly asking to change something or asking for help/pricing info
-- command: which command it is (or "none" if isCommand is false)
-- change_floor: customer wants to change the floor level or lift info
-- change_access: customer wants to change the access difficulty
+Return JSON:
+{
+  "isCommand": boolean,
+  "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"help"|"pricing"|"faq"|"none",
+  "faqAnswer": "string — answer to the customer's question if command=faq, otherwise empty string"
+}
 
-Do NOT classify as command if the message is answering the current state question (e.g. providing an address when state=awaiting_address, providing items when state=awaiting_items, giving a date when state=awaiting_date).`
+Commands:
+- change_name/change_address/change_items/change_date/change_floor/change_access: explicit edit request
+- help: asking for help or what they can do
+- pricing: asking specifically about price estimates or costs
+- faq: a general question about TMG Install services, process, timing, payment, etc. NOT directly answering the current question
+  Examples of FAQ: "do you do office furniture?", "how long does installation take?", "can you do weekends?", "is GST included?", "do you bring your own tools?", "what areas do you cover?"
+  For faq: provide a helpful, concise answer in faqAnswer (2-3 sentences max)
+- none: a normal reply to the current state question (NOT a command)
+
+IMPORTANT: Do NOT classify as faq/command if the message is directly answering the current question:
+- state=awaiting_floor → floor numbers or lift answers are NOT commands
+- state=awaiting_access → "easy/1/moderate" are NOT commands
+- state=awaiting_date → dates, times, "anytime" are NOT commands
+- state=awaiting_items → furniture descriptions are NOT commands
+
+TMG Install facts for faq answers:
+- Singapore-based furniture installation, dismantling and relocation company
+- Services: install new furniture, dismantle old furniture, relocate (move + reinstall)
+- Covers all of Singapore (HDB, condo, landed, commercial/office)
+- Weekdays and weekends available (subject to availability)
+- Tools and equipment provided — customer doesn't need anything
+- Pricing: starts from SGD 80 per item; minimum job SGD 180; relocation has transport fee on top
+- GST not included in quotes (pricing is nett, team to advise if GST applicable)
+- Payment: 50% deposit to confirm booking, 50% balance on completion; PayNow/bank transfer/card
+- Typical response time: quote sent within 1 business day; booking confirmed after deposit
+- Admin team will review quote and may adjust pricing for complex or unusual items`
             }]
           });
           const gc = JSON.parse(globalRes.choices[0]?.message?.content || "{}");
@@ -2217,10 +2243,25 @@ Do NOT classify as command if the message is answering the current state questio
                 `Complete your quote and our team will confirm the exact price! 😊`
               );
               return;
+            } else if (gc.command === "faq" && gc.faqAnswer) {
+              // Answer the question and prompt to continue the flow
+              const statePrompt: Record<string, string> = {
+                awaiting_address: `📍 Now, what's the *job address*?`,
+                awaiting_items: `🛋️ What furniture do you need help with? (send a photo or type the list)`,
+                awaiting_items_verify: `Does your furniture list look right? Reply *YES* to confirm.`,
+                awaiting_floor: `Which *floor* is the unit on, and is there a *lift*?`,
+                awaiting_access: `How easy is access? Reply *1* (Easy), *2* (Moderate), or *3* (Difficult).`,
+                awaiting_to_address: `📍 What's the *destination address* for the relocation?`,
+                awaiting_date: `📅 When would you like this done?`,
+                awaiting_confirmation: `Ready to submit? Reply *YES* to confirm your request.`,
+              };
+              const prompt = statePrompt[state] || `Let's continue with your quote. 😊`;
+              await sendWhatsAppMessage(from, `${gc.faqAnswer}\n\n${prompt}`);
+              return;
             }
           }
         } catch {
-          // GPT check failed — fall through to keyword-based fallback
+          // GPT check failed — fall through to state handler
         }
       }
 
@@ -2797,7 +2838,43 @@ For reply: be natural and friendly, confirm what you did.`,
       // State: awaiting_floor — collect floor level and lift availability
       // ─────────────────────────────────────────────────────────────────────────
       if (state === "awaiting_floor") {
-        // Parse floor number and lift from natural language using GPT
+        // ── If floor was already captured last turn, just waiting for lift answer ──
+        if (session.floorLevel != null && session.floorLevel > 0) {
+          const tl = textLower.trim();
+          let liftKnown: boolean | null = null;
+          if (["yes", "yeah", "yep", "yup", "got lift", "have lift", "with lift", "there is", "there's a lift"].some(k => tl.includes(k))) {
+            liftKnown = true;
+          } else if (["no", "nope", "no lift", "don't have", "dont have", "none", "without lift", "no elevator"].some(k => tl.includes(k))) {
+            liftKnown = false;
+          } else {
+            // GPT fallback for ambiguous lift answer
+            try {
+              const liftRes = await openai.chat.completions.create({
+                model: "gpt-4o", max_tokens: 80, response_format: { type: "json_object" },
+                messages: [{ role: "system", content: `Is the customer saying YES or NO to having a lift/elevator? Return JSON: {"hasLift": boolean | null}. null if unclear. Customer said: "${text}"` }]
+              });
+              const lp = JSON.parse(liftRes.choices[0]?.message?.content || "{}");
+              liftKnown = lp.hasLift != null ? !!lp.hasLift : null;
+            } catch { liftKnown = null; }
+          }
+          if (liftKnown === null) {
+            await sendWhatsAppMessage(from, `Just to confirm — is there a *lift* available at ${session.collectedAddress || "the unit"}? Reply *yes* or *no* 😊`);
+            return;
+          }
+          await storage.upsertWhatsAppSession(from, { hasLift: liftKnown, state: "awaiting_access" });
+          const floorLabel = session.floorLevel === 1 ? "Ground / 1st floor" : `Floor ${session.floorLevel}`;
+          await sendWhatsAppMessage(from,
+            `Got it — ${floorLabel}, ${liftKnown ? "lift available" : "no lift"}. 👍\n\n` +
+            `One more quick question — how easy is access to the unit?\n\n` +
+            `1️⃣ *Easy* — clear hallways, no obstacles\n` +
+            `2️⃣ *Moderate* — some tight corners or minor obstacles\n` +
+            `3️⃣ *Difficult* — very narrow, many obstacles\n\n` +
+            `Reply *1*, *2*, or *3*`
+          );
+          return;
+        }
+
+        // ── Parse floor number and lift from natural language using GPT ──
         try {
           const floorRes = await openai.chat.completions.create({
             model: "gpt-4o",
@@ -2813,18 +2890,19 @@ Customer replied: "${text}"
 
 Parse their response and return JSON:
 {
-  "floorLevel": number,  // floor number (1 = ground/first floor, 2 = second floor, etc.)
-  "hasLift": boolean | null,  // true if lift available, false if no lift, null if not mentioned
-  "understood": boolean,  // false if you can't parse a floor number at all
-  "reply": "your brief friendly confirmation"
+  "floorLevel": number | null,
+  "hasLift": boolean | null,
+  "understood": boolean,
+  "reply": "your brief friendly confirmation (1 sentence)"
 }
 
 Rules:
-- "ground floor" or "1" or "first floor" → floorLevel: 1
-- "2nd", "second", "level 2" → floorLevel: 2
-- If they say "yes" or "lift" → hasLift: true; "no lift", "no" → hasLift: false
+- "ground floor" / "1st floor" / "ground" → floorLevel: 1
+- "2nd" / "second" / "level 2" / "storey 2" → floorLevel: 2
+- "yes" alone with no floor number → floorLevel: null, understood: false (need floor number)
+- "yes lift" / "with lift" → hasLift: true
+- "no lift" / "no" with no floor context → hasLift: false
 - If only floor given and no lift mentioned → hasLift: null
-- If customer mentions lift with floor in one message, capture both
 - If you cannot determine floor at all → understood: false`
             }]
           });
@@ -2832,16 +2910,15 @@ Rules:
 
           if (!fp.understood || fp.floorLevel == null) {
             await sendWhatsAppMessage(from,
-              `Sorry, I didn't quite catch that! 😊 Which floor is the unit on?\n\nReply with a number (e.g. *1* for ground floor, *3* for third floor)\nAnd is there a *lift*? (yes / no)`
+              `Which floor is the unit on? 😊\n\nReply with a number (e.g. *1* for ground floor, *3* for third floor)\nAnd is there a *lift*? (yes / no)`
             );
             return;
           }
 
           const floorLevel = Math.max(1, Math.round(Number(fp.floorLevel) || 1));
-          const hasLift = fp.hasLift != null ? !!fp.hasLift : true; // default true if not mentioned
 
           if (fp.hasLift == null) {
-            // Floor captured but lift not mentioned — ask about lift
+            // Floor captured but lift not mentioned — save floor and ask about lift
             await storage.upsertWhatsAppSession(from, { floorLevel });
             await sendWhatsAppMessage(from,
               `Got it — *Floor ${floorLevel}*! 😊 Is there a *lift* available?\n\nReply *yes* or *no*`
@@ -2849,6 +2926,7 @@ Rules:
             return;
           }
 
+          const hasLift = !!fp.hasLift;
           // Both floor and lift captured — move to access difficulty
           await storage.upsertWhatsAppSession(from, { floorLevel, hasLift, state: "awaiting_access" });
           await sendWhatsAppMessage(from,
@@ -3450,9 +3528,65 @@ Return ONLY valid JSON.`,
         return;
       }
 
-      // Fallback for submitted state
+      // ── Smart GPT catch-all — handles anything that wasn't caught by state handlers ──
+      // This runs when: state is "submitted", state is unknown, or any edge case
+      try {
+        const catchAllRes = await openai.chat.completions.create({
+          model: "gpt-4o",
+          max_tokens: 350,
+          messages: [{
+            role: "system",
+            content: `You are a professional WhatsApp customer service assistant for TMG Install, a furniture installation company in Singapore. You are friendly, helpful, and concise.
+
+COMPANY INFO:
+- Services: furniture installation, dismantling, and relocation across all of Singapore
+- Pricing: from SGD 80/item, minimum order SGD 180; relocation adds transport fee
+- Coverage: HDB flats, condos, landed property, commercial/offices — all of Singapore
+- Payment: 50% deposit (PayNow/bank transfer/card), 50% balance on job completion
+- Typical turnaround: quote within 1 business day, job booked after deposit confirmed
+- Weekdays and weekends available
+- Team provides all tools and equipment
+- GST not included (quoted prices are nett)
+
+CUSTOMER STATUS:
+- Name: ${session?.collectedName || "not collected yet"}
+- Address: ${session?.collectedAddress || "not collected yet"}
+- Items: ${session?.collectedItems || "not collected yet"}
+- State: ${state}
+${state === "submitted" ? "- Quote has been successfully submitted and the team will be in touch" : ""}
+
+INSTRUCTIONS:
+1. Respond naturally and helpfully to whatever the customer said
+2. If they asked a question → answer it clearly (max 2-3 sentences)
+3. If they said thanks / OK / acknowledged something → acknowledge warmly
+4. If they seem confused or frustrated → empathize and offer to help
+5. If their quote is already submitted → confirm it's submitted, offer a new quote
+6. If their quote is in progress → gently guide them back to the flow
+7. Always end with a clear call-to-action appropriate to their current state
+8. Do NOT make up specific prices for specific items — say the team will confirm
+9. Keep responses under 100 words total
+10. Write in the same language the customer wrote (English/Chinese/Malay/etc.)
+
+Respond directly — no JSON, just the message text.`,
+          }, {
+            role: "user",
+            content: text,
+          }],
+        });
+        const smartReply = catchAllRes.choices[0]?.message?.content?.trim();
+        if (smartReply) {
+          await sendWhatsAppMessage(from, smartReply);
+          return;
+        }
+      } catch (fbErr) {
+        console.error("[WhatsApp] Smart fallback GPT error:", fbErr);
+      }
+
+      // Last-resort hardcoded fallback
       await sendWhatsAppMessage(from,
-        `Your request has already been submitted — our team will be in touch soon! 😊\n\nReply *hi* to start a new request.`
+        state === "submitted"
+          ? `Your request has been submitted — our team will be in touch soon! 😊\n\nReply *hi* to start a new request.`
+          : `I'm sorry, I didn't quite catch that! 😊\n\nReply *hi* to start a quote, or *help* to see what you can do.`
       );
     } catch (err) {
       console.error("[WhatsApp] Webhook handler error:", err);
