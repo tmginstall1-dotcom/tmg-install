@@ -2,16 +2,102 @@ import { db } from "./db";
 import { appSettings } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-// Phone number ID from Meta Developer Console (not sensitive, safe to hardcode)
 const PHONE_NUMBER_ID = "1034436969754593";
 const WA_API_BASE = `https://graph.facebook.com/v19.0`;
 
 export const WHATSAPP_VERIFY_TOKEN = "tmg_install_verify_2024";
 
-// Cache the token in memory to avoid DB round-trip on every message
 let _cachedToken: string | null = null;
 let _cacheExpiry = 0;
 
+// ── Persist token to DB ───────────────────────────────────────────────────────
+async function saveTokenToDB(token: string): Promise<void> {
+  await db
+    .insert(appSettings)
+    .values({ key: "whatsapp_access_token", value: token })
+    .onConflictDoUpdate({
+      target: appSettings.key,
+      set: { value: token, updatedAt: new Date() },
+    });
+}
+
+// ── Exchange any token for a 60-day long-lived token via Meta Graph API ───────
+async function exchangeForLongLivedToken(shortToken: string): Promise<string | null> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) {
+    console.warn("[WhatsApp] META_APP_ID / META_APP_SECRET not set — cannot exchange token");
+    return null;
+  }
+
+  try {
+    const url = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${encodeURIComponent(shortToken)}`;
+    const res = await fetch(url);
+    const data = await res.json() as any;
+    if (!res.ok || !data.access_token) {
+      console.error("[WhatsApp] Token exchange failed:", JSON.stringify(data));
+      return null;
+    }
+    const expiresIn = data.expires_in ? Math.round(data.expires_in / 86400) : "?";
+    console.log(`[WhatsApp] Long-lived token obtained — expires in ~${expiresIn} days`);
+    return data.access_token as string;
+  } catch (err) {
+    console.error("[WhatsApp] Token exchange error:", err);
+    return null;
+  }
+}
+
+// ── Check token expiry via Meta debug_token endpoint ─────────────────────────
+async function getTokenExpiryEpoch(token: string): Promise<number> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) return 0;
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/debug_token?input_token=${encodeURIComponent(token)}&access_token=${appId}|${appSecret}`
+    );
+    const data = await res.json() as any;
+    return data?.data?.expires_at ?? 0; // unix epoch seconds, 0 = never expires
+  } catch {
+    return 0;
+  }
+}
+
+// ── Auto-refresh: exchange stored token if it expires within 7 days ───────────
+export async function refreshTokenIfNeeded(): Promise<void> {
+  const currentToken = await getAccessToken();
+  if (!currentToken) {
+    console.warn("[WhatsApp] No token to refresh");
+    return;
+  }
+
+  const expiresAt = await getTokenExpiryEpoch(currentToken);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const sevenDays = 7 * 24 * 3600;
+
+  // If expires_at is 0 the token is already non-expiring; skip
+  if (expiresAt === 0) {
+    console.log("[WhatsApp] Token has no expiry (permanent or System User token) — no refresh needed");
+    return;
+  }
+
+  if (expiresAt - nowSec > sevenDays) {
+    const daysLeft = Math.round((expiresAt - nowSec) / 86400);
+    console.log(`[WhatsApp] Token still valid — ${daysLeft} days remaining`);
+    return;
+  }
+
+  console.log("[WhatsApp] Token expiring soon — exchanging for long-lived token…");
+  const longLived = await exchangeForLongLivedToken(currentToken);
+  if (longLived) {
+    await saveTokenToDB(longLived);
+    _cachedToken = longLived;
+    _cacheExpiry = Date.now() + 5 * 60 * 1000;
+    console.log("[WhatsApp] Token refreshed and saved to DB");
+  }
+}
+
+// ── Read token from DB (with 5-min in-memory cache) ──────────────────────────
 async function getAccessToken(): Promise<string | null> {
   const now = Date.now();
   if (_cachedToken && now < _cacheExpiry) return _cachedToken;
@@ -23,30 +109,34 @@ async function getAccessToken(): Promise<string | null> {
       .where(eq(appSettings.key, "whatsapp_access_token"));
     if (row?.value) {
       _cachedToken = row.value;
-      _cacheExpiry = now + 5 * 60 * 1000; // cache 5 min
+      _cacheExpiry = now + 5 * 60 * 1000;
       return _cachedToken;
     }
   } catch (err) {
     console.warn("[WhatsApp] Could not read token from DB:", err);
   }
 
-  // Fallback to env var
   return process.env.WHATSAPP_ACCESS_TOKEN ?? null;
 }
 
+// ── Public: update token (called from admin Settings page) ───────────────────
 export async function updateAccessToken(token: string): Promise<void> {
-  await db
-    .insert(appSettings)
-    .values({ key: "whatsapp_access_token", value: token })
-    .onConflictDoUpdate({
-      target: appSettings.key,
-      set: { value: token, updatedAt: new Date() },
-    });
-  // Bust cache
-  _cachedToken = token;
+  // Try to immediately exchange for long-lived token
+  const longLived = await exchangeForLongLivedToken(token);
+  const finalToken = longLived ?? token;
+
+  await saveTokenToDB(finalToken);
+  _cachedToken = finalToken;
   _cacheExpiry = Date.now() + 5 * 60 * 1000;
+
+  if (longLived) {
+    console.log("[WhatsApp] Pasted token exchanged for long-lived token and saved");
+  } else {
+    console.log("[WhatsApp] Token saved (could not exchange — using as-is)");
+  }
 }
 
+// ── Send a WhatsApp text message ──────────────────────────────────────────────
 export async function sendWhatsAppMessage(to: string, text: string): Promise<void> {
   const ACCESS_TOKEN = await getAccessToken();
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
@@ -71,7 +161,7 @@ export async function sendWhatsAppMessage(to: string, text: string): Promise<voi
       },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
+    const data = await res.json() as any;
     if (!res.ok) {
       console.error("[WhatsApp] Send error:", JSON.stringify(data));
     } else {
@@ -82,10 +172,7 @@ export async function sendWhatsAppMessage(to: string, text: string): Promise<voi
   }
 }
 
-/**
- * Download a WhatsApp media item as a base64 string.
- * Meta requires two steps: 1) resolve the CDN URL, 2) download the file.
- */
+// ── Download a WhatsApp media item as base64 ─────────────────────────────────
 export async function downloadWhatsAppMedia(
   mediaId: string
 ): Promise<{ base64: string; mimeType: string } | null> {
@@ -93,7 +180,6 @@ export async function downloadWhatsAppMedia(
   if (!token) return null;
 
   try {
-    // Step 1: resolve URL
     const metaRes = await fetch(`${WA_API_BASE}/${mediaId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -103,7 +189,6 @@ export async function downloadWhatsAppMedia(
     }
     const { url, mime_type } = (await metaRes.json()) as { url: string; mime_type: string };
 
-    // Step 2: download bytes
     const fileRes = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -120,6 +205,7 @@ export async function downloadWhatsAppMedia(
   }
 }
 
+// ── Send deposit payment link via WhatsApp ────────────────────────────────────
 export async function sendWhatsAppPaymentLink(
   to: string,
   referenceNo: string,

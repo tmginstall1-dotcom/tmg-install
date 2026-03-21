@@ -35,8 +35,9 @@ export default function AdminSettings() {
             WhatsApp Access Token
           </CardTitle>
           <CardDescription>
-            The Meta access token expires every 24 hours when using a temporary token. Paste a new
-            token here whenever the bot stops sending messages — no redeploy needed.
+            Paste a fresh temporary token from Meta here. It will automatically be exchanged for a
+            long-lived 60-day token and saved — no manual refresh needed after that. The server also
+            checks and renews the token automatically every 6 days.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -6,6 +6,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { seedDatabase } from "./seed";
 import { autoBookPendingQuotes } from "./storage";
+import { refreshTokenIfNeeded } from "./whatsapp";
 
 const app = express();
 const httpServer = createServer(app);
@@ -137,6 +138,12 @@ app.use((req, res, next) => {
   await seedDatabase();
   await autoBookPendingQuotes();
   await registerRoutes(httpServer, app);
+
+  // Auto-refresh WhatsApp token on startup, then every 6 days
+  refreshTokenIfNeeded().catch(e => console.error("[WhatsApp] Startup token refresh error:", e));
+  setInterval(() => {
+    refreshTokenIfNeeded().catch(e => console.error("[WhatsApp] Scheduled token refresh error:", e));
+  }, 6 * 24 * 60 * 60 * 1000);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
