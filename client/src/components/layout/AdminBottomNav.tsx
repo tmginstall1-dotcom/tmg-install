@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Calendar, Users, FileDown, BarChart2 } from "lucide-react";
+import { LayoutDashboard, Calendar, Users, FileDown, Settings } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -36,8 +36,8 @@ export function AdminBottomNav() {
     { href: "/admin",            label: "Dash",    icon: LayoutDashboard, badge: dashBadge },
     { href: "/admin/schedule",   label: "Schedule", icon: Calendar,       badge: schedBadge },
     { href: "/admin/staff",      label: "Staff",   icon: Users,           badge: staffBadge },
-    { href: "/admin/analytics",  label: "Stats",   icon: BarChart2,       badge: 0 },
     { href: "/admin/export",     label: "Export",  icon: FileDown,        badge: 0 },
+    { href: "/admin/settings",   label: "Settings", icon: Settings,       badge: 0 },
   ];
 
   return (
