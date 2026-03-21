@@ -1047,8 +1047,25 @@ export async function registerRoutes(
       }
 
       const referenceNo = `TMG-${randomBytes(4).toString('hex').toUpperCase()}`;
-      const depositAmount = (totalEstimate * 0.30).toFixed(2);
-      const finalAmount = (totalEstimate * 0.70).toFixed(2);
+
+      // ── Minimum charge: SGD 180 ──────────────────────────────────────────────
+      const MIN_CHARGE_LEGACY = 180;
+      const minAdj = totalEstimate < MIN_CHARGE_LEGACY ? MIN_CHARGE_LEGACY - totalEstimate : 0;
+      const grandTotalLegacy = totalEstimate + minAdj;
+      if (minAdj > 0) {
+        aiParsedItems.push({
+          originalDescription: "Minimum Charge Adjustment",
+          detectedName: "Minimum Charge Adjustment",
+          serviceType: "adjustment",
+          quantity: 1,
+          unitPrice: minAdj.toFixed(2),
+          subtotal: minAdj.toFixed(2),
+        });
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
+      const depositAmount = (grandTotalLegacy * 0.50).toFixed(2);
+      const finalAmount = (grandTotalLegacy * 0.50).toFixed(2);
 
       const quote = await storage.createQuote(
         input.customer,
@@ -1057,7 +1074,7 @@ export async function registerRoutes(
           serviceAddress: input.serviceAddress,
           status: 'submitted',
           subtotal: totalEstimate.toFixed(2),
-          total: totalEstimate.toFixed(2),
+          total: grandTotalLegacy.toFixed(2),
           depositAmount,
           finalAmount,
           aiConfidenceScore: aiConfidence,
@@ -2305,9 +2322,27 @@ Return ONLY valid JSON.`,
         });
 
         const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
-        const subtotal = totalEstimate;
-        const depositAmount = (subtotal * 0.3).toFixed(2);
-        const finalAmount = (subtotal * 0.7).toFixed(2);
+
+        // ── Minimum charge: SGD 180 (same rule as web flow) ──────────────────
+        const MIN_CHARGE = 180;
+        const minAdjustment = totalEstimate < MIN_CHARGE ? MIN_CHARGE - totalEstimate : 0;
+        const grandTotal = totalEstimate + minAdjustment;
+
+        if (minAdjustment > 0) {
+          quoteItems.push({
+            originalDescription: "Minimum Charge Adjustment",
+            detectedName: "Minimum Charge Adjustment",
+            serviceType: "adjustment",
+            quantity: 1,
+            unitPrice: minAdjustment.toFixed(2),
+            subtotal: minAdjustment.toFixed(2),
+            catalogItemId: undefined,
+          });
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
+        const depositAmount = (grandTotal * 0.50).toFixed(2);
+        const finalAmount = (grandTotal * 0.50).toFixed(2);
 
         const quote = await storage.createQuote(
           { name, email: `wa_${from}@tmginstall.com`, phone: from },
@@ -2317,8 +2352,8 @@ Return ONLY valid JSON.`,
             status: "submitted",
             sourceChannel: "whatsapp",
             customerWhatsappPhone: from,
-            subtotal: String(subtotal),
-            total: String(subtotal),
+            subtotal: totalEstimate.toFixed(2),
+            total: grandTotal.toFixed(2),
             depositAmount,
             finalAmount,
             requiresManualReview: true,
