@@ -1009,6 +1009,41 @@ export class DatabaseStorage implements IStorage {
     return session;
   }
 
+  /**
+   * Atomically claim the photo-scan slot for this phone number.
+   * Transitions state from 'awaiting_items' → 'awaiting_items_verify' and
+   * seeds the queue with the first mediaId. The UPDATE only succeeds for
+   * exactly ONE concurrent caller (PostgreSQL row-lock), so callers that
+   * lose the race (return false) must call appendPhotoToScanQueue instead.
+   */
+  async claimPhotoScan(phone: string, mediaId: string): Promise<boolean> {
+    const claimed = await db
+      .update(whatsappSessions)
+      .set({
+        state: "awaiting_items_verify",
+        collectedItems: `__scanning__:${mediaId}`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(whatsappSessions.phone, phone), eq(whatsappSessions.state, "awaiting_items")))
+      .returning({ id: whatsappSessions.id });
+    return claimed.length > 0;
+  }
+
+  /**
+   * Atomically append a photo mediaId to the scan queue using a raw SQL
+   * concatenation — no read-then-write, so concurrent appends are safe.
+   */
+  async appendPhotoToScanQueue(phone: string, mediaId: string): Promise<void> {
+    await db.execute(
+      sql`UPDATE whatsapp_sessions
+          SET collected_items = collected_items || ${`,${mediaId}`},
+              updated_at = NOW()
+          WHERE phone = ${phone}
+            AND state = 'awaiting_items_verify'
+            AND collected_items LIKE '__scanning__%'`
+    );
+  }
+
   async upsertWhatsAppSession(phone: string, data: Partial<Omit<WhatsAppSession, 'id' | 'phone' | 'createdAt'>>): Promise<WhatsAppSession> {
     const existing = await this.getWhatsAppSession(phone);
     if (existing) {

@@ -2231,19 +2231,23 @@ Message: "${text}"`
 
         // ── Image sent: analyze with OpenAI Vision ────────────────────────
         if (msgType === "image" && msg.image?.id) {
-          // ── Step 1: Register this photo's ID immediately, change state ──────
-          // Store the first ID in the queue; additional photos arriving in the
-          // next few seconds will append to "__scanning__:ID1,ID2,ID3..."
-          await storage.upsertWhatsAppSession(from, {
-            state: "awaiting_items_verify",
-            collectedItems: `__scanning__:${msg.image.id}`,
-          });
+          // ── Step 1: Atomic claim — only the FIRST webhook handler wins ────────
+          // All 4 photos in an album arrive simultaneously. claimPhotoScan does a
+          // single-row UPDATE WHERE state='awaiting_items'. PostgreSQL guarantees
+          // only one concurrent caller can succeed. Losers call appendPhotoToScanQueue
+          // (raw SQL concat — no read-then-write) and return silently.
+          const isPrimaryScanner = await storage.claimPhotoScan(from, msg.image.id);
+          if (!isPrimaryScanner) {
+            // Not first — atomically append our ID to the queue and exit
+            await storage.appendPhotoToScanQueue(from, msg.image.id);
+            return;
+          }
 
           // Send ONE acknowledgment — no matter how many photos follow
           await sendWhatsAppMessage(from, `Got it! Give me a moment to scan your photo(s)... 🔍`);
 
-          // ── Step 2: Wait 3 s so all rapidly-sent photos can queue themselves ─
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          // ── Step 2: Wait 5 s so all concurrently-sent photos can append ───────
+          await new Promise(resolve => setTimeout(resolve, 5000));
 
           // ── Step 3: Re-read session to collect ALL photo IDs ─────────────────
           const latestSession = await storage.getWhatsAppSession(from);
@@ -2398,14 +2402,9 @@ Customer message: "${text}"`
           // ── Still scanning first batch: silently append to queue ─────────────
           // The primary scanner (3-second wait loop) will pick this up automatically
           if (existingItems.startsWith("__scanning__")) {
-            const queuedSoFar = existingItems.startsWith("__scanning__:")
-              ? existingItems.slice("__scanning__:".length)
-              : "";
-            const idAlreadyQueued = queuedSoFar.split(",").includes(msg.image.id);
-            if (!idAlreadyQueued) {
-              const newQueue = queuedSoFar ? `${queuedSoFar},${msg.image.id}` : msg.image.id;
-              await storage.upsertWhatsAppSession(from, { collectedItems: `__scanning__:${newQueue}` });
-            }
+            // Use atomic SQL append — avoids the read-then-write race condition
+            // that drops IDs when multiple photos arrive in the same millisecond
+            await storage.appendPhotoToScanQueue(from, msg.image.id);
             // No message — the primary scanner will send ONE combined result
             return;
           }
