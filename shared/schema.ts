@@ -154,6 +154,7 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   collectedName: text("collected_name"),
   collectedAddress: text("collected_address"),
   collectedItems: text("collected_items"),
+  previousItems: text("previous_items"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

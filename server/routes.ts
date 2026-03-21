@@ -2329,18 +2329,11 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
           }
         }
 
-        if (textLower === "no" || textLower === "wrong" || textLower === "incorrect" || textLower === "redo" || textLower === "retry") {
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
-          await sendWhatsAppMessage(from,
-            `No problem! Let's redo the item list. You can *type it out* or *send a new photo* 📸\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`
-          );
-          return;
-        }
-
         const detectedItems = existingItems && existingItems !== "__scanning__" ? existingItems : "";
+        const previousItems = session.previousItems || "";
 
-        if (textLower === "yes") {
-          // Confirmed — move to confirmation
+        // ── Quick exact-match shortcuts ───────────────────────────────────────
+        if (textLower === "yes" || textLower === "ok" || textLower === "correct" || textLower === "looks good" || textLower === "confirm") {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: detectedItems });
           await sendWhatsAppMessage(from,
             `Here's a summary of your request:\n\n` +
@@ -2353,41 +2346,125 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
           return;
         }
 
-        if (text.length < 3) {
+        if (text.length < 2) {
           await sendWhatsAppMessage(from,
-            `Reply *YES* to confirm this list, *NO* to redo it, or just type any corrections or additions.`
+            `Reply *YES* to confirm, or tell me what to fix. 😊`
           );
           return;
         }
 
-        // User typed something — treat as ADDITION to the detected list, not a replacement
-        // Detect if it's clearly an addition phrase
-        const isAddition = ["one more", "also", "and also", "add ", "plus ", "there's more", "there is more", "forgot", "missed", "another"].some(kw => textLower.includes(kw));
-        // Detect if it looks like a complete new list (has bullet points or multiple lines)
-        const looksLikeFullList = text.includes("•") || text.includes("-") || text.split("\n").length > 2;
+        // ── AI-powered intent understanding ───────────────────────────────────
+        // Use GPT to understand ANY natural language response from the user
+        try {
+          const intentRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 600,
+            response_format: { type: "json_object" },
+            messages: [
+              {
+                role: "system",
+                content: `You are a WhatsApp assistant for TMG Install, a furniture installation company in Singapore.
 
-        let mergedItems: string;
-        let mergeNote: string;
+The bot has just shown the customer a detected furniture list and asked them to confirm it.
 
-        if (looksLikeFullList && !isAddition) {
-          // Treat as a full replacement
-          mergedItems = text;
-          mergeNote = `Got it — I've updated the full list.`;
-        } else {
-          // Treat as an addition — append to existing
-          mergedItems = detectedItems ? `${detectedItems}\n• ${text.replace(/^[•\-\*]\s*/, "")}` : text;
-          mergeNote = `Got it — I've added that to your list.`;
+Current detected list:
+${detectedItems || "(empty)"}
+
+${previousItems ? `Previous list (before customer said No/redo):\n${previousItems}` : ""}
+
+The customer replied: "${text}"
+
+Your job: understand what the customer wants and return a JSON response.
+
+Return ONLY valid JSON with these fields:
+{
+  "action": "confirm" | "add" | "update" | "redo" | "unclear",
+  "updatedList": "the complete updated bullet list as a string (• item per line), or empty string if action is redo/unclear",
+  "reply": "your natural human reply in English (1-2 sentences max, friendly tone)"
+}
+
+Rules:
+- "confirm": customer is happy, wants to proceed (yes, ok, correct, looks right, good, etc.)
+- "add": customer wants to ADD items to the current list. Merge current + new items into updatedList
+- "update": customer wants to CORRECT or REPLACE specific items. Provide the corrected updatedList
+- "redo": customer wants to completely start fresh without specifying what (just "no", "redo", "wrong", etc.)
+- "unclear": you genuinely cannot understand what they want
+
+Smart parsing:
+- "short of X" or "missing X" or "also need X" → add X to current list (action: add)
+- "the first list is correct" or "the original was right" → use previousItems as base + any new items mentioned
+- "wrong" / "not X" / "should be Y instead" → correct that item (action: update)
+- "just X" or "only X" → replace the whole list with just X (action: update)
+- If they reference "the first list" and previousItems exists, use previousItems as the starting point
+
+For updatedList: always format as bullet points starting with "•", one item per line.
+For reply: be natural and friendly, confirm what you did.`,
+              },
+            ],
+          });
+
+          const intent = JSON.parse(intentRes.choices[0]?.message?.content || "{}");
+          const action = intent.action as string;
+          const updatedList = (intent.updatedList as string || "").trim();
+          const aiReply = (intent.reply as string || "").trim();
+
+          if (action === "confirm") {
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: detectedItems });
+            await sendWhatsAppMessage(from,
+              `${aiReply}\n\nHere's a summary:\n\n` +
+              `👤 *Name:* ${name}\n` +
+              `📍 *Address:* ${address}\n` +
+              `🛋️ *Items:*\n${detectedItems}\n\n` +
+              `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.`
+            );
+            return;
+          }
+
+          if ((action === "add" || action === "update") && updatedList) {
+            await storage.upsertWhatsAppSession(from, { collectedItems: updatedList });
+            await sendWhatsAppMessage(from,
+              `${aiReply} Here's the updated list:\n\n${updatedList}\n\n` +
+              `• Reply *YES* to confirm\n` +
+              `• Tell me if anything else needs changing\n` +
+              `• Send a *photo* to add more items\n` +
+              `• Reply *NO* to start fresh`
+            );
+            return;
+          }
+
+          if (action === "redo") {
+            // Save current items as previousItems before clearing
+            await storage.upsertWhatsAppSession(from, {
+              state: "awaiting_items",
+              collectedItems: null,
+              previousItems: detectedItems || previousItems || null,
+            });
+            await sendWhatsAppMessage(from,
+              `${aiReply || "No problem!"} Let's redo the list. *Type it out* or *send a new photo* 📸\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`
+            );
+            return;
+          }
+
+          // unclear or parse error — give helpful nudge
+          await sendWhatsAppMessage(from,
+            `${aiReply || "Hmm, I'm not quite sure what you'd like to change!"} 😊\n\n` +
+            `Here's the current list:\n\n${detectedItems}\n\n` +
+            `• Reply *YES* to confirm this\n` +
+            `• Tell me what to add or fix\n` +
+            `• Reply *NO* to start fresh`
+          );
+          return;
+
+        } catch (err) {
+          console.error("[WhatsApp] Intent parse error:", err);
+          // Fallback: treat as addition
+          const fallback = detectedItems ? `${detectedItems}\n• ${text.replace(/^[•\-\*]\s*/, "")}` : text;
+          await storage.upsertWhatsAppSession(from, { collectedItems: fallback });
+          await sendWhatsAppMessage(from,
+            `Got it! Here's the updated list:\n\n${fallback}\n\n• Reply *YES* to confirm\n• Tell me what else to change\n• Reply *NO* to start fresh`
+          );
+          return;
         }
-
-        await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: mergedItems });
-        await sendWhatsAppMessage(from,
-          `${mergeNote} Here's the updated list:\n\n${mergedItems}\n\n` +
-          `• Reply *YES* to confirm\n` +
-          `• Type any more corrections or additions\n` +
-          `• Send another *photo* to add more items\n` +
-          `• Reply *NO* to redo the whole list`
-        );
-        return;
       }
 
       if (state === "awaiting_confirmation") {
