@@ -21,7 +21,7 @@ import {
   ADMIN_EMAIL
 } from "./email";
 import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, downloadWhatsAppMedia, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
-import { calcTransportFee } from "@shared/pricing";
+import { calcTransportFee, PricingConfig } from "@shared/pricing";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
@@ -2111,6 +2111,8 @@ Message: "${text}"`
           awaiting_address: "we still need your job address",
           awaiting_items: "we still need the furniture list",
           awaiting_items_verify: "please confirm the furniture list",
+          awaiting_floor: "which floor is the unit on?",
+          awaiting_access: "how easy is access to the unit?",
           awaiting_to_address: "what is the destination address for the relocation?",
           awaiting_date: "when would you like this done?",
           awaiting_confirmation: "please confirm your full request",
@@ -2157,9 +2159,11 @@ Customer said: "${text}"
 Is this message a GLOBAL COMMAND (a request to change name/address/items/date, or ask for help/pricing)?
 Or is it a NORMAL REPLY to the current question (not a command)?
 
-Return JSON: { "isCommand": boolean, "command": "change_name"|"change_address"|"change_items"|"change_date"|"help"|"pricing"|"none" }
+Return JSON: { "isCommand": boolean, "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"help"|"pricing"|"none" }
 - isCommand: true ONLY if clearly asking to change something or asking for help/pricing info
 - command: which command it is (or "none" if isCommand is false)
+- change_floor: customer wants to change the floor level or lift info
+- change_access: customer wants to change the access difficulty
 
 Do NOT classify as command if the message is answering the current state question (e.g. providing an address when state=awaiting_address, providing items when state=awaiting_items, giving a date when state=awaiting_date).`
             }]
@@ -2182,6 +2186,14 @@ Do NOT classify as command if the message is answering the current state questio
               await storage.upsertWhatsAppSession(from, { state: "awaiting_date" });
               const { message: dateMenu } = await buildDateMenuMessage();
               await sendWhatsAppMessage(from, `No problem! Let's update that. 😊\n\n${dateMenu}`);
+              return;
+            } else if (gc.command === "change_floor" && !["awaiting_floor"].includes(state)) {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_floor" });
+              await sendWhatsAppMessage(from, `Sure! Which floor is the unit on?\n\n_e.g. reply *1* for ground floor, *3* for third floor_\n\nAnd is there a *lift*? (yes / no)`);
+              return;
+            } else if (gc.command === "change_access" && !["awaiting_access"].includes(state)) {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_access" });
+              await sendWhatsAppMessage(from, `Got it! How easy is access to the unit?\n\n1️⃣ *Easy* — clear hallways, no obstacles\n2️⃣ *Moderate* — some tight corners or minor obstacles\n3️⃣ *Difficult* — very narrow, many obstacles or stairs without lift\n\nReply *1*, *2*, or *3*`);
               return;
             } else if (gc.command === "help") {
               const hasAddress = !!session?.collectedAddress;
@@ -2640,9 +2652,13 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
 
         // ── Quick exact-match shortcuts ───────────────────────────────────────
         if (textLower === "yes" || textLower === "ok" || textLower === "correct" || textLower === "looks good" || textLower === "confirm") {
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_date", collectedItems: detectedItems });
-          const { message: dateMenu } = await buildDateMenuMessage();
-          await sendWhatsAppMessage(from, `Great! One last thing before we wrap up. 😊\n\n${dateMenu}`);
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_floor", collectedItems: detectedItems });
+          await sendWhatsAppMessage(from,
+            `Great! Just a couple more quick questions to complete your quote. 😊\n\n` +
+            `*Which floor is the unit on?*\n\n` +
+            `Reply with the floor number (e.g. *1* for ground/first floor, *5* for fifth floor)\n` +
+            `And is there a *lift* available? (yes / no)`
+          );
           return;
         }
 
@@ -2715,23 +2731,18 @@ For reply: be natural and friendly, confirm what you did.`,
           const intentIsRelocation = !!intent.isRelocation;
 
           if (action === "confirm") {
-            // If relocation is mentioned and we don't have a destination address yet, ask for it
-            if (intentIsRelocation && !session.collectedToAddress) {
-              await storage.upsertWhatsAppSession(from, {
-                state: "awaiting_to_address",
-                collectedItems: detectedItems,
-                isRelocation: true,
-              });
-              await sendWhatsAppMessage(from,
-                `${aiReply ? aiReply + "\n\n" : ""}Got it — for relocation jobs we also need the *destination address* 📍\n\n` +
-                `What's the address you'd like the furniture moved *to*? (e.g. 123 Tampines Ave 3, #05-12)`
-              );
-              return;
-            }
-            // Normal confirm — proceed to date selection
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_date", collectedItems: detectedItems, isRelocation: intentIsRelocation });
-            const { message: dateMenu } = await buildDateMenuMessage();
-            await sendWhatsAppMessage(from, `${aiReply ? aiReply + "\n\n" : ""}${dateMenu}`);
+            // Proceed to floor/access questions regardless of relocation (relocation address collected after access)
+            await storage.upsertWhatsAppSession(from, {
+              state: "awaiting_floor",
+              collectedItems: detectedItems,
+              isRelocation: intentIsRelocation || session.isRelocation || false,
+            });
+            await sendWhatsAppMessage(from,
+              `${aiReply ? aiReply + "\n\n" : ""}Just a couple more quick questions to complete your quote. 😊\n\n` +
+              `*Which floor is the unit on?*\n\n` +
+              `Reply with the floor number (e.g. *1* for ground/first floor, *5* for fifth floor)\n` +
+              `And is there a *lift* available? (yes / no)`
+            );
             return;
           }
 
@@ -2780,6 +2791,160 @@ For reply: be natural and friendly, confirm what you did.`,
           );
           return;
         }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // State: awaiting_floor — collect floor level and lift availability
+      // ─────────────────────────────────────────────────────────────────────────
+      if (state === "awaiting_floor") {
+        // Parse floor number and lift from natural language using GPT
+        try {
+          const floorRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 150,
+            response_format: { type: "json_object" },
+            messages: [{
+              role: "system",
+              content: `You are a quoting assistant for TMG Install, a furniture installation company in Singapore.
+
+The customer was asked: "Which floor is the unit on? And is there a lift available?"
+
+Customer replied: "${text}"
+
+Parse their response and return JSON:
+{
+  "floorLevel": number,  // floor number (1 = ground/first floor, 2 = second floor, etc.)
+  "hasLift": boolean | null,  // true if lift available, false if no lift, null if not mentioned
+  "understood": boolean,  // false if you can't parse a floor number at all
+  "reply": "your brief friendly confirmation"
+}
+
+Rules:
+- "ground floor" or "1" or "first floor" → floorLevel: 1
+- "2nd", "second", "level 2" → floorLevel: 2
+- If they say "yes" or "lift" → hasLift: true; "no lift", "no" → hasLift: false
+- If only floor given and no lift mentioned → hasLift: null
+- If customer mentions lift with floor in one message, capture both
+- If you cannot determine floor at all → understood: false`
+            }]
+          });
+          const fp = JSON.parse(floorRes.choices[0]?.message?.content || "{}");
+
+          if (!fp.understood || fp.floorLevel == null) {
+            await sendWhatsAppMessage(from,
+              `Sorry, I didn't quite catch that! 😊 Which floor is the unit on?\n\nReply with a number (e.g. *1* for ground floor, *3* for third floor)\nAnd is there a *lift*? (yes / no)`
+            );
+            return;
+          }
+
+          const floorLevel = Math.max(1, Math.round(Number(fp.floorLevel) || 1));
+          const hasLift = fp.hasLift != null ? !!fp.hasLift : true; // default true if not mentioned
+
+          if (fp.hasLift == null) {
+            // Floor captured but lift not mentioned — ask about lift
+            await storage.upsertWhatsAppSession(from, { floorLevel });
+            await sendWhatsAppMessage(from,
+              `Got it — *Floor ${floorLevel}*! 😊 Is there a *lift* available?\n\nReply *yes* or *no*`
+            );
+            return;
+          }
+
+          // Both floor and lift captured — move to access difficulty
+          await storage.upsertWhatsAppSession(from, { floorLevel, hasLift, state: "awaiting_access" });
+          await sendWhatsAppMessage(from,
+            `${fp.reply || `Got it — Floor ${floorLevel}, ${hasLift ? "lift available" : "no lift"}.`} 👍\n\n` +
+            `One more question — how easy is access to the unit?\n\n` +
+            `1️⃣ *Easy* — clear hallways, no obstacles\n` +
+            `2️⃣ *Moderate* — some tight corners or minor obstacles\n` +
+            `3️⃣ *Difficult* — very narrow, many obstacles\n\n` +
+            `Reply *1*, *2*, or *3*`
+          );
+        } catch (err) {
+          console.error("[WhatsApp] Floor parse error:", err);
+          await sendWhatsAppMessage(from,
+            `Which floor is the unit on? (e.g. *1* for ground floor, *3* for third floor)\nAnd is there a lift? (yes / no)`
+          );
+        }
+        return;
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // State: awaiting_access — collect access difficulty
+      // ─────────────────────────────────────────────────────────────────────────
+      if (state === "awaiting_access") {
+        const floorLevel = session.floorLevel ?? 1;
+        const hasLift = session.hasLift ?? true;
+
+        // Handle "yes/no" for lift if floor was captured but lift was pending
+        const liftAnswerLower = textLower.trim();
+        if (liftAnswerLower === "yes" || liftAnswerLower === "no" || liftAnswerLower === "yeah" || liftAnswerLower === "nope") {
+          const liftAvail = liftAnswerLower === "yes" || liftAnswerLower === "yeah";
+          await storage.upsertWhatsAppSession(from, { hasLift: liftAvail });
+          await sendWhatsAppMessage(from,
+            `Got it — ${liftAvail ? "lift available" : "no lift"}. 👍\n\n` +
+            `How easy is access to the unit?\n\n` +
+            `1️⃣ *Easy* — clear hallways, no obstacles\n` +
+            `2️⃣ *Moderate* — some tight corners or minor obstacles\n` +
+            `3️⃣ *Difficult* — very narrow, many obstacles\n\n` +
+            `Reply *1*, *2*, or *3*`
+          );
+          return;
+        }
+
+        let accessDifficulty: "easy" | "medium" | "hard" = "easy";
+        if (textLower === "1" || textLower.includes("easy") || textLower.includes("clear")) {
+          accessDifficulty = "easy";
+        } else if (textLower === "2" || textLower.includes("moderate") || textLower.includes("medium") || textLower.includes("tight")) {
+          accessDifficulty = "medium";
+        } else if (textLower === "3" || textLower.includes("difficult") || textLower.includes("hard") || textLower.includes("narrow")) {
+          accessDifficulty = "hard";
+        } else {
+          // Try GPT to parse
+          try {
+            const accessRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 100,
+              response_format: { type: "json_object" },
+              messages: [{
+                role: "system",
+                content: `Parse the customer's response to "how easy is access?" and return JSON:
+{ "difficulty": "easy" | "medium" | "hard" | null }
+- easy: clear access, no issues
+- medium: some obstacles, tight corners
+- hard: very narrow, many obstacles, difficult stairs
+Customer said: "${text}"
+If unclear → null`
+              }]
+            });
+            const ap = JSON.parse(accessRes.choices[0]?.message?.content || "{}");
+            if (!ap.difficulty) {
+              await sendWhatsAppMessage(from,
+                `How easy is access to the unit?\n\n1️⃣ *Easy* — clear hallways\n2️⃣ *Moderate* — some obstacles\n3️⃣ *Difficult* — very narrow or many obstacles\n\nReply *1*, *2*, or *3*`
+              );
+              return;
+            }
+            accessDifficulty = ap.difficulty as "easy" | "medium" | "hard";
+          } catch {
+            accessDifficulty = "easy"; // default to easy on parse error
+          }
+        }
+
+        const accessLabel = { easy: "Easy access ✅", medium: "Moderate access ⚠️", hard: "Difficult access ⛔" }[accessDifficulty];
+
+        // Decide next state: if relocation and no to-address yet → awaiting_to_address, else → awaiting_date
+        if (session.isRelocation && !session.collectedToAddress) {
+          await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_to_address" });
+          await sendWhatsAppMessage(from,
+            `${accessLabel} 👍\n\n` +
+            `Since this is a relocation, we also need the *destination address* 📍\n\n` +
+            `What's the address you'd like the furniture moved *to*? (e.g. 123 Tampines Ave 3, #05-12)`
+          );
+        } else {
+          await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_date" });
+          const { message: dateMenu } = await buildDateMenuMessage();
+          await sendWhatsAppMessage(from, `${accessLabel} 👍\n\nAlmost there! When would you like this done?\n\n${dateMenu}`);
+        }
+        return;
       }
 
       // ─────────────────────────────────────────────────────────────────────────
@@ -2938,14 +3103,23 @@ Rules:
           ? `📦 *Type:* Relocation\n📍 *From:* ${address}\n📍 *To:* ${toAddr}${distKm ? `\n📏 *Distance:* ~${distKm} km` : ""}`
           : `📍 *Address:* ${address}`;
 
+        // Floor & access summary line
+        const floorLvl = session.floorLevel ?? 1;
+        const liftAvail = session.hasLift ?? true;
+        const floorLine = `🏢 *Floor:* ${floorLvl === 1 ? "Ground / 1st floor" : `Floor ${floorLvl}`} (${liftAvail ? "lift available" : "no lift"})`;
+        const accessLvl = session.accessDifficulty ?? "easy";
+        const accessLine = `🚪 *Access:* ${{ easy: "Easy", medium: "Moderate", hard: "Difficult" }[accessLvl] || "Easy"}`;
+
         await sendWhatsAppMessage(from,
           `Perfect! Here's a summary of your request:\n\n` +
           `👤 *Name:* ${name}\n` +
           `${addressBlock}\n` +
           `🛋️ *Items:*\n${items}\n` +
+          `${floorLine}\n` +
+          `${accessLine}\n` +
           `📅 *Preferred date:* ${preferredDateDisplay}${twLabel}\n\n` +
           `Shall I send this to our team? Reply *YES* to submit.\n\n` +
-          `_Need to fix anything? Type *change name*, *change address*, *change items*, or *change date*._`
+          `_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, or *change access*._`
         );
         return;
       }
@@ -2990,17 +3164,18 @@ Customer said: "${text}"
 
 Determine their intent and return JSON:
 {
-  "action": "submit" | "edit_items" | "change_name" | "change_address" | "change_date" | "redo_items" | "question" | "cancel" | "unclear",
+  "action": "submit" | "edit_items" | "change_name" | "change_address" | "change_date" | "redo_items" | "set_relocation" | "question" | "cancel" | "unclear",
   "reply": "your friendly 1-sentence confirmation of what you did/understood",
   "updatedItems": "complete updated bullet list ONLY for edit_items action"
 }
 
 - submit: they want to confirm/submit (yes, ok, send it, go ahead, confirm, all good, etc.)
-- edit_items: they want to add, remove, or change a specific item (e.g. "remove dining table", "add 1 wardrobe", "change bed to queen size"). Also return updatedItems = the FULL updated bullet list after applying their change.
+- edit_items: they want to add, remove, or change a specific item. Return updatedItems = the FULL updated bullet list.
 - change_name: they want to change their name
 - change_address: they want to change the address
 - change_date: they want to change the preferred date or schedule
 - redo_items: they want to completely redo/replace the entire items list from scratch
+- set_relocation: they are saying this is a RELOCATION / moving job (e.g. "it's a relocation", "we're moving", "need to move the furniture to another place")
 - question: they have a question about the service/price/timing
 - cancel: they want to cancel
 - unclear: genuinely unclear
@@ -3045,6 +3220,14 @@ For questions: answer briefly in reply (team confirms pricing after submission, 
               await sendWhatsAppMessage(from,
                 `${ci.reply || "Sure!"} What items do you need help with?\n\n` +
                 `📸 Send a photo or type the list below.`
+              );
+              return;
+            } else if (ci.action === "set_relocation") {
+              // Customer reveals this is a relocation job at confirmation stage
+              await storage.upsertWhatsAppSession(from, { isRelocation: true, state: "awaiting_to_address" });
+              await sendWhatsAppMessage(from,
+                `${ci.reply || "Got it — this is a relocation job!"} 📦\n\n` +
+                `We'll need the *destination address* too — where should the furniture be moved *to*? (e.g. 123 Tampines Ave 3, #05-12)`
               );
               return;
             } else if (ci.action === "cancel") {
@@ -3160,11 +3343,48 @@ Return ONLY valid JSON.`,
           });
         }
 
+        // ── Floor surcharge (same formula as web flow) ─────────────────────────
+        // $5/floor with lift, $15/floor without lift (only floors above ground)
+        const sessionFloorLevel = session.floorLevel ?? 1;
+        const sessionHasLift = session.hasLift ?? true;
+        const floorsAboveGround = Math.max(0, sessionFloorLevel - 1);
+        const floorSurcharge = floorsAboveGround * (sessionHasLift ? PricingConfig.floor.perFloorWithLift : PricingConfig.floor.perFloorNoLift);
+        if (floorSurcharge > 0) {
+          quoteItems.push({
+            originalDescription: `Floor Surcharge (Floor ${sessionFloorLevel}, ${sessionHasLift ? "lift" : "no lift"})`,
+            detectedName: "Stairs / Floor Access",
+            serviceType: "surcharge",
+            quantity: 1,
+            unitPrice: floorSurcharge.toFixed(2),
+            subtotal: floorSurcharge.toFixed(2),
+            catalogItemId: undefined,
+          });
+        }
+
+        // ── Access difficulty surcharge (same formula as web flow) ─────────────
+        // +10% for medium, +20% for hard (applied to labor total)
+        const sessionAccess = session.accessDifficulty ?? "easy";
+        const accessPct = sessionAccess === "medium" ? PricingConfig.access.mediumPct : sessionAccess === "hard" ? PricingConfig.access.hardPct : 0;
+        const accessSurcharge = Math.round(laborTotal * accessPct * 100) / 100;
+        if (accessSurcharge > 0) {
+          quoteItems.push({
+            originalDescription: `Access Difficulty (${sessionAccess === "medium" ? "Moderate" : "Difficult"})`,
+            detectedName: `Access Difficulty (${sessionAccess === "medium" ? "Moderate" : "Difficult"})`,
+            serviceType: "surcharge",
+            quantity: 1,
+            unitPrice: accessSurcharge.toFixed(2),
+            subtotal: accessSurcharge.toFixed(2),
+            catalogItemId: undefined,
+          });
+        }
+
+        const laborTotalWithSurcharges = laborTotal + floorSurcharge + accessSurcharge;
+
         // ── Transport fee (relocation only — same formula as web flow) ─────────
         // Base $80 + tiered rate per km over the first 5 km included
         const sessionDistKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
         const transportFee = session.isRelocation ? calcTransportFee(sessionDistKm) : 0;
-        const grandTotal = laborTotal + transportFee;
+        const grandTotal = laborTotalWithSurcharges + transportFee;
         // ─────────────────────────────────────────────────────────────────────
 
         const depositAmount = (grandTotal * 0.50).toFixed(2);
@@ -3178,7 +3398,7 @@ Return ONLY valid JSON.`,
             status: "submitted",
             sourceChannel: "whatsapp",
             customerWhatsappPhone: from,
-            subtotal: laborTotal.toFixed(2),
+            subtotal: laborTotalWithSurcharges.toFixed(2),
             transportFee: transportFee.toFixed(2),
             total: grandTotal.toFixed(2),
             depositAmount,
@@ -3188,6 +3408,9 @@ Return ONLY valid JSON.`,
             pickupAddress: session.isRelocation ? address : null,
             dropoffAddress: session.collectedToAddress || null,
             distanceKm: session.distanceKm || null,
+            // Floor & access data (same fields as web flow — affects pricing surcharges)
+            floorsInfo: JSON.stringify([{ level: session.floorLevel ?? 1, hasLift: session.hasLift ?? true }]),
+            accessDifficulty: session.accessDifficulty ?? "easy",
             // Use the ISO date for the quotes.preferredDate column (admin panel expects yyyy-MM-dd).
             // If the customer said "anytime" / "flexible", preferredDateIso is null — safe.
             // Store the display text in notes so admin can see the customer's exact words.

@@ -150,7 +150,7 @@ export type AppSetting = typeof appSettings.$inferSelect;
 export const whatsappSessions = pgTable("whatsapp_sessions", {
   id: serial("id").primaryKey(),
   phone: text("phone").notNull().unique(),
-  state: text("state").notNull().default("awaiting_name"), // awaiting_name | awaiting_address | awaiting_items | awaiting_items_verify | awaiting_date | awaiting_confirmation | submitted
+  state: text("state").notNull().default("awaiting_name"), // awaiting_name | awaiting_address | awaiting_items | awaiting_items_verify | awaiting_floor | awaiting_access | awaiting_to_address | awaiting_date | awaiting_confirmation | submitted
   collectedName: text("collected_name"),
   collectedAddress: text("collected_address"),
   collectedItems: text("collected_items"),
@@ -163,6 +163,12 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   isRelocation: boolean("is_relocation").default(false),
   collectedToAddress: text("collected_to_address"),   // destination address (dropoff)
   distanceKm: numeric("distance_km"),                  // computed route distance (OSRM)
+
+  // Floor / access fields (affect pricing surcharges — same as web flow)
+  floorLevel: integer("floor_level").default(1),       // floor number of the job address (1 = ground)
+  hasLift: boolean("has_lift").default(true),          // whether a lift is available
+  accessDifficulty: text("access_difficulty").default("easy"), // 'easy' | 'medium' | 'hard'
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
