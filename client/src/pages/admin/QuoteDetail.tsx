@@ -1,16 +1,17 @@
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useQuote, useUpdateQuoteStatus, useRequestFinalPayment, useConfirmBooking, useEditQuote, useCloseQuote } from "@/hooks/use-quotes";
 import { useStaffList } from "@/hooks/use-staff";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useState, useEffect } from "react";
 import { 
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
-  ClipboardList, Banknote, CalendarCheck, Zap, BadgeCheck
+  ClipboardList, Banknote, CalendarCheck, Zap, BadgeCheck, AlertOctagon
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 const TERMINAL_STATUSES_UI = ['closed', 'cancelled'];
 
@@ -21,6 +22,7 @@ function formatMoney(v: any) {
 export default function AdminQuoteDetail() {
   const params = useParams();
   const id = params.id!;
+  const [, navigate] = useLocation();
   
   const { data: quote, isLoading, isFetching } = useQuote(id);
   const { data: staffList } = useStaffList();
@@ -38,6 +40,18 @@ export default function AdminQuoteDetail() {
   const [editQuoteData, setEditQuoteData] = useState<any>({});
   const [editItems, setEditItems] = useState<any[]>([]);
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const deleteQuoteMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/admin/quotes/${id}`),
+    onSuccess: () => {
+      toast({ title: "Case Deleted", description: "The job case has been permanently removed." });
+      navigate("/admin");
+    },
+    onError: (err: any) => {
+      toast({ title: "Delete Failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxPhoto(null); };
@@ -218,12 +232,21 @@ export default function AdminQuoteDetail() {
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-0.5">Total</p>
                 <p className="text-2xl font-black text-white tabular-nums leading-none">{formatMoney(quote.total)}</p>
               </div>
-              {canEdit && !isEditing && (
-                <button onClick={handleStartEdit} data-testid="button-edit-quote"
-                  className="flex items-center gap-1.5 px-3 py-1.5 border border-white/20 bg-white/[0.07] hover:bg-white/[0.15] text-white text-[10px] font-black uppercase tracking-[0.1em] transition-colors">
-                  <Edit2 className="w-3 h-3" /> Edit
+              <div className="flex items-center gap-2">
+                {canEdit && !isEditing && (
+                  <button onClick={handleStartEdit} data-testid="button-edit-quote"
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-white/20 bg-white/[0.07] hover:bg-white/[0.15] text-white text-[10px] font-black uppercase tracking-[0.1em] transition-colors">
+                    <Edit2 className="w-3 h-3" /> Edit
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  data-testid="button-delete-quote"
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-red-500/40 bg-red-500/10 hover:bg-red-500/25 text-red-400 hover:text-red-300 text-[10px] font-black uppercase tracking-[0.1em] transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" /> Delete
                 </button>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -1130,6 +1153,42 @@ export default function AdminQuoteDetail() {
           </div>
         )}
       </div>
+
+      {/* ── Delete Confirmation Modal ── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" data-testid="modal-delete-confirm">
+          <div className="bg-white w-full max-w-sm shadow-2xl">
+            <div className="bg-red-600 px-5 py-4 flex items-center gap-3">
+              <AlertOctagon className="w-5 h-5 text-white shrink-0" />
+              <p className="text-white font-black text-sm uppercase tracking-[0.1em]">Delete Job Case</p>
+            </div>
+            <div className="px-5 py-5 space-y-3">
+              <p className="text-sm text-black/70 leading-relaxed">
+                Permanently delete <strong>{quote.referenceNo}</strong> for <strong>{quote.customer?.name}</strong>?
+                This removes all items, updates, and history. <span className="text-red-600 font-bold">This cannot be undone.</span>
+              </p>
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button
+                onClick={() => deleteQuoteMutation.mutate()}
+                disabled={deleteQuoteMutation.isPending}
+                data-testid="button-confirm-delete"
+                className="flex-1 h-10 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-[0.12em] disabled:opacity-50 transition-colors"
+              >
+                {deleteQuoteMutation.isPending ? "Deleting…" : "Yes, Delete"}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteQuoteMutation.isPending}
+                data-testid="button-cancel-delete"
+                className="flex-1 h-10 border border-black/15 text-xs font-black uppercase tracking-[0.12em] hover:border-black/30 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Photo Lightbox */}
       {lightboxPhoto && (

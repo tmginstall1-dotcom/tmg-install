@@ -91,6 +91,7 @@ export interface IStorage {
     items?: Omit<InsertQuoteItem, 'quoteId'>[];
   }): Promise<QuoteResponse | undefined>;
   addJobUpdate(update: InsertJobUpdate): Promise<void>;
+  deleteQuote(id: number): Promise<void>;
 
   // Blocked Slots
   getBlockedSlots(): Promise<BlockedSlot[]>;
@@ -750,6 +751,12 @@ export class DatabaseStorage implements IStorage {
 
   async addJobUpdate(update: InsertJobUpdate) {
     await db.insert(jobUpdates).values(update);
+  }
+
+  async deleteQuote(id: number): Promise<void> {
+    await db.delete(jobUpdates).where(eq(jobUpdates.quoteId, id));
+    await db.delete(quoteItems).where(eq(quoteItems.quoteId, id));
+    await db.delete(quotes).where(eq(quotes.id, id));
   }
 
   async getBlockedSlots(): Promise<BlockedSlot[]> {

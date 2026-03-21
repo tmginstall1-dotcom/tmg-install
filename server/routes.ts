@@ -914,6 +914,21 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: permanently delete a quote/job case
+  app.delete("/api/admin/quotes/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+    try {
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      await storage.deleteQuote(id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // Admin: remove a blocked slot
   app.delete("/api/admin/blocked-slots/:id", async (req, res) => {
     try {
