@@ -82,6 +82,44 @@ export async function sendWhatsAppMessage(to: string, text: string): Promise<voi
   }
 }
 
+/**
+ * Download a WhatsApp media item as a base64 string.
+ * Meta requires two steps: 1) resolve the CDN URL, 2) download the file.
+ */
+export async function downloadWhatsAppMedia(
+  mediaId: string
+): Promise<{ base64: string; mimeType: string } | null> {
+  const token = await getAccessToken();
+  if (!token) return null;
+
+  try {
+    // Step 1: resolve URL
+    const metaRes = await fetch(`${WA_API_BASE}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!metaRes.ok) {
+      console.error("[WhatsApp] Media URL resolve failed:", await metaRes.text());
+      return null;
+    }
+    const { url, mime_type } = (await metaRes.json()) as { url: string; mime_type: string };
+
+    // Step 2: download bytes
+    const fileRes = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!fileRes.ok) {
+      console.error("[WhatsApp] Media download failed:", fileRes.status);
+      return null;
+    }
+    const buffer = await fileRes.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+    return { base64, mimeType: mime_type || "image/jpeg" };
+  } catch (err) {
+    console.error("[WhatsApp] downloadWhatsAppMedia error:", err);
+    return null;
+  }
+}
+
 export async function sendWhatsAppPaymentLink(
   to: string,
   referenceNo: string,

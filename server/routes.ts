@@ -20,7 +20,7 @@ import {
   newEstimateAdminAlert,
   ADMIN_EMAIL
 } from "./email";
-import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
+import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, downloadWhatsAppMedia, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
@@ -1943,6 +1943,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
       const msg = value.messages[0];
       const from: string = msg.from; // sender phone e.g. "6591234567"
+      const msgType: string = msg.type || "text";
       const text: string = (msg.text?.body || "").trim();
       const textLower = text.toLowerCase();
 
@@ -1982,12 +1983,79 @@ Respond with ONLY a JSON array (no prose, no markdown):
       }
 
       if (state === "awaiting_items") {
-        if (text.length < 3) {
-          await sendWhatsAppMessage(from, "Please describe the furniture items you need installed.");
-          return;
-        }
         const name = session.collectedName!;
         const address = session.collectedAddress!;
+
+        // ── Image sent: analyze with OpenAI Vision ────────────────────────
+        if (msgType === "image" && msg.image?.id) {
+          await sendWhatsAppMessage(from,
+            `📸 Got your photo! Analyzing the furniture... please wait a moment.`
+          );
+          try {
+            const media = await downloadWhatsAppMedia(msg.image.id);
+            if (!media) throw new Error("Could not download image");
+
+            const visionRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 600,
+              messages: [
+                {
+                  role: "system",
+                  content: `You are a furniture identification assistant for TMG Install, a Singapore furniture installation company.
+Identify ALL pieces of furniture visible in the photo that would need professional installation, assembly, or relocation.
+Return ONLY a plain bulleted list (using • as bullet), one item per line, with quantity prefix if more than one.
+Example:
+• 1 king bed frame
+• 3-door sliding wardrobe
+• Dining table
+• 4 dining chairs
+If you cannot identify any furniture, return: "No furniture detected".`,
+                },
+                {
+                  role: "user",
+                  content: [
+                    { type: "text", text: "What furniture items do you see in this photo?" },
+                    { type: "image_url", image_url: { url: `data:${media.mimeType};base64,${media.base64}`, detail: "high" } },
+                  ] as any,
+                },
+              ],
+            });
+
+            const detected = visionRes.choices[0]?.message?.content?.trim() || "";
+
+            if (!detected || detected.toLowerCase().includes("no furniture")) {
+              await sendWhatsAppMessage(from,
+                `🤔 I couldn't clearly identify furniture in that photo.\n\nPlease *type out the items* you need installed, for example:\n• 1 king bed frame\n• 2-door wardrobe\n• Dining table`
+              );
+              return;
+            }
+
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: detected });
+            await sendWhatsAppMessage(from,
+              `✅ I detected the following furniture from your photo:\n\n${detected}\n\n` +
+              `Here's your quote request summary:\n\n` +
+              `👤 *Name:* ${name}\n` +
+              `📍 *Address:* ${address}\n` +
+              `🛋️ *Items:*\n${detected}\n\n` +
+              `Reply *YES* to submit, *NO* to start over, or type corrections to the item list.`
+            );
+            return;
+          } catch (err) {
+            console.error("[WhatsApp] Image analysis error:", err);
+            await sendWhatsAppMessage(from,
+              `Sorry, I had trouble analyzing that photo. Please *type out the furniture items* you need installed instead.`
+            );
+            return;
+          }
+        }
+
+        // ── Text input ────────────────────────────────────────────────────
+        if (text.length < 3) {
+          await sendWhatsAppMessage(from,
+            `Please describe the furniture items you need installed, or send a *photo* of the room! 📸`
+          );
+          return;
+        }
         await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: text });
         await sendWhatsAppMessage(from,
           `Here's your quote request summary:\n\n` +
