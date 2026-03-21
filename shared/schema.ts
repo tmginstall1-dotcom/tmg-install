@@ -150,11 +150,12 @@ export type AppSetting = typeof appSettings.$inferSelect;
 export const whatsappSessions = pgTable("whatsapp_sessions", {
   id: serial("id").primaryKey(),
   phone: text("phone").notNull().unique(),
-  state: text("state").notNull().default("awaiting_name"), // awaiting_name | awaiting_address | awaiting_items | awaiting_confirmation | submitted
+  state: text("state").notNull().default("awaiting_name"), // awaiting_name | awaiting_address | awaiting_items | awaiting_items_verify | awaiting_date | awaiting_confirmation | submitted
   collectedName: text("collected_name"),
   collectedAddress: text("collected_address"),
   collectedItems: text("collected_items"),
   previousItems: text("previous_items"),
+  preferredDate: text("preferred_date"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

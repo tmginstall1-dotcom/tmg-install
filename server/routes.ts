@@ -1995,50 +1995,79 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
       if (!session || isGreeting || textLower === "continue" && !session) {
         // ── One-shot intake: try to extract name + address from the greeting ──
-        const looksDetailed = text.length > 25 && !isGreeting;
         let extractedName: string | null = null;
         let extractedAddress: string | null = null;
+        let extractedItems: string | null = null;
 
-        if (looksDetailed || (text.length > 15 && (text.toLowerCase().includes("blk") || text.toLowerCase().includes("street") || text.toLowerCase().includes("road") || text.toLowerCase().includes("avenue") || text.toLowerCase().includes("singapore")))) {
+        if (text.length > 15 && !isGreeting) {
           try {
             const extractRes = await openai.chat.completions.create({
               model: "gpt-4o",
-              max_tokens: 200,
+              max_tokens: 300,
               response_format: { type: "json_object" },
               messages: [{
                 role: "system",
-                content: `Extract from the customer's WhatsApp message their name and Singapore address (if provided).
-Return JSON: { "name": string or null, "address": string or null }
-- name: their personal name only (not company). Null if not mentioned.
-- address: full Singapore address. Null if not mentioned. Normalise it (include block/unit/postal if given).
+                content: `A customer just sent their first WhatsApp message to TMG Install, a furniture installation company in Singapore.
+Extract any details they provided. Return JSON:
+{
+  "name": string or null,
+  "address": string or null,
+  "items": string or null
+}
+- name: their personal name (not company name). Null if not clearly stated.
+- address: full Singapore address/location. Null if not stated. Accept postal codes (S123456).
+- items: formatted bullet list of furniture items mentioned (one • per line with service type in brackets if stated). Null if no furniture mentioned.
+
 Message: "${text}"`
               }]
             });
             const extracted = JSON.parse(extractRes.choices[0]?.message?.content || "{}");
             extractedName = extracted.name || null;
             extractedAddress = extracted.address || null;
+            extractedItems = extracted.items || null;
           } catch {}
         }
 
+        // Determine where to start based on what we extracted
+        const startState = extractedAddress && extractedName && extractedItems
+          ? "awaiting_items_verify"
+          : extractedAddress && extractedName
+            ? "awaiting_items"
+            : extractedAddress
+              ? "awaiting_name"  // unusual but possible
+              : extractedName
+                ? "awaiting_address"
+                : "awaiting_name";
+
         await storage.upsertWhatsAppSession(from, {
-          state: extractedAddress ? "awaiting_items" : extractedName ? "awaiting_address" : "awaiting_name",
+          state: startState,
           collectedName: extractedName,
           collectedAddress: extractedAddress,
-          collectedItems: null,
+          collectedItems: extractedItems,
           previousItems: null,
+          preferredDate: null,
         });
 
-        if (extractedAddress && extractedName) {
+        if (extractedName && extractedAddress && extractedItems) {
           await sendWhatsAppMessage(from,
-            `👋 Hi *${extractedName}*! I've noted your address as *${extractedAddress}*.\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* and I'll identify everything for you, or just *type the list*.\n\nMention if it's for *installation, dismantling, or relocation* too!`
+            `👋 Hi *${extractedName}*! Got it — let me confirm what you've told me:\n\n` +
+            `📍 *Address:* ${extractedAddress}\n` +
+            `🛋️ *Items:*\n${extractedItems}\n\n` +
+            `Does this look right?\n• Reply *YES* to proceed\n• Tell me what to correct\n• Send a photo to add more items`
+          );
+        } else if (extractedAddress && extractedName) {
+          await sendWhatsAppMessage(from,
+            `👋 Hi *${extractedName}*! I've noted your address: *${extractedAddress}*.\n\n` +
+            `What furniture do you need help with?\n\n📸 *Send a photo* and I'll identify everything, or *type the list* below.\n\n` +
+            `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
           );
         } else if (extractedName) {
           await sendWhatsAppMessage(from,
-            `👋 Hi *${extractedName}*! Welcome to *TMG Install*.\n\n📍 What's the *job address*? This is where we'll be doing the work.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+            `👋 Hi *${extractedName}*! Welcome to *TMG Install*.\n\n📍 What's the *job address*? That's where we'll be doing the work.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
           );
         } else {
           await sendWhatsAppMessage(from,
-            `👋 Hi! Welcome to *TMG Install* — we handle furniture *installation, dismantling & relocation* all across Singapore.\n\nLet me get you a quote in just a few steps!\n\nFirst up — what's your *full name*? 😊`
+            `👋 Hi! Welcome to *TMG Install* — professional furniture *installation, dismantling & relocation* all across Singapore. 🛋️\n\nI'll get you a quote in just a few steps. What's your *full name*? 😊`
           );
         }
         return;
@@ -2046,72 +2075,108 @@ Message: "${text}"`
 
       if (textLower === "continue" && session) {
         const stateLabel: Record<string, string> = {
-          awaiting_name: "we need your name",
-          awaiting_address: "we need your address",
-          awaiting_items: "we need the furniture list",
+          awaiting_name: "we still need your name",
+          awaiting_address: "we still need your job address",
+          awaiting_items: "we still need the furniture list",
           awaiting_items_verify: "please confirm the furniture list",
+          awaiting_date: "when would you like this done?",
           awaiting_confirmation: "please confirm your full request",
         };
-        await sendWhatsAppMessage(from,
-          `Welcome back! Picking up where we left off — ${stateLabel[session.state] || "let's continue"}. 😊\n\n` +
-          (session.collectedName ? `👤 *Name:* ${session.collectedName}\n` : "") +
-          (session.collectedAddress ? `📍 *Address:* ${session.collectedAddress}\n` : "") +
-          (session.collectedItems && session.collectedItems !== "__scanning__" ? `🛋️ *Items:*\n${session.collectedItems}\n` : "")
-        );
+        let continueMsg = `Welcome back! 😊 Here's where we are:\n\n`;
+        if (session.collectedName) continueMsg += `👤 *Name:* ${session.collectedName}\n`;
+        if (session.collectedAddress) continueMsg += `📍 *Address:* ${session.collectedAddress}\n`;
+        if (session.collectedItems && session.collectedItems !== "__scanning__") continueMsg += `🛋️ *Items:*\n${session.collectedItems}\n`;
+        if (session.preferredDate) continueMsg += `📅 *Date:* ${session.preferredDate}\n`;
+        continueMsg += `\n_Next step: ${stateLabel[session.state] || "let's continue"}_`;
+        await sendWhatsAppMessage(from, continueMsg);
         return;
       }
 
-      // ── Global correction & help commands (work from any state) ─────────────
+      // ── Global correction & help commands (GPT-powered, work from any state) ──
+      // Only intercept if the user has at least provided their name (session in progress)
+      // and the message looks like a command rather than a direct answer to the current question
+      const mightBeGlobalCmd = session?.collectedName && text.length > 2 && !["awaiting_name"].includes(state);
+      if (mightBeGlobalCmd && !["yes", "no", "ok", "confirm", "anytime", "restart", "start over", "continue"].includes(textLower)) {
+        try {
+          const globalRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 100,
+            response_format: { type: "json_object" },
+            messages: [{
+              role: "system",
+              content: `You are a WhatsApp bot for TMG Install. The customer is mid-flow in a furniture quote.
+Current state: ${state}
+Current data: Name="${session.collectedName || ""}", Address="${session.collectedAddress || ""}", Items="${session.collectedItems || ""}"
 
-      // Change name
-      const isNameChangeCmd = ["change name", "wrong name", "update name", "my name is wrong", "incorrect name", "name wrong", "change my name"].some(kw => textLower.includes(kw));
-      if (isNameChangeCmd && session?.collectedName && state !== "awaiting_name") {
-        await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-        await sendWhatsAppMessage(from, `Sure, no problem! What's the correct *full name* I should use? 😊`);
-        return;
+Customer said: "${text}"
+
+Is this message a GLOBAL COMMAND (a request to change name/address/items/date, or ask for help/pricing)?
+Or is it a NORMAL REPLY to the current question (not a command)?
+
+Return JSON: { "isCommand": boolean, "command": "change_name"|"change_address"|"change_items"|"change_date"|"help"|"pricing"|"none" }
+- isCommand: true ONLY if clearly asking to change something or asking for help/pricing info
+- command: which command it is (or "none" if isCommand is false)
+
+Do NOT classify as command if the message is answering the current state question (e.g. providing an address when state=awaiting_address, providing items when state=awaiting_items, giving a date when state=awaiting_date).`
+            }]
+          });
+          const gc = JSON.parse(globalRes.choices[0]?.message?.content || "{}");
+          if (gc.isCommand && gc.command && gc.command !== "none") {
+            if (gc.command === "change_name") {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
+              await sendWhatsAppMessage(from, `Sure! What's the correct name? 😊`);
+              return;
+            } else if (gc.command === "change_address" && !["awaiting_address"].includes(state)) {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
+              await sendWhatsAppMessage(from, `No problem! What's the correct job address? 📍`);
+              return;
+            } else if (gc.command === "change_items" && !["awaiting_items"].includes(state)) {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null, previousItems: session.collectedItems });
+              await sendWhatsAppMessage(from, `Sure! What items do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`);
+              return;
+            } else if (gc.command === "change_date" && !["awaiting_date"].includes(state)) {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_date" });
+              await sendWhatsAppMessage(from, `📅 When would you prefer to have this done?\n\n_e.g. This Saturday, next week, 20 April 2026, or reply *anytime* if flexible._`);
+              return;
+            } else if (gc.command === "help") {
+              const hasAddress = !!session?.collectedAddress;
+              const hasItems = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
+              let helpMsg = `Here's what you can do at any time:\n\n`;
+              helpMsg += `• Type *change name* — update your name\n`;
+              if (hasAddress) helpMsg += `• Type *change address* — fix the job address\n`;
+              if (hasItems) helpMsg += `• Type *change items* — update the furniture list\n`;
+              helpMsg += `• Type *change date* — update your preferred date\n`;
+              helpMsg += `• Type *hi* or *start over* — restart from the beginning\n\n`;
+              helpMsg += `_Currently: ${state.replace(/_/g, " ")}_`;
+              await sendWhatsAppMessage(from, helpMsg);
+              return;
+            } else if (gc.command === "pricing") {
+              await sendWhatsAppMessage(from,
+                `*TMG Install* offers these services across Singapore:\n\n` +
+                `🔧 *Installation* — assembly of new furniture (IKEA, flat-pack, etc.)\n` +
+                `🔨 *Dismantling* — safe disassembly of existing furniture\n` +
+                `🚚 *Relocation* — moving furniture within or between locations\n\n` +
+                `Pricing is based on the items and service type. Minimum charge is *S$180*.\n\n` +
+                `Complete your quote and our team will confirm the exact price! 😊`
+              );
+              return;
+            }
+          }
+        } catch {
+          // GPT check failed — fall through to keyword-based fallback
+        }
       }
 
-      // Change address
-      const isAddressChangeCmd = ["change address", "wrong address", "update address", "edit address", "change my address", "wrong add", "address wrong", "incorrect address"].some(kw => textLower.includes(kw));
-      if (isAddressChangeCmd && session?.collectedName && !["awaiting_name", "awaiting_address"].includes(state)) {
-        await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-        await sendWhatsAppMessage(from, `No problem! Please type the *correct job address* and I'll update it right away. 📍`);
-        return;
-      }
-
-      // Change items
-      const isItemsChangeCmd = ["change item", "wrong item", "update item", "edit item", "add item", "add more item", "change furniture", "wrong furniture", "different item", "redo item", "change my item"].some(kw => textLower.includes(kw));
-      if (isItemsChangeCmd && session?.collectedAddress && !["awaiting_name", "awaiting_address", "awaiting_items"].includes(state)) {
-        await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
-        await sendWhatsAppMessage(from, `Sure! Let's update the furniture list. What items do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`);
-        return;
-      }
-
-      // Help command
-      if (["help", "what can i do", "options", "menu", "commands"].some(kw => textLower === kw || textLower.startsWith("help"))) {
-        const hasName = !!session?.collectedName;
-        const hasAddress = !!session?.collectedAddress;
-        const hasItems = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
-        let helpMsg = `Here's what you can do at any time:\n\n`;
-        if (hasName) helpMsg += `• Type *change name* — update your name\n`;
-        if (hasAddress) helpMsg += `• Type *change address* — fix the job address\n`;
-        if (hasItems) helpMsg += `• Type *change items* — update the furniture list\n`;
-        helpMsg += `• Type *hi* or *start over* — restart from the beginning\n\n`;
-        helpMsg += `_Currently: ${state.replace(/_/g, " ")}_`;
+      // ── Keyword-based fallback commands ──────────────────────────────────────
+      if (textLower.startsWith("help") && session?.collectedName) {
+        const helpMsg =
+          `Here's what you can do at any time:\n\n` +
+          `• *change name* — update your name\n` +
+          `• *change address* — fix the job address\n` +
+          `• *change items* — update the furniture list\n` +
+          `• *change date* — update your preferred date\n` +
+          `• *hi* or *start over* — restart from the beginning`;
         await sendWhatsAppMessage(from, helpMsg);
-        return;
-      }
-
-      // Pricing / services info
-      if (["price", "pricing", "how much", "cost", "rate", "charges", "what services", "what do you", "services", "what you do"].some(kw => textLower.includes(kw))) {
-        await sendWhatsAppMessage(from,
-          `*TMG Install* offers these services across Singapore:\n\n` +
-          `🔧 *Installation* — assembly of new furniture (IKEA, flat-pack, etc.)\n` +
-          `🔨 *Dismantling* — safe disassembly of existing furniture\n` +
-          `🚚 *Relocation* — moving furniture within or between locations\n\n` +
-          `Pricing is based on the items and service type. The minimum charge is *S$180*.\n\n` +
-          `To get an exact quote, just continue chatting — I'll collect your details and our team will confirm the final price! 😊`
-        );
         return;
       }
 
@@ -2505,14 +2570,11 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
 
         // ── Quick exact-match shortcuts ───────────────────────────────────────
         if (textLower === "yes" || textLower === "ok" || textLower === "correct" || textLower === "looks good" || textLower === "confirm") {
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: detectedItems });
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_date", collectedItems: detectedItems });
           await sendWhatsAppMessage(from,
-            `Here's a summary of your request:\n\n` +
-            `👤 *Name:* ${name}\n` +
-            `📍 *Address:* ${address}\n` +
-            `🛋️ *Items:*\n${detectedItems}\n\n` +
-            `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.\n\n` +
-            `_Need to fix something? Type *change name*, *change address*, or *change items* anytime._`
+            `Great! One last question — 📅 *When would you like this done?*\n\n` +
+            `_e.g. This Saturday, next week, 15 April 2026_\n\n` +
+            `Reply *anytime* if you're flexible and our team will contact you to schedule.`
           );
           return;
         }
@@ -2580,13 +2642,11 @@ For reply: be natural and friendly, confirm what you did.`,
           const aiReply = (intent.reply as string || "").trim();
 
           if (action === "confirm") {
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: detectedItems });
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_date", collectedItems: detectedItems });
             await sendWhatsAppMessage(from,
-              `${aiReply}\n\nHere's a summary:\n\n` +
-              `👤 *Name:* ${name}\n` +
-              `📍 *Address:* ${address}\n` +
-              `🛋️ *Items:*\n${detectedItems}\n\n` +
-              `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.`
+              `${aiReply ? aiReply + " " : ""}📅 *When would you like this done?*\n\n` +
+              `_e.g. This Saturday, next week, 20 April 2026_\n\n` +
+              `Reply *anytime* if you're flexible and our team will contact you to schedule.`
             );
             return;
           }
@@ -2638,6 +2698,50 @@ For reply: be natural and friendly, confirm what you did.`,
         }
       }
 
+      // ─────────────────────────────────────────────────────────────────────────
+      // State: awaiting_date — collect preferred service date after items verified
+      // ─────────────────────────────────────────────────────────────────────────
+      if (state === "awaiting_date") {
+        const name = session.collectedName!;
+        const address = session.collectedAddress!;
+        const items = session.collectedItems!;
+
+        // Use GPT to understand the date preference (any format, flexible, ASAP, etc.)
+        let preferredDate = text.trim();
+        try {
+          const dateRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 80,
+            response_format: { type: "json_object" },
+            messages: [{
+              role: "system",
+              content: `Today is ${new Date().toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
+The customer was asked when they'd like their furniture job done.
+Parse their reply and return JSON: { "date": string, "flexible": boolean }
+- date: a clean human-readable date string (e.g. "Saturday 28 March 2026", "Week of 20 April 2026", "Flexible — anytime")
+- flexible: true if they said anytime/flexible/whenever/not sure
+Customer said: "${text}"`
+            }]
+          });
+          const dp = JSON.parse(dateRes.choices[0]?.message?.content || "{}");
+          if (dp.date) preferredDate = dp.date;
+        } catch {}
+
+        await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", preferredDate });
+
+        // Build the confirmation summary
+        await sendWhatsAppMessage(from,
+          `Perfect! Here's a summary of your request:\n\n` +
+          `👤 *Name:* ${name}\n` +
+          `📍 *Address:* ${address}\n` +
+          `🛋️ *Items:*\n${items}\n` +
+          `📅 *Preferred date:* ${preferredDate}\n\n` +
+          `Shall I send this to our team? Reply *YES* to submit.\n\n` +
+          `_Need to fix anything? Type *change name*, *change address*, *change items*, or *change date*._`
+        );
+        return;
+      }
+
       if (state === "awaiting_confirmation") {
         if (textLower === "cancel" || textLower === "nevermind" || textLower === "never mind" || textLower === "stop") {
           await storage.deleteWhatsAppSession(from);
@@ -2678,22 +2782,23 @@ Customer said: "${text}"
 
 Determine their intent and return JSON:
 {
-  "action": "submit" | "edit_items" | "change_name" | "change_address" | "redo_items" | "question" | "cancel" | "unclear",
+  "action": "submit" | "edit_items" | "change_name" | "change_address" | "change_date" | "redo_items" | "question" | "cancel" | "unclear",
   "reply": "your friendly 1-sentence confirmation of what you did/understood",
   "updatedItems": "complete updated bullet list ONLY for edit_items action"
 }
 
 - submit: they want to confirm/submit (yes, ok, send it, go ahead, confirm, all good, etc.)
-- edit_items: they want to add, remove, or change a specific item (e.g. "remove dining table", "add 1 wardrobe", "change bed to queen size"). For this action, also return updatedItems = the FULL updated bullet list after applying their change to the Items above.
+- edit_items: they want to add, remove, or change a specific item (e.g. "remove dining table", "add 1 wardrobe", "change bed to queen size"). Also return updatedItems = the FULL updated bullet list after applying their change.
 - change_name: they want to change their name
 - change_address: they want to change the address
+- change_date: they want to change the preferred date or schedule
 - redo_items: they want to completely redo/replace the entire items list from scratch
 - question: they have a question about the service/price/timing
 - cancel: they want to cancel
 - unclear: genuinely unclear
 
-For edit_items: compute the full updated list (apply their change to the existing Items list above) and return it in updatedItems.
-For questions: answer briefly in reply (our team will confirm pricing after submission, typical response within 1 business day).`
+For edit_items: compute the full updated list (apply their change) and return in updatedItems.
+For questions: answer briefly in reply (team confirms pricing after submission, typical response within 1 business day).`
               }]
             });
             const ci = JSON.parse(confirmIntent.choices[0]?.message?.content || "{}");
@@ -2716,6 +2821,10 @@ For questions: answer briefly in reply (our team will confirm pricing after subm
             } else if (ci.action === "change_address") {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
               await sendWhatsAppMessage(from, `${ci.reply || "No problem!"} What's the correct address? 📍`);
+              return;
+            } else if (ci.action === "change_date") {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_date" });
+              await sendWhatsAppMessage(from, `${ci.reply || "Sure!"} 📅 When would you prefer to have this done?\n\n_e.g. This Saturday, next week, 20 April 2026, or reply *anytime* if flexible._`);
               return;
             } else if (ci.action === "redo_items") {
               // Complete redo — keep existing list in previousItems so user can reference it
@@ -2859,6 +2968,7 @@ Return ONLY valid JSON.`,
             depositAmount,
             finalAmount,
             requiresManualReview: true,
+            preferredDate: session.preferredDate || null,
           } as any,
           quoteItems as any
         );
@@ -2867,10 +2977,12 @@ Return ONLY valid JSON.`,
 
         await sendWhatsAppMessage(from,
           `✅ All done, *${name}*! Your request has been submitted.\n\n` +
-          `Your reference number is *${quote.referenceNo}*.\n\n` +
-          `Our team will review the details and follow up with a quote and next steps shortly.\n\n` +
-          `You can track your request here:\n${APP_URL}/quotes/${quote.id}\n\n` +
-          `Thanks for choosing TMG Install! 🙏 Reply *hi* anytime to make a new request.`
+          `🔖 *Reference:* ${quote.referenceNo}\n` +
+          `📍 *Address:* ${address}\n` +
+          (session.preferredDate ? `📅 *Preferred date:* ${session.preferredDate}\n` : "") +
+          `\nOur team will review and send you a quote shortly — typically within 1 business day.\n\n` +
+          `Track your request: ${APP_URL}/quotes/${quote.id}\n\n` +
+          `Thanks for choosing TMG Install! 🙏 Reply *hi* anytime for a new quote.`
         );
 
         // Notify admin
@@ -2878,7 +2990,7 @@ Return ONLY valid JSON.`,
           await sendEmail({
             to: ADMIN_EMAIL,
             subject: `📱 WhatsApp Quote — ${quote.referenceNo} from ${name}`,
-            html: `<p>New quote submitted via <strong>WhatsApp</strong> from ${name} (+${from}).</p><p>Reference: <strong>${quote.referenceNo}</strong></p><p>Address: ${address}</p><p>Items: ${itemsText}</p><p><a href="${APP_URL}/admin/quotes/${quote.id}">View in Admin Panel</a></p>`,
+            html: `<p>New quote submitted via <strong>WhatsApp</strong> from ${name} (+${from}).</p><p>Reference: <strong>${quote.referenceNo}</strong></p><p>Address: ${address}</p>${session.preferredDate ? `<p>Preferred date: <strong>${session.preferredDate}</strong></p>` : ""}<p>Items:<br>${itemsText.replace(/\n/g, "<br>")}</p><p><a href="${APP_URL}/admin/quotes/${quote.id}">View in Admin Panel</a></p>`,
           });
         } catch (alertErr) {
           console.error("[WhatsApp] Admin alert email error:", alertErr);
