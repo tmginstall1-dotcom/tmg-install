@@ -16,6 +16,7 @@ import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import Landing from "@/pages/customer/Landing";
 
 const QuoteStatus = lazy(() => import("@/pages/customer/QuoteStatus"));
+const StatusRedirect = lazy(() => import("@/pages/customer/StatusRedirect"));
 const EstimateWizard = lazy(() => import("@/pages/customer/Estimate"));
 const Terms = lazy(() => import("@/pages/customer/Terms"));
 const Privacy = lazy(() => import("@/pages/customer/Privacy"));
@@ -97,6 +98,7 @@ function Router() {
           <Route path="/" component={Landing} />
           <Route path="/estimate" component={EstimateWizard} />
           <Route path="/quotes/:id" component={QuoteStatus} />
+          <Route path="/status/:refNo" component={StatusRedirect} />
           <Route path="/terms" component={Terms} />
           <Route path="/privacy" component={Privacy} />
 

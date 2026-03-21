@@ -957,7 +957,18 @@ export async function registerRoutes(
     res.json(quotes);
   });
 
-  // Schedule management: get pending + confirmed bookings
+  // Look up a quote by reference number — used for /status/:refNo redirects
+  app.get("/api/quotes/by-ref/:refNo", async (req, res) => {
+    try {
+      const quotes = await storage.getQuotes();
+      const quote = quotes.find(q => q.referenceNo === req.params.refNo);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      res.json({ id: quote.id });
+    } catch (err) {
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   app.get("/api/quotes/schedule", async (req, res) => {
     try {
       const pending = await storage.getQuotesByStatuses(['booking_requested']);
@@ -2367,7 +2378,7 @@ Return ONLY valid JSON.`,
           `✅ All done, *${name}*! Your request has been submitted.\n\n` +
           `Your reference number is *${quote.referenceNo}*.\n\n` +
           `Our team will review the details and follow up with a quote and next steps shortly.\n\n` +
-          `You can track your request here:\n${APP_URL}/status/${quote.referenceNo}\n\n` +
+          `You can track your request here:\n${APP_URL}/quotes/${quote.id}\n\n` +
           `Thanks for choosing TMG Install! 🙏 Reply *hi* anytime to make a new request.`
         );
 
@@ -2408,13 +2419,13 @@ Return ONLY valid JSON.`,
       const depositAmount = String(quote.depositAmount || "0");
 
       // Generate Stripe payment link if available
-      let paymentLink = `${APP_URL}/status/${quote.referenceNo}`;
+      let paymentLink = `${APP_URL}/quotes/${id}`;
       if (stripe && parseFloat(depositAmount) > 0) {
         const link = await createStripePaymentLink(
           `Deposit for ${quote.referenceNo}`,
           parseFloat(depositAmount),
           { quoteId: String(id), type: "deposit" },
-          `${APP_URL}/status/${quote.referenceNo}`
+          `${APP_URL}/quotes/${id}`
         );
         if (link) paymentLink = link;
       }
