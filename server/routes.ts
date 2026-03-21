@@ -2315,35 +2315,76 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
           return;
         }
 
-        const detectedItems = existingItems && existingItems !== "__scanning__" ? existingItems : text;
+        const detectedItems = existingItems && existingItems !== "__scanning__" ? existingItems : "";
 
-        // Accept YES (use detected list) or a typed correction
-        const finalItems = textLower === "yes" ? detectedItems : text;
-
-        if (textLower !== "yes" && text.length < 3) {
+        if (textLower === "yes") {
+          // Confirmed — move to confirmation
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: detectedItems });
           await sendWhatsAppMessage(from,
-            `Reply *YES* to confirm the list, *NO* to redo it, or just type the corrected list directly.`
+            `Here's a summary of your request:\n\n` +
+            `👤 *Name:* ${name}\n` +
+            `📍 *Address:* ${address}\n` +
+            `🛋️ *Items:*\n${detectedItems}\n\n` +
+            `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.\n\n` +
+            `_Need to fix something? Type *change name*, *change address*, or *change items* anytime._`
           );
           return;
         }
 
-        await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: finalItems });
+        if (text.length < 3) {
+          await sendWhatsAppMessage(from,
+            `Reply *YES* to confirm this list, *NO* to redo it, or just type any corrections or additions.`
+          );
+          return;
+        }
+
+        // User typed something — treat as ADDITION to the detected list, not a replacement
+        // Detect if it's clearly an addition phrase
+        const isAddition = ["one more", "also", "and also", "add ", "plus ", "there's more", "there is more", "forgot", "missed", "another"].some(kw => textLower.includes(kw));
+        // Detect if it looks like a complete new list (has bullet points or multiple lines)
+        const looksLikeFullList = text.includes("•") || text.includes("-") || text.split("\n").length > 2;
+
+        let mergedItems: string;
+        let mergeNote: string;
+
+        if (looksLikeFullList && !isAddition) {
+          // Treat as a full replacement
+          mergedItems = text;
+          mergeNote = `Got it — I've updated the full list.`;
+        } else {
+          // Treat as an addition — append to existing
+          mergedItems = detectedItems ? `${detectedItems}\n• ${text.replace(/^[•\-\*]\s*/, "")}` : text;
+          mergeNote = `Got it — I've added that to your list.`;
+        }
+
+        await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: mergedItems });
         await sendWhatsAppMessage(from,
-          `Here's a summary of your request:\n\n` +
-          `👤 *Name:* ${name}\n` +
-          `📍 *Address:* ${address}\n` +
-          `🛋️ *Items:*\n${finalItems}\n\n` +
-          `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.\n\n` +
-          `_Wrong address? Type *change address* to fix it without starting over._`
+          `${mergeNote} Here's the updated list:\n\n${mergedItems}\n\n` +
+          `• Reply *YES* to confirm\n` +
+          `• Type any more corrections or additions\n` +
+          `• Send another *photo* to add more items\n` +
+          `• Reply *NO* to redo the whole list`
         );
         return;
       }
 
       if (state === "awaiting_confirmation") {
-        if (textLower === "no" || textLower === "cancel" || textLower === "nevermind" || textLower === "never mind" || textLower === "stop") {
+        if (textLower === "cancel" || textLower === "nevermind" || textLower === "never mind" || textLower === "stop") {
           await storage.deleteWhatsAppSession(from);
           await sendWhatsAppMessage(from,
             `No worries at all! 😊 If you'd like to get a quote in the future, just send *hi* and I'll help you right away.`
+          );
+          return;
+        }
+
+        if (textLower === "no") {
+          // Don't cancel — show correction options
+          await sendWhatsAppMessage(from,
+            `No problem! What would you like to change? 😊\n\n` +
+            `• Type *change name* — update your name\n` +
+            `• Type *change address* — fix the job address\n` +
+            `• Type *change items* — update the furniture list\n` +
+            `• Type *cancel* — to cancel this request`
           );
           return;
         }
