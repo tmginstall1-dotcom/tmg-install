@@ -1986,6 +1986,16 @@ Respond with ONLY a JSON array (no prose, no markdown):
         return;
       }
 
+      // ── Global: allow address correction at any stage after name is collected ──
+      const isAddressChangeCmd = ["change address", "wrong address", "update address", "edit address", "change my address", "wrong add", "address wrong", "incorrect address"].some(kw => textLower.includes(kw));
+      if (isAddressChangeCmd && session && session.collectedName && !["awaiting_name", "awaiting_address"].includes(state)) {
+        await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
+        await sendWhatsAppMessage(from,
+          `No problem! Please type the *correct job address* and I'll update it for you. 📍`
+        );
+        return;
+      }
+
       if (state === "awaiting_name") {
         if (text.length < 2) {
           await sendWhatsAppMessage(from, "Could you share your full name so I can address you properly? 😊");
@@ -2003,10 +2013,23 @@ Respond with ONLY a JSON array (no prose, no markdown):
           await sendWhatsAppMessage(from, "Hmm, that doesn't look like a full address. Could you type it out in full? 🙏");
           return;
         }
-        await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: text });
-        await sendWhatsAppMessage(from,
-          `Got it! Now, what furniture do you need help with?\n\n📸 *Send a photo* of the items and I'll identify them for you automatically — or just *type the list* below.\n\nFeel free to mention if it's for *installation, dismantling, or relocation* too!\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle)\n• L-shaped sofa (relocate)`
-        );
+        const alreadyHasItems = session?.collectedItems && session.collectedItems !== "__scanning__";
+        if (alreadyHasItems) {
+          // Address correction — skip straight back to confirmation with updated address
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedAddress: text });
+          await sendWhatsAppMessage(from,
+            `✅ Address updated! Here's your revised summary:\n\n` +
+            `👤 *Name:* ${session.collectedName}\n` +
+            `📍 *Address:* ${text}\n` +
+            `🛋️ *Items:*\n${session.collectedItems}\n\n` +
+            `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.\n\n_Type *change address* anytime to update the address._`
+          );
+        } else {
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: text });
+          await sendWhatsAppMessage(from,
+            `Got it! Now, what furniture do you need help with?\n\n📸 *Send a photo* of the items and I'll identify them for you automatically — or just *type the list* below.\n\nFeel free to mention if it's for *installation, dismantling, or relocation* too!\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle)\n• L-shaped sofa (relocate)\n\n_Made a mistake with the address? Type *change address* anytime._`
+          );
+        }
         return;
       }
 
@@ -2241,7 +2264,8 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
           `👤 *Name:* ${name}\n` +
           `📍 *Address:* ${address}\n` +
           `🛋️ *Items:*\n${finalItems}\n\n` +
-          `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.`
+          `Shall I send this to our team? Reply *YES* to submit, or *NO* to make changes.\n\n` +
+          `_Wrong address? Type *change address* to fix it without starting over._`
         );
         return;
       }
