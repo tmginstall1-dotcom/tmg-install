@@ -2213,75 +2213,76 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
         const address = session.collectedAddress!;
         const itemsText = session.collectedItems!;
 
-        // Use OpenAI to parse items into structured quote lines
-        let parsedItems: { detectedName: string; serviceType: string; quantity: number; unitPrice: number }[] = [];
+        // ── Step 1: Load catalog so we can match and use real prices ──────
+        const catalog = await storage.getCatalogItems();
+
+        // ── Step 2: Parse items with OpenAI (same logic as web flow) ──────
+        let aiParsedItems: { detectedName: string; serviceType: string; quantity: number; estimatedUnitPrice: number; confidence: number }[] = [];
         try {
           const aiResponse = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [
               {
                 role: "system",
-                content: `You are a quoting assistant for TMG Install, a furniture installation company in Singapore.
+                content: `You are an AI assistant for TMG Install, a furniture installation company in Singapore.
+Extract furniture items and required services from the customer's description.
+Valid service types are: 'install', 'dismantle', 'relocate'.
 
-Given a customer's furniture list, return a JSON object in EXACTLY this format:
-{
-  "items": [
-    { "detectedName": "IKEA PAX 3-door wardrobe", "serviceType": "install", "quantity": 1, "unitPrice": 80 },
-    { "detectedName": "King bed frame", "serviceType": "install", "quantity": 1, "unitPrice": 60 }
-  ]
-}
+Our catalog includes these items (name — serviceType — price SGD):
+${catalog.map(c => `- ${c.name} (${c.serviceType}) $${c.basePrice}`).join("\n")}
 
-Rules:
-- serviceType must be "install", "dismantle", or "relocate" (default to "install" if unclear)
-- quantity must be an integer
-- unitPrice is in SGD based on Singapore market rates for furniture installation labour:
-  - Wardrobe (per door panel): ~$30-40, full PAX 2-door: ~$60-80
-  - Bed frame (queen/king): ~$50-80
-  - Dining table: ~$40-60
-  - Sofa assembly: ~$50-80
-  - Desk: ~$40-60
-  - Cabinet/shelf: ~$30-50
-  - Dismantling: ~60-70% of install price
-  - Relocation (per item): ~$40-80
-- Always return the "items" key even if the list has one item`,
+Try to match detected items to the catalog above. Use the catalog item name as detectedName when matched.
+For items not in the catalog, estimate a reasonable SGD unit price.
+
+Return a JSON object with an 'items' array. Each item should have:
+- 'detectedName': string (match catalog name exactly when possible, e.g. 'IKEA Pax Wardrobe')
+- 'serviceType': string ('install', 'dismantle', or 'relocate')
+- 'quantity': number
+- 'estimatedUnitPrice': number
+- 'confidence': number (0-100)
+Return ONLY valid JSON.`,
               },
               { role: "user", content: itemsText },
             ],
             response_format: { type: "json_object" },
           });
-          const raw = aiResponse.choices[0].message.content || "{}";
-          console.log("[WhatsApp] OpenAI item parse response:", raw);
+          const raw = aiResponse.choices[0].message.content || '{"items":[]}';
+          console.log("[WhatsApp] OpenAI item parse:", raw);
           const parsed = JSON.parse(raw);
-          // Handle both { items: [...] } and direct array responses
-          if (Array.isArray(parsed)) {
-            parsedItems = parsed;
-          } else if (Array.isArray(parsed.items)) {
-            parsedItems = parsed.items;
-          } else {
-            // Try any array-valued key as fallback
-            const firstArray = Object.values(parsed).find(v => Array.isArray(v));
-            parsedItems = (firstArray as any[]) || [];
-          }
+          aiParsedItems = parsed.items || [];
         } catch (aiErr) {
           console.error("[WhatsApp] OpenAI parse error:", aiErr);
         }
 
-        // Fallback: if parsing failed or returned nothing, create one manual item
-        if (!parsedItems.length) {
-          parsedItems = [{ detectedName: itemsText.substring(0, 200), serviceType: "install", quantity: 1, unitPrice: 0 }];
+        // Fallback: create one raw item if parsing returned nothing
+        if (!aiParsedItems.length) {
+          aiParsedItems = [{ detectedName: itemsText.substring(0, 200), serviceType: "install", quantity: 1, estimatedUnitPrice: 0, confidence: 50 }];
         }
 
-        const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
-        const quoteItems = parsedItems.map((item) => ({
-          originalDescription: itemsText,
-          detectedName: item.detectedName,
-          serviceType: item.serviceType || "install",
-          quantity: item.quantity || 1,
-          unitPrice: String(item.unitPrice || 0),
-          subtotal: String((item.quantity || 1) * (item.unitPrice || 0)),
-        }));
+        // ── Step 3: Match each item against the catalog (same as web flow) ─
+        let totalEstimate = 0;
+        const quoteItems = aiParsedItems.map((item) => {
+          const matchedCatalogItem = catalog.find(c =>
+            c.serviceType === item.serviceType &&
+            item.detectedName.toLowerCase().includes(c.name.toLowerCase())
+          );
+          const unitPrice = matchedCatalogItem ? Number(matchedCatalogItem.basePrice) : (item.estimatedUnitPrice || 0);
+          const qty = item.quantity || 1;
+          const subtotal = unitPrice * qty;
+          totalEstimate += subtotal;
+          return {
+            originalDescription: itemsText,
+            detectedName: item.detectedName,
+            serviceType: item.serviceType || "install",
+            quantity: qty,
+            unitPrice: unitPrice.toFixed(2),
+            subtotal: subtotal.toFixed(2),
+            catalogItemId: matchedCatalogItem?.id,
+          };
+        });
 
-        const subtotal = quoteItems.reduce((s, i) => s + parseFloat(i.subtotal), 0);
+        const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
+        const subtotal = totalEstimate;
         const depositAmount = (subtotal * 0.3).toFixed(2);
         const finalAmount = (subtotal * 0.7).toFixed(2);
 
