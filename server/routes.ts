@@ -1991,6 +1991,8 @@ Respond with ONLY a JSON array (no prose, no markdown):
           await sendWhatsAppMessage(from,
             `📸 Got your photo! Scanning for furniture items... please wait a moment.`
           );
+          // Lock state immediately so concurrent photo messages enter awaiting_items_verify instead
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: "__scanning__" });
           try {
             const media = await downloadWhatsAppMedia(msg.image.id);
             if (!media) throw new Error("Could not download image");
@@ -2040,13 +2042,20 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
               return;
             }
 
-            // Go to a verify step so customer can correct quantities
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: detected });
+            // Merge with any items already detected (handles concurrent photo messages)
+            const freshSession = await storage.getWhatsAppSession(from);
+            const existingItems = freshSession?.collectedItems || "";
+            const mergedItems = existingItems && existingItems !== "__scanning__"
+              ? `${existingItems}\n${detected}`
+              : detected;
+
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: mergedItems });
             await sendWhatsAppMessage(from,
-              `🔍 Here's what I detected from your photo:\n\n${detected}\n\n` +
+              `🔍 Here's what I detected from your photo${existingItems && existingItems !== "__scanning__" ? "s" : ""}:\n\n${mergedItems}\n\n` +
               `Please *check the items and quantities carefully*.\n\n` +
               `• Reply *YES* if everything is correct\n` +
               `• Type a *corrected list* if anything is wrong or missing\n` +
+              `• Send *another photo* to add more items\n` +
               `• Reply *NO* to start over`
             );
             return;
@@ -2081,13 +2090,77 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
       if (state === "awaiting_items_verify") {
         const name = session.collectedName!;
         const address = session.collectedAddress!;
-        const detectedItems = session.collectedItems!;
+        const existingItems = session.collectedItems || "";
+
+        // ── Additional photo sent: merge detections ───────────────────────
+        if (msgType === "image" && msg.image?.id) {
+          try {
+            const media = await downloadWhatsAppMedia(msg.image.id);
+            if (!media) throw new Error("Could not download image");
+
+            const visionRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 800,
+              messages: [
+                {
+                  role: "system",
+                  content: `You are an expert furniture identification assistant for TMG Install, a professional furniture installation company in Singapore.
+Identify ALL furniture items visible that need professional installation, assembly, or relocation.
+Rules:
+- COUNT each piece individually
+- Identify type precisely (size, doors, shape)
+- Identify BRAND/MODEL if visible
+- DO NOT include TVs, electronics, decorative items
+- Format: one item per line, starting with bullet • quantity name
+If no installable furniture visible, respond only with: NO_FURNITURE`,
+                },
+                {
+                  role: "user",
+                  content: [
+                    { type: "text", text: "Identify all furniture items in this photo." },
+                    { type: "image_url", image_url: { url: `data:${media.mimeType};base64,${media.base64}`, detail: "high" } },
+                  ] as any,
+                },
+              ],
+            });
+
+            const newDetected = (visionRes.choices[0]?.message?.content || "").trim();
+
+            if (!newDetected || newDetected.includes("NO_FURNITURE")) {
+              await sendWhatsAppMessage(from,
+                `🤔 Couldn't identify furniture in that photo. Here's what I have so far:\n\n${existingItems}\n\n• Reply *YES* to confirm\n• Type corrections\n• Send *another photo*\n• Reply *NO* to start over`
+              );
+              return;
+            }
+
+            const base = existingItems && existingItems !== "__scanning__" ? existingItems : "";
+            const mergedItems = base ? `${base}\n${newDetected}` : newDetected;
+
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: mergedItems });
+            await sendWhatsAppMessage(from,
+              `🔍 Updated list from all your photos:\n\n${mergedItems}\n\n` +
+              `• Reply *YES* if everything is correct\n` +
+              `• Type a corrected list if anything is wrong\n` +
+              `• Send *another photo* to add more items\n` +
+              `• Reply *NO* to start over`
+            );
+            return;
+          } catch (err) {
+            console.error("[WhatsApp] Image merge error:", err);
+            await sendWhatsAppMessage(from,
+              `Sorry, couldn't analyze that photo. Here's what I have:\n\n${existingItems}\n\nReply *YES* to confirm or type corrections.`
+            );
+            return;
+          }
+        }
 
         if (textLower === "no") {
           await storage.deleteWhatsAppSession(from);
           await sendWhatsAppMessage(from, `No problem! Send *hi* anytime to start a new quote request. 😊`);
           return;
         }
+
+        const detectedItems = existingItems && existingItems !== "__scanning__" ? existingItems : text;
 
         // Accept YES (use detected list) or a typed correction
         const finalItems = textLower === "yes" ? detectedItems : text;
