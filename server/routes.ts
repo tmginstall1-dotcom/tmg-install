@@ -2042,6 +2042,9 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
               return;
             }
 
+            // Wait briefly so any concurrent photo analysis can finish and save first
+            await new Promise(r => setTimeout(r, 1500));
+
             // Merge with any items already detected (handles concurrent photo messages)
             const freshSession = await storage.getWhatsAppSession(from);
             const existingItems = freshSession?.collectedItems || "";
@@ -2053,8 +2056,8 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
             await sendWhatsAppMessage(from,
               `🔍 Here's what I detected from your photo${existingItems && existingItems !== "__scanning__" ? "s" : ""}:\n\n${mergedItems}\n\n` +
               `Please *check the items and quantities carefully*.\n\n` +
-              `• Reply *YES* if everything is correct\n` +
-              `• Type a *corrected list* if anything is wrong or missing\n` +
+              `• Reply *YES* if the list is complete and correct\n` +
+              `• Type a *corrected list* if anything is wrong\n` +
               `• Send *another photo* to add more items\n` +
               `• Reply *NO* to start over`
             );
