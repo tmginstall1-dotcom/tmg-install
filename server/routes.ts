@@ -2046,6 +2046,7 @@ Message: "${text}"`
           collectedItems: extractedItems,
           previousItems: null,
           preferredDate: null,
+          preferredDateIso: null,
         });
 
         if (extractedName && extractedAddress && extractedItems) {
@@ -2706,28 +2707,49 @@ For reply: be natural and friendly, confirm what you did.`,
         const address = session.collectedAddress!;
         const items = session.collectedItems!;
 
-        // Use GPT to understand the date preference (any format, flexible, ASAP, etc.)
-        let preferredDate = text.trim();
+        // Use GPT to parse the date — must return ISO yyyy-MM-dd when resolvable
+        // The preferredDate column on quotes expects yyyy-MM-dd (admin panel uses new Date(date + "T12:00:00"))
+        // If the customer is flexible or vague, we store null for preferredDate and put the text in notes instead
+        let preferredDateDisplay = text.trim();   // shown to customer in WhatsApp
+        let preferredDateIso: string | null = null; // yyyy-MM-dd for the quotes table
+        let isFlexible = false;
         try {
+          const today = new Date();
           const dateRes = await openai.chat.completions.create({
             model: "gpt-4o",
-            max_tokens: 80,
+            max_tokens: 120,
             response_format: { type: "json_object" },
             messages: [{
               role: "system",
-              content: `Today is ${new Date().toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
-The customer was asked when they'd like their furniture job done.
-Parse their reply and return JSON: { "date": string, "flexible": boolean }
-- date: a clean human-readable date string (e.g. "Saturday 28 March 2026", "Week of 20 April 2026", "Flexible — anytime")
-- flexible: true if they said anytime/flexible/whenever/not sure
+              content: `Today is ${today.toISOString().slice(0, 10)} (${today.toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}).
+The customer was asked when they'd like their furniture installation job done.
+Return JSON:
+{
+  "isoDate": "yyyy-MM-dd or null",
+  "display": "friendly human-readable text",
+  "flexible": boolean
+}
+- isoDate: the most likely specific date in yyyy-MM-dd format. null if flexible/anytime/no specific date.
+  Resolve relative dates: "this Saturday" → nearest Saturday's date, "next Monday" → date of next Monday, etc.
+- display: friendly text shown to customer (e.g. "Saturday, 28 March 2026", "Flexible — anytime", "Week of 20 April 2026")
+- flexible: true if customer said anytime/flexible/whenever/not sure/no preference
+
 Customer said: "${text}"`
             }]
           });
           const dp = JSON.parse(dateRes.choices[0]?.message?.content || "{}");
-          if (dp.date) preferredDate = dp.date;
+          if (dp.display) preferredDateDisplay = dp.display;
+          if (dp.isoDate && /^\d{4}-\d{2}-\d{2}$/.test(dp.isoDate)) preferredDateIso = dp.isoDate;
+          isFlexible = !!dp.flexible;
         } catch {}
 
-        await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", preferredDate });
+        // Store display text in session (for WhatsApp messages) + ISO date separately
+        // preferredDateIso goes into the quotes.preferredDate column (yyyy-MM-dd — admin panel safe)
+        await storage.upsertWhatsAppSession(from, {
+          state: "awaiting_confirmation",
+          preferredDate: preferredDateDisplay,
+          preferredDateIso: preferredDateIso,
+        });
 
         // Build the confirmation summary
         await sendWhatsAppMessage(from,
@@ -2968,7 +2990,15 @@ Return ONLY valid JSON.`,
             depositAmount,
             finalAmount,
             requiresManualReview: true,
-            preferredDate: session.preferredDate || null,
+            // Use the ISO date for the quotes.preferredDate column (admin panel expects yyyy-MM-dd).
+            // If the customer said "anytime" / "flexible", preferredDateIso is null — safe.
+            // Store the display text in notes so admin can see the customer's exact words.
+            preferredDate: session.preferredDateIso || null,
+            notes: session.preferredDate && !session.preferredDateIso
+              ? `Customer's preferred date (flexible): ${session.preferredDate}`
+              : session.preferredDate && session.preferredDateIso
+                ? `Customer's preferred date: ${session.preferredDate}`
+                : null,
           } as any,
           quoteItems as any
         );
