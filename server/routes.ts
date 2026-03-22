@@ -2481,7 +2481,17 @@ TMG INSTALL FACTS (for faq answers):
                   return;
                 }
               }
-              // No item identified — ask the customer to specify
+              // No item identified — if we're awaiting address, redirect there so the
+              // customer doesn't get stuck when they resend the same photo as an "answer"
+              if (state === "awaiting_address") {
+                await sendWhatsAppMessage(from,
+                  `📸 Got your photo! I'll scan it for the furniture list once I have your address.\n\n` +
+                  `📍 Could you drop the *job address* below?\n\n` +
+                  `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+                );
+                return;
+              }
+              // Otherwise ask the customer to specify the item
               await sendWhatsAppMessage(from,
                 `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
                 `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`
@@ -2797,6 +2807,19 @@ Key examples:
       }
 
       if (state === "awaiting_address") {
+        // ── Guard: photo sent instead of address ───────────────────────────────
+        // Customer sometimes re-sends a furniture photo (e.g. "Installation") when
+        // they're still being asked for their address. Catch this early so we don't
+        // try to parse "Installation" / "Dismantle" etc. as a Singapore address.
+        const SERVICE_TYPE_PATTERN = /^(install(ation)?|dismantle?|dismantling|relocat(e|ion)|dispos(e|al)|dismantle\s*\+?\s*dispos(e|al))$/i;
+        if (msgType === "image" && msg.image?.id && (text.length === 0 || SERVICE_TYPE_PATTERN.test(text.trim()))) {
+          await sendWhatsAppMessage(from,
+            `📸 Got your photo — I'll scan it for the furniture list once I have the address!\n\n` +
+            `📍 Could you drop the *job address* first?\n\n` +
+            `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+          );
+          return;
+        }
         if (text.length < 4) {
           await sendWhatsAppMessage(from, `Could you give me the *full address*? Include the block/unit number if applicable. 📍`);
           return;
