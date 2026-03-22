@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone } from "lucide-react";
+import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle } from "lucide-react";
 
 export default function AdminSettings() {
   const { toast } = useToast();
@@ -21,12 +21,18 @@ export default function AdminSettings() {
     queryKey: ["/api/app-version"],
   });
 
+  const { data: tokenStatus, refetch: recheckToken } = useQuery<{ status: string; message: string }>({
+    queryKey: ["/api/admin/whatsapp/token-status"],
+    refetchInterval: 60_000,
+  });
+
   const updateToken = useMutation({
     mutationFn: () =>
       apiRequest("POST", "/api/admin/settings/whatsapp-token", { token }),
     onSuccess: () => {
       toast({ title: "Token updated", description: "WhatsApp messages will now use the new token." });
       setToken("");
+      setTimeout(() => recheckToken(), 1500);
     },
     onError: (err: any) => {
       toast({ title: "Failed to update token", description: err.message, variant: "destructive" });
@@ -95,20 +101,48 @@ export default function AdminSettings() {
           <CardTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-green-600" />
             WhatsApp Access Token
+            {tokenStatus && (
+              <span
+                data-testid="badge-token-status"
+                className={`ml-auto text-xs font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${
+                  tokenStatus.status === "ok"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {tokenStatus.status === "ok"
+                  ? <CheckCircle className="w-3.5 h-3.5" />
+                  : <XCircle className="w-3.5 h-3.5" />}
+                {tokenStatus.status === "ok" ? "Token OK" : "Token Invalid"}
+              </span>
+            )}
           </CardTitle>
           <CardDescription>
-            Paste a fresh temporary token from Meta here. It will automatically be exchanged for a
-            long-lived 60-day token and saved — no manual refresh needed after that. The server also
-            checks and renews the token automatically every 6 days.
+            {tokenStatus && tokenStatus.status !== "ok" ? (
+              <span className="text-red-600 font-medium">{tokenStatus.message}</span>
+            ) : tokenStatus ? (
+              <span className="text-green-700">{tokenStatus.message}</span>
+            ) : (
+              "Checking token status…"
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {(tokenStatus?.status === "expired" || tokenStatus?.status === "invalid") && (
+            <div data-testid="alert-token-expired" className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-md px-3 py-2.5 text-sm text-red-800">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+              <div>
+                <strong>Bot is offline.</strong> The current token is {tokenStatus.status}. Customers messaging +65 8088 0757 will not get any replies until you paste a new System User token below.
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1">
             <Label htmlFor="wa-token">New Access Token</Label>
             <Textarea
               id="wa-token"
               data-testid="input-whatsapp-token"
-              placeholder="Paste your Meta access token here…"
+              placeholder="Paste your System User token from Meta Business Suite…"
               value={token}
               onChange={(e) => setToken(e.target.value)}
               rows={4}
@@ -117,12 +151,13 @@ export default function AdminSettings() {
           </div>
 
           <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3 text-sm text-amber-800 dark:text-amber-200">
-            <strong>Where to get a new token:</strong>
+            <strong>Use a permanent System User token (never expires):</strong>
             <ol className="list-decimal ml-4 mt-1 space-y-1">
-              <li>Go to <strong>developers.facebook.com</strong></li>
-              <li>Open <strong>TMG Install WA</strong> → WhatsApp → API setup</li>
-              <li>Click <strong>"Generate access token"</strong> and copy it</li>
-              <li>Paste it above and click Update</li>
+              <li>Go to <strong>business.facebook.com</strong> → Settings → System Users</li>
+              <li>Select <strong>TMG Install Bot</strong></li>
+              <li>Click <strong>"Generate new token"</strong> → select the TMG Install WA app</li>
+              <li>Grant <code>whatsapp_business_messaging</code> + <code>whatsapp_business_management</code></li>
+              <li>Copy the token, paste it above and click Update</li>
             </ol>
           </div>
 

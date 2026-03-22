@@ -81,6 +81,15 @@ export async function refreshTokenIfNeeded(): Promise<void> {
     return;
   }
 
+  // Already expired — can't exchange, just warn loudly
+  if (expiresAt <= nowSec) {
+    console.error("════════════════════════════════════════════════════════");
+    console.error("[WhatsApp] ⛔ TOKEN IS EXPIRED — bot CANNOT send messages!");
+    console.error("[WhatsApp]    Go to Admin Settings → paste a new System User token.");
+    console.error("════════════════════════════════════════════════════════");
+    return;
+  }
+
   if (expiresAt - nowSec > sevenDays) {
     const daysLeft = Math.round((expiresAt - nowSec) / 86400);
     console.log(`[WhatsApp] Token still valid — ${daysLeft} days remaining`);
@@ -94,6 +103,8 @@ export async function refreshTokenIfNeeded(): Promise<void> {
     _cachedToken = longLived;
     _cacheExpiry = Date.now() + 5 * 60 * 1000;
     console.log("[WhatsApp] Token refreshed and saved to DB");
+  } else {
+    console.warn("[WhatsApp] Could not exchange token — update manually in Admin Settings.");
   }
 }
 

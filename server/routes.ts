@@ -4270,6 +4270,36 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── WhatsApp token status check ────────────────────────────────────────────
+  app.get("/api/admin/whatsapp/token-status", async (_req, res) => {
+    try {
+      const token = await getAccessToken();
+      if (!token) return res.json({ status: "missing", message: "No token configured" });
+
+      const debugUrl = `https://graph.facebook.com/debug_token?input_token=${token}&access_token=${token}`;
+      const r = await fetch(debugUrl);
+      const data = await r.json() as any;
+
+      if (!data?.data?.is_valid) {
+        const errMsg = data?.data?.error?.message || data?.error?.message || "Token invalid";
+        return res.json({ status: "invalid", message: errMsg });
+      }
+
+      const expiresAt: number = data.data.expires_at ?? 0;
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (expiresAt === 0) {
+        return res.json({ status: "ok", message: "Permanent System User token — no expiry" });
+      }
+      const daysLeft = Math.round((expiresAt - nowSec) / 86400);
+      if (daysLeft <= 0) {
+        return res.json({ status: "expired", message: `Token expired ${Math.abs(daysLeft)} day(s) ago — update now!` });
+      }
+      return res.json({ status: "ok", message: `Token valid — ${daysLeft} days remaining` });
+    } catch (err) {
+      return res.json({ status: "error", message: "Could not check token" });
+    }
+  });
+
   // ── App version management (OTA update check) ────────────────────────────
   app.get("/api/app-version", async (_req, res) => {
     try {
