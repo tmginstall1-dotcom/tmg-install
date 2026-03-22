@@ -20,7 +20,7 @@ import {
   newEstimateAdminAlert,
   ADMIN_EMAIL
 } from "./email";
-import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
+import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
 import { calcTransportFee, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
 import { appSettings } from "@shared/schema";
@@ -4284,6 +4284,43 @@ Respond directly — no JSON, just the message text.`,
     } catch {
       res.json({ version: "1.1", apkUrl: "https://github.com/tmginstall1-dotcom/tmg-install/releases/download/latest-build/tmg-install.apk" });
     }
+  });
+
+  // ── WhatsApp number registration (request OTP + verify) ──────────────────
+  app.post("/api/admin/whatsapp/request-code", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const token = await getAccessToken();
+    if (!token) return res.status(500).json({ message: "No WhatsApp access token set" });
+    const phoneNumberId = "1063172463540400";
+    const r = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/request_code`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ code_method: "SMS", language: "en_US" }),
+    });
+    const data = await r.json() as any;
+    if (!r.ok) return res.status(r.status).json({ message: data?.error?.message ?? "Failed to request code" });
+    res.json({ message: "Verification SMS sent to +65 8088 0757" });
+  });
+
+  app.post("/api/admin/whatsapp/verify-code", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const { code } = req.body as { code?: string };
+    if (!code) return res.status(400).json({ message: "code required" });
+    const token = await getAccessToken();
+    if (!token) return res.status(500).json({ message: "No WhatsApp access token set" });
+    const phoneNumberId = "1063172463540400";
+    const r = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/verify_code`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await r.json() as any;
+    if (!r.ok) return res.status(r.status).json({ message: data?.error?.message ?? "Verification failed" });
+    res.json({ message: "Phone number verified and registered successfully!" });
   });
 
   app.post("/api/admin/settings/app-version", async (req, res) => {

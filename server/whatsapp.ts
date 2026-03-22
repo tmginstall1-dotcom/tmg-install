@@ -98,7 +98,7 @@ export async function refreshTokenIfNeeded(): Promise<void> {
 }
 
 // ── Read token from DB (with 5-min in-memory cache) ──────────────────────────
-async function getAccessToken(): Promise<string | null> {
+export async function getAccessToken(): Promise<string | null> {
   const now = Date.now();
   if (_cachedToken && now < _cacheExpiry) return _cachedToken;
 

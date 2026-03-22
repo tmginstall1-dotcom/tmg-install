@@ -7,13 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, MessageSquare, RefreshCw, Smartphone } from "lucide-react";
+import { CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone } from "lucide-react";
 
 export default function AdminSettings() {
   const { toast } = useToast();
   const [token, setToken] = useState("");
   const [newVersion, setNewVersion] = useState("");
   const [apkUrl, setApkUrl] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [smsSent, setSmsSent] = useState(false);
 
   const { data: currentAppVersion } = useQuery<{ version: string; apkUrl: string }>({
     queryKey: ["/api/app-version"],
@@ -28,6 +30,29 @@ export default function AdminSettings() {
     },
     onError: (err: any) => {
       toast({ title: "Failed to update token", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const requestCode = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/whatsapp/request-code", {}),
+    onSuccess: () => {
+      setSmsSent(true);
+      toast({ title: "SMS sent", description: "Enter the 6-digit code sent to +65 8088 0757" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to send SMS", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const verifyCode = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/whatsapp/verify-code", { code: otpCode.trim() }),
+    onSuccess: () => {
+      toast({ title: "Number registered!", description: "✅ +65 8088 0757 is now active on WhatsApp Business API." });
+      setOtpCode("");
+      setSmsSent(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Verification failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -96,6 +121,68 @@ export default function AdminSettings() {
               <><CheckCircle className="h-4 w-4 mr-2" /> Update Token</>
             )}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* WhatsApp Number Registration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Phone className="h-5 w-5 text-green-600" />
+            Register WhatsApp Number
+          </CardTitle>
+          <CardDescription>
+            +65 8088 0757 shows as "Pending" in Meta. Use this to complete the registration — it sends
+            a verification SMS to the SIM, then you enter the code to activate the number.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3 text-sm text-amber-800 dark:text-amber-200">
+            Make sure you have updated the Access Token above first before doing this.
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Button
+              data-testid="button-request-wa-code"
+              onClick={() => requestCode.mutate()}
+              disabled={requestCode.isPending}
+              variant="outline"
+              className="w-full border-green-300 text-green-700 hover:bg-green-50"
+            >
+              {requestCode.isPending
+                ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Sending SMS…</>
+                : <><Phone className="h-4 w-4 mr-2" /> Send verification SMS to +65 8088 0757</>
+              }
+            </Button>
+
+            {smsSent && (
+              <div className="space-y-2">
+                <Label htmlFor="otp-code">Enter the 6-digit code from the SMS</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="otp-code"
+                    data-testid="input-otp-code"
+                    placeholder="123456"
+                    value={otpCode}
+                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    maxLength={6}
+                    className="font-mono text-lg tracking-widest text-center"
+                  />
+                  <Button
+                    data-testid="button-verify-wa-code"
+                    onClick={() => verifyCode.mutate()}
+                    disabled={verifyCode.isPending || otpCode.length < 6}
+                    className="bg-green-600 hover:bg-green-700 text-white shrink-0"
+                  >
+                    {verifyCode.isPending
+                      ? <RefreshCw className="h-4 w-4 animate-spin" />
+                      : <CheckCircle className="h-4 w-4" />
+                    }
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
