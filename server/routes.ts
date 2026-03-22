@@ -122,6 +122,22 @@ async function saveHistory(phone: string, history: HistoryEntry[], customerMsg: 
   storage.upsertWhatsAppSession(phone, { conversationHistory: JSON.stringify(trimmed) }).catch(() => {});
 }
 
+/** Extract any service type already mentioned in conversation history */
+function extractServiceFromHistory(history: HistoryEntry[]): string | null {
+  const histText = history.map(h => h.content).join(" ").toLowerCase();
+  if (/install/.test(histText)) return "installation";
+  if (/dismant/.test(histText)) return "dismantling";
+  if (/reloc/.test(histText)) return "relocation";
+  if (/dispos/.test(histText)) return "disposal";
+  return null;
+}
+
+/** Detect if the bot is stuck in a loop — same question sent 2+ times recently */
+function isBotLooping(history: HistoryEntry[], keyword: string): boolean {
+  const recent = history.slice(-8).filter(h => h.role === "assistant");
+  return recent.filter(h => h.content.toLowerCase().includes(keyword.toLowerCase())).length >= 2;
+}
+
 // ── WhatsApp date-menu helper ─────────────────────────────────────────────────
 // Fetches the next available slots and returns both the formatted message text
 // and the slot array (so the caller can store/reference them).
@@ -2543,8 +2559,20 @@ TMG INSTALL FACTS (for faq answers):
               return;
             }
           }
-          // Furniture not identified or no price — ask them to name it
-          const askItem = `Spotted a photo! 📸 What item is it, and what service do you need?\n\n_e.g. "3-door wardrobe — installation" or "queen bed frame — dismantling"_`;
+          // Furniture not identified or no price — ask them to name it (context-aware)
+          const knownSvc = extractServiceFromHistory(conversationHistory);
+          let askItem: string;
+          if (isBotLooping(conversationHistory, "which item") || isBotLooping(conversationHistory, "what item is it")) {
+            // Stuck in a loop — break it with a plain direct ask
+            askItem = knownSvc
+              ? `Please just type the *item name* — e.g. *wardrobe*, *bed frame*, *sofa* — and I'll get you the ${knownSvc} price right away! 😊`
+              : `Please type the *item name and service* — e.g. *wardrobe installation* or *bed frame dismantling*. I'll get the price for you!`;
+          } else if (knownSvc) {
+            // Service already known from history — only ask for item
+            askItem = `I can see your photo! To look up the *${knownSvc}* price, I just need to know which item it is.\n\n_e.g. wardrobe, queen bed frame, sofa, dining table_`;
+          } else {
+            askItem = `Spotted a photo! 📸 What item is it, and what service do you need?\n\n_e.g. "3-door wardrobe — installation" or "queen bed frame — dismantling"_`;
+          }
           await sendWhatsAppMessage(from, askItem);
           saveHistory(from, conversationHistory, "[photo]", askItem);
           return;
@@ -2633,16 +2661,22 @@ Key examples:
                 return;
               }
             }
-            // Still no item — ask for it
+            // Still no item — ask for it, with loop detection
             const svcLabel: Record<string, string> = {
               installation: "installed", dismantling: "dismantled",
               relocation: "relocated", disposal: "disposed of",
             };
-            const verb = svcLabel[nameMentionedService] || nameMentionedService;
-            const askForItem =
-              `Got it — *${nameMentionedService}*! 🛠️\n\n` +
-              `Which *item* would you like ${verb}?\n\n` +
-              `_e.g. wardrobe, queen bed frame, dining table, sofa_`;
+            const verb = svcLabel[nameMentionedService!] || nameMentionedService;
+            let askForItem: string;
+            if (isBotLooping(conversationHistory, "which item") || isBotLooping(conversationHistory, "what item")) {
+              // Been asking same question too many times — simplify
+              askForItem = `Just type the *item name* and I'll get the ${nameMentionedService} price instantly!\n\ne.g. *wardrobe*, *bed frame*, *sofa*, *dining table*`;
+            } else {
+              askForItem =
+                `Got it — *${nameMentionedService}*! 🛠️\n\n` +
+                `Which *item* would you like ${verb}?\n\n` +
+                `_e.g. wardrobe, queen bed frame, dining table, sofa_`;
+            }
             await sendWhatsAppMessage(from, askForItem);
             saveHistory(from, conversationHistory, text, askForItem);
             return;
@@ -2684,10 +2718,20 @@ Key examples:
                 return;
               }
             }
-            // No item found — ask them to specify, save to history so follow-up reply has context
-            const askItemMsg =
-              `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
-              `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`;
+            // No item found — ask them to specify (context-aware to avoid repetition)
+            const knownSvcPricing = extractServiceFromHistory(conversationHistory);
+            let askItemMsg: string;
+            if (isBotLooping(conversationHistory, "what item") || isBotLooping(conversationHistory, "which item") || isBotLooping(conversationHistory, "price for")) {
+              askItemMsg = knownSvcPricing
+                ? `Just type the *item name* — e.g. *wardrobe*, *bed frame*, *sofa* — and I'll get you that ${knownSvcPricing} price! 😊`
+                : `Just type the *item name and service* — e.g. *wardrobe installation* or *bed frame dismantling* — and I'll get the price for you!`;
+            } else if (knownSvcPricing) {
+              askItemMsg = `Sure! Which *item* would you like a ${knownSvcPricing} price for?\n\n_e.g. wardrobe, queen bed frame, sofa, dining table_`;
+            } else {
+              askItemMsg =
+                `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
+                `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`;
+            }
             await sendWhatsAppMessage(from, askItemMsg);
             saveHistory(from, conversationHistory, text, askItemMsg);
             return;
