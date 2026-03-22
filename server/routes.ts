@@ -2203,7 +2203,7 @@ TMG Install facts for faq answers:
               await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
               await sendWhatsAppMessage(from, `Sure! What's the correct name? 😊`);
               return;
-            } else if (gc.command === "change_address" && !["awaiting_address"].includes(state)) {
+            } else if (gc.command === "change_address" && !["awaiting_address", "awaiting_to_address"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
               await sendWhatsAppMessage(from, `No problem! What's the correct job address? 📍`);
               return;
@@ -2696,7 +2696,21 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
 
         // ── Quick exact-match shortcuts ───────────────────────────────────────
         if (textLower === "yes" || textLower === "ok" || textLower === "correct" || textLower === "looks good" || textLower === "confirm") {
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_floor", collectedItems: detectedItems });
+          // Check if items have any service type labels — if not, we MUST ask before proceeding
+          const hasServiceType = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(detectedItems);
+          if (!hasServiceType && detectedItems) {
+            await sendWhatsAppMessage(from,
+              `Got it, the list is confirmed! ✅\n\nOne more thing — what *service type* do you need?\n\n` +
+              `• *Installation* — assemble new furniture\n` +
+              `• *Dismantling* — take apart existing furniture\n` +
+              `• *Relocation* — move furniture from one place to another\n` +
+              `• *Disposal* — haul away and dispose\n` +
+              `• *Dismantle + Dispose* — dismantle first, then dispose (cheaper bundle)\n\n` +
+              `Reply with the service type (or type it naturally, e.g. "relocation" or "all for install")`
+            );
+            return;
+          }
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_floor", collectedItems: detectedItems, floorLevel: null, hasLift: null });
           await sendWhatsAppMessage(from,
             `Great! Just a couple more quick questions to complete your quote. 😊\n\n` +
             `*Which floor is the unit on?*\n\n` +
@@ -2741,16 +2755,25 @@ Return ONLY valid JSON with these fields:
   "action": "confirm" | "add" | "update" | "redo" | "unclear",
   "updatedList": "the complete updated bullet list as a string (• item per line), or empty string if action is redo/unclear",
   "reply": "your natural human reply in English (1-2 sentences max, friendly tone)",
-  "isRelocation": true | false
+  "isRelocation": true | false,
+  "serviceType": "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose" | null
 }
 
 Rules:
-- "confirm": customer is happy, wants to proceed (yes, ok, correct, looks right, good, etc.) — even if they ALSO mention relocation
+- "confirm": customer is happy, wants to proceed (yes, ok, correct, looks right, good, etc.) — even if they ALSO mention service type
 - "add": customer wants to ADD items to the current list. Merge current + new items into updatedList
 - "update": customer wants to CORRECT, REPLACE, or REMOVE specific items. Provide the corrected updatedList
 - "redo": customer wants to completely start fresh without specifying what (just "no", "redo", "wrong", etc.)
 - "unclear": you genuinely cannot understand what they want
-- isRelocation: true if customer mentions this is a relocation, moving, shifting, or transport job (not just install/dismantle)
+- isRelocation: true if customer mentions this is a relocation, moving, shifting, or transport job
+- serviceType: set if customer mentions a service type for ALL items:
+  - "install" → assembly, installation, put together, set up
+  - "dismantle" → dismantle, take apart, pack, disassemble
+  - "relocate" → relocate, move, shift, transfer, transport
+  - "dispose" → dispose, throw away, haul away, get rid of, junk
+  - "dismantle_dispose" → dismantle and dispose, take apart and throw away, dismantle then haul
+  - null if no service type mentioned or items already have mixed service types
+- If serviceType is not null AND items list has no service type labels, update the updatedList to append "(serviceType)" to each item
 
 Smart parsing:
 - "remove X" / "delete X" / "take off X" / "no X" / "without X" → remove X from current list (action: update)
@@ -2772,14 +2795,36 @@ For reply: be natural and friendly, confirm what you did.`,
           const action = intent.action as string;
           const updatedList = (intent.updatedList as string || "").trim();
           const aiReply = (intent.reply as string || "").trim();
-          const intentIsRelocation = !!intent.isRelocation;
+          const intentIsRelocation = !!intent.isRelocation || (intent.serviceType === "relocate");
+          const intentServiceType = intent.serviceType as string | null;
 
           if (action === "confirm") {
+            // Use updatedList if GPT added service type labels, otherwise keep detectedItems
+            const finalItems = updatedList || detectedItems;
+
+            // If service type is still missing, re-ask before proceeding
+            const hasServiceTypeFinal = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(finalItems);
+            if (!hasServiceTypeFinal && !intentServiceType && !intentIsRelocation) {
+              await sendWhatsAppMessage(from,
+                `${aiReply ? aiReply + "\n\n" : ""}One more thing — what *service type* do you need?\n\n` +
+                `• *Installation* — assemble new furniture\n` +
+                `• *Dismantling* — take apart existing furniture\n` +
+                `• *Relocation* — move furniture from one place to another\n` +
+                `• *Disposal* — haul away and dispose\n` +
+                `• *Dismantle + Dispose* — dismantle first, then dispose (cheaper bundle)\n\n` +
+                `Reply with the service type (e.g. "relocation" or "install" or "disposal")`
+              );
+              return;
+            }
+
             // Proceed to floor/access questions regardless of relocation (relocation address collected after access)
+            // Clear floorLevel/hasLift so stale data can't trigger the partial-state shortcut
             await storage.upsertWhatsAppSession(from, {
               state: "awaiting_floor",
-              collectedItems: detectedItems,
+              collectedItems: finalItems,
               isRelocation: intentIsRelocation || session.isRelocation || false,
+              floorLevel: null,
+              hasLift: null,
             });
             await sendWhatsAppMessage(from,
               `${aiReply ? aiReply + "\n\n" : ""}Just a couple more quick questions to complete your quote. 😊\n\n` +
@@ -3032,11 +3077,41 @@ If unclear → null`
       // State: awaiting_to_address — collect destination address for relocation
       // ─────────────────────────────────────────────────────────────────────────
       if (state === "awaiting_to_address") {
-        if (text.length < 5) {
+        if (text.length < 2) {
           await sendWhatsAppMessage(from, `Please provide the *destination address* where the furniture should be moved to. 📍`);
           return;
         }
-        const toAddress = text.trim();
+
+        // Use GPT to extract and normalise Singapore address/landmark
+        let toAddress = text.trim();
+        try {
+          const addrRes = await openai.chat.completions.create({
+            model: "gpt-4o", max_tokens: 150, response_format: { type: "json_object" },
+            messages: [{ role: "system", content: `You are helping extract a Singapore destination address from a WhatsApp message.
+
+Extract the address/location from: "${text}"
+
+Singapore address formats include:
+- HDB blocks: "Blk 261 Serangoon Central #05-01"
+- Landmarks/malls: "Ion Orchard", "313 Somerset", "Vivocity", "Jewel Changi", etc.
+- Street addresses: "10 Orchard Road"
+- Area names: "Tampines", "Jurong East", "Buona Vista"
+- Postal codes: "S550261"
+
+Return JSON: { "address": "normalised address string or null if not an address", "isAddress": boolean }
+- isAddress: false only if the message is clearly NOT any kind of address (e.g. "I don't know", "not sure")
+- For landmarks/malls/area names, accept them as valid addresses — normalise capitalisation
+- "Ion orchard" → "Ion Orchard"` }]
+          });
+          const ap = JSON.parse(addrRes.choices[0]?.message?.content || "{}");
+          if (!ap.isAddress) {
+            await sendWhatsAppMessage(from, `What's the *destination address* for the move? 📍\n\n_e.g. Blk 123 Tampines Ave 3, or Ion Orchard, or 10 Orchard Road_`);
+            return;
+          }
+          if (ap.address) toAddress = ap.address;
+        } catch {
+          // Keep raw text if GPT fails
+        }
 
         // Compute route distance using OneMap geocode + OSRM
         let distanceKm: string | null = null;
