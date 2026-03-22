@@ -2129,6 +2129,49 @@ Respond with ONLY a JSON array (no prose, no markdown):
       }
 
       if (!session || isGreeting || textLower === "continue" && !session) {
+        // ── If this is an image with no caption, handle inline so we don't send
+        //    a duplicate welcome message when photo + text arrive simultaneously.
+        if (msgType === "image" && text.length < 5 && !session) {
+          await storage.upsertWhatsAppSession(from, {
+            state: "awaiting_name",
+            collectedName: null, collectedAddress: null, collectedItems: null,
+            previousItems: null, preferredDate: null, preferredDateIso: null,
+            preferredTimeWindow: null, isRelocation: false, collectedToAddress: null, distanceKm: null,
+          });
+          // Scan the photo and offer pricing, or ask the customer to name the item
+          let scannedItem0: string | null = null;
+          try {
+            if (msg.image?.id) {
+              const scanMedia0 = await downloadWhatsAppMedia(msg.image.id);
+              if (scanMedia0) {
+                const scanRes0 = await openai.chat.completions.create({
+                  model: "gpt-4o", max_tokens: 60,
+                  messages: [
+                    { role: "system", content: `Identify the main furniture item in this photo. Return ONLY the item name (e.g. "wardrobe", "queen bed frame"). If no furniture, return "NONE".` },
+                    { role: "user", content: [{ type: "image_url", image_url: { url: `data:${scanMedia0.mimeType};base64,${scanMedia0.base64}`, detail: "low" } }] as any },
+                  ],
+                });
+                const d0 = (scanRes0.choices[0]?.message?.content || "").trim();
+                if (d0 && d0 !== "NONE") scannedItem0 = d0;
+              }
+            }
+          } catch { /* token expired or network error */ }
+
+          if (scannedItem0) {
+            const priceMsg0 = await smartPricingLookup(scannedItem0);
+            if (priceMsg0) {
+              const r0 = `${priceMsg0}\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
+              await sendWhatsAppMessage(from, r0);
+              saveHistory(from, [], `[photo: ${scannedItem0}]`, r0);
+              return;
+            }
+          }
+          const askItem0 = `Spotted a photo! 📸 What item is it, and what service do you need?\n\n_e.g. "3-door wardrobe — installation" or "queen bed frame — dismantling"_`;
+          await sendWhatsAppMessage(from, askItem0);
+          saveHistory(from, [], "[photo]", askItem0);
+          return;
+        }
+
         // ── One-shot intake: try to extract name + address from the greeting ──
         let extractedName: string | null = null;
         let extractedAddress: string | null = null;
@@ -2507,6 +2550,7 @@ TMG INSTALL FACTS (for faq answers):
         let nameExtractedAddress: string | null = null;
         let nameIsPricing = false;
         let nameMentionedItem: string | null = null;
+        let nameMentionedService: string | null = null;
         try {
           const nameRes = await openai.chat.completions.create({
             model: "gpt-4o",
@@ -2521,15 +2565,20 @@ Return JSON:
   "name": string or null,
   "address": string or null,
   "isPricingQuestion": boolean,
-  "mentionedItem": string or null
+  "mentionedItem": string or null,
+  "mentionedService": "installation"|"dismantling"|"relocation"|"disposal"|null
 }
 Rules:
-- name: a real human personal name (e.g. "John", "Mary Tan", "Ahmad Rashid"). Null for questions, statements, greetings (hi/ok/yes/no), pricing queries, or furniture item names.
+- name: a real human personal name (e.g. "John", "Mary Tan", "Ahmad Rashid"). Null for questions, statements, greetings (hi/ok/yes/no), pricing queries, furniture item names, or service types.
 - address: Singapore address if mentioned alongside a name, otherwise null
-- isPricingQuestion: true if they asked about cost/price/"how much" OR if the previous bot message asked "what item would you like a price for?" and they replied with an item name
-- mentionedItem: specific furniture item name if pricing-related — even if not explicitly asking "how much" (e.g. "wardrobe", "PAX wardrobe", "3-door wardrobe", "queen bed frame", "dining table", "sofa"). Set this whenever the message is a furniture item name or type, not a person's name.
+- isPricingQuestion: true if they asked about cost/price/"how much" OR if the conversation history shows we asked for an item/service and they replied with a furniture item or service type
+- mentionedItem: specific furniture item name if pricing-related — even without explicit "how much" (e.g. "wardrobe", "PAX wardrobe", "3-door wardrobe", "queen bed frame", "dining table", "sofa"). Set when message is a furniture item name.
+- mentionedService: the service type if they specified one (installation/dismantling/relocation/disposal). Common patterns: "installation"→installation, "dismantle"→dismantling, "relocate"→relocation, "dispose"→disposal.
 
-Key: if the conversation history shows we asked them "what item would you like a price for?" and they reply with something like "wardrobe" or "IKEA PAX" — that IS a mentionedItem with isPricingQuestion=true, not a name.`,
+Key examples:
+- History: bot asked "what item would you like a price for?" → customer says "wardrobe" → mentionedItem="wardrobe", isPricingQuestion=true
+- History: bot asked "Spotted a photo! What item is it and what service?" → customer says "Installation" → mentionedService="installation", isPricingQuestion=true, mentionedItem=null
+- Customer says "wardrobe installation" → mentionedItem="wardrobe", mentionedService="installation", isPricingQuestion=true`,
               },
               ...historyMessages(conversationHistory, 4),
               { role: "user", content: text },
@@ -2540,10 +2589,27 @@ Key: if the conversation history shows we asked them "what item would you like a
           nameExtractedAddress = parsed.address || null;
           nameIsPricing = !!parsed.isPricingQuestion;
           nameMentionedItem = parsed.mentionedItem || null;
+          nameMentionedService = parsed.mentionedService || null;
         } catch {}
 
         // ── Not a name: handle pricing question or re-ask ──────────────────
         if (!extractedName) {
+          // Service-only reply (e.g. "Installation") — they gave service but not item
+          if (nameIsPricing && nameMentionedService && !nameMentionedItem) {
+            const svcLabel: Record<string, string> = {
+              installation: "installed", dismantling: "dismantled",
+              relocation: "relocated", disposal: "disposed of",
+            };
+            const verb = svcLabel[nameMentionedService] || nameMentionedService;
+            const askForItem =
+              `Got it — *${nameMentionedService}*! 🛠️\n\n` +
+              `Which *item* would you like ${verb}?\n\n` +
+              `_e.g. wardrobe, queen bed frame, dining table, sofa_`;
+            await sendWhatsAppMessage(from, askForItem);
+            saveHistory(from, conversationHistory, text, askForItem);
+            return;
+          }
+
           if (nameIsPricing) {
             // If caption had no item name but a photo was sent, scan the photo
             let itemForLookup = nameMentionedItem;
