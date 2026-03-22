@@ -109,12 +109,25 @@ function StaffBlockScreen() {
   );
 }
 
+const REMEMBER_KEY = "tmg_staff_remember";
+
+function loadRemembered(): { username: string; password: string } | null {
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Staff Login Form (native APK only) ───────────────────────────────────────
 function StaffLoginForm() {
   const { login, isLoggingIn } = useAuth();
   const [, setLocation] = useLocation();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const remembered = loadRemembered();
+  const [username, setUsername] = useState(remembered?.username ?? "");
+  const [password, setPassword] = useState(remembered?.password ?? "");
+  const [rememberMe, setRememberMe] = useState(!!remembered);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
@@ -127,6 +140,11 @@ function StaffLoginForm() {
     setError("");
     try {
       const user = await login({ username, password });
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username, password }));
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
       if (user.role === "admin") setLocation("/admin");
       else setLocation("/staff");
     } catch (err: any) {
@@ -185,6 +203,27 @@ function StaffLoginForm() {
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+
+          {/* Remember me */}
+          <button
+            type="button"
+            onClick={() => setRememberMe(v => !v)}
+            data-testid="button-remember-me"
+            className="flex items-center gap-3 w-full group"
+          >
+            <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+              rememberMe
+                ? "bg-blue-600 border-blue-600"
+                : "border-slate-200 bg-slate-50 group-active:border-blue-300"
+            }`}>
+              {rememberMe && (
+                <svg viewBox="0 0 12 10" fill="none" className="w-3 h-3">
+                  <path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </span>
+            <span className="text-[14px] text-slate-600 font-medium">Remember me</span>
+          </button>
 
           {error && (
             <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
