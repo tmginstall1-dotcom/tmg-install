@@ -325,6 +325,12 @@ export default function EstimateWizard() {
   const deposit = pricingResult.depositAmount;
   const finalAmt = pricingResult.finalAmount;
 
+  const MIN_JOB = 180;
+  const belowMinimum = items.length > 0 && total < MIN_JOB;
+  const effectiveTotal = belowMinimum ? MIN_JOB : total;
+  const effectiveDeposit = Math.round(effectiveTotal * 0.5 * 100) / 100;
+  const effectiveFinal = Math.round((effectiveTotal - effectiveDeposit) * 100) / 100;
+
   // ── Catalog add ───────────────────────────────────────────────────────────
 
   const addCatalogGroup = (group: CatalogGroup, qty: number = 1) => {
@@ -1139,8 +1145,17 @@ export default function EstimateWizard() {
                         </div>
                       )}
                       <div className="flex justify-between font-black text-base pt-1.5 border-t border-black/10 mt-2">
-                        <span className="uppercase tracking-[0.06em] text-sm">Estimated Total</span><span>${total.toFixed(2)}</span>
+                        <span className="uppercase tracking-[0.06em] text-sm">Estimated Total</span>
+                        <span>${effectiveTotal.toFixed(2)}</span>
                       </div>
+                      {belowMinimum && (
+                        <div data-testid="notice-minimum-charge" className="mt-3 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded px-3 py-2.5">
+                          <span className="text-amber-500 text-base leading-none mt-0.5">💡</span>
+                          <div className="text-xs text-amber-800 leading-relaxed">
+                            <span className="font-black">Minimum job price: $180.</span> Your items total ${total.toFixed(2)}, so a minimum charge of <strong>${(MIN_JOB - total).toFixed(2)}</strong> will be added — bringing your total to <strong>$180.00</strong>. This is our standard minimum for any job regardless of size.
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1317,10 +1332,18 @@ export default function EstimateWizard() {
                       )}
                       <div className="flex justify-between font-black text-base pt-2 border-t border-black/10">
                         <span className="uppercase tracking-[0.06em] text-sm">Grand Total</span>
-                        <span>${total.toFixed(2)}</span>
+                        <span>${effectiveTotal.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between text-black/45"><span>Deposit due now (50%)</span><span className="font-black">${deposit.toFixed(2)}</span></div>
-                      <div className="flex justify-between text-black/45"><span>Balance on completion (50%)</span><span>${finalAmt.toFixed(2)}</span></div>
+                      {belowMinimum && (
+                        <div data-testid="notice-minimum-charge-review" className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-1">
+                          <span className="text-amber-500 text-sm leading-none mt-0.5">💡</span>
+                          <p className="text-xs text-amber-800 leading-relaxed">
+                            <span className="font-black">Minimum job charge applied.</span> Your items total ${total.toFixed(2)} — a <strong>${(MIN_JOB - total).toFixed(2)} minimum charge</strong> has been added. All jobs start from $180.
+                          </p>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-black/45"><span>Deposit due now (50%)</span><span className="font-black">${effectiveDeposit.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-black/45"><span>Balance on completion (50%)</span><span>${effectiveFinal.toFixed(2)}</span></div>
                       {pricingResult.requiresAdminReview && (
                         <div className="mt-2 flex items-start gap-2 border border-black/10 bg-black/[0.015] px-3 py-2">
                           <AlertCircle className="w-4 h-4 text-black/40 shrink-0 mt-0.5" />
