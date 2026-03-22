@@ -266,7 +266,7 @@ export default function AdminConversations() {
   const showList = !selectedPhone;
 
   return (
-    <div className="flex h-[calc(100dvh-56px)] bg-[#F5F5F7] overflow-hidden lg:pl-56" data-testid="admin-conversations">
+    <div className="flex mt-14 h-[calc(100dvh-56px)] bg-[#F5F5F7] overflow-hidden lg:pl-56" data-testid="admin-conversations">
 
       {/* ═══ LEFT: Conversation List ══════════════════════════════════════ */}
       <div className={`
@@ -409,47 +409,50 @@ export default function AdminConversations() {
 
           {/* Thread Header */}
           <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
-            {/* Mobile back */}
-            <div className="flex lg:hidden items-center gap-2 px-3 pt-3 pb-1">
+            {/* Single combined row — back arrow on mobile, avatar on desktop */}
+            <div className="flex items-center gap-2 px-3 sm:px-4 py-3">
+
+              {/* Back arrow — mobile only */}
               <button
                 onClick={() => setSelectedPhone(null)}
                 data-testid="back-to-list"
-                className="flex items-center gap-1.5 text-blue-600 font-semibold text-sm active:opacity-70 py-1 pr-2"
+                className="lg:hidden flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-blue-600 transition-all -ml-1"
               >
-                <ArrowLeft className="w-4 h-4" />
-                Back to chats
+                <ArrowLeft className="w-5 h-5" />
               </button>
-            </div>
 
-            {/* Contact row */}
-            <div className="flex items-center gap-3 px-4 py-3">
-              <div className="hidden lg:block">
+              {/* Avatar — desktop only */}
+              <div className="hidden lg:block flex-shrink-0">
                 <Avatar name={selectedConvo?.name ?? null} phone={selectedPhone} size="sm" />
               </div>
+
+              {/* Name + state + phone */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-bold text-gray-900">
+                  <p className="text-sm font-bold text-gray-900 truncate">
                     {selectedConvo?.name || formatPhone(selectedPhone)}
                   </p>
                   {selectedConvo?.state && (
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getState(selectedConvo.state).color} ${getState(selectedConvo.state).bg}`}>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border flex-shrink-0 ${getState(selectedConvo.state).color} ${getState(selectedConvo.state).bg}`}>
                       {getState(selectedConvo.state).label}
                     </span>
                   )}
                 </div>
-                {selectedConvo?.name && (
-                  <p className="text-[11px] text-gray-400 font-mono mt-0.5">{formatPhone(selectedPhone)}</p>
-                )}
+                <p className="text-[11px] text-gray-400 font-mono mt-0.5 truncate">
+                  {selectedConvo?.name ? formatPhone(selectedPhone) : "WhatsApp"}
+                </p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+
+              {/* Actions */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
                 <a
                   href={`https://wa.me/${selectedPhone}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] text-xs font-semibold hover:bg-[#25D366]/20 transition-all"
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/20 transition-all sm:w-auto sm:px-3 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
                   data-testid="open-whatsapp"
                 >
-                  <Phone className="w-3 h-3" />
+                  <Phone className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">WhatsApp</span>
                 </a>
                 {session && (
