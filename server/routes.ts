@@ -22,6 +22,9 @@ import {
 } from "./email";
 import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
 import { calcTransportFee, PricingConfig } from "@shared/pricing";
+import { db } from "./db";
+import { appSettings } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
@@ -4265,6 +4268,33 @@ Respond directly — no JSON, just the message text.`,
       console.error("[Admin] Failed to update WhatsApp token:", err);
       res.status(500).json({ message: "Failed to update token" });
     }
+  });
+
+  // ── App version management (OTA update check) ────────────────────────────
+  app.get("/api/app-version", async (_req, res) => {
+    try {
+      const [vRow, uRow] = await Promise.all([
+        db.select().from(appSettings).where(eq(appSettings.key, "app_latest_version")).limit(1),
+        db.select().from(appSettings).where(eq(appSettings.key, "app_apk_url")).limit(1),
+      ]);
+      res.json({
+        version: vRow[0]?.value ?? "1.1",
+        apkUrl: uRow[0]?.value ?? "https://github.com/tmginstall1-dotcom/tmg-install/releases/download/latest-build/tmg-install.apk",
+      });
+    } catch {
+      res.json({ version: "1.1", apkUrl: "https://github.com/tmginstall1-dotcom/tmg-install/releases/download/latest-build/tmg-install.apk" });
+    }
+  });
+
+  app.post("/api/admin/settings/app-version", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const { version, apkUrl } = req.body as { version?: string; apkUrl?: string };
+    if (!version || !apkUrl) return res.status(400).json({ message: "version and apkUrl required" });
+    await db.insert(appSettings).values({ key: "app_latest_version", value: version }).onConflictDoUpdate({ target: appSettings.key, set: { value: version } });
+    await db.insert(appSettings).values({ key: "app_apk_url", value: apkUrl }).onConflictDoUpdate({ target: appSettings.key, set: { value: apkUrl } });
+    res.json({ message: "App version updated" });
   });
 
   return httpServer;

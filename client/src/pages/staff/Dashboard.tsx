@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   MapPin, CalendarDays, ChevronRight, Phone, MessageCircle,
   Clock, Timer, CheckCircle2, Wifi, WifiOff,
-  Package, TrendingUp, AlertTriangle, RefreshCw, Radio, CloudOff,
+  Package, TrendingUp, AlertTriangle, RefreshCw, Radio, CloudOff, Download,
 } from "lucide-react";
 import { useOfflineBanner, useWithOfflineCache } from "@/hooks/use-offline-cache";
 import { format, isToday, differenceInMinutes, startOfWeek } from "date-fns";
@@ -13,6 +13,33 @@ import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useBackgroundLocation } from "@/hooks/use-background-location";
+import { Capacitor } from "@capacitor/core";
+
+function useAppUpdateCheck() {
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [apkUrl, setApkUrl] = useState("");
+  const [latestVersion, setLatestVersion] = useState("");
+
+  const { data: versionInfo } = useQuery<{ version: string; apkUrl: string }>({
+    queryKey: ["/api/app-version"],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!versionInfo || !Capacitor.isNativePlatform()) return;
+    import("@capacitor/app").then(({ App }) => {
+      App.getInfo().then((info) => {
+        if (info.version !== versionInfo.version) {
+          setUpdateAvailable(true);
+          setApkUrl(versionInfo.apkUrl);
+          setLatestVersion(versionInfo.version);
+        }
+      }).catch(() => {});
+    }).catch(() => {});
+  }, [versionInfo]);
+
+  return { updateAvailable, apkUrl, latestVersion };
+}
 
 function fmtHHMMSS(secs: number) {
   if (secs < 0) secs = 0;
@@ -32,6 +59,7 @@ export default function StaffDashboard() {
   const { user } = useAuth();
   const { isTracking, startTracking } = useBackgroundLocation();
   const { showBanner, isOnline } = useOfflineBanner();
+  const { updateAvailable, apkUrl, latestVersion } = useAppUpdateCheck();
 
   const { data: rawQuotes, isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/quotes"],
@@ -118,6 +146,25 @@ export default function StaffDashboard() {
           ) : (
             <><CloudOff className="w-3 h-3" /> Offline — showing cached data</>
           )}
+        </div>
+      )}
+
+      {/* App update banner */}
+      {updateAvailable && (
+        <div className="fixed bottom-20 inset-x-0 z-50 px-4">
+          <a
+            href={apkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="banner-app-update"
+            className="flex items-center gap-3 bg-blue-600 text-white rounded-xl px-4 py-3 shadow-lg"
+          >
+            <Download className="w-5 h-5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold">Update available — v{latestVersion}</div>
+              <div className="text-xs text-blue-200">Tap to download and install</div>
+            </div>
+          </a>
         </div>
       )}
 

@@ -1,16 +1,23 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, MessageSquare, RefreshCw } from "lucide-react";
+import { CheckCircle, MessageSquare, RefreshCw, Smartphone } from "lucide-react";
 
 export default function AdminSettings() {
   const { toast } = useToast();
   const [token, setToken] = useState("");
+  const [newVersion, setNewVersion] = useState("");
+  const [apkUrl, setApkUrl] = useState("");
+
+  const { data: currentAppVersion } = useQuery<{ version: string; apkUrl: string }>({
+    queryKey: ["/api/app-version"],
+  });
 
   const updateToken = useMutation({
     mutationFn: () =>
@@ -21,6 +28,19 @@ export default function AdminSettings() {
     },
     onError: (err: any) => {
       toast({ title: "Failed to update token", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateAppVersion = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", "/api/admin/settings/app-version", { version: newVersion.trim(), apkUrl: apkUrl.trim() }),
+    onSuccess: () => {
+      toast({ title: "App version updated", description: `Staff will be prompted to update to v${newVersion}.` });
+      setNewVersion("");
+      setApkUrl("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to update version", description: err.message, variant: "destructive" });
     },
   });
 
@@ -74,6 +94,72 @@ export default function AdminSettings() {
               <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Updating…</>
             ) : (
               <><CheckCircle className="h-4 w-4 mr-2" /> Update Token</>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Smartphone className="h-5 w-5 text-blue-600" />
+            Staff App Version
+          </CardTitle>
+          <CardDescription>
+            When you publish a new APK build, set the version here. Staff will see an update prompt
+            inside the app and can install it with one tap.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {currentAppVersion && (
+            <div className="bg-gray-50 dark:bg-gray-900 border rounded-md p-3 text-sm space-y-1">
+              <div><span className="text-gray-500">Current latest:</span> <strong>v{currentAppVersion.version}</strong></div>
+              <div className="text-xs text-gray-400 break-all">{currentAppVersion.apkUrl}</div>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <Label htmlFor="app-version">New Version Number</Label>
+            <Input
+              id="app-version"
+              data-testid="input-app-version"
+              placeholder="e.g. 1.2"
+              value={newVersion}
+              onChange={(e) => setNewVersion(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="apk-url">APK Download URL</Label>
+            <Input
+              id="apk-url"
+              data-testid="input-apk-url"
+              placeholder="https://github.com/.../tmg-install.apk"
+              value={apkUrl}
+              onChange={(e) => setApkUrl(e.target.value)}
+            />
+          </div>
+
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-3 text-sm text-blue-800 dark:text-blue-200">
+            <strong>Where to get the APK URL:</strong>
+            <ol className="list-decimal ml-4 mt-1 space-y-1">
+              <li>Go to <strong>github.com/tmginstall1-dotcom/tmg-install/releases</strong></li>
+              <li>Find the latest release build</li>
+              <li>Right-click <strong>tmg-install.apk</strong> → Copy link address</li>
+              <li>Paste the URL above</li>
+            </ol>
+          </div>
+
+          <Button
+            data-testid="button-update-app-version"
+            onClick={() => updateAppVersion.mutate()}
+            disabled={updateAppVersion.isPending || !newVersion.trim() || !apkUrl.trim()}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {updateAppVersion.isPending ? (
+              <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Updating…</>
+            ) : (
+              <><CheckCircle className="h-4 w-4 mr-2" /> Publish Update</>
             )}
           </Button>
         </CardContent>
