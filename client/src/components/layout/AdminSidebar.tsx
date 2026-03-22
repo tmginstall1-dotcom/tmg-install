@@ -51,32 +51,31 @@ export function AdminSidebar() {
     {
       title: "Operations",
       items: [
-        { href: "/admin",                icon: LayoutDashboard, label: "Dashboard",     badge: newCount + urgentPayment },
-        { href: "/admin/schedule",       icon: Calendar,        label: "Schedule",      badge: scheduleCount },
-        { href: "/admin/conversations",  icon: MessageCircle,   label: "WhatsApp",      badge: waBadge },
+        { href: "/admin",                icon: LayoutDashboard, label: "Dashboard",  badge: newCount + urgentPayment },
+        { href: "/admin/schedule",       icon: Calendar,        label: "Schedule",   badge: scheduleCount },
+        { href: "/admin/conversations",  icon: MessageCircle,   label: "WhatsApp",   badge: waBadge },
       ],
     },
     {
       title: "Management",
       items: [
-        { href: "/admin/staff",     icon: Users,           label: "Staff & HR", badge: staffBadge },
-        { href: "/admin/analytics", icon: BarChart2,       label: "Analytics",  badge: 0 },
-        { href: "/admin/export",    icon: FileDown,        label: "Export",     badge: 0 },
-        { href: "/admin/settings",  icon: Settings,        label: "Settings",   badge: 0 },
+        { href: "/admin/staff",     icon: Users,     label: "Staff & HR", badge: staffBadge },
+        { href: "/admin/analytics", icon: BarChart2, label: "Analytics",  badge: 0 },
+        { href: "/admin/export",    icon: FileDown,  label: "Export",     badge: 0 },
+        { href: "/admin/settings",  icon: Settings,  label: "Settings",   badge: 0 },
       ],
     },
   ];
 
   return (
     <aside
-      className="hidden lg:flex fixed top-14 left-0 bottom-0 w-56 z-40 flex-col bg-slate-950 border-r border-white/[0.06]"
+      className="hidden lg:flex fixed top-14 left-0 bottom-0 w-56 z-40 flex-col bg-white border-r border-gray-200"
       data-testid="admin-sidebar"
     >
-      {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto px-2 py-5 space-y-5">
+      <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
         {navSections.map(section => (
           <div key={section.title}>
-            <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.28em] px-3 pb-2">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-[0.18em] px-3 pb-2">
               {section.title}
             </p>
             <div className="space-y-0.5">
@@ -86,25 +85,23 @@ export function AdminSidebar() {
                   <Link key={href} href={href}>
                     <div
                       data-testid={`sidebar-nav-${label.toLowerCase().replace(/[\s&]+/g, "_")}`}
-                      className={`relative flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all group ${
+                      className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all group ${
                         active
-                          ? "bg-white/10 text-white"
-                          : "text-white/35 hover:text-white/75 hover:bg-white/[0.05]"
+                          ? "bg-blue-50 text-blue-600"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                       }`}
                     >
                       {active && (
-                        <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] bg-white rounded-r-full" />
+                        <span className="absolute left-0 top-2 bottom-2 w-[3px] bg-blue-500 rounded-r-full" />
                       )}
-                      <Icon
-                        className={`w-4 h-4 shrink-0 transition-colors ${
-                          active ? "text-white" : "text-white/35 group-hover:text-white/75"
-                        }`}
-                      />
-                      <span className="flex-1 text-[11px] font-black uppercase tracking-[0.08em] leading-none">
+                      <Icon className={`w-4 h-4 shrink-0 ${active ? "text-blue-500" : "text-gray-400 group-hover:text-gray-600"}`} />
+                      <span className={`flex-1 text-sm font-medium leading-none ${active ? "font-semibold" : ""}`}>
                         {label}
                       </span>
                       {badge > 0 && (
-                        <span className="min-w-[20px] h-[18px] px-1.5 bg-orange-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
+                        <span className={`min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                          active ? "bg-blue-500 text-white" : "bg-red-500 text-white"
+                        }`}>
                           {badge > 99 ? "99+" : badge}
                         </span>
                       )}
@@ -117,20 +114,19 @@ export function AdminSidebar() {
         ))}
       </nav>
 
-      {/* Bottom — user info + logout */}
-      <div className="border-t border-white/[0.06] p-2.5 space-y-0.5">
-        <div className="flex items-center gap-2.5 px-2.5 py-2">
+      <div className="border-t border-gray-100 p-3">
+        <div className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl bg-gray-50 mb-1">
           <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-black shrink-0"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0"
             style={{ backgroundColor: bgColor }}
           >
             {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold text-white/80 truncate leading-tight">{user?.name}</p>
+            <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{user?.name}</p>
             <div className="flex items-center gap-1 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
-              <span className="text-[9px] text-emerald-400/70 font-bold uppercase tracking-[0.1em]">Online</span>
+              <span className="text-[10px] text-emerald-600 font-medium">Online</span>
             </div>
           </div>
         </div>
@@ -140,10 +136,10 @@ export function AdminSidebar() {
             window.location.replace("/admin/login");
           }}
           data-testid="sidebar-signout"
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-white/25 hover:text-red-400 hover:bg-red-400/[0.06] transition-colors rounded-sm"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" />
-          Sign Out
+          Sign out
         </button>
       </div>
     </aside>

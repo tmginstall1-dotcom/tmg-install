@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  MessageCircle, Send, Phone, RefreshCw, User, Bot, ChevronLeft,
-  Search, X, ExternalLink, MapPin, Package, Calendar,
-  Building2, Layers, CheckCheck, Zap, ArrowLeft,
+  MessageCircle, Send, Phone, RefreshCw, User, Bot, Search, X,
+  ExternalLink, MapPin, Package, Calendar, Building2, Layers,
+  CheckCheck, Zap, ArrowLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Conversation = {
   phone: string;
@@ -39,28 +39,28 @@ type ThreadData = {
   session: any;
 };
 
-// ── State config ──────────────────────────────────────────────────────────────
+// ── State config ───────────────────────────────────────────────────────────────
 
-const STATE_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  awaiting_name:         { label: "Getting name",    color: "text-sky-400",     dot: "bg-sky-400" },
-  awaiting_address:      { label: "Getting address", color: "text-sky-400",     dot: "bg-sky-400" },
-  awaiting_items:        { label: "Listing items",   color: "text-violet-400",  dot: "bg-violet-400" },
-  awaiting_items_verify: { label: "Verifying items", color: "text-violet-400",  dot: "bg-violet-400" },
-  awaiting_service_type: { label: "Service type",    color: "text-amber-400",   dot: "bg-amber-400" },
-  awaiting_floor:        { label: "Floor details",   color: "text-amber-400",   dot: "bg-amber-400" },
-  awaiting_access:       { label: "Access info",     color: "text-amber-400",   dot: "bg-amber-400" },
-  awaiting_to_address:   { label: "Destination",     color: "text-amber-400",   dot: "bg-amber-400" },
-  awaiting_date:         { label: "Choosing date",   color: "text-orange-400",  dot: "bg-orange-400" },
-  awaiting_confirmation: { label: "Confirming",      color: "text-yellow-400",  dot: "bg-yellow-400" },
-  submitted:             { label: "Submitted ✓",     color: "text-emerald-400", dot: "bg-emerald-400" },
+const STATE_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+  awaiting_name:         { label: "Getting name",    color: "text-sky-600",     bg: "bg-sky-50 border-sky-200",     dot: "bg-sky-500" },
+  awaiting_address:      { label: "Getting address", color: "text-sky-600",     bg: "bg-sky-50 border-sky-200",     dot: "bg-sky-500" },
+  awaiting_items:        { label: "Listing items",   color: "text-violet-600",  bg: "bg-violet-50 border-violet-200", dot: "bg-violet-500" },
+  awaiting_items_verify: { label: "Verifying items", color: "text-violet-600",  bg: "bg-violet-50 border-violet-200", dot: "bg-violet-500" },
+  awaiting_service_type: { label: "Service type",    color: "text-amber-600",   bg: "bg-amber-50 border-amber-200", dot: "bg-amber-500" },
+  awaiting_floor:        { label: "Floor details",   color: "text-amber-600",   bg: "bg-amber-50 border-amber-200", dot: "bg-amber-500" },
+  awaiting_access:       { label: "Access info",     color: "text-amber-600",   bg: "bg-amber-50 border-amber-200", dot: "bg-amber-500" },
+  awaiting_to_address:   { label: "Destination",     color: "text-amber-600",   bg: "bg-amber-50 border-amber-200", dot: "bg-amber-500" },
+  awaiting_date:         { label: "Choosing date",   color: "text-orange-600",  bg: "bg-orange-50 border-orange-200", dot: "bg-orange-500" },
+  awaiting_confirmation: { label: "Confirming",      color: "text-yellow-700",  bg: "bg-yellow-50 border-yellow-200", dot: "bg-yellow-500" },
+  submitted:             { label: "Submitted ✓",     color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
 };
 
-function getStateConfig(state: string | null) {
-  if (!state) return { label: "No session", color: "text-white/40", dot: "bg-white/20" };
-  return STATE_CONFIG[state] || { label: state.replace(/_/g, " "), color: "text-white/50", dot: "bg-white/20" };
+function getState(state: string | null) {
+  if (!state) return { label: "No session", color: "text-gray-400", bg: "bg-gray-50 border-gray-200", dot: "bg-gray-300" };
+  return STATE_CONFIG[state] || { label: state.replace(/_/g, " "), color: "text-gray-500", bg: "bg-gray-50 border-gray-200", dot: "bg-gray-400" };
 }
 
-// ── Formatting ────────────────────────────────────────────────────────────────
+// ── Formatting ─────────────────────────────────────────────────────────────────
 
 function formatPhone(phone: string) {
   if (phone.startsWith("65") && phone.length >= 10)
@@ -71,7 +71,7 @@ function formatPhone(phone: string) {
 function relativeTime(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
+  if (mins < 1) return "Now";
   if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h`;
@@ -94,17 +94,17 @@ function formatDateHeader(dateStr: string) {
   return d.toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "long" });
 }
 
-// ── Avatar ────────────────────────────────────────────────────────────────────
+// ── Avatar ─────────────────────────────────────────────────────────────────────
 
 const PALETTES = [
-  "from-violet-500 to-purple-700",
-  "from-sky-500 to-blue-700",
-  "from-emerald-500 to-teal-700",
-  "from-amber-500 to-orange-600",
-  "from-pink-500 to-rose-700",
-  "from-indigo-500 to-blue-700",
-  "from-teal-500 to-cyan-700",
-  "from-fuchsia-500 to-pink-700",
+  "from-violet-400 to-purple-600",
+  "from-sky-400 to-blue-600",
+  "from-emerald-400 to-teal-600",
+  "from-amber-400 to-orange-500",
+  "from-pink-400 to-rose-600",
+  "from-indigo-400 to-blue-600",
+  "from-teal-400 to-cyan-600",
+  "from-fuchsia-400 to-pink-600",
 ];
 
 function avatarGradient(phone: string) {
@@ -130,7 +130,7 @@ function Avatar({ name, phone, size = "md" }: { name: string | null; phone: stri
   );
 }
 
-// ── Quick replies ─────────────────────────────────────────────────────────────
+// ── Quick replies ──────────────────────────────────────────────────────────────
 
 const QUICK_REPLIES = [
   "Hi! We have received your request and will get back to you shortly 😊",
@@ -140,36 +140,43 @@ const QUICK_REPLIES = [
   "Thank you for choosing TMG Install! 🙏 Our team will be in touch soon.",
 ];
 
-// ── Skeletons ─────────────────────────────────────────────────────────────────
+// ── Skeletons ──────────────────────────────────────────────────────────────────
 
 function ConvoSkeleton() {
   return (
-    <div className="px-4 py-4 border-b border-white/[0.06] animate-pulse">
+    <div className="px-4 py-3.5 border-b border-gray-100 animate-pulse">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-white/[0.08] flex-shrink-0" />
+        <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0" />
         <div className="flex-1 space-y-2 pt-1">
           <div className="flex justify-between">
-            <div className="h-3.5 bg-white/[0.1] rounded w-28" />
-            <div className="h-2.5 bg-white/[0.07] rounded w-8" />
+            <div className="h-3.5 bg-gray-200 rounded w-28" />
+            <div className="h-2.5 bg-gray-100 rounded w-8" />
           </div>
-          <div className="h-2.5 bg-white/[0.07] rounded w-44" />
-          <div className="h-2.5 bg-white/[0.05] rounded w-20" />
+          <div className="h-2.5 bg-gray-100 rounded w-44" />
+          <div className="h-2.5 bg-gray-100 rounded w-20" />
         </div>
       </div>
     </div>
   );
 }
 
-function MsgSkeleton({ right = false }: { right?: boolean }) {
+// ── InfoRow ────────────────────────────────────────────────────────────────────
+
+function InfoRow({ icon, label, value, multiline = false }: {
+  icon: React.ReactNode; label: string; value: string; multiline?: boolean;
+}) {
   return (
-    <div className={`flex ${right ? "justify-end" : "justify-start"} mb-2 animate-pulse`}>
-      {!right && <div className="w-8 h-8 rounded-full bg-white/[0.08] mr-2 mt-1 flex-shrink-0" />}
-      <div className={`rounded-2xl bg-white/[0.08] ${right ? "w-52 h-12" : "w-60 h-14"}`} />
+    <div className="bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200">
+      <div className="flex items-center gap-1.5 mb-1 text-gray-400">
+        {icon}
+        <span className="text-[9px] uppercase tracking-wider font-semibold">{label}</span>
+      </div>
+      <p className={`text-xs text-gray-700 leading-relaxed ${multiline ? "whitespace-pre-line" : "truncate"}`}>{value}</p>
     </div>
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function AdminConversations() {
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
@@ -179,7 +186,6 @@ export default function AdminConversations() {
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -228,15 +234,12 @@ export default function AdminConversations() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
   const selectedConvo = convos.find(c => c.phone === selectedPhone);
+  const totalUnread = convos.reduce((s, c) => s + c.unreadCount, 0);
 
-  // Filter conversations
   const filteredConvos = convos.filter(c => {
     const q = search.toLowerCase();
     const matchSearch = !q || [c.name, c.phone, c.lastMessage].some(v => v?.toLowerCase().includes(q));
@@ -247,8 +250,6 @@ export default function AdminConversations() {
       true;
     return matchSearch && matchFilter;
   });
-
-  const totalUnread = convos.reduce((s, c) => s + c.unreadCount, 0);
 
   // Group messages by date
   const grouped: { date: string; messages: WaMessage[] }[] = [];
@@ -262,40 +263,34 @@ export default function AdminConversations() {
   }
 
   const session = thread?.session;
-
-  // ── Render ─────────────────────────────────────────────────────────────────
-
-  // Mobile: show list OR chat (never both)
   const showList = !selectedPhone;
-  const showChat = !!selectedPhone;
 
   return (
-    <div className="flex h-[calc(100dvh-56px)] bg-[#0d1117] overflow-hidden" data-testid="admin-conversations">
+    <div className="flex h-[calc(100dvh-56px)] bg-[#F5F5F7] overflow-hidden" data-testid="admin-conversations">
 
-      {/* ═══ LEFT: Conversation List ═══════════════════════════════════════ */}
+      {/* ═══ LEFT: Conversation List ══════════════════════════════════════ */}
       <div className={`
         ${showList ? "flex" : "hidden"} lg:flex
         flex-col w-full lg:w-[300px] xl:w-[340px] flex-shrink-0
-        border-r border-white/[0.08] bg-[#0d1117]
+        border-r border-gray-200 bg-white
       `}>
         {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-white/[0.08] bg-[#0d1117]">
+        <div className="px-4 pt-4 pb-3 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-[#25D366]/20 border border-[#25D366]/30 flex items-center justify-center">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center">
                 <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
               </div>
-              <span className="text-sm font-bold text-white">WhatsApp Inbox</span>
+              <span className="text-sm font-semibold text-gray-900">WhatsApp</span>
               {totalUnread > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-[#25D366] text-white text-[10px] font-black leading-none min-w-[20px] text-center">
+                <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold min-w-[20px] text-center">
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </span>
               )}
             </div>
             <button
               onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] })}
-              className="w-8 h-8 rounded-lg hover:bg-white/[0.08] flex items-center justify-center text-white/50 hover:text-white transition-all"
-              title="Refresh"
+              className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-all"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -303,32 +298,30 @@ export default function AdminConversations() {
 
           {/* Search */}
           <div className="relative mb-2.5">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search name, phone or message…"
-              className="w-full bg-white/[0.07] border border-white/[0.1] rounded-lg text-xs text-white placeholder:text-white/35 pl-8 pr-8 py-2.5 focus:outline-none focus:border-white/25 focus:bg-white/[0.09] transition-all"
+              placeholder="Search conversations…"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 pl-8 pr-7 py-2 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
               data-testid="search-conversations"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white">
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <X className="w-3 h-3" />
               </button>
             )}
           </div>
 
           {/* Filter Tabs */}
-          <div className="flex gap-1">
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
             {(["all", "unread", "active", "submitted"] as const).map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`flex-1 text-[10px] font-semibold py-1.5 rounded-md capitalize transition-all ${
-                  filter === f
-                    ? "bg-white/[0.12] text-white border border-white/[0.15]"
-                    : "text-white/45 hover:text-white/70 hover:bg-white/[0.06]"
+                className={`flex-1 text-[10px] font-semibold py-1 rounded-lg capitalize transition-all ${
+                  filter === f ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                 }`}
                 data-testid={`filter-${f}`}
               >
@@ -338,28 +331,23 @@ export default function AdminConversations() {
           </div>
         </div>
 
-        {/* Conversation list */}
+        {/* List */}
         <div className="flex-1 overflow-y-auto overscroll-contain">
           {loadingConvos && [0,1,2,3].map(i => <ConvoSkeleton key={i} />)}
 
           {!loadingConvos && filteredConvos.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 gap-3 px-6 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center">
-                <MessageCircle className="w-7 h-7 text-white/25" />
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
+                <MessageCircle className="w-7 h-7 text-gray-300" />
               </div>
-              <div>
-                <p className="text-sm font-semibold text-white/50">
-                  {search ? "No results found" : filter !== "all" ? `No ${filter} conversations` : "No conversations yet"}
-                </p>
-                {!search && filter === "all" && (
-                  <p className="text-xs text-white/30 mt-1">Messages appear here when customers chat with the bot</p>
-                )}
-              </div>
+              <p className="text-sm font-medium text-gray-400">
+                {search ? "No results found" : filter !== "all" ? `No ${filter} conversations` : "No conversations yet"}
+              </p>
             </div>
           )}
 
           {filteredConvos.map(convo => {
-            const sc = getStateConfig(convo.state);
+            const sc = getState(convo.state);
             const isSelected = selectedPhone === convo.phone;
             const hasUnread = convo.unreadCount > 0;
             return (
@@ -367,36 +355,38 @@ export default function AdminConversations() {
                 key={convo.phone}
                 onClick={() => setSelectedPhone(convo.phone)}
                 data-testid={`convo-${convo.phone}`}
-                className={`w-full text-left px-4 py-4 transition-all border-b border-white/[0.05] ${
+                className={`w-full text-left px-4 py-3.5 transition-all border-b border-gray-100 ${
                   isSelected
-                    ? "bg-[#25D366]/[0.1] border-l-[3px] border-l-[#25D366] pl-[13px]"
-                    : "hover:bg-white/[0.04] border-l-[3px] border-l-transparent"
+                    ? "bg-blue-50 border-l-[3px] border-l-blue-500 pl-[13px]"
+                    : "hover:bg-gray-50 border-l-[3px] border-l-transparent"
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div className="relative flex-shrink-0 mt-0.5">
                     <Avatar name={convo.name} phone={convo.phone} size="md" />
-                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0d1117] ${sc.dot}`} />
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${sc.dot}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <span className={`text-sm leading-tight truncate ${hasUnread ? "font-bold text-white" : "font-semibold text-white/85"}`}>
+                      <span className={`text-sm leading-tight truncate ${hasUnread ? "font-bold text-gray-900" : "font-medium text-gray-800"}`}>
                         {convo.name || formatPhone(convo.phone)}
                       </span>
-                      <span className="text-[10px] text-white/40 flex-shrink-0 tabular-nums font-medium">
+                      <span className="text-[10px] text-gray-400 flex-shrink-0 tabular-nums">
                         {relativeTime(convo.lastAt)}
                       </span>
                     </div>
                     {convo.name && (
-                      <p className="text-[11px] text-white/45 mb-0.5 font-mono">{formatPhone(convo.phone)}</p>
+                      <p className="text-[11px] text-gray-400 mb-0.5 font-mono">{formatPhone(convo.phone)}</p>
                     )}
-                    <p className={`text-xs truncate leading-snug ${hasUnread ? "text-white/75 font-medium" : "text-white/45"}`}>
+                    <p className={`text-xs truncate leading-snug ${hasUnread ? "text-gray-700 font-medium" : "text-gray-400"}`}>
                       {convo.lastMessage}
                     </p>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className={`text-[10px] font-semibold ${sc.color}`}>{sc.label}</span>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${sc.color} ${sc.bg}`}>
+                        {sc.label}
+                      </span>
                       {hasUnread && (
-                        <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#25D366] text-white text-[10px] font-black flex items-center justify-center">
+                        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                           {convo.unreadCount > 9 ? "9+" : convo.unreadCount}
                         </span>
                       )}
@@ -408,58 +398,55 @@ export default function AdminConversations() {
           })}
         </div>
 
-        {/* Footer */}
-        <div className="px-4 py-2.5 border-t border-white/[0.06] bg-[#0d1117]">
-          <p className="text-[10px] text-white/30 font-medium">
-            {convos.length} conversation{convos.length !== 1 ? "s" : ""} · auto-refreshes
-          </p>
+        <div className="px-4 py-2 border-t border-gray-100">
+          <p className="text-[10px] text-gray-400">{convos.length} conversation{convos.length !== 1 ? "s" : ""} · auto-refreshes</p>
         </div>
       </div>
 
-      {/* ═══ CENTER: Message Thread ════════════════════════════════════════ */}
-      {showChat && (
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      {/* ═══ CENTER: Message Thread ═══════════════════════════════════════ */}
+      {selectedPhone && (
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
 
-          {/* ── Thread Header — prominent, always visible ── */}
-          <div className="flex-shrink-0 bg-[#161b22] border-b-2 border-white/[0.1] shadow-lg">
-            {/* Mobile back row */}
+          {/* Thread Header */}
+          <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
+            {/* Mobile back */}
             <div className="flex lg:hidden items-center gap-2 px-3 pt-3 pb-1">
               <button
                 onClick={() => setSelectedPhone(null)}
                 data-testid="back-to-list"
-                className="flex items-center gap-1.5 text-[#25D366] font-semibold text-sm active:opacity-70 py-1 pr-2"
+                className="flex items-center gap-1.5 text-blue-600 font-semibold text-sm active:opacity-70 py-1 pr-2"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Back to chats</span>
+                Back to chats
               </button>
             </div>
 
-            {/* Contact info row */}
+            {/* Contact row */}
             <div className="flex items-center gap-3 px-4 py-3">
               <div className="hidden lg:block">
                 <Avatar name={selectedConvo?.name ?? null} phone={selectedPhone} size="sm" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-bold text-white leading-tight">
+                  <p className="text-sm font-bold text-gray-900">
                     {selectedConvo?.name || formatPhone(selectedPhone)}
                   </p>
                   {selectedConvo?.state && (
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/[0.08] border border-white/[0.12] ${getStateConfig(selectedConvo.state).color}`}>
-                      {getStateConfig(selectedConvo.state).label}
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getState(selectedConvo.state).color} ${getState(selectedConvo.state).bg}`}>
+                      {getState(selectedConvo.state).label}
                     </span>
                   )}
                 </div>
                 {selectedConvo?.name && (
-                  <p className="text-[11px] text-white/50 font-mono mt-0.5">{formatPhone(selectedPhone)}</p>
+                  <p className="text-[11px] text-gray-400 font-mono mt-0.5">{formatPhone(selectedPhone)}</p>
                 )}
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <a
                   href={`https://wa.me/${selectedPhone}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366]/15 border border-[#25D366]/30 text-[#25D366] text-xs font-semibold hover:bg-[#25D366]/25 transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] text-xs font-semibold hover:bg-[#25D366]/20 transition-all"
                   data-testid="open-whatsapp"
                 >
                   <Phone className="w-3 h-3" />
@@ -468,10 +455,8 @@ export default function AdminConversations() {
                 {session && (
                   <button
                     onClick={() => setShowInfo(!showInfo)}
-                    className={`hidden xl:flex px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                      showInfo
-                        ? "bg-white/[0.12] border-white/[0.2] text-white"
-                        : "bg-white/[0.05] border-white/[0.1] text-white/60 hover:text-white hover:bg-white/[0.09]"
+                    className={`hidden xl:flex px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                      showInfo ? "bg-gray-900 text-white border-gray-900" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
                     }`}
                   >
                     Info
@@ -481,24 +466,22 @@ export default function AdminConversations() {
             </div>
           </div>
 
-          {/* ── Messages ── */}
+          {/* Messages */}
           <div
-            ref={scrollRef}
-            className="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-5 py-4"
-            style={{ background: "linear-gradient(to bottom, #0a0f1a, #0d1117)" }}
+            className="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-5 py-4 bg-[#F5F5F7]"
           >
             {loadingThread && (
-              <div className="space-y-4 py-2">
-                <MsgSkeleton />
-                <MsgSkeleton right />
-                <MsgSkeleton />
-                <MsgSkeleton right />
-                <MsgSkeleton />
+              <div className="space-y-4 py-2 animate-pulse">
+                {[false, true, false, true, false].map((r, i) => (
+                  <div key={i} className={`flex ${r ? "justify-end" : "justify-start"}`}>
+                    <div className={`rounded-2xl bg-gray-200 ${r ? "w-52 h-12" : "w-60 h-14"}`} />
+                  </div>
+                ))}
               </div>
             )}
 
             {!loadingThread && grouped.length === 0 && (
-              <div className="flex items-center justify-center h-full text-white/30 text-sm">
+              <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                 No messages yet
               </div>
             )}
@@ -507,11 +490,11 @@ export default function AdminConversations() {
               <div key={group.date}>
                 {/* Date divider */}
                 <div className="flex items-center gap-3 my-5">
-                  <div className="flex-1 h-px bg-white/[0.07]" />
-                  <span className="text-[11px] text-white/40 font-medium px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08]">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-[11px] text-gray-400 font-medium px-3 py-1 rounded-full bg-white border border-gray-200 shadow-sm">
                     {group.date}
                   </span>
-                  <div className="flex-1 h-px bg-white/[0.07]" />
+                  <div className="flex-1 h-px bg-gray-200" />
                 </div>
 
                 <div className="space-y-0.5">
@@ -525,15 +508,14 @@ export default function AdminConversations() {
                     const next = idx < group.messages.length - 1 ? group.messages[idx + 1] : null;
                     const samePrev = prev?.direction === msg.direction && prev?.sentBy === msg.sentBy;
                     const sameNext = next?.direction === msg.direction && next?.sentBy === msg.sentBy;
-
                     const showAvatar = !sameNext;
                     const topGap = samePrev ? "mt-0.5" : "mt-4";
 
                     const bubbleStyle = isOut
                       ? isAdm
                         ? "bg-indigo-600 text-white"
-                        : "bg-[#1e3d2c] text-white border border-[#25D366]/25"
-                      : "bg-[#1c2230] text-white border border-white/[0.08]";
+                        : "bg-[#25D366] text-white"
+                      : "bg-white text-gray-800 border border-gray-200 shadow-sm";
 
                     const radius = isOut
                       ? `rounded-2xl ${samePrev ? "rounded-tr-md" : ""} ${sameNext ? "rounded-br-md" : "rounded-br-sm"}`
@@ -557,7 +539,7 @@ export default function AdminConversations() {
                         {/* Bubble */}
                         <div className="max-w-[72%] sm:max-w-[60%] lg:max-w-[55%]">
                           {isAdm && !samePrev && (
-                            <p className="text-[10px] text-indigo-400/80 text-right mb-1 mr-1 font-semibold">
+                            <p className="text-[10px] text-indigo-500 text-right mb-1 mr-1 font-semibold">
                               {adminLabel || "Admin"}
                             </p>
                           )}
@@ -566,9 +548,9 @@ export default function AdminConversations() {
                           </div>
                           {!sameNext && (
                             <div className={`flex items-center gap-1 mt-1 ${isOut ? "justify-end pr-1" : "pl-1"}`}>
-                              <span className="text-[10px] text-white/30 tabular-nums">{formatTime(msg.createdAt)}</span>
-                              {isBot && <Bot className="w-3 h-3 text-[#25D366]/50" />}
-                              {isAdm && <CheckCheck className="w-3 h-3 text-indigo-400/60" />}
+                              <span className="text-[10px] text-gray-400 tabular-nums">{formatTime(msg.createdAt)}</span>
+                              {isBot && <Bot className="w-3 h-3 text-[#25D366]/70" />}
+                              {isAdm && <CheckCheck className="w-3 h-3 text-indigo-400" />}
                             </div>
                           )}
                         </div>
@@ -578,11 +560,11 @@ export default function AdminConversations() {
                           <div className="w-8 flex-shrink-0 self-end mb-0.5">
                             {showAvatar && (
                               isBot
-                                ? <div className="w-8 h-8 rounded-full bg-[#25D366]/15 border border-[#25D366]/25 flex items-center justify-center">
+                                ? <div className="w-8 h-8 rounded-full bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center">
                                     <Bot className="w-4 h-4 text-[#25D366]" />
                                   </div>
-                                : <div className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-                                    <User className="w-4 h-4 text-indigo-400" />
+                                : <div className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center">
+                                    <User className="w-4 h-4 text-indigo-600" />
                                   </div>
                             )}
                           </div>
@@ -596,16 +578,16 @@ export default function AdminConversations() {
             <div ref={messagesEndRef} className="h-1" />
           </div>
 
-          {/* ── Quick Replies Panel ── */}
+          {/* Quick Replies */}
           {showQuickReplies && (
-            <div className="flex-shrink-0 border-t border-white/[0.08] bg-[#161b22] px-4 py-3">
-              <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wider mb-2">Quick Replies</p>
+            <div className="flex-shrink-0 border-t border-gray-100 bg-white px-4 py-3">
+              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Quick Replies</p>
               <div className="space-y-1 max-h-36 overflow-y-auto">
                 {QUICK_REPLIES.map((qr, i) => (
                   <button
                     key={i}
                     onClick={() => { setReplyText(qr); setShowQuickReplies(false); textareaRef.current?.focus(); }}
-                    className="w-full text-left text-xs text-white/65 hover:text-white px-3 py-2 rounded-lg hover:bg-white/[0.07] transition-all leading-relaxed border border-transparent hover:border-white/[0.08]"
+                    className="w-full text-left text-xs text-gray-600 hover:text-gray-900 px-3 py-2 rounded-xl hover:bg-gray-50 transition-all leading-relaxed border border-transparent hover:border-gray-200"
                   >
                     {qr}
                   </button>
@@ -614,26 +596,24 @@ export default function AdminConversations() {
             </div>
           )}
 
-          {/* ── Reply Box ── */}
+          {/* Reply Box */}
           <div
-            className="flex-shrink-0 border-t border-white/[0.08] bg-[#161b22] px-4 py-3"
+            className="flex-shrink-0 border-t border-gray-200 bg-white px-4 py-3"
             style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
           >
             <div className="flex items-end gap-2">
-              {/* Quick reply toggle */}
               <button
                 onClick={() => setShowQuickReplies(v => !v)}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all ${
+                className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
                   showQuickReplies
-                    ? "bg-indigo-600 text-white border border-indigo-500"
-                    : "bg-white/[0.08] text-white/55 hover:text-white hover:bg-white/[0.12] border border-white/[0.1]"
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-gray-50 text-gray-400 hover:text-gray-700 hover:bg-gray-100 border-gray-200"
                 }`}
                 title="Quick replies"
               >
                 <Zap className="w-4 h-4" />
               </button>
 
-              {/* Message input */}
               <div className="flex-1">
                 <Textarea
                   ref={textareaRef}
@@ -641,32 +621,31 @@ export default function AdminConversations() {
                   onChange={e => setReplyText(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Type a message… (Enter to send)"
-                  className="resize-none bg-[#0d1117] border-white/[0.12] text-white placeholder:text-white/30 text-sm min-h-[42px] max-h-[120px] py-2.5 px-3.5 rounded-xl focus:border-white/25 focus:bg-[#0d1117] transition-all leading-relaxed"
+                  className="resize-none bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 text-sm min-h-[42px] max-h-[120px] py-2.5 px-3.5 rounded-xl focus:border-blue-400 focus:bg-white transition-all leading-relaxed"
                   rows={1}
                   data-testid="reply-input"
                 />
               </div>
 
-              {/* Send */}
               <Button
                 onClick={handleSend}
                 disabled={!replyText.trim() || sendMutation.isPending}
-                className="w-9 h-9 rounded-xl bg-[#25D366] hover:bg-[#1db954] text-white flex-shrink-0 p-0 flex items-center justify-center mb-0.5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className="w-9 h-9 rounded-xl bg-[#25D366] hover:bg-[#1db954] text-white flex-shrink-0 p-0 flex items-center justify-center mb-0.5 disabled:opacity-40 transition-all shadow-sm"
                 data-testid="send-reply"
               >
                 {sendMutation.isPending
-                  ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
                   : <Send className="w-3.5 h-3.5" />
                 }
               </Button>
             </div>
 
             <div className="flex items-center justify-between mt-1.5 px-1">
-              <p className="text-[10px] text-white/30">
-                Sending as <span className="text-indigo-400 font-semibold">Admin</span> · delivered to customer's WhatsApp
+              <p className="text-[10px] text-gray-400">
+                Sending as <span className="text-indigo-600 font-semibold">Admin</span> · delivered to customer's WhatsApp
               </p>
               {replyText.length > 100 && (
-                <span className={`text-[10px] tabular-nums font-medium ${replyText.length > 900 ? "text-red-400" : "text-white/30"}`}>
+                <span className={`text-[10px] tabular-nums font-medium ${replyText.length > 900 ? "text-red-500" : "text-gray-400"}`}>
                   {replyText.length}/1024
                 </span>
               )}
@@ -675,94 +654,71 @@ export default function AdminConversations() {
         </div>
       )}
 
-      {/* ── No conversation selected (desktop empty state) ── */}
-      {!showChat && (
-        <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4">
-          <div className="w-18 h-18 w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center">
-            <MessageCircle className="w-9 h-9 text-white/20" />
+      {/* Empty state desktop */}
+      {!selectedPhone && (
+        <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4 bg-[#F5F5F7]">
+          <div className="w-16 h-16 rounded-2xl bg-white border border-gray-200 shadow-sm flex items-center justify-center">
+            <MessageCircle className="w-8 h-8 text-gray-300" />
           </div>
           <div className="text-center">
-            <p className="text-sm font-semibold text-white/35">Select a conversation</p>
-            <p className="text-xs text-white/20 mt-1">Choose from the list on the left to view messages</p>
+            <p className="text-sm font-semibold text-gray-400">Select a conversation</p>
+            <p className="text-xs text-gray-300 mt-1">Choose from the list on the left</p>
           </div>
         </div>
       )}
 
-      {/* ═══ RIGHT: Customer Info Panel (desktop XL, shown when info open) ═══ */}
-      {showChat && showInfo && session && (
-        <div className="hidden xl:flex flex-col w-64 flex-shrink-0 border-l border-white/[0.08] bg-[#0d1117] overflow-y-auto">
+      {/* ═══ RIGHT: Customer Info Panel ══════════════════════════════════ */}
+      {selectedPhone && showInfo && session && (
+        <div className="hidden xl:flex flex-col w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto">
           <div className="px-4 py-5">
-            <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-4">Customer Info</p>
+            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4">Customer Info</p>
 
-            {/* Avatar */}
             <div className="flex flex-col items-center text-center gap-2 mb-5">
-              <Avatar name={selectedConvo?.name ?? null} phone={selectedPhone!} size="lg" />
+              <Avatar name={selectedConvo?.name ?? null} phone={selectedPhone} size="lg" />
               <div>
-                <p className="text-sm font-bold text-white">{selectedConvo?.name || "Unknown"}</p>
-                <p className="text-xs text-white/50 mt-0.5 font-mono">{formatPhone(selectedPhone!)}</p>
+                <p className="text-sm font-bold text-gray-900">{selectedConvo?.name || "Unknown"}</p>
+                <p className="text-xs text-gray-400 mt-0.5 font-mono">{formatPhone(selectedPhone)}</p>
               </div>
               <a
                 href={`https://wa.me/${selectedPhone}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[11px] text-[#25D366] hover:text-[#25D366]/80 transition-colors font-medium"
+                className="flex items-center gap-1.5 text-[11px] text-[#25D366] hover:underline font-medium"
               >
                 <ExternalLink className="w-3 h-3" />
                 Open in WhatsApp
               </a>
             </div>
 
-            {/* State */}
             {selectedConvo?.state && (
-              <div className="bg-white/[0.05] rounded-xl px-3 py-3 mb-3 border border-white/[0.07]">
-                <p className="text-[9px] text-white/35 uppercase tracking-wider mb-1.5 font-semibold">Bot State</p>
+              <div className={`rounded-xl px-3 py-3 mb-3 border ${getState(selectedConvo.state).bg}`}>
+                <p className="text-[9px] text-gray-400 uppercase tracking-wider mb-1.5 font-semibold">Bot State</p>
                 <div className="flex items-center gap-2">
-                  <div className={`w-2.5 h-2.5 rounded-full ${getStateConfig(selectedConvo.state).dot}`} />
-                  <span className={`text-xs font-semibold ${getStateConfig(selectedConvo.state).color}`}>
-                    {getStateConfig(selectedConvo.state).label}
+                  <div className={`w-2 h-2 rounded-full ${getState(selectedConvo.state).dot}`} />
+                  <span className={`text-xs font-semibold ${getState(selectedConvo.state).color}`}>
+                    {getState(selectedConvo.state).label}
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Session fields */}
             <div className="space-y-2">
-              {session.collectedAddress && (
-                <InfoRow icon={<MapPin className="w-3 h-3" />} label="Address" value={session.collectedAddress} />
-              )}
-              {session.collectedToAddress && (
-                <InfoRow icon={<MapPin className="w-3 h-3" />} label="Destination" value={session.collectedToAddress} />
-              )}
+              {session.collectedAddress && <InfoRow icon={<MapPin className="w-3 h-3" />} label="Address" value={session.collectedAddress} />}
+              {session.collectedToAddress && <InfoRow icon={<MapPin className="w-3 h-3" />} label="Destination" value={session.collectedToAddress} />}
               {session.collectedItems && session.collectedItems !== "__scanning__" && (
                 <InfoRow icon={<Package className="w-3 h-3" />} label="Items" value={session.collectedItems} multiline />
               )}
               {session.floorLevel && (
-                <InfoRow icon={<Building2 className="w-3 h-3" />} label="Floor" value={`Level ${session.floorLevel} · ${session.hasLift ? "Lift available" : "No lift"}`} />
+                <InfoRow icon={<Building2 className="w-3 h-3" />} label="Floor" value={`Level ${session.floorLevel} · ${session.hasLift ? "Lift" : "No lift"}`} />
               )}
               {session.accessDifficulty && (
                 <InfoRow icon={<Layers className="w-3 h-3" />} label="Access" value={({ easy: "Easy", medium: "Moderate", hard: "Difficult" } as any)[session.accessDifficulty] || session.accessDifficulty} />
               )}
-              {session.preferredDate && (
-                <InfoRow icon={<Calendar className="w-3 h-3" />} label="Preferred Date" value={session.preferredDate} />
-              )}
+              {session.preferredDate && <InfoRow icon={<Calendar className="w-3 h-3" />} label="Preferred Date" value={session.preferredDate} />}
             </div>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function InfoRow({ icon, label, value, multiline = false }: {
-  icon: React.ReactNode; label: string; value: string; multiline?: boolean;
-}) {
-  return (
-    <div className="bg-white/[0.04] rounded-xl px-3 py-2.5 border border-white/[0.06]">
-      <div className="flex items-center gap-1.5 mb-1 text-white/40">
-        {icon}
-        <span className="text-[9px] uppercase tracking-wider font-semibold">{label}</span>
-      </div>
-      <p className={`text-xs text-white/75 leading-relaxed ${multiline ? "whitespace-pre-line" : "truncate"}`}>{value}</p>
     </div>
   );
 }

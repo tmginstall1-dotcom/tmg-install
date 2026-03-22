@@ -96,19 +96,19 @@ export default function StaffManagement() {
   const { data: allStaffForHeader = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
 
   return (
-    <div className="min-h-screen pt-14 pb-16 lg:pl-56 bg-slate-50 overflow-x-hidden">
+    <div className="min-h-screen pt-14 pb-16 lg:pl-56 bg-[#F5F5F7] overflow-x-hidden">
 
-      {/* Dark hero header */}
-      <div className="bg-slate-950 text-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-          <div className="flex items-end justify-between gap-4">
+      {/* Light header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
+          <div className="flex items-end justify-between gap-4 mb-4">
             <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mb-2">Operations</p>
-              <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-2xl sm:text-3xl leading-none">Staff & HR</h1>
-              <p className="text-slate-500 text-sm mt-0.5">
+              <p className="text-xs font-medium text-gray-400 mb-1">Management</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Staff & HR</h1>
+              <p className="text-gray-400 text-sm mt-0.5">
                 {(allStaffForHeader as any[]).length} staff members
                 {(pendingAmendCount + pendingLeaveCount) > 0 && (
-                  <span className="ml-2 text-amber-400 font-semibold">
+                  <span className="ml-2 text-amber-600 font-semibold">
                     · {pendingAmendCount + pendingLeaveCount} pending review
                   </span>
                 )}
@@ -116,20 +116,20 @@ export default function StaffManagement() {
             </div>
           </div>
 
-          {/* Tab bar — inside dark header, touch-friendly horizontal scroll */}
-          <div className="flex gap-0.5 mt-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none border-t border-white/10 pt-3">
+          {/* Tab bar */}
+          <div className="flex gap-1 overflow-x-auto pb-0.5 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
             {tabs.map(({ key, label, icon: Icon, badge }) => (
               <button key={key} onClick={() => switchTab(key)}
-                className={`relative flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] whitespace-nowrap transition-all shrink-0 ${
+                className={`relative flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium whitespace-nowrap transition-all shrink-0 rounded-xl ${
                   tab === key
-                    ? "bg-white text-slate-900"
-                    : "text-slate-500 hover:text-white hover:bg-white/10"
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
                 }`}
                 data-testid={`tab-${key}`}>
-                <Icon className="w-4 h-4 shrink-0" />
+                <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span>{label}</span>
                 {badge > 0 && (
-                  <span className="min-w-[20px] h-5 px-1 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
+                  <span className="min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {badge}
                   </span>
                 )}

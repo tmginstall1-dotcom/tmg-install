@@ -103,8 +103,14 @@ export default function AdminSettings() {
   });
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+    <div className="min-h-screen bg-[#F5F5F7] pt-14 lg:pl-56 pb-24">
+      <div className="bg-white border-b border-gray-200 mb-6">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5">
+          <p className="text-xs font-medium text-gray-400 mb-1">Management</p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Settings</h1>
+        </div>
+      </div>
+    <div className="max-w-2xl mx-auto px-4 pb-8 space-y-6">
 
       <Card>
         <CardHeader>
@@ -398,6 +404,7 @@ export default function AdminSettings() {
           </Button>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }

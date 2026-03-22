@@ -60,10 +60,10 @@ export default function AdminSchedule() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen pt-14 flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen pt-14 flex items-center justify-center bg-[#F5F5F7]">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-[3px] border-violet-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-slate-500">Loading schedule…</p>
+          <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-400 font-medium">Loading schedule…</p>
         </div>
       </div>
     );
@@ -82,20 +82,20 @@ export default function AdminSchedule() {
   const pastBlocked     = sortedBlockedDates.filter(d => d < today);
 
   return (
-    <div className="min-h-screen pt-14 lg:pl-56 bg-slate-50 pb-20 overflow-x-hidden">
+    <div className="min-h-screen pt-14 lg:pl-56 bg-[#F5F5F7] pb-20 overflow-x-hidden">
 
       {/* ── HEADER BAR ──────────────────────────────────────────── */}
-      <div className="bg-slate-950 text-white">
+      <div className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-          <Link href="/admin" className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors mb-4 uppercase tracking-wider">
+          <Link href="/admin" className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors mb-4">
             <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
           </Link>
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-2xl sm:text-3xl leading-none">Schedule</h1>
-              <p className="text-slate-500 text-xs mt-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Schedule</h1>
+              <p className="text-gray-400 text-sm mt-1.5">
                 {pending.length > 0
-                  ? <span className="text-amber-400 font-black uppercase tracking-[0.08em] text-[10px]">{pending.length} booking{pending.length > 1 ? "s" : ""} awaiting confirmation</span>
+                  ? <span className="text-amber-600 font-semibold">{pending.length} booking{pending.length > 1 ? "s" : ""} awaiting confirmation</span>
                   : "All bookings confirmed"
                 }
                 {confirmed.length > 0 && ` · ${confirmed.length} upcoming`}
@@ -103,10 +103,10 @@ export default function AdminSchedule() {
             </div>
             <button onClick={() => setShowForm(v => !v)}
               data-testid="button-add-block"
-              className={`flex items-center gap-2 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] transition-all shrink-0 ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shrink-0 border ${
                 showForm
-                  ? "bg-white/10 text-white border border-white/20"
-                  : "bg-white text-black hover:bg-white/90"
+                  ? "bg-gray-100 text-gray-700 border-gray-300"
+                  : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
               }`}>
               {showForm ? <><X className="w-3.5 h-3.5" /> Cancel</> : <><Plus className="w-3.5 h-3.5" /> Block Date</>}
             </button>

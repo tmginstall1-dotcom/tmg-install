@@ -295,10 +295,10 @@ export default function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen pt-14 lg:pl-56 flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen pt-14 lg:pl-56 flex items-center justify-center bg-[#F5F5F7]">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-[3px] border-violet-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-slate-400 font-medium">Loading…</p>
+          <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-400 font-medium">Loading…</p>
         </div>
       </div>
     );
@@ -330,68 +330,68 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen pt-14 lg:pl-56 bg-slate-50 pb-24 overflow-x-hidden">
+    <div className="min-h-screen pt-14 lg:pl-56 bg-[#F5F5F7] pb-24 overflow-x-hidden">
 
       {/* ── HERO ─────────────────────────────────────────────────────── */}
-      <div className="bg-slate-950 text-white">
-        <div className="px-4 sm:px-6 max-w-6xl mx-auto py-5">
+      <div className="bg-white border-b border-gray-200">
+        <div className="px-4 sm:px-6 max-w-6xl mx-auto py-6">
 
           {/* Top row: greeting + revenue + pipeline */}
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 mb-5">
             <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mb-1.5">Good {greeting()}</p>
-              <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-2xl sm:text-3xl leading-none">Operations</h1>
-              <p className="text-slate-500 text-xs mt-1.5">{format(new Date(), "EEE, d MMM yyyy")}</p>
+              <p className="text-xs font-medium text-gray-400 mb-1">Good {greeting()}</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight tracking-tight">Operations</h1>
+              <p className="text-gray-400 text-sm mt-1">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
             </div>
             <div className="shrink-0 flex gap-4 sm:gap-6 text-right">
               <div>
-                <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.18em] mb-0.5">Collected</p>
-                <p className="text-xl sm:text-2xl font-black text-white leading-none tabular-nums">{formatMoney(totalRevenue)}</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Collected</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none tabular-nums">{formatMoney(totalRevenue)}</p>
               </div>
-              <div className="pl-4 sm:pl-6 border-l border-white/10">
-                <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.18em] mb-0.5">Pipeline</p>
-                <p className="text-xl sm:text-2xl font-black text-emerald-400 leading-none tabular-nums">{formatMoney(pipelineValue)}</p>
+              <div className="pl-4 sm:pl-6 border-l border-gray-200">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Pipeline</p>
+                <p className="text-xl sm:text-2xl font-bold text-emerald-600 leading-none tabular-nums">{formatMoney(pipelineValue)}</p>
               </div>
             </div>
           </div>
 
           {/* Stat grid — 5-col */}
-          <div className="grid grid-cols-5 gap-1.5 mt-4">
+          <div className="grid grid-cols-5 gap-2 mb-5">
             {statCards.map((card) => (
               <div key={card.label}
-                className={`px-2 py-3 sm:px-3 flex flex-col items-center gap-1.5 ${
+                className={`px-2 py-3 sm:px-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${
                   card.urgent && card.value > 0
-                    ? "bg-orange-500/15 border border-orange-500/25"
-                    : "bg-white/[0.06] border border-white/[0.08]"
+                    ? "bg-orange-50 border-orange-200"
+                    : "bg-gray-50 border-gray-200"
                 }`}
               >
-                <div className={`w-6 h-6 flex items-center justify-center ${accentIconBg[card.accent]}`}>
-                  <card.icon className="w-3 h-3" />
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${accentIconBg[card.accent]}`}>
+                  <card.icon className="w-3.5 h-3.5" />
                 </div>
-                <span className={`text-2xl sm:text-3xl font-black tabular-nums leading-none ${
-                  card.urgent && card.value > 0 ? "text-orange-300" :
-                  card.value > 0 ? "text-white" : "text-slate-600"
+                <span className={`text-2xl sm:text-3xl font-bold tabular-nums leading-none ${
+                  card.urgent && card.value > 0 ? "text-orange-600" :
+                  card.value > 0 ? "text-gray-900" : "text-gray-300"
                 }`}>{card.value}</span>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] leading-tight text-center truncate w-full">{card.label}</p>
+                <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider leading-tight text-center truncate w-full">{card.label}</p>
               </div>
             ))}
           </div>
 
           {/* Search bar */}
-          <div className="mt-4 relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by name, ref, address, phone…"
               data-testid="input-quote-search"
-              className="w-full pl-11 pr-10 py-3 bg-white/[0.08] border border-white/15 text-white placeholder:text-slate-500 text-sm outline-none focus:border-white/40 focus:bg-white/[0.12] transition-all rounded-xl"
+              className="w-full pl-11 pr-10 py-3 bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all rounded-xl"
               style={{ fontSize: 16 }}
             />
             {isSearching && (
               <button
                 onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors p-1"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors p-1"
                 data-testid="button-clear-search"
               >
                 <X className="w-4 h-4" />

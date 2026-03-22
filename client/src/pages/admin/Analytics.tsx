@@ -137,8 +137,8 @@ export default function Analytics() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 pt-14 pb-24 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#F5F5F7] pt-14 pb-24 flex items-center justify-center">
+        <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -156,43 +156,48 @@ export default function Analytics() {
   const mapPins = (mapView === "sea" ? data.cities : data.countries).filter(p => p.lat && p.lng);
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-14 lg:pl-56 pb-24">
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
-
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="font-black text-xl text-slate-900 uppercase tracking-[0.08em]">Site Analytics</h1>
-            <p className="text-xs text-slate-400 mt-0.5">Customer interactions on tmginstall.com</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Date range tabs */}
-            <div className="flex border border-black/[0.1] bg-white">
-              {DAY_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => setDays(opt.value)}
-                  data-testid={`days-${opt.value}`}
-                  className={`px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.08em] transition-colors
-                    ${days === opt.value ? "bg-black text-white" : "text-slate-500 hover:bg-slate-50"}`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+    <div className="min-h-screen bg-[#F5F5F7] pt-14 lg:pl-56 pb-24">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium text-gray-400 mb-1">Management</p>
+              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Analytics</h1>
+              <p className="text-sm text-gray-400 mt-0.5">Customer interactions on tmginstall.com</p>
             </div>
-            <button
-              onClick={() => refetch()}
-              data-testid="btn-refresh-analytics"
-              className={`p-1.5 border border-black/[0.1] bg-white text-slate-400 hover:text-black transition-colors ${isFetching ? "animate-spin" : ""}`}
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
+                {DAY_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setDays(opt.value)}
+                    data-testid={`days-${opt.value}`}
+                    className={`px-3 py-1.5 text-xs font-semibold transition-all ${
+                      days === opt.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-700"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => refetch()}
+                data-testid="btn-refresh-analytics"
+                className={`p-2 rounded-xl border border-gray-200 bg-white text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all ${isFetching ? "animate-spin" : ""}`}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
 
         {/* Today stats — 6 cards */}
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 mb-2">Today vs Yesterday</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 mb-2">Today vs Yesterday</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             <StatCard label="Page Views"      value={data.today.pageViews}          yesterdayValue={data.yesterday.pageViews}          icon={Eye} />
             <StatCard label="Sessions"        value={data.today.sessions}           yesterdayValue={data.yesterday.sessions}           icon={Users} />

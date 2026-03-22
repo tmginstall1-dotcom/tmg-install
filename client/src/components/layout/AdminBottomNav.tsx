@@ -38,45 +38,41 @@ export function AdminBottomNav() {
   const waBadge = (convos as any[]).reduce((s: number, c: any) => s + (c.unreadCount || 0), 0);
 
   const tabs = [
-    { href: "/admin",                label: "Dash",    icon: LayoutDashboard, badge: dashBadge },
-    { href: "/admin/schedule",       label: "Schedule", icon: Calendar,       badge: schedBadge },
-    { href: "/admin/staff",          label: "Staff",   icon: Users,           badge: staffBadge },
-    { href: "/admin/conversations",  label: "Chat",    icon: MessageCircle,   badge: waBadge },
-    { href: "/admin/settings",       label: "Settings", icon: Settings,       badge: 0 },
+    { href: "/admin",               label: "Dash",    icon: LayoutDashboard, badge: dashBadge,  activeColor: "text-blue-600" },
+    { href: "/admin/schedule",      label: "Schedule", icon: Calendar,       badge: schedBadge, activeColor: "text-indigo-600" },
+    { href: "/admin/staff",         label: "Staff",   icon: Users,           badge: staffBadge, activeColor: "text-purple-600" },
+    { href: "/admin/conversations", label: "Chat",    icon: MessageCircle,   badge: waBadge,    activeColor: "text-green-600" },
+    { href: "/admin/settings",      label: "Settings", icon: Settings,       badge: 0,          activeColor: "text-gray-700" },
   ];
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 sm:hidden z-50 bg-slate-950 border-t border-white/10"
+      className="fixed bottom-0 inset-x-0 sm:hidden z-50 bg-white/95 backdrop-blur-xl border-t border-gray-200"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="grid grid-cols-5 h-16">
-        {tabs.map(({ href, label, icon: Icon, badge }) => {
+        {tabs.map(({ href, label, icon: Icon, badge, activeColor }) => {
           const active = isActive(href, location);
           return (
             <Link key={href} href={href}>
               <div
                 data-testid={`admin-bottom-nav-${label.toLowerCase()}`}
-                className={`relative flex flex-col items-center justify-center h-full gap-0.5 transition-colors cursor-pointer ${
-                  active ? "text-white" : "text-white/35 hover:text-white/60"
+                className={`relative flex flex-col items-center justify-center h-full gap-1 transition-all cursor-pointer ${
+                  active ? activeColor : "text-gray-400"
                 }`}
               >
-                {/* Badge dot */}
                 {badge > 0 && !active && (
-                  <span className="absolute top-2.5 right-[calc(50%-10px)] min-w-[14px] h-3.5 px-1 bg-orange-500 text-white text-[8px] font-black flex items-center justify-center leading-none translate-x-2">
+                  <span className="absolute top-2.5 right-[calc(50%-9px)] min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-bold flex items-center justify-center rounded-full translate-x-2 leading-none">
                     {badge > 9 ? "9+" : badge}
                   </span>
                 )}
-                <div className={`w-10 h-6 flex items-center justify-center transition-all ${
-                  active ? "bg-white" : ""
+                <div className={`w-9 h-8 flex items-center justify-center rounded-xl transition-all ${
+                  active ? "bg-blue-50" : ""
                 }`}>
-                  <Icon
-                    className="transition-all"
-                    style={{ width: 16, height: 16, color: active ? "#000" : "rgba(255,255,255,0.35)" }}
-                  />
+                  <Icon className="w-5 h-5" />
                 </div>
-                <span className={`text-[9px] font-black uppercase tracking-[0.12em] leading-none ${
-                  active ? "text-white" : "text-white/35"
+                <span className={`text-[10px] font-semibold leading-none ${
+                  active ? "font-bold" : ""
                 }`}>{label}</span>
               </div>
             </Link>
