@@ -51,25 +51,25 @@ function QuoteRow({ quote, showDate = false }: { quote: any; showDate?: boolean 
   return (
     <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}
       className="block w-full">
-      <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/80 active:bg-slate-100 transition-colors border-b border-black/[0.04] last:border-0">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${avatarBg(quote.id)}`}>
+      <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-100 last:border-0">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatarBg(quote.id)}`}>
           {initials(quote.customer?.name)}
         </div>
         <div className="flex-1 min-w-0 overflow-hidden">
-          <p className="font-bold text-[13px] text-slate-800 truncate leading-tight">
+          <p className="font-semibold text-sm text-gray-800 truncate leading-tight">
             {quote.customer?.name || "Unknown"}
           </p>
-          <p className="text-[11px] text-slate-400 truncate mt-0.5">
+          <p className="text-xs text-gray-400 truncate mt-0.5">
             {quote.serviceAddress || "No address"}
           </p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-sm font-black text-slate-900 tabular-nums">{formatMoney(quote.total)}</p>
-          <p className="text-[10px] text-slate-400 tabular-nums mt-0.5">
+          <p className="text-sm font-bold text-gray-900 tabular-nums">{formatMoney(quote.total)}</p>
+          <p className="text-xs text-gray-400 tabular-nums mt-0.5">
             {showDate && slotDate ? slotDate : format(new Date(quote.createdAt), "d MMM")}
           </p>
         </div>
-        <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 group-hover:text-violet-500 transition-colors" />
+        <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0 group-hover:text-blue-500 transition-colors" />
       </div>
     </Link>
   );
@@ -81,26 +81,26 @@ function SearchResultRow({ quote }: { quote: any }) {
   return (
     <Link href={`/admin/quotes/${quote.id}`} data-testid={`search-result-${quote.id}`}
       className="block w-full">
-      <div className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100 last:border-0">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${avatarBg(quote.id)}`}>
+      <div className="group flex items-center gap-3 px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-100 last:border-0">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatarBg(quote.id)}`}>
           {initials(quote.customer?.name)}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <p className="font-bold text-sm text-slate-800 truncate leading-tight">
+            <p className="font-semibold text-sm text-gray-800 truncate leading-tight">
               {quote.customer?.name || "Unknown"}
             </p>
             <StatusBadge status={quote.status} />
           </div>
-          <p className="text-xs text-slate-400 truncate">
+          <p className="text-xs text-gray-400 truncate">
             {quote.referenceNo} · {quote.serviceAddress || "No address"}
           </p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-sm font-black text-slate-900 tabular-nums">{formatMoney(quote.total)}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">{format(new Date(quote.createdAt), "d MMM")}</p>
+          <p className="text-sm font-bold text-gray-900 tabular-nums">{formatMoney(quote.total)}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{format(new Date(quote.createdAt), "d MMM")}</p>
         </div>
-        <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 group-hover:text-violet-500 transition-colors" />
+        <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0 group-hover:text-blue-500 transition-colors" />
       </div>
     </Link>
   );
@@ -134,42 +134,42 @@ function BookedQuoteRow({ quote }: { quote: any }) {
   };
 
   return (
-    <div className="border-b border-black/[0.04] last:border-0">
+    <div className="border-b border-gray-100 last:border-0">
       <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}
         className="block w-full">
-        <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/80 active:bg-slate-100 transition-colors">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${avatarBg(quote.id)}`}>
+        <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatarBg(quote.id)}`}>
             {initials(quote.customer?.name)}
           </div>
           <div className="flex-1 min-w-0 overflow-hidden">
-            <p className="font-bold text-[13px] text-slate-800 truncate leading-tight">
+            <p className="font-semibold text-sm text-gray-800 truncate leading-tight">
               {quote.customer?.name || "Unknown"}
             </p>
-            <p className="text-[11px] text-slate-400 truncate mt-0.5">
+            <p className="text-xs text-gray-400 truncate mt-0.5">
               {slotDate || "No date set"}
             </p>
           </div>
           {quote.assignedStaffId
-            ? <span className="shrink-0 text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 uppercase tracking-[0.08em]">Assigned</span>
-            : <span className="shrink-0 text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 uppercase tracking-[0.08em]">Unassigned</span>
+            ? <span className="shrink-0 text-xs font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Assigned</span>
+            : <span className="shrink-0 text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Unassigned</span>
           }
           <div className="shrink-0 text-right">
-            <p className="text-sm font-black text-slate-900 tabular-nums">{formatMoney(quote.total)}</p>
+            <p className="text-sm font-bold text-gray-900 tabular-nums">{formatMoney(quote.total)}</p>
           </div>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 group-hover:text-violet-500 transition-colors" />
+          <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0 group-hover:text-blue-500 transition-colors" />
         </div>
       </Link>
       {!quote.assignedStaffId && (
         <div className="px-4 pb-3">
           {!expanded ? (
             <button onClick={() => setExpanded(true)} data-testid={`button-quick-assign-${quote.id}`}
-              className="flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors py-1">
+              className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors py-1">
               <UserPlus className="w-3.5 h-3.5" /> Assign Staff
             </button>
           ) : (
             <div className="flex items-center gap-2" onClick={e => e.preventDefault()}>
               <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}
-                className="flex-1 min-w-0 text-sm border border-black/10 px-3 py-2.5 bg-white outline-none focus:border-black"
+                className="flex-1 min-w-0 text-sm border border-gray-200 rounded-xl px-3 py-2 bg-gray-50 focus:bg-white focus:border-blue-400 outline-none transition-all"
                 data-testid={`select-quick-staff-${quote.id}`}>
                 <option value="">Select staff…</option>
                 {staffList?.map((s: any) => (
@@ -177,11 +177,11 @@ function BookedQuoteRow({ quote }: { quote: any }) {
                 ))}
               </select>
               <button onClick={handleAssign} disabled={!selectedStaff || updateStatus.isPending}
-                className="text-[10px] font-black bg-black text-white uppercase tracking-[0.1em] px-4 py-2.5 disabled:opacity-50 shrink-0 hover:bg-neutral-800 transition-colors"
+                className="text-sm font-semibold bg-blue-600 text-white rounded-xl px-4 py-2 disabled:opacity-50 shrink-0 hover:bg-blue-700 transition-colors"
                 data-testid={`button-confirm-assign-${quote.id}`}>
                 Assign
               </button>
-              <button onClick={() => setExpanded(false)} className="p-2 text-slate-400 shrink-0">✕</button>
+              <button onClick={() => setExpanded(false)} className="p-2 text-gray-400 shrink-0 hover:text-gray-600">✕</button>
             </div>
           )}
         </div>
@@ -209,16 +209,13 @@ function SectionPanel({
   const ac = ACCENT[accentColor] || ACCENT.violet;
 
   return (
-    <div className={`w-full bg-white overflow-hidden ${
-      urgent && quotes.length > 0 ? "border border-orange-200" : "border border-black/[0.07]"
+    <div className={`w-full bg-white rounded-2xl overflow-hidden shadow-sm ${
+      urgent && quotes.length > 0 ? "border border-orange-200" : "border border-gray-200"
     }`}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.05] bg-slate-50">
-        <div className="flex items-center gap-2.5">
-          <span className={`w-1.5 h-4 shrink-0 ${ac.dot}`} />
-          <h2 className="font-black text-[10px] text-slate-700 uppercase tracking-[0.18em]">{title}</h2>
-        </div>
-        <span className={`min-w-[22px] h-[18px] px-1.5 flex items-center justify-center text-[10px] font-black ${
-          quotes.length > 0 ? ac.badge : "bg-slate-100 text-slate-400"
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/60 rounded-t-2xl">
+        <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
+        <span className={`min-w-[22px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold rounded-full ${
+          quotes.length > 0 ? ac.badge : "bg-gray-100 text-gray-400"
         }`}>
           {quotes.length}
         </span>
@@ -407,16 +404,11 @@ export default function AdminDashboard() {
         {/* ── SEARCH RESULTS ─ */}
         {isSearching && (
           <div className="mt-5">
-            <div className="bg-white border border-black/[0.07] overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.05] bg-slate-50">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-1.5 h-4 bg-violet-500 shrink-0" />
-                  <h2 className="font-black text-[10px] text-slate-700 uppercase tracking-[0.18em]">
-                    Search Results
-                  </h2>
-                </div>
-                <span className={`min-w-[22px] h-[18px] px-1.5 flex items-center justify-center text-[10px] font-black ${
-                  searchResults.length > 0 ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-400"
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/60 rounded-t-2xl">
+                <h2 className="text-sm font-semibold text-gray-700">Search Results</h2>
+                <span className={`min-w-[22px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold rounded-full ${
+                  searchResults.length > 0 ? "bg-violet-600 text-white" : "bg-gray-100 text-gray-400"
                 }`}>
                   {searchResults.length}
                 </span>
@@ -428,9 +420,9 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-300">
+                <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-300">
                   <Search className="w-6 h-6" />
-                  <p className="text-xs font-medium">No quotes found for "{search}"</p>
+                  <p className="text-xs font-medium text-gray-400">No quotes found for "{search}"</p>
                 </div>
               )}
             </div>
@@ -442,10 +434,12 @@ export default function AdminDashboard() {
           <>
             {/* Attention banner */}
             {urgentCount > 0 && (
-              <div className="mt-5 flex items-center gap-3 bg-amber-50 border border-amber-200 border-l-[3px] border-l-amber-500 px-4 py-3">
-                <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+              <div className="mt-5 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5">
+                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4 text-amber-600" />
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-black text-amber-800 uppercase tracking-[0.12em]">
+                  <p className="text-sm font-semibold text-amber-800">
                     {urgentCount} item{urgentCount !== 1 ? "s" : ""} need attention
                   </p>
                   <p className="text-xs text-amber-600 mt-0.5">
@@ -508,15 +502,15 @@ export default function AdminDashboard() {
                 { href: "/admin/export",    label: "Export",     icon: TrendingUp, desc: "Download reports",   iconBg: "bg-amber-100 text-amber-600" },
               ].map(({ href, label, icon: Icon, desc, iconBg }) => (
                 <Link key={href} href={href} className="block w-full">
-                  <div className="group flex items-center gap-3 bg-white border border-black/[0.07] p-4 hover:border-black/20 active:bg-slate-50 transition-all h-full">
-                    <div className={`w-9 h-9 flex items-center justify-center shrink-0 ${iconBg}`}>
+                  <div className="group flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-4 hover:border-gray-300 hover:shadow-sm active:bg-gray-50 transition-all h-full">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
                       <Icon className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-bold text-[13px] text-slate-800 leading-tight">{label}</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{desc}</p>
+                      <p className="font-semibold text-sm text-gray-800 leading-tight">{label}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
                     </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-500 transition-colors shrink-0" />
                   </div>
                 </Link>
               ))}
@@ -526,21 +520,21 @@ export default function AdminDashboard() {
             <div className="mt-6 mb-2">
               {!showClearConfirm ? (
                 <button onClick={() => setShowClearConfirm(true)}
-                  className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-500 hover:bg-red-50 transition-colors text-[11px] font-black uppercase tracking-[0.1em]"
+                  className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-xl transition-all text-sm font-medium"
                   data-testid="button-clear-all-data">
                   <Trash2 className="w-3.5 h-3.5" />
                   Clear all job data
                 </button>
               ) : (
-                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200">
+                <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
                   <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
-                  <p className="text-xs text-red-700 font-semibold flex-1">Delete ALL quotes & data?</p>
+                  <p className="text-sm text-red-700 font-semibold flex-1">Delete ALL quotes & data?</p>
                   <button onClick={() => clearAllMutation.mutate()} disabled={clearAllMutation.isPending}
-                    className="text-xs font-black text-white bg-red-600 px-3 py-1.5 disabled:opacity-50">
+                    className="text-sm font-semibold text-white bg-red-600 rounded-xl px-3 py-1.5 hover:bg-red-700 disabled:opacity-50 transition-all">
                     {clearAllMutation.isPending ? "…" : "Delete"}
                   </button>
                   <button onClick={() => setShowClearConfirm(false)}
-                    className="text-xs font-semibold text-slate-500">Cancel</button>
+                    className="text-sm font-medium text-gray-500 hover:text-gray-700">Cancel</button>
                 </div>
               )}
             </div>

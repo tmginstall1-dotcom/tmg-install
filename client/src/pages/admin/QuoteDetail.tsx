@@ -204,33 +204,33 @@ export default function AdminQuoteDetail() {
   const editTotal = editSubtotal + editTransport;
 
   return (
-    <div className="min-h-screen pt-14 pb-32 lg:pb-20 lg:pl-56 bg-slate-50 overflow-x-hidden">
+    <div className="min-h-screen pt-14 pb-32 lg:pb-20 lg:pl-56 bg-[#F5F5F7] overflow-x-hidden">
 
-      {/* Dark hero header */}
-      <div className="bg-slate-950 text-white">
+      {/* Light header */}
+      <div className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
-          <Link href="/admin" className="inline-flex items-center gap-1.5 text-[10px] font-black text-slate-500 hover:text-slate-300 transition-colors mb-4 uppercase tracking-[0.2em]">
+          <Link href="/admin" className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors mb-4">
             <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
           </Link>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <span className="text-[10px] font-mono font-black text-slate-400 bg-white/[0.07] border border-white/10 px-2 py-0.5 tracking-widest">
+                <span className="text-xs font-mono font-medium text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-lg tracking-widest">
                   {quote.referenceNo}
                 </span>
                 <StatusBadge status={quote.status} />
                 {!TERMINAL_STATUSES_UI.includes(quote.status) && (
-                  <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.15em] text-slate-500" title="Page auto-refreshes every few seconds">
-                    <span className={`w-1.5 h-1.5 rounded-full ${isFetching ? 'bg-green-400 animate-pulse' : 'bg-slate-600'}`} />
+                  <span className="flex items-center gap-1 text-xs font-medium text-gray-400" title="Page auto-refreshes every few seconds">
+                    <span className={`w-1.5 h-1.5 rounded-full ${isFetching ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
                     Live
                   </span>
                 )}
               </div>
-              <h1 className="font-heading font-black text-white uppercase tracking-[-0.02em] text-2xl sm:text-3xl leading-none truncate">{quote.customer?.name}</h1>
-              <p className="text-slate-500 text-xs mt-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight truncate">{quote.customer?.name}</h1>
+              <p className="text-gray-400 text-sm mt-1.5">
                 {format(new Date(quote.createdAt), "d MMM yyyy, h:mm a")}
                 {quote.scheduledAt && (
-                  <span className="ml-2 text-slate-400 font-semibold">
+                  <span className="ml-2 text-blue-600 font-semibold">
                     · Job {format(new Date(quote.scheduledAt), "d MMM, h:mm a")}
                   </span>
                 )}
@@ -239,20 +239,20 @@ export default function AdminQuoteDetail() {
             {/* Total + edit button */}
             <div className="shrink-0 flex flex-col items-end gap-3">
               <div className="text-right">
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-0.5">Total</p>
-                <p className="text-2xl font-black text-white tabular-nums leading-none">{formatMoney(quote.total)}</p>
+                <p className="text-xs font-medium text-gray-400 mb-0.5">Total</p>
+                <p className="text-2xl font-bold text-gray-900 tabular-nums leading-none">{formatMoney(quote.total)}</p>
               </div>
               <div className="flex items-center gap-2">
                 {canEdit && !isEditing && (
                   <button onClick={handleStartEdit} data-testid="button-edit-quote"
-                    className="flex items-center gap-1.5 px-3 py-1.5 border border-white/20 bg-white/[0.07] hover:bg-white/[0.15] text-white text-[10px] font-black uppercase tracking-[0.1em] transition-colors">
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-xl transition-all">
                     <Edit2 className="w-3 h-3" /> Edit
                   </button>
                 )}
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
                   data-testid="button-delete-quote"
-                  className="flex items-center gap-1.5 px-3 py-1.5 border border-red-500/40 bg-red-500/10 hover:bg-red-500/25 text-red-400 hover:text-red-300 text-[10px] font-black uppercase tracking-[0.1em] transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium rounded-xl transition-all"
                 >
                   <Trash2 className="w-3 h-3" /> Delete
                 </button>
@@ -297,8 +297,8 @@ export default function AdminQuoteDetail() {
               };
 
               return (
-                <div className="bg-white border border-black/[0.07] p-4" data-testid="status-pipeline">
-                  <p className="text-[10px] font-black text-black/35 uppercase tracking-[0.2em] mb-4">Job Pipeline</p>
+                <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm" data-testid="status-pipeline">
+                  <p className="text-xs font-medium text-gray-400 mb-4">Job Pipeline</p>
                   {/* Stepper — horizontal scroll on mobile */}
                   <div className="overflow-x-auto -mx-4 px-4 pb-2">
                   <div className="flex items-start min-w-[380px]">
@@ -361,8 +361,8 @@ export default function AdminQuoteDetail() {
             })()}
 
             {/* Customer + Address */}
-            <div className="bg-white p-5 border border-black/[0.07]">
-              <h3 className="text-[11px] font-black mb-5 text-slate-900 flex items-center gap-2 uppercase tracking-[0.15em]">
+            <div className="bg-white p-5 border border-gray-200 rounded-2xl shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-5">
                 <MapPin className="w-4 h-4" /> Customer & Location
               </h3>
               
@@ -375,36 +375,36 @@ export default function AdminQuoteDetail() {
                       { label: 'Phone', key: 'phone' },
                     ].map(f => (
                       <div key={f.key}>
-                        <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-1 block">{f.label}</label>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">{f.label}</label>
                         <input value={editCustomer[f.key] || ''} onChange={e => setEditCustomer({ ...editCustomer, [f.key]: e.target.value })}
-                          className="w-full px-3 py-2.5 border border-black/10 bg-white text-sm outline-none focus:border-black transition-colors"
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm outline-none focus:bg-white focus:border-blue-400 transition-all"
                           data-testid={`input-edit-${f.key}`} />
                       </div>
                     ))}
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-1 block">Service Address</label>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Service Address</label>
                     <input value={editQuoteData.serviceAddress || ''} onChange={e => setEditQuoteData({ ...editQuoteData, serviceAddress: e.target.value })}
-                      className="w-full px-3 py-2.5 border border-black/10 bg-white text-sm outline-none focus:border-black transition-colors"
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm outline-none focus:bg-white focus:border-blue-400 transition-all"
                       data-testid="input-edit-address" />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-1 block">Pickup Address</label>
+                      <label className="text-xs font-medium text-gray-500 mb-1 block">Pickup Address</label>
                       <input value={editQuoteData.pickupAddress || ''} onChange={e => setEditQuoteData({ ...editQuoteData, pickupAddress: e.target.value })}
-                        className="w-full px-3 py-2.5 border border-black/10 bg-white text-sm outline-none focus:border-black transition-colors" />
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm outline-none focus:bg-white focus:border-blue-400 transition-all" />
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-1 block">Dropoff Address</label>
+                      <label className="text-xs font-medium text-gray-500 mb-1 block">Dropoff Address</label>
                       <input value={editQuoteData.dropoffAddress || ''} onChange={e => setEditQuoteData({ ...editQuoteData, dropoffAddress: e.target.value })}
-                        className="w-full px-3 py-2.5 border border-black/10 bg-white text-sm outline-none focus:border-black transition-colors" />
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm outline-none focus:bg-white focus:border-blue-400 transition-all" />
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-1 block">Internal Notes</label>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Internal Notes</label>
                     <textarea value={editQuoteData.notes || ''} onChange={e => setEditQuoteData({ ...editQuoteData, notes: e.target.value })}
                       rows={2}
-                      className="w-full px-3 py-2.5 border border-black/10 bg-white text-sm outline-none focus:border-black transition-colors resize-none"
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm outline-none focus:bg-white focus:border-blue-400 transition-all resize-none"
                       placeholder="Internal admin notes..." />
                   </div>
                 </div>
@@ -417,15 +417,15 @@ export default function AdminQuoteDetail() {
                     <p className="text-sm text-muted-foreground">{quote.customer?.phone}</p>
                     <div className="grid grid-cols-3 gap-1.5 mt-4">
                       <a href={`tel:${quote.customer?.phone}`} data-testid="button-call"
-                        className="flex flex-col items-center gap-1 px-2 py-2.5 border border-black/10 text-slate-700 text-[10px] font-black uppercase tracking-[0.08em] hover:bg-slate-50 transition-colors">
+                        className="flex flex-col items-center gap-1 px-3 py-2.5 border border-gray-200 text-gray-700 text-xs font-medium rounded-xl hover:bg-gray-50 transition-all">
                         <Phone className="w-4 h-4" /> Call
                       </a>
                       <a href={`https://wa.me/${quote.customer?.phone?.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" data-testid="button-whatsapp"
-                        className="flex flex-col items-center gap-1 px-2 py-2.5 border border-emerald-500 text-emerald-700 text-[10px] font-black uppercase tracking-[0.08em] hover:bg-emerald-50 transition-colors">
+                        className="flex flex-col items-center gap-1 px-3 py-2.5 border border-emerald-300 text-emerald-700 text-xs font-medium rounded-xl hover:bg-emerald-50 transition-all">
                         <MessageCircle className="w-4 h-4" /> WhatsApp
                       </a>
                       <a href={`mailto:${quote.customer?.email}`} data-testid="button-email"
-                        className="flex flex-col items-center gap-1 px-2 py-2.5 border border-black/10 text-slate-700 text-[10px] font-black uppercase tracking-[0.08em] hover:bg-slate-50 transition-colors">
+                        className="flex flex-col items-center gap-1 px-3 py-2.5 border border-gray-200 text-gray-700 text-xs font-medium rounded-xl hover:bg-gray-50 transition-all">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
                         Email
                       </a>
@@ -453,7 +453,7 @@ export default function AdminQuoteDetail() {
                     )}
                     {quote.preferredDate && !quote.scheduledAt && (
                       <div className="mt-3 p-3 bg-amber-50 border border-amber-200">
-                        <p className="text-[10px] font-black text-amber-700 uppercase tracking-[0.12em] mb-1">Customer's Requested Slot</p>
+                        <p className="text-xs font-medium text-amber-700 mb-1">Customer's Requested Slot</p>
                         <p className="font-bold text-sm mt-1 flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-amber-600" />
                           {format(new Date(quote.preferredDate + "T12:00:00"), 'EEE, MMM d, yyyy')} · {quote.preferredTimeWindow}
@@ -461,8 +461,8 @@ export default function AdminQuoteDetail() {
                       </div>
                     )}
                     {quote.scheduledAt && (
-                      <div className="mt-3 p-3 bg-slate-50 border border-black/10">
-                        <p className="text-[10px] font-black text-black/35 uppercase tracking-[0.12em] mb-1">Confirmed Slot</p>
+                      <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                        <p className="text-xs font-medium text-gray-500 mb-1">Confirmed Slot</p>
                         <p className="font-bold text-sm mt-1 flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-primary" />
                           {format(new Date(quote.scheduledAt), 'EEE, MMM d, yyyy')} · {quote.timeWindow}
@@ -475,19 +475,19 @@ export default function AdminQuoteDetail() {
             </div>
 
             {/* Items & Pricing */}
-            <div className="bg-white p-5 border border-black/[0.07]">
+            <div className="bg-white p-5 border border-gray-200 rounded-2xl shadow-sm">
               <div className="flex justify-between items-center mb-5">
-                <h3 className="text-[11px] font-black text-slate-900 flex items-center gap-2 uppercase tracking-[0.15em]">
+                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                   <Receipt className="w-4 h-4" /> Items & Pricing
                 </h3>
                 {isEditing && (
                   <button onClick={addEditItem} data-testid="button-add-item"
-                    className="flex items-center gap-1.5 px-3 py-1.5 border border-black/15 text-black text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors">
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-gray-50 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-100 transition-all">
                     <Plus className="w-3.5 h-3.5" /> Add Item
                   </button>
                 )}
                 {!isEditing && quote.aiConfidenceScore && quote.aiConfidenceScore < 80 && (
-                  <div className="bg-amber-100 text-amber-700 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] flex items-center gap-1">
+                  <div className="bg-amber-100 text-amber-700 px-2.5 py-1 text-xs font-medium rounded-full flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" /> Low Confidence
                   </div>
                 )}
@@ -514,17 +514,17 @@ export default function AdminQuoteDetail() {
               {isEditing ? (
                 <div className="space-y-2">
                   {editItems.map((item, i) => (
-                    <div key={i} className="p-3 border border-black/10 bg-slate-50 space-y-2" data-testid={`edit-item-${i}`}>
+                    <div key={i} className="p-3 border border-gray-200 rounded-xl bg-gray-50 space-y-2" data-testid={`edit-item-${i}`}>
                       <div className="flex gap-2">
                         <input value={item.detectedName || item.originalDescription} onChange={e => updateEditItem(i, 'detectedName', e.target.value)}
-                          placeholder="Item name" className="flex-1 min-w-0 px-3 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black" />
-                        <button onClick={() => removeEditItem(i)} className="w-8 h-8 hover:bg-red-50 hover:text-red-500 transition-colors flex items-center justify-center shrink-0 border border-black/10">
+                          placeholder="Item name" className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-xl bg-white text-sm outline-none focus:border-blue-400 transition-all" />
+                        <button onClick={() => removeEditItem(i)} className="w-8 h-8 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center shrink-0 border border-gray-200">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <select value={item.serviceType} onChange={e => updateEditItem(i, 'serviceType', e.target.value)}
-                          className="px-2 py-2 border border-black/10 bg-white text-xs outline-none focus:border-black">
+                          className="px-2 py-2 border border-gray-200 rounded-xl bg-white text-xs outline-none focus:border-blue-400 transition-all">
                           <option value="install">Install</option>
                           <option value="dismantle">Dismantle</option>
                           <option value="relocate">Relocate</option>
@@ -532,32 +532,32 @@ export default function AdminQuoteDetail() {
                           <option value="dismantle_dispose">Dismantle + Dispose</option>
                         </select>
                         <input type="number" min="1" value={item.quantity} onChange={e => updateEditItem(i, 'quantity', parseInt(e.target.value) || 1)}
-                          placeholder="Qty" className="px-2 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black text-center" />
+                          placeholder="Qty" className="px-2 py-2 border border-gray-200 rounded-xl bg-white text-sm outline-none focus:border-blue-400 text-center transition-all" />
                         <input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => updateEditItem(i, 'unitPrice', e.target.value)}
-                          className="px-2 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black" placeholder="$Price" />
+                          className="px-2 py-2 border border-gray-200 rounded-xl bg-white text-sm outline-none focus:border-blue-400 transition-all" placeholder="$Price" />
                       </div>
                     </div>
                   ))}
                   <div className="flex gap-3 mt-3 pt-3 border-t">
                     <div>
-                      <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] block mb-1">Transport Fee ($)</label>
+                      <label className="text-xs font-medium text-gray-500 block mb-1">Transport Fee ($)</label>
                       <input type="number" min="0" step="0.01" value={editQuoteData.transportFee || '0'} onChange={e => setEditQuoteData({ ...editQuoteData, transportFee: e.target.value })}
-                        className="w-28 px-3 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black" />
+                        className="w-28 px-3 py-2 border border-gray-200 rounded-xl bg-white text-sm outline-none focus:border-blue-400 transition-all" />
                     </div>
                     <div className="ml-auto text-right">
                       <p className="text-xs text-muted-foreground">Subtotal: <strong>${editSubtotal.toFixed(2)}</strong></p>
                       <p className="text-xs text-muted-foreground">Transport: <strong>${editTransport.toFixed(2)}</strong></p>
-                      <p className="text-base font-black text-foreground mt-1">Total: ${editTotal.toFixed(2)}</p>
+                      <p className="text-base font-bold text-gray-900 mt-1">Total: ${editTotal.toFixed(2)}</p>
                       <p className="text-xs text-emerald-600 font-semibold">50% Deposit: ${(editTotal * 0.5).toFixed(2)}</p>
                     </div>
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button onClick={handleSaveEdit} disabled={editQuote.isPending} data-testid="button-save-edit"
-                      className="flex items-center gap-1.5 px-5 py-2.5 bg-black text-white font-black text-[10px] uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors disabled:opacity-50">
+                      className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white font-semibold text-sm rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50">
                       <Save className="w-4 h-4" /> {editQuote.isPending ? "Saving..." : "Save Changes"}
                     </button>
                     <button onClick={() => setIsEditing(false)} data-testid="button-cancel-edit"
-                      className="flex items-center gap-1.5 px-5 py-2.5 border border-black/15 font-black text-[10px] uppercase tracking-[0.12em] hover:bg-slate-50 transition-colors">
+                      className="flex items-center gap-1.5 px-5 py-2.5 border border-gray-200 font-medium text-sm text-gray-600 rounded-xl hover:bg-gray-50 transition-all">
                       <X className="w-4 h-4" /> Cancel
                     </button>
                   </div>
@@ -565,14 +565,14 @@ export default function AdminQuoteDetail() {
               ) : (
                 <>
                   {/* Items table */}
-                  <div className="border border-black/[0.07] overflow-hidden mb-5">
-                    <div className="grid grid-cols-[1fr_auto_auto] bg-slate-50 border-b border-black/[0.06]">
-                      <span className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Item</span>
-                      <span className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] text-center">Qty</span>
-                      <span className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] text-right">Amount</span>
+                  <div className="border border-gray-200 rounded-2xl overflow-hidden mb-5">
+                    <div className="grid grid-cols-[1fr_auto_auto] bg-gray-50 border-b border-gray-100">
+                      <span className="px-4 py-2.5 text-xs font-medium text-gray-500">Item</span>
+                      <span className="px-3 py-2.5 text-xs font-medium text-gray-500 text-center">Qty</span>
+                      <span className="px-4 py-2.5 text-xs font-medium text-gray-500 text-right">Amount</span>
                     </div>
                     {quote.items?.map((item: any, idx: number) => (
-                      <div key={item.id} className={`grid grid-cols-[1fr_auto_auto] items-start border-b border-black/[0.04] last:border-0 ${idx % 2 === 1 ? "bg-slate-50/40" : "bg-white"}`}>
+                      <div key={item.id} className={`grid grid-cols-[1fr_auto_auto] items-start border-b border-gray-100 last:border-0 ${idx % 2 === 1 ? "bg-gray-50/40" : "bg-white"}`}>
                         <div className="px-4 py-3 min-w-0">
                           <p className="font-semibold text-[13px] text-slate-800 leading-tight">{item.detectedName || item.originalDescription}</p>
                           <p className="text-[11px] text-slate-400 capitalize mt-0.5">{item.serviceType} · ${Number(item.unitPrice).toFixed(0)}/unit</p>
@@ -581,7 +581,7 @@ export default function AdminQuoteDetail() {
                           <span className="text-sm font-bold text-slate-700 tabular-nums">×{item.quantity}</span>
                         </div>
                         <div className="px-4 py-3 text-right">
-                          <span className="text-sm font-black text-slate-900 tabular-nums">{formatMoney(item.subtotal)}</span>
+                          <span className="text-sm font-bold text-gray-900 tabular-nums">{formatMoney(item.subtotal)}</span>
                         </div>
                       </div>
                     ))}
@@ -591,7 +591,7 @@ export default function AdminQuoteDetail() {
                   </div>
                   {/* Pricing breakdown */}
                   <div className="flex justify-end">
-                    <div className="w-full sm:w-64 border border-black/[0.07] overflow-hidden">
+                    <div className="w-full sm:w-64 border border-gray-200 rounded-2xl overflow-hidden">
                       <div className="divide-y divide-black/[0.05]">
                         <div className="flex justify-between px-4 py-2.5 text-sm">
                           <span className="text-slate-500">Labor subtotal</span>
@@ -610,14 +610,14 @@ export default function AdminQuoteDetail() {
                           </div>
                         )}
                       </div>
-                      <div className="flex justify-between items-center px-4 py-3 bg-slate-950 text-white">
-                        <span className="text-[11px] font-black uppercase tracking-[0.15em]">Total</span>
-                        <span className="text-lg font-black tabular-nums">{formatMoney(quote.total)}</span>
+                      <div className="flex justify-between items-center px-4 py-3 bg-blue-600 text-white">
+                        <span className="text-xs font-semibold text-white">Total</span>
+                        <span className="text-lg font-bold tabular-nums">{formatMoney(quote.total)}</span>
                       </div>
                       <div className="divide-y divide-black/[0.05]">
                         <div className="flex justify-between px-4 py-2 text-xs">
                           <span className="text-emerald-600 font-semibold">50% Deposit</span>
-                          <span className="font-black text-emerald-700 tabular-nums">{formatMoney(quote.depositAmount)}</span>
+                          <span className="font-bold text-emerald-700 tabular-nums">{formatMoney(quote.depositAmount)}</span>
                         </div>
                         <div className="flex justify-between px-4 py-2 text-xs">
                           <span className="text-slate-400">Balance (50%)</span>
@@ -631,8 +631,8 @@ export default function AdminQuoteDetail() {
             </div>
 
             {/* Timeline */}
-            <div className="bg-white p-5 border border-black/[0.07]">
-              <h3 className="text-[11px] font-black mb-5 text-slate-900 flex items-center gap-2 uppercase tracking-[0.15em]">
+            <div className="bg-white p-5 border border-gray-200 rounded-2xl shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-5">
                 <Clock className="w-4 h-4" /> Job Timeline &amp; Field Proof
               </h3>
               <div className="space-y-0">
@@ -655,14 +655,14 @@ export default function AdminQuoteDetail() {
                           'bg-primary/10 border-primary/60'
                         }`} />
                         {updateIdx < (quote.updates?.length ?? 1) - 1 && (
-                          <div className="w-px flex-1 bg-black/[0.06] min-h-[24px] mt-1" />
+                          <div className="w-px flex-1 bg-gray-200 min-h-[24px] mt-1" />
                         )}
                       </div>
                       <div className="flex-1 pb-5">
 
                         {/* Field event — arrival or completion: show prominent timestamp block */}
                         {isFieldEvent ? (
-                          <div className={`border p-4 mb-3 ${
+                          <div className={`border rounded-2xl p-4 mb-3 ${
                             isArrival    ? 'bg-blue-50 border-blue-200' :
                             'bg-emerald-50 border-emerald-200'
                           }`}>
@@ -673,7 +673,7 @@ export default function AdminQuoteDetail() {
                                 }`}>
                                   {isArrival ? '📍 Staff Arrived' : '✅ Job Completed'}
                                 </p>
-                                <p className={`text-lg font-black ${
+                                <p className={`text-lg font-bold ${
                                   isArrival ? 'text-blue-900' : 'text-emerald-900'
                                 }`}>
                                   {format(eventTime, 'h:mm a')}
@@ -724,7 +724,7 @@ export default function AdminQuoteDetail() {
                               href={`https://maps.google.com/?q=${update.gpsLat},${update.gpsLng}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-xs font-black text-blue-600 hover:text-blue-800 ml-1 uppercase tracking-[0.08em]"
+                              className="text-xs font-semibold text-blue-600 hover:text-blue-800 ml-1"
                             >
                               Maps ↗
                             </a>
@@ -734,7 +734,7 @@ export default function AdminQuoteDetail() {
                         {/* Photo Proof */}
                         {photos.length > 0 && (
                           <div className="mt-3">
-                            <p className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-2">
+                            <p className="text-xs font-medium text-gray-500 mb-2">
                               Photo Proof ({photos.length})
                             </p>
                             <div className="flex flex-wrap gap-2">
@@ -765,12 +765,12 @@ export default function AdminQuoteDetail() {
           {/* Sidebar Actions — appears first on mobile, second on desktop */}
           <div className="space-y-5 order-1 lg:order-2">
             {/* ── Next Action Card ── */}
-            <div className="bg-white p-5 border border-black/[0.07] space-y-4">
+            <div className="bg-white p-5 border border-gray-200 rounded-2xl shadow-sm space-y-4">
 
               {/* Section heading */}
               <div className="flex items-center gap-2">
-                <div className="w-1.5 h-4 bg-black" />
-                <h3 className="font-black text-[11px] uppercase tracking-[0.18em] text-slate-900">Next Action</h3>
+                <div className="w-1.5 h-4 bg-blue-600 rounded-full" />
+                <h3 className="text-sm font-semibold text-gray-700">Next Action</h3>
               </div>
 
               {/* ── PHASE 1: New / Under Review ── */}
@@ -783,7 +783,7 @@ export default function AdminQuoteDetail() {
                     <p className="text-xs text-blue-700">Review the items and pricing below, then approve to request the deposit from the customer.</p>
                   </div>
                   <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending} data-testid="button-approve-deposit"
-                    className="w-full bg-black text-white py-3.5 font-black text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-neutral-800 transition-colors">
+                    className="w-full bg-blue-600 text-white py-3.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-blue-700 transition-all">
                     <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
                   </button>
                 </div>
@@ -792,20 +792,20 @@ export default function AdminQuoteDetail() {
               {/* ── PHASE 2a: Deposit Requested ── */}
               {quote.status === 'deposit_requested' && (
                 <div className="bg-amber-50 border border-amber-200 p-4 space-y-2">
-                  <p className="font-black text-amber-800 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em]">
+                  <p className="font-semibold text-amber-800 flex items-center gap-1.5 text-sm">
                     <Banknote className="w-4 h-4" /> Awaiting Deposit
                   </p>
                   <p className="text-xs text-amber-700">Email sent. Waiting for customer to pay the deposit of <strong>{formatMoney(quote.depositAmount)}</strong>.</p>
                   <div className="bg-amber-100 px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
                     <span>Deposit amount</span>
-                    <span className="font-black">{formatMoney(quote.depositAmount)}</span>
+                    <span className="font-bold">{formatMoney(quote.depositAmount)}</span>
                   </div>
                   {(quote as any).customerWhatsappPhone && (
                     <button
                       onClick={() => sendWhatsAppPayment.mutate()}
                       disabled={sendWhatsAppPayment.isPending}
                       data-testid="button-send-whatsapp-payment"
-                      className="w-full mt-1 bg-green-600 hover:bg-green-700 text-white py-2 px-3 text-xs font-black uppercase tracking-[0.1em] flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                      className="w-full mt-1 bg-green-600 hover:bg-green-700 text-white py-2 px-3 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
                     >
                       <Send className="w-3.5 h-3.5" />
                       {sendWhatsAppPayment.isPending ? "Sending…" : "Send Payment Link via WhatsApp"}
@@ -847,11 +847,11 @@ export default function AdminQuoteDetail() {
                     </div>
                   )}
                   <div>
-                    <label className="text-[10px] font-black text-black/35 uppercase tracking-[0.15em] mb-2 block">
+                    <label className="text-xs font-medium text-gray-500 mb-2 block">
                       Assign Staff or Team
                     </label>
                     <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)} data-testid="select-staff"
-                      className="w-full px-4 py-2.5 bg-white border border-black/10 mb-3 outline-none focus:border-black text-sm">
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl mb-3 outline-none focus:bg-white focus:border-blue-400 transition-all text-sm">
                       <option value="">Select staff or team...</option>
                       {teamsList.length > 0 && (
                         <optgroup label="── Teams">
@@ -867,7 +867,7 @@ export default function AdminQuoteDetail() {
                       </optgroup>
                     </select>
                     <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedAssignee} data-testid="button-assign-staff"
-                      className="w-full bg-black text-white py-3 font-black text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 hover:bg-neutral-800 transition-colors disabled:opacity-50">
+                      className="w-full bg-blue-600 text-white py-3 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-50">
                       <UserPlus className="w-4 h-4" /> Assign Staff
                     </button>
                   </div>
@@ -889,7 +889,7 @@ export default function AdminQuoteDetail() {
                   )}
                   {/* Show assigned team */}
                   {(quote as any).assignedTeam && (
-                    <div className="bg-slate-50 border border-black/10 px-4 py-3 text-sm">
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm">
                       <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 flex items-center justify-center text-white text-sm font-bold shrink-0"
                           style={{ background: (quote as any).assignedTeam.color || "#6366f1" }}>
@@ -903,7 +903,7 @@ export default function AdminQuoteDetail() {
                       {(quote as any).assignedTeam.members?.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           {(quote as any).assignedTeam.members.map((m: any) => (
-                            <span key={m.id} className="bg-white border border-black/10 px-2.5 py-0.5 text-xs font-medium">{m.name}</span>
+                            <span key={m.id} className="bg-gray-100 border border-gray-200 px-2.5 py-0.5 rounded-full text-xs font-medium">{m.name}</span>
                           ))}
                         </div>
                       )}
@@ -911,8 +911,8 @@ export default function AdminQuoteDetail() {
                   )}
                   {/* Show assigned individual staff */}
                   {quote.assignedStaff && !(quote as any).assignedTeam && (
-                    <div className="bg-slate-50 border border-black/10 px-4 py-3 text-sm flex items-center gap-3">
-                      <div className="w-8 h-8 bg-black text-white font-bold flex items-center justify-center text-sm shrink-0">
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm flex items-center gap-3">
+                      <div className="w-8 h-8 bg-blue-600 text-white font-bold rounded-lg flex items-center justify-center text-sm shrink-0">
                         {quote.assignedStaff.name.charAt(0)}
                       </div>
                       <div>
@@ -924,7 +924,7 @@ export default function AdminQuoteDetail() {
                   <div className="pt-1 border-t">
                     <p className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wide font-semibold">Job Done?</p>
                     <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment-early"
-                      className="w-full bg-black text-white py-3 font-black text-xs uppercase tracking-[0.1em] flex items-center justify-center gap-2 hover:bg-neutral-800 transition-colors disabled:opacity-50">
+                      className="w-full bg-blue-600 text-white py-3 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-50">
                       <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Mark Done & Request Final Payment"}
                     </button>
                   </div>
@@ -941,7 +941,7 @@ export default function AdminQuoteDetail() {
                     <p className="text-xs text-pink-700">Staff are on-site. Field check-ins will appear in the timeline below.</p>
                   </div>
                   <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment-inprogress"
-                    className="w-full bg-black text-white py-3 font-black text-xs uppercase tracking-[0.1em] flex items-center justify-center gap-2 hover:bg-neutral-800 transition-colors disabled:opacity-50">
+                    className="w-full bg-blue-600 text-white py-3 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-50">
                     <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Mark Done & Request Final Payment"}
                   </button>
                 </div>
@@ -957,7 +957,7 @@ export default function AdminQuoteDetail() {
                     <p className="text-xs text-emerald-700">Field work is done. Send the final payment request to the customer.</p>
                   </div>
                   <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-final-payment"
-                    className="w-full bg-black text-white py-3.5 font-black text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 hover:bg-neutral-800 transition-colors disabled:opacity-50">
+                    className="w-full bg-blue-600 text-white py-3.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-50">
                     <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Request Final Payment"}
                   </button>
                 </div>
@@ -973,11 +973,11 @@ export default function AdminQuoteDetail() {
                     <p className="text-xs text-amber-700">Payment request sent. Waiting for customer to pay the remaining balance.</p>
                     <div className="bg-amber-100 px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
                       <span>Balance due</span>
-                      <span className="font-black">{formatMoney(quote.finalAmount)}</span>
+                      <span className="font-bold">{formatMoney(quote.finalAmount)}</span>
                     </div>
                   </div>
                   <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-resend-final-payment"
-                    className="w-full border border-black/20 text-slate-700 bg-white hover:bg-slate-50 py-2.5 font-black text-xs uppercase tracking-[0.1em] flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                    className="w-full border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 rounded-xl py-2.5 font-medium text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50">
                     <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending..." : "Resend Final Payment Email"}
                   </button>
                 </div>
@@ -987,7 +987,7 @@ export default function AdminQuoteDetail() {
               {['closed', 'final_paid'].includes(quote.status) && (
                 <div className="bg-emerald-50 border border-emerald-200 p-5 text-center">
                   <BadgeCheck className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                  <p className="font-black text-emerald-700 text-xs uppercase tracking-[0.15em]">Case Closed</p>
+                  <p className="font-semibold text-emerald-700 text-sm">Case Closed</p>
                   <p className="text-xs text-emerald-600 mt-1">Total collected: <strong>{formatMoney(quote.total)}</strong></p>
                 </div>
               )}
@@ -996,7 +996,7 @@ export default function AdminQuoteDetail() {
               {quote.status === 'cancelled' && (
                 <div className="bg-red-50 border border-red-200 p-4 text-center">
                   <XCircle className="w-8 h-8 text-red-400 mx-auto mb-1" />
-                  <p className="font-black text-red-700 text-xs uppercase tracking-[0.15em]">Job Cancelled</p>
+                  <p className="font-semibold text-red-700 text-sm">Job Cancelled</p>
                 </div>
               )}
 
@@ -1004,7 +1004,7 @@ export default function AdminQuoteDetail() {
               {!['closed', 'cancelled', 'final_paid'].includes(quote.status) && (
                 <div className="pt-2 border-t">
                   <button onClick={handleManualClose} data-testid="button-manual-close"
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 border text-xs font-black uppercase tracking-[0.1em] text-muted-foreground hover:bg-secondary transition-colors">
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 transition-all">
                     <XCircle className="w-4 h-4" /> Manual Close / Cancel
                   </button>
                 </div>
@@ -1012,47 +1012,47 @@ export default function AdminQuoteDetail() {
             </div>
 
             {/* Payment Summary */}
-            <div className="bg-white border border-black/[0.07] overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
               {/* Total header */}
-              <div className="px-5 pt-5 pb-4 border-b border-black/[0.06]">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total Contract Value</p>
-                <p className="text-2xl font-black text-slate-900 tabular-nums">{formatMoney(quote.total)}</p>
+              <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+                <p className="text-xs font-medium text-gray-400 mb-1">Total Contract Value</p>
+                <p className="text-2xl font-bold text-gray-900 tabular-nums">{formatMoney(quote.total)}</p>
               </div>
               {/* Payment rows */}
               <div className="p-4 space-y-2">
                 {/* Deposit row */}
-                <div className={`flex items-center justify-between px-3 py-2.5 text-sm ${
+                <div className={`flex items-center justify-between px-3 py-2.5 text-sm rounded-xl ${
                   quote.depositPaidAt
                     ? 'bg-emerald-50 border border-emerald-200'
-                    : 'bg-slate-50 border border-slate-200'
+                    : 'bg-gray-50 border border-gray-200'
                 }`}>
                   <div className="flex items-center gap-2">
-                    <div className={`w-5 h-5 flex items-center justify-center text-[10px] font-black ${
-                      quote.depositPaidAt ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-white'
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                      quote.depositPaidAt ? 'bg-emerald-500 text-white' : 'bg-gray-300 text-white'
                     }`}>{quote.depositPaidAt ? '✓' : '1'}</div>
-                    <span className={`font-semibold text-xs ${quote.depositPaidAt ? 'text-emerald-700' : 'text-slate-500'}`}>
+                    <span className={`font-semibold text-xs ${quote.depositPaidAt ? 'text-emerald-700' : 'text-gray-500'}`}>
                       Deposit (50%)
                     </span>
                   </div>
-                  <span className={`font-black tabular-nums text-sm ${quote.depositPaidAt ? 'text-emerald-700' : 'text-slate-700'}`}>
+                  <span className={`font-bold tabular-nums text-sm ${quote.depositPaidAt ? 'text-emerald-700' : 'text-gray-700'}`}>
                     {formatMoney(quote.depositAmount)}
                   </span>
                 </div>
                 {/* Balance row */}
-                <div className={`flex items-center justify-between px-3 py-2.5 text-sm ${
+                <div className={`flex items-center justify-between px-3 py-2.5 text-sm rounded-xl ${
                   quote.finalPaidAt
                     ? 'bg-emerald-50 border border-emerald-200'
-                    : 'bg-slate-50 border border-slate-200'
+                    : 'bg-gray-50 border border-gray-200'
                 }`}>
                   <div className="flex items-center gap-2">
-                    <div className={`w-5 h-5 flex items-center justify-center text-[10px] font-black ${
-                      quote.finalPaidAt ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-white'
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                      quote.finalPaidAt ? 'bg-emerald-500 text-white' : 'bg-gray-300 text-white'
                     }`}>{quote.finalPaidAt ? '✓' : '2'}</div>
-                    <span className={`font-semibold text-xs ${quote.finalPaidAt ? 'text-emerald-700' : 'text-slate-500'}`}>
+                    <span className={`font-semibold text-xs ${quote.finalPaidAt ? 'text-emerald-700' : 'text-gray-500'}`}>
                       Balance (50%)
                     </span>
                   </div>
-                  <span className={`font-black tabular-nums text-sm ${quote.finalPaidAt ? 'text-emerald-700' : 'text-slate-700'}`}>
+                  <span className={`font-bold tabular-nums text-sm ${quote.finalPaidAt ? 'text-emerald-700' : 'text-gray-700'}`}>
                     {formatMoney(quote.finalAmount)}
                   </span>
                 </div>
@@ -1061,8 +1061,8 @@ export default function AdminQuoteDetail() {
 
             {/* Staff / Team Assignment */}
             {((quote as any).assignedTeam || quote.assignedStaff) && (
-              <div className="bg-white p-5 border border-black/[0.07]">
-                <h3 className="font-black mb-3 text-[10px] text-slate-400 uppercase tracking-[0.2em]">
+              <div className="bg-white p-5 border border-gray-200 rounded-2xl shadow-sm">
+                <h3 className="text-xs font-medium text-gray-400 mb-3">
                   {(quote as any).assignedTeam ? "Assigned Team" : "Assigned Staff"}
                 </h3>
                 {(quote as any).assignedTeam ? (
@@ -1080,7 +1080,7 @@ export default function AdminQuoteDetail() {
                     {(quote as any).assignedTeam.members?.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {(quote as any).assignedTeam.members.map((m: any) => (
-                          <span key={m.id} className="bg-slate-100 border border-black/10 px-2.5 py-0.5 text-xs font-medium">{m.name}</span>
+                          <span key={m.id} className="bg-gray-100 border border-gray-200 px-2.5 py-0.5 rounded-full text-xs font-medium">{m.name}</span>
                         ))}
                       </div>
                     )}
@@ -1101,8 +1101,8 @@ export default function AdminQuoteDetail() {
 
             {/* Internal Notes */}
             {quote.notes && (
-              <div className="bg-amber-50 p-4 border border-amber-200">
-                <h3 className="font-black mb-2 text-[10px] text-amber-600 uppercase tracking-[0.2em]">Internal Notes</h3>
+              <div className="bg-amber-50 p-4 border border-amber-200 rounded-2xl">
+                <h3 className="text-xs font-semibold text-amber-600 mb-2">Internal Notes</h3>
                 <p className="text-sm text-amber-800 leading-relaxed">{quote.notes}</p>
               </div>
             )}
@@ -1112,27 +1112,27 @@ export default function AdminQuoteDetail() {
       </div>
 
       {/* Mobile sticky bottom action bar — sits above AdminBottomNav (h-16) */}
-      <div className="fixed bottom-16 sm:bottom-0 inset-x-0 lg:hidden bg-white border-t border-black/[0.1] z-40 p-3">
+      <div className="fixed bottom-16 sm:bottom-0 inset-x-0 lg:hidden bg-white border-t border-gray-200 z-40 p-3">
         {['submitted', 'under_review'].includes(quote.status) && (
           <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending} data-testid="button-mobile-approve"
-            className="w-full bg-black text-white py-3.5 font-black text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-neutral-800 transition-colors">
+            className="w-full bg-blue-600 text-white py-3.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-blue-700 transition-all">
             <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
           </button>
         )}
         {quote.status === 'deposit_requested' && (
-          <div className="w-full py-3 text-center text-xs font-black uppercase tracking-[0.1em] text-amber-700 bg-amber-50 border border-amber-200">
+          <div className="w-full py-3 text-center text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl">
             Awaiting deposit — {formatMoney(quote.depositAmount)}
           </div>
         )}
         {quote.status === 'deposit_paid' && (
-          <div className="w-full py-3 text-center text-xs font-black uppercase tracking-[0.1em] text-emerald-700 bg-emerald-50 border border-emerald-200">
+          <div className="w-full py-3 text-center text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl">
             Deposit paid — awaiting booking
           </div>
         )}
         {quote.status === 'booked' && (
           <div className="flex gap-2">
             <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)}
-              className="flex-1 px-3 py-3 bg-slate-50 border border-black/10 outline-none focus:border-black text-sm">
+              className="flex-1 px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 transition-all text-sm">
               <option value="">Select staff or team…</option>
               {teamsList.length > 0 && (
                 <optgroup label="── Teams">
@@ -1148,30 +1148,30 @@ export default function AdminQuoteDetail() {
               </optgroup>
             </select>
             <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedAssignee} data-testid="button-mobile-assign"
-              className="px-4 py-3 bg-black text-white font-black text-xs uppercase tracking-[0.1em] flex items-center gap-2 disabled:opacity-50 hover:bg-neutral-800 transition-colors">
+              className="px-4 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl flex items-center gap-2 disabled:opacity-50 hover:bg-blue-700 transition-all">
               <UserPlus className="w-4 h-4" /> Assign
             </button>
           </div>
         )}
         {['in_progress', 'completed', 'assigned'].includes(quote.status) && (
           <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-mobile-final-payment"
-            className="w-full bg-black text-white py-3.5 font-black text-xs uppercase tracking-[0.12em] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-neutral-800 transition-colors">
+            className="w-full bg-blue-600 text-white py-3.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-blue-700 transition-all">
             <DollarSign className="w-4 h-4" /> {requestFinalPayment.isPending ? "Sending…" : "Mark Done & Request Final Payment"}
           </button>
         )}
         {quote.status === 'final_payment_requested' && (
           <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending} data-testid="button-mobile-resend-payment"
-            className="w-full border border-black/20 text-slate-700 bg-white py-3.5 font-black text-xs uppercase tracking-[0.1em] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-slate-50 transition-colors">
+            className="w-full border border-gray-200 text-gray-700 bg-white rounded-xl py-3.5 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-gray-50 transition-all">
             <DollarSign className="w-4 h-4" /> Resend Final Payment Email
           </button>
         )}
         {['closed', 'final_paid'].includes(quote.status) && (
-          <div className="w-full py-3 text-center text-xs font-black uppercase tracking-[0.1em] text-emerald-700 bg-emerald-50 border border-emerald-200">
+          <div className="w-full py-3 text-center text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl">
             Case Closed — {formatMoney(quote.total)} collected
           </div>
         )}
         {quote.status === 'cancelled' && (
-          <div className="w-full py-3 text-center text-xs font-black uppercase tracking-[0.1em] text-red-600 bg-red-50 border border-red-200">
+          <div className="w-full py-3 text-center text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl">
             Job Cancelled
           </div>
         )}
@@ -1180,13 +1180,13 @@ export default function AdminQuoteDetail() {
       {/* ── Delete Confirmation Modal ── */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" data-testid="modal-delete-confirm">
-          <div className="bg-white w-full max-w-sm shadow-2xl">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
             <div className="bg-red-600 px-5 py-4 flex items-center gap-3">
               <AlertOctagon className="w-5 h-5 text-white shrink-0" />
-              <p className="text-white font-black text-sm uppercase tracking-[0.1em]">Delete Job Case</p>
+              <p className="text-white font-semibold text-sm">Delete Job Case</p>
             </div>
             <div className="px-5 py-5 space-y-3">
-              <p className="text-sm text-black/70 leading-relaxed">
+              <p className="text-sm text-gray-600 leading-relaxed">
                 Permanently delete <strong>{quote.referenceNo}</strong> for <strong>{quote.customer?.name}</strong>?
                 This removes all items, updates, and history. <span className="text-red-600 font-bold">This cannot be undone.</span>
               </p>
@@ -1196,7 +1196,7 @@ export default function AdminQuoteDetail() {
                 onClick={() => deleteQuoteMutation.mutate()}
                 disabled={deleteQuoteMutation.isPending}
                 data-testid="button-confirm-delete"
-                className="flex-1 h-10 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-[0.12em] disabled:opacity-50 transition-colors"
+                className="flex-1 h-10 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all"
               >
                 {deleteQuoteMutation.isPending ? "Deleting…" : "Yes, Delete"}
               </button>
@@ -1204,7 +1204,7 @@ export default function AdminQuoteDetail() {
                 onClick={() => setShowDeleteConfirm(false)}
                 disabled={deleteQuoteMutation.isPending}
                 data-testid="button-cancel-delete"
-                className="flex-1 h-10 border border-black/15 text-xs font-black uppercase tracking-[0.12em] hover:border-black/30 transition-colors"
+                className="flex-1 h-10 border border-gray-200 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-50 transition-all"
               >
                 Cancel
               </button>
