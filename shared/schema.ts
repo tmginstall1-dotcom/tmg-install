@@ -169,6 +169,10 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   hasLift: boolean("has_lift").default(true),          // whether a lift is available
   accessDifficulty: text("access_difficulty").default("easy"), // 'easy' | 'medium' | 'hard'
 
+  // Conversation memory — JSON array of {role:"user"|"assistant", content:string}
+  // Stores the last 8 exchanges so GPT can reference earlier context.
+  conversationHistory: text("conversation_history"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

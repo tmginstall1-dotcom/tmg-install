@@ -172,6 +172,26 @@ export async function sendWhatsAppMessage(to: string, text: string): Promise<voi
   }
 }
 
+// ── Mark an incoming message as read (shows double blue ticks) ───────────────
+export async function markAsRead(messageId: string): Promise<void> {
+  const ACCESS_TOKEN = await getAccessToken();
+  if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) return;
+  try {
+    await fetch(`${WA_API_BASE}/${PHONE_NUMBER_ID}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: messageId,
+      }),
+    });
+  } catch { /* non-critical — ignore errors */ }
+}
+
 // ── Download a WhatsApp media item as base64 ─────────────────────────────────
 export async function downloadWhatsAppMedia(
   mediaId: string

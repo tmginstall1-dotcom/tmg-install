@@ -20,7 +20,7 @@ import {
   newEstimateAdminAlert,
   ADMIN_EMAIL
 } from "./email";
-import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, downloadWhatsAppMedia, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
+import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
 import { calcTransportFee, PricingConfig } from "@shared/pricing";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
@@ -98,6 +98,28 @@ Only return names that are genuinely relevant. Return empty array if nothing mat
   } catch {
     return null;
   }
+}
+
+// ── Conversation history helpers ──────────────────────────────────────────────
+type HistoryEntry = { role: "user" | "assistant"; content: string };
+
+/** Parse stored JSON history or return empty array */
+function loadHistory(session: { conversationHistory?: string | null } | undefined): HistoryEntry[] {
+  try { return JSON.parse(session?.conversationHistory || "[]") as HistoryEntry[]; }
+  catch { return []; }
+}
+
+/** Return last N entries formatted for the GPT messages array */
+function historyMessages(history: HistoryEntry[], n = 8): { role: "user" | "assistant"; content: string }[] {
+  return history.slice(-n);
+}
+
+/** Append one customer+bot exchange and save (fire-and-forget is fine — non-critical) */
+async function saveHistory(phone: string, history: HistoryEntry[], customerMsg: string, botReply: string): Promise<void> {
+  history.push({ role: "user", content: customerMsg });
+  history.push({ role: "assistant", content: botReply });
+  const trimmed = history.slice(-16); // keep last 8 pairs
+  storage.upsertWhatsAppSession(phone, { conversationHistory: JSON.stringify(trimmed) }).catch(() => {});
 }
 
 // ── WhatsApp date-menu helper ─────────────────────────────────────────────────
@@ -2075,6 +2097,10 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
       const msg = value.messages[0];
       const from: string = msg.from; // sender phone e.g. "6591234567"
+
+      // ── Mark as read immediately — shows double blue ticks to customer ────────
+      markAsRead(msg.id).catch(() => {});
+
       const msgType: string = msg.type || "text";
       // Include image/video captions in text so pricing questions sent with a photo
       // are processed the same as plain text messages (caption = msg.image.caption)
@@ -2083,6 +2109,9 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
       const session = await storage.getWhatsAppSession(from);
       const state = session?.state ?? "start";
+
+      // ── Load conversation history for context-aware GPT calls ────────────────
+      const conversationHistory = loadHistory(session);
 
       const isGreeting = ["restart", "start over", "new quote", "start"].includes(textLower) || textLower.startsWith("hi") || textLower.startsWith("hello") || textLower.startsWith("hey");
 
@@ -2226,56 +2255,56 @@ Message: "${text}"`
         try {
           const globalRes = await openai.chat.completions.create({
             model: "gpt-4o",
-            max_tokens: 100,
+            max_tokens: 150,
             response_format: { type: "json_object" },
-            messages: [{
-              role: "system",
-              content: `You are a WhatsApp bot for TMG Install. The customer is mid-flow in a furniture quote.
-Current state: ${state}
-Current data: Name="${session.collectedName || ""}", Address="${session.collectedAddress || ""}", Items="${session.collectedItems || ""}"
+            messages: [
+              {
+                role: "system",
+                content: `You are the AI assistant for TMG Install — Singapore's professional furniture installation, dismantling, relocation and disposal company. You are helping a customer get a quote via WhatsApp.
 
-Customer said: "${text}"
+CUSTOMER CONTEXT:
+- Name: ${session.collectedName || "(not yet given)"}
+- Job address: ${session.collectedAddress || "(not yet given)"}
+- Items: ${session.collectedItems || "(not yet given)"}
+- Current step: ${state.replace(/_/g, " ")}
 
-Is this message a GLOBAL COMMAND (a request to change name/address/items/date, or ask for help/pricing)?
-Or is it a NORMAL REPLY to the current question (not a command)?
+CLASSIFY the customer's latest message. Is it a GLOBAL COMMAND or a NORMAL REPLY to the current question?
 
 Return JSON:
 {
   "isCommand": boolean,
   "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"help"|"pricing"|"faq"|"none",
-  "faqAnswer": "string — answer to the customer's question if command=faq, otherwise empty string",
-  "pricingItem": "string or null — specific furniture item mentioned if command=pricing (e.g. 'wardrobe', 'dining table', 'sofa')"
+  "faqAnswer": "concise answer (2-3 sentences) if command=faq, otherwise empty string",
+  "pricingItem": "specific furniture item if command=pricing, e.g. 'IKEA PAX wardrobe', 'queen bed frame', 'sofa'. Null if not mentioned."
 }
 
-Commands:
-- change_name/change_address/change_items/change_date/change_floor/change_access: explicit edit request
-- help: asking for help or what they can do
-- pricing: asking specifically about price/cost for a specific item or service (e.g. "how much to assemble a wardrobe", "what's the price for relocation")
-- faq: a general question about TMG Install services, process, timing, payment, areas, etc. NOT about specific item pricing
-  Examples of FAQ: "do you do office furniture?", "how long does installation take?", "can you do weekends?", "is GST included?", "do you bring your own tools?", "what areas do you cover?"
-  For faq: provide a helpful, concise answer in faqAnswer (2-3 sentences max)
-- none: a normal reply to the current state question (NOT a command)
-- pricingItem: if command=pricing and a specific furniture item is mentioned, extract it (e.g. "wardrobe", "IKEA PAX wardrobe", "queen bed frame"). Null if no specific item mentioned.
+COMMAND RULES:
+- change_*: customer explicitly asks to correct/edit something already collected
+- help: asking what they can do or how this works
+- pricing: asking about price/cost for a specific or general furniture item or service
+- faq: general question about TMG Install (timing, payment, areas, GST, tools, etc.) NOT about item pricing
+- none: a direct answer to the current question — DO NOT override a direct reply
 
-IMPORTANT: Do NOT classify as faq/command if the message is directly answering the current question:
-- state=awaiting_floor → floor numbers or lift answers are NOT commands
-- state=awaiting_access → "easy/1/moderate" are NOT commands
-- state=awaiting_date → dates, times, "anytime" are NOT commands
-- state=awaiting_items → furniture descriptions are NOT commands
+CRITICAL — Do NOT classify as command if customer is directly answering the current question:
+- state=awaiting_floor → floor numbers, lift/no-lift answers → none
+- state=awaiting_access → 1/2/3, easy/moderate/hard → none
+- state=awaiting_date → dates, times, "anytime", "flexible" → none
+- state=awaiting_items → furniture names or descriptions → none
+- state=awaiting_to_address → addresses → none
 
-TMG Install facts for faq answers:
-- Singapore-based furniture installation, dismantling, relocation and disposal company
-- Services: install new furniture, dismantle old furniture, relocate (move + reinstall), dispose (haul away assembled furniture), dismantle+dispose bundle (cheaper than disposal only)
-- Disposal pricing: disposal only costs more; dismantle+dispose bundle is cheaper as we dismantle first then haul away
-- Covers all of Singapore (HDB, condo, landed, commercial/office)
-- Weekdays and weekends available (subject to availability)
-- Tools and equipment provided — customer doesn't need anything
-- Pricing: starts from SGD 80 per item; minimum job SGD 180; relocation has transport fee on top
-- GST not included in quotes (pricing is nett, team to advise if GST applicable)
-- Payment: 50% deposit to confirm booking, 50% balance on completion; PayNow/bank transfer/card
-- Typical response time: quote sent within 1 business day; booking confirmed after deposit
-- Admin team will review quote and may adjust pricing for complex or unusual items`
-            }]
+TMG INSTALL FACTS (for faq answers):
+- Covers all Singapore: HDB, condo, landed, commercial & office
+- Services: install (new/flat-pack assembly), dismantle, relocate (move + reinstall), dispose (haul away assembled), dismantle+dispose bundle (best value for disposal)
+- Available weekdays & weekends (subject to availability)
+- All tools & equipment supplied — customer needs nothing
+- Pricing: from SGD 80/item; minimum job SGD 180; transport fee added for relocation
+- Payment: 50% deposit to confirm, 50% on completion — PayNow / bank transfer / card
+- Quotes reviewed by admin; booking confirmed after deposit paid
+- GST not included (nett pricing)`
+              },
+              ...historyMessages(conversationHistory),
+              { role: "user", content: text },
+            ],
           });
           const gc = JSON.parse(globalRes.choices[0]?.message?.content || "{}");
           if (gc.isCommand && gc.command && gc.command !== "none") {
@@ -2420,9 +2449,10 @@ TMG Install facts for faq answers:
             model: "gpt-4o",
             max_tokens: 100,
             response_format: { type: "json_object" },
-            messages: [{
-              role: "system",
-              content: `The customer was asked for their full name. Analyse their message carefully.
+            messages: [
+              {
+                role: "system",
+                content: `You are a WhatsApp assistant for TMG Install (Singapore furniture installation). The customer was asked for their full name. Analyse their message.
 Return JSON:
 {
   "name": string or null,
@@ -2431,12 +2461,14 @@ Return JSON:
   "mentionedItem": string or null
 }
 Rules:
-- name: a real human personal name if clearly provided (e.g. "John", "Mary Tan", "Ahmad Rashid"). Must be a proper name. Null if it is a question, a statement, a greeting like "hi/ok/yes/no", pricing query, or not clearly a person's name.
+- name: a real human personal name (e.g. "John", "Mary Tan", "Ahmad Rashid"). Null for questions, statements, greetings (hi/ok/yes/no), pricing queries, or anything that is not clearly a person's name.
 - address: Singapore address if mentioned alongside a name, otherwise null
 - isPricingQuestion: true if they asked about cost, price, or "how much"
-- mentionedItem: specific furniture item if they asked about pricing (e.g. "wardrobe", "bed frame", "dining table"), null otherwise
-Message: "${text}"`
-            }]
+- mentionedItem: specific furniture item if asking about pricing (e.g. "wardrobe", "bed frame", "dining table"), null otherwise`,
+              },
+              ...historyMessages(conversationHistory, 4),
+              { role: "user", content: text },
+            ],
           });
           const parsed = JSON.parse(nameRes.choices[0]?.message?.content || "{}");
           extractedName = parsed.name || null;
@@ -2498,9 +2530,9 @@ Message: "${text}"`
         // ── Valid name — proceed through the quote flow ────────────────────
         if (nameExtractedAddress) {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedName: extractedName, collectedAddress: nameExtractedAddress });
-          await sendWhatsAppMessage(from,
-            `Nice to meet you, *${extractedName}*! 😊 I've also noted your address: *${nameExtractedAddress}*.\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* and I'll identify the items — or just *type the list* below.`
-          );
+          const replyNameAddr = `Nice to meet you, *${extractedName}*! 😊 I've noted your address: *${nameExtractedAddress}*.\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items automatically — or *type the list* below.`;
+          await sendWhatsAppMessage(from, replyNameAddr);
+          saveHistory(from, conversationHistory, text, replyNameAddr);
           return;
         }
 
@@ -2508,26 +2540,24 @@ Message: "${text}"`
         const alreadyHasItemsToo = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
         await storage.upsertWhatsAppSession(from, { collectedName: extractedName });
 
+        let replyName: string;
         if (alreadyHasItemsToo) {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation" });
-          await sendWhatsAppMessage(from,
+          replyName =
             `✅ Got it, *${extractedName}*! Here's your updated summary:\n\n` +
             `👤 *Name:* ${extractedName}\n` +
             `📍 *Address:* ${session!.collectedAddress}\n` +
             `🛋️ *Items:*\n${session!.collectedItems}\n\n` +
-            `Ready to submit? Reply *YES* to send to our team.`
-          );
+            `Reply *YES* to confirm and send to our team. 😊`;
         } else if (alreadyHasAddress) {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items" });
-          await sendWhatsAppMessage(from,
-            `Got it, *${extractedName}*! 👍\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items, or *type the list* below.`
-          );
+          replyName = `Got it, *${extractedName}*! 👍\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items — or *type the list* below.`;
         } else {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-          await sendWhatsAppMessage(from,
-            `Nice to meet you, *${extractedName}*! 😊\n\n📍 What's the *job address*? This is where we'll be doing the work.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
-          );
+          replyName = `Nice to meet you, *${extractedName}*! 😊\n\n📍 Where is the job? Just drop the *address* below — block/unit number helps too.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
         }
+        await sendWhatsAppMessage(from, replyName);
+        saveHistory(from, conversationHistory, text, replyName);
         return;
       }
 
@@ -2543,41 +2573,49 @@ Message: "${text}"`
             model: "gpt-4o",
             max_tokens: 100,
             response_format: { type: "json_object" },
-            messages: [{
-              role: "system",
-              content: `The customer was asked for their Singapore job address. Extract and clean the address from their message.
+            messages: [
+              {
+                role: "system",
+                content: `You are a WhatsApp assistant for TMG Install (Singapore). The customer was asked for their job address. Extract and clean it.
 Return JSON: { "address": string or null, "valid": boolean }
-- address: cleaned Singapore address (include block, street, unit, postal if given). Null if no address found.
-- valid: true if it looks like a real Singapore location (has street/block/building name), false if too vague.
-Message: "${text}"`
-            }]
+- address: cleaned Singapore address (block, street, unit, postal code if given)
+- valid: true if it's a recognisable Singapore location; false if too vague (e.g. just "Singapore" or a single word)`,
+              },
+              ...historyMessages(conversationHistory, 4),
+              { role: "user", content: text },
+            ],
           });
           const parsed = JSON.parse(addrRes.choices[0]?.message?.content || "{}");
           if (parsed.address) extractedAddress = parsed.address;
           if (parsed.valid === false) {
             await sendWhatsAppMessage(from,
-              `Hmm, I need a bit more detail for the address. Could you include the *block number, street name*, or *postal code*? 📍\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+              `I need a bit more detail — could you include the *block number, street*, or *postal code*? 📍\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
             );
             return;
           }
         } catch {}
 
         const alreadyHasItems = session?.collectedItems && session.collectedItems !== "__scanning__";
+        let replyAddr: string;
         if (alreadyHasItems) {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedAddress: extractedAddress });
-          await sendWhatsAppMessage(from,
-            `✅ Address updated to *${extractedAddress}*! Here's your revised summary:\n\n` +
+          replyAddr =
+            `✅ Address updated to *${extractedAddress}*!\n\n` +
             `👤 *Name:* ${session.collectedName}\n` +
             `📍 *Address:* ${extractedAddress}\n` +
             `🛋️ *Items:*\n${session.collectedItems}\n\n` +
-            `Shall I send this to our team? Reply *YES* to submit.`
-          );
+            `Ready to go? Reply *YES* to send to our team. 😊`;
         } else {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: extractedAddress });
-          await sendWhatsAppMessage(from,
-            `Got it! 📍 *${extractedAddress}*\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* and I'll identify the items automatically — or *type the list* below.\n\nMention if it's for *installation, dismantling, relocation, or disposal* too!\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle+dispose)\n• L-shaped sofa (disposal only)`
-          );
+          replyAddr =
+            `Got it! 📍 *${extractedAddress}*\n\n` +
+            `Now, what furniture do you need help with?\n\n` +
+            `📸 *Send a photo* and I'll detect the items automatically — or *type the list* below.\n\n` +
+            `Mention the service too if you know it (install, dismantle, relocate, dispose).\n\n` +
+            `_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle+dispose)\n• L-shaped sofa (disposal only)`;
         }
+        await sendWhatsAppMessage(from, replyAddr);
+        saveHistory(from, conversationHistory, text, replyAddr);
         return;
       }
 
@@ -3211,31 +3249,31 @@ Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"disman
             model: "gpt-4o",
             max_tokens: 150,
             response_format: { type: "json_object" },
-            messages: [{
-              role: "system",
-              content: `You are a quoting assistant for TMG Install, a furniture installation company in Singapore.
+            messages: [
+              {
+                role: "system",
+                content: `You are a quoting assistant for TMG Install (Singapore furniture installation). The customer was asked which floor their unit is on and whether there is a lift.
 
-The customer was asked: "Which floor is the unit on? And is there a lift available?"
-
-Customer replied: "${text}"
-
-Parse their response and return JSON:
+Return JSON:
 {
   "floorLevel": number | null,
   "hasLift": boolean | null,
   "understood": boolean,
-  "reply": "your brief friendly confirmation (1 sentence)"
+  "reply": "brief friendly 1-sentence confirmation"
 }
 
 Rules:
-- "ground floor" / "1st floor" / "ground" → floorLevel: 1
-- "2nd" / "second" / "level 2" / "storey 2" → floorLevel: 2
-- "yes" alone with no floor number → floorLevel: null, understood: false (need floor number)
-- "yes lift" / "with lift" → hasLift: true
-- "no lift" / "no" with no floor context → hasLift: false
-- If only floor given and no lift mentioned → hasLift: null
-- If you cannot determine floor at all → understood: false`
-            }]
+- "ground floor" / "1st" / "ground" → floorLevel: 1
+- "2nd" / "second" / "level 2" / "storey 2" → floorLevel: 2 (and so on)
+- "yes" alone with no floor → floorLevel: null, understood: false
+- "yes lift" / "with lift" / "got lift" → hasLift: true
+- "no lift" / "no" in lift context → hasLift: false
+- Only floor given, no lift mentioned → hasLift: null
+- Cannot determine floor at all → understood: false`,
+              },
+              ...historyMessages(conversationHistory, 4),
+              { role: "user", content: text },
+            ],
           });
           const fp = JSON.parse(floorRes.choices[0]?.message?.content || "{}");
 
@@ -3260,14 +3298,15 @@ Rules:
           const hasLift = !!fp.hasLift;
           // Both floor and lift captured — move to access difficulty
           await storage.upsertWhatsAppSession(from, { floorLevel, hasLift, state: "awaiting_access" });
-          await sendWhatsAppMessage(from,
-            `${fp.reply || `Got it — Floor ${floorLevel}, ${hasLift ? "lift available" : "no lift"}.`} 👍\n\n` +
-            `One more question — how easy is access to the unit?\n\n` +
-            `1️⃣ *Easy* — clear hallways, no obstacles\n` +
-            `2️⃣ *Moderate* — some tight corners or minor obstacles\n` +
-            `3️⃣ *Difficult* — very narrow, many obstacles\n\n` +
-            `Reply *1*, *2*, or *3*`
-          );
+          const replyFloor =
+            `${fp.reply || `Got it — Floor ${floorLevel}, ${hasLift ? "lift ✅" : "no lift"}.`} 👍\n\n` +
+            `Last question — how easy is access to the unit?\n\n` +
+            `1️⃣ *Easy* — clear corridors, no obstacles\n` +
+            `2️⃣ *Moderate* — some tight corners or obstacles\n` +
+            `3️⃣ *Difficult* — very narrow, many steps, or no lift access\n\n` +
+            `Reply *1*, *2*, or *3*`;
+          await sendWhatsAppMessage(from, replyFloor);
+          saveHistory(from, conversationHistory, text, replyFloor);
         } catch (err) {
           console.error("[WhatsApp] Floor parse error:", err);
           await sendWhatsAppMessage(from,
