@@ -2076,7 +2076,9 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const msg = value.messages[0];
       const from: string = msg.from; // sender phone e.g. "6591234567"
       const msgType: string = msg.type || "text";
-      const text: string = (msg.text?.body || "").trim();
+      // Include image/video captions in text so pricing questions sent with a photo
+      // are processed the same as plain text messages (caption = msg.image.caption)
+      const text: string = (msg.text?.body || msg.image?.caption || "").trim();
       const textLower = text.toLowerCase();
 
       const session = await storage.getWhatsAppSession(from);
@@ -2328,8 +2330,34 @@ TMG Install facts for faq answers:
                 awaiting_confirmation: `Ready to submit? Reply *YES* to confirm.`,
               };
               const continuePrompt = statePromptPricing[state] || `Let's continue with your quote. 😊`;
-              if (pricingItem) {
-                const priceMsg = await smartPricingLookup(pricingItem);
+
+              // If customer sent a photo with "how much this cost?", scan it to identify the item
+              let resolvedPricingItem = pricingItem;
+              if (!resolvedPricingItem && msgType === "image" && msg.image?.id) {
+                try {
+                  const pricingMedia = await downloadWhatsAppMedia(msg.image.id);
+                  if (pricingMedia) {
+                    const visionRes = await openai.chat.completions.create({
+                      model: "gpt-4o",
+                      max_tokens: 80,
+                      messages: [{
+                        role: "system",
+                        content: `Identify the main furniture item in this photo. Return ONLY the short item name (e.g. "wardrobe", "queen bed frame", "dining table"). If no furniture is visible, return "NONE".`,
+                      }, {
+                        role: "user",
+                        content: [
+                          { type: "image_url", image_url: { url: `data:${pricingMedia.mimeType};base64,${pricingMedia.base64}`, detail: "low" } },
+                        ] as any,
+                      }],
+                    });
+                    const detected = (visionRes.choices[0]?.message?.content || "").trim();
+                    if (detected && detected !== "NONE") resolvedPricingItem = detected;
+                  }
+                } catch { /* ignore scan errors */ }
+              }
+
+              if (resolvedPricingItem) {
+                const priceMsg = await smartPricingLookup(resolvedPricingItem);
                 if (priceMsg) {
                   await sendWhatsAppMessage(from, `${priceMsg}\n\n${continuePrompt}`);
                   return;
@@ -2425,14 +2453,40 @@ Message: "${text}"`
 
         // ── Not a name: handle pricing question or re-ask ──────────────────
         if (!extractedName) {
-          if (nameIsPricing && nameMentionedItem) {
-            const priceMsg = await smartPricingLookup(nameMentionedItem);
-            if (priceMsg) {
-              await sendWhatsAppMessage(from,
-                `${priceMsg}\n\n` +
-                `Would you like a full personalised quote? To get started, what's your *full name*? 😊`
-              );
-              return;
+          if (nameIsPricing) {
+            // If caption had no item name but a photo was sent, scan the photo
+            let itemForLookup = nameMentionedItem;
+            if (!itemForLookup && msgType === "image" && msg.image?.id) {
+              try {
+                const pricingMedia2 = await downloadWhatsAppMedia(msg.image.id);
+                if (pricingMedia2) {
+                  const visionRes2 = await openai.chat.completions.create({
+                    model: "gpt-4o",
+                    max_tokens: 80,
+                    messages: [{
+                      role: "system",
+                      content: `Identify the main furniture item in this photo. Return ONLY the short item name (e.g. "wardrobe", "queen bed frame", "dining table"). If no furniture is visible, return "NONE".`,
+                    }, {
+                      role: "user",
+                      content: [
+                        { type: "image_url", image_url: { url: `data:${pricingMedia2.mimeType};base64,${pricingMedia2.base64}`, detail: "low" } },
+                      ] as any,
+                    }],
+                  });
+                  const detected2 = (visionRes2.choices[0]?.message?.content || "").trim();
+                  if (detected2 && detected2 !== "NONE") itemForLookup = detected2;
+                }
+              } catch { /* ignore */ }
+            }
+            if (itemForLookup) {
+              const priceMsg = await smartPricingLookup(itemForLookup);
+              if (priceMsg) {
+                await sendWhatsAppMessage(from,
+                  `${priceMsg}\n\n` +
+                  `Would you like a full personalised quote? To get started, what's your *full name*? 😊`
+                );
+                return;
+              }
             }
           }
           await sendWhatsAppMessage(from,
