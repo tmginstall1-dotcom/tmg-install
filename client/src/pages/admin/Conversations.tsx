@@ -266,7 +266,7 @@ export default function AdminConversations() {
   const showList = !selectedPhone;
 
   return (
-    <div className="flex h-[calc(100dvh-56px)] bg-[#F5F5F7] overflow-hidden" data-testid="admin-conversations">
+    <div className="flex h-[calc(100dvh-56px)] bg-[#F5F5F7] overflow-hidden lg:pl-56" data-testid="admin-conversations">
 
       {/* ═══ LEFT: Conversation List ══════════════════════════════════════ */}
       <div className={`
