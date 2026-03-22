@@ -35,6 +35,7 @@ export default function StaffDashboard() {
 
   const { data: rawQuotes, isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/quotes"],
+    refetchInterval: 30000,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
     staleTime: 0,

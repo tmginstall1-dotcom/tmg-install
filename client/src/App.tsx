@@ -77,11 +77,32 @@ function isNativeApp(): boolean {
 
 function NativeRedirect() {
   const [location, setLocation] = useLocation();
+  const { user, isLoading } = useAuth();
   useEffect(() => {
-    if (isNativeApp() && (location === "/" || location === "")) {
-      setLocation("/staff/login");
+    if (!isNativeApp()) return;
+    if (isLoading) return;
+    if (location === "/" || location === "") {
+      setLocation(user ? "/staff" : "/staff/login");
     }
-  }, [location, setLocation]);
+  }, [location, setLocation, user, isLoading]);
+  return null;
+}
+
+function AppResumeRefetcher() {
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let cleanup: (() => void) | undefined;
+    import("@capacitor/app").then(({ App: CapApp }) => {
+      CapApp.addListener("appStateChange", ({ isActive }) => {
+        if (isActive) {
+          queryClient.invalidateQueries();
+        }
+      }).then((handle) => {
+        cleanup = () => handle.remove();
+      });
+    }).catch(() => {});
+    return () => { cleanup?.(); };
+  }, []);
   return null;
 }
 
@@ -89,6 +110,7 @@ function Router() {
   return (
     <>
       <NativeRedirect />
+      <AppResumeRefetcher />
       <Navbar />
       <AdminSidebar />
       <StaffBottomNav />
