@@ -2128,6 +2128,15 @@ Respond with ONLY a JSON array (no prose, no markdown):
         }
       }
 
+      // ── Suppress duplicate welcome: session already started (awaiting_name, no data yet) ──
+      // When a greeting + photo arrive simultaneously, the greeting re-triggers the welcome.
+      // If a session already exists in awaiting_name with nothing collected, just re-ask for name.
+      const isSimpleGreeting = isGreeting && !["restart", "start over", "new quote"].includes(textLower);
+      if (isSimpleGreeting && session && session.state === "awaiting_name" && !session.collectedName) {
+        await sendWhatsAppMessage(from, `What's your *full name*? I just need something to address you by. 😊`);
+        return;
+      }
+
       if (!session || isGreeting || textLower === "continue" && !session) {
         // ── If this is an image with no caption, handle inline so we don't send
         //    a duplicate welcome message when photo + text arrive simultaneously.
@@ -2594,8 +2603,37 @@ Key examples:
 
         // ── Not a name: handle pricing question or re-ask ──────────────────
         if (!extractedName) {
-          // Service-only reply (e.g. "Installation") — they gave service but not item
+          // Service-only reply (e.g. "Installation" or photo + "how much for this installation")
+          // Try to get the item from the photo first, THEN ask if still missing
           if (nameIsPricing && nameMentionedService && !nameMentionedItem) {
+            let itemFromPhoto: string | null = null;
+            if (msgType === "image" && msg.image?.id) {
+              try {
+                const svcMedia = await downloadWhatsAppMedia(msg.image.id);
+                if (svcMedia) {
+                  const svcScan = await openai.chat.completions.create({
+                    model: "gpt-4o", max_tokens: 60,
+                    messages: [
+                      { role: "system", content: `Identify the main furniture item in this photo. Return ONLY the item name (e.g. "wardrobe", "queen bed frame"). If no furniture, return "NONE".` },
+                      { role: "user", content: [{ type: "image_url", image_url: { url: `data:${svcMedia.mimeType};base64,${svcMedia.base64}`, detail: "low" } }] as any },
+                    ],
+                  });
+                  const d = (svcScan.choices[0]?.message?.content || "").trim();
+                  if (d && d !== "NONE") itemFromPhoto = d;
+                }
+              } catch { /* token expired */ }
+            }
+            if (itemFromPhoto) {
+              // We have both item (from photo) and service — look up price
+              const priceMsg = await smartPricingLookup(`${itemFromPhoto} ${nameMentionedService}`);
+              if (priceMsg) {
+                const reply = `${priceMsg}\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
+                await sendWhatsAppMessage(from, reply);
+                saveHistory(from, conversationHistory, text, reply);
+                return;
+              }
+            }
+            // Still no item — ask for it
             const svcLabel: Record<string, string> = {
               installation: "installed", dismantling: "dismantled",
               relocation: "relocated", disposal: "disposed of",
