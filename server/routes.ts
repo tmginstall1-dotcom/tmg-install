@@ -2435,6 +2435,46 @@ TMG INSTALL FACTS (for faq answers):
       }
 
       if (state === "awaiting_name") {
+        // If they send a photo with no (or very short) caption, proactively scan it for pricing
+        if (msgType === "image" && text.length < 5) {
+          let scannedItem: string | null = null;
+          try {
+            if (msg.image?.id) {
+              const scanMedia = await downloadWhatsAppMedia(msg.image.id);
+              if (scanMedia) {
+                const scanRes = await openai.chat.completions.create({
+                  model: "gpt-4o",
+                  max_tokens: 60,
+                  messages: [{
+                    role: "system",
+                    content: `Identify the main furniture item in this photo. Return ONLY the short item name (e.g. "wardrobe", "queen bed frame", "sofa"). If no furniture is visible, return "NONE".`,
+                  }, {
+                    role: "user",
+                    content: [{ type: "image_url", image_url: { url: `data:${scanMedia.mimeType};base64,${scanMedia.base64}`, detail: "low" } }] as any,
+                  }],
+                });
+                const detected = (scanRes.choices[0]?.message?.content || "").trim();
+                if (detected && detected !== "NONE") scannedItem = detected;
+              }
+            }
+          } catch { /* ignore */ }
+
+          if (scannedItem) {
+            const priceMsg = await smartPricingLookup(scannedItem);
+            if (priceMsg) {
+              const reply = `${priceMsg}\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
+              await sendWhatsAppMessage(from, reply);
+              saveHistory(from, conversationHistory, `[photo: ${scannedItem}]`, reply);
+              return;
+            }
+          }
+          // Furniture not identified or no price — ask them to name it
+          const askItem = `Spotted a photo! 📸 What item is it, and what service do you need?\n\n_e.g. "3-door wardrobe — installation" or "queen bed frame — dismantling"_`;
+          await sendWhatsAppMessage(from, askItem);
+          saveHistory(from, conversationHistory, "[photo]", askItem);
+          return;
+        }
+
         if (text.length < 2) {
           await sendWhatsAppMessage(from, `What's your *full name*? I just need something to address you by. 😊`);
           return;
@@ -2461,10 +2501,12 @@ Return JSON:
   "mentionedItem": string or null
 }
 Rules:
-- name: a real human personal name (e.g. "John", "Mary Tan", "Ahmad Rashid"). Null for questions, statements, greetings (hi/ok/yes/no), pricing queries, or anything that is not clearly a person's name.
+- name: a real human personal name (e.g. "John", "Mary Tan", "Ahmad Rashid"). Null for questions, statements, greetings (hi/ok/yes/no), pricing queries, or furniture item names.
 - address: Singapore address if mentioned alongside a name, otherwise null
-- isPricingQuestion: true if they asked about cost, price, or "how much"
-- mentionedItem: specific furniture item if asking about pricing (e.g. "wardrobe", "bed frame", "dining table"), null otherwise`,
+- isPricingQuestion: true if they asked about cost/price/"how much" OR if the previous bot message asked "what item would you like a price for?" and they replied with an item name
+- mentionedItem: specific furniture item name if pricing-related — even if not explicitly asking "how much" (e.g. "wardrobe", "PAX wardrobe", "3-door wardrobe", "queen bed frame", "dining table", "sofa"). Set this whenever the message is a furniture item name or type, not a person's name.
+
+Key: if the conversation history shows we asked them "what item would you like a price for?" and they reply with something like "wardrobe" or "IKEA PAX" — that IS a mentionedItem with isPricingQuestion=true, not a name.`,
               },
               ...historyMessages(conversationHistory, 4),
               { role: "user", content: text },
@@ -2507,18 +2549,20 @@ Rules:
             if (itemForLookup) {
               const priceMsg = await smartPricingLookup(itemForLookup);
               if (priceMsg) {
-                await sendWhatsAppMessage(from,
+                const replyPrice =
                   `${priceMsg}\n\n` +
-                  `Would you like a full personalised quote? To get started, what's your *full name*? 😊`
-                );
+                  `Would you like a full personalised quote? To get started, what's your *full name*? 😊`;
+                await sendWhatsAppMessage(from, replyPrice);
+                saveHistory(from, conversationHistory, text, replyPrice);
                 return;
               }
             }
-            // No item found — ask them to specify
-            await sendWhatsAppMessage(from,
+            // No item found — ask them to specify, save to history so follow-up reply has context
+            const askItemMsg =
               `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
-              `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`
-            );
+              `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`;
+            await sendWhatsAppMessage(from, askItemMsg);
+            saveHistory(from, conversationHistory, text, askItemMsg);
             return;
           }
           await sendWhatsAppMessage(from,
@@ -2578,8 +2622,17 @@ Rules:
                 role: "system",
                 content: `You are a WhatsApp assistant for TMG Install (Singapore). The customer was asked for their job address. Extract and clean it.
 Return JSON: { "address": string or null, "valid": boolean }
-- address: cleaned Singapore address (block, street, unit, postal code if given)
-- valid: true if it's a recognisable Singapore location; false if too vague (e.g. just "Singapore" or a single word)`,
+
+Rules:
+- address: cleaned, properly capitalised Singapore address
+- valid: true for ANY recognisable Singapore location — this includes:
+  • Block/street addresses: "Blk 261 Serangoon Central #05-01"
+  • Postal codes: "S550261"
+  • Named buildings: "The Seletar Mall", "NEX Serangoon", "Vivocity", "Ion Orchard", "Tampines Mall", "Bedok Mall", "Jurong Point", "Causeway Point", "Northpoint City", "Waterway Point", "Paya Lebar Quarter", "Marina Square", any HDB estate name, condo name, building name
+  • Area names with context: "Tampines Ave 1", "Bishan St 22", "Yishun Ring Road"
+  • Hotels, hospitals, schools, offices, industrial buildings
+- valid: false ONLY for genuinely unidentifiable input — e.g. just "Singapore", "here", "my house", or random non-location text
+- When in doubt, set valid: true and preserve the address as given — it's better to accept than to reject`,
               },
               ...historyMessages(conversationHistory, 4),
               { role: "user", content: text },
