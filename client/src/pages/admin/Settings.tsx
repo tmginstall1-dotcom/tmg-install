@@ -33,6 +33,19 @@ export default function AdminSettings() {
     },
   });
 
+  const [directPin, setDirectPin] = useState("");
+
+  const registerDirect = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/whatsapp/register-direct", { pin: directPin.trim() }),
+    onSuccess: () => {
+      toast({ title: "Number registered!", description: "✅ +65 8088 0757 is now active on WhatsApp Business API." });
+      setDirectPin("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Registration failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const requestCode = useMutation({
     mutationFn: (method: "SMS" | "VOICE" = "SMS") =>
       apiRequest("POST", "/api/admin/whatsapp/request-code", { method }),
@@ -199,6 +212,48 @@ export default function AdminSettings() {
                 </div>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Direct Register with PIN */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-emerald-600" />
+            Direct Register (set PIN)
+          </CardTitle>
+          <CardDescription>
+            If the SMS/voice method gives "Request code error", use this instead. Set any 6-digit PIN
+            — this registers +65 8088 0757 directly on the WhatsApp Business API.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="direct-pin">Choose a 6-digit PIN (you'll need this for 2FA)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="direct-pin"
+                data-testid="input-direct-pin"
+                placeholder="e.g. 123456"
+                value={directPin}
+                onChange={e => setDirectPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                maxLength={6}
+                className="font-mono text-lg tracking-widest text-center"
+              />
+              <Button
+                data-testid="button-register-direct"
+                onClick={() => registerDirect.mutate()}
+                disabled={registerDirect.isPending || directPin.length !== 6}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+              >
+                {registerDirect.isPending
+                  ? <RefreshCw className="h-4 w-4 animate-spin" />
+                  : <CheckCircle className="h-4 w-4" />
+                }
+              </Button>
+            </div>
+            <p className="text-xs text-slate-500">Write down this PIN — Meta may ask for it later for account verification.</p>
           </div>
         </CardContent>
       </Card>
