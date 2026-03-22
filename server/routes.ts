@@ -2141,7 +2141,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
           // Brief greeting with existing session — offer resume
           const progress = session.state.replace(/_/g, " ");
           await sendWhatsAppMessage(from,
-            `👋 Welcome back, *${session.collectedName || "there"}*!\n\nYou have a quote in progress (${progress}). Would you like to:\n\n• Type *continue* — pick up where you left off\n• Type *restart* — start a new quote`
+            `👋 Welcome back, *${session.collectedName || "there"}*! Great to hear from you again 😊\n\nYou have a quote in progress. What would you like to do?\n\n• Type *continue* — pick up where you left off\n• Type *restart* — start a fresh new quote`
           );
           return;
         }
@@ -2274,11 +2274,17 @@ Message: "${text}"`
           );
         } else if (extractedName) {
           await sendWhatsAppMessage(from,
-            `👋 Hi *${extractedName}*! Welcome to *TMG Install*.\n\n📍 What's the *job address*? That's where we'll be doing the work.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+            `👋 Hi *${extractedName}*! Thanks for reaching out to *TMG Install* 🏠\n\n` +
+            `I'll get you an upfront quote right now — no calls needed.\n\n` +
+            `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n` +
+            `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
           );
         } else {
           await sendWhatsAppMessage(from,
-            `👋 Hi! Welcome to *TMG Install* — professional furniture *installation, dismantling, relocation & disposal* all across Singapore. 🛋️\n\nI'll get you a quote in just a few steps. What's your *full name*? 😊`
+            `👋 Hi there! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
+            `We handle:\n• 🔧 Furniture *installation* & assembly\n• 🔨 *Dismantling* & removal\n• 🚚 *Relocation* (home or office)\n• 🗑️ *Disposal*\n\n` +
+            `All across Singapore, with upfront pricing — no surprises.\n\n` +
+            `To get you a quote, may I start with your *full name*? 😊`
           );
         }
         return;
