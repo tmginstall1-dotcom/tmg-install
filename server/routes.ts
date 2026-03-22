@@ -2113,6 +2113,7 @@ Message: "${text}"`
           awaiting_address: "we still need your job address",
           awaiting_items: "we still need the furniture list",
           awaiting_items_verify: "please confirm the furniture list",
+          awaiting_service_type: "what service type do you need?",
           awaiting_floor: "which floor is the unit on?",
           awaiting_access: "how easy is access to the unit?",
           awaiting_to_address: "what is the destination address for the relocation?",
@@ -2143,7 +2144,7 @@ Message: "${text}"`
       // ── Global correction & help commands (GPT-powered, work from any state) ──
       // Only intercept if the user has at least provided their name (session in progress)
       // and the message looks like a command rather than a direct answer to the current question
-      const mightBeGlobalCmd = session?.collectedName && text.length > 2 && !["awaiting_name"].includes(state);
+      const mightBeGlobalCmd = session?.collectedName && text.length > 2 && !["awaiting_name", "awaiting_service_type"].includes(state);
       if (mightBeGlobalCmd && !["yes", "no", "ok", "confirm", "anytime", "restart", "start over", "continue"].includes(textLower)) {
         try {
           const globalRes = await openai.chat.completions.create({
@@ -2252,6 +2253,7 @@ TMG Install facts for faq answers:
                 awaiting_address: `📍 Now, what's the *job address*?`,
                 awaiting_items: `🛋️ What furniture do you need help with? (send a photo or type the list)`,
                 awaiting_items_verify: `Does your furniture list look right? Reply *YES* to confirm.`,
+                awaiting_service_type: `What *service type* do you need? Reply with: *Installation*, *Dismantling*, *Relocation*, *Disposal*, or *Dismantle + Dispose*.`,
                 awaiting_floor: `Which *floor* is the unit on, and is there a *lift*?`,
                 awaiting_access: `How easy is access? Reply *1* (Easy), *2* (Moderate), or *3* (Difficult).`,
                 awaiting_to_address: `📍 What's the *destination address* for the relocation?`,
@@ -2699,6 +2701,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
           // Check if items have any service type labels — if not, we MUST ask before proceeding
           const hasServiceType = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(detectedItems);
           if (!hasServiceType && detectedItems) {
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_service_type", collectedItems: detectedItems });
             await sendWhatsAppMessage(from,
               `Got it, the list is confirmed! ✅\n\nOne more thing — what *service type* do you need?\n\n` +
               `• *Installation* — assemble new furniture\n` +
@@ -2706,7 +2709,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
               `• *Relocation* — move furniture from one place to another\n` +
               `• *Disposal* — haul away and dispose\n` +
               `• *Dismantle + Dispose* — dismantle first, then dispose (cheaper bundle)\n\n` +
-              `Reply with the service type (or type it naturally, e.g. "relocation" or "all for install")`
+              `Reply with the service type (e.g. *installation*, *relocation*, *disposal*)`
             );
             return;
           }
@@ -2802,9 +2805,10 @@ For reply: be natural and friendly, confirm what you did.`,
             // Use updatedList if GPT added service type labels, otherwise keep detectedItems
             const finalItems = updatedList || detectedItems;
 
-            // If service type is still missing, re-ask before proceeding
+            // If service type is still missing, transition to dedicated state so global handler can't intercept
             const hasServiceTypeFinal = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(finalItems);
             if (!hasServiceTypeFinal && !intentServiceType && !intentIsRelocation) {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_service_type", collectedItems: finalItems });
               await sendWhatsAppMessage(from,
                 `${aiReply ? aiReply + "\n\n" : ""}One more thing — what *service type* do you need?\n\n` +
                 `• *Installation* — assemble new furniture\n` +
@@ -2812,7 +2816,7 @@ For reply: be natural and friendly, confirm what you did.`,
                 `• *Relocation* — move furniture from one place to another\n` +
                 `• *Disposal* — haul away and dispose\n` +
                 `• *Dismantle + Dispose* — dismantle first, then dispose (cheaper bundle)\n\n` +
-                `Reply with the service type (e.g. "relocation" or "install" or "disposal")`
+                `Reply with the service type (e.g. *installation*, *relocation*, *disposal*)`
               );
               return;
             }
@@ -2880,6 +2884,97 @@ For reply: be natural and friendly, confirm what you did.`,
           );
           return;
         }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // State: awaiting_service_type — dedicated state to capture service type
+      // Global command handler is bypassed for this state to prevent FAQ interception
+      // ─────────────────────────────────────────────────────────────────────────
+      if (state === "awaiting_service_type") {
+        const items = session.collectedItems || "";
+
+        // Use GPT to extract service type from the customer's natural language reply
+        let detectedServiceType: string | null = null;
+        let isRelocationSvc = false;
+
+        try {
+          const svcRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 100,
+            response_format: { type: "json_object" },
+            messages: [{
+              role: "system",
+              content: `The customer is answering the question: "What service type do you need?"
+Customer said: "${text}"
+
+Map their reply to one of these service types:
+- "install" → assembly, installation, put together, set up, assemble
+- "dismantle" → dismantle, take apart, pack, disassemble, dismantling
+- "relocate" → relocate, relocation, move, shift, transfer, moving, transport
+- "dispose" → dispose, disposal, throw away, haul away, get rid of, junk
+- "dismantle_dispose" → dismantle and dispose, take apart and throw away, bundle
+
+Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"dismantle_dispose"|null, "confidence": "high"|"low" }`
+            }],
+          });
+          const svcJson = JSON.parse(svcRes.choices[0]?.message?.content || "{}");
+          detectedServiceType = svcJson.serviceType || null;
+          isRelocationSvc = detectedServiceType === "relocate";
+        } catch {
+          // fallback: keyword match
+          if (/reloc|moving|move|shift/i.test(text)) { detectedServiceType = "relocate"; isRelocationSvc = true; }
+          else if (/dismantle.*dispos|bundle/i.test(text)) { detectedServiceType = "dismantle_dispose"; }
+          else if (/dispos|haul|throw/i.test(text)) { detectedServiceType = "dispose"; }
+          else if (/dismantle|take apart|pack/i.test(text)) { detectedServiceType = "dismantle"; }
+          else if (/install|assem|set up/i.test(text)) { detectedServiceType = "install"; }
+        }
+
+        if (!detectedServiceType) {
+          // Still can't understand — re-ask
+          await sendWhatsAppMessage(from,
+            `Sorry, I didn't catch that. Please choose one of:\n\n` +
+            `• *Installation* — assemble new furniture\n` +
+            `• *Dismantling* — take apart existing furniture\n` +
+            `• *Relocation* — move furniture to another location\n` +
+            `• *Disposal* — haul away and dispose\n` +
+            `• *Dismantle + Dispose* — cheaper bundle\n\n` +
+            `Reply with a service type (e.g. *installation* or *relocation*)`
+          );
+          return;
+        }
+
+        // Label every item in the list with the service type
+        const labelledItems = items.split("\n").map(line => {
+          if (!line.trim()) return line;
+          // Skip if already has a label
+          if (/\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(line)) return line;
+          return `${line.replace(/\s*\(.*?\)\s*$/, "").trim()} (${detectedServiceType})`;
+        }).join("\n");
+
+        const svcLabel: Record<string, string> = {
+          install: "Installation",
+          dismantle: "Dismantling",
+          relocate: "Relocation",
+          dispose: "Disposal",
+          dismantle_dispose: "Dismantle + Dispose",
+        };
+
+        await storage.upsertWhatsAppSession(from, {
+          state: "awaiting_floor",
+          collectedItems: labelledItems,
+          isRelocation: isRelocationSvc || session.isRelocation || false,
+          floorLevel: null,
+          hasLift: null,
+        });
+
+        await sendWhatsAppMessage(from,
+          `Got it — *${svcLabel[detectedServiceType] || detectedServiceType}*! ✅\n\n` +
+          `Just a couple more quick questions to complete your quote. 😊\n\n` +
+          `*Which floor is the unit on?*\n\n` +
+          `Reply with the floor number (e.g. *1* for ground/first floor, *5* for fifth floor)\n` +
+          `And is there a *lift* available? (yes / no)`
+        );
+        return;
       }
 
       // ─────────────────────────────────────────────────────────────────────────

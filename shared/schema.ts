@@ -150,7 +150,7 @@ export type AppSetting = typeof appSettings.$inferSelect;
 export const whatsappSessions = pgTable("whatsapp_sessions", {
   id: serial("id").primaryKey(),
   phone: text("phone").notNull().unique(),
-  state: text("state").notNull().default("awaiting_name"), // awaiting_name | awaiting_address | awaiting_items | awaiting_items_verify | awaiting_floor | awaiting_access | awaiting_to_address | awaiting_date | awaiting_confirmation | submitted
+  state: text("state").notNull().default("awaiting_name"), // awaiting_name | awaiting_address | awaiting_items | awaiting_items_verify | awaiting_service_type | awaiting_floor | awaiting_access | awaiting_to_address | awaiting_date | awaiting_confirmation | submitted
   collectedName: text("collected_name"),
   collectedAddress: text("collected_address"),
   collectedItems: text("collected_items"),
