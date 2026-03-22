@@ -2363,16 +2363,10 @@ TMG Install facts for faq answers:
                   return;
                 }
               }
-              // Fallback: generic pricing overview
+              // No item identified — ask the customer to specify
               await sendWhatsAppMessage(from,
-                `*TMG Install* pricing is based on the specific item and service:\n\n` +
-                `🔧 *Installation* — assembly of new/flat-pack furniture\n` +
-                `🔨 *Dismantling* — safe disassembly of existing furniture\n` +
-                `🚚 *Relocation* — move + reinstall at new location\n` +
-                `🗑️ *Disposal* — haul away assembled furniture\n` +
-                `🔨🗑️ *Dismantle + Dispose* — cheaper bundle\n\n` +
-                `Minimum charge is *S$180*. Just ask me "how much for [item]?" and I'll look it up!\n\n` +
-                `${continuePrompt}`
+                `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
+                `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`
               );
               return;
             } else if (gc.command === "faq" && gc.faqAnswer) {
@@ -2488,6 +2482,12 @@ Message: "${text}"`
                 return;
               }
             }
+            // No item found — ask them to specify
+            await sendWhatsAppMessage(from,
+              `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
+              `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`
+            );
+            return;
           }
           await sendWhatsAppMessage(from,
             `Happy to help! To get you an accurate quote, I'll need your details first.\n\nWhat's your *full name*? 😊`
