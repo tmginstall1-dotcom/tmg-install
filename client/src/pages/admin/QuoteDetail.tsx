@@ -528,6 +528,8 @@ export default function AdminQuoteDetail() {
                           <option value="install">Install</option>
                           <option value="dismantle">Dismantle</option>
                           <option value="relocate">Relocate</option>
+                          <option value="dispose">Dispose (Haul Away)</option>
+                          <option value="dismantle_dispose">Dismantle + Dispose</option>
                         </select>
                         <input type="number" min="1" value={item.quantity} onChange={e => updateEditItem(i, 'quantity', parseInt(e.target.value) || 1)}
                           placeholder="Qty" className="px-2 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black text-center" />

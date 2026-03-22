@@ -13,7 +13,7 @@ import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import type { CatalogItem } from "@shared/schema";
 import { computePricing, type PricingCatalogEntry } from "@shared/pricing";
 
-type ServiceType = "install" | "dismantle" | "relocate";
+type ServiceType = "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose";
 
 interface LineItem {
   id: string;
@@ -152,8 +152,11 @@ function groupCatalog(items: CatalogItem[]): CatalogGroup[] {
 }
 
 function serviceBadge(s: ServiceType) {
-  const map = { install: "border-black/20 text-black/60", dismantle: "border-black/20 text-black/60", relocate: "border-black/20 text-black/60" };
-  return <span className={`text-[10px] font-black uppercase tracking-[0.08em] px-2 py-0.5 border ${map[s]}`}>{s}</span>;
+  const labels: Record<ServiceType, string> = {
+    install: "Install", dismantle: "Dismantle", relocate: "Relocate",
+    dispose: "Dispose", dismantle_dispose: "Dismantle + Dispose",
+  };
+  return <span className="text-[10px] font-black uppercase tracking-[0.08em] px-2 py-0.5 border border-black/20 text-black/60">{labels[s] ?? s}</span>;
 }
 
 // ── Main Wizard ─────────────────────────────────────────────────────────────
@@ -188,6 +191,7 @@ export default function EstimateWizard() {
 
   // Step 1
   const [services, setServices] = useState<ServiceType[]>([]);
+  const [disposalMode, setDisposalMode] = useState<"dispose" | "dismantle_dispose">("dismantle_dispose");
   // Step 2
   const [serviceAddress, setServiceAddress] = useState("");
   const [pickupAddress, setPickupAddress] = useState("");
@@ -295,7 +299,7 @@ export default function EstimateWizard() {
   const catalogEntries = useMemo<PricingCatalogEntry[]>(() =>
     (catalogRaw || []).map(c => ({
       name: c.name,
-      serviceType: c.serviceType as "install" | "dismantle" | "relocate",
+      serviceType: c.serviceType as ServiceType,
       basePrice: parseFloat(c.basePrice),
     })),
     [catalogRaw]
@@ -668,14 +672,89 @@ export default function EstimateWizard() {
                       </button>
                     );
                   })}
+
+                  {/* ── Disposal card (special — has sub-mode toggle) ── */}
+                  {(() => {
+                    const disposalActive = services.includes("dispose") || services.includes("dismantle_dispose");
+                    const toggleDisposal = () => {
+                      if (disposalActive) {
+                        setServices(prev => prev.filter(s => s !== "dispose" && s !== "dismantle_dispose"));
+                      } else {
+                        setServices(prev => [...prev, disposalMode]);
+                      }
+                    };
+                    const switchMode = (mode: "dispose" | "dismantle_dispose") => {
+                      setDisposalMode(mode);
+                      setServices(prev => {
+                        const without = prev.filter(s => s !== "dispose" && s !== "dismantle_dispose");
+                        return [...without, mode];
+                      });
+                    };
+                    return (
+                      <div className={`border transition-all duration-150 ${disposalActive ? "border-black bg-black/[0.025]" : "border-black/10 bg-white"}`}>
+                        <button
+                          data-testid="service-dispose"
+                          onClick={toggleDisposal}
+                          className="w-full p-5 text-left"
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className={`w-12 h-12 flex items-center justify-center flex-shrink-0 transition-colors ${disposalActive ? "bg-black text-white" : "bg-black/[0.05] text-black/50"}`}>
+                              <Trash2 className="w-6 h-6" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-black text-base uppercase tracking-[0.04em]">Disposal</p>
+                              <p className="text-sm text-black/45 mt-0.5">Haul away and dispose of unwanted furniture</p>
+                            </div>
+                            <div className={`w-5 h-5 border flex items-center justify-center shrink-0 mt-1 transition-all ${disposalActive ? "bg-black border-black" : "border-black/20"}`}>
+                              {disposalActive && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                          </div>
+                        </button>
+                        {disposalActive && (
+                          <div className="px-5 pb-5 border-t border-black/10 pt-4 space-y-2">
+                            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-3">Choose disposal type</p>
+                            <button
+                              data-testid="disposal-mode-dismantle-dispose"
+                              onClick={() => switchMode("dismantle_dispose")}
+                              className={`w-full flex items-start gap-3 p-3 border text-left transition-all ${disposalMode === "dismantle_dispose" ? "border-black bg-black text-white" : "border-black/10 hover:border-black/30"}`}
+                            >
+                              <div className={`w-4 h-4 mt-0.5 border-2 rounded-full flex-shrink-0 flex items-center justify-center ${disposalMode === "dismantle_dispose" ? "border-white" : "border-black/30"}`}>
+                                {disposalMode === "dismantle_dispose" && <div className="w-2 h-2 rounded-full bg-white" />}
+                              </div>
+                              <div>
+                                <p className="font-black text-sm uppercase tracking-[0.04em]">Dismantle + Dispose <span className={`ml-1 text-[10px] px-1.5 py-0.5 ${disposalMode === "dismantle_dispose" ? "bg-white/20" : "bg-green-100 text-green-700"}`}>SAVE MORE</span></p>
+                                <p className={`text-xs mt-0.5 ${disposalMode === "dismantle_dispose" ? "text-white/60" : "text-black/45"}`}>We dismantle the furniture first, then dispose — bundle price is cheaper than disposal only</p>
+                              </div>
+                            </button>
+                            <button
+                              data-testid="disposal-mode-dispose-only"
+                              onClick={() => switchMode("dispose")}
+                              className={`w-full flex items-start gap-3 p-3 border text-left transition-all ${disposalMode === "dispose" ? "border-black bg-black text-white" : "border-black/10 hover:border-black/30"}`}
+                            >
+                              <div className={`w-4 h-4 mt-0.5 border-2 rounded-full flex-shrink-0 flex items-center justify-center ${disposalMode === "dispose" ? "border-white" : "border-black/30"}`}>
+                                {disposalMode === "dispose" && <div className="w-2 h-2 rounded-full bg-white" />}
+                              </div>
+                              <div>
+                                <p className="font-black text-sm uppercase tracking-[0.04em]">Disposal Only</p>
+                                <p className={`text-xs mt-0.5 ${disposalMode === "dispose" ? "text-white/60" : "text-black/45"}`}>Haul away assembled furniture as-is — no dismantling included</p>
+                              </div>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 {services.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2">
-                    {services.map(s => (
-                      <span key={s} className="inline-flex items-center gap-1.5 px-3 py-1 border border-black/15 text-black bg-black/[0.03] text-xs font-black uppercase tracking-[0.08em]">
-                        <Check className="w-3 h-3" /> {s}
-                      </span>
-                    ))}
+                    {services.map(s => {
+                      const labels: Record<string, string> = { install: "Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal Only", dismantle_dispose: "Dismantle + Dispose" };
+                      return (
+                        <span key={s} className="inline-flex items-center gap-1.5 px-3 py-1 border border-black/15 text-black bg-black/[0.03] text-xs font-black uppercase tracking-[0.08em]">
+                          <Check className="w-3 h-3" /> {labels[s] ?? s}
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
               </div>

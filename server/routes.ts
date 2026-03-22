@@ -1030,11 +1030,13 @@ export async function registerRoutes(
               role: "system",
               content: `You are an AI assistant for a furniture installation company in Singapore. 
               Extract furniture items and required services from the user's description.
-              Valid service types are: 'install', 'dismantle', 'relocate'.
+              Valid service types are: 'install', 'dismantle', 'relocate', 'dispose', 'dismantle_dispose'.
+              Use 'dispose' when customer wants to haul away assembled furniture (disposal only).
+              Use 'dismantle_dispose' when customer wants furniture dismantled AND then disposed (bundle — cheaper).
               Estimate a reasonable unit price (in SGD, numerical value only) based on typical Singapore market rates.
               Return a JSON object with an 'items' array. Each item should have:
               - 'detectedName': string (e.g. 'IKEA Pax Wardrobe')
-              - 'serviceType': string ('install', 'dismantle', or 'relocate')
+              - 'serviceType': string ('install', 'dismantle', 'relocate', 'dispose', or 'dismantle_dispose')
               - 'quantity': number
               - 'estimatedUnitPrice': number
               - 'confidence': number (0-100)
@@ -2099,7 +2101,7 @@ Message: "${text}"`
           );
         } else {
           await sendWhatsAppMessage(from,
-            `👋 Hi! Welcome to *TMG Install* — professional furniture *installation, dismantling & relocation* all across Singapore. 🛋️\n\nI'll get you a quote in just a few steps. What's your *full name*? 😊`
+            `👋 Hi! Welcome to *TMG Install* — professional furniture *installation, dismantling, relocation & disposal* all across Singapore. 🛋️\n\nI'll get you a quote in just a few steps. What's your *full name*? 😊`
           );
         }
         return;
@@ -2182,8 +2184,9 @@ IMPORTANT: Do NOT classify as faq/command if the message is directly answering t
 - state=awaiting_items → furniture descriptions are NOT commands
 
 TMG Install facts for faq answers:
-- Singapore-based furniture installation, dismantling and relocation company
-- Services: install new furniture, dismantle old furniture, relocate (move + reinstall)
+- Singapore-based furniture installation, dismantling, relocation and disposal company
+- Services: install new furniture, dismantle old furniture, relocate (move + reinstall), dispose (haul away assembled furniture), dismantle+dispose bundle (cheaper than disposal only)
+- Disposal pricing: disposal only costs more; dismantle+dispose bundle is cheaper as we dismantle first then haul away
 - Covers all of Singapore (HDB, condo, landed, commercial/office)
 - Weekdays and weekends available (subject to availability)
 - Tools and equipment provided — customer doesn't need anything
@@ -2382,7 +2385,7 @@ Message: "${text}"`
         } else {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: extractedAddress });
           await sendWhatsAppMessage(from,
-            `Got it! 📍 *${extractedAddress}*\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* and I'll identify the items automatically — or *type the list* below.\n\nMention if it's for *installation, dismantling, or relocation* too!\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle)\n• L-shaped sofa (relocate)`
+            `Got it! 📍 *${extractedAddress}*\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* and I'll identify the items automatically — or *type the list* below.\n\nMention if it's for *installation, dismantling, relocation, or disposal* too!\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle+dispose)\n• L-shaped sofa (disposal only)`
           );
         }
         return;
@@ -2557,7 +2560,7 @@ If yes → return { "done": true, "items": null, "needsServiceType": false }
 Otherwise, parse the furniture description and return JSON:
 { "done": false, "items": string, "needsServiceType": boolean }
 - items: formatted bullet list (one • per line). Each line: "• [quantity] [item name] ([service type])"
-  - If service type is mentioned (install/dismantle/relocate), include it in brackets
+  - If service type is mentioned (install/dismantle/relocate/dispose/dismantle+dispose), include it in brackets
   - If not mentioned, leave out the brackets (don't guess)
   - Quantity if mentioned, otherwise just the item name
 - needsServiceType: true if NO service type was mentioned at all
@@ -2582,7 +2585,7 @@ Customer message: "${text}"`
           await sendWhatsAppMessage(from,
             `Got it! Here's what I have:\n\n${formattedItems}\n\n` +
             (parsed.needsServiceType
-              ? `Is this for *installation, dismantling, or relocation*? You can type it or just reply *YES* if you're not sure and our team will confirm.\n\n`
+              ? `Is this for *installation, dismantling, relocation, or disposal*? (disposal only = higher price; dismantle+dispose bundle = cheaper) — or just reply *YES* if you're not sure and our team will confirm.\n\n`
               : ``) +
             `Does this look right?\n• Reply *YES* to proceed\n• *Type any corrections* if needed\n• Send a *photo* to add more items`
           );

@@ -8,9 +8,11 @@
 // --------------------------------------------------------------------------
 export const PricingConfig = {
   fallback: {
-    dismantleMultiplier: 0.6,   // dismantle = install * 0.6 when no catalog entry
-    relocateMultiplier: 1.5,    // relocate  = install * 1.5 when no catalog entry
-    genericFallback: 150,       // SGD per unit when absolutely no catalog price found
+    dismantleMultiplier: 0.6,        // dismantle       = install * 0.6 when no catalog entry
+    relocateMultiplier: 1.5,         // relocate        = install * 1.5 when no catalog entry
+    disposeMultiplier: 0.65,         // dispose-only    = install * 0.65 when no catalog entry
+    dismantleDisposeMultiplier: 0.95, // dismantle+dispose bundle = install * 0.95 when no catalog entry
+    genericFallback: 150,            // SGD per unit when absolutely no catalog price found
   },
   bulkDiscount: [
     { minQty: 100, pct: 0.15 },
@@ -48,15 +50,17 @@ export const PricingConfig = {
 // Input / output types
 // --------------------------------------------------------------------------
 
+export type ServiceType = 'install' | 'dismantle' | 'relocate' | 'dispose' | 'dismantle_dispose';
+
 export interface PricingCatalogEntry {
   name: string;
-  serviceType: 'install' | 'dismantle' | 'relocate';
+  serviceType: ServiceType;
   basePrice: number;
 }
 
 export interface PricingItem {
   name: string;
-  serviceType: 'install' | 'dismantle' | 'relocate';
+  serviceType: ServiceType;
   quantity: number;
   unitPrice: number; // 0 = no catalog price available (will trigger fallback)
   volumeM3?: number; // cubic metres per unit (optional — used for trip calculation)
@@ -177,6 +181,10 @@ export function computePricing(input: PricingInput): PricingResult {
           unitPrice = installPrice * cfg.fallback.dismantleMultiplier;
         } else if (item.serviceType === 'relocate') {
           unitPrice = installPrice * cfg.fallback.relocateMultiplier;
+        } else if (item.serviceType === 'dispose') {
+          unitPrice = installPrice * cfg.fallback.disposeMultiplier;
+        } else if (item.serviceType === 'dismantle_dispose') {
+          unitPrice = installPrice * cfg.fallback.dismantleDisposeMultiplier;
         } else {
           unitPrice = installPrice;
         }
@@ -185,6 +193,8 @@ export function computePricing(input: PricingInput): PricingResult {
         const base = cfg.fallback.genericFallback;
         if (item.serviceType === 'dismantle') unitPrice = base * cfg.fallback.dismantleMultiplier;
         else if (item.serviceType === 'relocate') unitPrice = base * cfg.fallback.relocateMultiplier;
+        else if (item.serviceType === 'dispose') unitPrice = base * cfg.fallback.disposeMultiplier;
+        else if (item.serviceType === 'dismantle_dispose') unitPrice = base * cfg.fallback.dismantleDisposeMultiplier;
         else unitPrice = base;
       }
     }

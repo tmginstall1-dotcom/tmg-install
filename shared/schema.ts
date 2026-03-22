@@ -132,7 +132,7 @@ export const catalogItems = pgTable("catalog_items", {
   name: text("name").notNull(),
   sku: text("sku"),
   category: text("category"),
-  serviceType: text("service_type").notNull(), // 'install', 'dismantle', 'relocate'
+  serviceType: text("service_type").notNull(), // 'install', 'dismantle', 'relocate', 'dispose', 'dismantle_dispose'
   basePrice: numeric("base_price").notNull(),
   volumeM3: numeric("volume_m3"),              // cubic metres footprint in Toyota Hiace
   active: boolean("active").default(true),
