@@ -29,37 +29,53 @@ import { eq } from "drizzle-orm";
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
 // ── Smart catalog pricing lookup (used by WhatsApp bot) ──────────────────────
-// Given a natural-language furniture query, finds matching catalog entries and
-// returns a formatted WhatsApp price message (or null if nothing matched).
+// Given a natural-language furniture query, ALWAYS finds the closest catalog
+// match and returns a formatted WhatsApp price message.
+// Returns null only on network/DB errors (not on mismatch — we always match).
 async function smartPricingLookup(query: string): Promise<string | null> {
   try {
     const catalog = await storage.getCatalogItems();
     const uniqueNames = [...new Set(catalog.map(c => c.name))].join(", ");
 
-    // Ask GPT to find the best matching catalog item name(s)
+    // Ask GPT to find the BEST matching catalog item(s) — always return something
     const matchRes = await openai.chat.completions.create({
       model: "gpt-4o",
-      max_tokens: 150,
+      max_tokens: 200,
       response_format: { type: "json_object" },
       messages: [{
         role: "system",
-        content: `The customer asked about pricing for: "${query}"
+        content: `You are a pricing assistant for TMG Install, a Singapore furniture installation company.
+The customer is asking about pricing for: "${query}"
 
-Available catalog items (exact names):
+Available catalog items (exact names — use these EXACTLY):
 ${uniqueNames}
+
+Your job: find the BEST matching catalog item(s). ALWAYS return at least one match — never return an empty list.
+
+Matching rules (use these to guide fuzzy matching):
+- "dresser", "chest of drawers", "drawer unit", "drawers" → "Dressing Table" or "IKEA Malm Chest of Drawers (6-drawer)" or "IKEA Alex Drawer Unit"
+- "shelf", "shelves", "shelving", "wooden shelf", "rack shelf", "wall shelf", "open shelf" → "Bookshelf" or "IKEA Kallax Shelf Unit (2×2)" or "IKEA Billy Bookcase"
+- "cabinet", "storage cabinet", "locker", "under-desk cabinet", "pedestal" → "Filing Cabinet" or "Display Cabinet"
+- "workstation", "cubicle", "office cubicle", "office partition", "partition panel" → "Office Desk" or "Filing Cabinet"
+- "office desk", "desk", "study desk", "work desk" → "Office Desk" or "IKEA Micke Desk"
+- "sofa", "couch", "settee", "loveseat" → appropriate sofa size
+- "wardrobe", "closet", "built-in" → appropriate wardrobe type
+- "bed", "bed frame" → appropriate bed frame size
+- For anything else: pick the most visually/functionally similar item from the list
 
 Return JSON:
 {
-  "matchedNames": [],      // up to 3 exact catalog names that best match the query
-  "itemLabel": ""          // friendly short name for the customer reply (e.g. "wardrobe", "dining table")
-}
-Only return names that are genuinely relevant. Return empty array if nothing matches.`,
+  "matchedNames": ["exact catalog name 1", "exact catalog name 2"],   // 1-3 items, MUST be non-empty
+  "itemLabel": "friendly customer-facing name",
+  "isApproximate": false   // true if this is a close/similar match rather than exact
+}`,
       }],
     });
 
     const parsed = JSON.parse(matchRes.choices[0]?.message?.content || "{}");
     const matchedNames: string[] = (parsed.matchedNames || []).filter(Boolean);
     const itemLabel: string = parsed.itemLabel || query;
+    const isApproximate: boolean = !!parsed.isApproximate;
 
     if (matchedNames.length === 0) return null;
 
@@ -93,11 +109,15 @@ Only return names that are genuinely relevant. Return empty array if nothing mat
 
     if (lines.length === 0) return null;
 
-    return (
-      `Here's our pricing for *${itemLabel}* in Singapore:\n\n` +
-      lines.join("\n") +
-      `\n\n_Per item. Excludes floor surcharge & transport. Min. job $180._`
-    );
+    const intro = isApproximate
+      ? `Here's our closest pricing reference for *${itemLabel}* in Singapore:\n\n`
+      : `Here's our pricing for *${itemLabel}* in Singapore:\n\n`;
+
+    const footnote = isApproximate
+      ? `\n\n_Estimated based on similar items. Final price confirmed after our team reviews your job. Min. job $180._`
+      : `\n\n_Per item. Excludes floor surcharge & transport. Min. job $180._`;
+
+    return intro + lines.join("\n") + footnote;
   } catch {
     return null;
   }
