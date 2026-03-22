@@ -2457,19 +2457,23 @@ TMG INSTALL FACTS (for faq answers):
                   if (pricingMedia) {
                     const visionRes = await openai.chat.completions.create({
                       model: "gpt-4o",
-                      max_tokens: 80,
+                      max_tokens: 200,
+                      response_format: { type: "json_object" },
                       messages: [{
                         role: "system",
-                        content: `Identify the main furniture item in this photo. Return ONLY the short item name (e.g. "wardrobe", "queen bed frame", "dining table"). If no furniture is visible, return "NONE".`,
+                        content: `You are an expert at identifying items for a furniture/office installation company in Singapore.
+Look at the photo and identify ALL items that require professional installation, dismantling, relocation, or disposal.
+Include residential furniture AND commercial/office items (workstations, cubicle partitions, office desks, cabinets, shelving).
+Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-separated list", "noItems": true/false }`,
                       }, {
                         role: "user",
                         content: [
-                          { type: "image_url", image_url: { url: `data:${pricingMedia.mimeType};base64,${pricingMedia.base64}`, detail: "low" } },
+                          { type: "image_url", image_url: { url: `data:${pricingMedia.mimeType};base64,${pricingMedia.base64}`, detail: "high" } },
                         ] as any,
                       }],
                     });
-                    const detected = (visionRes.choices[0]?.message?.content || "").trim();
-                    if (detected && detected !== "NONE") resolvedPricingItem = detected;
+                    const scannedGlobal = JSON.parse(visionRes.choices[0]?.message?.content || "{}");
+                    if (!scannedGlobal.noItems && scannedGlobal.mainItem) resolvedPricingItem = scannedGlobal.mainItem;
                   }
                 } catch { /* ignore scan errors */ }
               }
@@ -2559,23 +2563,32 @@ TMG INSTALL FACTS (for faq answers):
         // If they send a photo with no (or very short) caption, proactively scan it for pricing
         if (msgType === "image" && text.length < 5) {
           let scannedItem: string | null = null;
+          let scannedItemLabel: string | null = null;
           try {
             if (msg.image?.id) {
               const scanMedia = await downloadWhatsAppMedia(msg.image.id);
               if (scanMedia) {
                 const scanRes = await openai.chat.completions.create({
                   model: "gpt-4o",
-                  max_tokens: 60,
+                  max_tokens: 200,
+                  response_format: { type: "json_object" },
                   messages: [{
                     role: "system",
-                    content: `Identify the main furniture item in this photo. Return ONLY the short item name (e.g. "wardrobe", "queen bed frame", "sofa"). If no furniture is visible, return "NONE".`,
+                    content: `You are an expert at identifying items in photos for a furniture/office installation company in Singapore.
+Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
+Include both residential furniture (wardrobes, bed frames, sofas) AND commercial/office items (workstations, cubicle partitions, office desks, office chairs, shelving, cabinets).
+Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-separated list", "noItems": true/false }
+If no installable items found, set noItems: true.`,
                   }, {
                     role: "user",
-                    content: [{ type: "image_url", image_url: { url: `data:${scanMedia.mimeType};base64,${scanMedia.base64}`, detail: "low" } }] as any,
+                    content: [{ type: "image_url", image_url: { url: `data:${scanMedia.mimeType};base64,${scanMedia.base64}`, detail: "high" } }] as any,
                   }],
                 });
-                const detected = (scanRes.choices[0]?.message?.content || "").trim();
-                if (detected && detected !== "NONE") scannedItem = detected;
+                const sc = JSON.parse(scanRes.choices[0]?.message?.content || "{}");
+                if (!sc.noItems && sc.mainItem) {
+                  scannedItem = sc.mainItem;
+                  scannedItemLabel = sc.allItems || sc.mainItem;
+                }
               }
             }
           } catch { /* ignore */ }
@@ -2588,17 +2601,23 @@ TMG INSTALL FACTS (for faq answers):
               saveHistory(from, conversationHistory, `[photo: ${scannedItem}]`, reply);
               return;
             }
+            // Item detected but not in standard catalog — start custom quote flow
+            const customReply0 =
+              `📸 I can see *${scannedItemLabel}* in your photo!\n\n` +
+              `This looks like a custom or commercial job. Our team will prepare a tailored quote for you. 😊\n\n` +
+              `To get started, what's your *full name*?`;
+            await sendWhatsAppMessage(from, customReply0);
+            saveHistory(from, conversationHistory, "[photo]", customReply0);
+            return;
           }
-          // Furniture not identified or no price — ask them to name it (context-aware)
+          // No installable furniture detected — ask them to name it (context-aware)
           const knownSvc = extractServiceFromHistory(conversationHistory);
           let askItem: string;
           if (isBotLooping(conversationHistory, "which item") || isBotLooping(conversationHistory, "what item is it")) {
-            // Stuck in a loop — break it with a plain direct ask
             askItem = knownSvc
               ? `Please just type the *item name* — e.g. *wardrobe*, *bed frame*, *sofa* — and I'll get you the ${knownSvc} price right away! 😊`
               : `Please type the *item name and service* — e.g. *wardrobe installation* or *bed frame dismantling*. I'll get the price for you!`;
           } else if (knownSvc) {
-            // Service already known from history — only ask for item
             askItem = `I can see your photo! To look up the *${knownSvc}* price, I just need to know which item it is.\n\n_e.g. wardrobe, queen bed frame, sofa, dining table_`;
           } else {
             askItem = `Spotted a photo! 📸 What item is it, and what service do you need?\n\n_e.g. "3-door wardrobe — installation" or "queen bed frame — dismantling"_`;
@@ -2662,24 +2681,42 @@ Key examples:
         // ── Not a name: handle pricing question or re-ask ──────────────────
         if (!extractedName) {
           // Service-only reply (e.g. "Installation" or photo + "how much for this installation")
-          // Try to get the item from the photo first, THEN ask if still missing
+          // Try to get the item(s) from the photo first, THEN ask if still missing
           if (nameIsPricing && nameMentionedService && !nameMentionedItem) {
             let itemFromPhoto: string | null = null;
+            let detectedItemLabel: string | null = null;
             if (msgType === "image" && msg.image?.id) {
               try {
                 const svcMedia = await downloadWhatsAppMedia(msg.image.id);
                 if (svcMedia) {
                   const svcScan = await openai.chat.completions.create({
-                    model: "gpt-4o", max_tokens: 60,
+                    model: "gpt-4o", max_tokens: 200,
+                    response_format: { type: "json_object" },
                     messages: [
-                      { role: "system", content: `Identify the main furniture item in this photo. Return ONLY the item name (e.g. "wardrobe", "queen bed frame"). If no furniture, return "NONE".` },
-                      { role: "user", content: [{ type: "image_url", image_url: { url: `data:${svcMedia.mimeType};base64,${svcMedia.base64}`, detail: "low" } }] as any },
+                      {
+                        role: "system",
+                        content: `You are an expert at identifying items in photos for a furniture/office installation company in Singapore.
+Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
+Include both residential furniture (wardrobes, bed frames, sofas) AND commercial/office items (workstations, cubicle partitions, office desks, office chairs, shelving, cabinets).
+Return JSON:
+{
+  "mainItem": "short name of the primary/most prominent item (e.g. 'office workstation', 'wardrobe', 'office partition')",
+  "allItems": "comma-separated list of all detected items (e.g. 'office workstations, L-shaped partitions, under-desk cabinets')",
+  "isCommercial": true/false,
+  "noItems": true/false
+}
+If no installable items found, set noItems: true.`,
+                      },
+                      { role: "user", content: [{ type: "image_url", image_url: { url: `data:${svcMedia.mimeType};base64,${svcMedia.base64}`, detail: "high" } }] as any },
                     ],
                   });
-                  const d = (svcScan.choices[0]?.message?.content || "").trim();
-                  if (d && d !== "NONE") itemFromPhoto = d;
+                  const scanned = JSON.parse(svcScan.choices[0]?.message?.content || "{}");
+                  if (!scanned.noItems && scanned.mainItem) {
+                    itemFromPhoto = scanned.mainItem;
+                    detectedItemLabel = scanned.allItems || scanned.mainItem;
+                  }
                 }
-              } catch { /* token expired */ }
+              } catch { /* token expired or network error */ }
             }
             if (itemFromPhoto) {
               // We have both item (from photo) and service — look up price
@@ -2690,8 +2727,17 @@ Key examples:
                 saveHistory(from, conversationHistory, text, reply);
                 return;
               }
+              // Item detected but not in standard catalog — start custom quote flow
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
+              const customReply =
+                `📸 I can see *${detectedItemLabel}* in your photo — ${nameMentionedService} noted!\n\n` +
+                `This looks like a custom or commercial job. Our team will prepare a tailored quote for you. 😊\n\n` +
+                `To get started, what's your *full name*?`;
+              await sendWhatsAppMessage(from, customReply);
+              saveHistory(from, conversationHistory, text, customReply);
+              return;
             }
-            // Still no item — ask for it, with loop detection
+            // No item detected in photo — ask for it, with loop detection
             const svcLabel: Record<string, string> = {
               installation: "installed", dismantling: "dismantled",
               relocation: "relocated", disposal: "disposed of",
@@ -2699,7 +2745,6 @@ Key examples:
             const verb = svcLabel[nameMentionedService!] || nameMentionedService;
             let askForItem: string;
             if (isBotLooping(conversationHistory, "which item") || isBotLooping(conversationHistory, "what item")) {
-              // Been asking same question too many times — simplify
               askForItem = `Just type the *item name* and I'll get the ${nameMentionedService} price instantly!\n\ne.g. *wardrobe*, *bed frame*, *sofa*, *dining table*`;
             } else {
               askForItem =
@@ -2715,25 +2760,39 @@ Key examples:
           if (nameIsPricing) {
             // If caption had no item name but a photo was sent, scan the photo
             let itemForLookup = nameMentionedItem;
+            let detectedItemLabel2: string | null = null;
             if (!itemForLookup && msgType === "image" && msg.image?.id) {
               try {
                 const pricingMedia2 = await downloadWhatsAppMedia(msg.image.id);
                 if (pricingMedia2) {
                   const visionRes2 = await openai.chat.completions.create({
                     model: "gpt-4o",
-                    max_tokens: 80,
+                    max_tokens: 200,
+                    response_format: { type: "json_object" },
                     messages: [{
                       role: "system",
-                      content: `Identify the main furniture item in this photo. Return ONLY the short item name (e.g. "wardrobe", "queen bed frame", "dining table"). If no furniture is visible, return "NONE".`,
+                      content: `You are an expert at identifying items in photos for a furniture/office installation company in Singapore.
+Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
+Include both residential furniture (wardrobes, bed frames, sofas) AND commercial/office items (workstations, cubicle partitions, office desks, office chairs, shelving, cabinets).
+Return JSON:
+{
+  "mainItem": "short name of the primary/most prominent item",
+  "allItems": "comma-separated list of all detected items",
+  "noItems": true/false
+}
+If no installable items found, set noItems: true.`,
                     }, {
                       role: "user",
                       content: [
-                        { type: "image_url", image_url: { url: `data:${pricingMedia2.mimeType};base64,${pricingMedia2.base64}`, detail: "low" } },
+                        { type: "image_url", image_url: { url: `data:${pricingMedia2.mimeType};base64,${pricingMedia2.base64}`, detail: "high" } },
                       ] as any,
                     }],
                   });
-                  const detected2 = (visionRes2.choices[0]?.message?.content || "").trim();
-                  if (detected2 && detected2 !== "NONE") itemForLookup = detected2;
+                  const scanned2 = JSON.parse(visionRes2.choices[0]?.message?.content || "{}");
+                  if (!scanned2.noItems && scanned2.mainItem) {
+                    itemForLookup = scanned2.mainItem;
+                    detectedItemLabel2 = scanned2.allItems || scanned2.mainItem;
+                  }
                 }
               } catch { /* ignore */ }
             }
@@ -2747,6 +2806,18 @@ Key examples:
                 saveHistory(from, conversationHistory, text, replyPrice);
                 return;
               }
+              // Item detected but not in standard catalog — start custom quote flow
+              const customLabel = detectedItemLabel2 || nameMentionedItem || itemForLookup;
+              const knownSvc2 = extractServiceFromHistory(conversationHistory);
+              const svcNote2 = knownSvc2 ? ` — *${knownSvc2}* noted` : "";
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
+              const customReply2 =
+                `📸 I can see *${customLabel}* in your photo${svcNote2}!\n\n` +
+                `This looks like a custom or commercial job. Our team will prepare a tailored quote for you. 😊\n\n` +
+                `To get started, what's your *full name*?`;
+              await sendWhatsAppMessage(from, customReply2);
+              saveHistory(from, conversationHistory, text, customReply2);
+              return;
             }
             // No item found — ask them to specify (context-aware to avoid repetition)
             const knownSvcPricing = extractServiceFromHistory(conversationHistory);
