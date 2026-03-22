@@ -422,6 +422,17 @@ export default function EstimateWizard() {
   // Shared matching logic
   const stem = (w: string) => w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w;
   const stripParens = (s: string) => s.replace(/\s*\(.*?\)/g, "").trim();
+  // Category families — if detected name belongs to one family and catalog name belongs to another,
+  // they can never match (prevents e.g. "kitchen island" matching "pax wardrobe" on "ikea" alone)
+  const CATEGORY_FAMILIES: string[][] = [
+    ["wardrobe", "pax", "closet"],
+    ["island", "kitchen island"],
+    ["sofa", "couch", "sectional", "chaise"],
+    ["treadmill", "elliptical", "rowing machine"],
+    ["piano"],
+    ["pool table", "billiard", "foosball"],
+    ["pod", "phone booth"],
+  ];
   const matchScore = (det: string, cat: string): number => {
     const d = det.toLowerCase(), c = cat.toLowerCase();
     const dC = stripParens(d), cC = stripParens(c);
@@ -429,8 +440,21 @@ export default function EstimateWizard() {
     if (dC === cC) return 90;
     if (c.includes(d) || d.includes(c)) return 80;
     if (cC.includes(dC) || dC.includes(cC)) return 75;
-    const ikeaModel = d.match(/\b(pax|kallax|billy|malm|hemnes|besta|micke|lack|alex|poäng|kivik|ivar|trofast|stuva|vittsjo|lillångén|lillangen|godmorgon|kleppstad)\b/i);
+    // Hard veto: if detected and catalog belong to different exclusive category families, score 0
+    for (const family of CATEGORY_FAMILIES) {
+      const detHas = family.some(kw => d.includes(kw));
+      const catHas = family.some(kw => c.includes(kw));
+      if (detHas !== catHas) return 0;
+    }
+    // IKEA model → map to specific catalog entry
+    const ikeaModel = d.match(/\b(pax|kallax|billy|malm|hemnes|besta|micke|lack|alex|poäng|kivik|ivar|trofast|stuva|vittsjo|lillångén|lillangen|godmorgon|kleppstad|vadholma|stenstorp|förhöja|forhoja|råskog|raskog|norden|tornviken)\b/i);
     if (ikeaModel && c.includes(ikeaModel[1].toLowerCase())) return 70;
+    // IKEA kitchen island models → map to "ikea kitchen island" entries
+    const isIkeaIsland = /\b(vadholma|stenstorp|norden|tornviken)\b/i.test(d);
+    if (isIkeaIsland && c.includes("kitchen island")) return 65;
+    // IKEA trolley models → map to "ikea kitchen trolley" entries
+    const isIkeaTrolley = /\b(råskog|raskog|förhöja|forhoja)\b/i.test(d);
+    if (isIkeaTrolley && c.includes("trolley")) return 65;
     const dWords = dC.split(/\s+/).filter(w => w.length > 3).map(stem);
     const cWords = cC.split(/\s+/).filter(w => w.length > 3).map(stem);
     const overlap = dWords.filter(w => cWords.some(cw => cw.includes(w) || w.includes(cw)));
