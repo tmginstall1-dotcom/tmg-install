@@ -79,6 +79,16 @@ export default function AdminSettings() {
     },
   });
 
+  const subscribeWaba = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/whatsapp/subscribe-waba", {}),
+    onSuccess: (data: any) => {
+      toast({ title: "WABA subscribed!", description: data.message });
+    },
+    onError: (err: any) => {
+      toast({ title: "Subscription failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const updateAppVersion = useMutation({
     mutationFn: () =>
       apiRequest("POST", "/api/admin/settings/app-version", { version: newVersion.trim(), apkUrl: apkUrl.trim() }),
@@ -171,6 +181,36 @@ export default function AdminSettings() {
               <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Updating…</>
             ) : (
               <><CheckCircle className="h-4 w-4 mr-2" /> Update Token</>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Activate Webhook — Subscribe WABA */}
+      <Card className="border-green-300 dark:border-green-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            Activate WhatsApp Chatbot
+          </CardTitle>
+          <CardDescription>
+            This links your WhatsApp Business Account to the bot so incoming messages are forwarded to the server. Do this once after setting the token.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md p-3 text-sm text-green-800 dark:text-green-200">
+            Click this button to subscribe WABA <strong>2118758868886697</strong> to the app webhook. This is required for the bot to reply to customers.
+          </div>
+          <Button
+            data-testid="button-subscribe-waba"
+            onClick={() => subscribeWaba.mutate()}
+            disabled={subscribeWaba.isPending}
+            className="bg-green-600 hover:bg-green-700 text-white w-full"
+          >
+            {subscribeWaba.isPending ? (
+              <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Subscribing…</>
+            ) : (
+              <><CheckCircle className="h-4 w-4 mr-2" /> Subscribe WABA to Webhook (Activate Bot)</>
             )}
           </Button>
         </CardContent>

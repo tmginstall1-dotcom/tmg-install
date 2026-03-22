@@ -4335,6 +4335,24 @@ Respond directly — no JSON, just the message text.`,
     res.json({ message: method === "VOICE" ? "Voice call initiated to +65 8088 0757" : "Verification SMS sent to +65 8088 0757" });
   });
 
+  // ── Subscribe WABA to app webhook (required for Cloud API to send messages) ─
+  app.post("/api/admin/whatsapp/subscribe-waba", async (req, res) => {
+    const token = await getAccessToken();
+    if (!token) return res.status(500).json({ message: "No WhatsApp access token configured" });
+    const WABA_ID = "2118758868886697";
+    const r = await fetch(`https://graph.facebook.com/v19.0/${WABA_ID}/subscribed_apps`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+    });
+    const data = await r.json() as any;
+    if (!r.ok) {
+      console.error("[WhatsApp] WABA subscribe failed:", JSON.stringify(data));
+      return res.status(r.status).json({ message: data?.error?.message ?? "Subscription failed" });
+    }
+    console.log("[WhatsApp] WABA subscribed to app webhook ✓");
+    res.json({ message: "✅ WABA subscribed — webhook is now fully active!" });
+  });
+
   app.post("/api/admin/whatsapp/register-direct", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
     const user = await storage.getUserById(req.session.userId);
