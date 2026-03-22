@@ -2394,7 +2394,8 @@ TMG INSTALL FACTS (for faq answers):
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
               await sendWhatsAppMessage(from, `No problem! What's the correct job address? 📍`);
               return;
-            } else if (gc.command === "change_items" && !["awaiting_items", "awaiting_items_verify"].includes(state)) {
+            } else if (gc.command === "change_items" && !["awaiting_items", "awaiting_items_verify", "awaiting_confirmation"].includes(state)) {
+              // Note: awaiting_confirmation excluded — its own handler handles targeted add/remove/edit with GPT delta logic
               await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null, previousItems: session.collectedItems });
               await sendWhatsAppMessage(from, `Sure! What items do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`);
               return;
@@ -3861,38 +3862,46 @@ Rules:
           try {
             const confirmIntent = await openai.chat.completions.create({
               model: "gpt-4o",
-              max_tokens: 300,
+              max_tokens: 600,
               response_format: { type: "json_object" },
               messages: [{
                 role: "system",
-                content: `You are a WhatsApp assistant for TMG Install. The customer is at the final confirmation step.
-Their current request:
+                content: `You are a WhatsApp assistant for TMG Install. The customer is at the FINAL CONFIRMATION step and has seen their full quote summary.
+
+Current quote details:
 - Name: ${session.collectedName}
 - Address: ${session.collectedAddress}
-- Items: ${session.collectedItems}
+- Items (CURRENT LIST): ${session.collectedItems}
+- Floor: ${session.floorLevel}, Lift: ${session.hasLift}
+- Access: ${session.accessDifficulty}
+- Date: ${session.preferredDate}
 
 Customer said: "${text}"
 
-Determine their intent and return JSON:
+Classify their intent and return JSON:
 {
   "action": "submit" | "edit_items" | "change_name" | "change_address" | "change_date" | "redo_items" | "set_relocation" | "question" | "cancel" | "unclear",
-  "reply": "your friendly 1-sentence confirmation of what you did/understood",
-  "updatedItems": "complete updated bullet list ONLY for edit_items action"
+  "reply": "friendly 1-sentence acknowledgment of what you changed/understood",
+  "updatedItems": "the FULL updated bullet list (all items, one per line) — REQUIRED for edit_items, empty string otherwise"
 }
 
-- submit: they want to confirm/submit (yes, ok, send it, go ahead, confirm, all good, etc.)
-- edit_items: they want to add, remove, or change a specific item. Return updatedItems = the FULL updated bullet list.
-- change_name: they want to change their name
-- change_address: they want to change the address
-- change_date: they want to change the preferred date or schedule
-- redo_items: they want to completely redo/replace the entire items list from scratch
-- set_relocation: they are saying this is a RELOCATION / moving job (e.g. "it's a relocation", "we're moving", "need to move the furniture to another place")
-- question: they have a question about the service/price/timing
-- cancel: they want to cancel
-- unclear: genuinely unclear
+ACTION RULES (follow strictly):
+- submit: customer confirms (yes, ok, looks good, send it, go ahead, confirm, correct, all good, etc.)
+- edit_items: customer mentions a SPECIFIC item to add, remove, or change. Examples: "remove the wardrobe", "take off 4 desk surfaces", "add 1 sofa", "change the bed to king size", "I don't need the cabinets", "sorry remove X". Use the CURRENT LIST above to compute the FULL updated bullet list with the change applied. DO NOT wipe the whole list — only add/remove/change the specific item mentioned.
+- change_name: they say their name is wrong or want to change it
+- change_address: they want to change the job address
+- change_date: they want to change the date or time slot
+- redo_items: ONLY use this if the customer explicitly wants to RESTART the ENTIRE items list from scratch (e.g. "redo my items", "start the list over", "completely different items", "clear everything"). NOT for removing one specific item.
+- set_relocation: they reveal this is a relocation/moving job
+- question: they ask about pricing, timing, or how the service works
+- cancel: they want to cancel everything
+- unclear: genuinely cannot determine intent
 
-For edit_items: compute the full updated list (apply their change) and return in updatedItems.
-For questions: answer briefly in reply (team confirms pricing after submission, typical response within 1 business day).`
+CRITICAL for edit_items:
+- "remove X" / "delete X" / "take off X" / "I don't need X" / "without X" / "sorry remove X" → edit_items, remove ONLY that item, keep everything else
+- "add X" / "include X" / "also need X" → edit_items, add to existing list
+- When computing updatedItems, start from the CURRENT LIST and apply ONLY the stated change
+- Keep the same bullet format (• item name (service type)) as the current list`
               }]
             });
             const ci = JSON.parse(confirmIntent.choices[0]?.message?.content || "{}");
@@ -3900,12 +3909,38 @@ For questions: answer briefly in reply (team confirms pricing after submission, 
             if (ci.action === "submit") {
               // Fall through to YES processing below
             } else if (ci.action === "edit_items") {
-              // Apply the targeted add/remove/change directly — no list wipe
+              // Apply the targeted add/remove/change directly — stay in confirmation, re-show full summary
               const updatedItems = ci.updatedItems || session.collectedItems || "";
-              await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: updatedItems });
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedItems: updatedItems });
+
+              // Rebuild the full confirmation summary with updated items
+              const floorLvlE = session.floorLevel ?? 1;
+              const liftAvailE = session.hasLift ?? true;
+              const accessLvlE = session.accessDifficulty ?? "easy";
+              const twLabelE = session.preferredTimeWindow === "09:00-12:00"
+                ? " (Morning, 9am–12pm)"
+                : session.preferredTimeWindow === "13:00-17:00"
+                  ? " (Afternoon, 1pm–5pm)"
+                  : "";
+              const isRelocationE = !!session.isRelocation;
+              const toAddrE = session.collectedToAddress;
+              const distKmE = session.distanceKm;
+              const addressBlockE = isRelocationE && toAddrE
+                ? `📦 *Type:* Relocation\n📍 *From:* ${session.collectedAddress}\n📍 *To:* ${toAddrE}${distKmE ? `\n📏 *Distance:* ~${distKmE} km` : ""}`
+                : `📍 *Address:* ${session.collectedAddress}`;
+              const floorLineE = `🏢 *Floor:* ${floorLvlE === 1 ? "Ground / 1st floor" : `Floor ${floorLvlE}`} (${liftAvailE ? "lift available" : "no lift"})`;
+              const accessLineE = `🚪 *Access:* ${{ easy: "Easy", medium: "Moderate", hard: "Difficult" }[accessLvlE] || "Easy"}`;
+
               await sendWhatsAppMessage(from,
-                `${ci.reply || "Done!"} Here's your updated list:\n\n${updatedItems}\n\n` +
-                `Does this look right?\n• Reply *YES* to proceed\n• Tell me any other corrections needed\n• Send a photo to add more items`
+                `${ci.reply || "Done! ✅"} Here's your updated summary:\n\n` +
+                `👤 *Name:* ${session.collectedName}\n` +
+                `${addressBlockE}\n` +
+                `🛋️ *Items:*\n${updatedItems}\n` +
+                `${floorLineE}\n` +
+                `${accessLineE}\n` +
+                `📅 *Preferred date:* ${session.preferredDate || "Flexible"}${twLabelE}\n\n` +
+                `Shall I send this to our team? Reply *YES* to submit.\n\n` +
+                `_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, or *change access*._`
               );
               return;
             } else if (ci.action === "change_name") {
