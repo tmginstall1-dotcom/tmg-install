@@ -25,6 +25,81 @@ import { calcTransportFee, PricingConfig } from "@shared/pricing";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
+// ── Smart catalog pricing lookup (used by WhatsApp bot) ──────────────────────
+// Given a natural-language furniture query, finds matching catalog entries and
+// returns a formatted WhatsApp price message (or null if nothing matched).
+async function smartPricingLookup(query: string): Promise<string | null> {
+  try {
+    const catalog = await storage.getCatalogItems();
+    const uniqueNames = [...new Set(catalog.map(c => c.name))].join(", ");
+
+    // Ask GPT to find the best matching catalog item name(s)
+    const matchRes = await openai.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 150,
+      response_format: { type: "json_object" },
+      messages: [{
+        role: "system",
+        content: `The customer asked about pricing for: "${query}"
+
+Available catalog items (exact names):
+${uniqueNames}
+
+Return JSON:
+{
+  "matchedNames": [],      // up to 3 exact catalog names that best match the query
+  "itemLabel": ""          // friendly short name for the customer reply (e.g. "wardrobe", "dining table")
+}
+Only return names that are genuinely relevant. Return empty array if nothing matches.`,
+      }],
+    });
+
+    const parsed = JSON.parse(matchRes.choices[0]?.message?.content || "{}");
+    const matchedNames: string[] = (parsed.matchedNames || []).filter(Boolean);
+    const itemLabel: string = parsed.itemLabel || query;
+
+    if (matchedNames.length === 0) return null;
+
+    const matched = catalog.filter(c => matchedNames.includes(c.name));
+    if (matched.length === 0) return null;
+
+    // Group prices by service type
+    const byType: Record<string, number[]> = {};
+    matched.forEach(item => {
+      const price = parseFloat(item.basePrice as string);
+      if (!isNaN(price)) {
+        if (!byType[item.serviceType]) byType[item.serviceType] = [];
+        byType[item.serviceType].push(price);
+      }
+    });
+
+    const typeLabel: Record<string, string> = {
+      install:          "🔧 *Installation*",
+      dismantle:        "🔨 *Dismantling*",
+      relocate:         "🚚 *Relocation*",
+      dispose:          "🗑️ *Disposal*",
+      dismantle_dispose:"🔨🗑️ *Dismantle + Dispose*",
+    };
+
+    const lines = Object.entries(byType)
+      .filter(([type]) => typeLabel[type])
+      .map(([type, prices]) => {
+        const min = Math.min(...prices), max = Math.max(...prices);
+        return `${typeLabel[type]}: *$${min}${min !== max ? ` – $${max}` : ""}*`;
+      });
+
+    if (lines.length === 0) return null;
+
+    return (
+      `Here's our pricing for *${itemLabel}* in Singapore:\n\n` +
+      lines.join("\n") +
+      `\n\n_Per item. Excludes floor surcharge & transport. Min. job $180._`
+    );
+  } catch {
+    return null;
+  }
+}
+
 // ── WhatsApp date-menu helper ─────────────────────────────────────────────────
 // Fetches the next available slots and returns both the formatted message text
 // and the slot array (so the caller can store/reference them).
@@ -2166,17 +2241,19 @@ Return JSON:
 {
   "isCommand": boolean,
   "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"help"|"pricing"|"faq"|"none",
-  "faqAnswer": "string — answer to the customer's question if command=faq, otherwise empty string"
+  "faqAnswer": "string — answer to the customer's question if command=faq, otherwise empty string",
+  "pricingItem": "string or null — specific furniture item mentioned if command=pricing (e.g. 'wardrobe', 'dining table', 'sofa')"
 }
 
 Commands:
 - change_name/change_address/change_items/change_date/change_floor/change_access: explicit edit request
 - help: asking for help or what they can do
-- pricing: asking specifically about price estimates or costs
-- faq: a general question about TMG Install services, process, timing, payment, etc. NOT directly answering the current question
+- pricing: asking specifically about price/cost for a specific item or service (e.g. "how much to assemble a wardrobe", "what's the price for relocation")
+- faq: a general question about TMG Install services, process, timing, payment, areas, etc. NOT about specific item pricing
   Examples of FAQ: "do you do office furniture?", "how long does installation take?", "can you do weekends?", "is GST included?", "do you bring your own tools?", "what areas do you cover?"
   For faq: provide a helpful, concise answer in faqAnswer (2-3 sentences max)
 - none: a normal reply to the current state question (NOT a command)
+- pricingItem: if command=pricing and a specific furniture item is mentioned, extract it (e.g. "wardrobe", "IKEA PAX wardrobe", "queen bed frame"). Null if no specific item mentioned.
 
 IMPORTANT: Do NOT classify as faq/command if the message is directly answering the current question:
 - state=awaiting_floor → floor numbers or lift answers are NOT commands
@@ -2238,13 +2315,36 @@ TMG Install facts for faq answers:
               await sendWhatsAppMessage(from, helpMsg);
               return;
             } else if (gc.command === "pricing") {
+              const pricingItem = gc.pricingItem as string | null;
+              const statePromptPricing: Record<string, string> = {
+                awaiting_address: `📍 What's the *job address*?`,
+                awaiting_items: `🛋️ What furniture do you need help with?`,
+                awaiting_items_verify: `Does your furniture list look right? Reply *YES* to confirm.`,
+                awaiting_service_type: `What *service type* do you need?`,
+                awaiting_floor: `Which *floor* and is there a *lift*?`,
+                awaiting_access: `How easy is access? Reply *1*, *2*, or *3*.`,
+                awaiting_to_address: `📍 What's the *destination address*?`,
+                awaiting_date: `📅 When would you like this done?`,
+                awaiting_confirmation: `Ready to submit? Reply *YES* to confirm.`,
+              };
+              const continuePrompt = statePromptPricing[state] || `Let's continue with your quote. 😊`;
+              if (pricingItem) {
+                const priceMsg = await smartPricingLookup(pricingItem);
+                if (priceMsg) {
+                  await sendWhatsAppMessage(from, `${priceMsg}\n\n${continuePrompt}`);
+                  return;
+                }
+              }
+              // Fallback: generic pricing overview
               await sendWhatsAppMessage(from,
-                `*TMG Install* offers these services across Singapore:\n\n` +
-                `🔧 *Installation* — assembly of new furniture (IKEA, flat-pack, etc.)\n` +
+                `*TMG Install* pricing is based on the specific item and service:\n\n` +
+                `🔧 *Installation* — assembly of new/flat-pack furniture\n` +
                 `🔨 *Dismantling* — safe disassembly of existing furniture\n` +
-                `🚚 *Relocation* — moving furniture within or between locations\n\n` +
-                `Pricing is based on the items and service type. Minimum charge is *S$180*.\n\n` +
-                `Complete your quote and our team will confirm the exact price! 😊`
+                `🚚 *Relocation* — move + reinstall at new location\n` +
+                `🗑️ *Disposal* — haul away assembled furniture\n` +
+                `🔨🗑️ *Dismantle + Dispose* — cheaper bundle\n\n` +
+                `Minimum charge is *S$180*. Just ask me "how much for [item]?" and I'll look it up!\n\n` +
+                `${continuePrompt}`
               );
               return;
             } else if (gc.command === "faq" && gc.faqAnswer) {
@@ -2288,33 +2388,67 @@ TMG Install facts for faq answers:
           await sendWhatsAppMessage(from, `What's your *full name*? I just need something to address you by. 😊`);
           return;
         }
-        // Use GPT to extract the actual name from natural language
-        let extractedName = text;
+        // Use GPT to extract name AND detect if the message is really a pricing question
+        let extractedName: string | null = null;
+        let nameExtractedAddress: string | null = null;
+        let nameIsPricing = false;
+        let nameMentionedItem: string | null = null;
         try {
           const nameRes = await openai.chat.completions.create({
             model: "gpt-4o",
-            max_tokens: 60,
+            max_tokens: 100,
             response_format: { type: "json_object" },
             messages: [{
               role: "system",
-              content: `The customer was asked for their name. Extract their personal name from their message.
-Return JSON: { "name": string or null, "address": string or null }
-- name: their first name or full name only. Null if no name can be identified.
-- address: if they also mentioned a Singapore address in the same message, extract it. Otherwise null.
+              content: `The customer was asked for their full name. Analyse their message carefully.
+Return JSON:
+{
+  "name": string or null,
+  "address": string or null,
+  "isPricingQuestion": boolean,
+  "mentionedItem": string or null
+}
+Rules:
+- name: a real human personal name if clearly provided (e.g. "John", "Mary Tan", "Ahmad Rashid"). Must be a proper name. Null if it is a question, a statement, a greeting like "hi/ok/yes/no", pricing query, or not clearly a person's name.
+- address: Singapore address if mentioned alongside a name, otherwise null
+- isPricingQuestion: true if they asked about cost, price, or "how much"
+- mentionedItem: specific furniture item if they asked about pricing (e.g. "wardrobe", "bed frame", "dining table"), null otherwise
 Message: "${text}"`
             }]
           });
           const parsed = JSON.parse(nameRes.choices[0]?.message?.content || "{}");
-          if (parsed.name) extractedName = parsed.name;
-          // Bonus: if they also gave their address, save it too
-          if (parsed.address) {
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedName: extractedName, collectedAddress: parsed.address });
-            await sendWhatsAppMessage(from,
-              `Nice to meet you, *${extractedName}*! 😊 I've also noted your address: *${parsed.address}*.\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* and I'll identify the items — or just *type the list* below.`
-            );
-            return;
-          }
+          extractedName = parsed.name || null;
+          nameExtractedAddress = parsed.address || null;
+          nameIsPricing = !!parsed.isPricingQuestion;
+          nameMentionedItem = parsed.mentionedItem || null;
         } catch {}
+
+        // ── Not a name: handle pricing question or re-ask ──────────────────
+        if (!extractedName) {
+          if (nameIsPricing && nameMentionedItem) {
+            const priceMsg = await smartPricingLookup(nameMentionedItem);
+            if (priceMsg) {
+              await sendWhatsAppMessage(from,
+                `${priceMsg}\n\n` +
+                `Would you like a full personalised quote? To get started, what's your *full name*? 😊`
+              );
+              return;
+            }
+          }
+          await sendWhatsAppMessage(from,
+            `Happy to help! To get you an accurate quote, I'll need your details first.\n\nWhat's your *full name*? 😊`
+          );
+          return;
+        }
+
+        // ── Valid name — proceed through the quote flow ────────────────────
+        if (nameExtractedAddress) {
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedName: extractedName, collectedAddress: nameExtractedAddress });
+          await sendWhatsAppMessage(from,
+            `Nice to meet you, *${extractedName}*! 😊 I've also noted your address: *${nameExtractedAddress}*.\n\nNow, what furniture do you need help with?\n\n📸 *Send a photo* and I'll identify the items — or just *type the list* below.`
+          );
+          return;
+        }
 
         const alreadyHasAddress = !!session?.collectedAddress;
         const alreadyHasItemsToo = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
