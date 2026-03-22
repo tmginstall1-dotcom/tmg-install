@@ -34,13 +34,17 @@ export default function AdminSettings() {
   });
 
   const requestCode = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/admin/whatsapp/request-code", {}),
-    onSuccess: () => {
+    mutationFn: (method: "SMS" | "VOICE" = "SMS") =>
+      apiRequest("POST", "/api/admin/whatsapp/request-code", { method }),
+    onSuccess: (_data, method) => {
       setSmsSent(true);
-      toast({ title: "SMS sent", description: "Enter the 6-digit code sent to +65 8088 0757" });
+      toast({
+        title: method === "VOICE" ? "Voice call initiated" : "SMS sent",
+        description: `Enter the 6-digit code ${method === "VOICE" ? "read out in the call" : "sent"} to +65 8088 0757`,
+      });
     },
     onError: (err: any) => {
-      toast({ title: "Failed to send SMS", description: err.message, variant: "destructive" });
+      toast({ title: "Failed to send code", description: err.message, variant: "destructive" });
     },
   });
 
@@ -143,21 +147,34 @@ export default function AdminSettings() {
 
           <div className="flex flex-col gap-3">
             <Button
-              data-testid="button-request-wa-code"
-              onClick={() => requestCode.mutate()}
+              data-testid="button-request-wa-sms"
+              onClick={() => requestCode.mutate("SMS")}
               disabled={requestCode.isPending}
               variant="outline"
               className="w-full border-green-300 text-green-700 hover:bg-green-50"
             >
               {requestCode.isPending
-                ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Sending SMS…</>
+                ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Sending…</>
                 : <><Phone className="h-4 w-4 mr-2" /> Send verification SMS to +65 8088 0757</>
+              }
+            </Button>
+
+            <Button
+              data-testid="button-request-wa-voice"
+              onClick={() => requestCode.mutate("VOICE")}
+              disabled={requestCode.isPending}
+              variant="outline"
+              className="w-full border-slate-300 text-slate-600 hover:bg-slate-50 text-sm"
+            >
+              {requestCode.isPending
+                ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Calling…</>
+                : <><Phone className="h-4 w-4 mr-2" /> Try voice call instead</>
               }
             </Button>
 
             {smsSent && (
               <div className="space-y-2">
-                <Label htmlFor="otp-code">Enter the 6-digit code from the SMS</Label>
+                <Label htmlFor="otp-code">Enter the 6-digit code from the SMS / voice call</Label>
                 <div className="flex gap-2">
                   <Input
                     id="otp-code"

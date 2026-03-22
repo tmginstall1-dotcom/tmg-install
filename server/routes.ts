@@ -4291,17 +4291,18 @@ Respond directly — no JSON, just the message text.`,
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
     const user = await storage.getUserById(req.session.userId);
     if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const { method = "SMS" } = req.body as { method?: string };
     const token = await getAccessToken();
     if (!token) return res.status(500).json({ message: "No WhatsApp access token set" });
     const phoneNumberId = "1063172463540400";
     const r = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/request_code`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ code_method: "SMS", language: "en_US" }),
+      body: JSON.stringify({ code_method: method === "VOICE" ? "VOICE" : "SMS", language: "en_US" }),
     });
     const data = await r.json() as any;
     if (!r.ok) return res.status(r.status).json({ message: data?.error?.message ?? "Failed to request code" });
-    res.json({ message: "Verification SMS sent to +65 8088 0757" });
+    res.json({ message: method === "VOICE" ? "Voice call initiated to +65 8088 0757" : "Verification SMS sent to +65 8088 0757" });
   });
 
   app.post("/api/admin/whatsapp/verify-code", async (req, res) => {
