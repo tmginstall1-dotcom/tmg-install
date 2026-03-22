@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { appSettings } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { storage } from "./storage";
 
 const PHONE_NUMBER_ID = "1063172463540400";
 const WA_API_BASE = `https://graph.facebook.com/v19.0`;
@@ -177,6 +178,8 @@ export async function sendWhatsAppMessage(to: string, text: string): Promise<voi
       console.error("[WhatsApp] Send error:", JSON.stringify(data));
     } else {
       console.log(`[WhatsApp] Message sent to ${to}`);
+      // Log outbound message for admin conversations view
+      storage.logWhatsAppMessage({ phone: to, direction: 'outbound', body: text, sentBy: 'bot' }).catch(() => {});
     }
   } catch (err) {
     console.error("[WhatsApp] Network error:", err);

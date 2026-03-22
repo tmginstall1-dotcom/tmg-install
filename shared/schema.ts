@@ -146,6 +146,21 @@ export const appSettings = pgTable("app_settings", {
 });
 export type AppSetting = typeof appSettings.$inferSelect;
 
+// WhatsApp Message Log (persists all inbound/outbound messages for admin view)
+export const whatsappMessages = pgTable("whatsapp_messages", {
+  id: serial("id").primaryKey(),
+  phone: text("phone").notNull(),                           // customer phone (e.g. 6591234567)
+  direction: text("direction").notNull(),                   // 'inbound' | 'outbound'
+  body: text("body").notNull(),
+  mediaType: text("media_type"),                            // 'image' | null
+  mediaUrl: text("media_url"),
+  wamid: text("wamid"),                                     // WhatsApp message ID for dedup
+  sentBy: text("sent_by").default("bot"),                   // 'bot' | 'admin:<username>'
+  readAt: timestamp("read_at"),                             // null = unread (only meaningful for inbound)
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type WhatsAppMessage = typeof whatsappMessages.$inferSelect;
+
 // WhatsApp Conversation Sessions
 export const whatsappSessions = pgTable("whatsapp_sessions", {
   id: serial("id").primaryKey(),

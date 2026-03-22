@@ -1,14 +1,14 @@
 import { db } from "./db";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
-  attendanceAmendments, leaveRequests, payslips, gpsTrackPoints, siteEvents, whatsappSessions,
+  attendanceAmendments, leaveRequests, payslips, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
   type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser,
   type AttendanceAmendment, type AttendanceAmendmentWithUser,
   type LeaveRequest, type LeaveRequestWithUser,
   type Payslip, type PayslipWithUser,
-  type GpsTrackPoint, type SiteEvent, type WhatsAppSession
+  type GpsTrackPoint, type SiteEvent, type WhatsAppSession, type WhatsAppMessage
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 
@@ -107,6 +107,12 @@ export interface IStorage {
   getWhatsAppSession(phone: string): Promise<WhatsAppSession | undefined>;
   upsertWhatsAppSession(phone: string, data: Partial<Omit<WhatsAppSession, 'id' | 'phone' | 'createdAt'>>): Promise<WhatsAppSession>;
   deleteWhatsAppSession(phone: string): Promise<void>;
+
+  // WhatsApp Message Log
+  logWhatsAppMessage(data: { phone: string; direction: 'inbound' | 'outbound'; body: string; mediaType?: string; wamid?: string; sentBy?: string }): Promise<WhatsAppMessage>;
+  getWhatsAppMessages(phone: string, limit?: number): Promise<WhatsAppMessage[]>;
+  getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null }[]>;
+  markWhatsAppMessagesRead(phone: string): Promise<void>;
 
   // Site Analytics
   addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
@@ -1098,6 +1104,56 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWhatsAppSession(phone: string): Promise<void> {
     await db.delete(whatsappSessions).where(eq(whatsappSessions.phone, phone));
+  }
+
+  async logWhatsAppMessage(data: { phone: string; direction: 'inbound' | 'outbound'; body: string; mediaType?: string; wamid?: string; sentBy?: string }): Promise<WhatsAppMessage> {
+    const [msg] = await db.insert(whatsappMessages).values({
+      phone: data.phone,
+      direction: data.direction,
+      body: data.body,
+      mediaType: data.mediaType ?? null,
+      wamid: data.wamid ?? null,
+      sentBy: data.sentBy ?? (data.direction === 'outbound' ? 'bot' : null),
+    }).returning();
+    return msg;
+  }
+
+  async getWhatsAppMessages(phone: string, limit = 200): Promise<WhatsAppMessage[]> {
+    return db.select().from(whatsappMessages)
+      .where(eq(whatsappMessages.phone, phone))
+      .orderBy(whatsappMessages.createdAt)
+      .limit(limit);
+  }
+
+  async getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null }[]> {
+    // Get latest message per phone + unread count, joined with session for name/state
+    const rows = await db.execute(sql`
+      SELECT
+        m.phone,
+        ws.collected_name AS name,
+        ws.state,
+        (SELECT body FROM whatsapp_messages WHERE phone = m.phone ORDER BY created_at DESC LIMIT 1) AS last_message,
+        (SELECT created_at FROM whatsapp_messages WHERE phone = m.phone ORDER BY created_at DESC LIMIT 1) AS last_at,
+        COUNT(CASE WHEN m.direction = 'inbound' AND m.read_at IS NULL THEN 1 END)::int AS unread_count
+      FROM whatsapp_messages m
+      LEFT JOIN whatsapp_sessions ws ON ws.phone = m.phone
+      GROUP BY m.phone, ws.collected_name, ws.state
+      ORDER BY last_at DESC
+    `);
+    return (rows.rows as any[]).map(r => ({
+      phone: r.phone,
+      name: r.name ?? null,
+      state: r.state ?? null,
+      lastMessage: r.last_message ?? "",
+      lastAt: new Date(r.last_at),
+      unreadCount: Number(r.unread_count ?? 0),
+    }));
+  }
+
+  async markWhatsAppMessagesRead(phone: string): Promise<void> {
+    await db.update(whatsappMessages)
+      .set({ readAt: new Date() })
+      .where(and(eq(whatsappMessages.phone, phone), eq(whatsappMessages.direction, 'inbound'), isNull(whatsappMessages.readAt)));
   }
 
   async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent> {

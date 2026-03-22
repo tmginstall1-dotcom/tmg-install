@@ -28,6 +28,7 @@ const AdminExportPDF = lazy(() => import("@/pages/admin/ExportPDF"));
 const AdminStaffManagement = lazy(() => import("@/pages/admin/StaffManagement"));
 const AdminAnalytics = lazy(() => import("@/pages/admin/Analytics"));
 const AdminSettings = lazy(() => import("@/pages/admin/Settings"));
+const AdminConversations = lazy(() => import("@/pages/admin/Conversations"));
 const StaffDashboard = lazy(() => import("@/pages/staff/Dashboard"));
 const StaffJobDetail = lazy(() => import("@/pages/staff/JobDetail"));
 const StaffHR = lazy(() => import("@/pages/staff/HR"));
@@ -147,6 +148,9 @@ function Router() {
           </Route>
           <Route path="/admin/settings">
             {() => <AdminRoute component={AdminSettings} />}
+          </Route>
+          <Route path="/admin/conversations">
+            {() => <AdminRoute component={AdminConversations} />}
           </Route>
 
           <Route path="/staff">

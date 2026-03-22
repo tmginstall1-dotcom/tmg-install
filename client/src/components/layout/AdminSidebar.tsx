@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import {
-  LayoutDashboard, Calendar, Users, BarChart2, FileDown, LogOut, Settings,
+  LayoutDashboard, Calendar, Users, BarChart2, FileDown, LogOut, Settings, MessageCircle,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -25,6 +25,10 @@ export function AdminSidebar() {
       return res.json();
     },
   });
+  const { data: convos = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/whatsapp/conversations"],
+    refetchInterval: 15000,
+  });
 
   if (!location.startsWith("/admin") || location === "/admin/login") return null;
 
@@ -33,6 +37,7 @@ export function AdminSidebar() {
   const scheduleCount = quotes.filter(q => ["deposit_paid", "booked"].includes(q.status)).length;
   const urgentPayment = quotes.filter(q => ["completed", "final_payment_requested"].includes(q.status)).length;
   const staffBadge = (pendingAmendments as any[]).length + (pendingLeave as any[]).length;
+  const waBadge = (convos as any[]).reduce((s: number, c: any) => s + (c.unreadCount || 0), 0);
 
   function isActive(href: string) {
     if (href === "/admin") return location === "/admin";
@@ -46,8 +51,9 @@ export function AdminSidebar() {
     {
       title: "Operations",
       items: [
-        { href: "/admin",           icon: LayoutDashboard, label: "Dashboard",  badge: newCount + urgentPayment },
-        { href: "/admin/schedule",  icon: Calendar,        label: "Schedule",   badge: scheduleCount },
+        { href: "/admin",                icon: LayoutDashboard, label: "Dashboard",     badge: newCount + urgentPayment },
+        { href: "/admin/schedule",       icon: Calendar,        label: "Schedule",      badge: scheduleCount },
+        { href: "/admin/conversations",  icon: MessageCircle,   label: "WhatsApp",      badge: waBadge },
       ],
     },
     {

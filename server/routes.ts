@@ -2120,6 +2120,16 @@ Respond with ONLY a JSON array (no prose, no markdown):
       // ── Mark as read immediately — shows double blue ticks to customer ────────
       markAsRead(msg.id).catch(() => {});
 
+      // ── Log inbound message for admin conversations view ─────────────────────
+      const inboundText = (msg.text?.body || msg.image?.caption || "").trim();
+      storage.logWhatsAppMessage({
+        phone: from,
+        direction: 'inbound',
+        body: inboundText || (msg.type === 'image' ? '[Photo]' : '[Message]'),
+        mediaType: msg.type === 'image' ? 'image' : undefined,
+        wamid: msg.id,
+      }).catch(() => {});
+
       const msgType: string = msg.type || "text";
       // Include image/video captions in text so pricing questions sent with a photo
       // are processed the same as plain text messages (caption = msg.image.caption)
@@ -4441,6 +4451,41 @@ Respond directly — no JSON, just the message text.`,
     await db.insert(appSettings).values({ key: "app_latest_version", value: version }).onConflictDoUpdate({ target: appSettings.key, set: { value: version } });
     await db.insert(appSettings).values({ key: "app_apk_url", value: apkUrl }).onConflictDoUpdate({ target: appSettings.key, set: { value: apkUrl } });
     res.json({ message: "App version updated" });
+  });
+
+  // ── Admin: WhatsApp Conversations ──────────────────────────────────────────
+  app.get("/api/admin/whatsapp/conversations", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const convos = await storage.getWhatsAppConversations();
+    res.json(convos);
+  });
+
+  app.get("/api/admin/whatsapp/conversations/:phone", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const phone = req.params.phone;
+    const [messages, session] = await Promise.all([
+      storage.getWhatsAppMessages(phone),
+      storage.getWhatsAppSession(phone),
+    ]);
+    await storage.markWhatsAppMessagesRead(phone);
+    res.json({ messages, session });
+  });
+
+  app.post("/api/admin/whatsapp/conversations/:phone/send", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const phone = req.params.phone;
+    const { message } = req.body as { message: string };
+    if (!message?.trim()) return res.status(400).json({ message: "Message is required" });
+    await sendWhatsAppMessage(phone, message.trim());
+    // Log as admin-sent message (overwrite the 'bot' sentBy that sendWhatsAppMessage logs)
+    await storage.logWhatsAppMessage({ phone, direction: 'outbound', body: message.trim(), sentBy: `admin:${user.name || user.email}` });
+    res.json({ ok: true });
   });
 
   return httpServer;

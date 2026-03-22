@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Calendar, Users, BarChart2, Settings } from "lucide-react";
+import { LayoutDashboard, Calendar, Users, MessageCircle, Settings } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -24,6 +24,10 @@ export function AdminBottomNav() {
       return res.json();
     },
   });
+  const { data: convos = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/whatsapp/conversations"],
+    refetchInterval: 15000,
+  });
 
   if (!location.startsWith("/admin") || location === "/admin/login") return null;
 
@@ -31,13 +35,14 @@ export function AdminBottomNav() {
   const dashBadge = quotes.filter(q => ["submitted", "under_review", "completed", "final_payment_requested"].includes(q.status)).length;
   const schedBadge = quotes.filter(q => ["deposit_paid", "booked"].includes(q.status)).length;
   const staffBadge = (pendingAmendments as any[]).length + (pendingLeave as any[]).length;
+  const waBadge = (convos as any[]).reduce((s: number, c: any) => s + (c.unreadCount || 0), 0);
 
   const tabs = [
-    { href: "/admin",            label: "Dash",    icon: LayoutDashboard, badge: dashBadge },
-    { href: "/admin/schedule",   label: "Schedule", icon: Calendar,       badge: schedBadge },
-    { href: "/admin/staff",      label: "Staff",   icon: Users,           badge: staffBadge },
-    { href: "/admin/analytics",  label: "Analytics", icon: BarChart2,      badge: 0 },
-    { href: "/admin/settings",   label: "Settings", icon: Settings,       badge: 0 },
+    { href: "/admin",                label: "Dash",    icon: LayoutDashboard, badge: dashBadge },
+    { href: "/admin/schedule",       label: "Schedule", icon: Calendar,       badge: schedBadge },
+    { href: "/admin/staff",          label: "Staff",   icon: Users,           badge: staffBadge },
+    { href: "/admin/conversations",  label: "Chat",    icon: MessageCircle,   badge: waBadge },
+    { href: "/admin/settings",       label: "Settings", icon: Settings,       badge: 0 },
   ];
 
   return (
