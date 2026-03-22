@@ -2273,7 +2273,7 @@ CLASSIFY the customer's latest message. Is it a GLOBAL COMMAND or a NORMAL REPLY
 Return JSON:
 {
   "isCommand": boolean,
-  "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"help"|"pricing"|"faq"|"none",
+  "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"help"|"pricing"|"faq"|"farewell"|"none",
   "faqAnswer": "concise answer (2-3 sentences) if command=faq, otherwise empty string",
   "pricingItem": "specific furniture item if command=pricing, e.g. 'IKEA PAX wardrobe', 'queen bed frame', 'sofa'. Null if not mentioned."
 }
@@ -2283,6 +2283,7 @@ COMMAND RULES:
 - help: asking what they can do or how this works
 - pricing: asking about price/cost for a specific or general furniture item or service
 - faq: general question about TMG Install (timing, payment, areas, GST, tools, etc.) NOT about item pricing
+- farewell: customer says goodbye, thank you, will update later, ok thanks, coming back later, talk later, or any variation of a polite exit — even mid-flow
 - none: a direct answer to the current question — DO NOT override a direct reply
 
 CRITICAL — Do NOT classify as command if customer is directly answering the current question:
@@ -2413,6 +2414,28 @@ TMG INSTALL FACTS (for faq answers):
               };
               const prompt = statePrompt[state] || `Let's continue with your quote. 😊`;
               await sendWhatsAppMessage(from, `${gc.faqAnswer}\n\n${prompt}`);
+              return;
+            } else if (gc.command === "farewell") {
+              // Warm, sales-focused goodbye — session state unchanged so they pick up where they left off
+              const name = session.collectedName ? `, *${session.collectedName}*` : "";
+              const resumeStepHint: Record<string, string> = {
+                awaiting_address: "We just need your *job address* to lock in your quote.",
+                awaiting_items: "We just need to know which *items* you need help with.",
+                awaiting_items_verify: "We just need you to confirm your *furniture list*.",
+                awaiting_service_type: "We just need to know the *service type* you need.",
+                awaiting_floor: "We just need your *floor level and lift* info.",
+                awaiting_access: "We just need to know how *easy access* is to your unit.",
+                awaiting_to_address: "We just need the *destination address* for the relocation.",
+                awaiting_date: "We just need a *preferred date* and we're good to go.",
+                awaiting_confirmation: "Your quote is almost ready — just tap *YES* to confirm when you're back!",
+              };
+              const hint = resumeStepHint[state] || "Your quote is saved and ready to complete.";
+              const farewellReply =
+                `No worries${name}! 😊 Take your time — we'll be right here.\n\n` +
+                `${hint}\n\n` +
+                `Just message us again when you're ready and we'll pick up right where we left off. 👍`;
+              await sendWhatsAppMessage(from, farewellReply);
+              saveHistory(from, conversationHistory, text, farewellReply);
               return;
             }
           }
