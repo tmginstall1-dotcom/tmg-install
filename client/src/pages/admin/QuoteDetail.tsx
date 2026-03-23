@@ -580,12 +580,12 @@ export default function AdminQuoteDetail() {
           </div>
           
           {/* Right Column (Action Panel) */}
-          <div className="space-y-6">
+          <div className="space-y-5 lg:sticky lg:top-28 lg:self-start">
             
             <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
               <div className="bg-zinc-50 px-5 py-4 border-b border-zinc-200">
                 <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Job Pipeline</p>
-                <div className="space-y-4 relative before:absolute before:inset-0 before:ml-[11px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-zinc-200">
+                <div className="space-y-4 relative before:absolute before:inset-0 before:ml-[11px] before:-translate-x-px before:h-full before:w-0.5 before:bg-zinc-200">
                   {/* Status Timeline */}
                   {[
                     { id: "quote", label: "Quote Requested", done: true, active: quote.status === 'submitted' || quote.status === 'under_review' },

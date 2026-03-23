@@ -1,5 +1,5 @@
-import { useQuotes, useUpdateQuoteStatus } from "@/hooks/use-quotes";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuotes } from "@/hooks/use-quotes";
+import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -7,10 +7,9 @@ import { format } from "date-fns";
 import { useState, useMemo } from "react";
 import {
   ClipboardList, DollarSign, CalendarCheck,
-  Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2, UserPlus,
-  ChevronRight, Clock, Users, ArrowRight, BarChart2, Search, X, Loader2
+  Zap, CheckCircle2, AlertCircle, Trash2,
+  ChevronRight, Search, X, Loader2
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
@@ -89,66 +88,98 @@ function SectionPanel({
         )}
       </div>
       {quotes.length === 0 ? (
-        <div className="py-16 text-center">
-          <CheckCircle2 className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+        <div className="py-14 text-center">
+          <CheckCircle2 className="w-9 h-9 text-zinc-300 mx-auto mb-3" />
           <p className="text-sm font-medium text-zinc-500">{emptyMsg}</p>
           <p className="text-xs text-zinc-400 mt-1">All caught up</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="table-fixed w-full min-w-[600px]">
-            <thead>
-              <tr>
-                <th className="w-12 px-4 py-3 bg-zinc-50 border-b border-zinc-200"></th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Customer</th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Address</th>
-                <th className="px-4 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Amount</th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Status</th>
-                {showDate && <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Date</th>}
-                <th className="w-10 px-4 py-3 bg-zinc-50 border-b border-zinc-200"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {quotes.map(quote => {
-                const slotDate = quote.scheduledAt
-                  ? format(new Date(quote.scheduledAt), "d MMM")
-                  : quote.preferredDate
-                    ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM")
-                    : format(new Date(quote.createdAt), "d MMM");
-
-                return (
-                  <tr key={quote.id} onClick={() => navigate(`/admin/quotes/${quote.id}`)} className="group cursor-pointer hover:bg-zinc-50 transition-colors">
-                    <td className="px-4 py-3 border-b border-zinc-100">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${avatarBg(quote.id)}`}>
-                        {initials(quote.customer?.name)}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-zinc-700 font-medium border-b border-zinc-100 truncate max-w-[150px]">
-                      {quote.customer?.name || "Unknown"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-zinc-700 border-b border-zinc-100 truncate max-w-[200px]">
-                      {quote.serviceAddress || "No address"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-zinc-700 font-semibold tabular-nums text-right border-b border-zinc-100">
-                      {formatMoney(quote.total)}
-                    </td>
-                    <td className="px-4 py-3 text-sm border-b border-zinc-100">
+        <>
+          {/* Mobile list (< sm) */}
+          <div className="sm:hidden divide-y divide-zinc-100">
+            {quotes.map(quote => {
+              const slotDate = quote.scheduledAt
+                ? format(new Date(quote.scheduledAt), "d MMM")
+                : quote.preferredDate
+                  ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM")
+                  : format(new Date(quote.createdAt), "d MMM");
+              return (
+                <div key={quote.id} onClick={() => navigate(`/admin/quotes/${quote.id}`)}
+                  className="flex items-center gap-3 px-4 py-3 active:bg-zinc-50 cursor-pointer">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatarBg(quote.id)}`}>
+                    {initials(quote.customer?.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-zinc-900 truncate leading-tight">{quote.customer?.name || "Unknown"}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
                       <StatusBadge status={quote.status} />
-                    </td>
-                    {showDate && (
-                      <td className="px-4 py-3 text-sm text-zinc-700 border-b border-zinc-100 whitespace-nowrap tabular-nums">
-                        {slotDate}
+                      {showDate && <span className="text-[11px] text-zinc-400 tabular-nums">{slotDate}</span>}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-semibold text-zinc-900 tabular-nums">{formatMoney(quote.total)}</p>
+                    <ChevronRight className="w-3.5 h-3.5 text-zinc-300 ml-auto mt-0.5" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table (sm+) */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="table-fixed w-full min-w-[560px]">
+              <thead>
+                <tr>
+                  <th className="w-12 px-4 py-3 bg-zinc-50 border-b border-zinc-200"></th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Customer</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Address</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Amount</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Status</th>
+                  {showDate && <th className="w-20 px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Date</th>}
+                  <th className="w-10 px-4 py-3 bg-zinc-50 border-b border-zinc-200"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotes.map(quote => {
+                  const slotDate = quote.scheduledAt
+                    ? format(new Date(quote.scheduledAt), "d MMM")
+                    : quote.preferredDate
+                      ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM")
+                      : format(new Date(quote.createdAt), "d MMM");
+                  return (
+                    <tr key={quote.id} onClick={() => navigate(`/admin/quotes/${quote.id}`)} className="group cursor-pointer hover:bg-zinc-50 transition-colors">
+                      <td className="px-4 py-3 border-b border-zinc-100">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${avatarBg(quote.id)}`}>
+                          {initials(quote.customer?.name)}
+                        </div>
                       </td>
-                    )}
-                    <td className="px-4 py-3 border-b border-zinc-100 text-right">
-                      <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-blue-600 inline-block" />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <td className="px-4 py-3 text-sm text-zinc-700 font-medium border-b border-zinc-100 truncate max-w-[150px]">
+                        {quote.customer?.name || "Unknown"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-zinc-500 border-b border-zinc-100 truncate max-w-[180px]">
+                        {quote.serviceAddress || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-zinc-900 font-semibold tabular-nums text-right border-b border-zinc-100">
+                        {formatMoney(quote.total)}
+                      </td>
+                      <td className="px-4 py-3 border-b border-zinc-100">
+                        <StatusBadge status={quote.status} />
+                      </td>
+                      {showDate && (
+                        <td className="px-4 py-3 text-sm text-zinc-500 border-b border-zinc-100 whitespace-nowrap tabular-nums">
+                          {slotDate}
+                        </td>
+                      )}
+                      <td className="px-4 py-3 border-b border-zinc-100 text-right">
+                        <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-blue-600 inline-block" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
@@ -295,11 +326,12 @@ export default function AdminDashboard() {
         ) : (
           <>
             {/* KPI Cards Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              {statCards.map((card) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {statCards.map((card, idx) => {
                 const Icon = card.icon;
+                const isOrphan = idx === statCards.length - 1 && statCards.length % 2 !== 0;
                 return (
-                  <div key={card.label} className={`bg-white border ${card.urgent && card.value > 0 ? 'border-orange-300 bg-orange-50/30' : 'border-zinc-200'} rounded-xl p-5 shadow-sm`}>
+                  <div key={card.label} className={`bg-white border ${card.urgent && card.value > 0 ? 'border-orange-300 bg-orange-50/30' : 'border-zinc-200'} rounded-xl p-4 shadow-sm${isOrphan ? ' col-span-2 sm:col-span-1' : ''}`}>
                     <div className="flex items-center justify-between mb-2">
                       <Icon className={`w-5 h-5 ${card.urgent && card.value > 0 ? 'text-orange-500' : 'text-zinc-400'}`} />
                     </div>
@@ -310,23 +342,6 @@ export default function AdminDashboard() {
                   </div>
                 );
               })}
-            </div>
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {[
-                { href: "/admin/schedule", label: "Schedule", icon: Calendar },
-                { href: "/admin/staff", label: "Staff & HR", icon: Users },
-                { href: "/admin/analytics", label: "Analytics", icon: BarChart2 },
-                { href: "/admin/export", label: "Export", icon: TrendingUp },
-              ].map(action => (
-                <Link key={action.href} href={action.href}>
-                  <div className="inline-flex items-center justify-center gap-2 h-9 w-full px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors cursor-pointer shadow-sm">
-                    <action.icon className="w-4 h-4 text-zinc-400" />
-                    {action.label}
-                  </div>
-                </Link>
-              ))}
             </div>
 
             {/* Main Sections */}
