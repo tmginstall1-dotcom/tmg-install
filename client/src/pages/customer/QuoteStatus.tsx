@@ -4,6 +4,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   CheckCircle2, CreditCard, CalendarDays, Receipt, Clock, MapPin,
   RefreshCw, AlertCircle, MessageCircle, Loader2, ArrowRight, Package, Check,
+  Mail, MailWarning, Inbox, ShieldCheck, Info,
 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 import { format, differenceInHours } from "date-fns";
@@ -198,6 +199,109 @@ export default function QuoteStatus() {
             )}
           </div>
         </motion.div>
+
+        {/* ═══ EMAIL REMINDER — deposit requested (prominent guide) ══════════ */}
+        {quote.status === "deposit_requested" && (
+          <motion.div {...fadeUp(0.02)} className="mb-8 border-2 border-black overflow-hidden">
+            <div className="bg-black text-white px-5 py-3.5 flex items-center gap-3">
+              <Mail className="w-5 h-5 text-white flex-shrink-0" />
+              <div>
+                <p className="font-black text-sm uppercase tracking-wide" style={{ letterSpacing: "0.1em" }}>
+                  Payment Link Sent to Your Email
+                </p>
+                <p className="text-white/60 text-xs mt-0.5">Follow the steps below to complete your deposit</p>
+              </div>
+            </div>
+            <div className="bg-white px-5 py-5">
+              <div className="space-y-4">
+                {/* Step 1 */}
+                <div className="flex items-start gap-4">
+                  <div className="w-7 h-7 rounded-full bg-black text-white text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">1</div>
+                  <div>
+                    <p className="font-bold text-sm text-black">Open your email inbox</p>
+                    <p className="text-xs text-black/55 mt-0.5 leading-relaxed">
+                      Look for an email from <span className="font-semibold text-black">TMG Install</span> with the subject <span className="font-semibold text-black">"Your Deposit Payment Link"</span>.
+                    </p>
+                  </div>
+                </div>
+                {/* Step 2 — Spam */}
+                <div className="flex items-start gap-4">
+                  <div className="w-7 h-7 rounded-full bg-amber-500 text-white text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">2</div>
+                  <div>
+                    <p className="font-bold text-sm text-black flex items-center gap-1.5">
+                      <MailWarning className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                      Check your Junk / Spam folder
+                    </p>
+                    <p className="text-xs text-black/55 mt-0.5 leading-relaxed">
+                      Payment emails sometimes get filtered automatically. Check your <span className="font-semibold text-black">Junk</span>, <span className="font-semibold text-black">Spam</span>, or <span className="font-semibold text-black">Promotions</span> tab if you don't see it in your inbox.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {["Junk Mail", "Spam", "Promotions", "Other"].map(folder => (
+                        <span key={folder} className="inline-flex items-center gap-1 text-[10px] font-semibold border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 rounded">
+                          <Inbox className="w-3 h-3" />
+                          {folder}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {/* Step 3 */}
+                <div className="flex items-start gap-4">
+                  <div className="w-7 h-7 rounded-full bg-black text-white text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">3</div>
+                  <div>
+                    <p className="font-bold text-sm text-black">Click the payment link in the email</p>
+                    <p className="text-xs text-black/55 mt-0.5 leading-relaxed">
+                      The link takes you to a secure Stripe checkout page. Alternatively, use the <span className="font-semibold text-black">Pay Deposit Now</span> button on this page.
+                    </p>
+                  </div>
+                </div>
+                {/* Step 4 */}
+                <div className="flex items-start gap-4">
+                  <div className="w-7 h-7 rounded-full bg-black text-white text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">4</div>
+                  <div>
+                    <p className="font-bold text-sm text-black flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      Pay securely & confirm your slot
+                    </p>
+                    <p className="text-xs text-black/55 mt-0.5 leading-relaxed">
+                      Once payment is received, your appointment slot is confirmed and you'll receive a booking confirmation email.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {/* Tip */}
+              <div className="mt-5 border border-black/10 bg-black/[0.02] px-4 py-3 flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-black/40 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-black/50 leading-relaxed">
+                  <span className="font-bold text-black">Can't find the email?</span> You can also pay directly using the <span className="font-semibold">Pay Deposit Now</span> button in the Payment Summary below. If you need help, contact us on WhatsApp.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ═══ EMAIL REMINDER — submitted / under_review / approved (subtle) ══ */}
+        {["submitted", "under_review", "approved"].includes(quote.status) && (
+          <motion.div {...fadeUp(0.02)} className="mb-8 flex items-start gap-3.5 border border-black/12 bg-black/[0.015] px-5 py-4">
+            <Mail className="w-4 h-4 text-black/40 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-black mb-0.5">
+                {quote.status === "approved" ? "Your quote is approved!" : "Quote received — we'll be in touch soon"}
+              </p>
+              <p className="text-xs text-black/55 leading-relaxed">
+                {quote.status === "approved"
+                  ? "Our team will send a deposit payment link to your registered email. Please check your inbox — and don't forget to look in your Junk or Spam folder too."
+                  : "Once our team approves your quote, we'll email you a deposit payment link. Keep an eye on your inbox and check your Junk / Spam folder if you don't see it."}
+              </p>
+              <div className="flex items-center gap-1.5 mt-2.5">
+                <MailWarning className="w-3.5 h-3.5 text-amber-500" />
+                <p className="text-[11px] font-semibold text-amber-700">
+                  Payment emails can end up in Junk, Spam, or Promotions — always check those folders.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         <div className="grid md:grid-cols-[2fr_1fr] gap-8 items-start">
 
