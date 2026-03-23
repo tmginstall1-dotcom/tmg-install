@@ -27,15 +27,13 @@ function useAppUpdateCheck() {
 
   useEffect(() => {
     if (!versionInfo || !Capacitor.isNativePlatform()) return;
-    import("@capacitor/app").then(({ App }) => {
-      App.getInfo().then((info) => {
-        if (info.version !== versionInfo.version) {
-          setUpdateAvailable(true);
-          setApkUrl(versionInfo.apkUrl);
-          setLatestVersion(versionInfo.version);
-        }
-      }).catch(() => {});
-    }).catch(() => {});
+    const currentVersion = import.meta.env.VITE_APP_VERSION ?? "";
+    const serverVersion = versionInfo.version ?? "";
+    if (serverVersion && currentVersion && serverVersion !== currentVersion) {
+      setUpdateAvailable(true);
+      setApkUrl(versionInfo.apkUrl);
+      setLatestVersion(serverVersion);
+    }
   }, [versionInfo]);
 
   return { updateAvailable, apkUrl, latestVersion };
@@ -152,19 +150,17 @@ export default function StaffDashboard() {
       {/* App update banner */}
       {updateAvailable && (
         <div className="fixed bottom-20 inset-x-0 z-50 px-4">
-          <a
-            href={apkUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => window.open(apkUrl, "_system")}
             data-testid="banner-app-update"
-            className="flex items-center gap-3 bg-blue-600 text-white rounded-xl px-4 py-3 shadow-lg"
+            className="w-full flex items-center gap-3 bg-blue-600 text-white rounded-xl px-4 py-3 shadow-lg"
           >
             <Download className="w-5 h-5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-bold">Update available — v{latestVersion}</div>
+            <div className="flex-1 min-w-0 text-left">
+              <div className="text-sm font-bold">Update available — {latestVersion}</div>
               <div className="text-xs text-blue-200">Tap to download and install</div>
             </div>
-          </a>
+          </button>
         </div>
       )}
 
