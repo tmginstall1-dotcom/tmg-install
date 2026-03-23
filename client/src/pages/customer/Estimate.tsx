@@ -374,8 +374,10 @@ export default function EstimateWizard() {
   const MIN_JOB = 180;
   const belowMinimum = items.length > 0 && total < MIN_JOB;
   const effectiveTotal = belowMinimum ? MIN_JOB : total;
-  const effectiveDeposit = Math.round(effectiveTotal * 0.5 * 100) / 100;
-  const effectiveFinal = Math.round((effectiveTotal - effectiveDeposit) * 100) / 100;
+  // Promo discount is applied AFTER the $180 minimum — it can bring total below $180
+  const grandTotalAfterPromo = Math.max(0, effectiveTotal - promoDiscount);
+  const effectiveDeposit = Math.round(grandTotalAfterPromo * 0.5 * 100) / 100;
+  const effectiveFinal = Math.round((grandTotalAfterPromo - effectiveDeposit) * 100) / 100;
 
   // ── Catalog add ───────────────────────────────────────────────────────────
 
@@ -1444,7 +1446,7 @@ export default function EstimateWizard() {
                       )}
                       <div className="flex justify-between font-black text-base pt-2 border-t border-black/10">
                         <span className="uppercase tracking-[0.06em] text-sm">Grand Total</span>
-                        <span>${Math.max(180, effectiveTotal - promoDiscount).toFixed(2)}</span>
+                        <span>${grandTotalAfterPromo.toFixed(2)}</span>
                       </div>
                       {belowMinimum && (
                         <div data-testid="notice-minimum-charge-review" className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-1">

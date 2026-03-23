@@ -2211,12 +2211,15 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const discount = input.discount || 0;
       const logisticsFee = input.logisticsFee || 0;
       const promoDiscountAmt = input.promoDiscount || 0;
-      const rawTotal = laborSubtotal - discount - promoDiscountAmt + logisticsFee;
+
+      // Minimum charge is based on labor+transport WITHOUT promo discount
+      const rawTotal = laborSubtotal - discount + logisticsFee;
 
       // ── Minimum charge: SGD 180 ──────────────────────────────────────────────
       const MIN_CHARGE = 180;
       const minAdjustment = rawTotal < MIN_CHARGE ? MIN_CHARGE - rawTotal : 0;
-      const grandTotal = rawTotal + minAdjustment;
+      // Promo code can override the $180 minimum — applied AFTER minimum is enforced
+      const grandTotal = Math.max(0, rawTotal + minAdjustment - promoDiscountAmt);
       // ────────────────────────────────────────────────────────────────────────
 
       const depositAmount = (grandTotal * 0.50).toFixed(2);
