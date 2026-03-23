@@ -73,20 +73,20 @@ export default function StaffHR() {
             <p className="text-[13px] text-slate-500 mt-0.5">Attendance, leave, payslips & receipts</p>
           </div>
 
-          {/* Tab bar */}
-          <div className="flex gap-1 border-b border-slate-100">
+          {/* Tab bar — equal-width grid so all 4 tabs always fit on screen */}
+          <div className="grid grid-cols-4 border-b border-slate-100 -mx-4 sm:-mx-5">
             {tabs.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
                 data-testid={`tab-${key}`}
-                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-bold transition-all relative border-b-2 -mb-px ${
+                className={`flex flex-col items-center gap-0.5 px-1 py-2.5 text-[10px] font-bold transition-all relative border-b-2 -mb-px ${
                   tab === key
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-4 h-4" />
                 {label}
               </button>
             ))}
