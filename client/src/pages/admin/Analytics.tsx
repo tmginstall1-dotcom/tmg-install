@@ -155,6 +155,109 @@ export default function Analytics() {
 
   const mapPins = (mapView === "sea" ? data.cities : data.countries).filter(p => p.lat && p.lng);
 
+  const mapBody = mapPins.length === 0 ? (
+    <div className="h-48 flex items-center justify-center">
+      <p className="text-xs text-slate-400">No geo data yet — appears within minutes of the first real visit.</p>
+    </div>
+  ) : (
+    <div>
+      {/* Map with hover tooltip */}
+      <div
+        ref={mapContainerRef}
+        className="relative rounded overflow-hidden bg-slate-50 border border-slate-100"
+        onMouseLeave={() => setHoveredPin(null)}
+      >
+        <ComposableMap
+          projectionConfig={proj}
+          style={{ width: "100%", height: "auto" }}
+        >
+          <Geographies geography={GEO_URL}>
+            {({ geographies }) =>
+              geographies.map((geo) => (
+                <Geography
+                  key={geo.rsmKey}
+                  geography={geo}
+                  fill="#e2e8f0"
+                  stroke="#cbd5e1"
+                  strokeWidth={0.4}
+                  style={{ default: { outline: "none" }, hover: { outline: "none", fill: "#cbd5e1" }, pressed: { outline: "none" } }}
+                />
+              ))
+            }
+          </Geographies>
+          {mapPins.map((pin) => {
+            const label = mapView === "sea"
+              ? `${(pin as any).city}, ${pin.country} — ${pin.count} visit${pin.count !== 1 ? "s" : ""}`
+              : `${pin.country} — ${pin.count} visit${pin.count !== 1 ? "s" : ""}`;
+            return (
+              <Marker key={`${pin.lat}-${pin.lng}`} coordinates={[pin.lng, pin.lat]}>
+                <circle
+                  r={Math.max(4, Math.min(mapView === "sea" ? 12 : 18, 4 + Math.sqrt(pin.count) * (mapView === "sea" ? 1.5 : 2)))}
+                  fill="#000"
+                  fillOpacity={0.8}
+                  stroke="#fff"
+                  strokeWidth={1.5}
+                  style={{ cursor: "pointer" }}
+                  onMouseEnter={(e: any) => {
+                    const rect = mapContainerRef.current?.getBoundingClientRect();
+                    if (rect) setHoveredPin({ text: label, x: e.clientX - rect.left, y: e.clientY - rect.top });
+                  }}
+                  onMouseLeave={() => setHoveredPin(null)}
+                />
+              </Marker>
+            );
+          })}
+        </ComposableMap>
+        {hoveredPin && (
+          <div
+            className="absolute pointer-events-none z-10 bg-black text-white text-[11px] font-semibold px-2 py-1 whitespace-nowrap shadow-lg"
+            style={{
+              left: Math.min(hoveredPin.x + 10, (mapContainerRef.current?.offsetWidth ?? 400) - 220),
+              top: Math.max(hoveredPin.y - 30, 4),
+            }}
+          >
+            <MapPin className="w-3 h-3 inline mr-1 opacity-70" />
+            {hoveredPin.text}
+          </div>
+        )}
+      </div>
+      {/* City + Country list side by side */}
+      <div className="mt-4 grid sm:grid-cols-2 gap-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 mb-2">Top Cities</p>
+          {data.cities.length === 0 ? (
+            <p className="text-xs text-slate-400">City data appears once geo lookup resolves</p>
+          ) : (
+            <div className="space-y-1.5">
+              {data.cities.slice(0, 8).map(({ city, country, countryCode, count }) => (
+                <div key={`${city}-${countryCode}`} className="flex items-center gap-2">
+                  <span className="text-base leading-none shrink-0">{countryFlag(countryCode)}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs text-slate-700 font-medium">{city}</span>
+                    <span className="text-[10px] text-slate-400 ml-1">{country}</span>
+                  </div>
+                  <span className="text-xs font-black text-slate-900 shrink-0">{count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 mb-2">Countries</p>
+          <div className="space-y-1.5">
+            {data.countries.slice(0, 8).map(({ country, countryCode, count }) => (
+              <div key={country} className="flex items-center gap-2">
+                <span className="text-base leading-none shrink-0">{countryFlag(countryCode)}</span>
+                <span className="text-xs text-slate-700 font-medium flex-1 truncate">{country}</span>
+                <span className="text-xs font-black text-slate-900 shrink-0">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#F5F5F7] pt-14 lg:pl-56 pb-24">
       {/* Header */}
@@ -266,114 +369,7 @@ export default function Analytics() {
           </div>
           
           <div className="p-5">
-            {mapPins.length === 0 ? (
-            <div className="h-48 flex items-center justify-center">
-              <p className="text-xs text-slate-400">No geo data yet — appears within minutes of the first real visit.</p>
-            </div>
-          ) : (
-            <>
-              {/* Map with hover tooltip */}
-              <div
-                ref={mapContainerRef}
-                className="relative rounded overflow-hidden bg-slate-50 border border-slate-100"
-                onMouseLeave={() => setHoveredPin(null)}
-              >
-                <ComposableMap
-                  projectionConfig={proj}
-                  style={{ width: "100%", height: "auto" }}
-                >
-                  <Geographies geography={GEO_URL}>
-                    {({ geographies }) =>
-                      geographies.map((geo) => (
-                        <Geography
-                          key={geo.rsmKey}
-                          geography={geo}
-                          fill="#e2e8f0"
-                          stroke="#cbd5e1"
-                          strokeWidth={0.4}
-                          style={{ default: { outline: "none" }, hover: { outline: "none", fill: "#cbd5e1" }, pressed: { outline: "none" } }}
-                        />
-                      ))
-                    }
-                  </Geographies>
-                  {mapPins.map((pin) => {
-                    const label = mapView === "sea"
-                      ? `${(pin as any).city}, ${pin.country} — ${pin.count} visit${pin.count !== 1 ? "s" : ""}`
-                      : `${pin.country} — ${pin.count} visit${pin.count !== 1 ? "s" : ""}`;
-                    return (
-                      <Marker key={`${pin.lat}-${pin.lng}`} coordinates={[pin.lng, pin.lat]}>
-                        <circle
-                          r={Math.max(4, Math.min(mapView === "sea" ? 12 : 18, 4 + Math.sqrt(pin.count) * (mapView === "sea" ? 1.5 : 2)))}
-                          fill="#000"
-                          fillOpacity={0.8}
-                          stroke="#fff"
-                          strokeWidth={1.5}
-                          style={{ cursor: "pointer" }}
-                          onMouseEnter={(e: any) => {
-                            const rect = mapContainerRef.current?.getBoundingClientRect();
-                            if (rect) setHoveredPin({ text: label, x: e.clientX - rect.left, y: e.clientY - rect.top });
-                          }}
-                          onMouseLeave={() => setHoveredPin(null)}
-                        />
-                      </Marker>
-                    );
-                  })}
-                </ComposableMap>
-
-                {/* Floating tooltip */}
-                {hoveredPin && (
-                  <div
-                    className="absolute pointer-events-none z-10 bg-black text-white text-[11px] font-semibold px-2 py-1 whitespace-nowrap shadow-lg"
-                    style={{
-                      left: Math.min(hoveredPin.x + 10, (mapContainerRef.current?.offsetWidth ?? 400) - 220),
-                      top: Math.max(hoveredPin.y - 30, 4),
-                    }}
-                  >
-                    <MapPin className="w-3 h-3 inline mr-1 opacity-70" />
-                    {hoveredPin.text}
-                  </div>
-                )}
-              </div>
-
-              {/* City + Country list side by side */}
-              <div className="mt-4 grid sm:grid-cols-2 gap-4">
-                {/* Top cities */}
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 mb-2">Top Cities</p>
-                  {data.cities.length === 0 ? (
-                    <p className="text-xs text-slate-400">City data appears once geo lookup resolves</p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {data.cities.slice(0, 8).map(({ city, country, countryCode, count }) => (
-                        <div key={`${city}-${countryCode}`} className="flex items-center gap-2">
-                          <span className="text-base leading-none shrink-0">{countryFlag(countryCode)}</span>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-xs text-slate-700 font-medium">{city}</span>
-                            <span className="text-[10px] text-slate-400 ml-1">{country}</span>
-                          </div>
-                          <span className="text-xs font-black text-slate-900 shrink-0">{count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Top countries */}
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 mb-2">Countries</p>
-                  <div className="space-y-1.5">
-                    {data.countries.slice(0, 8).map(({ country, countryCode, count }) => (
-                      <div key={country} className="flex items-center gap-2">
-                        <span className="text-base leading-none shrink-0">{countryFlag(countryCode)}</span>
-                        <span className="text-xs text-slate-700 font-medium flex-1 truncate">{country}</span>
-                        <span className="text-xs font-black text-slate-900 shrink-0">{count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+            {mapBody}
           </div>
         </div>
 
