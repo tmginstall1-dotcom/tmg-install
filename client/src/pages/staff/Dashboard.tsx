@@ -12,7 +12,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useBackgroundLocation } from "@/hooks/use-background-location";
+import { useBackgroundLocation, getPersistedTrackingStaffId } from "@/hooks/use-background-location";
 import { Capacitor } from "@capacitor/core";
 
 function useAppUpdateCheck() {
@@ -91,8 +91,18 @@ export default function StaffDashboard() {
   const allJobs = quotes || [];
   const activeNow = allJobs.filter((q: any) => q.status === "in_progress");
 
-  // Auto-resume background tracking if clocked in OR has an active in_progress job
-  // (covers app restart mid-shift/job scenario)
+  // Immediate GPS resume from persisted state — fires as soon as user auth loads,
+  // BEFORE attendance/jobs queries complete. Critical for post-update resumption.
+  useEffect(() => {
+    if (!user?.id || isTracking) return;
+    const savedId = getPersistedTrackingStaffId();
+    if (savedId === user.id) {
+      startTracking(user.id).catch(() => {});
+    }
+  }, [user?.id]);
+
+  // Secondary auto-resume: covers clocked-in / in_progress states from server
+  // (runs after queries load and covers cases where localStorage was cleared)
   useEffect(() => {
     if ((activeSession || activeNow.length > 0) && user?.id && !isTracking) {
       startTracking(user.id).catch(() => {});

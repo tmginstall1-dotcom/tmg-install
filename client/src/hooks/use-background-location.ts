@@ -15,6 +15,30 @@ interface TMGLocationPlugin {
 
 const TMGLocation = registerPlugin<TMGLocationPlugin>("TMGLocation");
 
+// ─── LocalStorage key for tracking persistence across app restarts/updates ────
+const TRACKING_STORAGE_KEY = "tmg_gps_active_staff_id";
+
+function persistTrackingState(staffId: number | null) {
+  try {
+    if (staffId !== null && staffId >= 0) {
+      localStorage.setItem(TRACKING_STORAGE_KEY, String(staffId));
+    } else {
+      localStorage.removeItem(TRACKING_STORAGE_KEY);
+    }
+  } catch {}
+}
+
+export function getPersistedTrackingStaffId(): number | null {
+  try {
+    const val = localStorage.getItem(TRACKING_STORAGE_KEY);
+    if (!val) return null;
+    const id = parseInt(val, 10);
+    return isNaN(id) || id < 0 ? null : id;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Module-level singletons so tracking survives component unmounts ─────────
 
 let nativeListener: PluginListenerHandle | null = null;
@@ -77,6 +101,7 @@ async function sendPoint(
 // ─── Standalone stop (callable outside the hook, e.g. on logout) ─────────────
 
 export async function stopAllTracking() {
+  persistTrackingState(null);
   try {
     if (Capacitor.isNativePlatform()) {
       await TMGLocation.stopWatching();
@@ -119,6 +144,7 @@ export function useBackgroundLocation() {
         });
         // Pass staffId so the service can persist it in SharedPreferences and
         // submit GPS points directly when the app is backgrounded/killed.
+        // Also captures and refreshes the session cookie — critical after updates.
         await TMGLocation.startWatching({ staffId });
       } else {
         // ── Web fallback: standard watchPosition ─────────────────────────────
@@ -140,6 +166,8 @@ export function useBackgroundLocation() {
         );
       }
 
+      // Persist so GPS auto-resumes after app update/restart without waiting for queries
+      persistTrackingState(staffId);
       setIsTracking(true);
     } catch {
       // Location unavailable — silently ignore
@@ -147,6 +175,7 @@ export function useBackgroundLocation() {
   }
 
   async function stopTracking() {
+    persistTrackingState(null);
     try {
       if (Capacitor.isNativePlatform()) {
         await TMGLocation.stopWatching();

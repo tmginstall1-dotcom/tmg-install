@@ -64,6 +64,12 @@ jobs:
           sed -i 's/VERSION_17/VERSION_21/g' android/app/capacitor.build.gradle || true
           sed -i 's/VERSION_17/VERSION_21/g' android/app/build.gradle || true
 
+      - name: Set versionCode and versionName from run number
+        run: |
+          sed -i "s/versionCode [0-9]*/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          echo "versionCode = ${{ github.run_number }}, versionName = 1.0.${{ github.run_number }}"
+
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
 
