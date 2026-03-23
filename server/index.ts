@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import compression from "compression";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
@@ -12,6 +13,9 @@ const app = express();
 const httpServer = createServer(app);
 
 app.set("trust proxy", 1);
+
+// Gzip compress all responses — reduces JSON payload size by 70-90%
+app.use(compression());
 
 // Capacitor Android apps send requests from capacitor://localhost or http://localhost.
 // Without explicit CORS headers the WebView blocks every cross-origin request.
@@ -106,9 +110,9 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        const preview = JSON.stringify(capturedJsonResponse);
+        logLine += ` :: ${preview.length > 120 ? preview.slice(0, 120) + "…" : preview}`;
       }
-
       log(logLine);
     }
   });

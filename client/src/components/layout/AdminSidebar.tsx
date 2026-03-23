@@ -27,7 +27,7 @@ export function AdminSidebar() {
   });
   const { data: convos = [] } = useQuery<any[]>({
     queryKey: ["/api/admin/whatsapp/conversations"],
-    refetchInterval: 15000,
+    refetchInterval: 60_000,
   });
   const { data: pendingReceipts = [] } = useQuery<any[]>({
     queryKey: ["/api/admin/receipts", "", "", ""],
@@ -36,7 +36,7 @@ export function AdminSidebar() {
       return res.json();
     },
     select: (d: any[]) => d.filter((r: any) => r.status === "pending"),
-    refetchInterval: 30000,
+    refetchInterval: 60_000,
   });
 
   if (!location.startsWith("/admin") || location === "/admin/login") return null;

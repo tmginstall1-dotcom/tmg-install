@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, numeric, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -23,7 +23,10 @@ export const attendanceLogs = pgTable("attendance_logs", {
   clockOutLng: numeric("clock_out_lng"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  attendanceUserIdx: index("attendance_logs_user_id_idx").on(t.userId),
+  attendanceClockInIdx: index("attendance_logs_clock_in_idx").on(t.clockInAt),
+}));
 
 // Users (Admin/Staff)
 export const users = pgTable("users", {
@@ -65,7 +68,10 @@ export const attendanceAmendments = pgTable("attendance_amendments", {
   reviewedBy: integer("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  amendmentUserIdx: index("attendance_amendments_user_id_idx").on(t.userId),
+  amendmentStatusIdx: index("attendance_amendments_status_idx").on(t.status),
+}));
 
 // GPS Track Points — continuous location history for staff
 export const gpsTrackPoints = pgTable("gps_track_points", {
@@ -77,7 +83,10 @@ export const gpsTrackPoints = pgTable("gps_track_points", {
   speed: numeric("speed"),         // m/s — null if unavailable
   heading: numeric("heading"),     // degrees 0-360 — null if unavailable
   recordedAt: timestamp("recorded_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  gpsUserIdx: index("gps_track_points_user_id_idx").on(t.userId),
+  gpsRecordedAtIdx: index("gps_track_points_recorded_at_idx").on(t.recordedAt),
+}));
 
 export type GpsTrackPoint = typeof gpsTrackPoints.$inferSelect;
 
@@ -95,7 +104,10 @@ export const leaveRequests = pgTable("leave_requests", {
   reviewedBy: integer("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  leaveUserIdx: index("leave_requests_user_id_idx").on(t.userId),
+  leaveStatusIdx: index("leave_requests_status_idx").on(t.status),
+}));
 
 // Payslips
 export const payslips = pgTable("payslips", {
@@ -170,7 +182,10 @@ export const whatsappMessages = pgTable("whatsapp_messages", {
   sentBy: text("sent_by").default("bot"),                   // 'bot' | 'admin:<username>'
   readAt: timestamp("read_at"),                             // null = unread (only meaningful for inbound)
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  waPhoneIdx: index("whatsapp_messages_phone_idx").on(t.phone),
+  waCreatedAtIdx: index("whatsapp_messages_created_at_idx").on(t.createdAt),
+}));
 export type WhatsAppMessage = typeof whatsappMessages.$inferSelect;
 
 // WhatsApp Conversation Sessions
@@ -270,7 +285,13 @@ export const quotes = pgTable("quotes", {
   detectionPhotoUrl: text("detection_photo_url"), // thumbnail from AI photo scan at submission
 
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  quotesStatusIdx: index("quotes_status_idx").on(t.status),
+  quotesCustomerIdx: index("quotes_customer_id_idx").on(t.customerId),
+  quotesCreatedAtIdx: index("quotes_created_at_idx").on(t.createdAt),
+  quotesScheduledAtIdx: index("quotes_scheduled_at_idx").on(t.scheduledAt),
+  quotesTeamIdx: index("quotes_assigned_team_id_idx").on(t.assignedTeamId),
+}));
 
 // Quote Items
 export const quoteItems = pgTable("quote_items", {
@@ -283,7 +304,9 @@ export const quoteItems = pgTable("quote_items", {
   quantity: integer("quantity").notNull().default(1),
   unitPrice: numeric("unit_price").notNull().default("0"),
   subtotal: numeric("subtotal").notNull().default("0"),
-});
+}, (t) => ({
+  quoteItemsQuoteIdx: index("quote_items_quote_id_idx").on(t.quoteId),
+}));
 
 // Job Updates (Timeline / Proof of work)
 export const jobUpdates = pgTable("job_updates", {
@@ -297,7 +320,9 @@ export const jobUpdates = pgTable("job_updates", {
   gpsLat: numeric("gps_lat"),
   gpsLng: numeric("gps_lng"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  jobUpdatesQuoteIdx: index("job_updates_quote_id_idx").on(t.quoteId),
+}));
 
 // Relations
 export const teamsRelations = relations(teams, ({ many }) => ({

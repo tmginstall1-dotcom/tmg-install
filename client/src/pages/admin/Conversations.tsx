@@ -358,7 +358,7 @@ function ChatModal({
       const res = await fetch(`${API_BASE}/api/admin/whatsapp/conversations/${selectedPhone}`, { credentials: "include" });
       return res.json();
     },
-    refetchInterval: 4000,
+    refetchInterval: 15_000,
   });
 
   const sendMutation = useMutation({
@@ -807,7 +807,7 @@ export default function AdminConversations() {
 
   const { data: convos = [], isLoading: loadingConvos } = useQuery<Conversation[]>({
     queryKey: ["/api/admin/whatsapp/conversations"],
-    refetchInterval: 8000,
+    refetchInterval: 20_000,
   });
 
   const selectedConvo = convos.find(c => c.phone === selectedPhone);

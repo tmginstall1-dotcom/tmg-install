@@ -26,7 +26,7 @@ export function AdminBottomNav() {
   });
   const { data: convos = [] } = useQuery<any[]>({
     queryKey: ["/api/admin/whatsapp/conversations"],
-    refetchInterval: 15000,
+    refetchInterval: 60_000,
   });
 
   if (!location.startsWith("/admin") || location === "/admin/login") return null;

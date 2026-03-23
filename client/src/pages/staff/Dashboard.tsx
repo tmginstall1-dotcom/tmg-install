@@ -61,10 +61,9 @@ export default function StaffDashboard() {
 
   const { data: rawQuotes, isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/quotes"],
-    refetchInterval: 30000,
+    refetchInterval: 60_000,
     refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    staleTime: 0,
+    staleTime: 30_000,
   });
 
   // Cache jobs for offline access
@@ -72,10 +71,9 @@ export default function StaffDashboard() {
 
   const { data: allAttendance, isLoading: attLoading } = useQuery<any[]>({
     queryKey: ["/api/staff/attendance"],
-    refetchInterval: 10000,
+    refetchInterval: 30_000,
     refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    staleTime: 0,
+    staleTime: 15_000,
   });
 
   // All of today's records (server returns newest first)
