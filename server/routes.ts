@@ -207,10 +207,14 @@ CRITICAL IDENTIFICATION RULES — read before answering:
 
 8. TV CONSOLE: Low-profile unit (typically 40–60cm tall) designed to hold a television. Usually wider than tall.
 
+9. STANDING DESK (HEIGHT-ADJUSTABLE): Has clearly visible motorized or hand-crank adjustable legs. Look for an electric control panel on the leg, up/down buttons, a digital height display, or a hand crank. These are structural features you will see clearly. If you cannot see any height-adjustment mechanism → it is a REGULAR DESK, not a standing desk.
+
 Common mistakes to AVOID:
 - A unit with MANY DRAWERS and NO doors = chest of drawers (NOT a desk)
 - A tall unit with DOORS = wardrobe (NOT a cabinet or cupboard unless clearly office storage)
 - A unit with a FLAT TOP and LEGS at sitting height = desk/table (NOT storage)
+- A desk with a FABRIC PANEL, MODESTY SCREEN, or PRIVACY SCREEN attached to the front = REGULAR DESK (e.g. "L-Shaped Executive Desk"). A fabric panel is decorative/privacy trim, NOT a standing mechanism. Do NOT classify as "standing desk" just because a panel is present.
+- Only call something a "standing desk" if you can clearly see electric controls, a height display, a hand crank, or visibly adjustable leg height.
 `;
 
 /**
@@ -4894,6 +4898,24 @@ Return ONLY valid JSON.`,
 
         const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
 
+        // ── Bulk discount (same tiers as web / Estimate page) ─────────────────
+        const totalQty = aiParsedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+        const discountTier = PricingConfig.bulkDiscount.find(t => totalQty >= t.minQty);
+        const discountPct = discountTier?.pct ?? 0;
+        const discountAmount = Math.round(totalEstimate * discountPct * 100) / 100;
+        if (discountAmount > 0) {
+          totalEstimate -= discountAmount;
+          quoteItems.push({
+            originalDescription: `Bulk Discount (${Math.round(discountPct * 100)}% off, ${totalQty} items)`,
+            detectedName: `Bulk Discount (${Math.round(discountPct * 100)}% off)`,
+            serviceType: "discount",
+            quantity: 1,
+            unitPrice: (-discountAmount).toFixed(2),
+            subtotal: (-discountAmount).toFixed(2),
+            catalogItemId: undefined,
+          });
+        }
+
         // ── Minimum charge: SGD 180 (same rule as web flow) ──────────────────
         const MIN_CHARGE = 180;
         const minAdjustment = totalEstimate < MIN_CHARGE ? MIN_CHARGE - totalEstimate : 0;
@@ -5472,6 +5494,16 @@ Respond directly — no JSON, just the message text.`,
         catalogItemId: matchedCatalogItem?.id,
       };
     });
+
+    // ── Bulk discount (same tiers as web / Estimate page) ─────────────────────
+    const totalQtyB = aiParsedItems.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
+    const discountTierB = PricingConfig.bulkDiscount.find((t: { minQty: number; pct: number }) => totalQtyB >= t.minQty);
+    const discountPctB = discountTierB?.pct ?? 0;
+    const discountAmountB = Math.round(totalEstimate * discountPctB * 100) / 100;
+    if (discountAmountB > 0) {
+      totalEstimate -= discountAmountB;
+      quoteItems.push({ originalDescription: `Bulk Discount (${Math.round(discountPctB * 100)}% off, ${totalQtyB} items)`, detectedName: `Bulk Discount (${Math.round(discountPctB * 100)}% off)`, serviceType: "discount", quantity: 1, unitPrice: (-discountAmountB).toFixed(2), subtotal: (-discountAmountB).toFixed(2), catalogItemId: undefined });
+    }
 
     const MIN_CHARGE = 180;
     const minAdjustment = totalEstimate < MIN_CHARGE ? MIN_CHARGE - totalEstimate : 0;
