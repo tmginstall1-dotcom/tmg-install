@@ -41,6 +41,8 @@ export default function AdminQuoteDetail() {
   const [editItems, setEditItems] = useState<any[]>([]);
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [waPhoneOverride, setWaPhoneOverride] = useState(""); // for web quotes with no stored WA phone
+  const [waSentAt, setWaSentAt] = useState<Date | null>(null); // tracks last send
 
   const deleteQuoteMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/admin/quotes/${id}`),
@@ -54,12 +56,14 @@ export default function AdminQuoteDetail() {
   });
 
   const sendWhatsAppPayment = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/admin/quotes/${id}/send-whatsapp-payment`),
+    mutationFn: (phone?: string) =>
+      apiRequest("POST", `/api/admin/quotes/${id}/send-whatsapp-payment`, phone ? { phone } : undefined),
     onSuccess: () => {
-      toast({ title: "WhatsApp Sent", description: "Payment link sent to customer via WhatsApp." });
+      setWaSentAt(new Date());
+      toast({ title: "✅ WhatsApp Sent", description: "Payment reminder sent to customer." });
     },
     onError: (err: any) => {
-      toast({ title: "Failed", description: err.message || "Could not send WhatsApp message.", variant: "destructive" });
+      toast({ title: "Failed to send", description: err.message || "Could not send WhatsApp message.", variant: "destructive" });
     },
   });
 
@@ -791,26 +795,97 @@ export default function AdminQuoteDetail() {
 
               {/* ── PHASE 2a: Deposit Requested ── */}
               {quote.status === 'deposit_requested' && (
-                <div className="bg-amber-50 border border-amber-200 p-4 space-y-2">
-                  <p className="font-semibold text-amber-800 flex items-center gap-1.5 text-sm">
-                    <Banknote className="w-4 h-4" /> Awaiting Deposit
-                  </p>
-                  <p className="text-xs text-amber-700">Email sent. Waiting for customer to pay the deposit of <strong>{formatMoney(quote.depositAmount)}</strong>.</p>
-                  <div className="bg-amber-100 px-3 py-2 text-xs text-amber-700 flex items-center justify-between">
-                    <span>Deposit amount</span>
-                    <span className="font-bold">{formatMoney(quote.depositAmount)}</span>
+                <div className="space-y-3">
+                  {/* Status card */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+                    <p className="font-semibold text-amber-800 flex items-center gap-1.5 text-sm">
+                      <Banknote className="w-4 h-4" /> Awaiting Deposit
+                    </p>
+                    <p className="text-xs text-amber-700">
+                      Email sent. Waiting for <strong>{(quote as any).customer?.name || "customer"}</strong> to pay the deposit.
+                    </p>
+                    <div className="bg-amber-100 px-3 py-2 rounded-lg text-xs text-amber-700 flex items-center justify-between">
+                      <span>Deposit due</span>
+                      <span className="font-bold">{formatMoney(quote.depositAmount)}</span>
+                    </div>
+                    {(quote as any).preferredDate && (
+                      <div className="bg-amber-100 px-3 py-2 rounded-lg text-xs text-amber-700 flex items-center justify-between">
+                        <span>Reserved slot</span>
+                        <span className="font-bold">{(quote as any).preferredDate} {(quote as any).preferredTimeWindow ? `· ${(quote as any).preferredTimeWindow}` : ""}</span>
+                      </div>
+                    )}
                   </div>
-                  {(quote as any).customerWhatsappPhone && (
-                    <button
-                      onClick={() => sendWhatsAppPayment.mutate()}
-                      disabled={sendWhatsAppPayment.isPending}
-                      data-testid="button-send-whatsapp-payment"
-                      className="w-full mt-1 bg-green-600 hover:bg-green-700 text-white py-2 px-3 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      {sendWhatsAppPayment.isPending ? "Sending…" : "Send Payment Link via WhatsApp"}
-                    </button>
-                  )}
+
+                  {/* WhatsApp reminder section */}
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-[#25D366]/8 border-b border-gray-200 px-3.5 py-2.5 flex items-center gap-2">
+                      <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                      <p className="text-xs font-semibold text-gray-700">Send WhatsApp Payment Reminder</p>
+                    </div>
+                    <div className="p-3.5 space-y-3">
+                      {/* Message preview */}
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-[11px] text-gray-500 leading-relaxed space-y-0.5">
+                        <p className="text-gray-700 font-semibold text-xs mb-1">Message preview:</p>
+                        <p>👋 Hi <em>{(quote as any).customer?.name || "Customer"}</em></p>
+                        <p>💰 Deposit Required: <strong>{formatMoney(quote.depositAmount)}</strong></p>
+                        {(quote as any).preferredDate && <p>📅 Reserved slot: <strong>{(quote as any).preferredDate}</strong></p>}
+                        <p>👉 Payment link included</p>
+                        <p>📧 Reminder to check Junk/Spam folder</p>
+                      </div>
+
+                      {/* Phone — stored or manual input */}
+                      {(quote as any).customerWhatsappPhone ? (
+                        <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                          <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          <span>Sending to: </span>
+                          <span className="font-semibold text-gray-700 font-mono">
+                            +{(quote as any).customerWhatsappPhone}
+                          </span>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+                            Customer WhatsApp Number
+                          </label>
+                          <input
+                            type="tel"
+                            value={waPhoneOverride}
+                            onChange={e => setWaPhoneOverride(e.target.value)}
+                            placeholder="+65 9123 4567"
+                            className="w-full border border-gray-200 rounded-xl bg-gray-50 text-sm px-3 py-2.5 focus:outline-none focus:border-blue-400 focus:bg-white transition-all font-mono"
+                            data-testid="input-wa-phone-override"
+                          />
+                          <p className="text-[10px] text-gray-400 mt-1">Quote was submitted via web — enter the customer's WhatsApp number to send the reminder.</p>
+                        </div>
+                      )}
+
+                      {/* Sent confirmation */}
+                      {waSentAt && (
+                        <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                          <BadgeCheck className="w-4 h-4 flex-shrink-0" />
+                          <span>Reminder sent at <strong>{waSentAt.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}</strong> — you can resend if needed.</span>
+                        </div>
+                      )}
+
+                      {/* Send button */}
+                      <button
+                        onClick={() => {
+                          const phone = (quote as any).customerWhatsappPhone || waPhoneOverride.trim();
+                          if (!phone) {
+                            toast({ title: "Phone required", description: "Enter the customer's WhatsApp number.", variant: "destructive" });
+                            return;
+                          }
+                          sendWhatsAppPayment.mutate((quote as any).customerWhatsappPhone ? undefined : phone);
+                        }}
+                        disabled={sendWhatsAppPayment.isPending || (!(quote as any).customerWhatsappPhone && !waPhoneOverride.trim())}
+                        data-testid="button-send-whatsapp-payment"
+                        className="w-full bg-[#25D366] hover:bg-[#1db954] text-white py-3 px-4 text-sm font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-40 transition-all shadow-sm"
+                      >
+                        <Send className="w-4 h-4" />
+                        {sendWhatsAppPayment.isPending ? "Sending reminder…" : waSentAt ? "Resend Payment Reminder" : "Send Payment Reminder via WhatsApp"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 

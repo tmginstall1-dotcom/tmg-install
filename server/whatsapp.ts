@@ -244,15 +244,27 @@ export async function sendWhatsAppPaymentLink(
   to: string,
   referenceNo: string,
   depositAmount: string,
-  paymentLink: string
+  paymentLink: string,
+  opts?: { customerName?: string; preferredDate?: string; preferredTimeWindow?: string }
 ): Promise<void> {
+  const name = opts?.customerName ? `Hi *${opts.customerName}* 👋` : "Hi there 👋";
+  const slotLine = opts?.preferredDate
+    ? `📅 Your reserved slot: *${opts.preferredDate}${opts.preferredTimeWindow ? ` (${opts.preferredTimeWindow})` : ""}*\n\n`
+    : "";
+
   const msg =
-    `💳 *TMG Install — Deposit Payment*\n\n` +
-    `Quote: *${referenceNo}*\n` +
-    `Amount: *S$${depositAmount}*\n\n` +
-    `Please pay your deposit via the link below to confirm your booking:\n` +
+    `${name}\n\n` +
+    `This is a friendly reminder from *TMG Install* regarding your quote *${referenceNo}*.\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `💰 *Deposit Required: S$${depositAmount}*\n` +
+    `${slotLine}` +
+    `Your slot is held — but only until the deposit is received.\n\n` +
+    `👉 *Pay your deposit here:*\n` +
     `${paymentLink}\n\n` +
-    `_This link is valid for 24 hours. Reply to this message if you need help._`;
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `📧 *Can't find our email?*\n` +
+    `Check your *Junk / Spam / Promotions* folder for an email from TMG Install — payment emails sometimes land there.\n\n` +
+    `_Need help? Reply to this message or call us. Min. notice 48h for rescheduling._`;
 
   await sendWhatsAppMessage(to, msg);
 }

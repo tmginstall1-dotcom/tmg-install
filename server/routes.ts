@@ -4388,6 +4388,7 @@ Respond directly — no JSON, just the message text.`,
 
   // ── Admin: Send Payment Link via WhatsApp ─────────────────────────────────
   app.post("/api/admin/quotes/:id/send-whatsapp-payment", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
 
@@ -4395,12 +4396,17 @@ Respond directly — no JSON, just the message text.`,
       const quote = await storage.getQuote(id);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
 
-      const phone = (quote as any).customerWhatsappPhone;
-      if (!phone) return res.status(400).json({ message: "No WhatsApp number on this quote" });
+      // Admin can pass an explicit phone override (for web-submitted quotes with no WA phone)
+      const { phone: phoneOverride } = req.body as { phone?: string };
+      const rawPhone = phoneOverride?.trim() || (quote as any).customerWhatsappPhone;
+      if (!rawPhone) return res.status(400).json({ message: "No WhatsApp number — please provide one." });
+
+      // Normalise: strip leading '+', spaces, dashes
+      const phone = rawPhone.replace(/^\+/, "").replace(/[\s\-]/g, "");
 
       const depositAmount = String(quote.depositAmount || "0");
 
-      // Generate Stripe payment link if available
+      // Generate Stripe payment link if available, else fall back to quote status page
       let paymentLink = `${APP_URL}/quotes/${id}`;
       if (stripe && parseFloat(depositAmount) > 0) {
         const link = await createStripePaymentLink(
@@ -4412,9 +4418,13 @@ Respond directly — no JSON, just the message text.`,
         if (link) paymentLink = link;
       }
 
-      await sendWhatsAppPaymentLink(phone, quote.referenceNo, depositAmount, paymentLink);
+      await sendWhatsAppPaymentLink(phone, quote.referenceNo, depositAmount, paymentLink, {
+        customerName: (quote as any).customer?.name || undefined,
+        preferredDate: (quote as any).preferredDate || undefined,
+        preferredTimeWindow: (quote as any).preferredTimeWindow || undefined,
+      });
 
-      res.json({ message: "Payment link sent via WhatsApp" });
+      res.json({ message: "Payment reminder sent via WhatsApp", phone });
     } catch (err) {
       console.error("[WhatsApp] Send payment link error:", err);
       res.status(500).json({ message: "Failed to send WhatsApp message" });
