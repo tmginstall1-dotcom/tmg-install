@@ -5095,6 +5095,55 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── Admin: Send a raw WhatsApp message (for reminders) ────────────────────
+  app.post("/api/admin/whatsapp/send", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const { phone, message } = (req.body as { phone?: string; message?: string }) || {};
+    if (!phone || !message) return res.status(400).json({ message: "phone and message are required" });
+    try {
+      const normalised = phone.replace(/^\+/, "").replace(/[\s\-]/g, "");
+      await sendWhatsAppMessage(normalised, message);
+      res.json({ message: "Sent" });
+    } catch (err: any) {
+      console.error("[WhatsApp] Admin send error:", err);
+      const reason = err?.message || "Failed to send WhatsApp message";
+      res.status(500).json({ message: reason });
+    }
+  });
+
+  // ── Admin: Resend deposit request email ────────────────────────────────────
+  app.post("/api/admin/quotes/:id/resend-deposit-email", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    try {
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      if (!quote.customer?.email || quote.customer.email.endsWith("@tmginstall.com")) {
+        return res.status(400).json({ message: "No real customer email on file for this quote." });
+      }
+      const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.3;
+      const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+      const stripeUrl = await createStripePaymentLink(
+        `Deposit for ${quote.referenceNo} — TMG Install`,
+        depositAmt,
+        { quoteId: String(quote.id), type: "deposit", referenceNo: quote.referenceNo },
+        quotePageUrl
+      );
+      const paymentLink = stripeUrl || quotePageUrl;
+      const emailHtml = depositRequestEmail(quote, paymentLink);
+      await sendEmail({
+        to: quote.customer.email,
+        subject: `[${quote.referenceNo}] Deposit Payment Required — TMG Install`,
+        html: emailHtml,
+      });
+      res.json({ message: "Deposit email resent", email: quote.customer.email });
+    } catch (err: any) {
+      console.error("[Email] Resend deposit email error:", err);
+      res.status(500).json({ message: err?.message || "Failed to send email" });
+    }
+  });
+
   // ── Admin: WhatsApp Token Settings ────────────────────────────────────────
   app.post("/api/admin/settings/whatsapp-token", async (req, res) => {
     const { token } = req.body as { token?: string };

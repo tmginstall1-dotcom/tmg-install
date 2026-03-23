@@ -42,7 +42,8 @@ export default function AdminQuoteDetail() {
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [waPhoneOverride, setWaPhoneOverride] = useState(""); // for web quotes with no stored WA phone
-  const [waSentAt, setWaSentAt] = useState<Date | null>(null); // tracks last send
+  const [waSentAt, setWaSentAt] = useState<Date | null>(null); // tracks last WA send
+  const [emailSentAt, setEmailSentAt] = useState<Date | null>(null); // tracks last email send
 
   const deleteQuoteMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/admin/quotes/${id}`),
@@ -63,10 +64,22 @@ export default function AdminQuoteDetail() {
       toast({ title: "✅ WhatsApp Sent", description: "Payment reminder sent to customer." });
     },
     onError: (err: any) => {
-      // err.message is "500: {\"message\":\"...\"}" — extract the inner message
       let reason = err?.message || "Could not send WhatsApp message.";
       try { reason = JSON.parse(reason.replace(/^\d+:\s*/, "")).message || reason; } catch {}
       toast({ title: "Failed to send", description: reason, variant: "destructive" });
+    },
+  });
+
+  const resendDepositEmail = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/admin/quotes/${id}/resend-deposit-email`),
+    onSuccess: () => {
+      setEmailSentAt(new Date());
+      toast({ title: "✅ Email Sent", description: "Deposit payment email resent to customer." });
+    },
+    onError: (err: any) => {
+      let reason = err?.message || "Could not send email.";
+      try { reason = JSON.parse(reason.replace(/^\d+:\s*/, "")).message || reason; } catch {}
+      toast({ title: "Failed to send email", description: reason, variant: "destructive" });
     },
   });
 
@@ -805,7 +818,7 @@ export default function AdminQuoteDetail() {
                       <Banknote className="w-4 h-4" /> Awaiting Deposit
                     </p>
                     <p className="text-xs text-amber-700">
-                      Email sent. Waiting for <strong>{(quote as any).customer?.name || "customer"}</strong> to pay the deposit.
+                      Waiting for <strong>{(quote as any).customer?.name || "customer"}</strong> to pay the deposit. Use the options below to notify them.
                     </p>
                     <div className="bg-amber-100 px-3 py-2 rounded-lg text-xs text-amber-700 flex items-center justify-between">
                       <span>Deposit due</span>
@@ -819,14 +832,50 @@ export default function AdminQuoteDetail() {
                     )}
                   </div>
 
-                  {/* WhatsApp reminder section */}
+                  {/* ── Option 1: Email payment link ── */}
+                  {(() => {
+                    const custEmail = (quote as any).customer?.email || "";
+                    const hasRealEmail = custEmail && !custEmail.endsWith("@tmginstall.com");
+                    if (!hasRealEmail) return null;
+                    return (
+                      <div className="border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="bg-blue-50 border-b border-gray-200 px-3.5 py-2.5 flex items-center gap-2">
+                          <Send className="w-4 h-4 text-blue-600" />
+                          <p className="text-xs font-semibold text-gray-700">Send Payment Link via Email</p>
+                        </div>
+                        <div className="p-3.5 space-y-3">
+                          <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                            <Send className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                            <span>Sending to:</span>
+                            <span className="font-semibold text-gray-700 font-mono">{custEmail}</span>
+                          </div>
+                          {emailSentAt && (
+                            <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                              <BadgeCheck className="w-4 h-4 flex-shrink-0" />
+                              <span>Email sent at <strong>{emailSentAt.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}</strong> — you can resend if needed.</span>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => resendDepositEmail.mutate()}
+                            disabled={resendDepositEmail.isPending}
+                            data-testid="button-send-email-payment"
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 text-sm font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-40 transition-all shadow-sm"
+                          >
+                            <Send className="w-4 h-4" />
+                            {resendDepositEmail.isPending ? "Sending…" : emailSentAt ? "Resend Payment Email" : "Send Payment Link via Email"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── Option 2: WhatsApp payment link ── */}
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
                     <div className="bg-[#25D366]/8 border-b border-gray-200 px-3.5 py-2.5 flex items-center gap-2">
                       <MessageCircle className="w-4 h-4 text-[#25D366]" />
-                      <p className="text-xs font-semibold text-gray-700">Send WhatsApp Payment Reminder</p>
+                      <p className="text-xs font-semibold text-gray-700">Send Payment Link via WhatsApp</p>
                     </div>
                     <div className="p-3.5 space-y-3">
-                      {/* Message preview */}
                       <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-[11px] text-gray-500 leading-relaxed space-y-0.5">
                         <p className="text-gray-700 font-semibold text-xs mb-1">Message preview:</p>
                         <p>👋 Hi <em>{(quote as any).customer?.name || "Customer"}</em></p>
@@ -836,14 +885,11 @@ export default function AdminQuoteDetail() {
                         <p>📧 Reminder to check Junk/Spam folder</p>
                       </div>
 
-                      {/* Phone — stored or manual input */}
                       {(quote as any).customerWhatsappPhone ? (
                         <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
                           <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                          <span>Sending to: </span>
-                          <span className="font-semibold text-gray-700 font-mono">
-                            +{(quote as any).customerWhatsappPhone}
-                          </span>
+                          <span>Sending to:</span>
+                          <span className="font-semibold text-gray-700 font-mono">+{(quote as any).customerWhatsappPhone}</span>
                         </div>
                       ) : (
                         <div>
@@ -858,19 +904,17 @@ export default function AdminQuoteDetail() {
                             className="w-full border border-gray-200 rounded-xl bg-gray-50 text-sm px-3 py-2.5 focus:outline-none focus:border-blue-400 focus:bg-white transition-all font-mono"
                             data-testid="input-wa-phone-override"
                           />
-                          <p className="text-[10px] text-gray-400 mt-1">Quote was submitted via web — enter the customer's WhatsApp number to send the reminder.</p>
+                          <p className="text-[10px] text-gray-400 mt-1">Enter the customer's WhatsApp number to send the payment link.</p>
                         </div>
                       )}
 
-                      {/* Sent confirmation */}
                       {waSentAt && (
                         <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
                           <BadgeCheck className="w-4 h-4 flex-shrink-0" />
-                          <span>Reminder sent at <strong>{waSentAt.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}</strong> — you can resend if needed.</span>
+                          <span>WhatsApp sent at <strong>{waSentAt.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}</strong> — you can resend if needed.</span>
                         </div>
                       )}
 
-                      {/* Send button */}
                       <button
                         onClick={() => {
                           const phone = (quote as any).customerWhatsappPhone || waPhoneOverride.trim();
@@ -884,11 +928,49 @@ export default function AdminQuoteDetail() {
                         data-testid="button-send-whatsapp-payment"
                         className="w-full bg-[#25D366] hover:bg-[#1db954] text-white py-3 px-4 text-sm font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-40 transition-all shadow-sm"
                       >
-                        <Send className="w-4 h-4" />
-                        {sendWhatsAppPayment.isPending ? "Sending reminder…" : waSentAt ? "Resend Payment Reminder" : "Send Payment Reminder via WhatsApp"}
+                        <MessageCircle className="w-4 h-4" />
+                        {sendWhatsAppPayment.isPending ? "Sending…" : waSentAt ? "Resend Payment Link" : "Send Payment Link via WhatsApp"}
                       </button>
                     </div>
                   </div>
+
+                  {/* ── Option 3: WhatsApp reminder (no payment link) ── */}
+                  {(quote as any).customerWhatsappPhone && (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <div className="bg-gray-50 border-b border-gray-200 px-3.5 py-2.5 flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4 text-gray-500" />
+                        <p className="text-xs font-semibold text-gray-700">Send Gentle Reminder via WhatsApp</p>
+                      </div>
+                      <div className="p-3.5 space-y-3">
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-[11px] text-gray-500 leading-relaxed space-y-0.5">
+                          <p className="text-gray-700 font-semibold text-xs mb-1">Message preview:</p>
+                          <p>👋 Hi <em>{(quote as any).customer?.name || "Customer"}</em>, just checking in on your quote <strong>{quote.referenceNo}</strong>.</p>
+                          <p>📧 Please check your email (including Spam/Junk) for the payment link we sent.</p>
+                          <p>💬 Reply here if you need any help!</p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            const phone = (quote as any).customerWhatsappPhone;
+                            const name = (quote as any).customer?.name || "there";
+                            const msg = `👋 Hi *${name}*, just a friendly follow-up from TMG Install!\n\nWe noticed your deposit for quote *${quote.referenceNo}* is still pending.\n\n📧 Please check your email (including your *Junk / Spam / Promotions* folder) for the payment link we sent.\n\n💬 Reply here if you need any help or have questions. We're happy to assist!`;
+                            try {
+                              await apiRequest("POST", "/api/admin/whatsapp/send", { phone, message: msg });
+                              toast({ title: "✅ Reminder Sent", description: "Follow-up message sent to customer." });
+                            } catch (err: any) {
+                              let reason = err?.message || "Could not send.";
+                              try { reason = JSON.parse(reason.replace(/^\d+:\s*/, "")).message || reason; } catch {}
+                              toast({ title: "Failed to send", description: reason, variant: "destructive" });
+                            }
+                          }}
+                          data-testid="button-send-whatsapp-reminder"
+                          className="w-full bg-gray-600 hover:bg-gray-700 text-white py-3 px-4 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          Send Reminder via WhatsApp
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
