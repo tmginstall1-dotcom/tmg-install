@@ -38,27 +38,27 @@ export function AdminBottomNav() {
   const waBadge = (convos as any[]).reduce((s: number, c: any) => s + (c.unreadCount || 0), 0);
 
   const tabs = [
-    { href: "/admin",               label: "Dash",    icon: LayoutDashboard, badge: dashBadge,  activeColor: "text-blue-600" },
-    { href: "/admin/schedule",      label: "Schedule", icon: Calendar,       badge: schedBadge, activeColor: "text-indigo-600" },
-    { href: "/admin/staff",         label: "Staff",   icon: Users,           badge: staffBadge, activeColor: "text-purple-600" },
-    { href: "/admin/conversations", label: "Chat",    icon: MessageCircle,   badge: waBadge,    activeColor: "text-green-600" },
-    { href: "/admin/settings",      label: "Settings", icon: Settings,       badge: 0,          activeColor: "text-gray-700" },
+    { href: "/admin",               label: "Dash",    icon: LayoutDashboard, badge: dashBadge },
+    { href: "/admin/schedule",      label: "Schedule", icon: Calendar,       badge: schedBadge },
+    { href: "/admin/staff",         label: "Staff",   icon: Users,           badge: staffBadge },
+    { href: "/admin/conversations", label: "Chat",    icon: MessageCircle,   badge: waBadge },
+    { href: "/admin/settings",      label: "Settings", icon: Settings,       badge: 0 },
   ];
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 sm:hidden z-50 bg-white/95 backdrop-blur-xl border-t border-gray-200"
+      className="fixed bottom-0 inset-x-0 sm:hidden z-50 bg-white border-t border-zinc-200"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="grid grid-cols-5 h-16">
-        {tabs.map(({ href, label, icon: Icon, badge, activeColor }) => {
+        {tabs.map(({ href, label, icon: Icon, badge }) => {
           const active = isActive(href, location);
           return (
             <Link key={href} href={href}>
               <div
                 data-testid={`admin-bottom-nav-${label.toLowerCase()}`}
                 className={`relative flex flex-col items-center justify-center h-full gap-1 transition-all cursor-pointer ${
-                  active ? activeColor : "text-gray-400"
+                  active ? "text-blue-600" : "text-zinc-400"
                 }`}
               >
                 {badge > 0 && !active && (

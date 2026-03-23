@@ -25,12 +25,12 @@ function fmt(mins: number) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    pending: "bg-amber-100 text-amber-700",
-    approved: "bg-emerald-100 text-emerald-700",
-    rejected: "bg-red-100 text-red-700",
+    pending: "bg-amber-50 text-amber-700",
+    approved: "bg-emerald-50 text-emerald-700",
+    rejected: "bg-red-50 text-red-700",
   };
   return (
-    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 uppercase tracking-[0.1em] ${map[status] || "bg-gray-100 text-gray-600"}`}>
+    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${map[status] || "bg-zinc-100 text-zinc-600"}`}>
       {status}
     </span>
   );
@@ -99,47 +99,41 @@ export default function StaffManagement() {
     <div className="min-h-screen pt-14 pb-16 lg:pl-56 bg-[#F5F5F7] overflow-x-hidden">
 
       {/* Light header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
-          <div className="flex items-end justify-between gap-4 mb-4">
-            <div>
-              <p className="text-xs font-medium text-gray-400 mb-1">Management</p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Staff & HR</h1>
-              <p className="text-gray-400 text-sm mt-0.5">
-                {(allStaffForHeader as any[]).length} staff members
-                {(pendingAmendCount + pendingLeaveCount) > 0 && (
-                  <span className="ml-2 text-amber-600 font-semibold">
-                    · {pendingAmendCount + pendingLeaveCount} pending review
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Tab bar */}
-          <div className="flex gap-1 overflow-x-auto pb-0.5 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
-            {tabs.map(({ key, label, icon: Icon, badge }) => (
-              <button key={key} onClick={() => switchTab(key)}
-                className={`relative flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium whitespace-nowrap transition-all shrink-0 rounded-xl ${
-                  tab === key
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-                }`}
-                data-testid={`tab-${key}`}>
-                <Icon className="w-3.5 h-3.5 shrink-0" />
-                <span>{label}</span>
-                {badge > 0 && (
-                  <span className="min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {badge}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+      <div className="bg-white border-b border-zinc-200 px-6 py-5">
+        <p className="text-xs text-zinc-400 mb-1">Management → Staff & HR</p>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-zinc-900">Staff & HR</h1>
+          {(pendingAmendCount + pendingLeaveCount) > 0 && (
+            <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-amber-50 text-amber-700">
+              {pendingAmendCount + pendingLeaveCount} pending
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-zinc-500 mt-0.5">{(allStaffForHeader as any[]).length} staff members</p>
+        
+        {/* Tab bar */}
+        <div className="flex border-b border-zinc-200 overflow-x-auto scrollbar-none mt-5 -mb-5">
+          {tabs.map(({ key, label, icon: Icon, badge }) => (
+            <button key={key} onClick={() => switchTab(key)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-b-2 ${
+                tab === key
+                  ? "text-zinc-900 border-blue-600"
+                  : "text-zinc-500 border-transparent hover:text-zinc-900"
+              }`}
+              data-testid={`tab-${key}`}>
+              <Icon className="w-4 h-4 shrink-0" />
+              <span>{label}</span>
+              {badge > 0 && (
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ml-1.5">
+                  {badge}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {tab === "teams" && <TeamsTab />}
         {tab === "payroll" && <PayrollTab />}
         {tab === "amendments" && <AmendmentsTab />}
@@ -210,102 +204,108 @@ function TeamsTab() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left: Staff Pool */}
-      <div className="lg:col-span-1 space-y-4">
-        <div className="bg-white border border-black/[0.08] p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-400">All Staff</h2>
+      <div className="lg:col-span-1 space-y-6">
+        <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-900">All Staff</h2>
             <button onClick={() => setAddingStaff(true)}
-              className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-black hover:text-slate-600 transition-colors">
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors">
               <UserPlus className="w-3.5 h-3.5" /> Add
             </button>
           </div>
 
-          {addingStaff && (
-            <div className="mb-3 p-4 bg-slate-50 border border-black/10 space-y-3">
-              <input value={newStaff.name} onChange={e => setNewStaff(s => ({ ...s, name: e.target.value }))}
-                placeholder="Full name" className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black" data-testid="input-staff-name" />
-              <input value={newStaff.username} onChange={e => setNewStaff(s => ({ ...s, username: e.target.value }))}
-                placeholder="Username" className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black" data-testid="input-staff-username" />
-              <input value={newStaff.password} onChange={e => setNewStaff(s => ({ ...s, password: e.target.value }))}
-                type="password" placeholder="Password (min 6)" className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black" data-testid="input-staff-password" />
-              <div className="flex gap-2">
-                <button onClick={() => createStaffMut.mutate()} disabled={createStaffMut.isPending}
-                  className="flex-1 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors disabled:opacity-50" data-testid="button-create-staff">
-                  {createStaffMut.isPending ? "Creating..." : "Create Account"}
-                </button>
-                <button onClick={() => setAddingStaff(false)} className="px-4 py-2.5 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors">Cancel</button>
+          <div className="p-0">
+            {addingStaff && (
+              <div className="m-4 p-4 bg-zinc-50 border border-zinc-200 rounded-lg space-y-3">
+                <input value={newStaff.name} onChange={e => setNewStaff(s => ({ ...s, name: e.target.value }))}
+                  placeholder="Full name" className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" data-testid="input-staff-name" />
+                <input value={newStaff.username} onChange={e => setNewStaff(s => ({ ...s, username: e.target.value }))}
+                  placeholder="Username" className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" data-testid="input-staff-username" />
+                <input value={newStaff.password} onChange={e => setNewStaff(s => ({ ...s, password: e.target.value }))}
+                  type="password" placeholder="Password (min 6)" className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" data-testid="input-staff-password" />
+                <div className="flex gap-2">
+                  <button onClick={() => createStaffMut.mutate()} disabled={createStaffMut.isPending}
+                    className="inline-flex flex-1 justify-center items-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50" data-testid="button-create-staff">
+                    {createStaffMut.isPending ? "Creating..." : "Create Account"}
+                  </button>
+                  <button onClick={() => setAddingStaff(false)} className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors">Cancel</button>
+                </div>
               </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            {allStaff.map((s: any) => (
-              <div key={s.id}>
-                <StaffRow staff={s} teams={teams}
-                  onAssign={(teamId) => assignMut.mutate({ teamId, userId: s.id })}
-                  onUnassign={() => unassignMut.mutate(s.id)}
-                  onDelete={() => { if (confirm(`Remove ${s.name}? This cannot be undone.`)) deleteStaffMut.mutate(s.id); }}
-                  onEdit={() => { setEditStaffId(editStaffId === s.id ? null : s.id); setPaySettingsStaffId(null); }}
-                  onPaySettings={() => { setPaySettingsStaffId(paySettingsStaffId === s.id ? null : s.id); setEditStaffId(null); }} />
-                {editStaffId === s.id && <EditStaffForm staff={s} onClose={() => setEditStaffId(null)} />}
-                {paySettingsStaffId === s.id && <PaySettingsForm staff={s} onClose={() => setPaySettingsStaffId(null)} />}
-              </div>
-            ))}
-            {allStaff.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-4">No staff yet</p>
             )}
+
+            <div className="divide-y divide-zinc-100">
+              {allStaff.map((s: any) => (
+                <div key={s.id} className="p-4 hover:bg-zinc-50 transition-colors">
+                  <StaffRow staff={s} teams={teams}
+                    onAssign={(teamId) => assignMut.mutate({ teamId, userId: s.id })}
+                    onUnassign={() => unassignMut.mutate(s.id)}
+                    onDelete={() => { if (confirm(`Remove ${s.name}? This cannot be undone.`)) deleteStaffMut.mutate(s.id); }}
+                    onEdit={() => { setEditStaffId(editStaffId === s.id ? null : s.id); setPaySettingsStaffId(null); }}
+                    onPaySettings={() => { setPaySettingsStaffId(paySettingsStaffId === s.id ? null : s.id); setEditStaffId(null); }} />
+                  {editStaffId === s.id && <EditStaffForm staff={s} onClose={() => setEditStaffId(null)} />}
+                  {paySettingsStaffId === s.id && <PaySettingsForm staff={s} onClose={() => setPaySettingsStaffId(null)} />}
+                </div>
+              ))}
+              {allStaff.length === 0 && (
+                <p className="text-sm text-zinc-500 text-center py-6">No staff yet</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Right: Teams */}
-      <div className="lg:col-span-2 space-y-4">
+      <div className="lg:col-span-2 space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-400">Teams</h2>
+          <h2 className="text-sm font-semibold text-zinc-900">Teams</h2>
           <button onClick={() => setAddingTeam(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors"
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
             data-testid="button-add-team">
-            <Plus className="w-3.5 h-3.5" /> New Team
+            <Plus className="w-4 h-4" /> New Team
           </button>
         </div>
 
         {addingTeam && (
-          <div className="bg-slate-50 border border-black/10 p-4 space-y-3">
+          <div className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4">
             <input value={newTeamName} onChange={e => setNewTeamName(e.target.value)}
               placeholder="Team name (e.g. Team A)" autoFocus
-              className="w-full px-3 py-2 border border-black/10 bg-white text-sm outline-none focus:border-black" data-testid="input-team-name" />
+              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" data-testid="input-team-name" />
             <div className="flex gap-2 items-center">
-              <span className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">Colour:</span>
-              {TEAM_COLORS.map(c => (
-                <button key={c} onClick={() => setNewTeamColor(c)}
-                  className={`w-6 h-6 border-2 transition-all ${newTeamColor === c ? "border-black scale-125" : "border-transparent"}`}
-                  style={{ background: c }} />
-              ))}
+              <span className="text-xs text-zinc-500 font-medium">Colour:</span>
+              <div className="flex gap-1.5">
+                {TEAM_COLORS.map(c => (
+                  <button key={c} onClick={() => setNewTeamColor(c)}
+                    className={`w-6 h-6 rounded-full transition-all ${newTeamColor === c ? "ring-2 ring-offset-2 ring-zinc-400 scale-110" : ""}`}
+                    style={{ background: c }} />
+                ))}
+              </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-2">
               <button onClick={() => createTeamMut.mutate()} disabled={!newTeamName || createTeamMut.isPending}
-                className="flex items-center gap-1 px-3 py-1.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] disabled:opacity-50 hover:bg-neutral-800 transition-colors">
-                <Check className="w-3.5 h-3.5" /> Create
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                <Check className="w-4 h-4" /> Create
               </button>
-              <button onClick={() => setAddingTeam(false)} className="px-3 py-1.5 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors">Cancel</button>
+              <button onClick={() => setAddingTeam(false)} className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors">Cancel</button>
             </div>
           </div>
         )}
-
-        {teams.map((team: any) => (
-          <TeamCard key={team.id} team={team} allStaff={allStaff}
-            onDelete={() => { if (confirm(`Delete ${team.name}? Members will become unassigned.`)) deleteTeamMut.mutate(team.id); }}
-            onRemoveMember={(uid) => unassignMut.mutate(uid)}
-            onAddMember={(uid) => assignMut.mutate({ teamId: team.id, userId: uid })} />
-        ))}
 
         {teams.length === 0 && !addingTeam && (
-          <div className="text-center py-16 bg-slate-50 border border-dashed border-slate-200">
-            <Users className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-            <p className="font-black text-[10px] uppercase tracking-[0.15em] text-muted-foreground">No teams yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Create a team to group staff together</p>
+          <div className="text-center py-16 bg-white border border-dashed border-zinc-200 rounded-xl">
+            <Users className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+            <p className="text-sm font-medium text-zinc-500">No teams yet</p>
+            <p className="text-xs text-zinc-400 mt-1">Create a team to group staff together</p>
           </div>
         )}
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {teams.map((team: any) => (
+            <TeamCard key={team.id} team={team} allStaff={allStaff}
+              onDelete={() => { if (confirm(`Delete ${team.name}? Members will become unassigned.`)) deleteTeamMut.mutate(team.id); }}
+              onRemoveMember={(uid) => unassignMut.mutate(uid)}
+              onAddMember={(uid) => assignMut.mutate({ teamId: team.id, userId: uid })} />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -337,57 +337,53 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
   const field = (label: string, hint: string, key: keyof typeof form, testId: string) => (
     <div className="space-y-1">
       <div className="flex items-baseline justify-between">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">{label}</label>
-        <span className="text-[10px] text-muted-foreground">{hint}</span>
+        <label className="text-xs font-medium text-zinc-700">{label}</label>
+        <span className="text-[10px] text-zinc-500">{hint}</span>
       </div>
       <div className="relative">
-        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">S$</span>
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-zinc-500">S$</span>
         <input type="number" step="0.01" min="0" value={form[key]}
           onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-          className="w-full pl-8 pr-3 py-2.5 text-sm border border-black/10 bg-white font-mono outline-none focus:border-black"
+          className="h-9 w-full pl-8 pr-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
           data-testid={testId} />
       </div>
     </div>
   );
 
   return (
-    <div className="mx-1 mb-2 p-4 bg-slate-50 border border-black/10 space-y-3 text-sm">
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black">
-        Pay Package — {staff.name}
-      </p>
-
-      {/* 3 pay components */}
-      <div className="bg-white border border-slate-200 divide-y overflow-hidden">
-        <div className="px-3 py-2.5">
-          {field("Monthly Salary", "SGD / month", "monthlyRate", "input-monthly-rate")}
-        </div>
-        <div className="px-3 py-2.5">
-          {field("Hourly Rate", "first 8 hrs / day", "hourlyRate", "input-hourly-rate")}
-        </div>
-        <div className="px-3 py-2.5">
-          {field("Overtime Rate", "after 8 hrs / day", "overtimeRate", "input-overtime-rate")}
-        </div>
+    <div className="mx-0 mb-4 bg-white border border-zinc-200 rounded-xl overflow-hidden mt-2 shadow-sm">
+      <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+        <p className="text-sm font-semibold text-zinc-900">Pay Package: {staff.name}</p>
+        <button onClick={onClose} className="p-1 text-zinc-400 hover:text-zinc-900 transition-colors"><X className="w-4 h-4" /></button>
       </div>
 
-      {/* Leave entitlement */}
-      <div className="space-y-1">
-        <div className="flex items-baseline justify-between">
-          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Annual Leave</label>
-          <span className="text-[10px] text-muted-foreground">days / year</span>
+      <div className="p-5 space-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {field("Monthly Salary", "SGD/mo", "monthlyRate", "input-monthly-rate")}
+          {field("Hourly Rate", "first 8 hrs", "hourlyRate", "input-hourly-rate")}
+          {field("Overtime Rate", "after 8 hrs", "overtimeRate", "input-overtime-rate")}
         </div>
-        <input type="number" min="0" max="30" value={form.annualLeaveEntitlement}
-          onChange={e => setForm(f => ({ ...f, annualLeaveEntitlement: parseInt(e.target.value) || 0 }))}
-          className="w-full px-3 py-2.5 text-sm border border-black/10 bg-white outline-none focus:border-black"
-          data-testid="input-leave-entitlement" />
-      </div>
 
-      <div className="flex gap-2 pt-1">
-        <button onClick={() => mut.mutate()} disabled={mut.isPending}
-          className="flex-1 py-2 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] disabled:opacity-50 hover:bg-neutral-800 transition-colors"
-          data-testid="button-save-pay">
-          {mut.isPending ? "Saving…" : "Save Pay Package"}
-        </button>
-        <button onClick={onClose} className="px-4 py-2 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors">Cancel</button>
+        {/* Leave entitlement */}
+        <div className="space-y-1 w-full sm:w-1/3">
+          <div className="flex items-baseline justify-between">
+            <label className="text-xs font-medium text-zinc-700">Annual Leave</label>
+            <span className="text-[10px] text-zinc-500">days/yr</span>
+          </div>
+          <input type="number" min="0" max="30" value={form.annualLeaveEntitlement}
+            onChange={e => setForm(f => ({ ...f, annualLeaveEntitlement: parseInt(e.target.value) || 0 }))}
+            className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            data-testid="input-leave-entitlement" />
+        </div>
+
+        <div className="flex gap-3 pt-4 border-t border-zinc-100 mt-6">
+          <button onClick={() => mut.mutate()} disabled={mut.isPending}
+            className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+            data-testid="button-save-pay">
+            {mut.isPending ? "Saving…" : "Save Pay Package"}
+          </button>
+          <button onClick={onClose} className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors">Cancel</button>
+        </div>
       </div>
     </div>
   );
@@ -401,62 +397,70 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings,
   const missingDetails = !staff.phone && !staff.nricFin;
 
   return (
-    <div className="py-3 border-b last:border-0">
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold truncate">{staff.name}</p>
-          <p className="text-xs text-muted-foreground">@{staff.username}</p>
-          {(staff.phone || staff.email) && (
-            <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-              {[staff.phone, staff.email].filter(Boolean).join(" · ")}
-            </p>
-          )}
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            {team && (
-              <span className="inline-block text-[9px] font-black px-2 py-0.5 uppercase tracking-[0.08em]"
-                style={{ background: team.color + "22", color: team.color }}>
-                {team.name}
-              </span>
-            )}
-            {!team && (
-              <span className="inline-block text-[9px] font-black px-2 py-0.5 uppercase tracking-[0.08em] bg-slate-100 text-slate-500">
-                Unassigned
-              </span>
-            )}
-            {hasPayConfig && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-black px-2 py-0.5 bg-emerald-50 text-emerald-700">
-                <DollarSign className="w-2.5 h-2.5" />
-                {monthly > 0 ? `S$${monthly.toFixed(0)}/mo` : `S$${hourly.toFixed(2)}/hr`}
-              </span>
-            )}
-            {missingDetails && (
-              <span className="inline-block text-[9px] font-black px-2 py-0.5 uppercase tracking-[0.08em] bg-amber-50 text-amber-600">
-                Profile incomplete
-              </span>
-            )}
+    <div className="px-5 py-4 border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-semibold text-zinc-600 shrink-0">
+            {staff.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-zinc-900 truncate">{staff.name}</p>
+            <div className="flex items-center gap-2 text-xs text-zinc-500 mt-0.5">
+              <span>@{staff.username}</span>
+              {(staff.phone || staff.email) && (
+                <>
+                  <span>•</span>
+                  <span className="truncate">{[staff.phone, staff.email].filter(Boolean).join(" · ")}</span>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {team ? (
+                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap"
+                  style={{ backgroundColor: team.color + "1A", color: team.color }}>
+                  {team.name}
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-zinc-100 text-zinc-600">
+                  Unassigned
+                </span>
+              )}
+              {hasPayConfig && (
+                <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-emerald-50 text-emerald-700">
+                  <DollarSign className="w-3 h-3" />
+                  {monthly > 0 ? `S$${monthly.toFixed(0)}/mo` : `S$${hourly.toFixed(2)}/hr`}
+                </span>
+              )}
+              {missingDetails && (
+                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-amber-50 text-amber-700">
+                  Profile incomplete
+                </span>
+              )}
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={onEdit} title="Edit account"
-            className="p-2 text-muted-foreground hover:text-black hover:bg-slate-100 transition-colors"
-            data-testid={`button-edit-staff-${staff.id}`}>
-            <Pencil className="w-4 h-4" />
-          </button>
-          <button onClick={onPaySettings} title="Pay settings"
-            className="p-2 text-muted-foreground hover:text-black hover:bg-slate-100 transition-colors"
-            data-testid={`button-pay-settings-${staff.id}`}>
-            <Settings2 className="w-4 h-4" />
-          </button>
+        
+        <div className="flex items-center gap-2 shrink-0">
           <select onChange={e => { if (e.target.value === "__unassign__") onUnassign(); else if (e.target.value) onAssign(parseInt(e.target.value)); e.target.value = ""; }}
-            className="text-xs border border-black/10 px-2 py-2 bg-background max-w-[110px] outline-none focus:border-black"
+            className="h-8 pl-2 pr-8 text-xs border border-zinc-200 rounded-md bg-white text-zinc-700 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 max-w-[120px]"
             defaultValue=""
             data-testid={`select-assign-team-${staff.id}`}>
             <option value="" disabled>{staff.teamId ? "Move" : "Assign"}</option>
             {staff.teamId && <option value="__unassign__">— Remove</option>}
             {teams.filter((t: any) => t.id !== staff.teamId).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
+          <button onClick={onEdit} title="Edit account"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+            data-testid={`button-edit-staff-${staff.id}`}>
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button onClick={onPaySettings} title="Pay settings"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+            data-testid={`button-pay-settings-${staff.id}`}>
+            <Settings2 className="w-4 h-4" />
+          </button>
           <button onClick={onDelete} title="Delete staff"
-            className="p-2 text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-zinc-500 hover:text-red-600 hover:bg-red-50 transition-colors"
             data-testid={`button-delete-staff-${staff.id}`}>
             <Trash2 className="w-4 h-4" />
           </button>
@@ -507,37 +511,37 @@ function EditStaffForm({ staff, onClose }: { staff: any; onClose: () => void }) 
   });
 
   const sectionLabel = (text: string) => (
-    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mt-4 mb-2 first:mt-0 pb-1 border-b border-black/05">{text}</p>
+    <p className="text-xs font-semibold text-zinc-900 mt-5 mb-3 first:mt-0 pb-2 border-b border-zinc-100">{text}</p>
   );
 
   const field = (label: string, key: keyof typeof form, opts?: { type?: string; placeholder?: string; hint?: string }) => (
     <div className="space-y-1">
       <div className="flex items-baseline justify-between">
-        <label className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</label>
-        {opts?.hint && <span className="text-[10px] text-slate-400 normal-case font-normal">{opts.hint}</span>}
+        <label className="text-xs font-medium text-zinc-700">{label}</label>
+        {opts?.hint && <span className="text-[10px] text-zinc-500">{opts.hint}</span>}
       </div>
       <input
         type={opts?.type || "text"}
         value={form[key]}
         onChange={set(key)}
         placeholder={opts?.placeholder}
-        className="w-full px-3 py-2 text-sm border border-black/10 bg-white outline-none focus:border-black"
+        className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
         data-testid={`input-edit-${key}-${staff.id}`}
       />
     </div>
   );
 
   return (
-    <div className="mx-0 mb-3 bg-slate-50 border border-black/10">
-      <div className="px-4 py-3 border-b border-black/[0.06] flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Staff Profile — {staff.name}</p>
-        <button onClick={onClose} className="p-1 text-slate-400 hover:text-black transition-colors"><X className="w-3.5 h-3.5" /></button>
+    <div className="mx-0 mb-4 bg-white border border-zinc-200 rounded-xl overflow-hidden mt-2 shadow-sm">
+      <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+        <p className="text-sm font-semibold text-zinc-900">Edit Profile: {staff.name}</p>
+        <button onClick={onClose} className="p-1 text-zinc-400 hover:text-zinc-900 transition-colors"><X className="w-4 h-4" /></button>
       </div>
 
-      <div className="p-4 space-y-3">
+      <div className="p-5 space-y-4">
         {/* Account */}
         {sectionLabel("Account")}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {field("Full Name", "name")}
           {field("Username", "username")}
         </div>
@@ -545,35 +549,35 @@ function EditStaffForm({ staff, onClose }: { staff: any; onClose: () => void }) 
 
         {/* Contact */}
         {sectionLabel("Contact Details")}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {field("Phone", "phone", { placeholder: "+65 9xxx xxxx" })}
           {field("Email", "email", { type: "email", placeholder: "name@example.com" })}
         </div>
 
         {/* Employment */}
         {sectionLabel("Employment")}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {field("NRIC / FIN", "nricFin", { placeholder: "S1234567A" })}
           {field("Start Date", "startDate", { type: "date" })}
         </div>
 
         {/* Emergency */}
         {sectionLabel("Emergency Contact")}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {field("Contact Name", "emergencyName", { placeholder: "Full name" })}
           {field("Contact Phone", "emergencyPhone", { placeholder: "+65 9xxx xxxx" })}
         </div>
 
-        <div className="flex gap-2 pt-2">
+        <div className="flex gap-3 pt-4 border-t border-zinc-100 mt-6">
           <button
             onClick={() => mut.mutate()}
             disabled={mut.isPending || !form.name || !form.username}
-            className="flex-1 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
             data-testid={`button-save-staff-${staff.id}`}
           >
             {mut.isPending ? "Saving..." : "Save Profile"}
           </button>
-          <button onClick={onClose} className="px-4 py-2.5 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-100 transition-colors">
+          <button onClick={onClose} className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors">
             Cancel
           </button>
         </div>
@@ -679,12 +683,12 @@ function StaffAvatar({ user, size = 10 }: { user: any; size?: number }) {
 function PayrollTab() {
   const [view, setView] = useState<"today" | "timesheets">("today");
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Sub-tab switcher */}
-      <div className="flex gap-0 border border-black/10 w-fit">
+      <div className="flex border-b border-zinc-200 w-full">
         {([["today","Today's Roster"],["timesheets","Timesheets"]] as const).map(([v,l]) => (
           <button key={v} onClick={() => setView(v)}
-            className={`px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition-all ${view === v ? "bg-black text-white" : "text-muted-foreground hover:text-black hover:bg-slate-50"}`}
+            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-b-2 ${view === v ? "text-zinc-900 border-blue-600" : "text-zinc-500 border-transparent hover:text-zinc-900"}`}
             data-testid={`tab-att-${v}`}>
             {l}
           </button>
@@ -741,46 +745,51 @@ function TodayRoster() {
   const notClockedIn = roster.filter(r => !r.log);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Date picker */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 bg-white border border-black/10 px-3 py-2">
-          <Calendar className="w-4 h-4 text-muted-foreground" />
+        <div className="flex items-center gap-2 bg-white border border-zinc-300 rounded-lg px-3 py-2 h-9 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-colors">
+          <Calendar className="w-4 h-4 text-zinc-400" />
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="text-sm font-bold bg-transparent outline-none" data-testid="input-roster-date" />
+            className="text-sm font-medium text-zinc-900 bg-transparent outline-none" data-testid="input-roster-date" />
         </div>
         {!isToday && (
           <button onClick={() => setDate(todayStr)}
-            className="text-xs font-bold text-primary underline">Back to Today</button>
+            className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors">Back to Today</button>
         )}
-        <span className="text-xs text-muted-foreground font-medium">
-          {(() => { try { const d = new Date(date + "T12:00:00"); if (isNaN(d.getTime())) return ""; return (isToday ? "Today, " : "") + format(d, "EEEE d MMMM yyyy"); } catch { return ""; } })()}
+        <span className="text-sm text-zinc-500 font-medium">
+          {(() => { try { const d = new Date(date + "T12:00:00"); if (isNaN(d.getTime())) return ""; return (isToday ? "Today, " : "") + format(d, "EEEE, d MMMM yyyy"); } catch { return ""; } })()}
         </span>
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-black/[0.06]">
-        <div className="bg-white p-4">
-          <p className="text-3xl font-black text-emerald-600">{clockedIn.length}</p>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.12em] mt-0.5">Clocked in</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm">
+          <p className="text-sm font-medium text-zinc-500 mb-1">Clocked in</p>
+          <p className="text-3xl font-semibold text-emerald-600">{clockedIn.length}</p>
         </div>
-        <div className="bg-white p-4">
-          <p className="text-3xl font-black text-muted-foreground">{notClockedIn.length}</p>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.12em] mt-0.5">Not in</p>
+        <div className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm">
+          <p className="text-sm font-medium text-zinc-500 mb-1">Not in</p>
+          <p className="text-3xl font-semibold text-zinc-400">{notClockedIn.length}</p>
         </div>
-        <div className="bg-white p-4 col-span-2 sm:col-span-1">
-          <p className="text-3xl font-black">{clockedOut.length}</p>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.12em] mt-0.5">Clocked out</p>
+        <div className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm">
+          <p className="text-sm font-medium text-zinc-500 mb-1">Clocked out</p>
+          <p className="text-3xl font-semibold text-zinc-900">{clockedOut.length}</p>
         </div>
       </div>
 
       {/* Staff roster list */}
       {isLoading ? (
-        <div className="flex justify-center py-10"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>
+        <div className="flex justify-center py-16">
+          <div className="animate-spin w-6 h-6 border-2 border-zinc-200 border-t-zinc-900 rounded-full" />
+        </div>
       ) : (
-        <div className="bg-white border border-black/[0.07] overflow-hidden divide-y">
+        <div className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden divide-y divide-zinc-100">
           {roster.length === 0 && (
-            <p className="text-center py-8 text-muted-foreground text-sm">No staff found.</p>
+            <div className="text-center py-16">
+              <Users className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+              <p className="text-sm font-medium text-zinc-500">No staff found.</p>
+            </div>
           )}
           {/* Clocked In section */}
           {clockedIn.map(({ staff: s, log }) => (
@@ -1434,15 +1443,15 @@ function TimesheetsView() {
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* ── Controls bar ─────────────────────────────────────────────── */}
-      <div className="bg-white border border-black/[0.07] p-4 space-y-4">
+      <div className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm space-y-4">
         {/* View toggle */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex border border-black/10 overflow-hidden">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex border border-zinc-200 rounded-lg overflow-hidden h-9">
             {(["daily","period"] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
-                className={`px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition-colors ${view === v ? "bg-black text-white" : "hover:bg-slate-50"}`}
+                className={`px-4 text-sm font-medium transition-colors ${view === v ? "bg-zinc-100 text-zinc-900" : "bg-white text-zinc-600 hover:bg-zinc-50"}`}
                 data-testid={`button-view-${v}`}>
                 {v === "daily" ? "Daily" : "Period"}
               </button>
@@ -1452,74 +1461,72 @@ function TimesheetsView() {
           {/* Add Record button — always visible */}
           <button
             onClick={() => { setAddPresetUid(undefined); setShowAddForm(f => !f); }}
-            className={`flex items-center gap-1.5 px-3 py-2 text-[10px] font-black uppercase tracking-[0.08em] border transition-colors ${showAddForm ? "bg-black text-white border-black" : "border-black/10 hover:bg-slate-50"}`}
+            className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-colors ${showAddForm ? "bg-zinc-900 text-white" : "bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50"}`}
             data-testid="button-open-add-record">
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
             Add Record
           </button>
 
           {view === "period" && (
-            <>
-              <div className="flex gap-1 ml-auto flex-wrap">
-                {[["today","Today"],["week","This Week"],["month","This Month"],["prevMonth","Last Month"]].map(([v,l]) => (
-                  <button key={v} onClick={() => setPreset(v)}
-                    className="px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.06em] border border-black/10 hover:bg-slate-50 transition-colors">
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </>
+            <div className="flex gap-2 ml-auto flex-wrap">
+              {[["today","Today"],["week","This Week"],["month","This Month"],["prevMonth","Last Month"]].map(([v,l]) => (
+                <button key={v} onClick={() => setPreset(v)}
+                  className="h-8 px-3 rounded-md border border-zinc-200 bg-white text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
+                  {l}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
         {/* Filters row */}
-        <div className="flex flex-wrap gap-3 items-end">
+        <div className="flex flex-wrap gap-4 items-end">
           {view === "daily" ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button onClick={() => { const d = new Date(dailyDate); d.setDate(d.getDate()-1); setDailyDate(format(d,"yyyy-MM-dd")); }}
-                className="p-2 border border-black/10 hover:bg-slate-50 transition-colors" title="Previous day">
+                className="w-9 h-9 rounded-lg border border-zinc-200 flex items-center justify-center text-zinc-500 hover:bg-zinc-50 transition-colors" title="Previous day">
                 <ChevronDown className="w-4 h-4 rotate-90" />
               </button>
               <div>
-                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Date</label>
+                <label className="text-xs font-medium text-zinc-700 mb-1 block">Date</label>
                 <input type="date" value={dailyDate} onChange={e => setDailyDate(e.target.value)}
-                  className="px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="input-daily-date" />
+                  className="h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" data-testid="input-daily-date" />
               </div>
               <button onClick={() => { const d = new Date(dailyDate); d.setDate(d.getDate()+1); setDailyDate(format(d,"yyyy-MM-dd")); }}
-                className="p-2 border border-black/10 hover:bg-slate-50 transition-colors mt-4" title="Next day">
+                className="w-9 h-9 mt-[22px] rounded-lg border border-zinc-200 flex items-center justify-center text-zinc-500 hover:bg-zinc-50 transition-colors" title="Next day">
                 <ChevronDown className="w-4 h-4 -rotate-90" />
               </button>
               <button onClick={() => setDailyDate(format(today, "yyyy-MM-dd"))}
-                className="px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.06em] border border-black/10 hover:bg-slate-50 transition-colors mt-4">
+                className="h-9 mt-[22px] px-3 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
                 Today
               </button>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2 items-end">
+            <div className="flex flex-wrap gap-4 items-end">
               <div>
-                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">From</label>
+                <label className="text-xs font-medium text-zinc-700 mb-1 block">From</label>
                 <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-                  className="px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="input-from-date" />
+                  className="h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" data-testid="input-from-date" />
               </div>
               <div>
-                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">To</label>
+                <label className="text-xs font-medium text-zinc-700 mb-1 block">To</label>
                 <input type="date" value={to} onChange={e => setTo(e.target.value)}
-                  className="px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="input-to-date" />
+                  className="h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" data-testid="input-to-date" />
               </div>
               <div>
-                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Staff</label>
+                <label className="text-xs font-medium text-zinc-700 mb-1 block">Staff</label>
                 <select value={filterUid} onChange={e => setFilterUid(e.target.value)}
-                  className="px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black min-w-[130px]" data-testid="select-staff-filter">
+                  className="h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-w-[150px]" data-testid="select-staff-filter">
                   <option value="">All Staff</option>
                   {(staff as any[]).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Sort By</label>
-                <div className="flex gap-1">
+                <label className="text-xs font-medium text-zinc-700 mb-1 block">Sort By</label>
+                <div className="flex gap-2 h-9">
                   {[["name","Name"],["hours","Hours"]].map(([v,l]) => (
                     <button key={v} onClick={() => { if (sortBy === v) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortBy(v as any); setSortDir("asc"); } }}
-                      className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.06em] border transition-colors flex items-center gap-1 ${sortBy === v ? "bg-black text-white border-black" : "border-black/10 hover:bg-slate-50"}`}>
+                      className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium transition-colors ${sortBy === v ? "bg-zinc-900 text-white" : "bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50"}`}>
                       {l} {sortBy === v ? (sortDir === "asc" ? "↑" : "↓") : ""}
                     </button>
                   ))}
@@ -1543,16 +1550,16 @@ function TimesheetsView() {
 
       {/* ── Stats ───────────────────────────────────────────────────── */}
       {view === "period" && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: "Total Hours", val: fmt(grandTotals.totalMins), color: "" },
+            { label: "Total Hours", val: fmt(grandTotals.totalMins), color: "text-zinc-900" },
             { label: "Regular", val: fmt(grandTotals.regularMins), color: "text-emerald-600" },
             { label: "Overtime", val: fmt(grandTotals.otMins), color: "text-amber-600" },
-            { label: "Staff w/ Records", val: `${staffRows.filter((r:any)=>r.days>0).length} / ${staffRows.length}`, color: "" },
+            { label: "Staff w/ Records", val: `${staffRows.filter((r:any)=>r.days>0).length} / ${staffRows.length}`, color: "text-zinc-900" },
           ].map(c => (
-            <div key={c.label} className="bg-white border border-black/[0.07] p-4">
-              <p className="text-[10px] font-black text-black/35 uppercase tracking-[0.2em] mb-1">{c.label}</p>
-              <p className={`text-xl font-black ${c.color}`}>{c.val}</p>
+            <div key={c.label} className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm">
+              <p className="text-sm font-medium text-zinc-500 mb-1">{c.label}</p>
+              <p className={`text-2xl font-semibold ${c.color}`}>{c.val}</p>
             </div>
           ))}
         </div>
@@ -1560,108 +1567,114 @@ function TimesheetsView() {
 
       {/* ── Daily View ───────────────────────────────────────────────── */}
       {view === "daily" && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-black text-base">
+            <h3 className="text-base font-semibold text-zinc-900">
               {isValid(dailyDate) ? (() => { try { return format(new Date(dailyDate + "T12:00:00"), "EEEE, d MMMM yyyy"); } catch { return dailyDate; } })() : "Select a date"}
             </h3>
-            {dailyLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+            {dailyLoading && <div className="w-5 h-5 border-2 border-zinc-200 border-t-zinc-700 rounded-full animate-spin" />}
           </div>
-          {(staff as any[]).filter((s:any)=>s.role==="staff").map((s: any) => {
-            const sLogs = (dailyLogs as any[]).filter((l:any) => l.userId === s.id);
-            const hasRecords = sLogs.length > 0;
-            return (
-              <div key={s.id} className={`border border-black/[0.07] overflow-hidden ${hasRecords ? "bg-white" : "bg-slate-50 opacity-70"}`}
-                data-testid={`daily-staff-${s.id}`}>
-                <div className="flex items-center gap-3 px-4 py-3">
-                  <StaffAvatar user={s} size={10} />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm">{s.name}</p>
-                    <p className="text-xs font-mono text-muted-foreground">@{s.username}</p>
-                  </div>
-                  {hasRecords ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-emerald-600">{fmt(calcOT(sLogs).totalMins)}</span>
+          <div className="space-y-4">
+            {(staff as any[]).filter((s:any)=>s.role==="staff").map((s: any) => {
+              const sLogs = (dailyLogs as any[]).filter((l:any) => l.userId === s.id);
+              const hasRecords = sLogs.length > 0;
+              return (
+                <div key={s.id} className={`bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden ${!hasRecords ? "opacity-75" : ""}`}
+                  data-testid={`daily-staff-${s.id}`}>
+                  <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-100 bg-zinc-50/50">
+                    <StaffAvatar user={s} size={10} />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-zinc-900">{s.name}</p>
+                      <p className="text-xs text-zinc-500">@{s.username}</p>
+                    </div>
+                    {hasRecords ? (
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-emerald-600">{fmt(calcOT(sLogs).totalMins)}</span>
+                        <button
+                          onClick={() => { setAddPresetUid(s.id); setShowAddForm(true); }}
+                          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs font-medium transition-colors"
+                          title={`Add record for ${s.name}`}
+                          data-testid={`button-quick-add-${s.id}`}>
+                          <Plus className="w-3.5 h-3.5" /> Add
+                        </button>
+                      </div>
+                    ) : (
                       <button
                         onClick={() => { setAddPresetUid(s.id); setShowAddForm(true); }}
-                        className="flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.06em] border border-black/10 hover:bg-slate-100 transition-colors"
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs font-medium transition-colors"
                         title={`Add record for ${s.name}`}
-                        data-testid={`button-quick-add-${s.id}`}>
-                        <Plus className="w-2.5 h-2.5" /> Add
+                        data-testid={`button-add-${s.id}`}>
+                        <Plus className="w-3.5 h-3.5" /> Add Record
                       </button>
+                    )}
+                  </div>
+                  {hasRecords && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        {logTableHead(false)}
+                        <tbody className="divide-y divide-zinc-100">
+                          {sLogs.map((log: any) => renderLogRow(log, false))}
+                        </tbody>
+                      </table>
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => { setAddPresetUid(s.id); setShowAddForm(true); }}
-                      className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] border border-black/10 hover:bg-slate-50 transition-colors"
-                      title={`Add record for ${s.name}`}
-                      data-testid={`button-add-${s.id}`}>
-                      <Plus className="w-3 h-3" /> Add Record
-                    </button>
                   )}
                 </div>
-                {hasRecords && (
-                  <div className="border-t overflow-x-auto">
-                    <table className="w-full text-sm min-w-[500px]">
-                      {logTableHead(false)}
-                      <tbody>
-                        {sLogs.map((log: any) => renderLogRow(log, false))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* ── Period View ─────────────────────────────────────────────── */}
       {view === "period" && (
         periodLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+          <div className="flex justify-center py-16">
+            <div className="w-6 h-6 border-2 border-zinc-200 border-t-zinc-700 rounded-full animate-spin" />
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {staffRows.map((row: any) => (
-              <div key={row.user?.id} className={`border border-black/[0.07] overflow-hidden ${row.days === 0 ? "bg-slate-50 opacity-70" : "bg-white"}`}
+              <div key={row.user?.id} className={`bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden ${row.days === 0 ? "opacity-75" : ""}`}
                 data-testid={`period-staff-${row.user?.id}`}>
                 {/* Staff header */}
                 <button
                   onClick={() => row.logs.length > 0 && setExpandedId(expandedId === row.user?.id ? null : row.user?.id)}
-                  className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${row.logs.length > 0 ? "hover:bg-secondary/20 cursor-pointer" : "cursor-default"}`}
+                  className={`w-full px-5 py-4 flex items-center gap-4 transition-colors bg-zinc-50/50 hover:bg-zinc-50 border-b border-zinc-100 ${row.logs.length > 0 ? "cursor-pointer" : "cursor-default"}`}
                   data-testid={`button-expand-staff-${row.user?.id}`}>
                   <StaffAvatar user={row.user} size={10} />
                   <div className="flex-1 min-w-0 text-left">
-                    <p className="font-bold text-sm">{row.user?.name}</p>
-                    <p className="text-xs font-mono text-muted-foreground">@{row.user?.username}</p>
-                    <p className="text-xs mt-0.5">
+                    <p className="font-semibold text-sm text-zinc-900">{row.user?.name}</p>
+                    <p className="text-xs text-zinc-500">@{row.user?.username}</p>
+                    <p className="text-xs mt-1">
                       {row.days > 0
-                        ? <span className="text-emerald-600 font-bold">{row.days} day{row.days !== 1 ? "s" : ""} clocked</span>
-                        : <span className="text-muted-foreground">No records this period</span>}
+                        ? <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-700">{row.days} day{row.days !== 1 ? "s" : ""} clocked</span>
+                        : <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-zinc-100 text-zinc-600">No records this period</span>}
                     </p>
                   </div>
                   {/* Hour breakdown */}
                   {row.totalMins > 0 && (
-                    <div className="text-right shrink-0">
-                      <p className="font-black text-base">{fmt(row.totalMins)}</p>
+                    <div className="text-right shrink-0 mr-4">
+                      <p className="font-semibold text-lg text-zinc-900">{fmt(row.totalMins)}</p>
                       <div className="flex gap-2 justify-end mt-0.5">
-                        <span className="text-[10px] text-emerald-600 font-bold">{fmt(row.regularMins)} reg</span>
-                        {row.otMins > 0 && <span className="text-[10px] text-amber-600 font-bold">{fmt(row.otMins)} OT</span>}
+                        <span className="text-[11px] font-medium text-emerald-600">{fmt(row.regularMins)} reg</span>
+                        {row.otMins > 0 && <span className="text-[11px] font-medium text-amber-600">{fmt(row.otMins)} OT</span>}
                       </div>
-                      <p className="text-[10px] text-muted-foreground">{row.days > 0 ? fmt(Math.round(row.totalMins / row.days)) + " avg/day" : ""}</p>
+                      <p className="text-[11px] text-zinc-500 mt-0.5">{row.days > 0 ? fmt(Math.round(row.totalMins / row.days)) + " avg/day" : ""}</p>
                     </div>
                   )}
                   {row.logs.length > 0 && (
-                    expandedId === row.user?.id ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-white border border-zinc-200 text-zinc-500 shrink-0">
+                      {expandedId === row.user?.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
                   )}
                 </button>
 
                 {/* Expanded log table */}
                 {expandedId === row.user?.id && (
-                  <div className="border-t overflow-x-auto">
-                    <table className="w-full text-sm min-w-[550px]">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[600px]">
                       {logTableHead(true)}
-                      <tbody>
+                      <tbody className="divide-y divide-zinc-100">
                         {row.logs.map((log: any) => renderLogRow(log, true))}
                       </tbody>
                     </table>
@@ -1695,81 +1708,83 @@ function AmendmentsTab() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (isLoading) return <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-zinc-200 border-t-zinc-700 rounded-full animate-spin" /></div>;
 
   if (amendments.length === 0) {
     return (
-      <div className="text-center py-16 border border-dashed border-black/20">
-        <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-        <p className="font-semibold text-muted-foreground">No amendment requests</p>
+      <div className="text-center py-16 bg-white border border-dashed border-zinc-200 rounded-xl">
+        <AlertCircle className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+        <p className="text-sm font-medium text-zinc-500">No amendment requests</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {amendments.map((a: any) => (
-        <div key={a.id} className="bg-white border border-black/[0.07] overflow-hidden">
-          <div className="px-4 py-3 border-b flex items-center justify-between">
+        <div key={a.id} className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
             <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <p className="font-bold text-sm">{a.user?.name}</p>
+              <div className="flex items-center gap-3 mb-1">
+                <p className="font-semibold text-sm text-zinc-900">{a.user?.name}</p>
                 <StatusBadge status={a.status} />
               </div>
-              <p className="text-xs text-muted-foreground">Submitted {format(new Date(a.createdAt), "d MMM yyyy HH:mm")}</p>
+              <p className="text-xs text-zinc-500">Submitted {format(new Date(a.createdAt), "d MMM yyyy HH:mm")}</p>
             </div>
           </div>
-          <div className="p-4 space-y-3">
+          <div className="p-5 space-y-4">
             {/* Before → After comparison */}
-            <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+            <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
               {/* Original */}
-              <div className="bg-slate-50 border border-black/[0.06] px-3 py-2.5 space-y-1">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">Original</p>
-                <div className="flex items-center gap-1.5 text-xs">
-                  <LogIn className="w-3 h-3 text-emerald-500 shrink-0" />
-                  <span className="font-mono">{a.originalClockIn ? format(new Date(a.originalClockIn), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
+              <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-2">
+                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-1">Original</p>
+                <div className="flex items-center gap-2 text-sm text-zinc-700">
+                  <LogIn className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>{a.originalClockIn ? format(new Date(a.originalClockIn), "d MMM, HH:mm") : <span className="text-zinc-400">—</span>}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs">
-                  <LogOut className="w-3 h-3 text-red-400 shrink-0" />
-                  <span className="font-mono">{a.originalClockOut ? format(new Date(a.originalClockOut), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
+                <div className="flex items-center gap-2 text-sm text-zinc-700">
+                  <LogOut className="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{a.originalClockOut ? format(new Date(a.originalClockOut), "d MMM, HH:mm") : <span className="text-zinc-400">—</span>}</span>
                 </div>
               </div>
               {/* Arrow */}
-              <div className="flex flex-col items-center gap-0.5">
-                <ArrowRight className="w-4 h-4 text-primary" />
+              <div className="flex flex-col items-center justify-center">
+                <ArrowRight className="w-5 h-5 text-zinc-400" />
               </div>
               {/* Requested */}
-              <div className="bg-white border border-black/10 px-3 py-2.5 space-y-1">
-                <p className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5">Requested</p>
-                <div className="flex items-center gap-1.5 text-xs">
-                  <LogIn className="w-3 h-3 text-emerald-500 shrink-0" />
-                  <span className="font-mono font-bold">{a.requestedClockIn ? format(new Date(a.requestedClockIn), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
+              <div className="bg-white border border-blue-200 rounded-lg p-3 space-y-2 shadow-sm">
+                <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-widest mb-1">Requested</p>
+                <div className="flex items-center gap-2 text-sm text-zinc-900 font-medium">
+                  <LogIn className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>{a.requestedClockIn ? format(new Date(a.requestedClockIn), "d MMM, HH:mm") : <span className="text-zinc-400 font-normal">—</span>}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs">
-                  <LogOut className="w-3 h-3 text-red-400 shrink-0" />
-                  <span className="font-mono font-bold">{a.requestedClockOut ? format(new Date(a.requestedClockOut), "d MMM, HH:mm") : <span className="text-muted-foreground">—</span>}</span>
+                <div className="flex items-center gap-2 text-sm text-zinc-900 font-medium">
+                  <LogOut className="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{a.requestedClockOut ? format(new Date(a.requestedClockOut), "d MMM, HH:mm") : <span className="text-zinc-400 font-normal">—</span>}</span>
                 </div>
               </div>
             </div>
-            <div className="bg-slate-50 px-3 py-2">
-              <p className="text-xs font-bold text-muted-foreground mb-0.5">Staff Reason</p>
-              <p className="text-sm">{a.reason}</p>
+            
+            <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100">
+              <p className="text-xs font-semibold text-zinc-700 mb-1">Staff Reason</p>
+              <p className="text-sm text-zinc-600">{a.reason}</p>
             </div>
+            
             {a.status === 'pending' && (
-              <div className="space-y-2">
+              <div className="space-y-3 pt-2">
                 <textarea value={notes[a.id] || ""} onChange={e => setNotes(n => ({ ...n, [a.id]: e.target.value }))}
                   placeholder="Admin note (optional)" rows={2}
-                  className="w-full px-3 py-2 text-sm border border-black/10 bg-white outline-none focus:border-black resize-none" />
-                <div className="flex gap-2">
+                  className="w-full px-3 py-2 text-sm border border-zinc-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-colors" />
+                <div className="flex gap-3">
                   <button onClick={() => reviewMut.mutate({ id: a.id, status: "approved" })}
                     disabled={reviewMut.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-emerald-700 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
                     data-testid={`button-approve-amendment-${a.id}`}>
                     <Check className="w-3.5 h-3.5" /> Approve
                   </button>
                   <button onClick={() => reviewMut.mutate({ id: a.id, status: "rejected" })}
                     disabled={reviewMut.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-red-700 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
                     data-testid={`button-reject-amendment-${a.id}`}>
                     <X className="w-3.5 h-3.5" /> Reject
                   </button>
@@ -1777,7 +1792,7 @@ function AmendmentsTab() {
               </div>
             )}
             {a.adminNote && (
-              <p className="text-xs text-muted-foreground italic">Admin note: {a.adminNote}</p>
+              <p className="text-xs text-zinc-500 italic mt-2">Admin note: {a.adminNote}</p>
             )}
           </div>
         </div>

@@ -1,0 +1,151 @@
+Upgrade the ENTIRE TMGINSTALL admin page UI to a world-class premium operations dashboard design.
+
+IMPORTANT:
+This task is for FRONTEND DESIGN / UI / UX polish only.
+Do NOT change backend logic.
+Do NOT change database schema.
+Do NOT change APIs, business rules, workflows, automation, calculations, statuses, role permissions, or integrations.
+Do NOT remove any existing working features.
+Do NOT rename fields, routes, IDs, props, functions, or database-connected variables unless absolutely required for visual cleanup, and if so preserve compatibility.
+Do NOT create duplicate components or messy unused code.
+Do NOT break current admin workflows.
+
+GOAL:
+Redesign the overall admin page so it looks like a top-tier modern SaaS admin platform used by a premium logistics / operations company.
+The result must feel extremely polished, expensive, clean, fast, structured, and professional.
+Main focus: buttons, fonts, spacing, layout rhythm, cards, tables, forms, filters, status badges, modals, tabs, and visual hierarchy.
+
+BRAND / STYLE DIRECTION:
+- Premium, modern, minimal, high-end SaaS
+- Clean black / white / neutral palette
+- Strong professional operations-dashboard feel
+- Crisp typography
+- Spacious but efficient layout
+- Elegant alignment everywhere
+- No childish colors
+- No clutter
+- No random gradients
+- No cheap-looking shadows
+- No oversized rounded cartoon UI
+- Design should feel like Stripe + Linear + Notion + premium logistics software, adapted for TMGINSTALL
+
+DESIGN STANDARDS:
+1. Typography
+- Use a highly professional UI font stack such as Inter / SF Pro style
+- Create clear hierarchy for page title, section titles, card titles, labels, table content, helper text
+- Improve font weights and sizes for better readability
+- Use tighter control of letter spacing and line height
+- Make important numbers, statuses, and job info visually scannable
+
+2. Spacing System
+- Fix all inconsistent padding and margins
+- Apply a clean spacing system consistently across the entire admin page
+- Make sections breathe properly without wasting space
+- Align all cards, buttons, filters, inputs, and table content to a precise grid
+- Ensure every page area looks intentionally art-directed
+
+3. Buttons
+- Redesign all buttons to look premium and consistent
+- Primary buttons should feel strong and decisive
+- Secondary buttons should be elegant and subtle
+- Destructive buttons should be clearly separated
+- Improve height, padding, radius, text weight, hover, active, focus, disabled states
+- Ensure button groups align well and never feel cramped
+- Standardize icon spacing inside buttons if icons exist
+
+4. Inputs / Forms / Filters
+- Improve all form fields, search bars, dropdowns, date filters, and text areas
+- Make label spacing, input height, placeholder style, validation states, and helper text consistent
+- Filters should look clean, compact, powerful, and easy to scan
+- Improve grouping of related controls
+- Forms must feel premium and operationally efficient
+
+5. Cards / Containers
+- Redesign cards to have clean structure and balanced spacing
+- Improve card headers, body spacing, action alignment, and internal dividers
+- Use subtle borders and refined shadows only where useful
+- Cards should feel premium, not generic
+
+6. Tables / Data Display
+- Make admin tables look elite and extremely readable
+- Improve row height, header style, spacing, alignment, sorting/filter visual treatment, hover states
+- Make dense data easier to scan quickly
+- Improve status badge placement and action column layout
+- Make table controls and pagination visually refined
+- Preserve all existing table functionality
+
+7. Status Badges / Tags
+- Redesign status chips/badges so they are clean and easy to understand
+- Use consistent sizing, spacing, font weight, and visual hierarchy
+- Statuses should stand out without looking noisy
+
+8. Navigation / Page Structure
+- Improve top bar, sidebar, tabs, breadcrumbs, and section transitions if they exist
+- Make the overall information architecture feel more premium and intentional
+- Improve page title zones and action areas
+- Keep navigation practical for daily operations use
+
+9. Modals / Drawers / Popups
+- Make modals look premium and structured
+- Improve header, body, footer spacing
+- Improve close button placement and action buttons
+- Make popups feel like part of the same design system
+
+10. Empty / Loading / Feedback States
+- Improve skeleton/loading states, empty states, toasts, alerts, success/error messages
+- Everything should feel polished and consistent with the rest of the admin system
+
+11. Responsiveness
+- Improve responsiveness for desktop first, but also ensure strong tablet and mobile usability
+- Preserve admin productivity on smaller screens
+- Fix broken wrapping, cramped controls, misaligned columns, overflowing text, and awkward spacing
+
+12. Consistency
+- Create a unified design system across the whole admin page
+- Buttons, cards, typography, tables, filters, inputs, spacing, and badges must all feel like one professional product
+- Remove visual inconsistency and “builder-generated” look
+
+EXECUTION RULES:
+- Audit the current admin UI first, then improve it systematically
+- Reuse and clean existing components where possible instead of creating design chaos
+- Consolidate repeated styles into a consistent system
+- Keep code clean, maintainable, and production-grade
+- Preserve all current working logic and connected data
+- If any UI area looks messy or outdated, redesign it to match the new premium system
+- Prioritize polish, alignment, readability, spacing, and professional feel over flashy visuals
+
+TMGINSTALL-SPECIFIC INTENT:
+This admin page is for handling real operational work such as quotes, jobs, customers, statuses, scheduling, payments, and updates.
+The design must support fast decision-making and daily use by a real business.
+It should feel trustworthy, premium, efficient, and “built for serious operations”.
+
+DELIVERABLE:
+Upgrade the overall TMGINSTALL admin page to a fully polished premium admin dashboard UI with best-in-class:
+- buttons
+- typography
+- spacing
+- forms
+- filters
+- cards
+- tables
+- badges
+- modals
+- alignment
+- responsiveness
+- visual hierarchy
+
+Do the redesign directly in the existing admin page codebase without breaking logic.
+
+FINAL QUALITY CHECK BEFORE FINISHING:
+- no broken functionality
+- no duplicated components
+- no random styles
+- no inconsistent spacing
+- no cheap-looking colors or effects
+- no clutter
+- no unreadable tables
+- no awkward button sizes
+- no alignment problems
+- no messy mobile layout
+
+The final result should look like a premium world-class SaaS admin platform for TMGINSTALL.

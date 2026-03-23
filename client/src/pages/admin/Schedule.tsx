@@ -82,20 +82,20 @@ export default function AdminSchedule() {
   const pastBlocked     = sortedBlockedDates.filter(d => d < today);
 
   return (
-    <div className="min-h-screen pt-14 lg:pl-56 bg-[#F5F5F7] pb-20 overflow-x-hidden">
+    <div className="min-h-screen pt-14 pb-16 lg:pl-56 bg-[#F5F5F7] overflow-x-hidden">
 
       {/* ── HEADER BAR ──────────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-          <Link href="/admin" className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors mb-4">
-            <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
+      <div className="bg-white border-b border-zinc-200 px-6 py-5">
+        <div className="max-w-5xl mx-auto">
+          <Link href="/admin" className="inline-flex items-center text-xs text-zinc-400 mb-1 hover:text-zinc-700 transition-colors">
+            Operations → Schedule
           </Link>
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Schedule</h1>
-              <p className="text-gray-400 text-sm mt-1.5">
+              <h1 className="text-xl font-semibold text-zinc-900">Schedule</h1>
+              <p className="text-zinc-500 text-sm mt-1">
                 {pending.length > 0
-                  ? <span className="text-amber-600 font-semibold">{pending.length} booking{pending.length > 1 ? "s" : ""} awaiting confirmation</span>
+                  ? <span className="text-amber-600 font-medium">{pending.length} booking{pending.length > 1 ? "s" : ""} awaiting confirmation</span>
                   : "All bookings confirmed"
                 }
                 {confirmed.length > 0 && ` · ${confirmed.length} upcoming`}
@@ -103,24 +103,24 @@ export default function AdminSchedule() {
             </div>
             <button onClick={() => setShowForm(v => !v)}
               data-testid="button-add-block"
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shrink-0 border ${
+              className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-colors shrink-0 ${
                 showForm
-                  ? "bg-gray-100 text-gray-700 border-gray-300"
-                  : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                  ? "bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
               }`}>
-              {showForm ? <><X className="w-3.5 h-3.5" /> Cancel</> : <><Plus className="w-3.5 h-3.5" /> Block Date</>}
+              {showForm ? <><X className="w-4 h-4" /> Cancel</> : <><Plus className="w-4 h-4" /> Block Date</>}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-8 pt-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* ── BLOCK DATE FORM ──────────────────────────────────── */}
         {showForm && (
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 bg-red-50/50 rounded-t-2xl">
-              <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center">
+          <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-100 bg-red-50/50">
+              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
                 <Ban className="w-4 h-4 text-red-600" />
               </div>
               <div>
@@ -129,39 +129,39 @@ export default function AdminSchedule() {
               </div>
             </div>
             <div className="p-5 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Date *</label>
+                  <label className="block text-xs font-semibold text-zinc-500 mb-1">Date *</label>
                   <input type="date" min={getTodayStr()} value={blockDate}
                     onChange={e => setBlockDate(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-50 outline-none transition-all"
+                    className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     data-testid="input-block-date" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Time Slot</label>
+                  <label className="block text-xs font-semibold text-zinc-500 mb-1">Time Slot</label>
                   <select value={blockSlot} onChange={e => setBlockSlot(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm focus:bg-white focus:border-blue-400 outline-none transition-all"
+                    className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     data-testid="select-block-slot">
                     <option value="all">Full Day (both slots)</option>
                     {TIME_SLOTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Reason (optional)</label>
+                  <label className="block text-xs font-semibold text-zinc-500 mb-1">Reason (optional)</label>
                   <input type="text" value={blockReason} onChange={e => setBlockReason(e.target.value)}
                     placeholder="e.g. Public holiday"
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm focus:bg-white focus:border-blue-400 outline-none transition-all"
+                    className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     data-testid="input-block-reason" />
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-2">
                 <button onClick={handleBlock} disabled={createBlocked.isPending || !blockDate}
-                  className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50"
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
                   data-testid="button-confirm-block">
                   {createBlocked.isPending ? "Blocking…" : "Confirm Block"}
                 </button>
                 <button onClick={() => setShowForm(false)}
-                  className="px-5 py-2.5 border border-gray-200 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-50 transition-all">
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors">
                   Cancel
                 </button>
               </div>
@@ -171,17 +171,17 @@ export default function AdminSchedule() {
 
         {/* ── BLOCKED DATES ────────────────────────────────────── */}
         <section>
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-sm font-semibold text-gray-800">Blocked Dates</h2>
+          <div className="flex items-center justify-between mb-4 border-b border-zinc-100 pb-2">
+            <h2 className="text-sm font-semibold text-zinc-900">Blocked Dates</h2>
             {upcomingBlocked.length > 0 && (
-              <span className="bg-red-100 text-red-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+              <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-700">
                 {upcomingBlocked.length} upcoming
               </span>
             )}
           </div>
 
           {upcomingBlocked.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {upcomingBlocked.map(date => {
                 const slots = blockedByDate[date];
                 const isFullDay = slots.some(s => s.timeSlot === null);
@@ -189,32 +189,32 @@ export default function AdminSchedule() {
                 const mon = format(new Date(date + "T00:00:00"), "MMM");
                 const day = format(new Date(date + "T00:00:00"), "d");
                 return (
-                  <div key={date} className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
-                    <div className="w-12 h-12 bg-red-50 border border-red-100 rounded-xl flex flex-col items-center justify-center text-red-600 shrink-0">
-                      <span className="text-[9px] font-semibold uppercase leading-none">{mon}</span>
-                      <span className="text-xl font-bold leading-tight">{day}</span>
+                  <div key={date} className="bg-white border border-zinc-200 rounded-xl p-4 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-red-50 border border-red-100 rounded-lg flex flex-col items-center justify-center text-red-600 shrink-0">
+                      <span className="text-[10px] font-bold uppercase leading-none">{mon}</span>
+                      <span className="text-lg font-black leading-tight">{day}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-gray-800">{displayDate}</p>
+                      <p className="font-semibold text-sm text-zinc-900">{displayDate}</p>
                       {isFullDay ? (
                         <p className="text-xs text-red-600 font-medium mt-0.5">Full Day Blocked</p>
                       ) : (
-                        <div className="flex flex-wrap gap-1 mt-0.5">
+                        <div className="flex flex-wrap gap-1 mt-1">
                           {slots.map(s => (
-                            <span key={s.id} className="text-xs bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded-full">
+                            <span key={s.id} className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-700">
                               {TIME_SLOTS.find(t => t.value === s.timeSlot)?.label || s.timeSlot}
                             </span>
                           ))}
                         </div>
                       )}
                       {slots[0]?.reason && (
-                        <p className="text-xs text-gray-400 mt-1">"{slots[0].reason}"</p>
+                        <p className="text-xs text-zinc-500 mt-1">"{slots[0].reason}"</p>
                       )}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       {slots.map(s => (
                         <button key={s.id} onClick={() => handleUnblock(s.id)} disabled={deleteBlocked.isPending}
-                          className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                           title="Remove block" data-testid={`button-unblock-${s.id}`}>
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -225,14 +225,14 @@ export default function AdminSchedule() {
               })}
             </div>
           ) : (
-            <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-8 text-center">
-              <Calendar className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-              <p className="text-xs text-gray-400 font-medium">No upcoming blocked dates</p>
+            <div className="bg-white border border-dashed border-zinc-200 rounded-xl p-8 text-center">
+              <Calendar className="w-8 h-8 mx-auto mb-2 text-zinc-300" />
+              <p className="text-sm text-zinc-500 font-medium">No upcoming blocked dates</p>
             </div>
           )}
 
           {pastBlocked.length > 0 && (
-            <p className="text-xs text-slate-400 mt-3 text-center">
+            <p className="text-xs text-zinc-400 mt-4 text-center">
               {pastBlocked.length} past blocked date{pastBlocked.length > 1 ? "s" : ""} not shown
             </p>
           )}
@@ -240,71 +240,71 @@ export default function AdminSchedule() {
 
         {/* ── PENDING CONFIRMATIONS ────────────────────────────── */}
         <section>
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-sm font-semibold text-gray-800">Pending Confirmations</h2>
+          <div className="flex items-center justify-between mb-4 border-b border-zinc-100 pb-2">
+            <h2 className="text-sm font-semibold text-zinc-900">Pending Confirmations</h2>
             {pending.length > 0 && (
-              <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">{pending.length}</span>
+              <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-amber-100 text-amber-700">{pending.length}</span>
             )}
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {pending.map((quote: any) => {
               const scheduledDate = quote.scheduledAt ? format(new Date(quote.scheduledAt), "EEEE, MMM d, yyyy") : "TBD";
               return (
-                <div key={quote.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm"
+                <div key={quote.id} className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm"
                   data-testid={`pending-booking-${quote.id}`}>
-                  <div className="h-1 bg-amber-400 rounded-t-2xl" />
+                  <div className="h-1 bg-amber-400" />
                   <div className="p-5">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="text-xs font-mono font-medium text-gray-400">{quote.referenceNo}</span>
+                        <span className="text-xs font-mono font-medium text-zinc-500">{quote.referenceNo}</span>
                         <StatusBadge status={quote.status} />
                         {quote.rescheduledCount > 0 && (
-                          <span className="text-xs font-medium text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-orange-100 text-orange-700">
                             Reschedule #{quote.rescheduledCount}
                           </span>
                         )}
                       </div>
-                      <h3 className="font-bold text-lg text-gray-900 leading-tight">{quote.customer?.name}</h3>
-                      <div className="mt-2.5 space-y-1.5">
-                        <p className="text-sm flex items-center gap-2 text-gray-500">
-                          <MapPin className="w-3.5 h-3.5 shrink-0 text-gray-400" />{quote.serviceAddress}
+                      <h3 className="font-semibold text-lg text-zinc-900 leading-tight">{quote.customer?.name}</h3>
+                      <div className="mt-3 space-y-2">
+                        <p className="text-sm flex items-center gap-2 text-zinc-600">
+                          <MapPin className="w-4 h-4 shrink-0 text-zinc-400" />{quote.serviceAddress}
                         </p>
-                        <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
-                          <Clock className="w-3.5 h-3.5 shrink-0" />
-                          <span>Requested: <strong>{scheduledDate}</strong> · {quote.timeWindow}</span>
+                        <div className="flex items-center gap-2 text-sm font-medium text-amber-700">
+                          <Clock className="w-4 h-4 shrink-0" />
+                          <span>Requested: <strong className="font-semibold">{scheduledDate}</strong> · {quote.timeWindow}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-2">
+                    <div className="mt-5 grid sm:grid-cols-2 gap-3 border-t border-zinc-100 pt-4">
                       <button onClick={() => handleConfirm(quote.id)} disabled={confirmBooking.isPending}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
                         data-testid={`confirm-booking-${quote.id}`}>
                         <CheckCircle2 className="w-4 h-4" /> Confirm Booking
                       </button>
                       <div className="grid grid-cols-2 gap-2">
                         <a href={`tel:${quote.customer?.phone}`}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-all"
+                          className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors"
                           data-testid={`call-${quote.id}`}>
-                          <Phone className="w-3.5 h-3.5" /> Call
+                          <Phone className="w-4 h-4" /> Call
                         </a>
                         <a href={`https://wa.me/${quote.customer?.phone?.replace(/\D/g, "")}`}
                           target="_blank" rel="noreferrer"
-                          className="flex items-center justify-center gap-1.5 px-3 py-2.5 border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-xl hover:bg-emerald-100 transition-all"
+                          className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-[#25D366] hover:bg-[#20bd5a] text-white text-sm font-medium transition-colors"
                           data-testid={`whatsapp-${quote.id}`}>
-                          <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                          <MessageCircle className="w-4 h-4" /> WhatsApp
                         </a>
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3.5 border-t border-gray-100 flex items-center justify-between">
-                      <span className="text-xs text-gray-400">
-                        {quote.items?.length || 0} items · <span className="font-semibold text-gray-600">${Number(quote.total || 0).toFixed(2)}</span>
+                    <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between">
+                      <span className="text-sm text-zinc-500">
+                        {quote.items?.length || 0} items · <span className="font-semibold text-zinc-900">${Number(quote.total || 0).toFixed(2)}</span>
                       </span>
                       <Link href={`/admin/quotes/${quote.id}`}
-                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors">
-                        View Quote <ChevronRight className="w-3.5 h-3.5" />
+                        className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors">
+                        View Quote <ChevronRight className="w-4 h-4" />
                       </Link>
                     </div>
                   </div>
@@ -312,9 +312,9 @@ export default function AdminSchedule() {
               );
             })}
             {pending.length === 0 && (
-              <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-8 text-center">
-                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                <p className="text-xs text-gray-400 font-medium">No pending booking requests</p>
+              <div className="bg-white border border-dashed border-zinc-200 rounded-xl p-8 text-center">
+                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-zinc-300" />
+                <p className="text-sm text-zinc-500 font-medium">No pending booking requests</p>
               </div>
             )}
           </div>
@@ -322,44 +322,46 @@ export default function AdminSchedule() {
 
         {/* ── CONFIRMED BOOKINGS ───────────────────────────────── */}
         <section>
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-sm font-semibold text-gray-800">Confirmed Schedule</h2>
-            <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">{confirmed.length}</span>
+          <div className="flex items-center justify-between mb-4 border-b border-zinc-100 pb-2">
+            <h2 className="text-sm font-semibold text-zinc-900">Confirmed Schedule</h2>
+            {confirmed.length > 0 && (
+              <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-emerald-100 text-emerald-700">{confirmed.length}</span>
+            )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {confirmed.map((quote: any) => {
               const scheduledDate = quote.scheduledAt ? format(new Date(quote.scheduledAt), "EEE, MMM d, yyyy") : "TBD";
               const mon = quote.scheduledAt ? format(new Date(quote.scheduledAt), "MMM") : "—";
               const day = quote.scheduledAt ? format(new Date(quote.scheduledAt), "d") : "?";
               return (
                 <Link key={quote.id} href={`/admin/quotes/${quote.id}`} data-testid={`confirmed-booking-${quote.id}`}>
-                  <div className="group bg-white border border-gray-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all cursor-pointer flex items-center gap-4">
-                    <div className="w-12 h-12 bg-emerald-50 border border-emerald-100 rounded-xl flex flex-col items-center justify-center text-emerald-700 shrink-0">
-                      <span className="text-[9px] font-semibold uppercase leading-none">{mon}</span>
-                      <span className="text-xl font-bold leading-tight">{day}</span>
+                  <div className="group bg-white border border-zinc-200 rounded-xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all cursor-pointer flex items-center gap-4">
+                    <div className="w-12 h-12 bg-emerald-50 border border-emerald-100 rounded-lg flex flex-col items-center justify-center text-emerald-700 shrink-0">
+                      <span className="text-[10px] font-bold uppercase leading-none">{mon}</span>
+                      <span className="text-lg font-black leading-tight">{day}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                        <p className="font-semibold text-gray-800 group-hover:text-emerald-700 transition-colors">{quote.customer?.name}</p>
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <p className="font-semibold text-zinc-900 group-hover:text-emerald-700 transition-colors">{quote.customer?.name}</p>
                         <StatusBadge status={quote.status} />
                       </div>
-                      <p className="text-xs text-gray-400 truncate">{quote.serviceAddress}</p>
-                      <p className="text-xs font-semibold text-emerald-600 mt-0.5">{scheduledDate} · {quote.timeWindow}</p>
+                      <p className="text-sm text-zinc-500 truncate flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {quote.serviceAddress}</p>
+                      <p className="text-sm font-medium text-emerald-600 mt-1 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {scheduledDate} · {quote.timeWindow}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-sm font-bold text-gray-800">${Number(quote.total || 0).toFixed(0)}</p>
-                      <p className="text-xs text-gray-400">{quote.referenceNo}</p>
+                      <p className="text-sm font-bold text-zinc-900">${Number(quote.total || 0).toFixed(0)}</p>
+                      <p className="text-xs text-zinc-400 font-mono">{quote.referenceNo}</p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-emerald-500 transition-colors shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-emerald-500 transition-colors shrink-0" />
                   </div>
                 </Link>
               );
             })}
             {confirmed.length === 0 && (
-              <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-8 text-center">
-                <Calendar className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                <p className="text-xs text-gray-400 font-medium">No confirmed bookings yet</p>
+              <div className="bg-white border border-dashed border-zinc-200 rounded-xl p-8 text-center">
+                <Calendar className="w-8 h-8 mx-auto mb-2 text-zinc-300" />
+                <p className="text-sm text-zinc-500 font-medium">No confirmed bookings yet</p>
               </div>
             )}
           </div>

@@ -137,57 +137,59 @@ export default function AdminSettings() {
 
   return (
     <div className="min-h-screen bg-[#F5F5F7] pt-14 lg:pl-56 pb-24">
-      <div className="bg-white border-b border-gray-200 mb-6">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5">
-          <p className="text-xs font-medium text-gray-400 mb-1">Management</p>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Settings</h1>
+      <div className="bg-white border-b border-zinc-200 px-6 py-5 mb-6">
+        <div className="max-w-2xl mx-auto">
+          <p className="text-xs text-zinc-400 mb-1">Management → Settings</p>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">Settings</h1>
+          <p className="text-sm text-zinc-500 mt-1">Configure integrations and app behavior</p>
         </div>
       </div>
-    <div className="max-w-2xl mx-auto px-4 pb-8 space-y-6">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 pb-8 space-y-6">
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-green-600" />
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+            <MessageSquare className="h-4 w-4 text-emerald-600" />
             WhatsApp Access Token
-            {tokenStatus && (
-              <span
-                data-testid="badge-token-status"
-                className={`ml-auto text-xs font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${
-                  tokenStatus.status === "ok"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-red-100 text-red-700"
-                }`}
-              >
-                {tokenStatus.status === "ok"
-                  ? <CheckCircle className="w-3.5 h-3.5" />
-                  : <XCircle className="w-3.5 h-3.5" />}
-                {tokenStatus.status === "ok" ? "Token OK" : "Token Invalid"}
-              </span>
-            )}
-          </CardTitle>
-          <CardDescription>
+          </h2>
+          {tokenStatus && (
+            <span
+              data-testid="badge-token-status"
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                tokenStatus.status === "ok"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-red-100 text-red-700"
+              }`}
+            >
+              {tokenStatus.status === "ok"
+                ? <CheckCircle className="w-3 h-3" />
+                : <XCircle className="w-3 h-3" />}
+              {tokenStatus.status === "ok" ? "Token OK" : "Token Invalid"}
+            </span>
+          )}
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-sm text-zinc-500 mb-2">
             {tokenStatus && tokenStatus.status !== "ok" ? (
               <span className="text-red-600 font-medium">{tokenStatus.message}</span>
             ) : tokenStatus ? (
-              <span className="text-green-700">{tokenStatus.message}</span>
+              <span className="text-emerald-700 font-medium">{tokenStatus.message}</span>
             ) : (
               "Checking token status…"
             )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+
           {(tokenStatus?.status === "expired" || tokenStatus?.status === "invalid") && (
-            <div data-testid="alert-token-expired" className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-md px-3 py-2.5 text-sm text-red-800">
+            <div data-testid="alert-token-expired" className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
               <div>
-                <strong>Bot is offline.</strong> The current token is {tokenStatus.status}. Customers messaging +65 8088 0757 will not get any replies until you paste a new System User token below.
+                <strong className="font-semibold">Bot is offline.</strong> The current token is {tokenStatus.status}. Customers messaging +65 8088 0757 will not get any replies until you paste a new System User token below.
               </div>
             </div>
           )}
 
           <div className="space-y-1">
-            <Label htmlFor="wa-token">New Access Token</Label>
+            <Label htmlFor="wa-token" className="text-xs text-zinc-500">New Access Token</Label>
             <Textarea
               id="wa-token"
               data-testid="input-whatsapp-token"
@@ -195,113 +197,110 @@ export default function AdminSettings() {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               rows={4}
-              className="font-mono text-xs"
+              className="font-mono text-xs w-full p-3 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             />
           </div>
 
-          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3 text-sm text-amber-800 dark:text-amber-200">
-            <strong>Use a permanent System User token (never expires):</strong>
-            <ol className="list-decimal ml-4 mt-1 space-y-1">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+            <strong className="font-semibold">Use a permanent System User token (never expires):</strong>
+            <ol className="list-decimal ml-4 mt-1 space-y-1 text-amber-700">
               <li>Go to <strong>business.facebook.com</strong> → Settings → System Users</li>
               <li>Select <strong>TMG Install Bot</strong></li>
               <li>Click <strong>"Generate new token"</strong> → select the TMG Install WA app</li>
-              <li>Grant <code>whatsapp_business_messaging</code> + <code>whatsapp_business_management</code></li>
+              <li>Grant <code className="bg-amber-100 px-1 py-0.5 rounded text-[11px] font-mono">whatsapp_business_messaging</code> and <code className="bg-amber-100 px-1 py-0.5 rounded text-[11px] font-mono">whatsapp_business_management</code></li>
               <li>Copy the token, paste it above and click Update</li>
             </ol>
           </div>
 
-          <Button
+          <button
             data-testid="button-update-whatsapp-token"
             onClick={() => updateToken.mutate()}
             disabled={updateToken.isPending || token.trim().length < 20}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
           >
             {updateToken.isPending ? (
-              <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Updating…</>
+              <><RefreshCw className="h-4 w-4 animate-spin" /> Updating…</>
             ) : (
-              <><CheckCircle className="h-4 w-4 mr-2" /> Update Token</>
+              <><CheckCircle className="h-4 w-4" /> Update Token</>
             )}
-          </Button>
-        </CardContent>
-      </Card>
+          </button>
+        </div>
+      </div>
 
       {/* Activate Webhook — Subscribe WABA */}
-      <Card className="border-green-300 dark:border-green-700">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-emerald-600" />
             Activate WhatsApp Chatbot
-          </CardTitle>
-          <CardDescription>
+          </h2>
+          <p className="text-xs text-zinc-500 mt-1">
             This links your WhatsApp Business Account to the bot so incoming messages are forwarded to the server. Do this once after setting the token.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md p-3 text-sm text-green-800 dark:text-green-200">
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-800">
             Click this button to subscribe WABA <strong>2118758868886697</strong> to the app webhook. This is required for the bot to reply to customers.
           </div>
-          <Button
+          <button
             data-testid="button-subscribe-waba"
             onClick={() => subscribeWaba.mutate()}
             disabled={subscribeWaba.isPending}
-            className="bg-green-600 hover:bg-green-700 text-white w-full"
+            className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors w-full disabled:opacity-50"
           >
             {subscribeWaba.isPending ? (
-              <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Subscribing…</>
+              <><RefreshCw className="h-4 w-4 animate-spin" /> Subscribing…</>
             ) : (
-              <><CheckCircle className="h-4 w-4 mr-2" /> Subscribe WABA to Webhook (Activate Bot)</>
+              <><CheckCircle className="h-4 w-4" /> Subscribe WABA to Webhook (Activate Bot)</>
             )}
-          </Button>
-        </CardContent>
-      </Card>
+          </button>
+        </div>
+      </div>
 
       {/* WhatsApp Number Registration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Phone className="h-5 w-5 text-green-600" />
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+            <Phone className="h-4 w-4 text-blue-600" />
             Register WhatsApp Number
-          </CardTitle>
-          <CardDescription>
-            +65 8088 0757 shows as "Pending" in Meta. Use this to complete the registration — it sends
-            a verification SMS to the SIM, then you enter the code to activate the number.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3 text-sm text-amber-800 dark:text-amber-200">
+          </h2>
+          <p className="text-xs text-zinc-500 mt-1">
+            +65 8088 0757 shows as "Pending" in Meta. Use this to complete the registration — it sends a verification SMS to the SIM, then you enter the code to activate the number.
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
             Make sure you have updated the Access Token above first before doing this.
           </div>
 
           <div className="flex flex-col gap-3">
-            <Button
+            <button
               data-testid="button-request-wa-sms"
               onClick={() => requestCode.mutate("SMS")}
               disabled={requestCode.isPending}
-              variant="outline"
-              className="w-full border-green-300 text-green-700 hover:bg-green-50"
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors w-full disabled:opacity-50"
             >
               {requestCode.isPending
-                ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Sending…</>
-                : <><Phone className="h-4 w-4 mr-2" /> Send verification SMS to +65 8088 0757</>
+                ? <><RefreshCw className="h-4 w-4 animate-spin" /> Sending…</>
+                : <><Phone className="h-4 w-4" /> Send verification SMS to +65 8088 0757</>
               }
-            </Button>
+            </button>
 
-            <Button
+            <button
               data-testid="button-request-wa-voice"
               onClick={() => requestCode.mutate("VOICE")}
               disabled={requestCode.isPending}
-              variant="outline"
-              className="w-full border-slate-300 text-slate-600 hover:bg-slate-50 text-sm"
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50 text-sm font-medium transition-colors w-full disabled:opacity-50"
             >
               {requestCode.isPending
-                ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Calling…</>
-                : <><Phone className="h-4 w-4 mr-2" /> Try voice call instead</>
+                ? <><RefreshCw className="h-4 w-4 animate-spin" /> Calling…</>
+                : <><Phone className="h-4 w-4" /> Try voice call instead</>
               }
-            </Button>
+            </button>
 
             {smsSent && (
-              <div className="space-y-2">
-                <Label htmlFor="otp-code">Enter the 6-digit code from the SMS / voice call</Label>
+              <div className="space-y-2 mt-2">
+                <Label htmlFor="otp-code" className="text-xs text-zinc-500">Enter the 6-digit code from the SMS / voice call</Label>
                 <div className="flex gap-2">
                   <Input
                     id="otp-code"
@@ -310,41 +309,40 @@ export default function AdminSettings() {
                     value={otpCode}
                     onChange={e => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     maxLength={6}
-                    className="font-mono text-lg tracking-widest text-center"
+                    className="h-9 font-mono text-lg tracking-widest text-center flex-1"
                   />
-                  <Button
+                  <button
                     data-testid="button-verify-wa-code"
                     onClick={() => verifyCode.mutate()}
                     disabled={verifyCode.isPending || otpCode.length < 6}
-                    className="bg-green-600 hover:bg-green-700 text-white shrink-0"
+                    className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50 shrink-0"
                   >
                     {verifyCode.isPending
                       ? <RefreshCw className="h-4 w-4 animate-spin" />
                       : <CheckCircle className="h-4 w-4" />
                     }
-                  </Button>
+                  </button>
                 </div>
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Direct Register with PIN */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-emerald-600" />
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-emerald-600" />
             Direct Register (set PIN)
-          </CardTitle>
-          <CardDescription>
-            If the SMS/voice method gives "Request code error", use this instead. Set any 6-digit PIN
-            — this registers +65 8088 0757 directly on the WhatsApp Business API.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </h2>
+          <p className="text-xs text-zinc-500 mt-1">
+            If the SMS/voice method gives "Request code error", use this instead. Set any 6-digit PIN — this registers +65 8088 0757 directly on the WhatsApp Business API.
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="direct-pin">Choose a 6-digit PIN (you'll need this for 2FA)</Label>
+            <Label htmlFor="direct-pin" className="text-xs text-zinc-500">Choose a 6-digit PIN (you'll need this for 2FA)</Label>
             <div className="flex gap-2">
               <Input
                 id="direct-pin"
@@ -353,48 +351,50 @@ export default function AdminSettings() {
                 value={directPin}
                 onChange={e => setDirectPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 maxLength={6}
-                className="font-mono text-lg tracking-widest text-center"
+                className="h-9 font-mono text-lg tracking-widest text-center flex-1"
               />
-              <Button
+              <button
                 data-testid="button-register-direct"
                 onClick={() => registerDirect.mutate()}
                 disabled={registerDirect.isPending || directPin.length !== 6}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50 shrink-0"
               >
                 {registerDirect.isPending
                   ? <RefreshCw className="h-4 w-4 animate-spin" />
                   : <CheckCircle className="h-4 w-4" />
                 }
-              </Button>
+              </button>
             </div>
-            <p className="text-xs text-slate-500">Write down this PIN — Meta may ask for it later for account verification.</p>
+            <p className="text-xs text-zinc-500">Write down this PIN — Meta may ask for it later for account verification.</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card className="border-blue-200 dark:border-blue-800">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5 text-blue-600" />
-            Staff App Version
-            <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 px-2.5 py-1 rounded-full">
-              <Zap className="w-3 h-3" /> Auto-managed
-            </span>
-          </CardTitle>
-          <CardDescription>
-            The app version updates automatically every time a new build completes on GitHub Actions — no manual action needed.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+              <Smartphone className="h-4 w-4 text-blue-600" />
+              Staff App Version
+            </h2>
+            <p className="text-xs text-zinc-500 mt-1">
+              The app version updates automatically every time a new build completes on GitHub Actions.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md">
+            <Zap className="w-3 h-3" /> Auto-managed
+          </span>
+        </div>
+        <div className="p-5 space-y-4">
 
           {/* Current version status */}
-          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-700 rounded-xl p-4">
+          <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Live on all staff phones</span>
+                <span className="text-sm font-semibold text-zinc-800">Live on all staff phones</span>
               </div>
-              <span className="text-xl font-black text-blue-700 dark:text-blue-300" data-testid="text-current-version">
+              <span className="text-xl font-bold text-zinc-900" data-testid="text-current-version">
                 {currentAppVersion?.version
                   ? (currentAppVersion.version.startsWith("v") ? currentAppVersion.version : `v${currentAppVersion.version}`)
                   : "—"}
@@ -405,7 +405,7 @@ export default function AdminSettings() {
                 href={currentAppVersion.apkUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline break-all"
               >
                 <ExternalLink className="w-3 h-3 shrink-0" />
                 Download latest APK
@@ -414,10 +414,10 @@ export default function AdminSettings() {
           </div>
 
           {/* How it works */}
-          <div className="flex items-start gap-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5">
-            <GitBranch className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
-            <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-              <strong className="text-slate-800 dark:text-slate-200">How auto-update works:</strong><br />
+          <div className="flex items-start gap-3 bg-white border border-zinc-200 rounded-lg p-3.5">
+            <GitBranch className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
+            <div className="text-xs text-zinc-600 leading-relaxed">
+              <strong className="text-zinc-900 font-semibold">How auto-update works:</strong><br />
               Each GitHub Actions build automatically notifies this server when it completes.
               The version number and APK URL are updated instantly — staff phones show the update
               banner within minutes, no admin action required.
@@ -428,130 +428,131 @@ export default function AdminSettings() {
           <button
             type="button"
             onClick={() => setShowManualOverride(v => !v)}
-            className="w-full flex items-center justify-between text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 py-1 transition-colors"
+            className="w-full flex items-center justify-between text-xs font-semibold text-zinc-500 hover:text-zinc-700 py-1 transition-colors"
           >
             <span>Emergency manual override</span>
             {showManualOverride ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
 
           {showManualOverride && (
-            <div className="space-y-3 border border-amber-200 dark:border-amber-800 rounded-xl p-4 bg-amber-50 dark:bg-amber-950">
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                Only use this if the auto-update webhook failed. Version must match the format baked into the APK (e.g. <code className="font-mono bg-amber-100 dark:bg-amber-900 px-1 rounded">v1.0.91</code>).
+            <div className="space-y-3 border border-amber-200 rounded-lg p-4 bg-amber-50 mt-2">
+              <p className="text-xs text-amber-800 font-medium">
+                Only use this if the auto-update webhook failed. Version must match the format baked into the APK (e.g. <code className="font-mono bg-amber-100 px-1 rounded">v1.0.91</code>).
               </p>
               <div className="space-y-1">
-                <Label htmlFor="app-version" className="text-xs">Version (e.g. v1.0.92)</Label>
+                <Label htmlFor="app-version" className="text-xs text-amber-900">Version (e.g. v1.0.92)</Label>
                 <Input
                   id="app-version"
                   data-testid="input-app-version"
                   placeholder="v1.0.92"
                   value={newVersion}
                   onChange={(e) => setNewVersion(e.target.value)}
-                  className="h-9 text-sm font-mono"
+                  className="h-9 text-sm font-mono bg-white"
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="apk-url" className="text-xs">APK Download URL</Label>
+                <Label htmlFor="apk-url" className="text-xs text-amber-900">APK Download URL</Label>
                 <Input
                   id="apk-url"
                   data-testid="input-apk-url"
                   placeholder="https://github.com/.../tmg-install.apk"
                   value={apkUrl}
                   onChange={(e) => setApkUrl(e.target.value)}
-                  className="h-9 text-sm"
+                  className="h-9 text-sm bg-white"
                 />
               </div>
-              <Button
+              <button
                 data-testid="button-update-app-version"
                 onClick={() => updateAppVersion.mutate()}
                 disabled={updateAppVersion.isPending || !newVersion.trim() || !apkUrl.trim()}
-                className="w-full bg-amber-600 hover:bg-amber-700 text-white"
-                size="sm"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition-colors w-full disabled:opacity-50"
               >
                 {updateAppVersion.isPending ? (
-                  <><RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" /> Updating…</>
+                  <><RefreshCw className="h-4 w-4 animate-spin" /> Updating…</>
                 ) : (
-                  <><CheckCircle className="h-3.5 w-3.5 mr-2" /> Force Publish</>
+                  <><CheckCircle className="h-4 w-4" /> Force Publish</>
                 )}
-              </Button>
+              </button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
       {/* Promo Campaign Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Tag className="h-5 w-5 text-amber-500" />
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+            <Tag className="h-4 w-4 text-amber-500" />
             Promo Campaign
-          </CardTitle>
-          <CardDescription>
+          </h2>
+          <p className="text-xs text-zinc-500 mt-1">
             Manage discount codes shown in the announcement bar and estimate wizard.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
           {promoLoading ? (
-            <p className="text-sm text-gray-500">Loading…</p>
+            <p className="text-sm text-zinc-500">Loading…</p>
           ) : !promoCodes?.length ? (
-            <p className="text-sm text-gray-500">No promo codes found.</p>
+            <p className="text-sm text-zinc-500">No promo codes found.</p>
           ) : (
             promoCodes.map(p => (
-              <div key={p.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
+              <div key={p.id} className="border border-zinc-200 rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-sm tracking-widest text-black">{p.code}</span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                      <span className="font-mono font-bold text-sm tracking-widest text-zinc-900">{p.code}</span>
+                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${p.active ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-500"}`}>
                         {p.active ? "Active" : "Inactive"}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-zinc-500 mt-1">
                       ${parseFloat(p.discountAmount).toFixed(0)} OFF · {p.usesCount} / {p.maxUses} used · {Math.max(0, p.maxUses - p.usesCount)} slots remaining
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
+                    <button
                       onClick={() => resetPromo.mutate(p.id)}
                       disabled={resetPromo.isPending}
                       data-testid={`promo-reset-${p.id}`}
                       title="Reset usage count to 0"
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors disabled:opacity-50"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={p.active ? "default" : "outline"}
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
+                    <button
                       onClick={() => togglePromo.mutate(p.id)}
                       disabled={togglePromo.isPending}
                       data-testid={`promo-toggle-${p.id}`}
+                      className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
+                        p.active 
+                          ? "bg-zinc-100 text-zinc-700 hover:bg-zinc-200" 
+                          : "bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                      }`}
                     >
                       {p.active ? (
-                        <><ToggleRight className="h-3.5 w-3.5 mr-1" /> Pause</>
+                        <><ToggleRight className="h-4 w-4" /> Pause</>
                       ) : (
-                        <><ToggleLeft className="h-3.5 w-3.5 mr-1" /> Activate</>
+                        <><ToggleLeft className="h-4 w-4" /> Activate</>
                       )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
+                    </button>
+                    <button
                       onClick={() => setEditingPromo({ code: p.code, discount: parseFloat(p.discountAmount), maxUses: p.maxUses })}
+                      className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs font-medium transition-colors"
                     >
                       Edit
-                    </Button>
+                    </button>
                   </div>
                 </div>
 
                 {/* Progress bar */}
                 <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-gray-400">
+                  <div className="flex justify-between text-[11px] font-medium text-zinc-500">
                     <span>Slots used</span>
                     <span>{p.usesCount} / {p.maxUses}</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div className="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden">
                     <div
-                      className="bg-amber-500 h-2 rounded-full transition-all"
+                      className="bg-amber-500 h-full rounded-full transition-all"
                       style={{ width: `${Math.min(100, (p.usesCount / p.maxUses) * 100)}%` }}
                     />
                   </div>
@@ -562,64 +563,70 @@ export default function AdminSettings() {
 
           {/* Edit form */}
           {editingPromo && (
-            <div className="border border-amber-200 rounded-xl p-4 bg-amber-50 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-amber-700">Edit Promo Code</p>
+            <div className="border border-amber-200 rounded-lg p-4 bg-amber-50 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-800">Edit Promo Code</p>
               <div className="grid sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <Label>Code</Label>
+                  <Label className="text-xs text-amber-900">Code</Label>
                   <Input
                     value={editingPromo.code}
                     onChange={e => setEditingPromo(p => p ? { ...p, code: e.target.value.toUpperCase() } : p)}
-                    className="font-mono uppercase"
+                    className="h-9 font-mono uppercase bg-white border-amber-300 focus:border-amber-500 focus:ring-amber-500"
                     data-testid="promo-edit-code"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Discount (SGD)</Label>
+                  <Label className="text-xs text-amber-900">Discount (SGD)</Label>
                   <Input
                     type="number"
                     value={editingPromo.discount}
                     onChange={e => setEditingPromo(p => p ? { ...p, discount: parseFloat(e.target.value) || 0 } : p)}
+                    className="h-9 bg-white border-amber-300 focus:border-amber-500 focus:ring-amber-500"
                     data-testid="promo-edit-discount"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Max Uses</Label>
+                  <Label className="text-xs text-amber-900">Max Uses</Label>
                   <Input
                     type="number"
                     value={editingPromo.maxUses}
                     onChange={e => setEditingPromo(p => p ? { ...p, maxUses: parseInt(e.target.value) || 100 } : p)}
+                    className="h-9 bg-white border-amber-300 focus:border-amber-500 focus:ring-amber-500"
                     data-testid="promo-edit-max-uses"
                   />
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
+              <div className="flex gap-2 pt-2">
+                <button
                   onClick={() => upsertPromo.mutate({ code: editingPromo.code, discountAmount: editingPromo.discount, maxUses: editingPromo.maxUses, active: true })}
                   disabled={upsertPromo.isPending}
+                  className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
                   data-testid="promo-save"
                 >
                   {upsertPromo.isPending ? "Saving…" : "Save Changes"}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setEditingPromo(null)}>Cancel</Button>
+                </button>
+                <button 
+                  onClick={() => setEditingPromo(null)}
+                  className="inline-flex items-center justify-center h-9 px-4 rounded-lg text-amber-800 hover:bg-amber-100 text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           )}
 
           {/* Add new promo */}
           {!editingPromo && (
-            <Button
-              size="sm"
-              variant="outline"
+            <button
               onClick={() => setEditingPromo({ code: "", discount: 50, maxUses: 100 })}
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors"
               data-testid="promo-add-new"
             >
               + Add Promo Code
-            </Button>
+            </button>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
     </div>
     </div>

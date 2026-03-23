@@ -197,6 +197,22 @@
   .card-elevated {
     @apply bg-white rounded-2xl shadow-md border border-border/50;
   }
+
+  .admin-page-header {
+    @apply bg-white border-b border-zinc-200 px-6 py-5;
+  }
+
+  .admin-content {
+    @apply max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6;
+  }
+
+  .admin-card {
+    @apply bg-white border border-zinc-200 rounded-xl overflow-hidden;
+  }
+
+  .admin-table-wrapper {
+    @apply w-full border-collapse;
+  }
 }
 
 /* ── Marquee animation ── */

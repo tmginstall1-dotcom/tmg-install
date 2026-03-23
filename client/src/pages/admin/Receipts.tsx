@@ -24,14 +24,16 @@ const MONTHS = [
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    pending:  "bg-amber-100 text-amber-700 border-amber-200",
-    approved: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    rejected: "bg-red-100 text-red-700 border-red-200",
+    pending:  "bg-amber-50 text-amber-700",
+    approved: "bg-emerald-50 text-emerald-700",
+    rejected: "bg-red-50 text-red-700",
   };
-  const icon = status === "approved" ? "✓ " : status === "rejected" ? "✗ " : "⏱ ";
+  const labels: Record<string, string> = {
+    pending: "Pending", approved: "Approved", rejected: "Rejected",
+  };
   return (
-    <span className={`inline-flex items-center text-[10px] font-black px-2 py-0.5 rounded-full border uppercase tracking-wider ${map[status] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
-      {icon}{status}
+    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${map[status] || "bg-zinc-100 text-zinc-600"}`}>
+      {labels[status] || status}
     </span>
   );
 }
@@ -203,269 +205,267 @@ export default function AdminReceipts() {
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7]">
-      <div className="lg:pl-56">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 pb-24 lg:pb-8">
+    <div className="min-h-screen bg-[#F5F5F7] pt-14 lg:pl-56 pb-24">
+      {/* Page Header */}
+      <div className="bg-white border-b border-zinc-200 px-6 py-5 mb-6">
+        <div className="max-w-5xl mx-auto">
+          <p className="text-xs text-zinc-400 mb-1">Management → Receipts</p>
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">Staff Receipts</h1>
+          <p className="text-sm text-zinc-500 mt-1">Review and download expense receipts submitted by staff</p>
+        </div>
+      </div>
 
-          {/* Page Header */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-              <Receipt className="w-6 h-6 text-blue-600" />
-              Staff Receipts
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">Review and download expense receipts submitted by staff</p>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-6">
+
+        {/* Summary cards */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white border border-zinc-200 rounded-xl p-5">
+            <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">Pending Review</p>
+            <p className="text-2xl font-bold text-amber-600 leading-none">{pendingCount}</p>
           </div>
-
-          {/* Summary cards */}
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pending Review</p>
-              <p className="text-2xl font-black text-amber-600 mt-1">{pendingCount}</p>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Submitted</p>
-              <p className="text-xl font-black text-slate-800 mt-1">S${totalAmount.toFixed(2)}</p>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Approved</p>
-              <p className="text-xl font-black text-emerald-600 mt-1">S${approvedAmount.toFixed(2)}</p>
-            </div>
+          <div className="bg-white border border-zinc-200 rounded-xl p-5">
+            <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">Total Submitted</p>
+            <p className="text-2xl font-bold text-zinc-900 leading-none">S${totalAmount.toFixed(2)}</p>
           </div>
+          <div className="bg-white border border-zinc-200 rounded-xl p-5">
+            <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">Approved</p>
+            <p className="text-2xl font-bold text-emerald-600 leading-none">S${approvedAmount.toFixed(2)}</p>
+          </div>
+        </div>
 
-          {/* Filters */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm mb-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Filter className="w-4 h-4 text-slate-400" />
-              <p className="text-sm font-bold text-slate-700">Filter</p>
+        {/* Filters */}
+        <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-zinc-100 flex items-center gap-2">
+            <Filter className="w-4 h-4 text-zinc-400" />
+            <h2 className="text-sm font-semibold text-zinc-900">Filter</h2>
+          </div>
+          <div className="p-5 flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[150px]">
+              <label className="text-xs text-zinc-500 block mb-1">Year</label>
+              <select
+                value={filterYear}
+                onChange={e => setFilterYear(e.target.value)}
+                data-testid="select-filter-year"
+                className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              >
+                <option value="">All years</option>
+                {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">Year</label>
-                <select
-                  value={filterYear}
-                  onChange={e => setFilterYear(e.target.value)}
-                  data-testid="select-filter-year"
-                  className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            <div className="flex-1 min-w-[150px]">
+              <label className="text-xs text-zinc-500 block mb-1">Month</label>
+              <select
+                value={filterMonth}
+                onChange={e => setFilterMonth(e.target.value)}
+                data-testid="select-filter-month"
+                className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              >
+                <option value="">All months</option>
+                {MONTHS.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+              </select>
+            </div>
+            <div className="flex-1 min-w-[150px]">
+              <label className="text-xs text-zinc-500 block mb-1">Day</label>
+              <select
+                value={filterDay}
+                onChange={e => setFilterDay(e.target.value)}
+                data-testid="select-filter-day"
+                className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              >
+                <option value="">All days</option>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            {(filterYear || filterMonth || filterDay) && (
+              <div className="flex items-end">
+                <button
+                  onClick={() => { setFilterYear(""); setFilterMonth(""); setFilterDay(""); }}
+                  className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors"
                 >
-                  <option value="">All years</option>
-                  {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
+                  Clear filters
+                </button>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">Month</label>
-                <select
-                  value={filterMonth}
-                  onChange={e => setFilterMonth(e.target.value)}
-                  data-testid="select-filter-month"
-                  className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                  <option value="">All months</option>
-                  {MONTHS.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">Day</label>
-                <select
-                  value={filterDay}
-                  onChange={e => setFilterDay(e.target.value)}
-                  data-testid="select-filter-day"
-                  className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                  <option value="">All days</option>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
-              {(filterYear || filterMonth || filterDay) && (
-                <div className="flex items-end">
-                  <button
-                    onClick={() => { setFilterYear(""); setFilterMonth(""); setFilterDay(""); }}
-                    className="px-3 py-2 text-xs font-bold text-slate-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-                  >
-                    Clear filters
-                  </button>
+            )}
+          </div>
+        </div>
+
+        {/* Loading */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-16 gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+            <p className="text-sm text-zinc-500">Loading receipts…</p>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!isLoading && allReceipts.length === 0 && (
+          <div className="text-center py-20 bg-white border border-dashed border-zinc-200 rounded-xl">
+            <Receipt className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
+            <p className="font-semibold text-zinc-900">No receipts found</p>
+            <p className="text-sm text-zinc-500 mt-1">Try adjusting the filters or wait for staff to submit receipts</p>
+          </div>
+        )}
+
+        {/* Receipts grouped by month */}
+        {months.map(month => {
+          const label = (() => { try { return format(parseISO(month + "-01"), "MMMM yyyy"); } catch { return month; } })();
+          const monthTotal = grouped[month].reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
+          const monthApproved = grouped[month]
+            .filter((r: any) => r.status === "approved")
+            .reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
+          const monthPending = grouped[month].filter((r: any) => r.status === "pending").length;
+
+          return (
+            <div key={month} className="bg-white border border-zinc-200 rounded-xl overflow-hidden mb-6">
+              {/* Month header */}
+              <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-zinc-900 tracking-wider">{label}</h2>
+                  {monthPending > 0 && (
+                    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-amber-100 text-amber-700">
+                      {monthPending} pending
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Loading */}
-          {isLoading && (
-            <div className="flex items-center justify-center py-16 gap-3">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-              <p className="text-sm text-slate-500">Loading receipts…</p>
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!isLoading && allReceipts.length === 0 && (
-            <div className="text-center py-20 bg-white border border-gray-200 rounded-2xl">
-              <Receipt className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="font-bold text-slate-500">No receipts found</p>
-              <p className="text-sm text-slate-400 mt-1">Try adjusting the filters or wait for staff to submit receipts</p>
-            </div>
-          )}
-
-          {/* Receipts grouped by month */}
-          {months.map(month => {
-            const label = (() => { try { return format(parseISO(month + "-01"), "MMMM yyyy"); } catch { return month; } })();
-            const monthTotal = grouped[month].reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
-            const monthApproved = grouped[month]
-              .filter((r: any) => r.status === "approved")
-              .reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
-            const monthPending = grouped[month].filter((r: any) => r.status === "pending").length;
-
-            return (
-              <div key={month} className="mb-6">
-                {/* Month header */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-black text-slate-700 uppercase tracking-wider">{label}</h2>
-                    {monthPending > 0 && (
-                      <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-black rounded-full uppercase">
-                        {monthPending} pending
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-400">Total: <span className="font-bold text-slate-600">S${monthTotal.toFixed(2)}</span></p>
-                    <p className="text-xs text-slate-400">Approved: <span className="font-bold text-emerald-600">S${monthApproved.toFixed(2)}</span></p>
-                  </div>
+                <div className="text-right flex items-center gap-4">
+                  <p className="text-xs text-zinc-500">Total: <span className="font-bold text-zinc-900">S${monthTotal.toFixed(2)}</span></p>
+                  <p className="text-xs text-zinc-500">Approved: <span className="font-bold text-emerald-600">S${monthApproved.toFixed(2)}</span></p>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  {grouped[month].map((receipt: any) => {
-                    const cat = RECEIPT_CATEGORIES.find(c => c.value === receipt.category);
-                    const isExpanded = expandedId === receipt.id;
-                    const isReviewing = reviewingId === receipt.id;
+              <div className="divide-y divide-zinc-100">
+                {grouped[month].map((receipt: any) => {
+                  const cat = RECEIPT_CATEGORIES.find(c => c.value === receipt.category);
+                  const isExpanded = expandedId === receipt.id;
+                  const isReviewing = reviewingId === receipt.id;
 
-                    return (
-                      <div
-                        key={receipt.id}
-                        data-testid={`receipt-row-${receipt.id}`}
-                        className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
-                      >
-                        {/* Main row */}
-                        <div className="flex items-center gap-3 p-4">
-                          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-lg shrink-0">
-                            {cat?.emoji || "📎"}
+                  return (
+                    <div
+                      key={receipt.id}
+                      data-testid={`receipt-row-${receipt.id}`}
+                      className="bg-white"
+                    >
+                      {/* Main row */}
+                      <div className="flex items-center gap-4 p-4 hover:bg-zinc-50 transition-colors">
+                        <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-lg shrink-0">
+                          {cat?.emoji || "📎"}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <p className="font-bold text-sm text-zinc-900">S${parseFloat(receipt.amount).toFixed(2)}</p>
+                            <p className="text-xs text-zinc-500 font-medium">{receipt.user?.name || "Unknown"}</p>
+                            <StatusBadge status={receipt.status} />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-black text-sm text-slate-800">S${parseFloat(receipt.amount).toFixed(2)}</p>
-                              <p className="text-xs text-slate-500">{receipt.user?.name || "Unknown"}</p>
-                              <StatusBadge status={receipt.status} />
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <span className="text-xs text-slate-400">{receipt.receiptDate}</span>
-                              <span className="text-xs text-slate-400">·</span>
-                              <span className="text-xs text-slate-500">{cat?.label || receipt.category}</span>
-                              {receipt.description && (
-                                <>
-                                  <span className="text-xs text-slate-400">·</span>
-                                  <span className="text-xs text-slate-500 truncate max-w-[150px]">{receipt.description}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Actions */}
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              onClick={() => handleDownload(receipt)}
-                              disabled={downloadingId === receipt.id}
-                              data-testid={`button-download-receipt-${receipt.id}`}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors disabled:opacity-50"
-                              title="Download as PDF"
-                            >
-                              {downloadingId === receipt.id
-                                ? <Loader2 className="w-4 h-4 animate-spin" />
-                                : <Download className="w-4 h-4" />}
-                            </button>
-                            {receipt.status === "pending" && (
+                          <div className="flex items-center gap-2 flex-wrap text-xs text-zinc-500">
+                            <span>{receipt.receiptDate}</span>
+                            <span>·</span>
+                            <span>{cat?.label || receipt.category}</span>
+                            {receipt.description && (
                               <>
-                                <button
-                                  onClick={() => { setReviewingId(receipt.id); setAdminNote(""); }}
-                                  data-testid={`button-review-receipt-${receipt.id}`}
-                                  className="p-2 text-slate-500 hover:bg-gray-50 rounded-xl transition-colors"
-                                  title="Review"
-                                >
-                                  <AlertCircle className="w-4 h-4" />
-                                </button>
+                                <span>·</span>
+                                <span className="truncate max-w-[200px]">{receipt.description}</span>
                               </>
                             )}
-                            <button
-                              onClick={() => setExpandedId(isExpanded ? null : receipt.id)}
-                              data-testid={`button-expand-receipt-${receipt.id}`}
-                              className="p-2 text-slate-400 hover:bg-gray-50 rounded-xl transition-colors"
-                            >
-                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                            </button>
                           </div>
                         </div>
 
-                        {/* Expanded detail */}
-                        {isExpanded && (
-                          <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
-                            {receipt.adminNote && (
-                              <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                                <p className="text-xs font-bold text-slate-500 mb-0.5">Admin Note</p>
-                                <p className="text-sm text-slate-700">{receipt.adminNote}</p>
-                              </div>
-                            )}
-                            <div className="text-xs text-slate-400">
-                              Submitted: {receipt.createdAt ? format(new Date(receipt.createdAt), "d MMM yyyy, h:mm a") : "—"}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Inline review panel */}
-                        {isReviewing && (
-                          <div className="border-t border-amber-100 bg-amber-50 px-4 py-3 space-y-3">
-                            <p className="text-xs font-bold text-amber-700">Review Receipt</p>
-                            <textarea
-                              placeholder="Admin note (optional)"
-                              value={adminNote}
-                              onChange={e => setAdminNote(e.target.value)}
-                              rows={2}
-                              data-testid="input-admin-note"
-                              className="w-full border border-amber-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white resize-none"
-                            />
-                            <div className="flex gap-2">
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => handleDownload(receipt)}
+                            disabled={downloadingId === receipt.id}
+                            data-testid={`button-download-receipt-${receipt.id}`}
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors disabled:opacity-50"
+                            title="Download as PDF"
+                          >
+                            {downloadingId === receipt.id
+                              ? <Loader2 className="w-4 h-4 animate-spin" />
+                              : <Download className="w-4 h-4" />}
+                          </button>
+                          {receipt.status === "pending" && (
+                            <>
                               <button
-                                onClick={() => { setReviewingId(null); setAdminNote(""); }}
-                                className="flex-1 py-2 border border-gray-200 bg-white rounded-xl text-xs font-bold text-slate-500 hover:bg-gray-50"
+                                onClick={() => { setReviewingId(receipt.id); setAdminNote(""); }}
+                                data-testid={`button-review-receipt-${receipt.id}`}
+                                className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+                                title="Review"
                               >
-                                Cancel
+                                <AlertCircle className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => reviewMut.mutate({ id: receipt.id, status: "rejected", note: adminNote })}
-                                disabled={reviewMut.isPending}
-                                data-testid={`button-reject-receipt-${receipt.id}`}
-                                className="flex-1 py-2 bg-red-500 text-white rounded-xl text-xs font-bold hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-1"
-                              >
-                                <X className="w-3.5 h-3.5" /> Reject
-                              </button>
-                              <button
-                                onClick={() => reviewMut.mutate({ id: receipt.id, status: "approved", note: adminNote })}
-                                disabled={reviewMut.isPending}
-                                data-testid={`button-approve-receipt-${receipt.id}`}
-                                className="flex-1 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 disabled:opacity-50 flex items-center justify-center gap-1"
-                              >
-                                <Check className="w-3.5 h-3.5" /> Approve
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                            </>
+                          )}
+                          <button
+                            onClick={() => setExpandedId(isExpanded ? null : receipt.id)}
+                            data-testid={`button-expand-receipt-${receipt.id}`}
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-zinc-400 hover:bg-zinc-100 transition-colors"
+                          >
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      {/* Expanded detail */}
+                      {isExpanded && (
+                        <div className="border-t border-zinc-100 bg-zinc-50/50 p-4 space-y-3">
+                          {receipt.adminNote && (
+                            <div className="bg-white border border-zinc-200 rounded-lg p-3">
+                              <p className="text-xs font-semibold text-zinc-500 mb-1">Admin Note</p>
+                              <p className="text-sm text-zinc-700">{receipt.adminNote}</p>
+                            </div>
+                          )}
+                          <div className="text-xs text-zinc-500">
+                            Submitted: {receipt.createdAt ? format(new Date(receipt.createdAt), "d MMM yyyy, h:mm a") : "—"}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Inline review panel */}
+                      {isReviewing && (
+                        <div className="border-t border-amber-200 bg-amber-50 p-4 space-y-3">
+                          <p className="text-xs font-semibold text-amber-800">Review Receipt</p>
+                          <textarea
+                            placeholder="Admin note (optional)"
+                            value={adminNote}
+                            onChange={e => setAdminNote(e.target.value)}
+                            rows={2}
+                            data-testid="input-admin-note"
+                            className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white resize-none"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setReviewingId(null); setAdminNote(""); }}
+                              className="inline-flex items-center justify-center gap-2 h-8 px-3 flex-1 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs font-medium transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => reviewMut.mutate({ id: receipt.id, status: "rejected", note: adminNote })}
+                              disabled={reviewMut.isPending}
+                              data-testid={`button-reject-receipt-${receipt.id}`}
+                              className="inline-flex items-center justify-center gap-1 h-8 px-3 flex-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition-colors disabled:opacity-50"
+                            >
+                              <X className="w-3.5 h-3.5" /> Reject
+                            </button>
+                            <button
+                              onClick={() => reviewMut.mutate({ id: receipt.id, status: "approved", note: adminNote })}
+                              disabled={reviewMut.isPending}
+                              data-testid={`button-approve-receipt-${receipt.id}`}
+                              className="inline-flex items-center justify-center gap-1 h-8 px-3 flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors disabled:opacity-50"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Approve
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

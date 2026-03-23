@@ -146,16 +146,16 @@ const QUICK_REPLIES = [
 
 function ConvoSkeleton() {
   return (
-    <div className="px-4 py-3.5 border-b border-gray-100 animate-pulse">
+    <div className="px-4 py-3.5 border-b border-zinc-100 animate-pulse">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0" />
+        <div className="w-10 h-10 rounded-full bg-zinc-200 flex-shrink-0" />
         <div className="flex-1 space-y-2 pt-1">
           <div className="flex justify-between">
-            <div className="h-3.5 bg-gray-200 rounded w-28" />
-            <div className="h-2.5 bg-gray-100 rounded w-8" />
+            <div className="h-3.5 bg-zinc-200 rounded w-28" />
+            <div className="h-2.5 bg-zinc-100 rounded w-8" />
           </div>
-          <div className="h-2.5 bg-gray-100 rounded w-44" />
-          <div className="h-2.5 bg-gray-100 rounded w-20" />
+          <div className="h-2.5 bg-zinc-100 rounded w-44" />
+          <div className="h-2.5 bg-zinc-100 rounded w-20" />
         </div>
       </div>
     </div>
@@ -168,12 +168,12 @@ function InfoRow({ icon, label, value, multiline = false }: {
   icon: React.ReactNode; label: string; value: string; multiline?: boolean;
 }) {
   return (
-    <div className="bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200">
-      <div className="flex items-center gap-1.5 mb-1 text-gray-400">
+    <div className="bg-zinc-50 rounded-lg px-3 py-2.5 border border-zinc-200">
+      <div className="flex items-center gap-1.5 mb-1 text-zinc-400">
         {icon}
         <span className="text-[9px] uppercase tracking-wider font-semibold">{label}</span>
       </div>
-      <p className={`text-xs text-gray-700 leading-relaxed ${multiline ? "whitespace-pre-line" : "truncate"}`}>{value}</p>
+      <p className={`text-xs text-zinc-700 leading-relaxed ${multiline ? "whitespace-pre-line" : "truncate"}`}>{value}</p>
     </div>
   );
 }
@@ -844,22 +844,22 @@ export default function AdminConversations() {
       {/* ═══ Conversation List (always visible) ════════════════════════════ */}
       <div className="flex flex-col w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 border-r border-gray-200 bg-white">
         {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-gray-100">
+        <div className="px-4 pt-4 pb-3 border-b border-zinc-200">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center">
-                <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+              <div className="w-7 h-7 rounded-xl bg-blue-100 flex items-center justify-center">
+                <MessageCircle className="w-3.5 h-3.5 text-blue-600" />
               </div>
-              <span className="text-sm font-semibold text-gray-900">WhatsApp</span>
+              <span className="text-sm font-semibold text-zinc-900">WhatsApp</span>
               {totalUnread > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold min-w-[20px] text-center">
+                <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold min-w-[20px] text-center">
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </span>
               )}
             </div>
             <button
               onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] })}
-              className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-all"
+              className="w-7 h-7 rounded-lg hover:bg-zinc-100 flex items-center justify-center text-zinc-400 hover:text-zinc-700 transition-all"
               data-testid="refresh-conversations"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -868,30 +868,30 @@ export default function AdminConversations() {
 
           {/* Search */}
           <div className="relative mb-2.5">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search conversations…"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 pl-8 pr-7 py-2 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
+              className="h-9 w-full bg-white border border-zinc-300 rounded-lg text-sm text-zinc-900 placeholder:text-zinc-400 pl-8 pr-7 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all"
               data-testid="search-conversations"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
                 <X className="w-3 h-3" />
               </button>
             )}
           </div>
 
           {/* Filter Tabs */}
-          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+          <div className="flex gap-1 bg-zinc-100 rounded-lg p-1">
             {(["all", "unread", "active", "submitted"] as const).map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`flex-1 text-[10px] font-semibold py-1 rounded-lg capitalize transition-all ${
-                  filter === f ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                className={`flex-1 text-[10px] font-semibold py-1 rounded-md capitalize transition-all ${
+                  filter === f ? "bg-white text-zinc-900 shadow-sm border border-zinc-200" : "text-zinc-500 hover:text-zinc-700"
                 }`}
                 data-testid={`filter-${f}`}
               >
@@ -907,10 +907,10 @@ export default function AdminConversations() {
 
           {!loadingConvos && filteredConvos.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 gap-3 px-6 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
-                <MessageCircle className="w-7 h-7 text-gray-300" />
+              <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center">
+                <MessageCircle className="w-7 h-7 text-zinc-300" />
               </div>
-              <p className="text-sm font-medium text-gray-400">
+              <p className="text-sm font-medium text-zinc-400">
                 {search ? "No results found" : filter !== "all" ? `No ${filter} conversations` : "No conversations yet"}
               </p>
             </div>
@@ -924,7 +924,9 @@ export default function AdminConversations() {
                 key={convo.phone}
                 onClick={() => openConvo(convo.phone)}
                 data-testid={`convo-${convo.phone}`}
-                className="w-full text-left px-4 py-3.5 transition-all border-b border-gray-100 hover:bg-blue-50 active:bg-blue-100 border-l-[3px] border-l-transparent hover:border-l-blue-400"
+                className={`w-full text-left px-4 py-3 border-b border-zinc-100 hover:bg-zinc-50 cursor-pointer transition-colors ${
+                  selectedPhone === convo.phone ? "bg-blue-50 hover:bg-blue-50" : ""
+                }`}
               >
                 <div className="flex items-start gap-3">
                   <div className="relative flex-shrink-0 mt-0.5">
@@ -933,17 +935,17 @@ export default function AdminConversations() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <span className={`text-sm leading-tight truncate ${hasUnread ? "font-bold text-gray-900" : "font-medium text-gray-800"}`}>
+                      <span className={`text-sm leading-tight truncate ${hasUnread ? "font-bold text-zinc-900" : "font-medium text-zinc-800"}`}>
                         {convo.name || formatPhone(convo.phone)}
                       </span>
-                      <span className="text-[10px] text-gray-400 flex-shrink-0 tabular-nums">
+                      <span className="text-[10px] text-zinc-400 flex-shrink-0 tabular-nums">
                         {relativeTime(convo.lastAt)}
                       </span>
                     </div>
                     {convo.name && (
-                      <p className="text-[11px] text-gray-400 mb-0.5 font-mono">{formatPhone(convo.phone)}</p>
+                      <p className="text-[11px] text-zinc-400 mb-0.5 font-mono">{formatPhone(convo.phone)}</p>
                     )}
-                    <p className={`text-xs truncate leading-snug ${hasUnread ? "text-gray-700 font-medium" : "text-gray-400"}`}>
+                    <p className={`text-xs truncate leading-snug ${hasUnread ? "text-zinc-700 font-medium" : "text-zinc-400"}`}>
                       {convo.lastMessage}
                     </p>
                     <div className="flex items-center justify-between mt-1.5">
@@ -951,16 +953,11 @@ export default function AdminConversations() {
                         {sc.label}
                       </span>
                       {hasUnread && (
-                        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                        <span className="min-w-[20px] h-5 px-1 rounded-full bg-blue-600 text-white text-[10px] font-semibold flex items-center justify-center">
                           {convo.unreadCount > 9 ? "9+" : convo.unreadCount}
                         </span>
                       )}
                     </div>
-                  </div>
-                  <div className="flex-shrink-0 self-center text-gray-300">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
                   </div>
                 </div>
               </button>
@@ -968,19 +965,19 @@ export default function AdminConversations() {
           })}
         </div>
 
-        <div className="px-4 py-2 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400">{convos.length} conversation{convos.length !== 1 ? "s" : ""} · auto-refreshes</p>
+        <div className="px-4 py-2 border-t border-zinc-100">
+          <p className="text-[10px] text-zinc-400">{convos.length} conversation{convos.length !== 1 ? "s" : ""} · auto-refreshes</p>
         </div>
       </div>
 
       {/* Desktop: right side placeholder when no modal open */}
       <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4 bg-[#F5F5F7]">
-        <div className="w-16 h-16 rounded-2xl bg-white border border-gray-200 shadow-sm flex items-center justify-center">
-          <MessageCircle className="w-8 h-8 text-gray-300" />
+        <div className="w-16 h-16 rounded-2xl bg-white border border-zinc-200 shadow-sm flex items-center justify-center">
+          <MessageCircle className="w-8 h-8 text-zinc-300" />
         </div>
         <div className="text-center">
-          <p className="text-sm font-semibold text-gray-400">Select a conversation</p>
-          <p className="text-xs text-gray-300 mt-1">Click any chat to open it</p>
+          <p className="text-sm font-semibold text-zinc-400">Select a conversation</p>
+          <p className="text-xs text-zinc-300 mt-1">Click any chat to open it</p>
         </div>
       </div>
     </div>

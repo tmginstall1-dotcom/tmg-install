@@ -80,13 +80,13 @@ export function AdminSidebar() {
 
   return (
     <aside
-      className="hidden lg:flex fixed top-14 left-0 bottom-0 w-56 z-40 flex-col bg-white border-r border-gray-200"
+      className="hidden lg:flex fixed top-14 left-0 bottom-0 w-56 z-40 flex-col bg-zinc-950"
       data-testid="admin-sidebar"
     >
       <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
         {navSections.map(section => (
           <div key={section.title}>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-[0.18em] px-3 pb-2">
+            <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2 px-3">
               {section.title}
             </p>
             <div className="space-y-0.5">
@@ -98,20 +98,20 @@ export function AdminSidebar() {
                       data-testid={`sidebar-nav-${label.toLowerCase().replace(/[\s&]+/g, "_")}`}
                       className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all group ${
                         active
-                          ? "bg-blue-50 text-blue-600"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                          ? "bg-zinc-800 text-white"
+                          : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60"
                       }`}
                     >
                       {active && (
-                        <span className="absolute left-0 top-2 bottom-2 w-[3px] bg-blue-500 rounded-r-full" />
+                        <span className="absolute left-0 top-2 bottom-2 w-[2px] bg-blue-500 rounded-r-full" />
                       )}
-                      <Icon className={`w-4 h-4 shrink-0 ${active ? "text-blue-500" : "text-gray-400 group-hover:text-gray-600"}`} />
-                      <span className={`flex-1 text-sm font-medium leading-none ${active ? "font-semibold" : ""}`}>
+                      <Icon className={`w-4 h-4 shrink-0 ${active ? "text-white" : "text-zinc-500 group-hover:text-zinc-300"}`} />
+                      <span className={`flex-1 text-sm font-medium leading-none`}>
                         {label}
                       </span>
                       {badge > 0 && (
-                        <span className={`min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                          active ? "bg-blue-500 text-white" : "bg-red-500 text-white"
+                        <span className={`min-w-[18px] h-[18px] rounded-full text-[10px] font-semibold flex items-center justify-center ${
+                          active ? "bg-blue-600 text-white" : "bg-red-500 text-white"
                         }`}>
                           {badge > 99 ? "99+" : badge}
                         </span>
@@ -125,8 +125,8 @@ export function AdminSidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-gray-100 p-3">
-        <div className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl bg-gray-50 mb-1">
+      <div className="mt-auto pb-4">
+        <div className="flex items-center gap-2.5 p-3 rounded-lg bg-zinc-900 mx-3 mb-2">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0"
             style={{ backgroundColor: bgColor }}
@@ -134,10 +134,10 @@ export function AdminSidebar() {
             {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{user?.name}</p>
+            <p className="text-sm font-semibold text-zinc-100 truncate leading-tight">{user?.name}</p>
             <div className="flex items-center gap-1 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
-              <span className="text-[10px] text-emerald-600 font-medium">Online</span>
+              <span className="text-[10px] text-zinc-400 font-medium">Online</span>
             </div>
           </div>
         </div>
@@ -147,7 +147,7 @@ export function AdminSidebar() {
             window.location.replace("/admin/login");
           }}
           data-testid="sidebar-signout"
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+          className="w-full flex items-center gap-2 px-6 py-2 rounded-lg text-sm text-zinc-500 hover:text-red-400 transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" />
           Sign out

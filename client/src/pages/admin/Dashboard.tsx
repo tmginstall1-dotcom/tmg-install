@@ -1,14 +1,14 @@
 import { useQuotes, useUpdateQuoteStatus } from "@/hooks/use-quotes";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { format } from "date-fns";
 import { useState, useMemo } from "react";
 import {
   ClipboardList, DollarSign, CalendarCheck,
   Zap, CheckCircle2, Calendar, TrendingUp, AlertCircle, Trash2, UserPlus,
-  ChevronRight, Clock, Users, ArrowRight, BarChart2, Search, X,
+  ChevronRight, Clock, Users, ArrowRight, BarChart2, Search, X, Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -39,204 +39,120 @@ function greeting() {
   return "Evening";
 }
 
-// ─── Quote row ───────────────────────────────────────────────────────────────
-
-function QuoteRow({ quote, showDate = false }: { quote: any; showDate?: boolean }) {
-  const slotDate = quote.scheduledAt
-    ? format(new Date(quote.scheduledAt), "d MMM")
-    : quote.preferredDate
-      ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM")
-      : null;
-
+function SearchResultRow({ quote }: { quote: any }) {
+  const [, navigate] = useLocation();
   return (
-    <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}
-      className="block w-full">
-      <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-100 last:border-0">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatarBg(quote.id)}`}>
-          {initials(quote.customer?.name)}
-        </div>
-        <div className="flex-1 min-w-0 overflow-hidden">
-          <p className="font-semibold text-sm text-gray-800 truncate leading-tight">
+    <div 
+      onClick={() => navigate(`/admin/quotes/${quote.id}`)}
+      data-testid={`search-result-${quote.id}`}
+      className="group flex items-center gap-3 px-5 py-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-0 transition-colors"
+    >
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatarBg(quote.id)}`}>
+        {initials(quote.customer?.name)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <p className="font-medium text-sm text-zinc-900 truncate leading-tight">
             {quote.customer?.name || "Unknown"}
           </p>
-          <p className="text-xs text-gray-400 truncate mt-0.5">
-            {quote.serviceAddress || "No address"}
-          </p>
+          <StatusBadge status={quote.status} />
         </div>
-        <div className="shrink-0 text-right">
-          <p className="text-sm font-bold text-gray-900 tabular-nums">{formatMoney(quote.total)}</p>
-          <p className="text-xs text-gray-400 tabular-nums mt-0.5">
-            {showDate && slotDate ? slotDate : format(new Date(quote.createdAt), "d MMM")}
-          </p>
-        </div>
-        <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0 group-hover:text-blue-500 transition-colors" />
+        <p className="text-xs text-zinc-500 truncate">
+          {quote.referenceNo} · {quote.serviceAddress || "No address"}
+        </p>
       </div>
-    </Link>
+      <div className="shrink-0 text-right">
+        <p className="text-sm font-semibold text-zinc-900 tabular-nums">{formatMoney(quote.total)}</p>
+        <p className="text-xs text-zinc-400 mt-0.5">{format(new Date(quote.createdAt), "d MMM")}</p>
+      </div>
+      <ChevronRight className="w-4 h-4 text-zinc-300 shrink-0 group-hover:text-blue-600 transition-colors" />
+    </div>
   );
 }
 
-// ─── Search result row ─────────────────────────────────────────────────────
+function SectionPanel({
+  title, quotes, emptyMsg, showDate, urgent = false, bookedStyle = false,
+}: {
+  title: string;
+  quotes: any[]; emptyMsg: string; showDate?: boolean; urgent?: boolean; bookedStyle?: boolean;
+}) {
+  const [, navigate] = useLocation();
 
-function SearchResultRow({ quote }: { quote: any }) {
   return (
-    <Link href={`/admin/quotes/${quote.id}`} data-testid={`search-result-${quote.id}`}
-      className="block w-full">
-      <div className="group flex items-center gap-3 px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-100 last:border-0">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatarBg(quote.id)}`}>
-          {initials(quote.customer?.name)}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <p className="font-semibold text-sm text-gray-800 truncate leading-tight">
-              {quote.customer?.name || "Unknown"}
-            </p>
-            <StatusBadge status={quote.status} />
-          </div>
-          <p className="text-xs text-gray-400 truncate">
-            {quote.referenceNo} · {quote.serviceAddress || "No address"}
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-sm font-bold text-gray-900 tabular-nums">{formatMoney(quote.total)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{format(new Date(quote.createdAt), "d MMM")}</p>
-        </div>
-        <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0 group-hover:text-blue-500 transition-colors" />
+    <div className={`bg-white border ${urgent && quotes.length > 0 ? 'border-orange-300' : 'border-zinc-200'} rounded-xl overflow-hidden`}>
+      <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
+        {quotes.length > 0 && (
+          <Link href="/admin/schedule">
+            <span className="text-xs font-medium text-blue-600 hover:text-blue-700 cursor-pointer">View all</span>
+          </Link>
+        )}
       </div>
-    </Link>
-  );
-}
-
-// ─── Booked quote row with quick-assign ──────────────────────────────────────
-
-function BookedQuoteRow({ quote }: { quote: any }) {
-  const { toast } = useToast();
-  const { data: staffList } = useQuery<any[]>({ queryKey: ["/api/staff"], refetchInterval: 30_000 });
-  const updateStatus = useUpdateQuoteStatus();
-  const [selectedStaff, setSelectedStaff] = useState("");
-  const [expanded, setExpanded] = useState(false);
-
-  const slotDate = quote.scheduledAt
-    ? format(new Date(quote.scheduledAt), "EEE d MMM")
-    : quote.preferredDate
-      ? format(new Date(quote.preferredDate + "T12:00:00"), "EEE d MMM")
-      : null;
-
-  const handleAssign = async (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    if (!selectedStaff) return;
-    try {
-      await updateStatus.mutateAsync({ id: quote.id, status: "assigned", assignedStaffId: parseInt(selectedStaff) });
-      toast({ title: "Staff assigned" });
-      setExpanded(false);
-    } catch {
-      toast({ title: "Failed to assign", variant: "destructive" });
-    }
-  };
-
-  return (
-    <div className="border-b border-gray-100 last:border-0">
-      <Link href={`/admin/quotes/${quote.id}`} data-testid={`quote-row-${quote.id}`}
-        className="block w-full">
-        <div className="group flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatarBg(quote.id)}`}>
-            {initials(quote.customer?.name)}
-          </div>
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <p className="font-semibold text-sm text-gray-800 truncate leading-tight">
-              {quote.customer?.name || "Unknown"}
-            </p>
-            <p className="text-xs text-gray-400 truncate mt-0.5">
-              {slotDate || "No date set"}
-            </p>
-          </div>
-          {quote.assignedStaffId
-            ? <span className="shrink-0 text-xs font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Assigned</span>
-            : <span className="shrink-0 text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Unassigned</span>
-          }
-          <div className="shrink-0 text-right">
-            <p className="text-sm font-bold text-gray-900 tabular-nums">{formatMoney(quote.total)}</p>
-          </div>
-          <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0 group-hover:text-blue-500 transition-colors" />
+      {quotes.length === 0 ? (
+        <div className="py-16 text-center">
+          <CheckCircle2 className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+          <p className="text-sm font-medium text-zinc-500">{emptyMsg}</p>
+          <p className="text-xs text-zinc-400 mt-1">All caught up</p>
         </div>
-      </Link>
-      {!quote.assignedStaffId && (
-        <div className="px-4 pb-3">
-          {!expanded ? (
-            <button onClick={() => setExpanded(true)} data-testid={`button-quick-assign-${quote.id}`}
-              className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors py-1">
-              <UserPlus className="w-3.5 h-3.5" /> Assign Staff
-            </button>
-          ) : (
-            <div className="flex items-center gap-2" onClick={e => e.preventDefault()}>
-              <select value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}
-                className="flex-1 min-w-0 text-sm border border-gray-200 rounded-xl px-3 py-2 bg-gray-50 focus:bg-white focus:border-blue-400 outline-none transition-all"
-                data-testid={`select-quick-staff-${quote.id}`}>
-                <option value="">Select staff…</option>
-                {staffList?.map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-              <button onClick={handleAssign} disabled={!selectedStaff || updateStatus.isPending}
-                className="text-sm font-semibold bg-blue-600 text-white rounded-xl px-4 py-2 disabled:opacity-50 shrink-0 hover:bg-blue-700 transition-colors"
-                data-testid={`button-confirm-assign-${quote.id}`}>
-                Assign
-              </button>
-              <button onClick={() => setExpanded(false)} className="p-2 text-gray-400 shrink-0 hover:text-gray-600">✕</button>
-            </div>
-          )}
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="table-fixed w-full min-w-[600px]">
+            <thead>
+              <tr>
+                <th className="w-12 px-4 py-3 bg-zinc-50 border-b border-zinc-200"></th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Customer</th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Address</th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Amount</th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Status</th>
+                {showDate && <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Date</th>}
+                <th className="w-10 px-4 py-3 bg-zinc-50 border-b border-zinc-200"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {quotes.map(quote => {
+                const slotDate = quote.scheduledAt
+                  ? format(new Date(quote.scheduledAt), "d MMM")
+                  : quote.preferredDate
+                    ? format(new Date(quote.preferredDate + "T12:00:00"), "d MMM")
+                    : format(new Date(quote.createdAt), "d MMM");
+
+                return (
+                  <tr key={quote.id} onClick={() => navigate(`/admin/quotes/${quote.id}`)} className="group cursor-pointer hover:bg-zinc-50 transition-colors">
+                    <td className="px-4 py-3 border-b border-zinc-100">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${avatarBg(quote.id)}`}>
+                        {initials(quote.customer?.name)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-zinc-700 font-medium border-b border-zinc-100 truncate max-w-[150px]">
+                      {quote.customer?.name || "Unknown"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-zinc-700 border-b border-zinc-100 truncate max-w-[200px]">
+                      {quote.serviceAddress || "No address"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-zinc-700 font-semibold tabular-nums text-right border-b border-zinc-100">
+                      {formatMoney(quote.total)}
+                    </td>
+                    <td className="px-4 py-3 text-sm border-b border-zinc-100">
+                      <StatusBadge status={quote.status} />
+                    </td>
+                    {showDate && (
+                      <td className="px-4 py-3 text-sm text-zinc-700 border-b border-zinc-100 whitespace-nowrap tabular-nums">
+                        {slotDate}
+                      </td>
+                    )}
+                    <td className="px-4 py-3 border-b border-zinc-100 text-right">
+                      <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-blue-600 inline-block" />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
 }
-
-// ─── Section panel ────────────────────────────────────────────────────────────
-
-const ACCENT: Record<string, { dot: string; badge: string }> = {
-  violet:  { dot: "bg-violet-500",  badge: "bg-violet-600 text-white" },
-  amber:   { dot: "bg-amber-500",   badge: "bg-amber-500 text-white" },
-  cyan:    { dot: "bg-cyan-500",    badge: "bg-cyan-600 text-white" },
-  orange:  { dot: "bg-orange-500",  badge: "bg-orange-500 text-white" },
-  emerald: { dot: "bg-emerald-500", badge: "bg-emerald-600 text-white" },
-};
-
-function SectionPanel({
-  title, accentColor, quotes, emptyMsg, showDate, urgent = false, bookedStyle = false,
-}: {
-  title: string; accentColor: string;
-  quotes: any[]; emptyMsg: string; showDate?: boolean; urgent?: boolean; bookedStyle?: boolean;
-}) {
-  const ac = ACCENT[accentColor] || ACCENT.violet;
-
-  return (
-    <div className={`w-full bg-white rounded-2xl overflow-hidden shadow-sm ${
-      urgent && quotes.length > 0 ? "border border-orange-200" : "border border-gray-200"
-    }`}>
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/60 rounded-t-2xl">
-        <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
-        <span className={`min-w-[22px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold rounded-full ${
-          quotes.length > 0 ? ac.badge : "bg-gray-100 text-gray-400"
-        }`}>
-          {quotes.length}
-        </span>
-      </div>
-      <div className="overflow-hidden">
-        {quotes.map((q: any) => bookedStyle
-          ? <BookedQuoteRow key={q.id} quote={q} />
-          : <QuoteRow key={q.id} quote={q} showDate={showDate} />
-        )}
-        {quotes.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-300">
-            <CheckCircle2 className="w-6 h-6 shrink-0" />
-            <p className="text-xs font-medium text-center px-4">{emptyMsg}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main dashboard ───────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
   const { data: allQuotes, isLoading } = useQuotes();
@@ -274,9 +190,6 @@ export default function AdminDashboard() {
     .filter((q: any) => !["closed", "cancelled", "final_paid"].includes(q.status))
     .reduce((sum: number, q: any) => sum + Number(q.total || 0), 0);
 
-  const urgentCount = newQuotes.length + awaitingPayment.length;
-
-  // Search logic — must be before any early return
   const searchResults = useMemo(() => {
     if (!search.trim()) return [];
     const q = search.toLowerCase().trim();
@@ -292,10 +205,10 @@ export default function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen pt-14 lg:pl-56 flex items-center justify-center bg-[#F5F5F7]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-400 font-medium">Loading…</p>
+      <div className="min-h-screen pt-14 pb-16 lg:pl-56 bg-[#F5F5F7] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-zinc-400">
+          <Loader2 className="w-5 h-5 animate-spin border-2 border-zinc-200 border-t-zinc-700 rounded-full" />
+          <p className="text-sm font-medium">Loading Dashboard…</p>
         </div>
       </div>
     );
@@ -304,173 +217,129 @@ export default function AdminDashboard() {
   const isSearching = search.trim().length > 0;
 
   const statCards = [
-    { label: "New",         value: newQuotes.length,       icon: ClipboardList, accent: "violet",  urgent: newQuotes.length > 0 },
-    { label: "Deposit",     value: awaitingDeposit.length, icon: DollarSign,    accent: "amber",   urgent: false },
-    { label: "Bookings",    value: upcomingBooked.length,  icon: CalendarCheck, accent: "cyan",    urgent: false },
-    { label: "Live",        value: activeJobs.length,      icon: Zap,           accent: "orange",  urgent: false },
-    { label: "Payment Due", value: awaitingPayment.length, icon: AlertCircle,   accent: "emerald", urgent: awaitingPayment.length > 0 },
+    { label: "New Requests", value: newQuotes.length, icon: ClipboardList, urgent: newQuotes.length > 0 },
+    { label: "Awaiting Deposit", value: awaitingDeposit.length, icon: DollarSign, urgent: false },
+    { label: "Booked Jobs", value: upcomingBooked.length, icon: CalendarCheck, urgent: false },
+    { label: "Active Jobs", value: activeJobs.length, icon: Zap, urgent: false },
+    { label: "Payment Due", value: awaitingPayment.length, icon: AlertCircle, urgent: awaitingPayment.length > 0 },
   ];
 
-  const accentIconBg: Record<string, string> = {
-    violet:  "bg-violet-100 text-violet-500",
-    amber:   "bg-amber-100 text-amber-500",
-    cyan:    "bg-sky-100 text-sky-500",
-    orange:  "bg-orange-100 text-orange-500",
-    emerald: "bg-emerald-100 text-emerald-500",
-  };
-  const accentBar: Record<string, string> = {
-    violet:  "bg-violet-500",
-    amber:   "bg-amber-500",
-    cyan:    "bg-sky-500",
-    orange:  "bg-orange-500",
-    emerald: "bg-emerald-500",
-  };
-
   return (
-    <div className="min-h-screen pt-14 lg:pl-56 bg-[#F5F5F7] pb-24 overflow-x-hidden">
-
-      {/* ── HERO ─────────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-4 sm:px-6 max-w-6xl mx-auto py-6">
-
-          {/* Top row: greeting + revenue + pipeline */}
-          <div className="flex items-start justify-between gap-3 mb-5">
+    <div className="min-h-screen pt-14 pb-16 lg:pl-56 bg-[#F5F5F7] overflow-x-hidden">
+      {/* Page Header */}
+      <div className="bg-white border-b border-zinc-200 px-6 py-5">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <p className="text-xs text-zinc-400 mb-1">Operations → Dashboard</p>
+            <h1 className="text-xl font-semibold text-zinc-900">Good {greeting()}</h1>
+            <p className="text-sm text-zinc-500 mt-1">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
+          </div>
+          <div className="flex gap-6 sm:text-right">
             <div>
-              <p className="text-xs font-medium text-gray-400 mb-1">Good {greeting()}</p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight tracking-tight">Operations</h1>
-              <p className="text-gray-400 text-sm mt-1">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
+              <p className="text-xs text-zinc-500 mb-1 uppercase tracking-wider font-semibold">Collected</p>
+              <p className="text-2xl font-bold text-zinc-900 tabular-nums leading-none">{formatMoney(totalRevenue)}</p>
             </div>
-            <div className="shrink-0 flex gap-4 sm:gap-6 text-right">
-              <div>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Collected</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none tabular-nums">{formatMoney(totalRevenue)}</p>
-              </div>
-              <div className="pl-4 sm:pl-6 border-l border-gray-200">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Pipeline</p>
-                <p className="text-xl sm:text-2xl font-bold text-emerald-600 leading-none tabular-nums">{formatMoney(pipelineValue)}</p>
-              </div>
+            <div className="pl-6 border-l border-zinc-200">
+              <p className="text-xs text-zinc-500 mb-1 uppercase tracking-wider font-semibold">Pipeline</p>
+              <p className="text-2xl font-bold text-blue-600 tabular-nums leading-none">{formatMoney(pipelineValue)}</p>
             </div>
-          </div>
-
-          {/* Stat grid — 5-col */}
-          <div className="grid grid-cols-5 gap-2 mb-5">
-            {statCards.map((card) => (
-              <div key={card.label}
-                className={`px-2 py-3 sm:px-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${
-                  card.urgent && card.value > 0
-                    ? "bg-orange-50 border-orange-200"
-                    : "bg-gray-50 border-gray-200"
-                }`}
-              >
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${accentIconBg[card.accent]}`}>
-                  <card.icon className="w-3.5 h-3.5" />
-                </div>
-                <span className={`text-2xl sm:text-3xl font-bold tabular-nums leading-none ${
-                  card.urgent && card.value > 0 ? "text-orange-600" :
-                  card.value > 0 ? "text-gray-900" : "text-gray-300"
-                }`}>{card.value}</span>
-                <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider leading-tight text-center truncate w-full">{card.label}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Search bar */}
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name, ref, address, phone…"
-              data-testid="input-quote-search"
-              className="w-full pl-11 pr-10 py-3 bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all rounded-xl"
-              style={{ fontSize: 16 }}
-            />
-            {isSearching && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors p-1"
-                data-testid="button-clear-search"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
           </div>
         </div>
       </div>
 
-      {/* ── CONTENT ───────────────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      {/* Content */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        
+        {/* Search */}
+        <div className="relative max-w-2xl mx-auto">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, ref, address, phone…"
+            data-testid="input-quote-search"
+            className="h-9 w-full pl-9 pr-10 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm"
+          />
+          {isSearching && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-1 rounded-md"
+              data-testid="button-clear-search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
 
-        {/* ── SEARCH RESULTS ─ */}
-        {isSearching && (
-          <div className="mt-5">
-            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/60 rounded-t-2xl">
-                <h2 className="text-sm font-semibold text-gray-700">Search Results</h2>
-                <span className={`min-w-[22px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold rounded-full ${
-                  searchResults.length > 0 ? "bg-violet-600 text-white" : "bg-gray-100 text-gray-400"
-                }`}>
-                  {searchResults.length}
-                </span>
-              </div>
-              {searchResults.length > 0 ? (
-                <div>
-                  {searchResults.map((q: any) => (
-                    <SearchResultRow key={q.id} quote={q} />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-300">
-                  <Search className="w-6 h-6" />
-                  <p className="text-xs font-medium text-gray-400">No quotes found for "{search}"</p>
-                </div>
-              )}
+        {isSearching ? (
+          <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-zinc-900">Search Results</h2>
+              <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap bg-blue-100 text-blue-700">
+                {searchResults.length}
+              </span>
             </div>
-          </div>
-        )}
-
-        {/* ── NORMAL DASHBOARD ─ shown when not searching */}
-        {!isSearching && (
-          <>
-            {/* Attention banner */}
-            {urgentCount > 0 && (
-              <div className="mt-5 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5">
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                  <Clock className="w-4 h-4 text-amber-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-amber-800">
-                    {urgentCount} item{urgentCount !== 1 ? "s" : ""} need attention
-                  </p>
-                  <p className="text-xs text-amber-600 mt-0.5">
-                    {[
-                      newQuotes.length > 0 && `${newQuotes.length} new quote${newQuotes.length !== 1 ? "s" : ""}`,
-                      awaitingPayment.length > 0 && `${awaitingPayment.length} awaiting payment`,
-                    ].filter(Boolean).join("  ·  ")}
-                  </p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-amber-400 shrink-0" />
+            {searchResults.length > 0 ? (
+              <div className="divide-y divide-zinc-100">
+                {searchResults.map((q: any) => (
+                  <SearchResultRow key={q.id} quote={q} />
+                ))}
+              </div>
+            ) : (
+              <div className="py-16 text-center">
+                <Search className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+                <p className="text-sm font-medium text-zinc-500">No quotes found for "{search}"</p>
               </div>
             )}
+          </div>
+        ) : (
+          <>
+            {/* KPI Cards Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              {statCards.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <div key={card.label} className={`bg-white border ${card.urgent && card.value > 0 ? 'border-orange-300 bg-orange-50/30' : 'border-zinc-200'} rounded-xl p-5 shadow-sm`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <Icon className={`w-5 h-5 ${card.urgent && card.value > 0 ? 'text-orange-500' : 'text-zinc-400'}`} />
+                    </div>
+                    <div className={`text-2xl font-bold tabular-nums ${card.urgent && card.value > 0 ? 'text-orange-600' : 'text-zinc-900'}`}>
+                      {card.value}
+                    </div>
+                    <div className="text-xs text-zinc-500 mt-1 font-medium">{card.label}</div>
+                  </div>
+                );
+              })}
+            </div>
 
-            {/* Section grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-5">
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {[
+                { href: "/admin/schedule", label: "Schedule", icon: Calendar },
+                { href: "/admin/staff", label: "Staff & HR", icon: Users },
+                { href: "/admin/analytics", label: "Analytics", icon: BarChart2 },
+                { href: "/admin/export", label: "Export", icon: TrendingUp },
+              ].map(action => (
+                <Link key={action.href} href={action.href}>
+                  <div className="inline-flex items-center justify-center gap-2 h-9 w-full px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors cursor-pointer shadow-sm">
+                    <action.icon className="w-4 h-4 text-zinc-400" />
+                    {action.label}
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* Main Sections */}
+            <div className="space-y-6">
               <SectionPanel
-                title="New Quote Requests"
-                accentColor="violet"
-                quotes={newQuotes}
-                emptyMsg="No new requests — all clear"
+                title="Recent Requests & Action Required"
+                quotes={[...newQuotes, ...awaitingPayment]}
+                emptyMsg="No pending requests"
+                showDate
                 urgent
               />
               <SectionPanel
-                title="Awaiting Deposit"
-                accentColor="amber"
-                quotes={awaitingDeposit}
-                emptyMsg="No outstanding deposits"
-              />
-              <SectionPanel
                 title="Upcoming Bookings"
-                accentColor="cyan"
                 quotes={upcomingBooked}
                 emptyMsg="No upcoming bookings"
                 showDate
@@ -478,66 +347,41 @@ export default function AdminDashboard() {
               />
               <SectionPanel
                 title="Active / In Progress"
-                accentColor="orange"
                 quotes={activeJobs}
                 emptyMsg="No active jobs right now"
-                urgent
               />
-              <div className="lg:col-span-2">
-                <SectionPanel
-                  title="Awaiting Final Payment"
-                  accentColor="emerald"
-                  quotes={awaitingPayment.concat(recentlyClosed)}
-                  emptyMsg="No jobs awaiting payment"
-                />
-              </div>
-            </div>
-
-            {/* Quick-nav cards — 2×2 on mobile (sidebar hidden), hidden on desktop */}
-            <div className="mt-6 lg:hidden grid grid-cols-2 gap-2">
-              {[
-                { href: "/admin/schedule",  label: "Schedule",   icon: Calendar,   desc: "Bookings & jobs",    iconBg: "bg-sky-100 text-sky-600" },
-                { href: "/admin/staff",     label: "Staff & HR", icon: Users,      desc: "Payroll & leave",    iconBg: "bg-violet-100 text-violet-600" },
-                { href: "/admin/analytics", label: "Analytics",  icon: BarChart2,  desc: "Traffic & stats",    iconBg: "bg-emerald-100 text-emerald-600" },
-                { href: "/admin/export",    label: "Export",     icon: TrendingUp, desc: "Download reports",   iconBg: "bg-amber-100 text-amber-600" },
-              ].map(({ href, label, icon: Icon, desc, iconBg }) => (
-                <Link key={href} href={href} className="block w-full">
-                  <div className="group flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-4 hover:border-gray-300 hover:shadow-sm active:bg-gray-50 transition-all h-full">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm text-gray-800 leading-tight">{label}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-500 transition-colors shrink-0" />
-                  </div>
-                </Link>
-              ))}
+              <SectionPanel
+                title="Awaiting Deposit"
+                quotes={awaitingDeposit}
+                emptyMsg="No outstanding deposits"
+              />
             </div>
 
             {/* Danger zone */}
-            <div className="mt-6 mb-2">
+            <div className="pt-8">
               {!showClearConfirm ? (
                 <button onClick={() => setShowClearConfirm(true)}
-                  className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-xl transition-all text-sm font-medium"
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium transition-colors"
                   data-testid="button-clear-all-data">
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-4 h-4" />
                   Clear all job data
                 </button>
               ) : (
-                <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
-                  <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
-                  <p className="text-sm text-red-700 font-semibold flex-1">Delete ALL quotes & data?</p>
+                <div className="flex items-center gap-3 p-4 bg-white border border-red-200 rounded-xl shadow-sm">
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+                  <p className="text-sm text-zinc-900 font-medium flex-1">Delete ALL quotes & data permanently?</p>
                   <button onClick={() => clearAllMutation.mutate()} disabled={clearAllMutation.isPending}
-                    className="text-sm font-semibold text-white bg-red-600 rounded-xl px-3 py-1.5 hover:bg-red-700 disabled:opacity-50 transition-all">
-                    {clearAllMutation.isPending ? "…" : "Delete"}
+                    className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                    {clearAllMutation.isPending ? "Deleting..." : "Yes, Delete Everything"}
                   </button>
                   <button onClick={() => setShowClearConfirm(false)}
-                    className="text-sm font-medium text-gray-500 hover:text-gray-700">Cancel</button>
+                    className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors">
+                    Cancel
+                  </button>
                 </div>
               )}
             </div>
+
           </>
         )}
       </div>
