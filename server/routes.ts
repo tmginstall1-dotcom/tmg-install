@@ -4403,7 +4403,7 @@ Respond directly — no JSON, just the message text.`,
       if (!quote) return res.status(404).json({ message: "Quote not found" });
 
       // Admin can pass an explicit phone override (for web-submitted quotes with no WA phone)
-      const { phone: phoneOverride } = req.body as { phone?: string };
+      const { phone: phoneOverride } = (req.body as { phone?: string }) || {};
       const rawPhone = phoneOverride?.trim() || (quote as any).customerWhatsappPhone;
       if (!rawPhone) return res.status(400).json({ message: "No WhatsApp number — please provide one." });
 
