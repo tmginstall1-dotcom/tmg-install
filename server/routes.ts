@@ -5479,18 +5479,66 @@ Respond directly — no JSON, just the message text.`,
   });
 
   // ── App version management (OTA update check) ────────────────────────────
+  // Always serve the APK through our own proxy so private GitHub repos work
+  const APK_PROXY_URL = "https://tmginstall.com/api/app/latest.apk";
+
   app.get("/api/app-version", async (_req, res) => {
     try {
-      const [vRow, uRow] = await Promise.all([
+      const [vRow] = await Promise.all([
         db.select().from(appSettings).where(eq(appSettings.key, "app_latest_version")).limit(1),
-        db.select().from(appSettings).where(eq(appSettings.key, "app_apk_url")).limit(1),
       ]);
       res.json({
         version: vRow[0]?.value ?? "1.1",
-        apkUrl: uRow[0]?.value ?? "https://github.com/tmginstall1-dotcom/tmg-install/releases/download/latest-build/tmg-install.apk",
+        apkUrl: APK_PROXY_URL,
       });
     } catch {
-      res.json({ version: "1.1", apkUrl: "https://github.com/tmginstall1-dotcom/tmg-install/releases/download/latest-build/tmg-install.apk" });
+      res.json({ version: "1.1", apkUrl: APK_PROXY_URL });
+    }
+  });
+
+  // ── APK proxy — streams the latest APK from private GitHub repo using GITHUB_TOKEN ─
+  // This avoids exposing the GitHub token to clients while still supporting private repos.
+  app.get("/api/app/latest.apk", async (_req, res) => {
+    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+    const OWNER = "tmginstall1-dotcom";
+    const REPO = "tmg-install";
+    const TAG = "latest-build";
+    try {
+      // 1. Look up the release and find the APK asset
+      const releaseRes = await fetch(
+        `https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${TAG}`,
+        { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github+json", "User-Agent": "TMGInstall-Server" } }
+      );
+      if (!releaseRes.ok) {
+        console.error("[APK proxy] release fetch failed", releaseRes.status);
+        return res.status(502).json({ message: "APK release not available" });
+      }
+      const release = await releaseRes.json() as { assets: Array<{ id: number; name: string; size: number }> };
+      const asset = release.assets?.find((a) => a.name === "tmg-install.apk");
+      if (!asset) {
+        console.error("[APK proxy] tmg-install.apk not found in release assets");
+        return res.status(404).json({ message: "APK not found in release" });
+      }
+      // 2. Download the asset via GitHub API (authenticated)
+      const dlRes = await fetch(
+        `https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/${asset.id}`,
+        { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/octet-stream", "User-Agent": "TMGInstall-Server" } }
+      );
+      if (!dlRes.ok || !dlRes.body) {
+        console.error("[APK proxy] asset download failed", dlRes.status);
+        return res.status(502).json({ message: "Failed to download APK" });
+      }
+      res.setHeader("Content-Type", "application/vnd.android.package-archive");
+      res.setHeader("Content-Disposition", "attachment; filename=tmg-install.apk");
+      res.setHeader("Content-Length", String(asset.size));
+      res.setHeader("Cache-Control", "public, max-age=300");
+      // 3. Stream to client
+      const { pipeline } = await import("stream/promises");
+      const { Readable } = await import("stream");
+      await pipeline(Readable.fromWeb(dlRes.body as any), res);
+    } catch (e: any) {
+      console.error("[APK proxy] error:", e.message);
+      if (!res.headersSent) res.status(500).json({ message: e.message });
     }
   });
 
