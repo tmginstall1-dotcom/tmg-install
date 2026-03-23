@@ -62,7 +62,7 @@ export default function AdminSchedule() {
     return (
       <div className="min-h-screen pt-14 flex items-center justify-center bg-[#F5F5F7]">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-gray-400 font-medium">Loading schedule…</p>
         </div>
       </div>

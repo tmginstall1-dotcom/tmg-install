@@ -71,8 +71,8 @@ function DetailPanel({ q }: { q: any }) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono text-lg font-black text-primary">{q.referenceNo}</span>
-              <span className={`px-2 py-0.5 text-[10px] font-bold uppercase ${statusCls(q.status)}`}>
+              <span className="font-mono text-lg font-black text-blue-600">{q.referenceNo}</span>
+              <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-md ${statusCls(q.status)}`}>
                 {statusLabel(q.status)}
               </span>
             </div>
@@ -576,7 +576,7 @@ export default function ExportPDF() {
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 

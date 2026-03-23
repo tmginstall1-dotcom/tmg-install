@@ -607,20 +607,20 @@ function TeamCard({ team, allStaff, onDelete, onRemoveMember, onAddMember }: any
           {editingName ? (
             <div className="flex items-center gap-1">
               <input value={name} onChange={e => setName(e.target.value)} autoFocus
-                className="px-2 py-0.5 text-sm border border-black/20 bg-white font-bold w-32 outline-none focus:border-black" />
+                className="h-7 px-2 text-sm border border-zinc-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors w-32" />
               <button onClick={() => updateMut.mutate()} className="p-1 text-emerald-600"><Check className="w-3.5 h-3.5" /></button>
-              <button onClick={() => setEditingName(false)} className="p-1 text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
+              <button onClick={() => setEditingName(false)} className="p-1 text-zinc-400 hover:text-zinc-700 transition-colors"><X className="w-3.5 h-3.5" /></button>
             </div>
           ) : (
-            <h3 className="font-black text-sm">{team.name}</h3>
+            <h3 className="font-semibold text-sm text-zinc-900">{team.name}</h3>
           )}
-          <span className="text-xs text-muted-foreground">({team.members?.length || 0} staff)</span>
+          <span className="text-xs text-zinc-400">({team.members?.length || 0} staff)</span>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => setEditingName(true)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => setEditingName(true)} className="p-1.5 text-zinc-400 hover:text-zinc-700 transition-colors">
             <Pencil className="w-3.5 h-3.5" />
           </button>
-          <button onClick={onDelete} className="p-1.5 text-muted-foreground hover:text-destructive transition-colors">
+          <button onClick={onDelete} className="p-1.5 text-zinc-400 hover:text-red-600 transition-colors">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -628,16 +628,16 @@ function TeamCard({ team, allStaff, onDelete, onRemoveMember, onAddMember }: any
 
       <div className="p-4">
         {team.members?.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No members yet — assign staff from the panel on the left</p>
+          <p className="text-sm text-zinc-400 text-center py-4">No members yet — assign staff from the panel on the left</p>
         ) : (
           <div className="flex flex-wrap gap-2 mb-4">
             {team.members.map((m: any) => (
-              <div key={m.id} className="flex items-center gap-2 px-3 py-1.5 border bg-background text-sm font-semibold">
-                <span className="w-6 h-6 flex items-center justify-center text-white text-[11px] font-black shrink-0"
+              <div key={m.id} className="flex items-center gap-2 px-3 py-1.5 border border-zinc-200 rounded-lg bg-white text-sm font-semibold">
+                <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0"
                   style={{ background: team.color }}>{m.name.charAt(0)}</span>
                 {m.name}
                 <button onClick={() => onRemoveMember(m.id)}
-                  className="text-muted-foreground hover:text-destructive transition-colors ml-0.5 p-0.5"
+                  className="text-zinc-400 hover:text-red-600 transition-colors ml-0.5 p-0.5"
                   data-testid={`button-remove-member-${m.id}`}>
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -648,13 +648,13 @@ function TeamCard({ team, allStaff, onDelete, onRemoveMember, onAddMember }: any
 
         {nonMembers.length > 0 && (
           <div>
-            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide mb-2">Add member</p>
+            <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wide mb-2">Add member</p>
             <div className="flex flex-wrap gap-2">
               {nonMembers.map((s: any) => (
                 <button key={s.id} onClick={() => onAddMember(s.id)}
-                  className="flex items-center gap-1.5 px-3 py-2 border text-[10px] font-black uppercase tracking-[0.08em] hover:bg-slate-50 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 rounded-lg text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
                   data-testid={`button-add-member-${s.id}`}>
-                  <Plus className="w-3.5 h-3.5" /> {s.name}
+                  <Plus className="w-3.5 h-3.5 text-zinc-400" /> {s.name}
                 </button>
               ))}
             </div>
@@ -674,7 +674,7 @@ function StaffAvatar({ user, size = 10 }: { user: any; size?: number }) {
   const initials = user?.name?.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
   return (
     <div style={{ backgroundColor: staffColor(user?.id ?? 0), width: size * 4, height: size * 4, fontSize: size * 1.5 }}
-      className="rounded-full flex items-center justify-center text-white font-black shrink-0">
+      className="rounded-full flex items-center justify-center text-white font-bold shrink-0">
       {initials}
     </div>
   );
@@ -893,7 +893,7 @@ function RosterRow({ staff, log, status, liveLocation }: {
         <StaffAvatar user={staff} size={10} />
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm leading-tight">{staff.name}</p>
-          <p className="text-xs font-mono text-muted-foreground">@{staff.username}</p>
+          <p className="text-xs font-mono text-zinc-400">@{staff.username}</p>
 
           {/* Status + GPS location pills inline */}
           {status === "in" && log && (
@@ -907,7 +907,7 @@ function RosterRow({ staff, log, status, liveLocation }: {
                   <>
                     <GpsLocationPill lat={log.clockInLat} lng={log.clockInLng} label="In" color="green" />
                     <button onClick={() => setMapOpen(p => p === "in" ? null : "in")}
-                      className={`text-[10px] px-2 py-0.5 border font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      className={`text-[10px] px-2 py-0.5 border rounded font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-zinc-300 text-zinc-500 hover:bg-zinc-100"}`}
                       data-testid={`button-map-in-${staff.id}`}>
                       {mapOpen === "in" ? "▲" : "Map ▾"}
                     </button>
@@ -918,13 +918,13 @@ function RosterRow({ staff, log, status, liveLocation }: {
               {/* Live location */}
               {liveLocation && (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5">
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-0.5">
                     <Navigation2 className="w-2.5 h-2.5 animate-pulse shrink-0" />
                     Live · {liveMinutesAgo === 0 ? "just now" : `${liveMinutesAgo}m ago`}
                   </div>
                   <GpsLocationPill lat={liveLocation.lat} lng={liveLocation.lng} label="Now" color="green" />
                   <button onClick={() => setMapOpen(p => p === "live" ? null : "live")}
-                    className={`text-[10px] px-2 py-0.5 border font-bold transition-colors ${mapOpen === "live" ? "bg-blue-700 text-white border-blue-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                    className={`text-[10px] px-2 py-0.5 border rounded font-bold transition-colors ${mapOpen === "live" ? "bg-blue-700 text-white border-blue-700" : "border-zinc-300 text-zinc-500 hover:bg-zinc-100"}`}
                     data-testid={`button-map-live-${staff.id}`}>
                     {mapOpen === "live" ? "▲" : "Map ▾"}
                   </button>
@@ -939,10 +939,10 @@ function RosterRow({ staff, log, status, liveLocation }: {
           {status === "out" && log && (
             <div className="mt-1 space-y-1">
               <div className="flex items-center gap-1.5">
-                <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
-                <span className="text-xs text-muted-foreground">
+                <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
+                <span className="text-xs text-zinc-500">
                   {format(new Date(log.clockInAt), "h:mm a")} – {format(new Date(log.clockOutAt), "h:mm a")}
-                  {mins !== null && <span className="font-bold text-foreground ml-1">{fmt(mins)}</span>}
+                  {mins !== null && <span className="font-bold text-zinc-900 ml-1">{fmt(mins)}</span>}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -950,7 +950,7 @@ function RosterRow({ staff, log, status, liveLocation }: {
                   <>
                     <GpsLocationPill lat={log.clockInLat} lng={log.clockInLng} label="In" color="green" />
                     <button onClick={() => setMapOpen(p => p === "in" ? null : "in")}
-                      className={`text-[10px] px-2 py-0.5 border font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      className={`text-[10px] px-2 py-0.5 border rounded font-bold transition-colors ${mapOpen === "in" ? "bg-slate-700 text-white border-slate-700" : "border-zinc-300 text-zinc-500 hover:bg-zinc-100"}`}
                       data-testid={`button-map-in-${staff.id}`}>
                       {mapOpen === "in" ? "▲" : "Map ▾"}
                     </button>
@@ -960,7 +960,7 @@ function RosterRow({ staff, log, status, liveLocation }: {
                   <>
                     <GpsLocationPill lat={log.clockOutLat} lng={log.clockOutLng} label="Out" color="red" />
                     <button onClick={() => setMapOpen(p => p === "out" ? null : "out")}
-                      className={`text-[10px] px-2 py-0.5 border font-bold transition-colors ${mapOpen === "out" ? "bg-slate-700 text-white border-slate-700" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      className={`text-[10px] px-2 py-0.5 border rounded font-bold transition-colors ${mapOpen === "out" ? "bg-slate-700 text-white border-slate-700" : "border-zinc-300 text-zinc-500 hover:bg-zinc-100"}`}
                       data-testid={`button-map-out-${staff.id}`}>
                       {mapOpen === "out" ? "▲" : "Map ▾"}
                     </button>
@@ -972,14 +972,14 @@ function RosterRow({ staff, log, status, liveLocation }: {
           )}
 
           {status === "absent" && (
-            <span className="text-xs text-muted-foreground">Not clocked in</span>
+            <span className="text-xs text-zinc-400">Not clocked in</span>
           )}
         </div>
       </div>
 
       {/* Inline OSM map panel */}
       {mapOpen && osmSrc && (
-        <div className="mt-3 overflow-hidden border border-black/10">
+        <div className="mt-3 overflow-hidden border border-zinc-200 rounded-xl">
           {/* Header strip */}
           <div className={`flex items-center justify-between px-3 py-2 ${
             mapOpen === "in" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"
@@ -1008,11 +1008,11 @@ function RosterRow({ staff, log, status, liveLocation }: {
             loading="lazy"
           />
           {/* Coords footer */}
-          <div className="px-3 py-1.5 bg-muted/60 text-[10px] font-mono text-muted-foreground flex items-center justify-between">
+          <div className="px-3 py-1.5 bg-zinc-100 text-[10px] font-mono text-zinc-500 flex items-center justify-between">
             <span>{parseFloat(activeGps!.lat).toFixed(6)}, {parseFloat(activeGps!.lng).toFixed(6)}</span>
             <a href={`https://maps.google.com/?q=${activeGps!.lat},${activeGps!.lng}`}
               target="_blank" rel="noreferrer"
-              className="text-primary font-sans text-[10px] font-bold hover:underline">
+              className="text-blue-600 font-sans text-[10px] font-bold hover:underline">
               Google Maps ↗
             </a>
           </div>
@@ -1065,50 +1065,50 @@ function EditLogForm({ log, queryKeys, onClose }: { log: any; queryKeys: any[]; 
   });
 
   return (
-    <tr className="border-t bg-slate-50">
+    <tr className="border-t bg-zinc-50">
       <td colSpan={7} className="px-4 py-3">
         <div className="space-y-3">
-          <p className="text-xs font-black text-primary uppercase tracking-wider">Editing record #{log.id}</p>
+          <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Editing record #{log.id}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+              <label className="text-[11px] font-semibold text-zinc-500 mb-1 block flex items-center gap-1">
                 <LogIn className="w-3 h-3 text-emerald-500" /> Clock In
               </label>
               <input type="datetime-local" value={inVal} onChange={e => setInVal(e.target.value)}
-                className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
+                className="w-full h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 data-testid={`input-edit-clockin-${log.id}`} />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+              <label className="text-[11px] font-semibold text-zinc-500 mb-1 block flex items-center gap-1">
                 <LogOut className="w-3 h-3 text-red-500" /> Clock Out
-                <span className="ml-1 text-[10px] text-muted-foreground font-normal">(leave blank = still in)</span>
+                <span className="ml-1 text-[10px] text-zinc-400 font-normal">(leave blank = still in)</span>
               </label>
               <input type="datetime-local" value={outVal} onChange={e => setOutVal(e.target.value)}
-                className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
+                className="w-full h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 data-testid={`input-edit-clockout-${log.id}`} />
             </div>
           </div>
           <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Admin Notes</label>
+            <label className="text-[11px] font-semibold text-zinc-500 mb-1 block">Admin Notes</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional note…"
-              className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
+              className="w-full h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
               data-testid={`input-edit-notes-${log.id}`} />
           </div>
           {previewMins !== null && previewMins >= 0 && (
-            <p className="text-xs text-muted-foreground">
-              Duration: <strong>{fmt(previewMins)}</strong>
+            <p className="text-xs text-zinc-500">
+              Duration: <strong className="text-zinc-900">{fmt(previewMins)}</strong>
               {previewMins > 8 * 60 && <span className="ml-2 text-amber-600 font-bold">({fmt(previewMins - 8 * 60)} OT)</span>}
             </p>
           )}
           <div className="flex gap-2">
             <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] disabled:opacity-60 hover:bg-neutral-800 transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-60"
               data-testid={`button-save-log-${log.id}`}>
               {saveMut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
               Save
             </button>
             <button onClick={onClose}
-              className="px-3 py-1.5 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center h-8 px-3 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 text-sm font-medium transition-colors"
               data-testid={`button-cancel-edit-${log.id}`}>
               Cancel
             </button>
@@ -1154,16 +1154,16 @@ function AddRecordForm({
   });
 
   return (
-    <div className="border border-black/10 bg-slate-50 p-4 space-y-4"
+    <div className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4"
       data-testid="add-record-form">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-black flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
             <Plus className="w-4 h-4 text-white" />
           </div>
-          <p className="font-black text-sm uppercase tracking-[0.05em]">Add Attendance Record</p>
+          <p className="font-semibold text-sm text-zinc-900">Add Attendance Record</p>
         </div>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={onClose} className="text-zinc-400 hover:text-zinc-700 transition-colors">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -1171,9 +1171,9 @@ function AddRecordForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Staff selector */}
         <div className="sm:col-span-2">
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Staff Member</label>
+          <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Staff Member</label>
           <select value={userId} onChange={e => setUserId(e.target.value)}
-            className="w-full px-3 py-2 border border-black/10 text-sm bg-white outline-none focus:border-black"
+            className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             data-testid="select-add-staff">
             {staff.filter((s:any) => s.role === "staff").map((s:any) => (
               <option key={s.id} value={s.id}>{s.name} (@{s.username})</option>
@@ -1183,39 +1183,39 @@ function AddRecordForm({
 
         {/* Clock In */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+          <label className="block text-[11px] font-semibold text-zinc-500 mb-1 flex items-center gap-1">
             <LogIn className="w-3 h-3 text-emerald-500" /> Clock In
           </label>
           <input type="datetime-local" value={inVal} onChange={e => setInVal(e.target.value)}
-            className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
+            className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             data-testid="input-add-clockin" />
         </div>
 
         {/* Clock Out */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+          <label className="block text-[11px] font-semibold text-zinc-500 mb-1 flex items-center gap-1">
             <LogOut className="w-3 h-3 text-red-500" /> Clock Out
-            <span className="text-[10px] text-muted-foreground font-normal ml-1">(optional)</span>
+            <span className="text-[10px] text-zinc-400 font-normal ml-1">(optional)</span>
           </label>
           <input type="datetime-local" value={outVal} onChange={e => setOutVal(e.target.value)}
-            className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
+            className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             data-testid="input-add-clockout" />
         </div>
 
         {/* Notes */}
         <div className="sm:col-span-2">
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Notes / Reason</label>
+          <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Notes / Reason</label>
           <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="e.g. Staff forgot to clock in — manually added by admin"
-            className="w-full px-3 py-2.5 border border-black/10 text-sm bg-white outline-none focus:border-black"
+            className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             data-testid="input-add-notes" />
         </div>
       </div>
 
       {/* Duration preview */}
       {previewMins !== null && previewMins > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Duration: <strong>{fmt(previewMins)}</strong>
+        <p className="text-xs text-zinc-500">
+          Duration: <strong className="text-zinc-900">{fmt(previewMins)}</strong>
           {previewMins > 8 * 60 && (
             <span className="ml-2 text-amber-600 font-bold">(+{fmt(previewMins - 8 * 60)} OT)</span>
           )}
@@ -1227,13 +1227,13 @@ function AddRecordForm({
 
       <div className="flex gap-2">
         <button onClick={() => addMut.mutate()} disabled={addMut.isPending || !userId || !inVal || (previewMins !== null && previewMins <= 0)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] disabled:opacity-50 hover:bg-neutral-800 transition-colors"
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
           data-testid="button-save-add-record">
           {addMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           Save Record
         </button>
         <button onClick={onClose}
-          className="px-4 py-2 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-white transition-colors">
+          className="inline-flex items-center h-9 px-4 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 text-sm font-medium transition-colors">
           Cancel
         </button>
       </div>
@@ -1351,7 +1351,7 @@ function TimesheetsView() {
     );
 
     return (
-      <tr key={log.id} className={`border-t transition-colors ${isDeleting ? "bg-red-50 dark:bg-red-950/20" : "hover:bg-secondary/20"}`}
+      <tr key={log.id} className={`border-t transition-colors ${isDeleting ? "bg-red-50" : "hover:bg-zinc-50"}`}
         data-testid={`log-row-${log.id}`}>
         {showDate && (
           <td className="px-3 py-2.5 font-medium text-sm whitespace-nowrap">
@@ -1389,12 +1389,12 @@ function TimesheetsView() {
         <td className="px-3 py-2.5 text-right">
           {mins !== null ? (
             <div>
-              <span className="font-black text-sm">{fmt(mins)}</span>
+              <span className="font-bold text-sm text-zinc-900">{fmt(mins)}</span>
               {otMins > 0 && <span className="ml-1 text-[10px] font-bold text-amber-600">+{fmt(otMins)} OT</span>}
             </div>
-          ) : <span className="text-muted-foreground text-sm">—</span>}
+          ) : <span className="text-zinc-400 text-sm">—</span>}
         </td>
-        {log.notes && <td className="px-3 py-2.5 text-xs text-muted-foreground italic max-w-[120px] truncate">{log.notes}</td>}
+        {log.notes && <td className="px-3 py-2.5 text-xs text-zinc-400 italic max-w-[120px] truncate">{log.notes}</td>}
         {!log.notes && <td className="px-3 py-2.5" />}
         <td className="px-3 py-2.5">
           {isDeleting ? (
@@ -1406,19 +1406,19 @@ function TimesheetsView() {
                 {deleteMut.isPending ? "…" : "Yes"}
               </button>
               <button onClick={() => setConfirmDel(null)}
-                className="text-[11px] font-bold border px-2 py-0.5 rounded hover:bg-secondary">
+                className="text-[11px] font-bold border border-zinc-300 px-2 py-0.5 rounded hover:bg-zinc-100 text-zinc-600 transition-colors">
                 No
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-1">
               <button onClick={() => { setEditingId(log.id); setConfirmDel(null); }}
-                className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors"
                 title="Edit" data-testid={`button-edit-log-${log.id}`}>
                 <Pencil className="w-3.5 h-3.5" />
               </button>
               <button onClick={() => { setConfirmDel(log.id); setEditingId(null); }}
-                className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-muted-foreground hover:text-red-500 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-red-50 text-zinc-400 hover:text-red-500 transition-colors"
                 title="Delete" data-testid={`button-delete-log-${log.id}`}>
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -1431,13 +1431,13 @@ function TimesheetsView() {
 
   const logTableHead = (showDate = true) => (
     <thead>
-      <tr className="bg-secondary/40">
-        {showDate && <th className="text-left px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Date</th>}
-        <th className="text-left px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Clock In</th>
-        <th className="text-left px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Clock Out</th>
-        <th className="text-right px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Hours</th>
-        <th className="text-left px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Notes</th>
-        <th className="px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Actions</th>
+      <tr className="bg-zinc-50 border-b border-zinc-200">
+        {showDate && <th className="text-left px-3 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Date</th>}
+        <th className="text-left px-3 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Clock In</th>
+        <th className="text-left px-3 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Clock Out</th>
+        <th className="text-right px-3 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Hours</th>
+        <th className="text-left px-3 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Notes</th>
+        <th className="px-3 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Actions</th>
       </tr>
     </thead>
   );
@@ -1855,11 +1855,11 @@ function LeaveTab() {
       <div className="flex gap-2 flex-wrap">
         {([["pending", "Pending"], ["approved", "Approved"], ["rejected", "Rejected"], ["all", "All"]] as const).map(([v, l]) => (
           <button key={v} onClick={() => setStatusFilter(v)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] border transition-all ${statusFilter === v ? "bg-black text-white border-black" : "border-black/10 hover:border-black/30 hover:bg-slate-50"}`}
+            className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border transition-all ${statusFilter === v ? "bg-zinc-900 text-white border-zinc-900" : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:border-zinc-300"}`}
             data-testid={`filter-leave-${v}`}>
             {l}
             {v === "pending" && pendingCount > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-black flex items-center justify-center">
+              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                 {pendingCount}
               </span>
             )}
@@ -1868,11 +1868,11 @@ function LeaveTab() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
       ) : leaves.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-black/20">
-          <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-          <p className="font-semibold text-muted-foreground">No {statusFilter !== "all" ? statusFilter : ""} leave requests</p>
+        <div className="text-center py-16 border border-dashed border-zinc-200 rounded-xl">
+          <Calendar className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+          <p className="font-semibold text-zinc-400">No {statusFilter !== "all" ? statusFilter : ""} leave requests</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -1883,32 +1883,32 @@ function LeaveTab() {
             const isAnnual = l.leaveType === "annual";
 
             return (
-              <div key={l.id} className="bg-white border border-black/[0.07] overflow-hidden">
+              <div key={l.id} className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
                 {/* Card header */}
                 <div className="px-4 pt-3 pb-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <p className="font-bold">{l.user?.name}</p>
+                        <p className="font-semibold text-zinc-900">{l.user?.name}</p>
                         <StatusBadge status={l.status} />
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 uppercase tracking-[0.06em]">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-500">
                           {LEAVE_TYPE_LABELS[l.leaveType] || l.leaveType}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm flex-wrap">
-                        <span className="font-bold text-foreground">
+                        <span className="font-semibold text-zinc-900">
                           {format(parseISO(l.startDate), "d MMM")} – {format(parseISO(l.endDate), "d MMM yyyy")}
                         </span>
-                        <span className="text-muted-foreground text-xs">
+                        <span className="text-zinc-400 text-xs">
                           Submitted {format(new Date(l.createdAt || l.startDate), "d MMM")}
                         </span>
                       </div>
-                      {l.reason && <p className="text-xs text-muted-foreground mt-1 italic">"{l.reason}"</p>}
+                      {l.reason && <p className="text-xs text-zinc-400 mt-1 italic">"{l.reason}"</p>}
                     </div>
                     {/* Days requested + balance */}
                     <div className="shrink-0 text-right">
-                      <p className="text-2xl font-black leading-none">{parseFloat(l.totalDays)}d</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">requested</p>
+                      <p className="text-2xl font-bold text-zinc-900 leading-none">{parseFloat(l.totalDays)}d</p>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">requested</p>
                       {isAnnual && (
                         <p className={`text-[10px] font-bold mt-1 ${remaining < 0 ? "text-red-500" : remaining < 3 ? "text-amber-600" : "text-emerald-600"}`}>
                           {remaining < 0 ? `${Math.abs(remaining).toFixed(1)}d over` : `${remaining.toFixed(1)}d left`}
@@ -1919,11 +1919,11 @@ function LeaveTab() {
                   {/* Leave balance bar for annual leave */}
                   {isAnnual && (
                     <div className="mt-2.5">
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+                      <div className="flex items-center justify-between text-[10px] text-zinc-400 mb-1">
                         <span>{usedDays.toFixed(1)} used of {entitlement} days entitlement</span>
                         <span className={remaining < 0 ? "text-red-500 font-bold" : ""}>{remaining > 0 ? `${remaining.toFixed(1)} remaining` : "Exceeded"}</span>
                       </div>
-                      <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-zinc-200 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${remaining < 0 ? "bg-red-500" : remaining < 3 ? "bg-amber-500" : "bg-emerald-500"}`}
                           style={{ width: `${Math.min(100, (usedDays / entitlement) * 100)}%` }}
@@ -1934,20 +1934,20 @@ function LeaveTab() {
                 </div>
 
                 {l.status === 'pending' && (
-                  <div className="px-4 pb-4 space-y-2 border-t pt-3">
+                  <div className="px-4 pb-4 space-y-3 border-t border-zinc-100 pt-3">
                     <textarea value={notes[l.id] || ""} onChange={e => setNotes(n => ({ ...n, [l.id]: e.target.value }))}
                       placeholder="Admin note (optional)" rows={2}
-                      className="w-full px-3 py-2 text-sm border border-black/10 bg-white outline-none focus:border-black resize-none" />
+                      className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none" />
                     <div className="flex gap-2">
                       <button onClick={() => reviewMut.mutate({ id: l.id, status: "approved" })}
                         disabled={reviewMut.isPending}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-emerald-700 disabled:opacity-50"
+                        className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
                         data-testid={`button-approve-leave-${l.id}`}>
                         <Check className="w-3.5 h-3.5" /> Approve
                       </button>
                       <button onClick={() => reviewMut.mutate({ id: l.id, status: "rejected" })}
                         disabled={reviewMut.isPending}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-red-700 disabled:opacity-50"
+                        className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
                         data-testid={`button-reject-leave-${l.id}`}>
                         <X className="w-3.5 h-3.5" /> Reject
                       </button>
@@ -1955,7 +1955,7 @@ function LeaveTab() {
                   </div>
                 )}
                 {l.adminNote && (
-                  <p className="px-4 pb-3 text-xs text-muted-foreground italic border-t pt-2">Admin note: {l.adminNote}</p>
+                  <p className="px-4 pb-3 text-xs text-zinc-400 italic border-t border-zinc-100 pt-2">Admin note: {l.adminNote}</p>
                 )}
               </div>
             );
@@ -2019,24 +2019,24 @@ function PayslipsTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center">
         <select value={filterUserId} onChange={e => setFilterUserId(e.target.value)}
-          className="px-3 py-2 border border-black/10 text-sm bg-white outline-none focus:border-black min-w-[150px]" data-testid="select-payslip-staff">
+          className="h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-w-[150px]" data-testid="select-payslip-staff">
           <option value="">All Staff</option>
           {staff.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         <button onClick={() => setShowGenerate(!showGenerate)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors"
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
           data-testid="button-generate-payslip">
           <Plus className="w-4 h-4" /> Generate Payslip
         </button>
       </div>
 
       {showGenerate && (
-        <div className="bg-slate-50 border border-black/10 p-4 space-y-3">
-          <p className="font-black text-sm uppercase tracking-[0.05em]">Generate Payslip</p>
+        <div className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-zinc-900">Generate Payslip</h3>
           <div>
-            <label className="text-xs font-bold text-muted-foreground mb-1 block">Staff Member</label>
+            <label className="block text-xs font-semibold text-zinc-500 mb-1">Staff Member</label>
             <select value={genForm.userId} onChange={e => setGenForm(f => ({ ...f, userId: e.target.value }))}
-              className="w-full px-3 py-2 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="select-gen-staff">
+              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" data-testid="select-gen-staff">
               <option value="">Select staff member...</option>
               {staff.map((s: any) => (
                 <option key={s.id} value={s.id}>
@@ -2049,33 +2049,33 @@ function PayslipsTab() {
           {genForm.userId && (() => {
             const s = (staff as any[]).find((x: any) => String(x.id) === genForm.userId);
             return s ? (
-              <div className="bg-white border border-black/10 px-3 py-3 space-y-2.5">
+              <div className="bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-3 space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-black/10 text-black font-black text-sm flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-zinc-200 text-zinc-700 font-bold text-sm flex items-center justify-center shrink-0">
                     {s.name.split(" ").map((w: string) => w[0]).slice(0,2).join("").toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm truncate">{s.name}</p>
-                    <p className="text-xs font-mono text-muted-foreground">@{s.username}</p>
+                    <p className="font-semibold text-sm truncate text-zinc-900">{s.name}</p>
+                    <p className="text-xs font-mono text-zinc-400">@{s.username}</p>
                   </div>
                 </div>
                 {/* Pay package summary — 3 components */}
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-slate-50 border border-black/[0.06] px-2 py-1.5 text-center">
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide">Monthly</p>
-                    <p className="text-xs font-black text-foreground font-mono mt-0.5">
+                  <div className="bg-white border border-zinc-200 rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wide">Monthly</p>
+                    <p className="text-xs font-bold text-zinc-900 font-mono mt-0.5">
                       S${parseFloat(s.monthlyRate || "0").toFixed(0)}
                     </p>
                   </div>
-                  <div className="bg-slate-50 border border-black/[0.06] px-2 py-1.5 text-center">
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide">Reg/hr</p>
-                    <p className="text-xs font-black text-foreground font-mono mt-0.5">
+                  <div className="bg-white border border-zinc-200 rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wide">Reg/hr</p>
+                    <p className="text-xs font-bold text-zinc-900 font-mono mt-0.5">
                       S${parseFloat(s.hourlyRate || "0").toFixed(2)}
                     </p>
                   </div>
-                  <div className="bg-amber-50 border border-amber-200 px-2 py-1.5 text-center">
-                    <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wide">OT/hr</p>
-                    <p className="text-xs font-black text-amber-700 font-mono mt-0.5">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-[10px] text-amber-700 font-semibold uppercase tracking-wide">OT/hr</p>
+                    <p className="text-xs font-bold text-amber-700 font-mono mt-0.5">
                       S${parseFloat(s.overtimeRate || "0").toFixed(2)}
                     </p>
                   </div>
@@ -2086,7 +2086,7 @@ function PayslipsTab() {
 
           {/* Period quick presets */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground mb-2 block">Pay Period</label>
+            <label className="block text-xs font-semibold text-zinc-500 mb-2">Pay Period</label>
             <div className="flex gap-2 mb-2 flex-wrap">
               {[
                 { label: "This Month", fn: () => { const t = new Date(); return [format(startOfMonth(t), "yyyy-MM-dd"), format(endOfMonth(t), "yyyy-MM-dd")]; } },
@@ -2095,47 +2095,47 @@ function PayslipsTab() {
               ].map(({ label, fn }) => (
                 <button key={label} type="button"
                   onClick={() => { const [s, e] = fn(); setGenForm(f => ({ ...f, periodStart: s, periodEnd: e })); }}
-                  className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] border border-black/10 hover:bg-white transition-colors">
+                  className="inline-flex items-center h-7 px-3 rounded-md text-xs font-medium border border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:border-zinc-300 transition-colors">
                   {label}
                 </button>
               ))}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] text-muted-foreground mb-1 block">From</label>
+                <label className="block text-[11px] font-semibold text-zinc-500 mb-1">From</label>
                 <input type="date" value={genForm.periodStart} onChange={e => setGenForm(f => ({ ...f, periodStart: e.target.value }))}
-                  className="w-full px-3 py-2 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="input-period-start" />
+                  className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" data-testid="input-period-start" />
               </div>
               <div>
-                <label className="text-[11px] text-muted-foreground mb-1 block">To</label>
+                <label className="block text-[11px] font-semibold text-zinc-500 mb-1">To</label>
                 <input type="date" value={genForm.periodEnd} onChange={e => setGenForm(f => ({ ...f, periodEnd: e.target.value }))}
-                  className="w-full px-3 py-2 border border-black/10 text-sm bg-white outline-none focus:border-black" data-testid="input-period-end" />
+                  className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" data-testid="input-period-end" />
               </div>
             </div>
           </div>
           <textarea value={genForm.notes} onChange={e => setGenForm(f => ({ ...f, notes: e.target.value }))}
             placeholder="Notes (optional)" rows={2}
-            className="w-full px-3 py-2 text-sm border border-black/10 bg-white outline-none focus:border-black resize-none" />
+            className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none" />
           <div className="flex gap-2">
             <button onClick={() => generateMut.mutate()} disabled={!genForm.userId || generateMut.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 bg-black text-white text-[10px] font-black uppercase tracking-[0.1em] disabled:opacity-50 hover:bg-neutral-800 transition-colors"
+              className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
               data-testid="button-confirm-generate">
               {generateMut.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : "Generate"}
             </button>
             <button onClick={() => setShowGenerate(false)}
-              className="px-4 py-2 border border-black/10 text-[10px] font-black uppercase tracking-[0.1em] hover:bg-white transition-colors">Cancel</button>
+              className="inline-flex items-center h-9 px-4 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 text-sm font-medium transition-colors">Cancel</button>
           </div>
-          <p className="text-xs text-muted-foreground">Payslip is auto-calculated from clock-in/out records and leave deductions for the period.</p>
+          <p className="text-xs text-zinc-400">Payslip is auto-calculated from clock-in/out records and leave deductions for the period.</p>
         </div>
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
       ) : payslips.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-black/20">
-          <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-          <p className="font-semibold text-muted-foreground">No payslips yet</p>
-          <p className="text-sm text-muted-foreground">Generate payslips for your staff above</p>
+        <div className="text-center py-16 border border-dashed border-zinc-200 rounded-xl">
+          <FileText className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+          <p className="font-semibold text-zinc-400">No payslips yet</p>
+          <p className="text-sm text-zinc-400">Generate payslips for your staff above</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -2163,59 +2163,59 @@ function PayslipsTab() {
                   { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}` },
                 ];
             return (
-              <div key={ps.id} className="bg-white border border-black/[0.07] overflow-hidden">
+              <div key={ps.id} className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
                 <button onClick={() => setExpandedId(isOpen ? null : ps.id)}
-                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-50 transition-colors"
                   data-testid={`payslip-admin-${ps.id}`}>
                   <div className="flex items-center gap-2.5 text-left">
-                    <div className="w-9 h-9 bg-black/10 text-black font-black text-sm flex items-center justify-center shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-zinc-200 text-zinc-700 font-bold text-sm flex items-center justify-center shrink-0">
                       {ps.user?.name?.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-bold">{ps.user?.name}</p>
-                      <p className="text-xs font-mono text-muted-foreground">@{ps.user?.username}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-semibold text-zinc-900">{ps.user?.name}</p>
+                      <p className="text-xs font-mono text-zinc-400">@{ps.user?.username}</p>
+                      <p className="text-xs text-zinc-400">
                         {format(parseISO(ps.periodStart), "d MMM")} – {format(parseISO(ps.periodEnd), "d MMM yyyy")}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="text-xl font-black text-primary">S${parseFloat(ps.grossPay).toFixed(2)}</p>
-                      <p className="text-xs text-muted-foreground">Gross Pay</p>
+                      <p className="text-xl font-bold text-zinc-900">S${parseFloat(ps.grossPay).toFixed(2)}</p>
+                      <p className="text-xs text-zinc-500">Gross Pay</p>
                     </div>
                     <button
                       onClick={e => { e.stopPropagation(); setPrintingPayslip(ps); }}
-                      className="p-2 hover:bg-black/5 text-black/60 transition-colors"
+                      className="p-2 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors"
                       title="View / Print official payslip"
                       data-testid={`button-print-${ps.id}`}>
                       <Printer className="w-4 h-4" />
                     </button>
-                    {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                    {isOpen ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
                   </div>
                 </button>
 
                 {isOpen && (
-                  <div className="border-t p-4 space-y-3">
+                  <div className="border-t border-zinc-100 p-4 space-y-3">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                       {detailItems.map(({ label, val }) => (
-                        <div key={label} className="bg-slate-50 border border-black/[0.06] p-2.5">
-                          <p className="text-[10px] text-muted-foreground font-bold uppercase mb-0.5">{label}</p>
-                          <p className="font-bold">{val}</p>
+                        <div key={label} className="bg-zinc-50 border border-zinc-200 rounded-lg p-2.5">
+                          <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wide mb-0.5">{label}</p>
+                          <p className="font-semibold text-zinc-900">{val}</p>
                         </div>
                       ))}
-                      <div className="bg-black text-white p-2.5">
-                        <p className="text-[10px] font-bold uppercase mb-0.5 text-white/60">Gross Pay</p>
-                        <p className="font-black">S${parseFloat(ps.grossPay).toFixed(2)}</p>
+                      <div className="bg-zinc-900 text-white rounded-lg p-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5 text-zinc-400">Gross Pay</p>
+                        <p className="font-bold">S${parseFloat(ps.grossPay).toFixed(2)}</p>
                       </div>
                     </div>
                     {ps.notes && (
-                      <div className="bg-slate-50 px-3 py-2">
-                        <p className="text-xs text-muted-foreground">{ps.notes}</p>
+                      <div className="bg-zinc-50 rounded-lg px-3 py-2">
+                        <p className="text-xs text-zinc-500">{ps.notes}</p>
                       </div>
                     )}
                     <button onClick={() => { if (confirm("Delete this payslip?")) deleteMut.mutate(ps.id); }}
-                      className="flex items-center gap-1.5 text-xs text-destructive font-bold hover:underline"
+                      className="inline-flex items-center gap-1.5 text-xs text-red-600 font-semibold hover:text-red-700 transition-colors"
                       data-testid={`button-delete-payslip-${ps.id}`}>
                       <Trash2 className="w-3.5 h-3.5" /> Delete Payslip
                     </button>
@@ -2383,23 +2383,23 @@ function StopRow({ seg, idx, now }: { seg: StopSegment; idx: number; now: Date }
       </div>
 
       {/* Content */}
-      <div className={`flex-1 my-1 mr-2 rounded-xl px-4 py-3 ${seg.isOngoing ? "bg-amber-50 border border-amber-200" : "bg-white border border-black/[0.07]"}`}>
+      <div className={`flex-1 my-1 mr-2 rounded-xl px-4 py-3 ${seg.isOngoing ? "bg-amber-50 border border-amber-200" : "bg-white border border-zinc-200"}`}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-black uppercase tracking-[0.08em] text-amber-700">Stationary</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Stationary</span>
               {seg.isOngoing && (
-                <span className="flex items-center gap-1 text-[10px] font-black text-red-600 bg-red-100 border border-red-200 px-2 py-0.5 rounded-full">
+                <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-100 border border-red-200 px-2 py-0.5 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
                   LIVE
                 </span>
               )}
             </div>
-            <p className="text-base font-black text-slate-900 mt-0.5 leading-tight">
+            <p className="text-base font-bold text-zinc-900 mt-0.5 leading-tight">
               {fmtDuration(durationSec)}
-              {seg.isOngoing && <span className="text-amber-600 text-sm font-bold ml-1">(ongoing)</span>}
+              {seg.isOngoing && <span className="text-amber-600 text-sm font-semibold ml-1">(ongoing)</span>}
             </p>
-            <p className="text-[11px] text-black/50 mt-0.5">
+            <p className="text-[11px] text-zinc-400 mt-0.5">
               {format(seg.startTime, "HH:mm:ss")} – {seg.isOngoing ? "now" : format(seg.endTime, "HH:mm:ss")}
             </p>
           </div>
@@ -2431,17 +2431,17 @@ function MoveRow({ seg, idx }: { seg: MoveSegment; idx: number }) {
       </div>
       <div className="flex-1 flex items-center gap-3 py-2 pr-2">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.08em] text-blue-600">Moving</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Moving</p>
           <div className="flex items-center gap-2 flex-wrap mt-0.5">
-            <span className="text-sm font-bold text-slate-700">{fmtDist(seg.distM)}</span>
-            <span className="text-[11px] text-black/40">·</span>
-            <span className="text-[11px] text-black/50">{fmtDuration(durationSec)}</span>
+            <span className="text-sm font-semibold text-zinc-700">{fmtDist(seg.distM)}</span>
+            <span className="text-[11px] text-zinc-300">·</span>
+            <span className="text-[11px] text-zinc-500">{fmtDuration(durationSec)}</span>
             {speedLabel && <>
-              <span className="text-[11px] text-black/40">·</span>
-              <span className="text-[11px] text-black/50">{speedLabel}</span>
+              <span className="text-[11px] text-zinc-300">·</span>
+              <span className="text-[11px] text-zinc-500">{speedLabel}</span>
             </>}
           </div>
-          <p className="text-[10px] text-black/35 mt-0.5">
+          <p className="text-[10px] text-zinc-400 mt-0.5">
             {format(seg.startTime, "HH:mm:ss")} → {format(seg.endTime, "HH:mm:ss")}
           </p>
         </div>
@@ -2493,9 +2493,9 @@ function GpsTrackingTab() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-end">
         <div>
-          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-black/40 mb-1">Staff Member</label>
+          <label className="block text-xs font-semibold text-zinc-500 mb-1">Staff Member</label>
           <select value={staffId ?? ""} onChange={e => setSelectedStaffId(Number(e.target.value))}
-            className="border border-black/10 bg-white text-sm px-3 py-2 h-9 focus:outline-none focus:border-black"
+            className="h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             data-testid="select-gps-staff">
             {(allStaff as any[]).map((s: any) => (
               <option key={s.id} value={s.id}>{s.name}</option>
@@ -2503,13 +2503,13 @@ function GpsTrackingTab() {
           </select>
         </div>
         <div>
-          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-black/40 mb-1">Date</label>
+          <label className="block text-xs font-semibold text-zinc-500 mb-1">Date</label>
           <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-            className="border border-black/10 bg-white text-sm px-3 py-2 h-9 focus:outline-none focus:border-black"
+            className="h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             data-testid="input-gps-date" />
         </div>
         {isLive && (
-          <div className="flex items-center gap-1.5 h-9 px-3 bg-red-50 border border-red-200 text-red-600 text-[11px] font-black uppercase tracking-widest">
+          <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
             Live Tracking
           </div>
@@ -2525,9 +2525,9 @@ function GpsTrackingTab() {
             { label: "Stops",          value: String(totalStops) },
             { label: "GPS Points",     value: String(rawPoints.length) },
           ].map(({ label, value }) => (
-            <div key={label} className="border border-black/[0.07] bg-white p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-1">{label}</p>
-              <p className="text-lg font-black">{value}</p>
+            <div key={label} className="bg-white border border-zinc-200 rounded-xl p-4">
+              <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">{label}</p>
+              <p className="text-xl font-bold text-zinc-900">{value}</p>
             </div>
           ))}
         </div>
@@ -2535,16 +2535,16 @@ function GpsTrackingTab() {
 
       {/* Map */}
       {rawPoints.length > 0 && (
-        <div className="border border-black/[0.07] bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-black/[0.07] flex items-center justify-between flex-wrap gap-2">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40">
+        <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-zinc-100 flex items-center justify-between flex-wrap gap-2">
+            <p className="text-sm font-semibold text-zinc-900">
               Route Map — {selectedStaff?.name ?? "—"} · {selectedDate}
             </p>
-            <div className="flex items-center gap-3 text-[10px] text-black/40 font-semibold">
+            <div className="flex items-center gap-3 text-xs text-zinc-500 font-medium">
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />Start</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-1 bg-blue-500 inline-block" />Route</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-amber-400 inline-block" />Stop</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block" />Last seen</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-zinc-400 inline-block" />Last seen</span>
             </div>
           </div>
           <GpsMap points={rawPoints} height={420} />
@@ -2552,30 +2552,30 @@ function GpsTrackingTab() {
       )}
 
       {/* Timeline */}
-      <div className="border border-black/[0.07] bg-slate-50 overflow-hidden">
-        <div className="px-4 py-3 border-b border-black/[0.07] bg-white flex items-center justify-between">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40">
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-zinc-100 flex items-center justify-between">
+          <p className="text-sm font-semibold text-zinc-900">
             Activity Timeline — {selectedStaff?.name ?? "—"} · {selectedDate}
           </p>
           {isLive && lastSeen && (
-            <p className="text-[10px] text-black/30">
+            <p className="text-xs text-zinc-400">
               Updated {Math.floor((now.getTime() - lastSeen.getTime()) / 1000)}s ago
             </p>
           )}
         </div>
 
         {isLoading && (
-          <div className="flex items-center gap-2 px-6 py-10 text-black/40">
-            <Loader2 className="w-4 h-4 animate-spin" />
+          <div className="flex items-center gap-2 px-6 py-10 text-zinc-400">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
             <span className="text-sm">Loading…</span>
           </div>
         )}
 
         {!isLoading && rawPoints.length === 0 && (
           <div className="px-4 py-12 text-center">
-            <Navigation2 className="w-8 h-8 text-black/15 mx-auto mb-3" />
-            <p className="text-sm font-bold text-black/40">No GPS data for this date</p>
-            <p className="text-xs text-black/30 mt-1">Data records every 30 s when staff are clocked in.</p>
+            <Navigation2 className="w-8 h-8 text-zinc-300 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-zinc-400">No GPS data for this date</p>
+            <p className="text-xs text-zinc-400 mt-1">Data records every 30 s when staff are clocked in.</p>
           </div>
         )}
 
@@ -2592,8 +2592,8 @@ function GpsTrackingTab() {
               </div>
               <div className="flex-1 flex items-center pb-1">
                 <div>
-                  <p className="text-[11px] font-black text-emerald-700 uppercase tracking-[0.08em]">Shift started</p>
-                  <p className="text-base font-black text-slate-900">{firstSeen ? format(firstSeen, "HH:mm:ss") : "—"}</p>
+                  <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">Shift started</p>
+                  <p className="text-base font-bold text-zinc-900">{firstSeen ? format(firstSeen, "HH:mm:ss") : "—"}</p>
                 </div>
               </div>
             </div>
@@ -2615,10 +2615,10 @@ function GpsTrackingTab() {
               </div>
               <div className="flex-1 flex items-center pt-1">
                 <div>
-                  <p className={`text-[11px] font-black uppercase tracking-[0.08em] ${isLive ? "text-red-600" : "text-black/40"}`}>
+                  <p className={`text-[11px] font-semibold uppercase tracking-wider ${isLive ? "text-red-600" : "text-zinc-400"}`}>
                     {isLive ? "Currently here" : "Last seen"}
                   </p>
-                  <p className="text-base font-black text-slate-900">
+                  <p className="text-base font-bold text-zinc-900">
                     {lastSeen ? format(lastSeen, "HH:mm:ss") : "—"}
                   </p>
                   {isLive && lastSeen && (

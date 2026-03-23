@@ -44,7 +44,7 @@ function DeltaBadge({ today, yesterday, lowerIsBetter }: { today: number; yester
   const pct = Math.round(((today - yesterday) / yesterday) * 100);
   const positive = lowerIsBetter ? pct <= 0 : pct >= 0;
   return (
-    <span className={`text-[10px] font-bold px-1.5 py-0.5 ${positive ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"}`}>
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${positive ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"}`}>
       {pct >= 0 ? "+" : ""}{pct}%
     </span>
   );
@@ -138,7 +138,7 @@ export default function Analytics() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#F5F5F7] pt-14 pb-24 flex items-center justify-center">
-        <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
