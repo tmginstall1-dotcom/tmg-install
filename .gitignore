@@ -8,3 +8,5 @@ vite.config.ts.*
 *.keystore
 *.keystore.b64
 !android/app/tmg-staff-release.keystore.b64
+# The release keystore for CI builds is committed intentionally (internal-use app)
+!android/app/tmg-staff-release.keystore
