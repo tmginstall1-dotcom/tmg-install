@@ -5332,6 +5332,28 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── Build webhook: auto-update app version after each GitHub Actions build ──
+  // Called by the GitHub Actions workflow after APK is published.
+  // No admin session needed — protected by BUILD_WEBHOOK_TOKEN.
+  app.post("/api/system/build-complete", async (req, res) => {
+    const expectedToken = process.env.BUILD_WEBHOOK_TOKEN;
+    const { token, version, apkUrl } = req.body as { token?: string; version?: string; apkUrl?: string };
+    if (!expectedToken || !token || token !== expectedToken) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (!version || !apkUrl) return res.status(400).json({ message: "version and apkUrl required" });
+    try {
+      await db.insert(appSettings).values({ key: "app_latest_version", value: version })
+        .onConflictDoUpdate({ target: appSettings.key, set: { value: version } });
+      await db.insert(appSettings).values({ key: "app_apk_url", value: apkUrl })
+        .onConflictDoUpdate({ target: appSettings.key, set: { value: apkUrl } });
+      console.log(`[Build] Version updated to ${version}`);
+      res.json({ ok: true, version, apkUrl });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // ── App version management (OTA update check) ────────────────────────────
   app.get("/api/app-version", async (_req, res) => {
     try {

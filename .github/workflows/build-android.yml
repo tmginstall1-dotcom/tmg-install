@@ -147,3 +147,19 @@ jobs:
           fail_on_unmatched_files: true
           make_latest: true
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Auto-notify server: staff apps show update banner immediately ──────────
+
+      - name: Notify server of new build (OTA auto-update)
+        run: |
+          RUN_NUM=${{ github.run_number }}
+          RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            "https://tmg-install-project--tmginstall.replit.app/api/system/build-complete" \
+            -H "Content-Type: application/json" \
+            -d "{\"token\":\"71b6a589b4d46338fa149e8371ddaa9878f71a07ad831cada2864bd3231178b1\",\"version\":\"v1.0.${RUN_NUM}\",\"apkUrl\":\"https://github.com/tmginstall1-dotcom/tmg-install/releases/download/latest-build/tmg-install.apk\"}")
+          echo "Server response HTTP: $RESULT"
+          if [ "$RESULT" = "200" ]; then
+            echo "Server notified — v1.0.${RUN_NUM} is now the latest version"
+          else
+            echo "Server notify returned HTTP $RESULT (non-fatal)"
+          fi
