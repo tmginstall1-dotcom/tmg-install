@@ -185,6 +185,35 @@ Natural acknowledgement examples:
 - "Understood — making a note of that."`;
 
 /**
+ * Shared furniture identification guide injected into all vision prompts.
+ * Prevents common misidentification errors (e.g. chest of drawers → "desk").
+ */
+const FURNITURE_VISION_GUIDE = `
+CRITICAL IDENTIFICATION RULES — read before answering:
+
+1. CHEST OF DRAWERS / DRESSER: An upright storage unit with MULTIPLE FULL-WIDTH DRAWERS stacked in rows (typically 3–8 drawers). NO doors. Usually 50–110cm wide, 60–130cm tall. The drawers are the PRIMARY visual feature. Do NOT call this a desk, table, or cabinet. Names: "chest of drawers", "dresser", "6-drawer dresser", etc.
+
+2. WARDROBE / CLOSET: Tall cabinet (typically 180–240cm) with HINGED or SLIDING DOORS. Contains hanging space for clothes. May or may not have drawers at the bottom. Names: "wardrobe", "IKEA PAX wardrobe", "2-door wardrobe", etc.
+
+3. DESK / WORK TABLE: Has a FLAT HORIZONTAL WORK SURFACE at roughly sitting height (~75cm), designed for working at while seated. Legs are clearly visible. The surface area is the dominant feature. A small side drawer is possible but NOT the primary feature. Do NOT call a chest of drawers a desk.
+
+4. DINING TABLE / COFFEE TABLE: Flat surface designed for eating (dining) or as a low surface (coffee table, ~40cm tall).
+
+5. BED FRAME: Has a headboard and/or footboard. Holds a mattress. Named by mattress size: single, super single, queen, king.
+
+6. BOOKSHELF / SHELVING: Upright unit with OPEN SHELVES (no drawers, no doors). For storing books/items.
+
+7. SOFA / COUCH: Upholstered seating for multiple people. Named by shape: 2-seater, 3-seater, L-shaped, etc.
+
+8. TV CONSOLE: Low-profile unit (typically 40–60cm tall) designed to hold a television. Usually wider than tall.
+
+Common mistakes to AVOID:
+- A unit with MANY DRAWERS and NO doors = chest of drawers (NOT a desk)
+- A tall unit with DOORS = wardrobe (NOT a cabinet or cupboard unless clearly office storage)
+- A unit with a FLAT TOP and LEGS at sitting height = desk/table (NOT storage)
+`;
+
+/**
  * Generate a natural, conversational reply using GPT-4o-mini.
  * Acknowledges what the customer just said, then leads into the next structured step.
  * Falls back to the plain nextStepPrompt if GPT is unavailable.
@@ -1942,6 +1971,8 @@ ${catalogList}
 
 If an item is not in the catalog, use a concise descriptive name (e.g., "Piano", "Pool Table", "Foosball Table").
 
+${FURNITURE_VISION_GUIDE}
+
 You MUST respond with ONLY valid JSON — no prose, no markdown, no explanation:
 [{"name": "exact catalog name or description", "quantity": 1, "confidence": "high"}]`
           },
@@ -2314,8 +2345,8 @@ Respond with ONLY a JSON array (no prose, no markdown):
                 const scanRes0 = await openai.chat.completions.create({
                   model: "gpt-4o", max_tokens: 60,
                   messages: [
-                    { role: "system", content: `Identify the main furniture item in this photo. Return ONLY the item name (e.g. "wardrobe", "queen bed frame"). If no furniture, return "NONE".` },
-                    { role: "user", content: [{ type: "image_url", image_url: { url: `data:${scanMedia0.mimeType};base64,${scanMedia0.base64}`, detail: "low" } }] as any },
+                    { role: "system", content: `Identify the main furniture item in this photo. Return ONLY the item name (e.g. "wardrobe", "queen bed frame", "chest of drawers"). If no furniture, return "NONE".\n${FURNITURE_VISION_GUIDE}` },
+                    { role: "user", content: [{ type: "image_url", image_url: { url: `data:${scanMedia0.mimeType};base64,${scanMedia0.base64}`, detail: "high" } }] as any },
                   ],
                 });
                 const d0 = (scanRes0.choices[0]?.message?.content || "").trim();
@@ -2622,10 +2653,11 @@ If the case is unusual or complex, say the team will review and follow up.`
                       response_format: { type: "json_object" },
                       messages: [{
                         role: "system",
-                        content: `You are an expert at identifying items for a furniture/office installation company in Singapore.
+                        content: `You are an expert at identifying furniture for a Singapore installation company.
 Look at the photo and identify ALL items that require professional installation, dismantling, relocation, or disposal.
-Include residential furniture AND commercial/office items (workstations, cubicle partitions, office desks, cabinets, shelving).
-Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-separated list", "noItems": true/false }`,
+Include residential furniture AND commercial/office items.
+Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-separated list", "noItems": true/false }
+${FURNITURE_VISION_GUIDE}`,
                       }, {
                         role: "user",
                         content: [
@@ -2821,8 +2853,8 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
               const vRes = await openai.chat.completions.create({
                 model: "gpt-4o", max_tokens: 80,
                 messages: [
-                  { role: "system", content: `Identify the main furniture item in this photo. Return ONLY the item name (e.g. "IKEA PAX wardrobe", "queen bed frame"). If no furniture, return "NONE".` },
-                  { role: "user", content: [{ type: "image_url", image_url: { url: `data:${pMedia.mimeType};base64,${pMedia.base64}`, detail: "low" } }] as any },
+                  { role: "system", content: `Identify the main furniture item in this photo. Return ONLY the item name (e.g. "IKEA PAX wardrobe", "queen bed frame", "chest of drawers"). If no furniture, return "NONE".\n${FURNITURE_VISION_GUIDE}` },
+                  { role: "user", content: [{ type: "image_url", image_url: { url: `data:${pMedia.mimeType};base64,${pMedia.base64}`, detail: "high" } }] as any },
                 ],
               });
               const detectedItem = (vRes.choices[0]?.message?.content || "").trim();
@@ -3039,11 +3071,12 @@ IMPORTANT: If conversation history shows the bot recently asked "which item is t
                   response_format: { type: "json_object" },
                   messages: [{
                     role: "system",
-                    content: `You are an expert at identifying items in photos for a furniture/office installation company in Singapore.
+                    content: `You are an expert at identifying furniture for a Singapore installation company.
 Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
-Include both residential furniture (wardrobes, bed frames, sofas) AND commercial/office items (workstations, cubicle partitions, office desks, office chairs, shelving, cabinets).
+Include both residential furniture AND commercial/office items.
 Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-separated list", "noItems": true/false }
-If no installable items found, set noItems: true.`,
+If no installable items found, set noItems: true.
+${FURNITURE_VISION_GUIDE}`,
                   }, {
                     role: "user",
                     content: [{ type: "image_url", image_url: { url: `data:${scanMedia.mimeType};base64,${scanMedia.base64}`, detail: "high" } }] as any,
@@ -3160,17 +3193,18 @@ Key examples:
                     messages: [
                       {
                         role: "system",
-                        content: `You are an expert at identifying items in photos for a furniture/office installation company in Singapore.
+                        content: `You are an expert at identifying furniture for a Singapore installation company.
 Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
-Include both residential furniture (wardrobes, bed frames, sofas) AND commercial/office items (workstations, cubicle partitions, office desks, office chairs, shelving, cabinets).
+Include both residential furniture AND commercial/office items.
 Return JSON:
 {
-  "mainItem": "short name of the primary/most prominent item (e.g. 'office workstation', 'wardrobe', 'office partition')",
-  "allItems": "comma-separated list of all detected items (e.g. 'office workstations, L-shaped partitions, under-desk cabinets')",
+  "mainItem": "short name of the primary/most prominent item (e.g. 'chest of drawers', 'wardrobe', 'office workstation')",
+  "allItems": "comma-separated list of all detected items",
   "isCommercial": true/false,
   "noItems": true/false
 }
-If no installable items found, set noItems: true.`,
+If no installable items found, set noItems: true.
+${FURNITURE_VISION_GUIDE}`,
                       },
                       { role: "user", content: [{ type: "image_url", image_url: { url: `data:${svcMedia.mimeType};base64,${svcMedia.base64}`, detail: "high" } }] as any },
                     ],
@@ -3236,16 +3270,17 @@ If no installable items found, set noItems: true.`,
                     response_format: { type: "json_object" },
                     messages: [{
                       role: "system",
-                      content: `You are an expert at identifying items in photos for a furniture/office installation company in Singapore.
+                      content: `You are an expert at identifying furniture for a Singapore installation company.
 Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
-Include both residential furniture (wardrobes, bed frames, sofas) AND commercial/office items (workstations, cubicle partitions, office desks, office chairs, shelving, cabinets).
+Include both residential furniture AND commercial/office items.
 Return JSON:
 {
-  "mainItem": "short name of the primary/most prominent item",
+  "mainItem": "short name of the primary/most prominent item (e.g. 'chest of drawers', 'wardrobe', 'queen bed frame')",
   "allItems": "comma-separated list of all detected items",
   "noItems": true/false
 }
-If no installable items found, set noItems: true.`,
+If no installable items found, set noItems: true.
+${FURNITURE_VISION_GUIDE}`,
                     }, {
                       role: "user",
                       content: [
@@ -3487,13 +3522,14 @@ Your task: Carefully examine the photo and list ALL furniture items that require
 
 Rules:
 - COUNT each piece individually (e.g. if you see 4 chairs, write "4 dining chairs")
-- Identify the TYPE precisely: bed frame (specify size if visible), wardrobe (number of doors), sofa (number of seats), desk (L-shaped or straight), etc.
-- Identify BRAND/MODEL if visible (IKEA PAX, IKEA MALM, etc.)
+- Identify BRAND/MODEL if visible (IKEA PAX, IKEA MALM, IKEA HEMNES, etc.)
 - Include ALL visible furniture — don't skip anything
 - DO NOT include TVs, electronics, decorative items, or small accessories
 - Format: one bullet per line starting with quantity then item name, e.g. "• 1 queen bed frame"
 
-If no installable furniture is visible, respond only with: NO_FURNITURE`,
+If no installable furniture is visible, respond only with: NO_FURNITURE
+
+${FURNITURE_VISION_GUIDE}`,
                 },
                 {
                   role: "user",
@@ -3734,14 +3770,15 @@ Customer message: "${text}"`
                 {
                   role: "system",
                   content: `You are an expert furniture identification assistant for TMG Install, a professional furniture installation company in Singapore.
-Identify ALL furniture items visible that need professional installation, assembly, or relocation.
+Identify ALL furniture items visible that need professional installation, assembly, dismantling, or relocation.
 Rules:
 - COUNT each piece individually
-- Identify type precisely (size, doors, shape)
-- Identify BRAND/MODEL if visible
+- Identify BRAND/MODEL if visible (IKEA PAX, IKEA HEMNES, etc.)
 - DO NOT include TVs, electronics, decorative items
 - Format: one bullet per line, e.g. "• 1 queen bed frame"
-If no installable furniture visible, respond only with: NO_FURNITURE`,
+If no installable furniture visible, respond only with: NO_FURNITURE
+
+${FURNITURE_VISION_GUIDE}`,
                 },
                 {
                   role: "user",
