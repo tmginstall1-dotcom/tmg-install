@@ -2271,16 +2271,16 @@ Message: "${text}"`
           } catch {}
         }
 
-        // Determine where to start based on what we extracted
+        // Determine where to start based on what we extracted.
+        // If customer gives name + address (power user), skip the pricing check — they're ready to book.
+        // Otherwise show pricing first so they can confirm before we collect their details.
         const startState = extractedAddress && extractedName && extractedItems
           ? "awaiting_items_verify"
           : extractedAddress && extractedName
             ? "awaiting_items"
             : extractedAddress
               ? "awaiting_name"  // unusual but possible
-              : extractedName
-                ? "awaiting_address"
-                : "awaiting_name";
+              : "pricing_shown"; // simple greeting or name-only → show pricing first
 
         await storage.upsertWhatsAppSession(from, {
           state: startState,
@@ -2296,6 +2296,19 @@ Message: "${text}"`
           distanceKm: null,
         });
 
+        // ── Pricing overview message — shown to every new contact ──────────────
+        const PRICING_OVERVIEW =
+          `💰 *Our Pricing (Singapore):*\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `🔧 *Installation* (flat-pack / assembly): from *$80/item*\n` +
+          `🔨 *Dismantling*: from *$60/item*\n` +
+          `🗑️ *Disposal* (haul away): from *$80/item*\n` +
+          `🔨🗑️ *Dismantle + Dispose* bundle: best value!\n` +
+          `🚚 *Relocation* (move + reinstall): from *$180*\n\n` +
+          `_All prices per item. Min. job $180. Floor surcharge & transport may apply. No GST._\n\n` +
+          `📸 *Want the exact price for your item?* Type the name or send a photo and I'll look it up!\n\n` +
+          `Happy with our pricing? Reply *Yes* and I'll prepare a personalised quote in 2 minutes 😊`;
+
         if (extractedName && extractedAddress && extractedItems) {
           await sendBotMessage(from,
             `👋 Hi *${extractedName}*! Got it — let me confirm what you've told me:\n\n` +
@@ -2310,18 +2323,19 @@ Message: "${text}"`
             `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
           );
         } else if (extractedName) {
+          // Got name but no address — show pricing first addressed to them
           await sendBotMessage(from,
-            `👋 Hi *${extractedName}*! Thanks for reaching out to *TMG Install* 🏠\n\n` +
-            `I'll get you an upfront quote right now — no calls needed.\n\n` +
-            `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n` +
-            `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+            `👋 Hi *${extractedName}*! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
+            `We handle furniture installation, dismantling, relocation & disposal all across Singapore.\n\n` +
+            PRICING_OVERVIEW
           );
         } else {
+          // Simple greeting — show pricing overview
           await sendBotMessage(from,
             `👋 Hi there! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
             `We handle:\n• 🔧 Furniture *installation* & assembly\n• 🔨 *Dismantling* & removal\n• 🚚 *Relocation* (home or office)\n• 🗑️ *Disposal*\n\n` +
-            `All across Singapore, with upfront pricing — no surprises.\n\n` +
-            `To get you a quote, may I start with your *full name*? 😊`
+            `All across Singapore — no calls needed, upfront pricing.\n\n` +
+            PRICING_OVERVIEW
           );
         }
         return;
@@ -2329,6 +2343,7 @@ Message: "${text}"`
 
       if (textLower === "continue" && session) {
         const stateLabel: Record<string, string> = {
+          pricing_shown: "review our pricing — reply Yes when ready",
           awaiting_name: "we still need your name",
           awaiting_address: "we still need your job address",
           awaiting_items: "we still need the furniture list",
@@ -2464,6 +2479,8 @@ TMG INSTALL FACTS (for faq answers):
             } else if (gc.command === "pricing") {
               const pricingItem = gc.pricingItem as string | null;
               const statePromptPricing: Record<string, string> = {
+                pricing_shown: `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`,
+                awaiting_name: `What's your *full name*?`,
                 awaiting_address: `📍 What's the *job address*?`,
                 awaiting_items: `🛋️ What furniture do you need help with?`,
                 awaiting_items_verify: `Does your furniture list look right? Reply *YES* to confirm.`,
@@ -2531,6 +2548,8 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
             } else if (gc.command === "faq" && gc.faqAnswer) {
               // Answer the question and prompt to continue the flow
               const statePrompt: Record<string, string> = {
+                pricing_shown: `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`,
+                awaiting_name: `What's your *full name*?`,
                 awaiting_address: `📍 Now, what's the *job address*?`,
                 awaiting_items: `🛋️ What furniture do you need help with? (send a photo or type the list)`,
                 awaiting_items_verify: `Does your furniture list look right? Reply *YES* to confirm.`,
@@ -2548,6 +2567,8 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
               // Warm, sales-focused goodbye — session state unchanged so they pick up where they left off
               const name = session.collectedName ? `, *${session.collectedName}*` : "";
               const resumeStepHint: Record<string, string> = {
+                pricing_shown: "Just reply *Yes* whenever you're happy with our pricing and we'll get started!",
+                awaiting_name: "We just need your *name* to get started.",
                 awaiting_address: "We just need your *job address* to lock in your quote.",
                 awaiting_items: "We just need to know which *items* you need help with.",
                 awaiting_items_verify: "We just need you to confirm your *furniture list*.",
@@ -2583,6 +2604,126 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
           `• *change date* — update your preferred date\n` +
           `• *hi* or *start over* — restart from the beginning`;
         await sendBotMessage(from, helpMsg);
+        return;
+      }
+
+      // ── pricing_shown: customer reviewing pricing before starting booking flow ──
+      if (state === "pricing_shown") {
+        const nameAlready = session?.collectedName;
+
+        // If they sent a photo — scan it and show specific pricing
+        if (msgType === "image" && msg.image?.id) {
+          try {
+            const pMedia = await downloadWhatsAppMedia(msg.image.id);
+            if (pMedia) {
+              const vRes = await openai.chat.completions.create({
+                model: "gpt-4o", max_tokens: 80,
+                messages: [
+                  { role: "system", content: `Identify the main furniture item in this photo. Return ONLY the item name (e.g. "IKEA PAX wardrobe", "queen bed frame"). If no furniture, return "NONE".` },
+                  { role: "user", content: [{ type: "image_url", image_url: { url: `data:${pMedia.mimeType};base64,${pMedia.base64}`, detail: "low" } }] as any },
+                ],
+              });
+              const detectedItem = (vRes.choices[0]?.message?.content || "").trim();
+              if (detectedItem && detectedItem !== "NONE") {
+                const priceMsg = await smartPricingLookup(detectedItem);
+                if (priceMsg) {
+                  const followUp = nameAlready
+                    ? `Ready to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
+                    : `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`;
+                  await sendBotMessage(from, `${priceMsg}\n\n${followUp}`);
+                  return;
+                }
+              }
+            }
+          } catch { /* fall through */ }
+          await sendBotMessage(from,
+            `📸 Got your photo! I'll scan it for items once we start your quote.\n\n` +
+            `Happy with our pricing? Reply *Yes* to get started 😊`
+          );
+          return;
+        }
+
+        // Use GPT to classify the reply
+        try {
+          const pricingClassRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 200,
+            response_format: { type: "json_object" },
+            messages: [{
+              role: "system",
+              content: `A customer received a pricing overview from TMG Install (furniture installation Singapore) and replied.
+Classify their reply. Return JSON:
+{
+  "intent": "yes" | "item_price" | "decline" | "provide_name" | "other",
+  "name": "extracted name if intent=provide_name, else null",
+  "itemQuery": "item to look up pricing for if intent=item_price, else null"
+}
+
+INTENT RULES:
+- yes: agrees, happy, ok, sure, let's go, proceed, book, quote, ready, sounds good, great, let me book, affordable — any positive confirmation
+- item_price: asks about price/cost of a SPECIFIC item (e.g. "how much for wardrobe?", "what about sofa?", "IKEA PAX price?")
+- decline: says too expensive, not interested, nevermind, maybe later — explicit negative  
+- provide_name: gives their name without any address or item (e.g. "I'm John", "My name is Sarah")
+- other: general question not covered above
+
+Customer message: "${text}"`
+            }],
+          });
+          const pc = JSON.parse(pricingClassRes.choices[0]?.message?.content || "{}");
+
+          if (pc.intent === "yes") {
+            // Customer happy with pricing — proceed to booking flow
+            if (nameAlready) {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
+              await sendBotMessage(from,
+                `Great, *${nameAlready}*! Let's get you a personalised quote. 🎉\n\n` +
+                `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n` +
+                `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+              );
+            } else {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
+              await sendBotMessage(from,
+                `Let's get started! 🎉\n\nTo prepare your personalised quote, may I start with your *full name*? 😊`
+              );
+            }
+            return;
+          }
+
+          if (pc.intent === "item_price" && pc.itemQuery) {
+            const priceMsg = await smartPricingLookup(pc.itemQuery);
+            const followUp = nameAlready
+              ? `Ready to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
+              : `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`;
+            await sendBotMessage(from, priceMsg
+              ? `${priceMsg}\n\n${followUp}`
+              : `I don't have an exact price for that item yet — our team will confirm it when they review your quote.\n\n${followUp}`
+            );
+            return;
+          }
+
+          if (pc.intent === "decline") {
+            await sendBotMessage(from,
+              `No worries at all! 😊 Prices are negotiable for larger jobs or repeat customers.\n\n` +
+              `Feel free to message us anytime — we're happy to help when you're ready. 👍`
+            );
+            return;
+          }
+
+          if (pc.intent === "provide_name" && pc.name) {
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_address", collectedName: pc.name });
+            await sendBotMessage(from,
+              `Nice to meet you, *${pc.name}*! 😊\n\n` +
+              `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n` +
+              `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+            );
+            return;
+          }
+        } catch { /* fall through to generic prompt */ }
+
+        // Fallback — repeat the CTA
+        await sendBotMessage(from,
+          `Happy with our pricing? Reply *Yes* to start your personalised quote, or ask me about a specific item! 😊`
+        );
         return;
       }
 
