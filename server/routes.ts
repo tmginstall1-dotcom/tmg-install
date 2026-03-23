@@ -2160,6 +2160,12 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const session = await storage.getWhatsAppSession(from);
       const state = session?.state ?? "start";
 
+      // ── Admin takeover guard: if bot is paused for this number, do not respond ─
+      if (session?.botPaused) {
+        console.log(`[WhatsApp] Bot paused for ${from} — admin is handling this conversation`);
+        return;
+      }
+
       // ── Load conversation history for context-aware GPT calls ────────────────
       const conversationHistory = loadHistory(session);
 
@@ -4630,6 +4636,149 @@ Respond directly — no JSON, just the message text.`,
     // Log as admin-sent message (overwrite the 'bot' sentBy that sendWhatsAppMessage logs)
     await storage.logWhatsAppMessage({ phone, direction: 'outbound', body: message.trim(), sentBy: `admin:${user.name || user.email}` });
     res.json({ ok: true });
+  });
+
+  // ── Admin takeover: pause bot for a conversation ──────────────────────────
+  app.post("/api/admin/whatsapp/conversations/:phone/pause-bot", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const phone = req.params.phone;
+    await storage.upsertWhatsAppSession(phone, { botPaused: true, botPausedAt: new Date() });
+    res.json({ ok: true, botPaused: true });
+  });
+
+  // ── Resume bot for a conversation ─────────────────────────────────────────
+  app.post("/api/admin/whatsapp/conversations/:phone/resume-bot", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const phone = req.params.phone;
+    await storage.upsertWhatsAppSession(phone, { botPaused: false, botPausedAt: null });
+    res.json({ ok: true, botPaused: false });
+  });
+
+  // ── Generate quote from session data (admin-initiated) ────────────────────
+  app.post("/api/admin/whatsapp/conversations/:phone/generate-quote", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const phone = req.params.phone;
+    const session = await storage.getWhatsAppSession(phone);
+    if (!session) return res.status(404).json({ message: "No session found for this number" });
+
+    const name = session.collectedName || "WhatsApp Customer";
+    const address = session.collectedAddress;
+    if (!address) return res.status(400).json({ message: "No address collected in session — cannot generate quote" });
+
+    const catalog = await storage.getCatalogItems();
+    const itemsText = session.collectedItems || "";
+
+    // Use GPT to parse items from the collected text (same as bot flow)
+    let aiParsedItems: Array<{ detectedName: string; serviceType: string; quantity: number; estimatedUnitPrice: number; confidence: number }> = [];
+    if (itemsText) {
+      try {
+        const aiResponse = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_tokens: 500,
+          messages: [
+            {
+              role: "system",
+              content: `Parse furniture items from this text into structured JSON. Return {"items":[{"detectedName":"...","serviceType":"install|dismantle|relocate|dispose","quantity":1,"estimatedUnitPrice":80,"confidence":80}]}. Default serviceType is "install".`,
+            },
+            { role: "user", content: itemsText },
+          ],
+          response_format: { type: "json_object" },
+        });
+        const raw = aiResponse.choices[0].message.content || '{"items":[]}';
+        const parsed = JSON.parse(raw);
+        aiParsedItems = parsed.items || [];
+      } catch { /* fall through */ }
+    }
+
+    if (!aiParsedItems.length) {
+      aiParsedItems = [{ detectedName: itemsText.substring(0, 200) || "General furniture", serviceType: "install", quantity: 1, estimatedUnitPrice: 0, confidence: 50 }];
+    }
+
+    let totalEstimate = 0;
+    const quoteItems = aiParsedItems.map((item) => {
+      const matchedCatalogItem = catalog.find(c =>
+        c.serviceType === item.serviceType &&
+        item.detectedName.toLowerCase().includes(c.name.toLowerCase())
+      );
+      const unitPrice = matchedCatalogItem ? Number(matchedCatalogItem.basePrice) : (item.estimatedUnitPrice || 0);
+      const qty = item.quantity || 1;
+      const subtotal = unitPrice * qty;
+      totalEstimate += subtotal;
+      return {
+        originalDescription: itemsText,
+        detectedName: item.detectedName,
+        serviceType: item.serviceType || "install",
+        quantity: qty,
+        unitPrice: unitPrice.toFixed(2),
+        subtotal: subtotal.toFixed(2),
+        catalogItemId: matchedCatalogItem?.id,
+      };
+    });
+
+    const MIN_CHARGE = 180;
+    const minAdjustment = totalEstimate < MIN_CHARGE ? MIN_CHARGE - totalEstimate : 0;
+    const laborTotal = totalEstimate + minAdjustment;
+    if (minAdjustment > 0) {
+      quoteItems.push({ originalDescription: "Minimum Charge Adjustment", detectedName: "Minimum Charge Adjustment", serviceType: "adjustment", quantity: 1, unitPrice: minAdjustment.toFixed(2), subtotal: minAdjustment.toFixed(2), catalogItemId: undefined });
+    }
+
+    const sessionFloorLevel = session.floorLevel ?? 1;
+    const sessionHasLift = session.hasLift ?? true;
+    const floorsAboveGround = Math.max(0, sessionFloorLevel - 1);
+    const floorSurcharge = floorsAboveGround * (sessionHasLift ? PricingConfig.floor.perFloorWithLift : PricingConfig.floor.perFloorNoLift);
+    if (floorSurcharge > 0) {
+      quoteItems.push({ originalDescription: `Floor Surcharge (Floor ${sessionFloorLevel}, ${sessionHasLift ? "lift" : "no lift"})`, detectedName: "Stairs / Floor Access", serviceType: "surcharge", quantity: 1, unitPrice: floorSurcharge.toFixed(2), subtotal: floorSurcharge.toFixed(2), catalogItemId: undefined });
+    }
+
+    const sessionAccess = session.accessDifficulty ?? "easy";
+    const accessPct = sessionAccess === "medium" ? PricingConfig.access.mediumPct : sessionAccess === "hard" ? PricingConfig.access.hardPct : 0;
+    const accessSurcharge = Math.round(laborTotal * accessPct * 100) / 100;
+    if (accessSurcharge > 0) {
+      quoteItems.push({ originalDescription: `Access Difficulty (${sessionAccess === "medium" ? "Moderate" : "Difficult"})`, detectedName: `Access Difficulty`, serviceType: "surcharge", quantity: 1, unitPrice: accessSurcharge.toFixed(2), subtotal: accessSurcharge.toFixed(2), catalogItemId: undefined });
+    }
+
+    const laborTotalWithSurcharges = laborTotal + floorSurcharge + accessSurcharge;
+    const sessionDistKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
+    const transportFee = session.isRelocation ? calcTransportFee(sessionDistKm) : 0;
+    const grandTotal = laborTotalWithSurcharges + transportFee;
+
+    const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
+    const quote = await storage.createQuote(
+      { name, email: `wa_${phone}@tmginstall.com`, phone },
+      {
+        referenceNo: refNo,
+        serviceAddress: address,
+        status: "submitted",
+        sourceChannel: "whatsapp",
+        customerWhatsappPhone: phone,
+        subtotal: laborTotalWithSurcharges.toFixed(2),
+        transportFee: transportFee.toFixed(2),
+        total: grandTotal.toFixed(2),
+        depositAmount: (grandTotal * 0.5).toFixed(2),
+        finalAmount: (grandTotal * 0.5).toFixed(2),
+        requiresManualReview: true,
+        pickupAddress: session.isRelocation ? address : null,
+        dropoffAddress: session.collectedToAddress || null,
+        distanceKm: session.distanceKm || null,
+        floorsInfo: JSON.stringify([{ level: sessionFloorLevel, hasLift: sessionHasLift }]),
+        accessDifficulty: sessionAccess,
+        preferredDate: session.preferredDateIso || null,
+        preferredTimeWindow: session.preferredTimeWindow || null,
+        notes: session.preferredDate ? `Customer's preferred date: ${session.preferredDate}` : null,
+      } as any,
+      quoteItems as any
+    );
+
+    // Mark session as submitted but keep botPaused so admin stays in control
+    await storage.upsertWhatsAppSession(phone, { state: "submitted" });
+
+    res.json({ ok: true, quoteId: quote.id, referenceNo: quote.referenceNo });
   });
 
   return httpServer;

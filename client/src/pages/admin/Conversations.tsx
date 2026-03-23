@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   MessageCircle, Send, Phone, RefreshCw, User, Bot, Search, X,
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
-  CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn,
+  CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
+  TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -345,6 +346,7 @@ function ChatModal({
   const [replyText, setReplyText] = useState("");
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
+  const [generatedQuote, setGeneratedQuote] = useState<{ quoteId: number; referenceNo: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const queryClient = useQueryClient();
@@ -371,6 +373,36 @@ function ChatModal({
     onError: () => toast({ title: "Failed to send message", variant: "destructive" }),
   });
 
+  const pauseBotMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/admin/whatsapp/conversations/${selectedPhone}/pause-bot`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations", selectedPhone] });
+      toast({ title: "Bot paused — you are now in Admin Mode" });
+    },
+    onError: () => toast({ title: "Failed to pause bot", variant: "destructive" }),
+  });
+
+  const resumeBotMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/admin/whatsapp/conversations/${selectedPhone}/resume-bot`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations", selectedPhone] });
+      toast({ title: "Bot resumed — AI is back in control" });
+    },
+    onError: () => toast({ title: "Failed to resume bot", variant: "destructive" }),
+  });
+
+  const generateQuoteMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/admin/whatsapp/conversations/${selectedPhone}/generate-quote`),
+    onSuccess: (data: any) => {
+      setGeneratedQuote({ quoteId: data.quoteId, referenceNo: data.referenceNo });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations", selectedPhone] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      toast({ title: `Quote ${data.referenceNo} created!`, description: "Opening quote in a new tab…" });
+      window.open(`/admin/quotes/${data.quoteId}`, "_blank");
+    },
+    onError: (err: any) => toast({ title: "Could not generate quote", description: err?.message || "Check that address has been collected", variant: "destructive" }),
+  });
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [thread?.messages?.length]);
@@ -395,6 +427,8 @@ function ChatModal({
   }
 
   const session = thread?.session;
+  const botPaused: boolean = session?.botPaused ?? false;
+  const canGenerateQuote = session?.collectedAddress && !generatedQuote;
 
   const grouped: { date: string; messages: WaMessage[] }[] = [];
   if (thread?.messages) {
@@ -512,6 +546,34 @@ function ChatModal({
                   <Phone className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">WhatsApp</span>
                 </a>
+
+                {/* Bot pause / resume toggle */}
+                {session && (
+                  botPaused ? (
+                    <button
+                      onClick={() => resumeBotMutation.mutate()}
+                      disabled={resumeBotMutation.isPending}
+                      data-testid="resume-bot-btn"
+                      className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border bg-amber-500 text-white border-amber-500 hover:bg-amber-600 transition-all disabled:opacity-60"
+                      title="Resume bot — AI will start responding again"
+                    >
+                      <Bot className="w-3.5 h-3.5" />
+                      Resume Bot
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => pauseBotMutation.mutate()}
+                      disabled={pauseBotMutation.isPending}
+                      data-testid="pause-bot-btn"
+                      className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border bg-gray-50 text-gray-600 border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-60"
+                      title="Pause bot — take over and reply manually"
+                    >
+                      <BotOff className="w-3.5 h-3.5" />
+                      Take Over
+                    </button>
+                  )
+                )}
+
                 {session && (
                   <button
                     onClick={() => setShowInfo(v => !v)}
@@ -532,6 +594,22 @@ function ChatModal({
                 </button>
               </div>
             </div>
+
+            {/* Admin Mode banner */}
+            {botPaused && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-t border-amber-200">
+                <TriangleAlert className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                <span className="text-xs font-semibold text-amber-700">Admin Mode — Bot is paused. The customer's messages will not receive an automatic reply.</span>
+                <button
+                  onClick={() => resumeBotMutation.mutate()}
+                  disabled={resumeBotMutation.isPending}
+                  className="ml-auto text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2 flex-shrink-0"
+                  data-testid="resume-bot-inline"
+                >
+                  Resume Bot
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Messages */}
@@ -592,6 +670,46 @@ function ChatModal({
             ))}
             <div ref={messagesEndRef} className="h-1" />
           </div>
+
+          {/* Generated quote success banner */}
+          {generatedQuote && (
+            <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 bg-emerald-50 border-t border-emerald-200">
+              <CheckCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <span className="text-xs font-semibold text-emerald-700 flex-1">Quote <span className="font-bold">{generatedQuote.referenceNo}</span> created successfully</span>
+              <a
+                href={`/admin/quotes/${generatedQuote.quoteId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 flex-shrink-0"
+              >
+                Open Quote
+              </a>
+            </div>
+          )}
+
+          {/* Generate Quote action bar — shown when session has enough data */}
+          {!generatedQuote && canGenerateQuote && (
+            <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 bg-blue-50 border-t border-blue-200">
+              <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              <span className="text-xs text-blue-700 flex-1">
+                {session?.collectedItems
+                  ? "Address & items collected — ready to generate a quote."
+                  : "Address collected — you can generate a quote (items will be empty)."}
+              </span>
+              <button
+                onClick={() => generateQuoteMutation.mutate()}
+                disabled={generateQuoteMutation.isPending}
+                data-testid="generate-quote-btn"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-60 flex-shrink-0"
+              >
+                {generateQuoteMutation.isPending
+                  ? <div className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                  : <FileText className="w-3.5 h-3.5" />
+                }
+                Generate Quote
+              </button>
+            </div>
+          )}
 
           {/* Quick Replies */}
           {showQuickReplies && (

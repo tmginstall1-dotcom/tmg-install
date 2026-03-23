@@ -188,6 +188,10 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   // Stores the last 8 exchanges so GPT can reference earlier context.
   conversationHistory: text("conversation_history"),
 
+  // Admin takeover — when true, bot will not respond; admin handles the chat manually
+  botPaused: boolean("bot_paused").default(false),
+  botPausedAt: timestamp("bot_paused_at"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
