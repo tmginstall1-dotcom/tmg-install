@@ -45,7 +45,7 @@ export function useQuote(id: string | number) {
     queryKey: [api.quotes.get.path, id],
     queryFn: async () => {
       if (!id) return null;
-      const url = buildUrl(api.quotes.get.path, { id });
+      const url = `${API_BASE}${buildUrl(api.quotes.get.path, { id })}`;
       const res = await fetch(url, { credentials: "include" });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch quote");
