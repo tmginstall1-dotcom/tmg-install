@@ -561,22 +561,22 @@ function ChatModal({
                       onClick={() => resumeBotMutation.mutate()}
                       disabled={resumeBotMutation.isPending}
                       data-testid="resume-bot-btn"
-                      className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border bg-amber-500 text-white border-amber-500 hover:bg-amber-600 transition-all disabled:opacity-60"
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-amber-500 text-white border border-amber-500 hover:bg-amber-600 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
                       title="Resume bot — AI will start responding again"
                     >
                       <Bot className="w-3.5 h-3.5" />
-                      Resume Bot
+                      <span className="hidden sm:inline">Resume Bot</span>
                     </button>
                   ) : (
                     <button
                       onClick={() => pauseBotMutation.mutate()}
                       disabled={pauseBotMutation.isPending}
                       data-testid="pause-bot-btn"
-                      className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border bg-gray-50 text-gray-600 border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-60"
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
                       title="Pause bot — take over and reply manually"
                     >
                       <BotOff className="w-3.5 h-3.5" />
-                      Take Over
+                      <span className="hidden sm:inline">Take Over</span>
                     </button>
                   )
                 )}
@@ -696,18 +696,18 @@ function ChatModal({
 
           {/* Generate Quote action bar — shown when session has enough data */}
           {!generatedQuote && canGenerateQuote && (
-            <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 bg-blue-50 border-t border-blue-200">
+            <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5 bg-blue-50 border-t border-blue-200 sm:gap-3 sm:px-4">
               <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-              <span className="text-xs text-blue-700 flex-1">
+              <span className="text-xs text-blue-700 flex-1 min-w-0 truncate sm:whitespace-normal sm:truncate-none">
                 {session?.collectedItems
                   ? "Address & items collected — ready to generate a quote."
-                  : "Address collected — you can generate a quote (items will be empty)."}
+                  : "Address collected — generate a quote (items will be empty)."}
               </span>
               <button
                 onClick={() => generateQuoteMutation.mutate()}
                 disabled={generateQuoteMutation.isPending}
                 data-testid="generate-quote-btn"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-60 flex-shrink-0"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-60 flex-shrink-0 whitespace-nowrap"
               >
                 {generateQuoteMutation.isPending
                   ? <div className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
