@@ -70,7 +70,7 @@ export default function StaffHR() {
         <div className="max-w-2xl mx-auto px-4 sm:px-5">
           <div className="pt-16 pb-3">
             <h1 className="text-2xl font-black text-slate-900">My HR</h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">Attendance, leave & payslips</p>
+            <p className="text-[13px] text-slate-500 mt-0.5">Attendance, leave, payslips & receipts</p>
           </div>
 
           {/* Tab bar */}
