@@ -3379,6 +3379,14 @@ Note: "dismantle and relocate/relocation" → detectedService: "relocate"
 OTHERWISE, parse the furniture description and return JSON:
 { "done": false, "items": string, "needsServiceType": boolean, "serviceOnly": false, "detectedService": null }
 - items: formatted bullet list (one • per line). Each line: "• [quantity] [item name] ([service type])"
+  - Service type brackets MUST use ONLY one of these exact values: install, dismantle, relocate, dispose, dismantle_dispose
+  - NEVER use any other description in brackets (e.g. "requires leg assembly", "needs disassembly", "flat pack" MUST be normalised — see mapping below)
+  - Service type mapping:
+    • "assembly", "assemble", "requires assembly", "requires leg assembly", "flat pack", "flat-pack", "put together", "set up" → install
+    • "dismantle only", "take apart", "disassemble", "unassemble", "pack" (no moving) → dismantle
+    • "relocate", "move", "shift", "transfer", "transport", "dismantle and relocate", "dismantle and move" → relocate (relocation includes dismantling at origin AND reinstall at destination)
+    • "dispose", "haul away", "throw away", "get rid of" → dispose
+    • "dismantle and dispose", "dismantle then haul" → dismantle_dispose
   - If service type is mentioned in this message OR in the recent conversation context below, include it in brackets
   - Service type context (from prior messages): ${
     (() => {
@@ -3390,8 +3398,9 @@ OTHERWISE, parse the furniture description and return JSON:
       return 'none detected yet';
     })()
   }
-  - If not mentioned anywhere, leave out the brackets (needsServiceType: true)
+  - If no service type can be determined from this message or context, leave out the brackets (needsServiceType: true)
   - Quantity if mentioned, otherwise just the item name
+  - IMPORTANT: "dismantle AND relocate/relocation" for the SAME item → use (relocate) only, NOT two separate lines
 - needsServiceType: true if NO service type was mentioned at all (neither in this message nor in context)
 
 Customer message: "${text}"`
@@ -3652,11 +3661,26 @@ For reply: be natural and friendly, confirm what you did.`,
 
           if (action === "confirm") {
             // Use updatedList if GPT added service type labels, otherwise keep detectedItems
-            const finalItems = updatedList || detectedItems;
+            let finalItems = updatedList || detectedItems;
 
-            // If service type is still missing, transition to dedicated state so global handler can't intercept
+            // Also check the raw customer message for "dismantle and reloc" pattern
+            const rawIsReloc = /dismantle.{0,20}reloc|reloc.{0,20}dismantle/i.test(text);
+            const resolvedIsRelocation = intentIsRelocation || rawIsReloc || session.isRelocation || false;
+            const resolvedServiceType = intentServiceType || (rawIsReloc ? "relocate" : null) || (resolvedIsRelocation ? "relocate" : null);
+
+            // If a service type is known but items lack labels, stamp all items now
             const hasServiceTypeFinal = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(finalItems);
-            if (!hasServiceTypeFinal && !intentServiceType && !intentIsRelocation) {
+            if (!hasServiceTypeFinal && resolvedServiceType) {
+              finalItems = finalItems.split("\n").map(line => {
+                if (!line.trim()) return line;
+                // Strip any existing non-standard bracket, then add correct service type
+                return `${line.replace(/\s*\(.*?\)\s*$/, "").trim()} (${resolvedServiceType})`;
+              }).join("\n");
+            }
+
+            // If service type is STILL missing after all checks, ask for it
+            const hasServiceTypeFinalCheck = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(finalItems);
+            if (!hasServiceTypeFinalCheck && !resolvedServiceType && !resolvedIsRelocation) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_service_type", collectedItems: finalItems });
               await sendBotMessage(from,
                 `${aiReply ? aiReply + "\n\n" : ""}One more thing — what *service type* do you need?\n\n` +
@@ -3675,7 +3699,7 @@ For reply: be natural and friendly, confirm what you did.`,
             await storage.upsertWhatsAppSession(from, {
               state: "awaiting_floor",
               collectedItems: finalItems,
-              isRelocation: intentIsRelocation || session.isRelocation || false,
+              isRelocation: resolvedIsRelocation,
               floorLevel: null,
               hasLift: null,
             });
@@ -3746,40 +3770,49 @@ For reply: be natural and friendly, confirm what you did.`,
         let detectedServiceType: string | null = null;
         let isRelocationSvc = false;
 
-        try {
-          const svcRes = await openai.chat.completions.create({
-            model: "gpt-4o",
-            max_tokens: 100,
-            response_format: { type: "json_object" },
-            messages: [{
-              role: "system",
-              content: `The customer is answering the question: "What service type do you need?"
+        // ── Pre-check: "dismantle AND relocation" variants → always "relocate" ──
+        // Customers don't know relocation already includes dismantling, so they say both.
+        if (/dismantle.{0,20}reloc|reloc.{0,20}dismantle/i.test(text)) {
+          detectedServiceType = "relocate";
+          isRelocationSvc = true;
+        } else {
+          try {
+            const svcRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 100,
+              response_format: { type: "json_object" },
+              messages: [{
+                role: "system",
+                content: `The customer is answering the question: "What service type do you need?"
 Customer said: "${text}"
 
 Map their reply to one of these service types:
 - "install" → assembly, installation, put together, set up, assemble, install
-- "dismantle" → dismantle only, take apart only, pack only, disassemble (no moving)
-- "relocate" → relocate, relocation, move, shift, transfer, moving, transport, dismantle and move, dismantle and relocate, dismantle and shift, move and reinstall, pick up and deliver
+- "dismantle" → dismantle only, take apart only, disassemble (no moving or reinstall)
+- "relocate" → relocate, relocation, move, shift, transfer, moving, transport, dismantle and move, dismantle and relocate, move and reinstall
 - "dispose" → dispose, disposal, throw away, haul away, get rid of, junk (no reinstall)
-- "dismantle_dispose" → dismantle and dispose, take apart and throw away, dismantle then haul, bundle deal
+- "dismantle_dispose" → dismantle and dispose, take apart and throw away, dismantle then haul
 
-Important: "dismantle and relocate" / "dismantle and move" → use "relocate" (relocation includes dismantling at origin)
-Important: If customer mentions TWO services (e.g. "dismantle some and relocate others"), pick the primary one that applies to most items.
+CRITICAL: If the customer mentions BOTH "dismantle" AND "relocate/relocation/move" → always return "relocate" (relocation already includes dismantling at origin + reinstall at destination).
 
 Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"dismantle_dispose"|null, "confidence": "high"|"low" }`
-            }],
-          });
-          const svcJson = JSON.parse(svcRes.choices[0]?.message?.content || "{}");
-          detectedServiceType = svcJson.serviceType || null;
-          isRelocationSvc = detectedServiceType === "relocate";
-        } catch {
-          // fallback: keyword match
-          if (/reloc|moving|move|shift/i.test(text)) { detectedServiceType = "relocate"; isRelocationSvc = true; }
-          else if (/dismantle.*dispos|bundle/i.test(text)) { detectedServiceType = "dismantle_dispose"; }
-          else if (/dispos|haul|throw/i.test(text)) { detectedServiceType = "dispose"; }
-          else if (/dismantle|take apart|pack/i.test(text)) { detectedServiceType = "dismantle"; }
-          else if (/install|assem|set up/i.test(text)) { detectedServiceType = "install"; }
+              }],
+            });
+            const svcJson = JSON.parse(svcRes.choices[0]?.message?.content || "{}");
+            detectedServiceType = svcJson.serviceType || null;
+          } catch { /* ignore — keyword fallback below */ }
+
+          // ── Keyword fallback: runs when GPT throws OR returns null ──────────
+          if (!detectedServiceType) {
+            if (/reloc|moving|move|shift/i.test(text)) { detectedServiceType = "relocate"; }
+            else if (/dismantle.*dispos|bundle/i.test(text)) { detectedServiceType = "dismantle_dispose"; }
+            else if (/dispos|haul|throw/i.test(text)) { detectedServiceType = "dispose"; }
+            else if (/dismantle|take apart|pack/i.test(text)) { detectedServiceType = "dismantle"; }
+            else if (/install|assem|set up/i.test(text)) { detectedServiceType = "install"; }
+          }
         }
+
+        if (detectedServiceType === "relocate") isRelocationSvc = true;
 
         if (!detectedServiceType) {
           // Still can't understand — re-ask
