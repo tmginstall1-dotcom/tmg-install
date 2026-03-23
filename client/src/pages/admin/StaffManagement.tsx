@@ -436,19 +436,19 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings,
                   Profile incomplete
                 </span>
               )}
+              <select onChange={e => { if (e.target.value === "__unassign__") onUnassign(); else if (e.target.value) onAssign(parseInt(e.target.value)); e.target.value = ""; }}
+                className="h-6 pl-1.5 pr-6 text-[11px] border border-zinc-200 rounded-md bg-white text-zinc-600 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 max-w-[90px]"
+                defaultValue=""
+                data-testid={`select-assign-team-${staff.id}`}>
+                <option value="" disabled>{staff.teamId ? "Move…" : "Assign…"}</option>
+                {staff.teamId && <option value="__unassign__">— Remove</option>}
+                {teams.filter((t: any) => t.id !== staff.teamId).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
             </div>
           </div>
         </div>
         
-        <div className="flex items-center gap-2 shrink-0">
-          <select onChange={e => { if (e.target.value === "__unassign__") onUnassign(); else if (e.target.value) onAssign(parseInt(e.target.value)); e.target.value = ""; }}
-            className="h-8 pl-2 pr-8 text-xs border border-zinc-200 rounded-md bg-white text-zinc-700 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 max-w-[120px]"
-            defaultValue=""
-            data-testid={`select-assign-team-${staff.id}`}>
-            <option value="" disabled>{staff.teamId ? "Move" : "Assign"}</option>
-            {staff.teamId && <option value="__unassign__">— Remove</option>}
-            {teams.filter((t: any) => t.id !== staff.teamId).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+        <div className="flex items-center gap-1 shrink-0">
           <button onClick={onEdit} title="Edit account"
             className="inline-flex items-center justify-center w-8 h-8 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
             data-testid={`button-edit-staff-${staff.id}`}>
