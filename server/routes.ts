@@ -2639,18 +2639,27 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
               }
 
               if (resolvedPricingItem) {
-                const priceMsg = await smartPricingLookup(resolvedPricingItem);
-                if (priceMsg) {
-                  // If customer asked about a specific service type, add a contextual note
-                  const serviceNote = pricingService && pricingService !== "install"
-                    ? `\n_You asked about *${serviceLabel}* — the relevant price is highlighted above._`
-                    : "";
-                  await sendBotMessage(from, `${priceMsg}${serviceNote}\n\n${continuePrompt}`);
-                  return;
+                // We know the item (from text or photo). If we also know the service from caption,
+                // acknowledge both and show price (or custom-job note) then continue the flow.
+                if (serviceLabel) {
+                  const priceMsg = await smartPricingLookup(resolvedPricingItem);
+                  const priceBlock = priceMsg
+                    ? `${priceMsg}\n`
+                    : `Our team will confirm the exact price for this job.\n`;
+                  await sendBotMessage(from,
+                    `Got it — *${serviceLabel}* for a *${resolvedPricingItem}*. 📸\n\n${priceBlock}\n${continuePrompt}`
+                  );
+                } else {
+                  // No specific service — show all service type prices
+                  const priceMsg = await smartPricingLookup(resolvedPricingItem);
+                  await sendBotMessage(from, priceMsg
+                    ? `${priceMsg}\n\n${continuePrompt}`
+                    : `Our team will confirm the exact price for the *${resolvedPricingItem}*.\n\n${continuePrompt}`
+                  );
                 }
+                return;
               }
-              // No item identified — if we're awaiting address, redirect there so the
-              // customer doesn't get stuck when they resend the same photo as an "answer"
+              // No item found at all — if we're awaiting address, redirect there
               if (state === "awaiting_address") {
                 await sendBotMessage(from,
                   `📸 Got your photo! I'll scan it for the furniture list once I have your address.\n\n` +
@@ -2660,16 +2669,15 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
                 return;
               }
               // No item found — ask ONLY for the missing piece
-              // If we already know the service type from the caption, don't ask for it again
               if (serviceLabel) {
                 await sendBotMessage(from,
-                  `Got it — *${serviceLabel}*. 👍\n\nWhich item is this for?\n\n` +
+                  `Got it — *${serviceLabel}*. 👍\n\nWhat item is this for?\n\n` +
                   `_e.g. wardrobe, queen bed frame, sofa, dining table_`
                 );
               } else {
                 await sendBotMessage(from,
                   `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
-                  `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`
+                  `_e.g. "IKEA PAX wardrobe — dismantling" or "queen bed frame — relocation"_`
                 );
               }
               return;
@@ -2821,25 +2829,70 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
             }
           } catch { /* fall through */ }
 
-          if (photoScanItem) {
-            const priceMsg = await smartPricingLookup(photoScanItem);
-            if (priceMsg) {
-              const serviceNote = captionService
-                ? `\n_You asked about *${captionService}* — check the relevant row above._`
-                : "";
-              const followUp = nameAlready
-                ? `Ready to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
-                : `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`;
-              await sendBotMessage(from, `${priceMsg}${serviceNote}\n\n${followUp}`);
-              return;
+          if (photoScanItem && captionService) {
+            // We know BOTH the item (from photo) AND the service (from caption).
+            // Skip the price overview — confirm item+service and start the quote immediately.
+            const serviceActionMap: Record<string, string> = {
+              "relocation + dismantling": "dismantle and relocate",
+              "relocation": "relocate",
+              "dismantling": "dismantle",
+              "disposal": "dispose of",
+              "installation": "install",
+            };
+            const serviceAction = serviceActionMap[captionService] || captionService;
+
+            // Store detected item with a "photo_detected" flag in previousItems so the
+            // awaiting_address handler routes to awaiting_items_verify (not awaiting_confirmation)
+            const prefilledItems = `• 1 ${photoScanItem} (${captionService})`;
+
+            if (nameAlready) {
+              // Name known — skip to address
+              await storage.upsertWhatsAppSession(from, {
+                state: "awaiting_address",
+                collectedItems: prefilledItems,
+                previousItems: "photo_detected",
+                isRelocation: captionService.includes("reloc"),
+              });
+              await sendBotMessage(from,
+                `📸 I can see a *${photoScanItem}* in your photo — noted for *${captionService}*.\n\n` +
+                `To give you an accurate quote, I just need a few more details.\n\n` +
+                `📍 What's the *full job address*?\n\n` +
+                `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+              );
+            } else {
+              // No name yet — save detected item + service and go to name
+              await storage.upsertWhatsAppSession(from, {
+                state: "awaiting_name",
+                collectedItems: prefilledItems,
+                previousItems: "photo_detected",
+                isRelocation: captionService.includes("reloc"),
+              });
+              await sendBotMessage(from,
+                `📸 I can see a *${photoScanItem}* in your photo — we can *${serviceAction}* that for you.\n\n` +
+                `To prepare an accurate quote, may I start with your *full name*? 😊`
+              );
             }
+            return;
+          }
+
+          if (photoScanItem) {
+            // Item detected but no service type in caption — show full price table
+            const priceMsg = await smartPricingLookup(photoScanItem);
+            const followUp = nameAlready
+              ? `Ready to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
+              : `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`;
+            await sendBotMessage(from, priceMsg
+              ? `${priceMsg}\n\n${followUp}`
+              : `Our team will confirm the exact price for the *${photoScanItem}*.\n\n${followUp}`
+            );
+            return;
           }
 
           // Photo scan failed or no item detected — use caption context if available
           if (captionService) {
             await sendBotMessage(from,
-              `Got it — *${captionService}*. 👍\n\nCouldn't read the photo clearly — which item is this for?\n\n` +
-              `_e.g. wardrobe, queen bed frame, sofa, dining table_`
+              `Got it — *${captionService}*. 👍\n\nCouldn't identify the item from the photo — could you describe it?\n\n` +
+              `_e.g. IKEA PAX wardrobe, queen bed frame, 3-seater sofa_`
             );
           } else {
             await sendBotMessage(from,
@@ -3351,8 +3404,10 @@ Rules:
         } catch {}
 
         const alreadyHasItems = session?.collectedItems && session.collectedItems !== "__scanning__";
+        const isPhotoDetectedItems = session?.previousItems === "photo_detected";
         let replyAddr: string;
-        if (alreadyHasItems) {
+        if (alreadyHasItems && !isPhotoDetectedItems) {
+          // Items were provided by the customer upfront — skip straight to confirmation
           await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedAddress: extractedAddress });
           replyAddr =
             `✅ Address updated to *${extractedAddress}*!\n\n` +
@@ -3360,6 +3415,18 @@ Rules:
             `📍 *Address:* ${extractedAddress}\n` +
             `🛋️ *Items:*\n${session.collectedItems}\n\n` +
             `Ready to go? Reply *YES* to send to our team. 😊`;
+        } else if (alreadyHasItems && isPhotoDetectedItems) {
+          // Items were detected from a photo — confirm them before moving to floor/access
+          await storage.upsertWhatsAppSession(from, {
+            state: "awaiting_items_verify",
+            collectedAddress: extractedAddress,
+            previousItems: null, // clear the flag
+          });
+          replyAddr =
+            `📍 *${extractedAddress}* — noted!\n\n` +
+            `Here's what I've got so far:\n\n` +
+            `🛋️ *Items:*\n${session.collectedItems}\n\n` +
+            `Does this look right? Reply *YES* to confirm, or tell me what to change.`;
         } else {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: extractedAddress });
           const nextPromptItems =
