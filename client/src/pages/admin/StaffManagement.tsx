@@ -237,7 +237,7 @@ function TeamsTab() {
               {allStaff.map((s: any) => (
                 <div key={s.id} className="p-4 hover:bg-zinc-50 transition-colors">
                   <StaffRow staff={s} teams={teams}
-                    onAssign={(teamId) => assignMut.mutate({ teamId, userId: s.id })}
+                    onAssign={(teamId: number) => assignMut.mutate({ teamId, userId: s.id })}
                     onUnassign={() => unassignMut.mutate(s.id)}
                     onDelete={() => { if (confirm(`Remove ${s.name}? This cannot be undone.`)) deleteStaffMut.mutate(s.id); }}
                     onEdit={() => { setEditStaffId(editStaffId === s.id ? null : s.id); setPaySettingsStaffId(null); }}
@@ -302,8 +302,8 @@ function TeamsTab() {
           {teams.map((team: any) => (
             <TeamCard key={team.id} team={team} allStaff={allStaff}
               onDelete={() => { if (confirm(`Delete ${team.name}? Members will become unassigned.`)) deleteTeamMut.mutate(team.id); }}
-              onRemoveMember={(uid) => unassignMut.mutate(uid)}
-              onAddMember={(uid) => assignMut.mutate({ teamId: team.id, userId: uid })} />
+              onRemoveMember={(uid: number) => unassignMut.mutate(uid)}
+              onAddMember={(uid: number) => assignMut.mutate({ teamId: team.id, userId: uid })} />
           ))}
         </div>
       </div>

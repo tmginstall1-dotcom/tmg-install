@@ -101,7 +101,7 @@ function eventColor(event: string) {
 
 function countryFlag(code: string) {
   if (!code || code.length !== 2) return "🌍";
-  return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E0 - 65 + c.charCodeAt(0)));
+  return String.fromCodePoint(...Array.from(code.toUpperCase()).map(c => 0x1F1E0 - 65 + c.charCodeAt(0)));
 }
 
 function sourceIcon(source: string) {
@@ -266,6 +266,7 @@ export default function Analytics() {
           </div>
           
           <div className="p-5">
+            {mapPins.length === 0 ? (
             <div className="h-48 flex items-center justify-center">
               <p className="text-xs text-slate-400">No geo data yet — appears within minutes of the first real visit.</p>
             </div>
@@ -373,6 +374,7 @@ export default function Analytics() {
               </div>
             </>
           )}
+          </div>
         </div>
 
         {/* Devices | Sources | Funnel */}
