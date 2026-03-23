@@ -23,8 +23,8 @@ import {
 import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
 import { calcTransportFee, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
-import { appSettings } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { appSettings, attendanceLogs } from "@shared/schema";
+import { eq, and, isNull } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
@@ -798,10 +798,19 @@ export async function registerRoutes(
 
   // -- GPS Track Routes --
   app.post("/api/staff/gps-track", async (req, res) => {
-    // Accept session userId OR staffId from body (native background service fallback)
-    const resolvedUserId = req.session.userId ?? (req.body?.staffId ? parseInt(req.body.staffId) : undefined);
-    if (!resolvedUserId) return res.status(401).json({ message: "Not logged in" });
+    // Session is required — body staffId bypass removed to prevent tracking after logout
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const resolvedUserId = req.session.userId;
     try {
+      // Only record GPS points when the staff member has an active clock-in session
+      const activeSession = await db
+        .select({ id: attendanceLogs.id })
+        .from(attendanceLogs)
+        .where(and(eq(attendanceLogs.userId, resolvedUserId), isNull(attendanceLogs.clockOutAt)))
+        .limit(1);
+      if (activeSession.length === 0) {
+        return res.status(200).json({ ok: false, reason: "not_clocked_in" });
+      }
       // Accept number or string for GPS fields (native app sends numbers)
       const numOrStr = z.union([z.number(), z.string()]).transform(v => String(v));
       const { lat, lng, accuracy, speed, heading, recordedAt } = z.object({

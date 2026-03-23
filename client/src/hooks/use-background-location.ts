@@ -74,6 +74,27 @@ async function sendPoint(
   }
 }
 
+// ─── Standalone stop (callable outside the hook, e.g. on logout) ─────────────
+
+export async function stopAllTracking() {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      await TMGLocation.stopWatching();
+      if (nativeListener) {
+        await nativeListener.remove();
+        nativeListener = null;
+      }
+    } else if (webWatcherId !== null) {
+      navigator.geolocation?.clearWatch(webWatcherId);
+      webWatcherId = null;
+    }
+  } catch {
+    nativeListener = null;
+    webWatcherId = null;
+  }
+  trackingStaffId = null;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useBackgroundLocation() {
