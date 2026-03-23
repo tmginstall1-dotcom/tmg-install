@@ -2765,7 +2765,40 @@ Customer message: "${text}"`
           }
         } catch { /* fall through to generic prompt */ }
 
-        // Fallback — repeat the CTA
+        // "other" intent or classification failed — answer any general question with company facts, then nudge CTA
+        try {
+          const faqRes = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            max_tokens: 200,
+            messages: [
+              {
+                role: "system",
+                content:
+                  `You are a WhatsApp assistant for TMG Install (The Moving Guy Pte Ltd), Singapore's furniture installation company.\n\n` +
+                  `Answer the customer's question briefly and warmly (1–3 sentences) using these facts:\n` +
+                  `- Services: installation, dismantling, relocation, disposal — all of Singapore (HDB, condo, landed, office)\n` +
+                  `- Pricing: from $80/item, minimum job $180; relocation adds transport fee; no GST\n` +
+                  `- Available weekdays & weekends (subject to availability)\n` +
+                  `- All tools & equipment supplied — customer brings nothing\n` +
+                  `- Payment: 50% deposit to confirm, 50% on completion — PayNow / bank transfer / card\n` +
+                  `- Quotes reviewed by admin; booking confirmed after deposit paid\n\n` +
+                  `If you can answer the question, do so then end with:\n` +
+                  `"Happy with our pricing? Reply *Yes* and I'll prepare a personalised quote in minutes! 😊"\n\n` +
+                  `If the message is just casual (greetings, "ok", "I see", etc.), respond warmly and say:\n` +
+                  `"Happy with our pricing? Reply *Yes* to get your personalised quote! 😊"`,
+              },
+              ...historyMessages(conversationHistory, 3),
+              { role: "user", content: text },
+            ],
+          });
+          const faqAnswer = faqRes.choices[0]?.message?.content?.trim();
+          if (faqAnswer) {
+            await sendBotMessage(from, faqAnswer);
+            return;
+          }
+        } catch { /* ignore */ }
+
+        // Hard fallback
         await sendBotMessage(from,
           `Happy with our pricing? Reply *Yes* to start your personalised quote, or ask me about a specific item! 😊`
         );
@@ -3750,13 +3783,15 @@ Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"disman
           hasLift: null,
         });
 
-        await sendBotMessage(from,
-          `Got it — *${svcLabel[detectedServiceType] || detectedServiceType}*! ✅\n\n` +
-          `Just a couple more quick questions to complete your quote. 😊\n\n` +
+        const nextPromptFloorSvc =
+          `*${svcLabel[detectedServiceType] || detectedServiceType}* — perfect! ✅\n\n` +
+          `Just a couple more quick questions to finalise your quote:\n\n` +
           `*Which floor is the unit on?*\n\n` +
-          `Reply with the floor number (e.g. *1* for ground/first floor, *5* for fifth floor)\n` +
-          `And is there a *lift* available? (yes / no)`
-        );
+          `Reply with the floor number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
+          `And is there a *lift* available? (yes / no)`;
+        const replySvcType = await craftReply(text, nextPromptFloorSvc, { name: session.collectedName, history: conversationHistory });
+        await sendBotMessage(from, replySvcType);
+        saveHistory(from, conversationHistory, text, replySvcType);
         return;
       }
 
@@ -3789,14 +3824,16 @@ Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"disman
           }
           await storage.upsertWhatsAppSession(from, { hasLift: liftKnown, state: "awaiting_access" });
           const floorLabel = session.floorLevel === 1 ? "Ground / 1st floor" : `Floor ${session.floorLevel}`;
-          await sendBotMessage(from,
-            `Got it — ${floorLabel}, ${liftKnown ? "lift available" : "no lift"}. 👍\n\n` +
-            `One more quick question — how easy is access to the unit?\n\n` +
+          const nextPromptAccessPartial =
+            `${floorLabel}, ${liftKnown ? "lift available ✅" : "no lift"} — got it!\n\n` +
+            `One last thing — how easy is access to the unit?\n\n` +
             `1️⃣ *Easy* — clear hallways, no obstacles\n` +
             `2️⃣ *Moderate* — some tight corners or minor obstacles\n` +
             `3️⃣ *Difficult* — very narrow, many obstacles\n\n` +
-            `Reply *1*, *2*, or *3*`
-          );
+            `Reply *1*, *2*, or *3*`;
+          const replyLiftPartial = await craftReply(text, nextPromptAccessPartial, { name: session.collectedName, history: conversationHistory });
+          await sendBotMessage(from, replyLiftPartial);
+          saveHistory(from, conversationHistory, text, replyLiftPartial);
           return;
         }
 
