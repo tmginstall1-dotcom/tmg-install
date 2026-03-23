@@ -165,8 +165,9 @@ export type WhatsAppMessage = typeof whatsappMessages.$inferSelect;
 export const whatsappSessions = pgTable("whatsapp_sessions", {
   id: serial("id").primaryKey(),
   phone: text("phone").notNull().unique(),
-  state: text("state").notNull().default("awaiting_name"), // awaiting_name | awaiting_address | awaiting_items | awaiting_items_verify | awaiting_service_type | awaiting_floor | awaiting_access | awaiting_to_address | awaiting_date | awaiting_confirmation | submitted
+  state: text("state").notNull().default("awaiting_name"), // awaiting_name | awaiting_address | awaiting_items | awaiting_items_verify | awaiting_service_type | awaiting_floor | awaiting_access | awaiting_to_address | awaiting_date | awaiting_remarks | awaiting_confirmation | submitted
   collectedName: text("collected_name"),
+  collectedEmail: text("collected_email"),   // optional — soft ask after name
   collectedAddress: text("collected_address"),
   collectedItems: text("collected_items"),
   previousItems: text("previous_items"),
@@ -187,6 +188,9 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   // Conversation memory — JSON array of {role:"user"|"assistant", content:string}
   // Stores the last 8 exchanges so GPT can reference earlier context.
   conversationHistory: text("conversation_history"),
+
+  // Special notes from customer (condo rules, parking, fragile items, etc.)
+  specialRemarks: text("special_remarks"),
 
   // Admin takeover — when true, bot will not respond; admin handles the chat manually
   botPaused: boolean("bot_paused").default(false),

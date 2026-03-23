@@ -2207,6 +2207,27 @@ Respond with ONLY a JSON array (no prose, no markdown):
         return;
       }
 
+      // ── Escalation detection: anger / frustration / explicit human request ────
+      // Runs before any state processing so the customer is never left stranded.
+      const ESCALATION_REGEX = /\b(so angry|very angry|super angry|pissed off|ridiculous|useless bot|terrible service|horrible service|worst service|rubbish bot|stupid bot|waste of (my )?time|want to complain|complain about|refund me|i was cheated|scam(med)?|fraud|talk to (a |an )?human|speak to (a |an )?human|i need a human|want a human|need (an )?agent|speak to (an )?agent|real person|human please|get me (an )?agent|connect me|transfer me|supervisor|manager|call me (now|please)|i give up)\b/i;
+      if (ESCALATION_REGEX.test(text) && !session?.botPaused && state !== "submitted") {
+        await storage.upsertWhatsAppSession(from, { botPaused: true, botPausedAt: new Date() });
+        await sendBotMessage(from,
+          `I hear you, and I'm sorry for any frustration. 🙏\n\n` +
+          `I've flagged this for our team — a real person will follow up with you shortly on WhatsApp.\n\n` +
+          `${session?.collectedName ? `Your details are saved, ${session.collectedName}. ` : ""}Talk soon! 😊`
+        );
+        console.log(`[WhatsApp] ESCALATION triggered for ${from}: "${text.slice(0, 80)}"`);
+        try {
+          await sendEmail({
+            to: ADMIN_EMAIL,
+            subject: `🚨 WhatsApp Escalation — ${from}${session?.collectedName ? ` (${session.collectedName})` : ""} needs human support`,
+            html: `<p><strong>Customer ${from}${session?.collectedName ? ` (${session.collectedName})` : ""} requested human assistance on WhatsApp.</strong></p><p>Trigger message: "${text.slice(0, 300)}"</p><p>State at time of escalation: <code>${state}</code></p><p>Collected so far: Name=${session?.collectedName || 'N/A'}, Address=${session?.collectedAddress || 'N/A'}, Items=${session?.collectedItems || 'N/A'}</p><p>⚠️ The bot has been paused for this number. Reply manually on WhatsApp.</p>`,
+          });
+        } catch { /* non-critical */ }
+        return;
+      }
+
       // ── Load conversation history for context-aware GPT calls ────────────────
       const conversationHistory = loadHistory(session);
 
@@ -2443,16 +2464,19 @@ CLASSIFY the customer's latest message. Is it a GLOBAL COMMAND or a NORMAL REPLY
 Return JSON:
 {
   "isCommand": boolean,
-  "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"help"|"pricing"|"faq"|"farewell"|"none",
+  "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"change_remarks"|"help"|"pricing"|"faq"|"progress"|"escalate"|"farewell"|"none",
   "faqAnswer": "concise answer (2-3 sentences) if command=faq, otherwise empty string",
   "pricingItem": "specific furniture item if command=pricing, e.g. 'IKEA PAX wardrobe', 'queen bed frame', 'sofa'. Null if not mentioned."
 }
 
 COMMAND RULES:
 - change_*: customer explicitly asks to correct/edit something already collected
+- change_remarks: customer wants to add/change special notes (condo rules, parking, fragile items)
 - help: asking what they can do or how this works
 - pricing: asking about price/cost for a specific or general furniture item or service
 - faq: general question about TMG Install (timing, payment, areas, GST, tools, etc.) NOT about item pricing
+- progress: customer asks what info has been collected so far ("what have you got?", "what do you have?", "summary so far", "what did I give you?", "what have we done?")
+- escalate: customer explicitly asks for a human/agent/staff/manager ("talk to human", "real person", "agent please", "need staff")
 - farewell: customer says goodbye, thank you, will update later, ok thanks, coming back later, talk later, or any variation of a polite exit — even mid-flow
 - none: a direct answer to the current question — DO NOT override a direct reply
 
@@ -2462,6 +2486,7 @@ CRITICAL — Do NOT classify as command if customer is directly answering the cu
 - state=awaiting_date → dates, times, "anytime", "flexible" → none
 - state=awaiting_items → furniture names or descriptions → none
 - state=awaiting_to_address → addresses → none
+- state=awaiting_remarks → any text (notes, email, "none", "skip") → none
 
 TMG INSTALL FACTS (for faq answers):
 - Covers all Singapore: HDB, condo, landed, commercial & office
@@ -2513,6 +2538,8 @@ TMG INSTALL FACTS (for faq answers):
               if (hasAddress) helpMsg += `• Type *change address* — fix the job address\n`;
               if (hasItems) helpMsg += `• Type *change items* — update the furniture list\n`;
               helpMsg += `• Type *change date* — update your preferred date\n`;
+              helpMsg += `• Type *change remarks* — add/update special notes\n`;
+              helpMsg += `• Type *summary* — see what we have so far\n`;
               helpMsg += `• Type *hi* or *start over* — restart from the beginning\n\n`;
               helpMsg += `_Currently: ${state.replace(/_/g, " ")}_`;
               await sendBotMessage(from, helpMsg);
@@ -2530,6 +2557,7 @@ TMG INSTALL FACTS (for faq answers):
                 awaiting_access: `How easy is access? Reply *1*, *2*, or *3*.`,
                 awaiting_to_address: `📍 What's the *destination address*?`,
                 awaiting_date: `📅 When would you like this done?`,
+                awaiting_remarks: `Any *special notes* for the team? (or reply *none*)`,
                 awaiting_confirmation: `Ready to submit? Reply *YES* to confirm.`,
               };
               const continuePrompt = statePromptPricing[state] || `Let's continue with your quote. 😊`;
@@ -2599,10 +2627,64 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
                 awaiting_access: `How easy is access? Reply *1* (Easy), *2* (Moderate), or *3* (Difficult).`,
                 awaiting_to_address: `📍 What's the *destination address* for the relocation?`,
                 awaiting_date: `📅 When would you like this done?`,
+                awaiting_remarks: `Any *special notes* for the team? (condo rules, parking, fragile items — or reply *none*)`,
                 awaiting_confirmation: `Ready to submit? Reply *YES* to confirm your request.`,
               };
               const prompt = statePrompt[state] || `Let's continue with your quote. 😊`;
               await sendBotMessage(from, `${gc.faqAnswer}\n\n${prompt}`);
+              return;
+            } else if (gc.command === "change_remarks") {
+              await storage.upsertWhatsAppSession(from, { state: "awaiting_remarks" });
+              await sendBotMessage(from,
+                `Sure! What special notes should our team know? 📝\n\n` +
+                `_(e.g. condo move-in rules, parking restrictions, fragile items, narrow lifts)_\n\n` +
+                `Reply *none* if there's nothing to add.`
+              );
+              return;
+            } else if (gc.command === "progress") {
+              // Show everything collected so far
+              const s = session;
+              let progressMsg = `Here's what we have so far:\n\n`;
+              if (s?.collectedName) progressMsg += `👤 *Name:* ${s.collectedName}\n`;
+              else progressMsg += `👤 *Name:* _(not collected yet)_\n`;
+              if (s?.collectedEmail) progressMsg += `📧 *Email:* ${s.collectedEmail}\n`;
+              if (s?.collectedAddress) progressMsg += `📍 *Address:* ${s.collectedAddress}\n`;
+              else progressMsg += `📍 *Address:* _(not collected yet)_\n`;
+              if (s?.isRelocation && s?.collectedToAddress) progressMsg += `📦 *Moving to:* ${s.collectedToAddress}\n`;
+              if (s?.collectedItems && s.collectedItems !== "__scanning__") progressMsg += `🛋️ *Items:*\n${s.collectedItems}\n`;
+              else progressMsg += `🛋️ *Items:* _(not collected yet)_\n`;
+              if (s?.floorLevel) progressMsg += `🏢 *Floor:* ${s.floorLevel} (${s.hasLift ? "lift ✅" : "no lift"})\n`;
+              if (s?.accessDifficulty) progressMsg += `🚪 *Access:* ${{ easy: "Easy", medium: "Moderate", hard: "Difficult" }[s.accessDifficulty] || s.accessDifficulty}\n`;
+              if (s?.preferredDate) progressMsg += `📅 *Preferred date:* ${s.preferredDate}\n`;
+              if (s?.specialRemarks) progressMsg += `📝 *Special notes:* ${s.specialRemarks}\n`;
+              const stateHintProg: Record<string, string> = {
+                awaiting_address: `📍 Still need: *job address*`,
+                awaiting_items: `🛋️ Still need: *furniture list*`,
+                awaiting_floor: `🏢 Still need: *floor & lift info*`,
+                awaiting_access: `🚪 Still need: *access difficulty*`,
+                awaiting_date: `📅 Still need: *preferred date*`,
+                awaiting_remarks: `📝 Still need: *any special notes*`,
+                awaiting_confirmation: `✅ All done — reply *YES* to submit!`,
+              };
+              const hint = stateHintProg[state];
+              if (hint) progressMsg += `\n${hint}`;
+              await sendBotMessage(from, progressMsg);
+              return;
+            } else if (gc.command === "escalate") {
+              // Customer explicitly asked for a human — trigger the same escalation path
+              await storage.upsertWhatsAppSession(from, { botPaused: true, botPausedAt: new Date() });
+              await sendBotMessage(from,
+                `Of course! I'll hand you over to our team right away. 😊\n\n` +
+                `A real person will follow up with you shortly on WhatsApp.\n\n` +
+                `${session?.collectedName ? `Your details are saved, ${session.collectedName}. ` : ""}Talk soon!`
+              );
+              try {
+                await sendEmail({
+                  to: ADMIN_EMAIL,
+                  subject: `📱 WhatsApp Handoff Request — ${from}${session?.collectedName ? ` (${session.collectedName})` : ""}`,
+                  html: `<p>Customer ${from}${session?.collectedName ? ` (${session.collectedName})` : ""} requested to speak to a human.</p><p>State: <code>${state}</code></p><p>Name=${session?.collectedName || 'N/A'}, Address=${session?.collectedAddress || 'N/A'}, Items=${session?.collectedItems || 'N/A'}</p><p>Bot has been paused. Please follow up manually on WhatsApp.</p>`,
+                });
+              } catch { /* non-critical */ }
               return;
             } else if (gc.command === "farewell") {
               // Warm, sales-focused goodbye — session state unchanged so they pick up where they left off
@@ -2618,6 +2700,7 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
                 awaiting_access: "We just need to know how *easy access* is to your unit.",
                 awaiting_to_address: "We just need the *destination address* for the relocation.",
                 awaiting_date: "We just need a *preferred date* and we're good to go.",
+                awaiting_remarks: "We're almost done — just any special notes (or reply *none*) and I'll show the full summary!",
                 awaiting_confirmation: "Your quote is almost ready — just tap *YES* to confirm when you're back!",
               };
               const hint = resumeStepHint[state] || "Your quote is saved and ready to complete.";
@@ -4231,46 +4314,103 @@ Rules:
         }
 
         // Store display text in session (for WhatsApp messages) + ISO date + time window separately
+        // Move to awaiting_remarks to collect any special notes before showing final summary
         await storage.upsertWhatsAppSession(from, {
-          state: "awaiting_confirmation",
+          state: "awaiting_remarks",
           preferredDate: preferredDateDisplay,
           preferredDateIso: preferredDateIso,
           preferredTimeWindow: preferredTimeWindow,
         });
 
-        // Build the time window label for the summary
-        const twLabel = preferredTimeWindow === "09:00-12:00"
+        const twLabelDate = preferredTimeWindow === "09:00-12:00"
           ? " (Morning, 9am–12pm)"
           : preferredTimeWindow === "13:00-17:00"
             ? " (Afternoon, 1pm–5pm)"
             : "";
 
-        // Build the confirmation summary
-        const isRelocation = !!session.isRelocation;
-        const toAddr = session.collectedToAddress;
-        const distKm = session.distanceKm;
-        const addressBlock = isRelocation && toAddr
-          ? `📦 *Type:* Relocation\n📍 *From:* ${address}\n📍 *To:* ${toAddr}${distKm ? `\n📏 *Distance:* ~${distKm} km` : ""}`
-          : `📍 *Address:* ${address}`;
+        const dateAck = isFlexible ? "Flexible timing — perfect! 😊" : `*${preferredDateDisplay}${twLabelDate}* — noted! ✅`;
+        const remarksPrompt =
+          `${dateAck}\n\n` +
+          `Last thing before I show you the full summary — any *special notes* for the team? 📝\n\n` +
+          `_(e.g. condo move-in rules, parking restrictions, fragile items, narrow lift)_\n\n` +
+          `Got an *email* for the quote receipt? Drop it here too if you'd like.\n\n` +
+          `Reply *none* to skip and go straight to your summary.`;
+        await sendBotMessage(from, remarksPrompt);
+        saveHistory(from, conversationHistory, text, remarksPrompt);
+        return;
+      }
 
-        // Floor & access summary line
-        const floorLvl = session.floorLevel ?? 1;
-        const liftAvail = session.hasLift ?? true;
-        const floorLine = `🏢 *Floor:* ${floorLvl === 1 ? "Ground / 1st floor" : `Floor ${floorLvl}`} (${liftAvail ? "lift available" : "no lift"})`;
-        const accessLvl = session.accessDifficulty ?? "easy";
-        const accessLine = `🚪 *Access:* ${{ easy: "Easy", medium: "Moderate", hard: "Difficult" }[accessLvl] || "Easy"}`;
+      // ─────────────────────────────────────────────────────────────────────────
+      // State: awaiting_remarks — optional special notes + email before summary
+      // ─────────────────────────────────────────────────────────────────────────
+      if (state === "awaiting_remarks") {
+        const isSkipRemark = /^(none|no|nope|nothing|skip|n\/a|na|nah|all good|ok|okay|no notes|no remarks|not? (needed|required)|nothing (to add|special))$/i.test(textLower.trim());
 
-        await sendBotMessage(from,
-          `Perfect! Here's a summary of your request:\n\n` +
-          `👤 *Name:* ${name}\n` +
-          `${addressBlock}\n` +
-          `🛋️ *Items:*\n${items}\n` +
-          `${floorLine}\n` +
-          `${accessLine}\n` +
-          `📅 *Preferred date:* ${preferredDateDisplay}${twLabel}\n\n` +
-          `Shall I send this to our team? Reply *YES* to submit.\n\n` +
-          `_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, or *change access*._`
-        );
+        // Extract email if present
+        const emailInRemark = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+        const extractedEmailRemark = emailInRemark ? emailInRemark[0].toLowerCase() : null;
+
+        // Extract remarks (strip the email from the text, keep the rest as notes)
+        let remarksText: string | null = null;
+        if (!isSkipRemark) {
+          const withoutEmail = text.replace(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, "").trim().replace(/\s+/g, " ");
+          // Only save as remarks if there's meaningful text left after stripping email
+          if (withoutEmail.length > 3 && !/^(none|no|nope|nothing|skip|n\/a|na|nah|all good|ok|okay)$/i.test(withoutEmail)) {
+            remarksText = withoutEmail;
+          }
+        }
+
+        await storage.upsertWhatsAppSession(from, {
+          state: "awaiting_confirmation",
+          ...(extractedEmailRemark ? { collectedEmail: extractedEmailRemark } : {}),
+          ...(remarksText ? { specialRemarks: remarksText } : {}),
+        });
+
+        // Reload session with fresh data for building the summary
+        const updatedSession = await storage.getWhatsAppSession(from);
+        const summName = updatedSession?.collectedName || session.collectedName || "";
+        const summAddress = updatedSession?.collectedAddress || session.collectedAddress || "";
+        const summItems = updatedSession?.collectedItems || session.collectedItems || "";
+        const summEmail = updatedSession?.collectedEmail || null;
+        const summRemarks = updatedSession?.specialRemarks || null;
+        const summFloorLvl = updatedSession?.floorLevel ?? session.floorLevel ?? 1;
+        const summHasLift = updatedSession?.hasLift ?? session.hasLift ?? true;
+        const summAccessLvl = updatedSession?.accessDifficulty ?? session.accessDifficulty ?? "easy";
+        const summDate = updatedSession?.preferredDate || session.preferredDate || "Flexible";
+        const summTimeWindow = updatedSession?.preferredTimeWindow || session.preferredTimeWindow || null;
+        const summIsRelocation = !!(updatedSession?.isRelocation || session.isRelocation);
+        const summToAddr = updatedSession?.collectedToAddress || session.collectedToAddress || null;
+        const summDistKm = updatedSession?.distanceKm || session.distanceKm || null;
+
+        const summTwLabel = summTimeWindow === "09:00-12:00"
+          ? " (Morning, 9am–12pm)"
+          : summTimeWindow === "13:00-17:00"
+            ? " (Afternoon, 1pm–5pm)"
+            : "";
+        const summAddressBlock = summIsRelocation && summToAddr
+          ? `📦 *Type:* Relocation\n📍 *From:* ${summAddress}\n📍 *To:* ${summToAddr}${summDistKm ? `\n📏 *Distance:* ~${summDistKm} km` : ""}`
+          : `📍 *Address:* ${summAddress}`;
+        const summFloorLine = `🏢 *Floor:* ${summFloorLvl === 1 ? "Ground / 1st floor" : `Floor ${summFloorLvl}`} (${summHasLift ? "lift available" : "no lift"})`;
+        const summAccessLine = `🚪 *Access:* ${{ easy: "Easy", medium: "Moderate", hard: "Difficult" }[summAccessLvl] || "Easy"}`;
+
+        let summaryMsg =
+          `${remarksText || extractedEmailRemark ? "Got it! ✅\n\n" : "No worries! ✅\n\n"}` +
+          `Here's your full quote summary:\n\n` +
+          `👤 *Name:* ${summName}\n` +
+          (summEmail ? `📧 *Email:* ${summEmail}\n` : ``) +
+          `${summAddressBlock}\n` +
+          `🛋️ *Items:*\n${summItems}\n` +
+          `${summFloorLine}\n` +
+          `${summAccessLine}\n` +
+          `📅 *Preferred date:* ${summDate}${summTwLabel}\n` +
+          (summRemarks ? `📝 *Notes:* ${summRemarks}\n` : ``);
+
+        summaryMsg +=
+          `\nShall I send this to our team? Reply *YES* to submit.\n\n` +
+          `_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, *change access*, or *change remarks*._`;
+
+        await sendBotMessage(from, summaryMsg);
+        saveHistory(from, conversationHistory, text, summaryMsg);
         return;
       }
 
@@ -4372,13 +4512,15 @@ CRITICAL for edit_items:
               await sendBotMessage(from,
                 `${ci.reply || "Done! ✅"} Here's your updated summary:\n\n` +
                 `👤 *Name:* ${session.collectedName}\n` +
+                (session.collectedEmail ? `📧 *Email:* ${session.collectedEmail}\n` : ``) +
                 `${addressBlockE}\n` +
                 `🛋️ *Items:*\n${updatedItems}\n` +
                 `${floorLineE}\n` +
                 `${accessLineE}\n` +
-                `📅 *Preferred date:* ${session.preferredDate || "Flexible"}${twLabelE}\n\n` +
-                `Shall I send this to our team? Reply *YES* to submit.\n\n` +
-                `_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, or *change access*._`
+                `📅 *Preferred date:* ${session.preferredDate || "Flexible"}${twLabelE}\n` +
+                (session.specialRemarks ? `📝 *Notes:* ${session.specialRemarks}\n` : ``) +
+                `\nShall I send this to our team? Reply *YES* to submit.\n\n` +
+                `_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, *change access*, or *change remarks*._`
               );
               return;
             } else if (ci.action === "change_name") {
@@ -4574,8 +4716,19 @@ Return ONLY valid JSON.`,
         const depositAmount = (grandTotal * 0.50).toFixed(2);
         const finalAmount = (grandTotal * 0.50).toFixed(2);
 
+        // Build the notes field: include date display + special remarks from customer
+        const noteParts: string[] = [];
+        if (session.preferredDate && !session.preferredDateIso) noteParts.push(`Preferred date (flexible): ${session.preferredDate}`);
+        else if (session.preferredDate && session.preferredDateIso) noteParts.push(`Preferred date: ${session.preferredDate}`);
+        if (session.specialRemarks) noteParts.push(`Customer notes: ${session.specialRemarks}`);
+        const combinedNotes = noteParts.length > 0 ? noteParts.join("\n") : null;
+
+        const customerEmail = session.collectedEmail && session.collectedEmail.includes("@")
+          ? session.collectedEmail
+          : `wa_${from}@tmginstall.com`;
+
         const quote = await storage.createQuote(
-          { name, email: `wa_${from}@tmginstall.com`, phone: from },
+          { name, email: customerEmail, phone: from },
           {
             referenceNo: refNo,
             serviceAddress: address,
@@ -4597,14 +4750,9 @@ Return ONLY valid JSON.`,
             accessDifficulty: session.accessDifficulty ?? "easy",
             // Use the ISO date for the quotes.preferredDate column (admin panel expects yyyy-MM-dd).
             // If the customer said "anytime" / "flexible", preferredDateIso is null — safe.
-            // Store the display text in notes so admin can see the customer's exact words.
             preferredDate: session.preferredDateIso || null,
             preferredTimeWindow: session.preferredTimeWindow || null,
-            notes: session.preferredDate && !session.preferredDateIso
-              ? `Customer's preferred date (flexible): ${session.preferredDate}`
-              : session.preferredDate && session.preferredDateIso
-                ? `Customer's preferred date: ${session.preferredDate}`
-                : null,
+            notes: combinedNotes,
           } as any,
           quoteItems as any
         );

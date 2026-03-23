@@ -1,0 +1,204 @@
+We already have a WhatsApp chatbot running for TMGinstall, but it is not working as expected.
+
+Your task is to FIX and UPGRADE the existing WhatsApp chatbot behavior and flow.
+
+Do NOT rebuild from scratch unless absolutely necessary.
+Do NOT create a second bot flow.
+Do NOT break the current WhatsApp integration, webhook, backend, quote flow, admin flow, payment flow, or database structure.
+
+Strict scope:
+- Inspect the current WhatsApp chatbot implementation
+- Find why the current bot feels robotic or fails to collect quote info smoothly
+- Fix the logic, conversation flow, memory, extraction, and state handling
+- Reuse the existing architecture wherever possible
+- Make the minimum safe production-ready changes
+- Return full updated files only, not partial snippets
+
+Main business goal:
+The WhatsApp chatbot must:
+1) reply naturally like a real helpful coordinator,
+2) answer customer questions properly,
+3) collect quote information smoothly,
+4) avoid feeling like a bot,
+5) hand over clean structured info into the existing quote/admin workflow.
+
+Important business workflow to preserve:
+- Customer enquires on WhatsApp
+- Chatbot helps answer questions and collect quote details
+- Admin/team reviews quote if needed
+- Deposit payment is required before booking is confirmed
+- Booking is only confirmed after deposit is paid and confirmed in the real workflow
+- Final payment happens when job is completed
+- Bot must never falsely say booking is confirmed unless the actual system confirms it
+
+Current likely problems to fix:
+- replies sound scripted / robotic
+- bot asks too many questions at once
+- bot repeats questions that customer already answered
+- bot does not extract details from natural free-text messages
+- bot answers FAQ but then loses the quote flow
+- bot does not track which fields are already collected vs missing
+- bot resets or forgets context
+- bot does not know when to stop asking and show a summary
+- bot does not know when to escalate to admin/human
+
+Required WhatsApp chatbot behavior:
+- sound like a real service coordinator, not a generic bot
+- use warm, concise, natural language
+- ask only the next best question
+- if customer asks a question, answer it first, then continue quote collection
+- if customer already provided details, do not ask again
+- accept messy WhatsApp-style replies and extract structure from them
+- support mixed messages like:
+  “Need move wardrobe and bed from Punggol to Jurong next Friday, can dismantle?”
+- in cases like this, answer the question and extract all useful details already given
+- keep momentum and reduce friction
+- periodically summarise what has been collected and ask only for the missing fields
+- when enough info is collected, show a clean summary and ask for confirmation
+
+Quote fields to track properly:
+- customer name
+- phone number
+- email if available
+- service type
+- item names
+- quantities
+- pickup address
+- delivery address
+- floor / lift access for both locations
+- preferred date
+- preferred time window
+- dismantling needed or not
+- assembly needed or not
+- bulky / fragile / heavy items
+- photos available or not
+- condo / building restrictions
+- parking / loading bay notes
+- special remarks
+
+State management requirements:
+Build or fix a proper conversation state machine / slot filling system for WhatsApp.
+
+The bot must always know:
+- current conversation stage
+- collected fields
+- missing fields
+- last user intent
+- whether the latest message is FAQ, quote info, both, or unclear
+- whether the conversation should continue, summarise, or hand off to admin
+
+Support these conversation modes:
+1) greeting
+2) FAQ only
+3) quote collection
+4) FAQ + quote collection mixed together
+5) confirmation / summary
+6) handoff to admin
+
+Intent handling:
+Detect whether the customer message is:
+- a question
+- quote information
+- both at the same time
+- irrelevant / unclear
+- complaint / frustration
+- urgent request / special case
+
+Human-like reply requirements:
+- do not use robotic phrases
+- do not say “Please provide the following details”
+- do not use long numbered lists unless absolutely necessary
+- do not say “I am an AI assistant”
+- do not sound like a call-center script
+- keep replies short and natural
+- vary sentence openings
+- use natural acknowledgements like:
+  “Got it”
+  “Understood”
+  “No problem”
+  “Thanks, that helps”
+- if customer is rushing, be even shorter
+- if customer sounds confused, guide simply
+- if customer says “not sure”, give practical options
+
+FAQ behavior:
+For common WhatsApp customer questions, answer clearly and briefly, then continue the quote flow.
+Examples:
+- what services do you offer
+- do you do dismantling / assembly
+- what areas do you cover
+- how much does it cost
+- do I need deposit
+- how does booking work
+- can you do same day
+- do I need to send photos
+- can weekend jobs be done
+- what happens after quote submission
+
+Example behavior:
+Customer: “Do you do dismantling?”
+Bot: “Yes, we do dismantling and reassembly too. What item do you need help with?”
+
+Customer: “How much is moving a bed?”
+Bot: “It depends on the size, locations, and whether dismantling or assembly is needed. What pickup and delivery locations do you have?”
+
+Customer: “Need move sofa and dining table from Tampines to Woodlands tomorrow”
+Bot: “Got it — sofa and dining table from Tampines to Woodlands for tomorrow. Will dismantling or assembly be needed for either item?”
+
+WhatsApp-specific requirements:
+- optimize for short chat messages
+- support interrupted conversations
+- support resume after delay
+- support messy abbreviations and short replies
+- avoid giant reply blocks
+- conversation should feel natural in WhatsApp, not like filling a website form
+
+Escalation / handoff rules:
+Handoff to admin/human when:
+- customer is angry
+- customer requests custom pricing outside known rules
+- request is complex / unusual / risky
+- building restrictions are too complex
+- bot confidence is low
+- customer explicitly asks for a human
+When handing off, do it gracefully and preserve the transcript + extracted info.
+
+Technical requirements:
+- inspect current webhook / WhatsApp handler / chatbot service / database usage
+- identify root causes of current bad behavior
+- improve message parsing, field extraction, missing-field tracking, and state persistence
+- improve prompt / instruction design if LLM is used
+- improve fallback handling
+- improve logging for debugging
+- preserve existing integrations and business logic
+- no duplicate tables, duplicate endpoints, or parallel chatbot systems unless absolutely required
+
+Debugging requirements:
+Add enough logging so we can see:
+- incoming user message
+- detected intent
+- extracted fields
+- missing fields
+- current state
+- why the bot chose its next reply
+- whether handoff was triggered
+But keep logs safe and practical for production debugging.
+
+Output required:
+1) First inspect and explain the current root causes
+2) List exact files that must be changed
+3) Then implement the fixes
+4) Return full updated files only
+5) Keep changes tightly scoped
+6) Include simple testing scenarios
+
+Acceptance criteria:
+- chatbot feels human and helpful
+- chatbot does not repeat already answered questions
+- chatbot answers FAQ and then smoothly continues the quote flow
+- chatbot can extract quote info from messy natural messages
+- chatbot keeps state properly across the WhatsApp conversation
+- chatbot knows what fields are missing
+- chatbot knows when to summarise
+- chatbot knows when to hand off
+- existing business workflow remains intact
