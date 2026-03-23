@@ -1,0 +1,177 @@
+Build a production-ready website chatbot for TMGinstall.com that feels like a helpful human service coordinator, not a robotic bot.
+
+Main goal:
+Create a chatbot that can:
+1) answer customer questions naturally,
+2) smoothly collect missing quote details,
+3) pass the collected info into the existing quote / estimate workflow,
+4) help increase completed quote submissions.
+
+Important:
+This project already has an existing quote / booking / payment workflow. Do NOT rebuild the whole system from scratch. Reuse the current logic, routes, database, forms, and business rules wherever possible.
+
+Strict scope:
+- Add a chatbot layer on top of the existing TMGinstall flow
+- Do not break existing quote creation, admin review, deposit payment, booking confirmation, or final payment logic
+- Do not create duplicate tables, duplicate endpoints, or a second quote flow
+- Do not remove any working features
+- Keep changes minimal, safe, and production-friendly
+- Mobile-first UI for iPhone and Android
+- Clean professional UI consistent with a premium service business app
+
+What the chatbot must do:
+- Reply to customer questions in a natural, warm, concise way
+- Avoid sounding scripted, overly formal, or repetitive
+- Never say “I am an AI language model”
+- Never dump a huge questionnaire all at once
+- Ask only the next best question needed to move the quote forward
+- If the customer asks a question, answer it first, then continue quote collection
+- If the customer already gave information in natural language, extract it and do not ask again
+- Accept messy customer messages and turn them into structured quote data
+- Keep the conversation moving until all essential quote fields are collected
+- Show a summary before final submission
+- Allow customer to edit any part of the summary before submitting
+
+Required quote details to collect progressively:
+- customer name
+- phone number
+- email
+- service type (moving / dismantling / assembly / relocation / disposal / other)
+- item list
+- quantities
+- pickup address
+- delivery address
+- floor level / lift access at both sides
+- preferred date
+- preferred time window if available
+- whether dismantling is needed
+- whether assembly is needed
+- whether there are fragile / bulky / heavy items
+- whether photos are available
+- condo / building restrictions if any
+- parking / loading bay notes if any
+- any special remarks
+
+Conversation rules:
+- Ask one question at a time unless two short related questions are clearly better
+- Use short natural acknowledgements such as:
+  “Got it”
+  “Thanks, that helps”
+  “No problem”
+  “Understood”
+- Do not overuse greetings
+- Do not repeat the same sentence pattern
+- Do not sound like customer support script
+- Use simple conversational English
+- Be confident and helpful
+- If customer sounds rushed, be even shorter
+- If customer is confused, guide them simply
+- If customer says “not sure”, offer practical options
+- If customer gives multiple details in one message, parse all of them
+- Periodically summarize what has already been collected and ask only for the missing pieces
+
+Human-like behavior requirements:
+- Write like a real operations coordinator helping the customer finish the quote
+- Sound calm, helpful, and practical
+- Answer in a friendly service tone, not salesy
+- Do not pressure the customer
+- Do not make unrealistic promises
+- Do not claim booking is confirmed unless it is actually confirmed by the existing workflow
+- If pricing cannot be finalized yet, explain naturally that the team/admin will review and confirm
+- If the customer asks something outside known rules, hand over gracefully
+
+FAQ handling:
+The chatbot should answer common questions such as:
+- what services are offered
+- areas covered
+- whether dismantling / assembly is available
+- whether same-day jobs are possible
+- whether deposit is needed
+- how booking works
+- how payment works
+- whether photos are needed
+- whether condo restrictions matter
+- whether weekend jobs are available
+- how long quote review takes
+- what happens after submission
+
+Important FAQ behavior:
+- Answer briefly and clearly
+- Then continue the quote flow with the next missing question
+- Example:
+  Customer: “Do you do dismantling?”
+  Bot: “Yes, we do dismantling and reassembly too. To guide you properly, what item do you need help with?”
+
+Conversation states to support:
+1) greeting / open
+2) FAQ only
+3) quote collection
+4) FAQ + quote collection mixed in same chat
+5) summary / confirmation
+6) handoff to admin / human when needed
+
+Build the chatbot with:
+- intent detection
+- slot filling / missing field tracking
+- session memory during chat
+- structured extraction from free text
+- ability to resume after interruptions
+- graceful fallback when customer message is unclear
+- transcript logging for admin visibility
+
+Handoff rules:
+Trigger admin/human handoff if:
+- customer is angry or complaining
+- job is unusual or high risk
+- customer requests custom pricing that cannot be estimated safely
+- building restrictions are complex
+- customer asks for something outside business rules
+- AI confidence is low
+
+UI requirements:
+- floating chat widget on website
+- clean premium design
+- mobile-first
+- quick reply chips where useful
+- typing/loading state
+- clear summary card before submit
+- easy “continue later” behavior if possible
+- no clutter
+
+Data / integration requirements:
+- connect chatbot to existing quote submission flow
+- reuse current backend and schema whenever possible
+- store structured collected data safely
+- do not invent a new business process
+- preserve current admin review flow
+- preserve current deposit and booking logic
+- preserve current email / WhatsApp follow-up flow if already implemented
+- make it easy for admin to review transcript + extracted quote info together
+
+Implementation approach:
+- inspect the current repo first
+- identify existing quote flow, forms, APIs, and database usage
+- integrate chatbot into current architecture
+- use the smallest safe set of changes
+- keep code modular and maintainable
+- do not perform unnecessary redesign of unrelated pages
+
+Output required from you:
+1) first explain the implementation plan based on the existing repo
+2) list the exact files you will change
+3) then implement
+4) return complete updated files, not partial snippets
+5) include any environment variables required
+6) include brief testing steps
+
+Acceptance criteria:
+- chatbot does not feel robotic
+- chatbot answers FAQs naturally
+- chatbot continues quote collection smoothly after answering questions
+- chatbot does not repeatedly ask for already provided details
+- chatbot can handle free-text customer replies
+- chatbot reduces drop-off during quote collection
+- chatbot submits clean structured quote data into existing workflow
+- no unrelated features are broken
+
+Use good product judgment and make the chatbot feel like a real helpful coordinator for TMGinstall, not a generic bot.
