@@ -2954,13 +2954,14 @@ Classify their reply. Return JSON:
 }
 
 INTENT RULES:
-- yes: agrees, happy, ok, sure, let's go, proceed, book, quote, ready, sounds good, great, let me book, affordable — any positive confirmation
+- yes: agrees, happy, ok, sure, let's go, proceed, book, quote, ready, sounds good, great, let me book, affordable — any positive confirmation. IMPORTANT: A bare personal name like "Kayden" or "John" is NOT a yes — it is a provide_name.
 - item_price: asks about price/cost of a SPECIFIC item OR replies with a furniture item name when the bot just asked "which item is this for?" (e.g. "wardrobe", "bed frame", "PAX wardrobe", "sofa"). Also use item_price if the customer mentioned a service type (dismantle, relocate, install) with an item.
 - decline: says too expensive, not interested, nevermind, maybe later — explicit negative  
-- provide_name: gives their name without any address or item (e.g. "I'm John", "My name is Sarah")
+- provide_name: customer provides a personal name. This includes BARE single-word names like "Kayden", "John", "Ahmad", "Wei" — no "I'm" or "My name is" phrasing required. The bot just asked "What's your full name?" so a 1–4 word reply that looks like a human name IS provide_name. Furniture items, service types, and greetings (hi/ok/yes/no) are NOT names.
 - other: general question not covered above
 
-IMPORTANT: If conversation history shows the bot recently asked "which item is this for?" or "what item would you like a price for?", and the customer replies with a furniture item name → classify as item_price.`
+IMPORTANT: If conversation history shows the bot recently asked "which item is this for?" or "what item would you like a price for?", and the customer replies with a furniture item name → classify as item_price.
+CRITICAL: If the bot's last message asked "What's your full name?" and the customer replies with a short word or two that looks like a personal name (not a furniture item or service type), ALWAYS classify as provide_name — never as yes.`
               },
               ...historyMessages(conversationHistory, 4),
               { role: "user", content: text },
@@ -2972,15 +2973,14 @@ IMPORTANT: If conversation history shows the bot recently asked "which item is t
             // Customer happy with pricing — proceed to booking flow
             if (nameAlready) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-              const replyYes = await craftReply(text,
-                `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`,
-                { name: nameAlready, history: conversationHistory }
+              await sendBotMessage(from,
+                `Great, *${nameAlready}*! 😊\n\n` +
+                `📍 Where is the job? Drop the *full address* below — block/unit number helps too.\n\n` +
+                `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
               );
-              await sendBotMessage(from, replyYes);
             } else {
-              // Use a direct message (no craftReply) to avoid GPT hallucinating extra questions
               await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-              await sendBotMessage(from, `Great! To prepare your personalised quote, may I start with your *full name*? 😊`);
+              await sendBotMessage(from, `What's your *full name*? 😊`);
             }
             return;
           }
@@ -3129,21 +3129,50 @@ ${FURNITURE_VISION_GUIDE}`,
           await sendBotMessage(from, `What's your *full name*? I just need something to address you by. 😊`);
           return;
         }
+
+        // ── Fast-path heuristic: catch obvious names without GPT ────────────────
+        // If the message is 1–4 words, all letters (+ common name chars), and NOT a
+        // furniture item / service type / greeting → treat it as a name immediately.
+        const NAME_BLOCKLIST = new Set([
+          'yes','no','ok','okay','sure','hi','hello','hey','thanks','please','nope',
+          'install','installation','dismantle','dismantling','relocate','relocation',
+          'dispose','disposal','wardrobe','sofa','bed','table','chair','cabinet',
+          'drawer','shelf','bookshelf','mattress','desk','couch','closet','cupboard',
+          'fridge','refrigerator','washing','machine','tv','television',
+        ]);
+        const fastPathWords = text.trim().split(/\s+/);
+        const looksLikeName =
+          fastPathWords.length >= 1 &&
+          fastPathWords.length <= 4 &&
+          !text.includes('?') &&
+          !text.includes('@') &&
+          !/\d/.test(text) &&
+          /^[a-zA-Z\s'\-\.]+$/.test(text) &&
+          !NAME_BLOCKLIST.has(fastPathWords[0].toLowerCase()) &&
+          !NAME_BLOCKLIST.has(text.toLowerCase());
+
         // Use GPT to extract name AND detect if the message is really a pricing question
         let extractedName: string | null = null;
         let nameExtractedAddress: string | null = null;
         let nameIsPricing = false;
         let nameMentionedItem: string | null = null;
         let nameMentionedService: string | null = null;
-        try {
-          const nameRes = await openai.chat.completions.create({
-            model: "gpt-4o",
-            max_tokens: 100,
-            response_format: { type: "json_object" },
-            messages: [
-              {
-                role: "system",
-                content: `You are a WhatsApp assistant for TMG Install (Singapore furniture installation). The customer was asked for their full name. Analyse their message.
+
+        if (looksLikeName) {
+          // Capitalise each word and use directly — no GPT needed
+          extractedName = fastPathWords
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join(' ');
+        } else {
+          try {
+            const nameRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 100,
+              response_format: { type: "json_object" },
+              messages: [
+                {
+                  role: "system",
+                  content: `You are a WhatsApp assistant for TMG Install (Singapore furniture installation). The customer was asked for their full name. Analyse their message.
 Return JSON:
 {
   "name": string or null,
@@ -3153,28 +3182,31 @@ Return JSON:
   "mentionedService": "installation"|"dismantling"|"relocation"|"disposal"|null
 }
 Rules:
-- name: a real human personal name (e.g. "John", "Mary Tan", "Ahmad Rashid"). Null for questions, statements, greetings (hi/ok/yes/no), pricing queries, furniture item names, or service types.
+- name: Extract ANY personal name. ACCEPT single first names ("Kayden", "John", "Ahmad", "Wei Ling") — no "I'm" or "My name is" phrasing needed. REJECT only: yes/no/ok/sure, pricing questions, known furniture items (wardrobe/sofa/bed/table/cabinet/drawer/shelf/desk/couch), service types (installation/dismantling/relocation/disposal).
 - address: Singapore address ONLY if it appears in the customer's CURRENT message. NEVER extract an address from previous conversation turns. If the current message is just a name with no address, return null.
 - isPricingQuestion: true if they asked about cost/price/"how much" OR if the conversation history shows we asked for an item/service and they replied with a furniture item or service type
 - mentionedItem: specific furniture item name if pricing-related — even without explicit "how much" (e.g. "wardrobe", "PAX wardrobe", "3-door wardrobe", "queen bed frame", "dining table", "sofa"). Set when message is a furniture item name.
 - mentionedService: the service type if they specified one (installation/dismantling/relocation/disposal). Common patterns: "installation"→installation, "dismantle"→dismantling, "relocate"→relocation, "dispose"→disposal.
 
 Key examples:
+- Customer says "Kayden" → name="Kayden" (single first name is valid!)
+- Customer says "John Tan" → name="John Tan"
 - History: bot asked "what item would you like a price for?" → customer says "wardrobe" → mentionedItem="wardrobe", isPricingQuestion=true
 - History: bot asked "Spotted a photo! What item is it and what service?" → customer says "Installation" → mentionedService="installation", isPricingQuestion=true, mentionedItem=null
 - Customer says "wardrobe installation" → mentionedItem="wardrobe", mentionedService="installation", isPricingQuestion=true`,
-              },
-              ...historyMessages(conversationHistory, 4),
-              { role: "user", content: text },
-            ],
-          });
-          const parsed = JSON.parse(nameRes.choices[0]?.message?.content || "{}");
-          extractedName = parsed.name || null;
-          nameExtractedAddress = parsed.address || null;
-          nameIsPricing = !!parsed.isPricingQuestion;
-          nameMentionedItem = parsed.mentionedItem || null;
-          nameMentionedService = parsed.mentionedService || null;
-        } catch {}
+                },
+                ...historyMessages(conversationHistory, 4),
+                { role: "user", content: text },
+              ],
+            });
+            const parsed = JSON.parse(nameRes.choices[0]?.message?.content || "{}");
+            extractedName = parsed.name || null;
+            nameExtractedAddress = parsed.address || null;
+            nameIsPricing = !!parsed.isPricingQuestion;
+            nameMentionedItem = parsed.mentionedItem || null;
+            nameMentionedService = parsed.mentionedService || null;
+          } catch {}
+        }
 
         // ── Not a name: handle pricing question or re-ask ──────────────────
         if (!extractedName) {
@@ -3337,8 +3369,9 @@ ${FURNITURE_VISION_GUIDE}`,
             saveHistory(from, conversationHistory, text, askItemMsg);
             return;
           }
+          // Could not extract a name — give a warm, specific re-prompt
           await sendBotMessage(from,
-            `Happy to help! To get you an accurate quote, I'll need your details first.\n\nWhat's your *full name*? 😊`
+            `Just your name to get started! 😊\n\n_e.g. "John", "Mary Tan", "Ahmad"_`
           );
           return;
         }
@@ -3346,8 +3379,11 @@ ${FURNITURE_VISION_GUIDE}`,
         // ── Valid name — proceed through the quote flow ────────────────────
         if (nameExtractedAddress) {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedName: extractedName, collectedAddress: nameExtractedAddress });
-          const nextPromptAddr = `📍 *Address noted: ${nameExtractedAddress}*\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items automatically — or *type the list* below.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
-          const replyNameAddr = await craftReply(text, nextPromptAddr, { name: extractedName, history: conversationHistory });
+          const replyNameAddr =
+            `✅ Thanks, *${extractedName}*! Address noted: *${nameExtractedAddress}*\n\n` +
+            `What furniture do you need help with?\n\n` +
+            `📸 *Send a photo* and I'll detect the items — or *type the list* below.\n\n` +
+            `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
           await sendBotMessage(from, replyNameAddr);
           saveHistory(from, conversationHistory, text, replyNameAddr);
           return;
@@ -3368,12 +3404,17 @@ ${FURNITURE_VISION_GUIDE}`,
             `Reply *YES* to confirm and send to our team. 😊`;
         } else if (alreadyHasAddress) {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items" });
-          const nextPromptItems = `What furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items — or *type the list* below.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
-          replyName = await craftReply(text, nextPromptItems, { name: extractedName, history: conversationHistory });
+          replyName =
+            `Thanks, *${extractedName}*! 😊\n\n` +
+            `What furniture do you need help with?\n\n` +
+            `📸 *Send a photo* and I'll detect the items — or *type the list* below.\n\n` +
+            `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
         } else {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-          const nextPromptAddress = `📍 Where is the job? Just drop the *full address* below — block/unit number helps too.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
-          replyName = await craftReply(text, nextPromptAddress, { name: extractedName, history: conversationHistory });
+          replyName =
+            `Thanks, *${extractedName}*! 😊\n\n` +
+            `📍 Where is the job? Drop the *full address* below — block/unit number helps too.\n\n` +
+            `_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
         }
         await sendBotMessage(from, replyName);
         saveHistory(from, conversationHistory, text, replyName);
@@ -3468,7 +3509,7 @@ Rules:
             `📸 *Send a photo* and I'll detect the items automatically — or *type the list* below.\n\n` +
             `Mention the service too if you know it (install, dismantle, relocate, dispose).\n\n` +
             `_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle+dispose)\n• L-shaped sofa (disposal only)`;
-          replyAddr = await craftReply(text, nextPromptItems, { name: session?.collectedName, history: conversationHistory });
+          replyAddr = nextPromptItems;
         }
         await sendBotMessage(from, replyAddr);
         saveHistory(from, conversationHistory, text, replyAddr);
