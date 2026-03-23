@@ -158,31 +158,29 @@ async function craftReply(
   try {
     const res = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      max_tokens: 200,
+      max_tokens: 60,
       messages: [
         {
           role: "system",
           content:
-            `You are a friendly WhatsApp assistant for TMG Install (The Moving Guy Pte Ltd), ` +
-            `Singapore's professional furniture installation, dismantling, relocation and disposal company.\n\n` +
-            `Write a natural WhatsApp reply (2–4 short sentences) that:\n` +
-            `1. Briefly and genuinely acknowledges what the customer just said — vary your openings, ` +
-            `reference their actual words or info when possible, don't always start with "Great!" or "Perfect!"\n` +
-            `2. Smoothly leads into asking the next thing (preserve ALL *bold* formatting exactly as written below):\n\n` +
-            `NEXT STEP:\n${nextStepPrompt}\n\n` +
+            `You are a WhatsApp assistant for TMG Install (furniture installation, Singapore).\n\n` +
+            `Write ONE short, warm sentence (8–15 words) that naturally acknowledges what the customer just said.\n\n` +
             `Rules:\n` +
-            `- Customer name: ${ctx.name ? `"${ctx.name}" — use it naturally` : 'not yet known'}\n` +
-            `- Keep it concise and warm — WhatsApp style, not corporate\n` +
-            `- Max 2 emojis total\n` +
-            `- Do NOT add information not in the next step prompt\n` +
-            `- Do NOT ask more than one question\n` +
-            `- The next step content must appear in full, with *bold* markers intact`,
+            `- Vary your openings — do NOT always start with "Great!" or "Perfect!"\n` +
+            `- Reference the customer's actual words or info when possible\n` +
+            `- Customer name: ${ctx.name ? `"${ctx.name}" — use it if it sounds natural` : 'not yet known'}\n` +
+            `- Max 1 emoji\n` +
+            `- Output ONLY the single acknowledgment sentence — nothing else, no questions`,
         },
-        ...(ctx.history ? historyMessages(ctx.history, 3) : []),
+        ...(ctx.history ? historyMessages(ctx.history, 2) : []),
         { role: "user", content: customerMsg },
       ],
     });
-    return res.choices[0]?.message?.content?.trim() || nextStepPrompt;
+    const ack = res.choices[0]?.message?.content?.trim();
+    if (ack && ack.length > 3) {
+      return `${ack}\n\n${nextStepPrompt}`;
+    }
+    return nextStepPrompt;
   } catch {
     return nextStepPrompt;
   }
@@ -3371,15 +3369,30 @@ The customer is being asked what furniture items they need help with.
 
 FIRST check: is this a general acknowledgment/done signal with NO actual furniture mentioned?
 Examples of done signals: "ok that's all", "nothing else", "done", "that's it", "all good", "ok", "sure", "yeah", "yes", "no more", "nothing more"
-If yes → return { "done": true, "items": null, "needsServiceType": false }
+If yes → return { "done": true, "items": null, "needsServiceType": false, "serviceOnly": false, "detectedService": null }
 
-Otherwise, parse the furniture description and return JSON:
-{ "done": false, "items": string, "needsServiceType": boolean }
+SECOND check: Did the customer describe ONLY a service type without naming any specific furniture items?
+Examples: "I want to install", "I need dismantling", "dismantle and relocation of the items", "relocation service", "for moving", "want to relocate my stuff", "i want dismantle", "for installation", "disposal service"
+If yes → return { "done": false, "items": null, "needsServiceType": false, "serviceOnly": true, "detectedService": "install"|"dismantle"|"relocate"|"dispose"|"dismantle_dispose"|null }
+Note: "dismantle and relocate/relocation" → detectedService: "relocate"
+
+OTHERWISE, parse the furniture description and return JSON:
+{ "done": false, "items": string, "needsServiceType": boolean, "serviceOnly": false, "detectedService": null }
 - items: formatted bullet list (one • per line). Each line: "• [quantity] [item name] ([service type])"
-  - If service type is mentioned (install/dismantle/relocate/dispose/dismantle+dispose), include it in brackets
-  - If not mentioned, leave out the brackets (don't guess)
+  - If service type is mentioned in this message OR in the recent conversation context below, include it in brackets
+  - Service type context (from prior messages): ${
+    (() => {
+      const histText = conversationHistory.map((h: HistoryEntry) => h.content).join(" ").toLowerCase();
+      if (/reloc|moving|move/.test(histText)) return '"relocate" was mentioned earlier';
+      if (/dismantle|disassemble|take apart/.test(histText)) return '"dismantle" was mentioned earlier';
+      if (/install|assembly|assemble/.test(histText)) return '"install" was mentioned earlier';
+      if (/dispos|haul|throw/.test(histText)) return '"dispose" was mentioned earlier';
+      return 'none detected yet';
+    })()
+  }
+  - If not mentioned anywhere, leave out the brackets (needsServiceType: true)
   - Quantity if mentioned, otherwise just the item name
-- needsServiceType: true if NO service type was mentioned at all
+- needsServiceType: true if NO service type was mentioned at all (neither in this message nor in context)
 
 Customer message: "${text}"`
             }]
@@ -3391,6 +3404,24 @@ Customer message: "${text}"`
               `What furniture items do you need help with? 😊\n\n` +
               `📸 *Send a photo* and I'll detect the items — or type the list below.\n\n` +
               `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
+            );
+            return;
+          }
+
+          if (parsed.serviceOnly) {
+            const svcVerbMap: Record<string, string> = {
+              install: "installed",
+              dismantle: "dismantled",
+              relocate: "relocated",
+              dispose: "disposed of",
+              dismantle_dispose: "dismantled and disposed of",
+            };
+            const verb = parsed.detectedService ? svcVerbMap[parsed.detectedService] || "helped with" : "helped with";
+            await sendBotMessage(from,
+              `Got it — ${parsed.detectedService ? `*${parsed.detectedService}* ` : ""}service noted! 👍\n\n` +
+              `Which specific *furniture items* would you like ${verb}?\n\n` +
+              `_e.g. wardrobe, queen bed frame, dining table, sofa, L-shaped sofa_\n\n` +
+              `📸 Or *send a photo* and I'll detect everything automatically!`
             );
             return;
           }
@@ -3586,15 +3617,16 @@ Rules:
 - "unclear": you genuinely cannot understand what they want
 - isRelocation: true if customer mentions this is a relocation, moving, shifting, or transport job
 - serviceType: set if customer mentions a service type for ALL items:
-  - "install" → assembly, installation, put together, set up
-  - "dismantle" → dismantle, take apart, pack, disassemble
-  - "relocate" → relocate, move, shift, transfer, transport
+  - "install" → assembly, installation, put together, set up, assemble
+  - "dismantle" → dismantle only, take apart only, disassemble (no moving)
+  - "relocate" → relocate, move, shift, transfer, transport, dismantle and relocate, dismantle and move, pick up and deliver — "dismantle and relocation" maps here
   - "dispose" → dispose, throw away, haul away, get rid of, junk
   - "dismantle_dispose" → dismantle and dispose, take apart and throw away, dismantle then haul
   - null if no service type mentioned or items already have mixed service types
 - If serviceType is not null AND items list has no service type labels, update the updatedList to append "(serviceType)" to each item
 
 Smart parsing:
+- "this one", "that one", "yes this", "this is correct", "this is it", "yeah this" → action: confirm (customer is confirming the currently shown list)
 - "remove X" / "delete X" / "take off X" / "no X" / "without X" → remove X from current list (action: update)
 - "just remove the X, the rest is fine" → remove only X from current list, keep everything else (action: update)
 - "short of X" or "missing X" or "also need X" → add X to current list (action: add)
@@ -3603,6 +3635,7 @@ Smart parsing:
 - "just X" or "only X" → replace the whole list with just X (action: update)
 - If they reference "the first list" and previousItems exists, use previousItems as the starting point
 - IMPORTANT: "remove" means DELETE the item from the list — do NOT add it with "(remove)" tag, just omit it entirely
+- IMPORTANT: Never set updatedList to a vague pronoun like "this one", "that one", "it" — these always mean the customer is confirming the current list
 
 For updatedList: always format as bullet points starting with "•", one item per line.
 For reply: be natural and friendly, confirm what you did.`,
@@ -3724,11 +3757,14 @@ For reply: be natural and friendly, confirm what you did.`,
 Customer said: "${text}"
 
 Map their reply to one of these service types:
-- "install" → assembly, installation, put together, set up, assemble
-- "dismantle" → dismantle, take apart, pack, disassemble, dismantling
-- "relocate" → relocate, relocation, move, shift, transfer, moving, transport
-- "dispose" → dispose, disposal, throw away, haul away, get rid of, junk
-- "dismantle_dispose" → dismantle and dispose, take apart and throw away, bundle
+- "install" → assembly, installation, put together, set up, assemble, install
+- "dismantle" → dismantle only, take apart only, pack only, disassemble (no moving)
+- "relocate" → relocate, relocation, move, shift, transfer, moving, transport, dismantle and move, dismantle and relocate, dismantle and shift, move and reinstall, pick up and deliver
+- "dispose" → dispose, disposal, throw away, haul away, get rid of, junk (no reinstall)
+- "dismantle_dispose" → dismantle and dispose, take apart and throw away, dismantle then haul, bundle deal
+
+Important: "dismantle and relocate" / "dismantle and move" → use "relocate" (relocation includes dismantling at origin)
+Important: If customer mentions TWO services (e.g. "dismantle some and relocate others"), pick the primary one that applies to most items.
 
 Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"dismantle_dispose"|null, "confidence": "high"|"low" }`
             }],
