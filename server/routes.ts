@@ -803,7 +803,8 @@ export async function registerRoutes(
     // when the staff member has logged out of the WebView but the native
     // GPS service is still running (intentional design: GPS tracks while clocked in
     // regardless of app login state).
-    const numOrStr = z.union([z.number(), z.string()]).transform(v => String(v));
+    // Accept number, string, or null — device sends null for heading/speed when stationary
+    const numOrStr = z.union([z.number(), z.string(), z.null()]).transform(v => v != null ? String(v) : undefined);
     let resolvedUserId: number | null = req.session.userId ?? null;
     if (!resolvedUserId) {
       const bodyId = req.body?.staffId;
