@@ -432,7 +432,10 @@ function ChatModal({
 
   const session = thread?.session;
   const botPaused: boolean = session?.botPaused ?? false;
-  const canGenerateQuote = session?.collectedAddress && !generatedQuote;
+  // Show Generate Quote if session has an address (mid-flow conversations)
+  const canGenerateQuote = !!session?.collectedAddress && !generatedQuote;
+  // Show Take Over button whenever the thread has loaded (session may be null for completed convos)
+  const threadLoaded = !loadingThread && thread !== undefined;
 
   const grouped: { date: string; messages: WaMessage[] }[] = [];
   if (thread?.messages) {
@@ -551,8 +554,8 @@ function ChatModal({
                   <span className="hidden sm:inline">WhatsApp</span>
                 </a>
 
-                {/* Bot pause / resume toggle */}
-                {session && (
+                {/* Bot pause / resume toggle — show for any loaded conversation, session or not */}
+                {threadLoaded && (
                   botPaused ? (
                     <button
                       onClick={() => resumeBotMutation.mutate()}
@@ -578,7 +581,7 @@ function ChatModal({
                   )
                 )}
 
-                {session && (
+                {threadLoaded && (
                   <button
                     onClick={() => setShowInfo(v => !v)}
                     className={`hidden lg:flex px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
