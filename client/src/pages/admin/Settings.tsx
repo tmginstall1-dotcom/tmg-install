@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch } from "lucide-react";
 
 export default function AdminSettings() {
   const { toast } = useToast();
@@ -16,6 +16,7 @@ export default function AdminSettings() {
   const [apkUrl, setApkUrl] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [smsSent, setSmsSent] = useState(false);
+  const [showManualOverride, setShowManualOverride] = useState(false);
 
   const { data: currentAppVersion } = useQuery<{ version: string; apkUrl: string }>({
     queryKey: ["/api/app-version"],
@@ -339,69 +340,110 @@ export default function AdminSettings() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-blue-200 dark:border-blue-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Smartphone className="h-5 w-5 text-blue-600" />
             Staff App Version
+            <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 px-2.5 py-1 rounded-full">
+              <Zap className="w-3 h-3" /> Auto-managed
+            </span>
           </CardTitle>
           <CardDescription>
-            When you publish a new APK build, set the version here. Staff will see an update prompt
-            inside the app and can install it with one tap.
+            The app version updates automatically every time a new build completes on GitHub Actions — no manual action needed.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {currentAppVersion && (
-            <div className="bg-gray-50 dark:bg-gray-900 border rounded-md p-3 text-sm space-y-1">
-              <div><span className="text-gray-500">Current latest:</span> <strong>v{currentAppVersion.version}</strong></div>
-              <div className="text-xs text-gray-400 break-all">{currentAppVersion.apkUrl}</div>
+
+          {/* Current version status */}
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-700 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Live on all staff phones</span>
+              </div>
+              <span className="text-xl font-black text-blue-700 dark:text-blue-300" data-testid="text-current-version">
+                {currentAppVersion?.version
+                  ? (currentAppVersion.version.startsWith("v") ? currentAppVersion.version : `v${currentAppVersion.version}`)
+                  : "—"}
+              </span>
+            </div>
+            {currentAppVersion?.apkUrl && (
+              <a
+                href={currentAppVersion.apkUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
+              >
+                <ExternalLink className="w-3 h-3 shrink-0" />
+                Download latest APK
+              </a>
+            )}
+          </div>
+
+          {/* How it works */}
+          <div className="flex items-start gap-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5">
+            <GitBranch className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+            <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              <strong className="text-slate-800 dark:text-slate-200">How auto-update works:</strong><br />
+              Each GitHub Actions build automatically notifies this server when it completes.
+              The version number and APK URL are updated instantly — staff phones show the update
+              banner within minutes, no admin action required.
+            </div>
+          </div>
+
+          {/* Manual override (collapsed by default) */}
+          <button
+            type="button"
+            onClick={() => setShowManualOverride(v => !v)}
+            className="w-full flex items-center justify-between text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 py-1 transition-colors"
+          >
+            <span>Emergency manual override</span>
+            {showManualOverride ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {showManualOverride && (
+            <div className="space-y-3 border border-amber-200 dark:border-amber-800 rounded-xl p-4 bg-amber-50 dark:bg-amber-950">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Only use this if the auto-update webhook failed. Version must match the format baked into the APK (e.g. <code className="font-mono bg-amber-100 dark:bg-amber-900 px-1 rounded">v1.0.91</code>).
+              </p>
+              <div className="space-y-1">
+                <Label htmlFor="app-version" className="text-xs">Version (e.g. v1.0.92)</Label>
+                <Input
+                  id="app-version"
+                  data-testid="input-app-version"
+                  placeholder="v1.0.92"
+                  value={newVersion}
+                  onChange={(e) => setNewVersion(e.target.value)}
+                  className="h-9 text-sm font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="apk-url" className="text-xs">APK Download URL</Label>
+                <Input
+                  id="apk-url"
+                  data-testid="input-apk-url"
+                  placeholder="https://github.com/.../tmg-install.apk"
+                  value={apkUrl}
+                  onChange={(e) => setApkUrl(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <Button
+                data-testid="button-update-app-version"
+                onClick={() => updateAppVersion.mutate()}
+                disabled={updateAppVersion.isPending || !newVersion.trim() || !apkUrl.trim()}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                size="sm"
+              >
+                {updateAppVersion.isPending ? (
+                  <><RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" /> Updating…</>
+                ) : (
+                  <><CheckCircle className="h-3.5 w-3.5 mr-2" /> Force Publish</>
+                )}
+              </Button>
             </div>
           )}
-
-          <div className="space-y-1">
-            <Label htmlFor="app-version">New Version Number</Label>
-            <Input
-              id="app-version"
-              data-testid="input-app-version"
-              placeholder="e.g. 1.2"
-              value={newVersion}
-              onChange={(e) => setNewVersion(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="apk-url">APK Download URL</Label>
-            <Input
-              id="apk-url"
-              data-testid="input-apk-url"
-              placeholder="https://github.com/.../tmg-install.apk"
-              value={apkUrl}
-              onChange={(e) => setApkUrl(e.target.value)}
-            />
-          </div>
-
-          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-3 text-sm text-blue-800 dark:text-blue-200">
-            <strong>Where to get the APK URL:</strong>
-            <ol className="list-decimal ml-4 mt-1 space-y-1">
-              <li>Go to <strong>github.com/tmginstall1-dotcom/tmg-install/releases</strong></li>
-              <li>Find the latest release build</li>
-              <li>Right-click <strong>tmg-install.apk</strong> → Copy link address</li>
-              <li>Paste the URL above</li>
-            </ol>
-          </div>
-
-          <Button
-            data-testid="button-update-app-version"
-            onClick={() => updateAppVersion.mutate()}
-            disabled={updateAppVersion.isPending || !newVersion.trim() || !apkUrl.trim()}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {updateAppVersion.isPending ? (
-              <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Updating…</>
-            ) : (
-              <><CheckCircle className="h-4 w-4 mr-2" /> Publish Update</>
-            )}
-          </Button>
         </CardContent>
       </Card>
     </div>
