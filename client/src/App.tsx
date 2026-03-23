@@ -35,7 +35,6 @@ const StaffJobDetail = lazy(() => import("@/pages/staff/JobDetail"));
 const StaffHR = lazy(() => import("@/pages/staff/HR"));
 
 import { useAuth } from "@/hooks/use-auth";
-import { useGpsTracker } from "@/hooks/use-gps-tracker";
 
 function PageLoader() {
   return (
@@ -61,8 +60,6 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
 function StaffRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
-
-  useGpsTracker(!!user && user.role === "staff", user?.id);
 
   if (isLoading) return <PageLoader />;
   if (!user) { setLocation('/staff/login'); return null; }

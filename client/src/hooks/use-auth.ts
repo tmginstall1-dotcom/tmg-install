@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
-import { stopAllTracking } from "@/hooks/use-background-location";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
@@ -41,7 +40,9 @@ export function useAuth() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await stopAllTracking().catch(() => {});
+      // GPS tracking intentionally continues after logout so the native
+      // foreground service keeps recording while staff are still on-site.
+      // The server will only store points while the staff member is clocked in.
       const res = await fetch(`${API_BASE}${api.auth.logout.path}`, {
         method: api.auth.logout.method,
         credentials: "include",

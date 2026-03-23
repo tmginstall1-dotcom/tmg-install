@@ -4,7 +4,7 @@ import type { PluginListenerHandle } from "@capacitor/core";
 
 // ─── Custom native plugin interface ─────────────────────────────────────────────
 interface TMGLocationPlugin {
-  startWatching(): Promise<void>;
+  startWatching(options?: { staffId?: number }): Promise<void>;
   stopWatching(): Promise<void>;
   addListener(
     event: "location",

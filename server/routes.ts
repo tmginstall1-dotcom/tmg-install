@@ -798,9 +798,26 @@ export async function registerRoutes(
 
   // -- GPS Track Routes --
   app.post("/api/staff/gps-track", async (req, res) => {
-    // Session is required — body staffId bypass removed to prevent tracking after logout
-    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
-    const resolvedUserId = req.session.userId;
+    // Primary auth: session cookie (web / foregrounded app).
+    // Fallback auth: staffId in body — used by the Android foreground service
+    // when the staff member has logged out of the WebView but the native
+    // GPS service is still running (intentional design: GPS tracks while clocked in
+    // regardless of app login state).
+    const numOrStr = z.union([z.number(), z.string()]).transform(v => String(v));
+    let resolvedUserId: number | null = req.session.userId ?? null;
+    if (!resolvedUserId) {
+      const bodyId = req.body?.staffId;
+      if (!bodyId) return res.status(401).json({ message: "Not logged in" });
+      resolvedUserId = Number(bodyId);
+      if (isNaN(resolvedUserId) || resolvedUserId <= 0) {
+        return res.status(401).json({ message: "Invalid staffId" });
+      }
+      // Verify this staff member actually exists
+      const staffUser = await storage.getUserById(resolvedUserId);
+      if (!staffUser || staffUser.role !== "staff") {
+        return res.status(401).json({ message: "Invalid staffId" });
+      }
+    }
     try {
       // Only record GPS points when the staff member has an active clock-in session
       const activeSession = await db
@@ -812,7 +829,6 @@ export async function registerRoutes(
         return res.status(200).json({ ok: false, reason: "not_clocked_in" });
       }
       // Accept number or string for GPS fields (native app sends numbers)
-      const numOrStr = z.union([z.number(), z.string()]).transform(v => String(v));
       const { lat, lng, accuracy, speed, heading, recordedAt } = z.object({
         lat: numOrStr,
         lng: numOrStr,
