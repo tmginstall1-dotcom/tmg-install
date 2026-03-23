@@ -2490,7 +2490,9 @@ Message: "${text}"`
             messages: [
               {
                 role: "system",
-                content: `You are the AI assistant for TMG Install — Singapore's professional furniture installation, dismantling, relocation and disposal company. You are helping a customer get a quote via WhatsApp.
+                content: `${COORDINATOR_PERSONA}
+
+You are helping a customer get a quote via WhatsApp for TMG Install.
 
 CUSTOMER CONTEXT:
 - Name: ${session.collectedName || "(not yet given)"}
@@ -2504,7 +2506,7 @@ Return JSON:
 {
   "isCommand": boolean,
   "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"change_remarks"|"help"|"pricing"|"faq"|"progress"|"escalate"|"farewell"|"none",
-  "faqAnswer": "concise answer (2-3 sentences) if command=faq, otherwise empty string",
+  "faqAnswer": "direct, warm answer (1-2 sentences max) using the coordinator tone if command=faq, otherwise empty string",
   "pricingItem": "specific furniture item if command=pricing, e.g. 'IKEA PAX wardrobe', 'queen bed frame', 'sofa'. Null if not mentioned."
 }
 
@@ -2527,15 +2529,12 @@ CRITICAL — Do NOT classify as command if customer is directly answering the cu
 - state=awaiting_to_address → addresses → none
 - state=awaiting_remarks → any text (notes, email, "none", "skip") → none
 
-TMG INSTALL FACTS (for faq answers):
-- Covers all Singapore: HDB, condo, landed, commercial & office
-- Services: install (new/flat-pack assembly), dismantle, relocate (move + reinstall), dispose (haul away assembled), dismantle+dispose bundle (best value for disposal)
-- Available weekdays & weekends (subject to availability)
-- All tools & equipment supplied — customer needs nothing
-- Pricing: from SGD 80/item; minimum job SGD 180; transport fee added for relocation
-- Payment: 50% deposit to confirm, 50% on completion — PayNow / bank transfer / card
-- Quotes reviewed by admin; booking confirmed after deposit paid
-- GST not included (nett pricing)`
+FAQ ANSWER STYLE — answer briefly and directly, then stop. Examples:
+- "Yes, we do dismantling and reassembly. Which item do you need help with?"
+- "We cover all of Singapore — HDB, condo, landed, and commercial."
+- "No GST — all our prices are nett."
+- "50% deposit to confirm, balance on the day of job."
+If the case is unusual or complex, say the team will review and follow up.`
               },
               ...historyMessages(conversationHistory),
               { role: "user", content: text },
