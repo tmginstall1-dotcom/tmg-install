@@ -8,7 +8,8 @@ import { useState, useMemo } from "react";
 import {
   ClipboardList, DollarSign, CalendarCheck,
   Zap, CheckCircle2, AlertCircle, Trash2,
-  ChevronRight, Search, X, Loader2
+  ChevronRight, Search, X, Loader2,
+  Calendar, Users, BarChart2, FileDown, Settings, MessageCircle, Receipt,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -342,6 +343,27 @@ export default function AdminDashboard() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Quick Navigation */}
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
+              {[
+                { href: "/admin/schedule",      icon: Calendar,       label: "Schedule",  color: "text-blue-600",   bg: "bg-blue-50" },
+                { href: "/admin/staff",         icon: Users,          label: "Staff",     color: "text-violet-600", bg: "bg-violet-50" },
+                { href: "/admin/conversations", icon: MessageCircle,  label: "WhatsApp",  color: "text-emerald-600",bg: "bg-emerald-50" },
+                { href: "/admin/receipts",      icon: Receipt,        label: "Receipts",  color: "text-amber-600",  bg: "bg-amber-50" },
+                { href: "/admin/analytics",     icon: BarChart2,      label: "Analytics", color: "text-indigo-600", bg: "bg-indigo-50" },
+                { href: "/admin/export",        icon: FileDown,       label: "Export",    color: "text-rose-600",   bg: "bg-rose-50" },
+                { href: "/admin/settings",      icon: Settings,       label: "Settings",  color: "text-zinc-600",   bg: "bg-zinc-100" },
+              ].map(({ href, icon: Icon, label, color, bg }) => (
+                <Link key={href} href={href}
+                  className="flex flex-col items-center gap-2 p-3 bg-white border border-zinc-200 rounded-xl hover:border-zinc-300 hover:shadow-sm transition-all group cursor-pointer no-underline">
+                  <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center`}>
+                    <Icon className={`w-5 h-5 ${color}`} />
+                  </div>
+                  <span className="text-[11px] font-medium text-zinc-600 group-hover:text-zinc-900 transition-colors text-center leading-tight">{label}</span>
+                </Link>
+              ))}
             </div>
 
             {/* Main Sections */}
