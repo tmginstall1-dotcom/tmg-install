@@ -95,7 +95,7 @@ Return JSON:
     const typeLabel: Record<string, string> = {
       install:          "🔧 *Installation*",
       dismantle:        "🔨 *Dismantling*",
-      relocate:         "🚚 *Relocation*",
+      relocate:         "🚚 *Relocation* _(incl. dismantle + reinstall)_",
       dispose:          "🗑️ *Disposal*",
       dismantle_dispose:"🔨🗑️ *Dismantle + Dispose*",
     };
@@ -2345,7 +2345,7 @@ Message: "${text}"`
           `🔨 *Dismantling*: from *$60/item*\n` +
           `🗑️ *Disposal* (haul away): from *$80/item*\n` +
           `🔨🗑️ *Dismantle + Dispose* bundle: best value!\n` +
-          `🚚 *Relocation* (move + reinstall): from *$180*\n\n` +
+          `🚚 *Relocation* (dismantle + move + reinstall, all-in): from *$180*\n\n` +
           `_All prices per item. Min. job $180. Floor surcharge & transport may apply. No GST._\n\n` +
           `📸 *Want the exact price for your item?* Type the name or send a photo and I'll look it up!\n\n` +
           `Happy with our pricing? Reply *Yes* and I'll prepare a personalised quote in 2 minutes 😊`;
@@ -3550,8 +3550,8 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
             await sendBotMessage(from,
               `Got it, the list is confirmed! ✅\n\nOne more thing — what *service type* do you need?\n\n` +
               `• *Installation* — assemble new furniture\n` +
-              `• *Dismantling* — take apart existing furniture\n` +
-              `• *Relocation* — move furniture from one place to another\n` +
+              `• *Dismantling* — take apart & remove existing furniture\n` +
+              `• *Relocation* — dismantle + move + reinstall at new location _(all-in-one)_\n` +
               `• *Disposal* — haul away and dispose\n` +
               `• *Dismantle + Dispose* — dismantle first, then dispose (cheaper bundle)\n\n` +
               `Reply with the service type (e.g. *installation*, *relocation*, *disposal*)`
@@ -3661,8 +3661,8 @@ For reply: be natural and friendly, confirm what you did.`,
               await sendBotMessage(from,
                 `${aiReply ? aiReply + "\n\n" : ""}One more thing — what *service type* do you need?\n\n` +
                 `• *Installation* — assemble new furniture\n` +
-                `• *Dismantling* — take apart existing furniture\n` +
-                `• *Relocation* — move furniture from one place to another\n` +
+                `• *Dismantling* — take apart & remove existing furniture\n` +
+                `• *Relocation* — dismantle + move + reinstall at new location _(all-in-one)_\n` +
                 `• *Disposal* — haul away and dispose\n` +
                 `• *Dismantle + Dispose* — dismantle first, then dispose (cheaper bundle)\n\n` +
                 `Reply with the service type (e.g. *installation*, *relocation*, *disposal*)`
@@ -3786,8 +3786,8 @@ Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"disman
           await sendBotMessage(from,
             `Sorry, I didn't catch that. Please choose one of:\n\n` +
             `• *Installation* — assemble new furniture\n` +
-            `• *Dismantling* — take apart existing furniture\n` +
-            `• *Relocation* — move furniture to another location\n` +
+            `• *Dismantling* — take apart & remove existing furniture\n` +
+            `• *Relocation* — dismantle + move + reinstall at new location _(all-in-one)_\n` +
             `• *Disposal* — haul away and dispose\n` +
             `• *Dismantle + Dispose* — cheaper bundle\n\n` +
             `Reply with a service type (e.g. *installation* or *relocation*)`
