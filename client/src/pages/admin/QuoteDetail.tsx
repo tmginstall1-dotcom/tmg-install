@@ -63,7 +63,10 @@ export default function AdminQuoteDetail() {
       toast({ title: "✅ WhatsApp Sent", description: "Payment reminder sent to customer." });
     },
     onError: (err: any) => {
-      toast({ title: "Failed to send", description: err.message || "Could not send WhatsApp message.", variant: "destructive" });
+      // err.message is "500: {\"message\":\"...\"}" — extract the inner message
+      let reason = err?.message || "Could not send WhatsApp message.";
+      try { reason = JSON.parse(reason.replace(/^\d+:\s*/, "")).message || reason; } catch {}
+      toast({ title: "Failed to send", description: reason, variant: "destructive" });
     },
   });
 

@@ -149,11 +149,13 @@ export async function updateAccessToken(token: string): Promise<void> {
 }
 
 // ── Send a WhatsApp text message ──────────────────────────────────────────────
-export async function sendWhatsAppMessage(to: string, text: string): Promise<void> {
+// Returns true if the message was delivered, false if credentials are missing.
+// THROWS if the Meta API returns an error — callers should handle this.
+export async function sendWhatsAppMessage(to: string, text: string, opts?: { logAsSentBy?: string | null }): Promise<boolean> {
   const ACCESS_TOKEN = await getAccessToken();
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
     console.warn("[WhatsApp] Credentials not configured — skipping message send");
-    return;
+    return false;
   }
 
   const url = `${WA_API_BASE}/${PHONE_NUMBER_ID}/messages`;
@@ -164,25 +166,38 @@ export async function sendWhatsAppMessage(to: string, text: string): Promise<voi
     text: { body: text, preview_url: false },
   };
 
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${ACCESS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await res.json() as any;
+
+  if (!res.ok) {
+    const errMsg = data?.error?.message || data?.message || JSON.stringify(data);
+    console.error(`[WhatsApp] Send error to ${to}:`, errMsg);
+    // Throw so callers can surface the real reason to the admin
+    throw new Error(`WhatsApp API error: ${errMsg}`);
+  }
+
+  console.log(`[WhatsApp] Message sent to ${to}`);
+  // Only log to our DB after confirmed delivery
+  const sentBy = opts?.logAsSentBy !== undefined ? opts.logAsSentBy : 'bot';
+  storage.logWhatsAppMessage({ phone: to, direction: 'outbound', body: text, sentBy: sentBy ?? 'bot' }).catch(() => {});
+  return true;
+}
+
+// ── Safe bot sender — swallows errors so the webhook handler never crashes ────
+// Use this for all bot-automated responses. Use sendWhatsAppMessage for admin sends.
+export async function sendBotMessage(to: string, text: string): Promise<void> {
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${ACCESS_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json() as any;
-    if (!res.ok) {
-      console.error("[WhatsApp] Send error:", JSON.stringify(data));
-    } else {
-      console.log(`[WhatsApp] Message sent to ${to}`);
-      // Log outbound message for admin conversations view
-      storage.logWhatsAppMessage({ phone: to, direction: 'outbound', body: text, sentBy: 'bot' }).catch(() => {});
-    }
-  } catch (err) {
-    console.error("[WhatsApp] Network error:", err);
+    await sendWhatsAppMessage(to, text, { logAsSentBy: 'bot' });
+  } catch (err: any) {
+    console.error(`[WhatsApp] Bot message to ${to} failed (swallowed):`, err?.message || err);
   }
 }
 

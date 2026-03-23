@@ -370,7 +370,11 @@ function ChatModal({
       queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations", selectedPhone] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
     },
-    onError: () => toast({ title: "Failed to send message", variant: "destructive" }),
+    onError: (err: any) => {
+      let reason = err?.message || "Failed to send message";
+      try { reason = JSON.parse(reason.replace(/^\d+:\s*/, "")).message || reason; } catch {}
+      toast({ title: "Failed to send", description: reason, variant: "destructive" });
+    },
   });
 
   const pauseBotMutation = useMutation({

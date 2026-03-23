@@ -20,7 +20,7 @@ import {
   newEstimateAdminAlert,
   ADMIN_EMAIL
 } from "./email";
-import { sendWhatsAppMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
+import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
 import { calcTransportFee, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
 import { appSettings } from "@shared/schema";
@@ -2177,7 +2177,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
         if (!isExplicitRestart && text.length < 15) {
           // Brief greeting with existing session — offer resume
           const progress = session.state.replace(/_/g, " ");
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `👋 Welcome back, *${session.collectedName || "there"}*! Great to hear from you again 😊\n\nYou have a quote in progress. What would you like to do?\n\n• Type *continue* — pick up where you left off\n• Type *restart* — start a fresh new quote`
           );
           return;
@@ -2189,7 +2189,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
       // If a session already exists in awaiting_name with nothing collected, just re-ask for name.
       const isSimpleGreeting = isGreeting && !["restart", "start over", "new quote"].includes(textLower);
       if (isSimpleGreeting && session && session.state === "awaiting_name" && !session.collectedName) {
-        await sendWhatsAppMessage(from, `What's your *full name*? I just need something to address you by. 😊`);
+        await sendBotMessage(from, `What's your *full name*? I just need something to address you by. 😊`);
         return;
       }
 
@@ -2226,13 +2226,13 @@ Respond with ONLY a JSON array (no prose, no markdown):
             const priceMsg0 = await smartPricingLookup(scannedItem0);
             if (priceMsg0) {
               const r0 = `${priceMsg0}\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
-              await sendWhatsAppMessage(from, r0);
+              await sendBotMessage(from, r0);
               saveHistory(from, [], `[photo: ${scannedItem0}]`, r0);
               return;
             }
           }
           const askItem0 = `Spotted a photo! 📸 What item is it, and what service do you need?\n\n_e.g. "3-door wardrobe — installation" or "queen bed frame — dismantling"_`;
-          await sendWhatsAppMessage(from, askItem0);
+          await sendBotMessage(from, askItem0);
           saveHistory(from, [], "[photo]", askItem0);
           return;
         }
@@ -2297,27 +2297,27 @@ Message: "${text}"`
         });
 
         if (extractedName && extractedAddress && extractedItems) {
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `👋 Hi *${extractedName}*! Got it — let me confirm what you've told me:\n\n` +
             `📍 *Address:* ${extractedAddress}\n` +
             `🛋️ *Items:*\n${extractedItems}\n\n` +
             `Does this look right?\n• Reply *YES* to proceed\n• Tell me what to correct\n• Send a photo to add more items`
           );
         } else if (extractedAddress && extractedName) {
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `👋 Hi *${extractedName}*! I've noted your address: *${extractedAddress}*.\n\n` +
             `What furniture do you need help with?\n\n📸 *Send a photo* and I'll identify everything, or *type the list* below.\n\n` +
             `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
           );
         } else if (extractedName) {
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `👋 Hi *${extractedName}*! Thanks for reaching out to *TMG Install* 🏠\n\n` +
             `I'll get you an upfront quote right now — no calls needed.\n\n` +
             `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n` +
             `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
           );
         } else {
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `👋 Hi there! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
             `We handle:\n• 🔧 Furniture *installation* & assembly\n• 🔨 *Dismantling* & removal\n• 🚚 *Relocation* (home or office)\n• 🗑️ *Disposal*\n\n` +
             `All across Singapore, with upfront pricing — no surprises.\n\n` +
@@ -2357,7 +2357,7 @@ Message: "${text}"`
           continueMsg += `📅 *Date:* ${session.preferredDate}${twContinue}\n`;
         }
         continueMsg += `\n_Next step: ${stateLabel[session.state] || "let's continue"}_`;
-        await sendWhatsAppMessage(from, continueMsg);
+        await sendBotMessage(from, continueMsg);
         return;
       }
 
@@ -2425,29 +2425,29 @@ TMG INSTALL FACTS (for faq answers):
           if (gc.isCommand && gc.command && gc.command !== "none") {
             if (gc.command === "change_name") {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-              await sendWhatsAppMessage(from, `Sure! What's the correct name? 😊`);
+              await sendBotMessage(from, `Sure! What's the correct name? 😊`);
               return;
             } else if (gc.command === "change_address" && !["awaiting_address", "awaiting_to_address"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-              await sendWhatsAppMessage(from, `No problem! What's the correct job address? 📍`);
+              await sendBotMessage(from, `No problem! What's the correct job address? 📍`);
               return;
             } else if (gc.command === "change_items" && !["awaiting_items", "awaiting_items_verify", "awaiting_confirmation"].includes(state)) {
               // Note: awaiting_confirmation excluded — its own handler handles targeted add/remove/edit with GPT delta logic
               await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null, previousItems: session.collectedItems });
-              await sendWhatsAppMessage(from, `Sure! What items do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`);
+              await sendBotMessage(from, `Sure! What items do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`);
               return;
             } else if (gc.command === "change_date" && !["awaiting_date"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_date" });
               const { message: dateMenu } = await buildDateMenuMessage();
-              await sendWhatsAppMessage(from, `No problem! Let's update that. 😊\n\n${dateMenu}`);
+              await sendBotMessage(from, `No problem! Let's update that. 😊\n\n${dateMenu}`);
               return;
             } else if (gc.command === "change_floor" && !["awaiting_floor"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_floor" });
-              await sendWhatsAppMessage(from, `Sure! Which floor is the unit on?\n\n_e.g. reply *1* for ground floor, *3* for third floor_\n\nAnd is there a *lift*? (yes / no)`);
+              await sendBotMessage(from, `Sure! Which floor is the unit on?\n\n_e.g. reply *1* for ground floor, *3* for third floor_\n\nAnd is there a *lift*? (yes / no)`);
               return;
             } else if (gc.command === "change_access" && !["awaiting_access"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_access" });
-              await sendWhatsAppMessage(from, `Got it! How easy is access to the unit?\n\n1️⃣ *Easy* — clear hallways, no obstacles\n2️⃣ *Moderate* — some tight corners or minor obstacles\n3️⃣ *Difficult* — very narrow, many obstacles or stairs without lift\n\nReply *1*, *2*, or *3*`);
+              await sendBotMessage(from, `Got it! How easy is access to the unit?\n\n1️⃣ *Easy* — clear hallways, no obstacles\n2️⃣ *Moderate* — some tight corners or minor obstacles\n3️⃣ *Difficult* — very narrow, many obstacles or stairs without lift\n\nReply *1*, *2*, or *3*`);
               return;
             } else if (gc.command === "help") {
               const hasAddress = !!session?.collectedAddress;
@@ -2459,7 +2459,7 @@ TMG INSTALL FACTS (for faq answers):
               helpMsg += `• Type *change date* — update your preferred date\n`;
               helpMsg += `• Type *hi* or *start over* — restart from the beginning\n\n`;
               helpMsg += `_Currently: ${state.replace(/_/g, " ")}_`;
-              await sendWhatsAppMessage(from, helpMsg);
+              await sendBotMessage(from, helpMsg);
               return;
             } else if (gc.command === "pricing") {
               const pricingItem = gc.pricingItem as string | null;
@@ -2508,14 +2508,14 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
               if (resolvedPricingItem) {
                 const priceMsg = await smartPricingLookup(resolvedPricingItem);
                 if (priceMsg) {
-                  await sendWhatsAppMessage(from, `${priceMsg}\n\n${continuePrompt}`);
+                  await sendBotMessage(from, `${priceMsg}\n\n${continuePrompt}`);
                   return;
                 }
               }
               // No item identified — if we're awaiting address, redirect there so the
               // customer doesn't get stuck when they resend the same photo as an "answer"
               if (state === "awaiting_address") {
-                await sendWhatsAppMessage(from,
+                await sendBotMessage(from,
                   `📸 Got your photo! I'll scan it for the furniture list once I have your address.\n\n` +
                   `📍 Could you drop the *job address* below?\n\n` +
                   `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
@@ -2523,7 +2523,7 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
                 return;
               }
               // Otherwise ask the customer to specify the item
-              await sendWhatsAppMessage(from,
+              await sendBotMessage(from,
                 `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
                 `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`
               );
@@ -2542,7 +2542,7 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
                 awaiting_confirmation: `Ready to submit? Reply *YES* to confirm your request.`,
               };
               const prompt = statePrompt[state] || `Let's continue with your quote. 😊`;
-              await sendWhatsAppMessage(from, `${gc.faqAnswer}\n\n${prompt}`);
+              await sendBotMessage(from, `${gc.faqAnswer}\n\n${prompt}`);
               return;
             } else if (gc.command === "farewell") {
               // Warm, sales-focused goodbye — session state unchanged so they pick up where they left off
@@ -2563,7 +2563,7 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
                 `No worries${name}! 😊 Take your time — we'll be right here.\n\n` +
                 `${hint}\n\n` +
                 `Just message us again when you're ready and we'll pick up right where we left off. 👍`;
-              await sendWhatsAppMessage(from, farewellReply);
+              await sendBotMessage(from, farewellReply);
               saveHistory(from, conversationHistory, text, farewellReply);
               return;
             }
@@ -2582,7 +2582,7 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
           `• *change items* — update the furniture list\n` +
           `• *change date* — update your preferred date\n` +
           `• *hi* or *start over* — restart from the beginning`;
-        await sendWhatsAppMessage(from, helpMsg);
+        await sendBotMessage(from, helpMsg);
         return;
       }
 
@@ -2624,7 +2624,7 @@ If no installable items found, set noItems: true.`,
             const priceMsg = await smartPricingLookup(scannedItem);
             if (priceMsg) {
               const reply = `${priceMsg}\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
-              await sendWhatsAppMessage(from, reply);
+              await sendBotMessage(from, reply);
               saveHistory(from, conversationHistory, `[photo: ${scannedItem}]`, reply);
               return;
             }
@@ -2633,7 +2633,7 @@ If no installable items found, set noItems: true.`,
               `📸 I can see *${scannedItemLabel}* in your photo!\n\n` +
               `This looks like a custom or commercial job. Our team will prepare a tailored quote for you. 😊\n\n` +
               `To get started, what's your *full name*?`;
-            await sendWhatsAppMessage(from, customReply0);
+            await sendBotMessage(from, customReply0);
             saveHistory(from, conversationHistory, "[photo]", customReply0);
             return;
           }
@@ -2649,13 +2649,13 @@ If no installable items found, set noItems: true.`,
           } else {
             askItem = `Spotted a photo! 📸 What item is it, and what service do you need?\n\n_e.g. "3-door wardrobe — installation" or "queen bed frame — dismantling"_`;
           }
-          await sendWhatsAppMessage(from, askItem);
+          await sendBotMessage(from, askItem);
           saveHistory(from, conversationHistory, "[photo]", askItem);
           return;
         }
 
         if (text.length < 2) {
-          await sendWhatsAppMessage(from, `What's your *full name*? I just need something to address you by. 😊`);
+          await sendBotMessage(from, `What's your *full name*? I just need something to address you by. 😊`);
           return;
         }
         // Use GPT to extract name AND detect if the message is really a pricing question
@@ -2750,7 +2750,7 @@ If no installable items found, set noItems: true.`,
               const priceMsg = await smartPricingLookup(`${itemFromPhoto} ${nameMentionedService}`);
               if (priceMsg) {
                 const reply = `${priceMsg}\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
-                await sendWhatsAppMessage(from, reply);
+                await sendBotMessage(from, reply);
                 saveHistory(from, conversationHistory, text, reply);
                 return;
               }
@@ -2760,7 +2760,7 @@ If no installable items found, set noItems: true.`,
                 `📸 I can see *${detectedItemLabel}* in your photo — ${nameMentionedService} noted!\n\n` +
                 `This looks like a custom or commercial job. Our team will prepare a tailored quote for you. 😊\n\n` +
                 `To get started, what's your *full name*?`;
-              await sendWhatsAppMessage(from, customReply);
+              await sendBotMessage(from, customReply);
               saveHistory(from, conversationHistory, text, customReply);
               return;
             }
@@ -2779,7 +2779,7 @@ If no installable items found, set noItems: true.`,
                 `Which *item* would you like ${verb}?\n\n` +
                 `_e.g. wardrobe, queen bed frame, dining table, sofa_`;
             }
-            await sendWhatsAppMessage(from, askForItem);
+            await sendBotMessage(from, askForItem);
             saveHistory(from, conversationHistory, text, askForItem);
             return;
           }
@@ -2829,7 +2829,7 @@ If no installable items found, set noItems: true.`,
                 const replyPrice =
                   `${priceMsg}\n\n` +
                   `Would you like a full personalised quote? To get started, what's your *full name*? 😊`;
-                await sendWhatsAppMessage(from, replyPrice);
+                await sendBotMessage(from, replyPrice);
                 saveHistory(from, conversationHistory, text, replyPrice);
                 return;
               }
@@ -2842,7 +2842,7 @@ If no installable items found, set noItems: true.`,
                 `📸 I can see *${customLabel}* in your photo${svcNote2}!\n\n` +
                 `This looks like a custom or commercial job. Our team will prepare a tailored quote for you. 😊\n\n` +
                 `To get started, what's your *full name*?`;
-              await sendWhatsAppMessage(from, customReply2);
+              await sendBotMessage(from, customReply2);
               saveHistory(from, conversationHistory, text, customReply2);
               return;
             }
@@ -2860,11 +2860,11 @@ If no installable items found, set noItems: true.`,
                 `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
                 `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`;
             }
-            await sendWhatsAppMessage(from, askItemMsg);
+            await sendBotMessage(from, askItemMsg);
             saveHistory(from, conversationHistory, text, askItemMsg);
             return;
           }
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `Happy to help! To get you an accurate quote, I'll need your details first.\n\nWhat's your *full name*? 😊`
           );
           return;
@@ -2874,7 +2874,7 @@ If no installable items found, set noItems: true.`,
         if (nameExtractedAddress) {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedName: extractedName, collectedAddress: nameExtractedAddress });
           const replyNameAddr = `Nice to meet you, *${extractedName}*! 😊 I've noted your address: *${nameExtractedAddress}*.\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items automatically — or *type the list* below.`;
-          await sendWhatsAppMessage(from, replyNameAddr);
+          await sendBotMessage(from, replyNameAddr);
           saveHistory(from, conversationHistory, text, replyNameAddr);
           return;
         }
@@ -2899,7 +2899,7 @@ If no installable items found, set noItems: true.`,
           await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
           replyName = `Nice to meet you, *${extractedName}*! 😊\n\n📍 Where is the job? Just drop the *address* below — block/unit number helps too.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
         }
-        await sendWhatsAppMessage(from, replyName);
+        await sendBotMessage(from, replyName);
         saveHistory(from, conversationHistory, text, replyName);
         return;
       }
@@ -2911,7 +2911,7 @@ If no installable items found, set noItems: true.`,
         // try to parse "Installation" / "Dismantle" etc. as a Singapore address.
         const SERVICE_TYPE_PATTERN = /^(install(ation)?|dismantle?|dismantling|relocat(e|ion)|dispos(e|al)|dismantle\s*\+?\s*dispos(e|al))$/i;
         if (msgType === "image" && msg.image?.id && (text.length === 0 || SERVICE_TYPE_PATTERN.test(text.trim()))) {
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `📸 Got your photo — I'll scan it for the furniture list once I have the address!\n\n` +
             `📍 Could you drop the *job address* first?\n\n` +
             `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
@@ -2919,7 +2919,7 @@ If no installable items found, set noItems: true.`,
           return;
         }
         if (text.length < 4) {
-          await sendWhatsAppMessage(from, `Could you give me the *full address*? Include the block/unit number if applicable. 📍`);
+          await sendBotMessage(from, `Could you give me the *full address*? Include the block/unit number if applicable. 📍`);
           return;
         }
         // Use GPT to extract and clean the Singapore address
@@ -2953,7 +2953,7 @@ Rules:
           const parsed = JSON.parse(addrRes.choices[0]?.message?.content || "{}");
           if (parsed.address) extractedAddress = parsed.address;
           if (parsed.valid === false) {
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `I need a bit more detail — could you include the *block number, street*, or *postal code*? 📍\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
             );
             return;
@@ -2979,7 +2979,7 @@ Rules:
             `Mention the service too if you know it (install, dismantle, relocate, dispose).\n\n` +
             `_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle+dispose)\n• L-shaped sofa (disposal only)`;
         }
-        await sendWhatsAppMessage(from, replyAddr);
+        await sendBotMessage(from, replyAddr);
         saveHistory(from, conversationHistory, text, replyAddr);
         return;
       }
@@ -3003,7 +3003,7 @@ Rules:
           }
 
           // Send ONE acknowledgment — no matter how many photos follow
-          await sendWhatsAppMessage(from, `Got it! Give me a moment to scan your photo(s)... 🔍`);
+          await sendBotMessage(from, `Got it! Give me a moment to scan your photo(s)... 🔍`);
 
           // ── Step 2: Wait 5 s so all concurrently-sent photos can append ───────
           await new Promise(resolve => setTimeout(resolve, 5000));
@@ -3059,7 +3059,7 @@ If no installable furniture is visible, respond only with: NO_FURNITURE`,
 
             if (validResults.length === 0) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
-              await sendWhatsAppMessage(from,
+              await sendBotMessage(from,
                 `Hmm, I couldn't spot any furniture in ${allIds.length > 1 ? "those photos" : "that photo"}. No worries — just *type out the items* you need help with, like:\n• 1 king bed frame\n• 3-door wardrobe\n• Dining table + 4 chairs`
               );
               return;
@@ -3108,7 +3108,7 @@ ${validResults.map((r, i) => `[Photo ${i + 1}]\n${r}`).join("\n\n")}`
 
             // ── Step 5: Save and send ONE combined summary ────────────────────
             await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: allDetected });
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `Here's what I found in your photo${allIds.length > 1 ? "s" : ""}:\n\n${allDetected}\n\n` +
               `Does this look right?\n` +
               `• Reply *YES* to proceed\n` +
@@ -3120,7 +3120,7 @@ ${validResults.map((r, i) => `[Photo ${i + 1}]\n${r}`).join("\n\n")}`
           } catch (err) {
             console.error("[WhatsApp] Image analysis error:", err);
             await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `Sorry, had a bit of trouble with that photo. Could you *type out the furniture items* instead? 🙏`
             );
             return;
@@ -3129,7 +3129,7 @@ ${validResults.map((r, i) => `[Photo ${i + 1}]\n${r}`).join("\n\n")}`
 
         // ── Text input: use GPT to parse and format the item list ─────────
         if (text.length < 3) {
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `What furniture do you need help with? 😊\n\n📸 *Send a photo* and I'll detect the items — or just *type the list* below.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
           );
           return;
@@ -3164,7 +3164,7 @@ Customer message: "${text}"`
           const parsed = JSON.parse(itemsRes.choices[0]?.message?.content || "{}");
 
           if (parsed.done) {
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `What furniture items do you need help with? 😊\n\n` +
               `📸 *Send a photo* and I'll detect the items — or type the list below.\n\n` +
               `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
@@ -3175,7 +3175,7 @@ Customer message: "${text}"`
           if (parsed.items) formattedItems = parsed.items;
 
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: formattedItems });
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `Got it! Here's what I have:\n\n${formattedItems}\n\n` +
             (parsed.needsServiceType
               ? `Is this for *installation, dismantling, relocation, or disposal*? (disposal only = higher price; dismantle+dispose bundle = cheaper) — or just reply *YES* if you're not sure and our team will confirm.\n\n`
@@ -3185,7 +3185,7 @@ Customer message: "${text}"`
         } catch {
           // Fallback
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: formattedItems });
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `Got it! Here's what I have:\n\n${formattedItems}\n\nDoes this look right?\n• Reply *YES* to proceed\n• *Type any corrections* if needed`
           );
         }
@@ -3215,7 +3215,7 @@ Customer message: "${text}"`
             const media = await downloadWhatsAppMedia(msg.image.id);
             if (!media) throw new Error("Could not download image");
 
-            await sendWhatsAppMessage(from, `Got your extra photo — scanning it now... 🔍`);
+            await sendBotMessage(from, `Got your extra photo — scanning it now... 🔍`);
 
             const visionRes = await openai.chat.completions.create({
               model: "gpt-4o",
@@ -3246,7 +3246,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
             const newDetected = (visionRes.choices[0]?.message?.content || "").trim();
 
             if (!newDetected || newDetected.includes("NO_FURNITURE")) {
-              await sendWhatsAppMessage(from,
+              await sendBotMessage(from,
                 `Hmm, couldn't spot any furniture in that one. Here's what I have so far:\n\n${existingItems}\n\n• Reply *YES* to confirm\n• *Type corrections or additions* if needed\n• Send *another photo* to add more\n• Reply *NO* to redo the list`
               );
               return;
@@ -3267,7 +3267,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
             const mergedItems = mergedLines.join("\n");
 
             await storage.upsertWhatsAppSession(from, { collectedItems: mergedItems });
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `Here's the updated list from all your photos:\n\n${mergedItems}\n\n` +
               `• Reply *YES* if this is complete\n` +
               `• *Type any corrections or additions*\n` +
@@ -3277,7 +3277,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
             return;
           } catch (err) {
             console.error("[WhatsApp] Image merge error:", err);
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `Oops, had trouble with that photo. Here's what I have so far:\n\n${existingItems}\n\nReply *YES* to confirm, or type any corrections.`
             );
             return;
@@ -3293,7 +3293,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
           const hasServiceType = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(detectedItems);
           if (!hasServiceType && detectedItems) {
             await storage.upsertWhatsAppSession(from, { state: "awaiting_service_type", collectedItems: detectedItems });
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `Got it, the list is confirmed! ✅\n\nOne more thing — what *service type* do you need?\n\n` +
               `• *Installation* — assemble new furniture\n` +
               `• *Dismantling* — take apart existing furniture\n` +
@@ -3305,7 +3305,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
             return;
           }
           await storage.upsertWhatsAppSession(from, { state: "awaiting_floor", collectedItems: detectedItems, floorLevel: null, hasLift: null });
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `Great! Just a couple more quick questions to complete your quote. 😊\n\n` +
             `*Which floor is the unit on?*\n\n` +
             `Reply with the floor number (e.g. *1* for ground/first floor, *5* for fifth floor)\n` +
@@ -3315,7 +3315,7 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
         }
 
         if (text.length < 2) {
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `Reply *YES* to confirm, or tell me what to fix. 😊`
           );
           return;
@@ -3400,7 +3400,7 @@ For reply: be natural and friendly, confirm what you did.`,
             const hasServiceTypeFinal = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(finalItems);
             if (!hasServiceTypeFinal && !intentServiceType && !intentIsRelocation) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_service_type", collectedItems: finalItems });
-              await sendWhatsAppMessage(from,
+              await sendBotMessage(from,
                 `${aiReply ? aiReply + "\n\n" : ""}One more thing — what *service type* do you need?\n\n` +
                 `• *Installation* — assemble new furniture\n` +
                 `• *Dismantling* — take apart existing furniture\n` +
@@ -3421,7 +3421,7 @@ For reply: be natural and friendly, confirm what you did.`,
               floorLevel: null,
               hasLift: null,
             });
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `${aiReply ? aiReply + "\n\n" : ""}Just a couple more quick questions to complete your quote. 😊\n\n` +
               `*Which floor is the unit on?*\n\n` +
               `Reply with the floor number (e.g. *1* for ground/first floor, *5* for fifth floor)\n` +
@@ -3432,7 +3432,7 @@ For reply: be natural and friendly, confirm what you did.`,
 
           if ((action === "add" || action === "update") && updatedList) {
             await storage.upsertWhatsAppSession(from, { collectedItems: updatedList });
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `${aiReply} Here's the updated list:\n\n${updatedList}\n\n` +
               `• Reply *YES* to confirm\n` +
               `• Tell me if anything else needs changing\n` +
@@ -3449,14 +3449,14 @@ For reply: be natural and friendly, confirm what you did.`,
               collectedItems: null,
               previousItems: detectedItems || previousItems || null,
             });
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `${aiReply || "No problem!"} Let's redo the list. *Type it out* or *send a new photo* 📸\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`
             );
             return;
           }
 
           // unclear or parse error — give helpful nudge
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `${aiReply || "Hmm, I'm not quite sure what you'd like to change!"} 😊\n\n` +
             `Here's the current list:\n\n${detectedItems}\n\n` +
             `• Reply *YES* to confirm this\n` +
@@ -3470,7 +3470,7 @@ For reply: be natural and friendly, confirm what you did.`,
           // Fallback: treat as addition
           const fallback = detectedItems ? `${detectedItems}\n• ${text.replace(/^[•\-\*]\s*/, "")}` : text;
           await storage.upsertWhatsAppSession(from, { collectedItems: fallback });
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `Got it! Here's the updated list:\n\n${fallback}\n\n• Reply *YES* to confirm\n• Tell me what else to change\n• Reply *NO* to start fresh`
           );
           return;
@@ -3522,7 +3522,7 @@ Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"disman
 
         if (!detectedServiceType) {
           // Still can't understand — re-ask
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `Sorry, I didn't catch that. Please choose one of:\n\n` +
             `• *Installation* — assemble new furniture\n` +
             `• *Dismantling* — take apart existing furniture\n` +
@@ -3558,7 +3558,7 @@ Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"disman
           hasLift: null,
         });
 
-        await sendWhatsAppMessage(from,
+        await sendBotMessage(from,
           `Got it — *${svcLabel[detectedServiceType] || detectedServiceType}*! ✅\n\n` +
           `Just a couple more quick questions to complete your quote. 😊\n\n` +
           `*Which floor is the unit on?*\n\n` +
@@ -3592,12 +3592,12 @@ Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"disman
             } catch { liftKnown = null; }
           }
           if (liftKnown === null) {
-            await sendWhatsAppMessage(from, `Just to confirm — is there a *lift* available at ${session.collectedAddress || "the unit"}? Reply *yes* or *no* 😊`);
+            await sendBotMessage(from, `Just to confirm — is there a *lift* available at ${session.collectedAddress || "the unit"}? Reply *yes* or *no* 😊`);
             return;
           }
           await storage.upsertWhatsAppSession(from, { hasLift: liftKnown, state: "awaiting_access" });
           const floorLabel = session.floorLevel === 1 ? "Ground / 1st floor" : `Floor ${session.floorLevel}`;
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `Got it — ${floorLabel}, ${liftKnown ? "lift available" : "no lift"}. 👍\n\n` +
             `One more quick question — how easy is access to the unit?\n\n` +
             `1️⃣ *Easy* — clear hallways, no obstacles\n` +
@@ -3643,7 +3643,7 @@ Rules:
           const fp = JSON.parse(floorRes.choices[0]?.message?.content || "{}");
 
           if (!fp.understood || fp.floorLevel == null) {
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `Which floor is the unit on? 😊\n\nReply with a number (e.g. *1* for ground floor, *3* for third floor)\nAnd is there a *lift*? (yes / no)`
             );
             return;
@@ -3654,7 +3654,7 @@ Rules:
           if (fp.hasLift == null) {
             // Floor captured but lift not mentioned — save floor and ask about lift
             await storage.upsertWhatsAppSession(from, { floorLevel });
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `Got it — *Floor ${floorLevel}*! 😊 Is there a *lift* available?\n\nReply *yes* or *no*`
             );
             return;
@@ -3670,11 +3670,11 @@ Rules:
             `2️⃣ *Moderate* — some tight corners or obstacles\n` +
             `3️⃣ *Difficult* — very narrow, many steps, or no lift access\n\n` +
             `Reply *1*, *2*, or *3*`;
-          await sendWhatsAppMessage(from, replyFloor);
+          await sendBotMessage(from, replyFloor);
           saveHistory(from, conversationHistory, text, replyFloor);
         } catch (err) {
           console.error("[WhatsApp] Floor parse error:", err);
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `Which floor is the unit on? (e.g. *1* for ground floor, *3* for third floor)\nAnd is there a lift? (yes / no)`
           );
         }
@@ -3693,7 +3693,7 @@ Rules:
         if (liftAnswerLower === "yes" || liftAnswerLower === "no" || liftAnswerLower === "yeah" || liftAnswerLower === "nope") {
           const liftAvail = liftAnswerLower === "yes" || liftAnswerLower === "yeah";
           await storage.upsertWhatsAppSession(from, { hasLift: liftAvail });
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `Got it — ${liftAvail ? "lift available" : "no lift"}. 👍\n\n` +
             `How easy is access to the unit?\n\n` +
             `1️⃣ *Easy* — clear hallways, no obstacles\n` +
@@ -3731,7 +3731,7 @@ If unclear → null`
             });
             const ap = JSON.parse(accessRes.choices[0]?.message?.content || "{}");
             if (!ap.difficulty) {
-              await sendWhatsAppMessage(from,
+              await sendBotMessage(from,
                 `How easy is access to the unit?\n\n1️⃣ *Easy* — clear hallways\n2️⃣ *Moderate* — some obstacles\n3️⃣ *Difficult* — very narrow or many obstacles\n\nReply *1*, *2*, or *3*`
               );
               return;
@@ -3747,7 +3747,7 @@ If unclear → null`
         // Decide next state: if relocation and no to-address yet → awaiting_to_address, else → awaiting_date
         if (session.isRelocation && !session.collectedToAddress) {
           await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_to_address" });
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `${accessLabel} 👍\n\n` +
             `Since this is a relocation, we also need the *destination address* 📍\n\n` +
             `What's the address you'd like the furniture moved *to*? (e.g. 123 Tampines Ave 3, #05-12)`
@@ -3755,7 +3755,7 @@ If unclear → null`
         } else {
           await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_date" });
           const { message: dateMenu } = await buildDateMenuMessage();
-          await sendWhatsAppMessage(from, `${accessLabel} 👍\n\nAlmost there! When would you like this done?\n\n${dateMenu}`);
+          await sendBotMessage(from, `${accessLabel} 👍\n\nAlmost there! When would you like this done?\n\n${dateMenu}`);
         }
         return;
       }
@@ -3765,7 +3765,7 @@ If unclear → null`
       // ─────────────────────────────────────────────────────────────────────────
       if (state === "awaiting_to_address") {
         if (text.length < 2) {
-          await sendWhatsAppMessage(from, `Please provide the *destination address* where the furniture should be moved to. 📍`);
+          await sendBotMessage(from, `Please provide the *destination address* where the furniture should be moved to. 📍`);
           return;
         }
 
@@ -3792,7 +3792,7 @@ Return JSON: { "address": "normalised address string or null if not an address",
           });
           const ap = JSON.parse(addrRes.choices[0]?.message?.content || "{}");
           if (!ap.isAddress) {
-            await sendWhatsAppMessage(from, `What's the *destination address* for the move? 📍\n\n_e.g. Blk 123 Tampines Ave 3, or Ion Orchard, or 10 Orchard Road_`);
+            await sendBotMessage(from, `What's the *destination address* for the move? 📍\n\n_e.g. Blk 123 Tampines Ave 3, or Ion Orchard, or 10 Orchard Road_`);
             return;
           }
           if (ap.address) toAddress = ap.address;
@@ -3836,7 +3836,7 @@ Return JSON: { "address": "normalised address string or null if not an address",
         });
 
         const { message: dateMenu } = await buildDateMenuMessage();
-        await sendWhatsAppMessage(from,
+        await sendBotMessage(from,
           `Got it! Moving *from:* ${session.collectedAddress}\n*To:* ${toAddress}${distanceDisplay}\n\nNow, let's sort the date. 📅\n\n${dateMenu}`
         );
         return;
@@ -3916,7 +3916,7 @@ Rules:
           if (!stillAvailable) {
             // That slot just got taken — show updated menu
             const { message: freshMenu } = await buildDateMenuMessage();
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `Sorry, that slot was just taken! Here are our current available slots:\n\n${freshMenu}`
             );
             return;
@@ -3953,7 +3953,7 @@ Rules:
         const accessLvl = session.accessDifficulty ?? "easy";
         const accessLine = `🚪 *Access:* ${{ easy: "Easy", medium: "Moderate", hard: "Difficult" }[accessLvl] || "Easy"}`;
 
-        await sendWhatsAppMessage(from,
+        await sendBotMessage(from,
           `Perfect! Here's a summary of your request:\n\n` +
           `👤 *Name:* ${name}\n` +
           `${addressBlock}\n` +
@@ -3970,7 +3970,7 @@ Rules:
       if (state === "awaiting_confirmation") {
         if (textLower === "cancel" || textLower === "nevermind" || textLower === "never mind" || textLower === "stop") {
           await storage.deleteWhatsAppSession(from);
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `No worries at all! 😊 If you'd like to get a quote in the future, just send *hi* and I'll help you right away.`
           );
           return;
@@ -3978,7 +3978,7 @@ Rules:
 
         if (textLower === "no") {
           // Don't cancel — show correction options
-          await sendWhatsAppMessage(from,
+          await sendBotMessage(from,
             `No problem! What would you like to change? 😊\n\n` +
             `• Type *change name* — update your name\n` +
             `• Type *change address* — fix the job address\n` +
@@ -4062,7 +4062,7 @@ CRITICAL for edit_items:
               const floorLineE = `🏢 *Floor:* ${floorLvlE === 1 ? "Ground / 1st floor" : `Floor ${floorLvlE}`} (${liftAvailE ? "lift available" : "no lift"})`;
               const accessLineE = `🚪 *Access:* ${{ easy: "Easy", medium: "Moderate", hard: "Difficult" }[accessLvlE] || "Easy"}`;
 
-              await sendWhatsAppMessage(from,
+              await sendBotMessage(from,
                 `${ci.reply || "Done! ✅"} Here's your updated summary:\n\n` +
                 `👤 *Name:* ${session.collectedName}\n` +
                 `${addressBlockE}\n` +
@@ -4076,16 +4076,16 @@ CRITICAL for edit_items:
               return;
             } else if (ci.action === "change_name") {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-              await sendWhatsAppMessage(from, `${ci.reply || "Sure!"} What's the correct name?`);
+              await sendBotMessage(from, `${ci.reply || "Sure!"} What's the correct name?`);
               return;
             } else if (ci.action === "change_address") {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-              await sendWhatsAppMessage(from, `${ci.reply || "No problem!"} What's the correct address? 📍`);
+              await sendBotMessage(from, `${ci.reply || "No problem!"} What's the correct address? 📍`);
               return;
             } else if (ci.action === "change_date") {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_date" });
               const { message: dateMenu } = await buildDateMenuMessage();
-              await sendWhatsAppMessage(from, `${ci.reply || "Sure!"} Let me pull up available slots for you.\n\n${dateMenu}`);
+              await sendBotMessage(from, `${ci.reply || "Sure!"} Let me pull up available slots for you.\n\n${dateMenu}`);
               return;
             } else if (ci.action === "redo_items") {
               // Complete redo — keep existing list in previousItems so user can reference it
@@ -4094,7 +4094,7 @@ CRITICAL for edit_items:
                 collectedItems: null,
                 previousItems: session.collectedItems,
               });
-              await sendWhatsAppMessage(from,
+              await sendBotMessage(from,
                 `${ci.reply || "Sure!"} What items do you need help with?\n\n` +
                 `📸 Send a photo or type the list below.`
               );
@@ -4102,18 +4102,18 @@ CRITICAL for edit_items:
             } else if (ci.action === "set_relocation") {
               // Customer reveals this is a relocation job at confirmation stage
               await storage.upsertWhatsAppSession(from, { isRelocation: true, state: "awaiting_to_address" });
-              await sendWhatsAppMessage(from,
+              await sendBotMessage(from,
                 `${ci.reply || "Got it — this is a relocation job!"} 📦\n\n` +
                 `We'll need the *destination address* too — where should the furniture be moved *to*? (e.g. 123 Tampines Ave 3, #05-12)`
               );
               return;
             } else if (ci.action === "cancel") {
               await storage.deleteWhatsAppSession(from);
-              await sendWhatsAppMessage(from, `${ci.reply || "No worries!"} If you need a quote in future, just send *hi* anytime. 😊`);
+              await sendBotMessage(from, `${ci.reply || "No worries!"} If you need a quote in future, just send *hi* anytime. 😊`);
               return;
             } else {
               // question or unclear
-              await sendWhatsAppMessage(from,
+              await sendBotMessage(from,
                 `${ci.reply || "Our team will be in touch to confirm all the details!"} 😊\n\n` +
                 `Ready to go? Reply *YES* to submit, or tell me what you'd like to change.`
               );
@@ -4121,7 +4121,7 @@ CRITICAL for edit_items:
             }
             // If action === "submit", fall through to YES processing below
           } catch {
-            await sendWhatsAppMessage(from,
+            await sendBotMessage(from,
               `Almost there! 😊 Just reply *YES* to submit to our team, or tell me what you'd like to change.\n\n` +
               `• *change name / address / items* — to fix details\n• *cancel* — to stop`
             );
@@ -4304,7 +4304,7 @@ Return ONLY valid JSON.`,
 
         await storage.deleteWhatsAppSession(from);
 
-        await sendWhatsAppMessage(from,
+        await sendBotMessage(from,
           `✅ All done, *${name}*! Your request has been submitted.\n\n` +
           `🔖 *Reference:* ${quote.referenceNo}\n` +
           `📍 *Address:* ${address}\n` +
@@ -4374,7 +4374,7 @@ Respond directly — no JSON, just the message text.`,
         });
         const smartReply = catchAllRes.choices[0]?.message?.content?.trim();
         if (smartReply) {
-          await sendWhatsAppMessage(from, smartReply);
+          await sendBotMessage(from, smartReply);
           return;
         }
       } catch (fbErr) {
@@ -4382,7 +4382,7 @@ Respond directly — no JSON, just the message text.`,
       }
 
       // Last-resort hardcoded fallback
-      await sendWhatsAppMessage(from,
+      await sendBotMessage(from,
         state === "submitted"
           ? `Your request has been submitted — our team will be in touch soon! 😊\n\nReply *hi* to start a new request.`
           : `I'm sorry, I didn't quite catch that! 😊\n\nReply *hi* to start a quote, or *help* to see what you can do.`
@@ -4431,9 +4431,11 @@ Respond directly — no JSON, just the message text.`,
       });
 
       res.json({ message: "Payment reminder sent via WhatsApp", phone });
-    } catch (err) {
+    } catch (err: any) {
       console.error("[WhatsApp] Send payment link error:", err);
-      res.status(500).json({ message: "Failed to send WhatsApp message" });
+      // Surface the actual Meta API reason (e.g. token expired, 24h window, etc.)
+      const reason = err?.message || "Failed to send WhatsApp message";
+      res.status(500).json({ message: reason });
     }
   });
 
@@ -4632,10 +4634,14 @@ Respond directly — no JSON, just the message text.`,
     const phone = req.params.phone;
     const { message } = req.body as { message: string };
     if (!message?.trim()) return res.status(400).json({ message: "Message is required" });
-    await sendWhatsAppMessage(phone, message.trim());
-    // Log as admin-sent message (overwrite the 'bot' sentBy that sendWhatsAppMessage logs)
-    await storage.logWhatsAppMessage({ phone, direction: 'outbound', body: message.trim(), sentBy: `admin:${user.name || user.email}` });
-    res.json({ ok: true });
+    try {
+      // Use sendWhatsAppMessage so it throws on Meta API error — only logs if delivered
+      await sendWhatsAppMessage(phone, message.trim(), { logAsSentBy: `admin:${user.name || user.email}` });
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("[Admin] Chat send failed:", err?.message);
+      res.status(500).json({ message: err?.message || "Failed to send WhatsApp message" });
+    }
   });
 
   // ── Admin takeover: pause bot for a conversation ──────────────────────────
