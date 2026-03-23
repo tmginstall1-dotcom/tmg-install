@@ -2507,7 +2507,8 @@ Return JSON:
   "isCommand": boolean,
   "command": "change_name"|"change_address"|"change_items"|"change_date"|"change_floor"|"change_access"|"change_remarks"|"help"|"pricing"|"faq"|"progress"|"escalate"|"farewell"|"none",
   "faqAnswer": "direct, warm answer (1-2 sentences max) using the coordinator tone if command=faq, otherwise empty string",
-  "pricingItem": "specific furniture item if command=pricing, e.g. 'IKEA PAX wardrobe', 'queen bed frame', 'sofa'. Null if not mentioned."
+  "pricingItem": "specific furniture item if command=pricing, e.g. 'IKEA PAX wardrobe', 'queen bed frame', 'sofa'. Null if not mentioned.",
+  "pricingService": "service type if command=pricing and customer mentioned one: 'install'|'dismantle'|'relocate'|'dispose'|'dismantle_dispose'|null. Look for: install/assembly→install, dismantle/dismantling→dismantle, relocat/move/shift→relocate, dispos/haul→dispose, dismantle and dispos→dismantle_dispose"
 }
 
 COMMAND RULES:
@@ -2584,6 +2585,7 @@ If the case is unusual or complex, say the team will review and follow up.`
               return;
             } else if (gc.command === "pricing") {
               const pricingItem = gc.pricingItem as string | null;
+              const pricingService = gc.pricingService as string | null; // service type extracted from caption/text
               const statePromptPricing: Record<string, string> = {
                 pricing_shown: `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`,
                 awaiting_name: `What's your *full name*?`,
@@ -2599,6 +2601,13 @@ If the case is unusual or complex, say the team will review and follow up.`
                 awaiting_confirmation: `Ready to submit? Reply *YES* to confirm.`,
               };
               const continuePrompt = statePromptPricing[state] || `Let's continue with your quote. 😊`;
+
+              // Human-friendly service type label for context-aware clarification messages
+              const serviceLabelMap: Record<string, string> = {
+                install: "installation", dismantle: "dismantling", relocate: "relocation",
+                dispose: "disposal", dismantle_dispose: "dismantle & dispose",
+              };
+              const serviceLabel = pricingService ? serviceLabelMap[pricingService] || pricingService : null;
 
               // If customer sent a photo with "how much this cost?", scan it to identify the item
               let resolvedPricingItem = pricingItem;
@@ -2632,7 +2641,11 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
               if (resolvedPricingItem) {
                 const priceMsg = await smartPricingLookup(resolvedPricingItem);
                 if (priceMsg) {
-                  await sendBotMessage(from, `${priceMsg}\n\n${continuePrompt}`);
+                  // If customer asked about a specific service type, add a contextual note
+                  const serviceNote = pricingService && pricingService !== "install"
+                    ? `\n_You asked about *${serviceLabel}* — the relevant price is highlighted above._`
+                    : "";
+                  await sendBotMessage(from, `${priceMsg}${serviceNote}\n\n${continuePrompt}`);
                   return;
                 }
               }
@@ -2646,11 +2659,19 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
                 );
                 return;
               }
-              // Otherwise ask the customer to specify the item
-              await sendBotMessage(from,
-                `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
-                `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`
-              );
+              // No item found — ask ONLY for the missing piece
+              // If we already know the service type from the caption, don't ask for it again
+              if (serviceLabel) {
+                await sendBotMessage(from,
+                  `Got it — *${serviceLabel}*. 👍\n\nWhich item is this for?\n\n` +
+                  `_e.g. wardrobe, queen bed frame, sofa, dining table_`
+                );
+              } else {
+                await sendBotMessage(from,
+                  `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
+                  `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`
+                );
+              }
               return;
             } else if (gc.command === "faq" && gc.faqAnswer) {
               // Answer the question and prompt to continue the flow
@@ -2775,6 +2796,16 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
 
         // If they sent a photo — scan it and show specific pricing
         if (msgType === "image" && msg.image?.id) {
+          // Detect service type from caption so we don't ask for it again if scan fails
+          const captionLower = text.toLowerCase();
+          let captionService: string | null = null;
+          if (/dismantle.*reloc|reloc.*dismantle|move.*dismantle|shift.*dismantle/.test(captionLower)) captionService = "relocation + dismantling";
+          else if (/relocat|move|shift|transfer/.test(captionLower)) captionService = "relocation";
+          else if (/dismantle|dismant|take apart|remove/.test(captionLower)) captionService = "dismantling";
+          else if (/dispos|haul|throw|throw away/.test(captionLower)) captionService = "disposal";
+          else if (/install|assembly|assemble|set up|put up/.test(captionLower)) captionService = "installation";
+
+          let photoScanItem: string | null = null;
           try {
             const pMedia = await downloadWhatsAppMedia(msg.image.id);
             if (pMedia) {
@@ -2786,22 +2817,36 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
                 ],
               });
               const detectedItem = (vRes.choices[0]?.message?.content || "").trim();
-              if (detectedItem && detectedItem !== "NONE") {
-                const priceMsg = await smartPricingLookup(detectedItem);
-                if (priceMsg) {
-                  const followUp = nameAlready
-                    ? `Ready to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
-                    : `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`;
-                  await sendBotMessage(from, `${priceMsg}\n\n${followUp}`);
-                  return;
-                }
-              }
+              if (detectedItem && detectedItem !== "NONE") photoScanItem = detectedItem;
             }
           } catch { /* fall through */ }
-          await sendBotMessage(from,
-            `📸 Got your photo! I'll scan it for items once we start your quote.\n\n` +
-            `Happy with our pricing? Reply *Yes* to get started 😊`
-          );
+
+          if (photoScanItem) {
+            const priceMsg = await smartPricingLookup(photoScanItem);
+            if (priceMsg) {
+              const serviceNote = captionService
+                ? `\n_You asked about *${captionService}* — check the relevant row above._`
+                : "";
+              const followUp = nameAlready
+                ? `Ready to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
+                : `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`;
+              await sendBotMessage(from, `${priceMsg}${serviceNote}\n\n${followUp}`);
+              return;
+            }
+          }
+
+          // Photo scan failed or no item detected — use caption context if available
+          if (captionService) {
+            await sendBotMessage(from,
+              `Got it — *${captionService}*. 👍\n\nCouldn't read the photo clearly — which item is this for?\n\n` +
+              `_e.g. wardrobe, queen bed frame, sofa, dining table_`
+            );
+          } else {
+            await sendBotMessage(from,
+              `📸 Got your photo! I'll scan it for items once we start your quote.\n\n` +
+              `Happy with our pricing? Reply *Yes* to get started 😊`
+            );
+          }
           return;
         }
 
@@ -2811,9 +2856,10 @@ Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-sepa
             model: "gpt-4o",
             max_tokens: 200,
             response_format: { type: "json_object" },
-            messages: [{
-              role: "system",
-              content: `A customer received a pricing overview from TMG Install (furniture installation Singapore) and replied.
+            messages: [
+              {
+                role: "system",
+                content: `A customer is chatting with TMG Install (furniture installation Singapore).
 Classify their reply. Return JSON:
 {
   "intent": "yes" | "item_price" | "decline" | "provide_name" | "other",
@@ -2823,13 +2869,16 @@ Classify their reply. Return JSON:
 
 INTENT RULES:
 - yes: agrees, happy, ok, sure, let's go, proceed, book, quote, ready, sounds good, great, let me book, affordable — any positive confirmation
-- item_price: asks about price/cost of a SPECIFIC item (e.g. "how much for wardrobe?", "what about sofa?", "IKEA PAX price?")
+- item_price: asks about price/cost of a SPECIFIC item OR replies with a furniture item name when the bot just asked "which item is this for?" (e.g. "wardrobe", "bed frame", "PAX wardrobe", "sofa"). Also use item_price if the customer mentioned a service type (dismantle, relocate, install) with an item.
 - decline: says too expensive, not interested, nevermind, maybe later — explicit negative  
 - provide_name: gives their name without any address or item (e.g. "I'm John", "My name is Sarah")
 - other: general question not covered above
 
-Customer message: "${text}"`
-            }],
+IMPORTANT: If conversation history shows the bot recently asked "which item is this for?" or "what item would you like a price for?", and the customer replies with a furniture item name → classify as item_price.`
+              },
+              ...historyMessages(conversationHistory, 4),
+              { role: "user", content: text },
+            ],
           });
           const pc = JSON.parse(pricingClassRes.choices[0]?.message?.content || "{}");
 
