@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { usePromoBar } from "@/hooks/use-promo-bar";
 import { useLocation } from "wouter";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
 import { useQuery } from "@tanstack/react-query";
@@ -225,6 +226,51 @@ export default function EstimateWizard() {
   const [submitError, setSubmitError] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  // Promo code state
+  const [promoInput, setPromoInput] = useState("");
+  const [promoCode, setPromoCode] = useState<string | null>(null);
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [promoStatus, setPromoStatus] = useState<"idle" | "validating" | "valid" | "invalid">("idle");
+  const [promoMessage, setPromoMessage] = useState("");
+
+  const { visible: promoVisible, promo: promoBarData } = usePromoBar();
+
+  const applyPromo = useCallback(async (code: string) => {
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) return;
+    setPromoStatus("validating");
+    setPromoMessage("");
+    try {
+      const res = await fetch("/api/promo/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmed }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setPromoCode(trimmed);
+        setPromoDiscount(data.discount);
+        setPromoStatus("valid");
+        setPromoMessage(data.message);
+      } else {
+        setPromoCode(null);
+        setPromoDiscount(0);
+        setPromoStatus("invalid");
+        setPromoMessage(data.message || "Invalid code");
+      }
+    } catch {
+      setPromoStatus("invalid");
+      setPromoMessage("Could not validate code. Try again.");
+    }
+  }, []);
+
+  const removePromo = useCallback(() => {
+    setPromoCode(null);
+    setPromoDiscount(0);
+    setPromoStatus("idle");
+    setPromoMessage("");
+    setPromoInput("");
+  }, []);
 
   const isRelocation = services.includes("relocate");
 
@@ -571,6 +617,8 @@ export default function EstimateWizard() {
         detectedPhotoUrl: detectedPhotos[0]?.thumbnail || undefined,
         preferredDate: slotDateStr || undefined,
         preferredTimeWindow: slotTime || undefined,
+        promoCode: promoCode || undefined,
+        promoDiscount: promoDiscount > 0 ? promoDiscount : undefined,
       };
       const res = await fetch("/api/quotes/wizard", {
         method: "POST",
@@ -618,9 +666,9 @@ export default function EstimateWizard() {
 
   return (
     <>
-    <div className="min-h-screen pt-16 pb-20 bg-white">
+    <div className={`min-h-screen pb-20 bg-white ${promoVisible ? "pt-24" : "pt-16"}`}>
       {/* Step indicator */}
-      <div className="sticky top-16 z-40 bg-white border-b border-black/10">
+      <div className={`sticky z-40 bg-white border-b border-black/10 ${promoVisible ? "top-24" : "top-16"}`}>
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-2">
             {STEPS.map((s, i) => (
@@ -1240,6 +1288,62 @@ export default function EstimateWizard() {
                   </div>
                 </div>
 
+                {/* Promo code field */}
+                <div className="bg-white border border-black/10 p-6">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-4">Promo Code</p>
+                  {promoStatus === "valid" && promoCode ? (
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 bg-green-50 border border-green-200">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Check className="w-4 h-4 text-green-600" />
+                          <span className="text-sm font-black text-green-800">{promoCode}</span>
+                          <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5">-${promoDiscount} OFF</span>
+                        </div>
+                        <p className="text-xs text-green-600 mt-1">{promoMessage}</p>
+                      </div>
+                      <button
+                        onClick={removePromo}
+                        data-testid="promo-remove"
+                        className="text-xs font-semibold text-green-700 hover:text-red-600 underline transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          value={promoInput}
+                          onChange={e => setPromoInput(e.target.value.toUpperCase())}
+                          onKeyDown={e => e.key === "Enter" && applyPromo(promoInput)}
+                          placeholder={promoBarData ? `Try ${promoBarData.code}` : "Enter promo code"}
+                          data-testid="input-promo-code"
+                          className="flex-1 px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm font-mono tracking-wider uppercase"
+                          disabled={promoStatus === "validating"}
+                        />
+                        <button
+                          onClick={() => applyPromo(promoInput)}
+                          disabled={!promoInput.trim() || promoStatus === "validating"}
+                          data-testid="promo-apply"
+                          className="px-5 py-3 bg-black text-white text-xs font-black uppercase tracking-[0.1em] hover:bg-black/85 disabled:opacity-40 transition-all"
+                        >
+                          {promoStatus === "validating" ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : "Apply"}
+                        </button>
+                      </div>
+                      {promoStatus === "invalid" && promoMessage && (
+                        <p className="text-xs text-red-600 font-semibold">{promoMessage}</p>
+                      )}
+                      {promoBarData && promoBarData.remaining > 0 && promoStatus === "idle" && (
+                        <p className="text-[11px] text-amber-600 font-semibold">
+                          🎉 Launch offer: Use <strong>{promoBarData.code}</strong> for ${promoBarData.discount} off — {promoBarData.remaining} slots left
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Slot summary */}
                 {slotDateStr && slotTime && (
                   <div className="border border-black/10 bg-black/[0.02] p-5">
@@ -1330,9 +1434,17 @@ export default function EstimateWizard() {
                           )}
                         </div>
                       )}
+                      {promoDiscount > 0 && promoCode && (
+                        <div className="flex justify-between text-green-700 font-semibold">
+                          <span className="flex items-center gap-1.5">
+                            <Tag className="w-3.5 h-3.5" /> Promo: {promoCode}
+                          </span>
+                          <span>−${promoDiscount.toFixed(2)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between font-black text-base pt-2 border-t border-black/10">
                         <span className="uppercase tracking-[0.06em] text-sm">Grand Total</span>
-                        <span>${effectiveTotal.toFixed(2)}</span>
+                        <span>${Math.max(180, effectiveTotal - promoDiscount).toFixed(2)}</span>
                       </div>
                       {belowMinimum && (
                         <div data-testid="notice-minimum-charge-review" className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-1">

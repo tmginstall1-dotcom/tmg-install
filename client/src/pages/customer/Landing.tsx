@@ -25,6 +25,7 @@ import {
   Minus,
 } from "lucide-react";
 import { useState } from "react";
+import { usePromoBar } from "@/hooks/use-promo-bar";
 
 const WHATSAPP = "https://wa.me/6580880757?text=hi";
 
@@ -141,9 +142,10 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 export default function Landing() {
   usePageTracker("/");
+  const { visible: promoVisible } = usePromoBar();
 
   return (
-    <div className="min-h-screen bg-white text-black pt-14">
+    <div className={`min-h-screen bg-white text-black ${promoVisible ? "pt-24" : "pt-14"}`}>
 
       {/* ═══════════════════════════ HERO ═══════════════════════════ */}
       <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-20 pb-24 lg:pt-28 lg:pb-32">

@@ -121,6 +121,8 @@ export const api = {
         detectedPhotoUrl: z.string().optional(), // compressed thumbnail from AI photo scan
         preferredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),      // slot chosen in wizard
         preferredTimeWindow: z.string().optional(), // e.g. '09:00-12:00'
+        promoCode: z.string().optional(),           // validated promo code applied by customer
+        promoDiscount: z.number().min(0).optional(), // SGD discount from promo
       }),
       responses: { 201: z.custom<QuoteResponse>(), 400: errorSchemas.validation }
     }

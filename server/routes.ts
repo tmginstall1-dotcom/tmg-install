@@ -23,7 +23,7 @@ import {
 import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
 import { calcTransportFee, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
-import { appSettings, attendanceLogs } from "@shared/schema";
+import { appSettings, attendanceLogs, promoCodes } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
@@ -2210,7 +2210,8 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const laborSubtotal = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
       const discount = input.discount || 0;
       const logisticsFee = input.logisticsFee || 0;
-      const rawTotal = laborSubtotal - discount + logisticsFee;
+      const promoDiscountAmt = input.promoDiscount || 0;
+      const rawTotal = laborSubtotal - discount - promoDiscountAmt + logisticsFee;
 
       // ── Minimum charge: SGD 180 ──────────────────────────────────────────────
       const MIN_CHARGE = 180;
@@ -2282,9 +2283,27 @@ Respond with ONLY a JSON array (no prose, no markdown):
           preferredTimeWindow: input.preferredTimeWindow || null,
           slotHeldUntil: (input.preferredDate && input.preferredTimeWindow) ? slotHeldUntil : null,
           bookingRequestedAt: (input.preferredDate && input.preferredTimeWindow) ? new Date() : null,
+          // Promo code applied
+          promoCode: input.promoCode || null,
+          promoDiscount: promoDiscountAmt > 0 ? promoDiscountAmt.toFixed(2) : "0",
         },
         allItems
       );
+
+      // Decrement promo code usage count if one was applied
+      if (input.promoCode?.trim()) {
+        try {
+          const promoRows = await db.select().from(promoCodes)
+            .where(eq(promoCodes.code, input.promoCode.trim().toUpperCase())).limit(1);
+          if (promoRows.length && promoRows[0].active && promoRows[0].usesCount < promoRows[0].maxUses) {
+            await db.update(promoCodes)
+              .set({ usesCount: promoRows[0].usesCount + 1 })
+              .where(eq(promoCodes.id, promoRows[0].id));
+          }
+        } catch (promoErr) {
+          console.error("Promo decrement error:", promoErr);
+        }
+      }
 
       // Alert admin on new estimate submission
       try {
@@ -5346,6 +5365,90 @@ Respond directly — no JSON, just the message text.`,
     } catch (err) {
       return res.json({ status: "error", message: "Could not check token" });
     }
+  });
+
+  // ── Promo code routes ─────────────────────────────────────────────────────
+
+  // GET /api/promo-bar — public: returns active promo info for the banner
+  app.get("/api/promo-bar", async (_req, res) => {
+    try {
+      const rows = await db.select().from(promoCodes).where(eq(promoCodes.active, true)).limit(1);
+      if (!rows.length) return res.json({ active: false });
+      const p = rows[0];
+      return res.json({
+        active: true,
+        code: p.code,
+        discount: parseFloat(p.discountAmount),
+        maxUses: p.maxUses,
+        usesCount: p.usesCount,
+        remaining: Math.max(0, p.maxUses - p.usesCount),
+      });
+    } catch {
+      return res.json({ active: false });
+    }
+  });
+
+  // POST /api/promo/validate — public: validates a promo code before submission
+  app.post("/api/promo/validate", async (req, res) => {
+    const { code } = req.body as { code?: string };
+    if (!code?.trim()) return res.status(400).json({ valid: false, message: "No code provided" });
+    try {
+      const rows = await db.select().from(promoCodes)
+        .where(eq(promoCodes.code, code.trim().toUpperCase())).limit(1);
+      if (!rows.length) return res.json({ valid: false, message: "Invalid promo code" });
+      const p = rows[0];
+      if (!p.active) return res.json({ valid: false, message: "This promo code is no longer active" });
+      if (p.usesCount >= p.maxUses) return res.json({ valid: false, message: "All promo slots have been claimed — thank you!" });
+      return res.json({ valid: true, discount: parseFloat(p.discountAmount), message: `$${parseFloat(p.discountAmount).toFixed(0)} discount applied!` });
+    } catch (e: any) {
+      return res.status(500).json({ valid: false, message: e.message });
+    }
+  });
+
+  // GET /api/admin/promo — admin: get promo code list
+  app.get("/api/admin/promo", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const rows = await db.select().from(promoCodes).orderBy(promoCodes.id);
+    return res.json(rows);
+  });
+
+  // POST /api/admin/promo/upsert — admin: create or update promo
+  app.post("/api/admin/promo/upsert", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const { code, discountAmount, maxUses, active } = req.body as { code: string; discountAmount: number; maxUses: number; active: boolean };
+    if (!code?.trim()) return res.status(400).json({ message: "Code is required" });
+    const cleanCode = code.trim().toUpperCase();
+    await db.insert(promoCodes).values({ code: cleanCode, discountAmount: String(discountAmount), maxUses, active })
+      .onConflictDoUpdate({ target: promoCodes.code, set: { discountAmount: String(discountAmount), maxUses, active } });
+    const rows = await db.select().from(promoCodes).where(eq(promoCodes.code, cleanCode)).limit(1);
+    return res.json(rows[0]);
+  });
+
+  // POST /api/admin/promo/toggle — admin: toggle active status
+  app.post("/api/admin/promo/toggle", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const { id } = req.body as { id: number };
+    const rows = await db.select().from(promoCodes).where(eq(promoCodes.id, id)).limit(1);
+    if (!rows.length) return res.status(404).json({ message: "Not found" });
+    const current = rows[0];
+    await db.update(promoCodes).set({ active: !current.active }).where(eq(promoCodes.id, id));
+    return res.json({ ok: true, active: !current.active });
+  });
+
+  // POST /api/admin/promo/reset — admin: reset uses count back to 0
+  app.post("/api/admin/promo/reset", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const { id } = req.body as { id: number };
+    await db.update(promoCodes).set({ usesCount: 0 }).where(eq(promoCodes.id, id));
+    return res.json({ ok: true });
   });
 
   // ── Build webhook: auto-update app version after each GitHub Actions build ──

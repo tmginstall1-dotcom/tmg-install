@@ -45,10 +45,19 @@ Always provide full file contents when editing any code file — never partial s
 
 ### Database (PostgreSQL + Drizzle ORM)
 - **Schema**: Defined in `shared/schema.ts`.
-- **Tables**: Includes `users`, `customers`, `catalog_items`, `quotes`, `quote_items`, and `job_updates`.
-- **Key Fields**: `quotes` table tracks status, reschedule count, booking details, amounts, and payment statuses. `job_updates` stores photo URLs as JSON arrays.
+- **Tables**: Includes `users`, `customers`, `catalog_items`, `quotes`, `quote_items`, `job_updates`, `promo_codes`, and `attendance_logs`.
+- **Key Fields**: `quotes` table tracks status, reschedule count, booking details, amounts, payment statuses, and promo code applied (`promo_code`, `promo_discount`). `job_updates` stores photo URLs as JSON arrays.
 - **Seeding**: Includes a `server/run-seed.ts` script for populating the database with initial data, including 217 catalog items across 19 categories.
 - **Booking Rules**: Enforces rules for customer booking requests, admin confirmations, and reschedule limitations.
+
+### Promo Campaign System
+- **`promo_codes` table**: Stores discount codes with `code`, `discount_amount`, `max_uses`, `uses_count`, and `active` fields.
+- **Announcement bar**: Scrolling amber ticker bar at the very top of all customer pages (above the navbar). Dismissable per session via `sessionStorage`. Auto-hides when slots are exhausted.
+- **Hook**: `client/src/hooks/use-promo-bar.ts` — fetches promo data, manages dismissed state in sessionStorage.
+- **Estimate wizard promo field**: Promo code input in Step 5 (Your Details) with live validation and green confirmation. Discount shown in the estimate summary. Code + discount sent to the server on submission.
+- **Admin**: Settings page has a "Promo Campaign" card — view usage/remaining slots, toggle active/inactive, reset usage count, edit code/discount/max uses.
+- **Routes**: `GET /api/promo-bar` (public), `POST /api/promo/validate` (public), `GET|POST /api/admin/promo/*` (admin-protected).
+- **Seeded**: `TMG50` — $50 off for first 100 customers, active by default.
 
 ### Admin Design System — "Yeezy" Aesthetic
 - **Visual Language**: A mobile-first design inspired by Yeezy.com, characterized by a flat, editorial, and monochrome aesthetic.

@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
+import { usePromoBar } from "@/hooks/use-promo-bar";
 
 const EFFECTIVE_DATE   = "1 January 2026";
 const COMPANY          = "The Moving Guy Pte Ltd";
@@ -11,8 +12,9 @@ const WHATSAPP         = "https://wa.me/6580880757?text=hi";
 const WEBSITE          = "https://tmginstall.com";
 
 export default function Privacy() {
+  const { visible: promoVisible } = usePromoBar();
   return (
-    <div className="min-h-screen bg-white pt-14">
+    <div className={`min-h-screen bg-white ${promoVisible ? "pt-24" : "pt-14"}`}>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
 
         {/* Back */}

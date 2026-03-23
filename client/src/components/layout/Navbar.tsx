@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { usePromoBar } from "@/hooks/use-promo-bar";
 import { LogOut, MessageCircle, Menu, X, LayoutDashboard, Calendar, FileDown, Briefcase, Users, ClipboardList, ChevronDown, Settings } from "lucide-react";
 
 const WHATSAPP = "https://wa.me/6580880757?text=hi";
@@ -15,6 +16,7 @@ export function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const { visible: promoVisible, promo, dismiss: dismissPromo } = usePromoBar();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -45,30 +47,68 @@ export function Navbar() {
 
   // Customer nav
   if (isCustomerArea) {
+    const tickerText = promo && promoVisible
+      ? `🎉 LAUNCH OFFER · Use code ${promo.code} at checkout · $${promo.discount} OFF · ${promo.remaining} of ${promo.maxUses} slots remaining · Get your discount now → · 🎉 LAUNCH OFFER · Use code ${promo.code} at checkout · $${promo.discount} OFF · ${promo.remaining} of ${promo.maxUses} slots remaining · Get your discount now → ·`
+      : "";
+
     return (
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? "bg-white/90 backdrop-blur-md border-b border-black/8 shadow-[0_1px_12px_rgba(0,0,0,0.05)]"
-          : "bg-white border-b border-black/6"
-      }`}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <Link href="/">
-            <span className="brand-title text-black cursor-pointer">TMG INSTALL</span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" data-testid="nav-whatsapp"
-              className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-black/60 border border-black/12 hover:border-black/30 hover:text-black transition-all">
-              <MessageCircle className="w-3.5 h-3.5" />
-              WhatsApp Us
-            </a>
-            <Link href="/estimate" data-testid="nav-get-estimate"
-              className="px-5 py-2 bg-black text-white text-sm font-semibold hover:bg-black/85 transition-colors"
-              style={{ letterSpacing: "0.02em" }}>
-              Get Estimate
-            </Link>
+      <div className="fixed top-0 left-0 right-0 z-50">
+        {/* Promo announcement bar */}
+        {promoVisible && promo && (
+          <div className="relative overflow-hidden h-10 flex items-center bg-amber-500" data-testid="promo-bar">
+            <style>{`
+              @keyframes promo-scroll {
+                0% { transform: translateX(0); }
+                100% { transform: translateX(-50%); }
+              }
+              .promo-ticker {
+                display: flex;
+                white-space: nowrap;
+                animation: promo-scroll 28s linear infinite;
+              }
+              .promo-ticker:hover {
+                animation-play-state: paused;
+              }
+            `}</style>
+            <div className="promo-ticker select-none pr-8">
+              <span className="text-white font-semibold text-sm tracking-wide px-8">{tickerText}</span>
+              <span className="text-white font-semibold text-sm tracking-wide px-8">{tickerText}</span>
+            </div>
+            <button
+              onClick={dismissPromo}
+              data-testid="promo-bar-dismiss"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+              aria-label="Dismiss offer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        </div>
-      </nav>
+        )}
+        {/* Main nav */}
+        <nav className={`transition-all duration-300 ${
+          scrolled
+            ? "bg-white/90 backdrop-blur-md border-b border-black/8 shadow-[0_1px_12px_rgba(0,0,0,0.05)]"
+            : "bg-white border-b border-black/6"
+        }`}>
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+            <Link href="/">
+              <span className="brand-title text-black cursor-pointer">TMG INSTALL</span>
+            </Link>
+            <div className="flex items-center gap-2">
+              <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" data-testid="nav-whatsapp"
+                className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-black/60 border border-black/12 hover:border-black/30 hover:text-black transition-all">
+                <MessageCircle className="w-3.5 h-3.5" />
+                WhatsApp Us
+              </a>
+              <Link href="/estimate" data-testid="nav-get-estimate"
+                className="px-5 py-2 bg-black text-white text-sm font-semibold hover:bg-black/85 transition-colors"
+                style={{ letterSpacing: "0.02em" }}>
+                Get Estimate
+              </Link>
+            </div>
+          </div>
+        </nav>
+      </div>
     );
   }
 

@@ -146,6 +146,18 @@ export const appSettings = pgTable("app_settings", {
 });
 export type AppSetting = typeof appSettings.$inferSelect;
 
+// Promo Codes — marketing discount codes (e.g. TMG50 = $50 off for first 100 customers)
+export const promoCodes = pgTable("promo_codes", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  discountAmount: numeric("discount_amount").notNull().default("50"),
+  maxUses: integer("max_uses").notNull().default(100),
+  usesCount: integer("uses_count").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type PromoCode = typeof promoCodes.$inferSelect;
+
 // WhatsApp Message Log (persists all inbound/outbound messages for admin view)
 export const whatsappMessages = pgTable("whatsapp_messages", {
   id: serial("id").primaryKey(),
@@ -250,6 +262,9 @@ export const quotes = pgTable("quotes", {
   paymentStatus: text("payment_status").default("unpaid"), // unpaid, deposit_pending, deposit_paid, final_pending, paid_in_full
 
   distanceKm: numeric("distance_km"), // auto-computed route distance for relocation
+
+  promoCode: text("promo_code"),            // applied promo code (e.g. "TMG50")
+  promoDiscount: numeric("promo_discount").default("0"), // SGD discount from promo
 
   notes: text("notes"), // admin internal notes
   detectionPhotoUrl: text("detection_photo_url"), // thumbnail from AI photo scan at submission

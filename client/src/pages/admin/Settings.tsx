@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch } from "lucide-react";
+import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 
 export default function AdminSettings() {
   const { toast } = useToast();
@@ -101,6 +102,37 @@ export default function AdminSettings() {
     onError: (err: any) => {
       toast({ title: "Failed to update version", description: err.message, variant: "destructive" });
     },
+  });
+
+  // Promo campaign
+  interface PromoCodeData { id: number; code: string; discountAmount: string; maxUses: number; usesCount: number; active: boolean; }
+  const { data: promoCodes, isLoading: promoLoading } = useQuery<PromoCodeData[]>({
+    queryKey: ["/api/admin/promo"],
+  });
+  const [editingPromo, setEditingPromo] = useState<{ code: string; discount: number; maxUses: number } | null>(null);
+
+  const togglePromo = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", "/api/admin/promo/toggle", { id }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/admin/promo"] }); queryClient.invalidateQueries({ queryKey: ["/api/promo-bar"] }); },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const resetPromo = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", "/api/admin/promo/reset", { id }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/admin/promo"] }); toast({ title: "Usage count reset to 0" }); },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const upsertPromo = useMutation({
+    mutationFn: (data: { code: string; discountAmount: number; maxUses: number; active: boolean }) =>
+      apiRequest("POST", "/api/admin/promo/upsert", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/promo"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/promo-bar"] });
+      setEditingPromo(null);
+      toast({ title: "Promo code saved" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   return (
@@ -446,6 +478,149 @@ export default function AdminSettings() {
           )}
         </CardContent>
       </Card>
+      {/* Promo Campaign Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Tag className="h-5 w-5 text-amber-500" />
+            Promo Campaign
+          </CardTitle>
+          <CardDescription>
+            Manage discount codes shown in the announcement bar and estimate wizard.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {promoLoading ? (
+            <p className="text-sm text-gray-500">Loading…</p>
+          ) : !promoCodes?.length ? (
+            <p className="text-sm text-gray-500">No promo codes found.</p>
+          ) : (
+            promoCodes.map(p => (
+              <div key={p.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-sm tracking-widest text-black">{p.code}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        {p.active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      ${parseFloat(p.discountAmount).toFixed(0)} OFF · {p.usesCount} / {p.maxUses} used · {Math.max(0, p.maxUses - p.usesCount)} slots remaining
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => resetPromo.mutate(p.id)}
+                      disabled={resetPromo.isPending}
+                      data-testid={`promo-reset-${p.id}`}
+                      title="Reset usage count to 0"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={p.active ? "default" : "outline"}
+                      onClick={() => togglePromo.mutate(p.id)}
+                      disabled={togglePromo.isPending}
+                      data-testid={`promo-toggle-${p.id}`}
+                    >
+                      {p.active ? (
+                        <><ToggleRight className="h-3.5 w-3.5 mr-1" /> Pause</>
+                      ) : (
+                        <><ToggleLeft className="h-3.5 w-3.5 mr-1" /> Activate</>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditingPromo({ code: p.code, discount: parseFloat(p.discountAmount), maxUses: p.maxUses })}
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>Slots used</span>
+                    <span>{p.usesCount} / {p.maxUses}</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div
+                      className="bg-amber-500 h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (p.usesCount / p.maxUses) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+
+          {/* Edit form */}
+          {editingPromo && (
+            <div className="border border-amber-200 rounded-xl p-4 bg-amber-50 space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-amber-700">Edit Promo Code</p>
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label>Code</Label>
+                  <Input
+                    value={editingPromo.code}
+                    onChange={e => setEditingPromo(p => p ? { ...p, code: e.target.value.toUpperCase() } : p)}
+                    className="font-mono uppercase"
+                    data-testid="promo-edit-code"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Discount (SGD)</Label>
+                  <Input
+                    type="number"
+                    value={editingPromo.discount}
+                    onChange={e => setEditingPromo(p => p ? { ...p, discount: parseFloat(e.target.value) || 0 } : p)}
+                    data-testid="promo-edit-discount"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Max Uses</Label>
+                  <Input
+                    type="number"
+                    value={editingPromo.maxUses}
+                    onChange={e => setEditingPromo(p => p ? { ...p, maxUses: parseInt(e.target.value) || 100 } : p)}
+                    data-testid="promo-edit-max-uses"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => upsertPromo.mutate({ code: editingPromo.code, discountAmount: editingPromo.discount, maxUses: editingPromo.maxUses, active: true })}
+                  disabled={upsertPromo.isPending}
+                  data-testid="promo-save"
+                >
+                  {upsertPromo.isPending ? "Saving…" : "Save Changes"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditingPromo(null)}>Cancel</Button>
+              </div>
+            </div>
+          )}
+
+          {/* Add new promo */}
+          {!editingPromo && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditingPromo({ code: "", discount: 50, maxUses: 100 })}
+              data-testid="promo-add-new"
+            >
+              + Add Promo Code
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
     </div>
     </div>
   );
