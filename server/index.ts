@@ -130,6 +130,26 @@ app.use((req, res, next) => {
       ) WITH (OIDS=FALSE);
       CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
     `);
+
+    // Ensure promo_codes table + quotes columns exist (idempotent schema migration)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS promo_codes (
+        id SERIAL PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        discount_amount NUMERIC NOT NULL DEFAULT 50,
+        max_uses INTEGER NOT NULL DEFAULT 100,
+        uses_count INTEGER NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      ALTER TABLE quotes ADD COLUMN IF NOT EXISTS promo_code TEXT;
+      ALTER TABLE quotes ADD COLUMN IF NOT EXISTS promo_discount NUMERIC DEFAULT 0;
+      INSERT INTO promo_codes (code, discount_amount, max_uses, uses_count, active)
+      VALUES ('TMG50', 50, 100, 0, TRUE)
+      ON CONFLICT (code) DO NOTHING;
+    `);
+    console.log("[startup] promo_codes table ready, TMG50 seeded.");
+
     await pool.end();
   } catch (e) {
     console.warn("[session] table setup warning:", e);
