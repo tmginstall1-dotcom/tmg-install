@@ -200,13 +200,15 @@ function totRow(color: string, label: string, value: string, bold = false): stri
   </tr>`;
 }
 
-function totals(subtotal: any, transport: any, total: any, deposit: any, balance: any): string {
+function totals(subtotal: any, transport: any, total: any, deposit: any, balance: any, promoCode?: string | null, promoDiscount?: any): string {
   const hasTransport = Number(transport || 0) > 0;
+  const hasPromo = promoCode && Number(promoDiscount || 0) > 0;
   return `
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
       <tbody>
         ${totRow('#444444', 'Labour', `$${Number(subtotal || 0).toFixed(2)}`)}
         ${hasTransport ? totRow('#444444', 'Transport &amp; logistics', `$${Number(transport || 0).toFixed(2)}`) : ''}
+        ${hasPromo ? totRow('#15803d', `Promo code (${promoCode})`, `-$${Number(promoDiscount || 0).toFixed(2)}`) : ''}
         ${totRow('#111111', 'Total', `$${Number(total || 0).toFixed(2)}`, true)}
         ${totRow('#15803d', 'Deposit paid (50%)', `$${Number(deposit || 0).toFixed(2)}`)}
         ${totRow('#999999', 'Balance on completion (50%)', `$${Number(balance || 0).toFixed(2)}`)}
@@ -322,7 +324,7 @@ export function estimateSubmittedEmail(quote: any): string {
 
     ${section("Requested Work", itemsTable(quote.items))}
 
-    ${section("Estimated Pricing", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount))}
+    ${section("Estimated Pricing", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount))}
 
     ${notice("info", `<strong>What happens next?</strong><br>Our team will review your estimate, confirm the pricing, and send you a deposit invoice. Once the 50% deposit is paid, your appointment slot is locked in.`)}
 
@@ -358,7 +360,7 @@ export function depositRequestEmail(quote: any, paymentLink: string): string {
 
     ${section("Scope of Work", itemsTable(quote.items))}
 
-    ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount))}
+    ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount))}
 
     ${ctaBlock(
       "Deposit due now — 50%",
@@ -392,9 +394,12 @@ export function depositReceivedEmail(quote: any): string {
     ${section("Payment Summary", `
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
         <tbody>
+          ${totRow('#444444', 'Labour', `$${Number(quote.subtotal || 0).toFixed(2)}`)}
+          ${Number(quote.transportFee || 0) > 0 ? totRow('#444444', 'Transport &amp; logistics', `$${Number(quote.transportFee || 0).toFixed(2)}`) : ''}
+          ${quote.promoCode && Number(quote.promoDiscount || 0) > 0 ? totRow('#15803d', `Promo code (${quote.promoCode})`, `-$${Number(quote.promoDiscount || 0).toFixed(2)}`) : ''}
+          ${totRow('#111111', 'Total', `$${Number(quote.total || 0).toFixed(2)}`, true)}
           ${totRow('#15803d', 'Deposit paid (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`)}
           ${totRow('#999999', 'Balance due on completion (50%)', `$${Number(quote.finalAmount || 0).toFixed(2)}`)}
-          ${totRow('#111111', 'Total', `$${Number(quote.total || 0).toFixed(2)}`, true)}
         </tbody>
       </table>
     `)}
@@ -446,7 +451,7 @@ export function bookingRequestAdminEmail(quote: any): string {
 
     ${section("Scope of Work", itemsTable(quote.items))}
 
-    ${section("Financial Summary", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount))}
+    ${section("Financial Summary", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount))}
 
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:32px 0 8px;text-align:center;">
       <tr>
@@ -538,7 +543,7 @@ export function finalPaymentEmail(quote: any, paymentLink: string): string {
 
     ${section("Work Completed", itemsTable(quote.items))}
 
-    ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount))}
+    ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount))}
 
     ${ctaBlock(
       "Final balance due — 50%",
@@ -628,7 +633,7 @@ export function newEstimateAdminAlert(quote: any): string {
 
     ${section(`Items (${(quote.items || []).length})`, itemsTable(quote.items))}
 
-    ${section("Estimated Value", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount))}
+    ${section("Estimated Value", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount))}
 
     ${quote.requiresManualReview ? notice("warn", `<strong>Manual Review Required</strong> — This estimate was flagged for manual review. Please verify all items and pricing before approving.`) : ''}
 
