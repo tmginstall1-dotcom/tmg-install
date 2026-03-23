@@ -1100,6 +1100,77 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ── Staff Receipts ────────────────────────────────────────────────────────
+
+  // Staff: upload a new receipt
+  app.post("/api/staff/receipts", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const body = z.object({
+        receiptDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        amount: z.string(),
+        category: z.enum(["fuel", "tools", "transport", "meals", "parking", "other"]),
+        description: z.string().optional(),
+        fileData: z.string().min(10),  // base64
+        fileType: z.string(),
+        fileName: z.string(),
+      }).parse(req.body);
+      const receipt = await storage.createReceipt(req.session.userId, body);
+      res.json(receipt);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  // Staff: view my own receipts
+  app.get("/api/staff/receipts", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const rows = await storage.getReceiptsByUser(req.session.userId);
+    // Strip file data from list view to keep responses small
+    res.json(rows.map(r => ({ ...r, fileData: undefined })));
+  });
+
+  // Staff: delete a pending receipt (own)
+  app.delete("/api/staff/receipts/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const receipt = await storage.getReceiptById(parseInt(req.params.id));
+    if (!receipt) return res.status(404).json({ message: "Not found" });
+    if (receipt.userId !== req.session.userId) return res.status(403).json({ message: "Forbidden" });
+    if (receipt.status !== "pending") return res.status(400).json({ message: "Only pending receipts can be deleted" });
+    await storage.deleteReceipt(receipt.id);
+    res.json({ ok: true });
+  });
+
+  // Admin: list all receipts with optional date filters
+  app.get("/api/admin/receipts", async (req, res) => {
+    const filters: { year?: number; month?: number; day?: number } = {};
+    if (req.query.year) filters.year = parseInt(req.query.year as string);
+    if (req.query.month) filters.month = parseInt(req.query.month as string);
+    if (req.query.day) filters.day = parseInt(req.query.day as string);
+    const rows = await storage.getAllReceipts(Object.keys(filters).length ? filters : undefined);
+    // Strip file data from list view
+    res.json(rows.map(r => ({ ...r, fileData: undefined })));
+  });
+
+  // Admin: get full file data for a single receipt (for PDF download)
+  app.get("/api/admin/receipts/:id/file", async (req, res) => {
+    const receipt = await storage.getReceiptById(parseInt(req.params.id));
+    if (!receipt) return res.status(404).json({ message: "Not found" });
+    res.json({ fileData: receipt.fileData, fileType: receipt.fileType, fileName: receipt.fileName });
+  });
+
+  // Admin: approve or reject a receipt
+  app.patch("/api/admin/receipts/:id/status", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const { status, adminNote } = z.object({
+        status: z.enum(["approved", "rejected"]),
+        adminNote: z.string().optional(),
+      }).parse(req.body);
+      const updated = await storage.updateReceiptStatus(parseInt(req.params.id), status, adminNote ?? null, req.session.userId);
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
   // Staff own attendance logs
   app.get("/api/staff/attendance", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });

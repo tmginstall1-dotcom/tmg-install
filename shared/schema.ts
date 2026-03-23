@@ -327,6 +327,29 @@ export const quoteItemsRelations = relations(quoteItems, ({ one }) => ({
   catalogItem: one(catalogItems, { fields: [quoteItems.catalogItemId], references: [catalogItems.id] }),
 }));
 
+// Staff Receipts — expense claims uploaded by staff, reviewed by admin
+export const receipts = pgTable("receipts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  receiptDate: text("receipt_date").notNull(),      // yyyy-MM-dd
+  amount: numeric("amount").notNull(),              // SGD
+  category: text("category").notNull(),             // 'fuel' | 'tools' | 'transport' | 'meals' | 'parking' | 'other'
+  description: text("description"),
+  fileData: text("file_data").notNull(),            // base64-encoded file content
+  fileType: text("file_type").notNull(),            // 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'
+  fileName: text("file_name").notNull(),
+  status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected'
+  adminNote: text("admin_note"),
+  reviewedBy: integer("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type Receipt = typeof receipts.$inferSelect;
+export type InsertReceipt = typeof receipts.$inferInsert;
+export type ReceiptWithUser = Receipt & { user?: Pick<typeof users.$inferSelect, 'id' | 'name' | 'phone'> };
+
+export const insertReceiptSchema = createInsertSchema(receipts).omit({ id: true, createdAt: true, status: true, adminNote: true, reviewedBy: true, reviewedAt: true });
+
 // Site Analytics Events — tracks customer page views and clicks
 export const siteEvents = pgTable("site_events", {
   id: serial("id").primaryKey(),

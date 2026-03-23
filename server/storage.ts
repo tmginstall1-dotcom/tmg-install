@@ -2,13 +2,15 @@ import { db } from "./db";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   attendanceAmendments, leaveRequests, payslips, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
+  receipts,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
   type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser,
   type AttendanceAmendment, type AttendanceAmendmentWithUser,
   type LeaveRequest, type LeaveRequestWithUser,
   type Payslip, type PayslipWithUser,
-  type GpsTrackPoint, type SiteEvent, type WhatsAppSession, type WhatsAppMessage
+  type GpsTrackPoint, type SiteEvent, type WhatsAppSession, type WhatsAppMessage,
+  type Receipt, type ReceiptWithUser,
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 
@@ -113,6 +115,14 @@ export interface IStorage {
   getWhatsAppMessages(phone: string, limit?: number): Promise<WhatsAppMessage[]>;
   getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null }[]>;
   markWhatsAppMessagesRead(phone: string): Promise<void>;
+
+  // Receipts
+  createReceipt(userId: number, data: { receiptDate: string; amount: string; category: string; description?: string; fileData: string; fileType: string; fileName: string }): Promise<Receipt>;
+  getReceiptsByUser(userId: number): Promise<Receipt[]>;
+  getAllReceipts(filters?: { year?: number; month?: number; day?: number }): Promise<ReceiptWithUser[]>;
+  getReceiptById(id: number): Promise<Receipt | undefined>;
+  updateReceiptStatus(id: number, status: 'approved' | 'rejected', adminNote: string | null, reviewedBy: number): Promise<Receipt | undefined>;
+  deleteReceipt(id: number): Promise<void>;
 
   // Site Analytics
   addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
@@ -1338,6 +1348,96 @@ export class DatabaseStorage implements IStorage {
       .limit(100);
 
     return { days, today: statsFor(todayRows), yesterday: statsFor(yesterdayRows), trend, sources, funnel, countries, cities, devices, hourly, topPages, utmCampaigns, recent };
+  }
+
+  // ── Receipts ──────────────────────────────────────────────────────────────
+  async createReceipt(userId: number, data: { receiptDate: string; amount: string; category: string; description?: string; fileData: string; fileType: string; fileName: string }): Promise<Receipt> {
+    const [row] = await db.insert(receipts).values({
+      userId,
+      receiptDate: data.receiptDate,
+      amount: data.amount,
+      category: data.category,
+      description: data.description ?? null,
+      fileData: data.fileData,
+      fileType: data.fileType,
+      fileName: data.fileName,
+      status: "pending",
+    }).returning();
+    return row;
+  }
+
+  async getReceiptsByUser(userId: number): Promise<Receipt[]> {
+    return db.select().from(receipts).where(eq(receipts.userId, userId)).orderBy(desc(receipts.receiptDate));
+  }
+
+  async getAllReceipts(filters?: { year?: number; month?: number; day?: number }): Promise<ReceiptWithUser[]> {
+    const rows = await db
+      .select({
+        id: receipts.id,
+        userId: receipts.userId,
+        receiptDate: receipts.receiptDate,
+        amount: receipts.amount,
+        category: receipts.category,
+        description: receipts.description,
+        fileData: receipts.fileData,
+        fileType: receipts.fileType,
+        fileName: receipts.fileName,
+        status: receipts.status,
+        adminNote: receipts.adminNote,
+        reviewedBy: receipts.reviewedBy,
+        reviewedAt: receipts.reviewedAt,
+        createdAt: receipts.createdAt,
+        userName: users.name,
+        userPhone: users.phone,
+      })
+      .from(receipts)
+      .innerJoin(users, eq(receipts.userId, users.id))
+      .orderBy(desc(receipts.receiptDate));
+
+    return rows
+      .filter(r => {
+        if (!filters) return true;
+        const [y, m, d] = r.receiptDate.split("-").map(Number);
+        if (filters.year && y !== filters.year) return false;
+        if (filters.month && m !== filters.month) return false;
+        if (filters.day && d !== filters.day) return false;
+        return true;
+      })
+      .map(r => ({
+        id: r.id,
+        userId: r.userId,
+        receiptDate: r.receiptDate,
+        amount: r.amount,
+        category: r.category,
+        description: r.description,
+        fileData: r.fileData,
+        fileType: r.fileType,
+        fileName: r.fileName,
+        status: r.status,
+        adminNote: r.adminNote,
+        reviewedBy: r.reviewedBy,
+        reviewedAt: r.reviewedAt,
+        createdAt: r.createdAt,
+        user: { id: r.userId, name: r.userName, phone: r.userPhone },
+      }));
+  }
+
+  async getReceiptById(id: number): Promise<Receipt | undefined> {
+    const [row] = await db.select().from(receipts).where(eq(receipts.id, id));
+    return row;
+  }
+
+  async updateReceiptStatus(id: number, status: 'approved' | 'rejected', adminNote: string | null, reviewedBy: number): Promise<Receipt | undefined> {
+    const [row] = await db
+      .update(receipts)
+      .set({ status, adminNote, reviewedBy, reviewedAt: new Date() })
+      .where(eq(receipts.id, id))
+      .returning();
+    return row;
+  }
+
+  async deleteReceipt(id: number): Promise<void> {
+    await db.delete(receipts).where(eq(receipts.id, id));
   }
 }
 

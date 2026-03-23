@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -8,12 +8,13 @@ import {
   Clock, Calendar, FileText, ChevronDown, ChevronUp, Edit3, Check, X,
   Loader2, Printer, LogIn, LogOut, ChevronLeft, ChevronRight,
   AlertCircle, CheckCircle2, PlusCircle, TrendingDown, Heart, Briefcase,
+  Receipt, Upload, Trash2, ImageIcon,
 } from "lucide-react";
 import OfficialPayslip from "@/components/OfficialPayslip";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
-type Tab = "attendance" | "leave" | "payslips";
+type Tab = "attendance" | "leave" | "payslips" | "receipts";
 
 const LEAVE_TYPES = [
   { value: "annual", label: "Annual Leave", emoji: "🌴", color: "border-blue-300 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:border-blue-700 dark:text-blue-300" },
@@ -48,7 +49,7 @@ export default function StaffHR() {
   const initialTab = (() => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("tab");
-    if (t === "leave" || t === "payslips" || t === "attendance") return t;
+    if (t === "leave" || t === "payslips" || t === "attendance" || t === "receipts") return t as Tab;
     return "attendance";
   })();
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -58,6 +59,7 @@ export default function StaffHR() {
     { key: "attendance", label: "Attendance", icon: Clock },
     { key: "leave", label: "Leave", icon: Calendar },
     { key: "payslips", label: "Payslips", icon: FileText },
+    { key: "receipts", label: "Receipts", icon: Receipt },
   ];
 
   return (
@@ -96,6 +98,7 @@ export default function StaffHR() {
         {tab === "attendance" && <AttendanceTab />}
         {tab === "leave" && <LeaveTab userId={user?.id} />}
         {tab === "payslips" && <PayslipsTab />}
+        {tab === "receipts" && <ReceiptsTab userId={user?.id} />}
       </div>
     </div>
   );
@@ -883,6 +886,311 @@ function PayslipsTab() {
           onClose={() => setPrintingPayslip(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Receipts Tab ─────────────────────────────────────────────────────────────
+
+const RECEIPT_CATEGORIES = [
+  { value: "fuel",      label: "Fuel",       emoji: "⛽" },
+  { value: "tools",     label: "Tools",      emoji: "🔧" },
+  { value: "transport", label: "Transport",  emoji: "🚌" },
+  { value: "meals",     label: "Meals",      emoji: "🍱" },
+  { value: "parking",   label: "Parking",    emoji: "🅿️" },
+  { value: "other",     label: "Other",      emoji: "📎" },
+];
+
+function ReceiptStatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    pending:  "bg-amber-100 text-amber-700",
+    approved: "bg-emerald-100 text-emerald-700",
+    rejected: "bg-red-100 text-red-700",
+  };
+  const icon = status === "approved" ? "✓ " : status === "rejected" ? "✗ " : "⏱ ";
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${map[status] || "bg-gray-100 text-gray-600"}`}>
+      {icon}{status}
+    </span>
+  );
+}
+
+function ReceiptsTab({ userId }: { userId?: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    receiptDate: today,
+    amount: "",
+    category: "fuel",
+    description: "",
+  });
+  const [filePreview, setFilePreview] = useState<{ data: string; type: string; name: string } | null>(null);
+
+  const { data: myReceipts = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/staff/receipts"],
+  });
+
+  const uploadMut = useMutation({
+    mutationFn: async () => {
+      if (!filePreview) throw new Error("Please attach a receipt image or PDF");
+      if (!form.amount || isNaN(parseFloat(form.amount)) || parseFloat(form.amount) <= 0)
+        throw new Error("Please enter a valid amount");
+      return apiRequest("POST", "/api/staff/receipts", {
+        ...form,
+        amount: parseFloat(form.amount).toFixed(2),
+        fileData: filePreview.data,
+        fileType: filePreview.type,
+        fileName: filePreview.name,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/staff/receipts"] });
+      toast({ title: "Receipt submitted!", description: "Admin will review it shortly." });
+      setShowForm(false);
+      setForm({ receiptDate: today, amount: "", category: "fuel", description: "" });
+      setFilePreview(null);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/staff/receipts/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/staff/receipts"] });
+      toast({ title: "Receipt deleted" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max 8 MB per receipt", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      // strip "data:image/jpeg;base64," prefix to get raw base64
+      const base64 = dataUrl.split(",")[1];
+      setFilePreview({ data: base64, type: file.type, name: file.name });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Group receipts by month
+  const grouped: Record<string, any[]> = {};
+  for (const r of myReceipts) {
+    const key = r.receiptDate?.slice(0, 7) || "Unknown";
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(r);
+  }
+  const months = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+  if (isLoading) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <p className="text-sm text-muted-foreground">Loading receipts…</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Header + Upload button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-black text-slate-900">My Receipts</p>
+          <p className="text-xs text-muted-foreground">Submit expense receipts for reimbursement</p>
+        </div>
+        <button
+          onClick={() => setShowForm(v => !v)}
+          data-testid="button-new-receipt"
+          className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors"
+        >
+          <PlusCircle className="w-3.5 h-3.5" />
+          New Receipt
+        </button>
+      </div>
+
+      {/* Upload form */}
+      {showForm && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-3">
+          <p className="font-bold text-sm text-slate-800">Submit a Receipt</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Date</label>
+              <input
+                type="date"
+                value={form.receiptDate}
+                max={today}
+                onChange={e => setForm(f => ({ ...f, receiptDate: e.target.value }))}
+                data-testid="input-receipt-date"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Amount (SGD)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                value={form.amount}
+                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                data-testid="input-receipt-amount"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-500 mb-1 block">Category</label>
+            <div className="flex flex-wrap gap-2">
+              {RECEIPT_CATEGORIES.map(c => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, category: c.value }))}
+                  data-testid={`button-category-${c.value}`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                    form.category === c.value
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-slate-600 border-gray-200 hover:border-blue-300"
+                  }`}
+                >
+                  {c.emoji} {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-500 mb-1 block">Description (optional)</label>
+            <input
+              type="text"
+              placeholder="e.g. Petrol for job on 22 Mar"
+              value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              data-testid="input-receipt-description"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* File upload */}
+          <div>
+            <label className="text-xs font-semibold text-slate-500 mb-1 block">Receipt Photo / PDF</label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={handleFile}
+              className="hidden"
+              data-testid="input-receipt-file"
+            />
+            {filePreview ? (
+              <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl">
+                <ImageIcon className="w-4 h-4 text-green-600 shrink-0" />
+                <span className="text-xs font-semibold text-green-800 flex-1 truncate">{filePreview.name}</span>
+                <button onClick={() => { setFilePreview(null); if (fileRef.current) fileRef.current.value = ""; }} className="text-red-400 hover:text-red-600">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                data-testid="button-attach-file"
+                className="w-full flex flex-col items-center justify-center gap-2 py-5 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all text-gray-400 hover:text-blue-600"
+              >
+                <Upload className="w-6 h-6" />
+                <span className="text-xs font-semibold">Tap to attach photo or PDF (max 8 MB)</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => { setShowForm(false); setFilePreview(null); }}
+              className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => uploadMut.mutate()}
+              disabled={uploadMut.isPending}
+              data-testid="button-submit-receipt"
+              className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {uploadMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              Submit
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {myReceipts.length === 0 && !showForm && (
+        <div className="text-center py-20 bg-secondary/30 rounded-3xl border-2 border-dashed mt-2">
+          <Receipt className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-40" />
+          <p className="font-bold text-muted-foreground">No receipts yet</p>
+          <p className="text-sm text-muted-foreground mt-1">Tap "New Receipt" to submit an expense</p>
+        </div>
+      )}
+
+      {/* Receipts grouped by month */}
+      {months.map(month => {
+        const label = (() => { try { return format(parseISO(month + "-01"), "MMMM yyyy"); } catch { return month; } })();
+        const total = grouped[month].reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
+        return (
+          <div key={month}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-black text-slate-500 uppercase tracking-wider">{label}</p>
+              <p className="text-xs font-bold text-slate-600">Total: S${total.toFixed(2)}</p>
+            </div>
+            <div className="space-y-2">
+              {grouped[month].map((r: any) => {
+                const cat = RECEIPT_CATEGORIES.find(c => c.value === r.category);
+                return (
+                  <div key={r.id} data-testid={`receipt-card-${r.id}`} className="bg-white border border-gray-200 rounded-2xl p-3 shadow-sm flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-lg shrink-0">
+                      {cat?.emoji || "📎"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-sm text-slate-800">S${parseFloat(r.amount).toFixed(2)}</p>
+                        <span className="text-xs text-slate-500">{cat?.label || r.category}</span>
+                        <ReceiptStatusBadge status={r.status} />
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">{r.receiptDate}</p>
+                      {r.description && <p className="text-xs text-slate-600 mt-0.5 truncate">{r.description}</p>}
+                      {r.status === "rejected" && r.adminNote && (
+                        <p className="text-xs text-red-600 mt-0.5">Admin note: {r.adminNote}</p>
+                      )}
+                    </div>
+                    {r.status === "pending" && (
+                      <button
+                        onClick={() => { if (confirm("Delete this receipt?")) deleteMut.mutate(r.id); }}
+                        data-testid={`button-delete-receipt-${r.id}`}
+                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

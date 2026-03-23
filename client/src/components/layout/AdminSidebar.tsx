@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import {
-  LayoutDashboard, Calendar, Users, BarChart2, FileDown, LogOut, Settings, MessageCircle,
+  LayoutDashboard, Calendar, Users, BarChart2, FileDown, LogOut, Settings, MessageCircle, Receipt,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -29,6 +29,15 @@ export function AdminSidebar() {
     queryKey: ["/api/admin/whatsapp/conversations"],
     refetchInterval: 15000,
   });
+  const { data: pendingReceipts = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/receipts", "", "", ""],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/admin/receipts`, { credentials: "include" });
+      return res.json();
+    },
+    select: (d: any[]) => d.filter((r: any) => r.status === "pending"),
+    refetchInterval: 30000,
+  });
 
   if (!location.startsWith("/admin") || location === "/admin/login") return null;
 
@@ -38,6 +47,7 @@ export function AdminSidebar() {
   const urgentPayment = quotes.filter(q => ["completed", "final_payment_requested"].includes(q.status)).length;
   const staffBadge = (pendingAmendments as any[]).length + (pendingLeave as any[]).length;
   const waBadge = (convos as any[]).reduce((s: number, c: any) => s + (c.unreadCount || 0), 0);
+  const receiptsBadge = (pendingReceipts as any[]).length;
 
   function isActive(href: string) {
     if (href === "/admin") return location === "/admin";
@@ -60,6 +70,7 @@ export function AdminSidebar() {
       title: "Management",
       items: [
         { href: "/admin/staff",     icon: Users,     label: "Staff & HR", badge: staffBadge },
+        { href: "/admin/receipts",  icon: Receipt,   label: "Receipts",   badge: receiptsBadge },
         { href: "/admin/analytics", icon: BarChart2, label: "Analytics",  badge: 0 },
         { href: "/admin/export",    icon: FileDown,  label: "Export",     badge: 0 },
         { href: "/admin/settings",  icon: Settings,  label: "Settings",   badge: 0 },
