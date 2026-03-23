@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   MessageCircle, Send, Phone, RefreshCw, User, Bot, Search, X,
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
-  CheckCheck, Zap, ArrowLeft, ChevronRight,
+  CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +29,7 @@ type WaMessage = {
   direction: "inbound" | "outbound";
   body: string;
   mediaType: string | null;
+  mediaUrl: string | null;
   sentBy: string | null;
   readAt: string | null;
   createdAt: string;
@@ -42,14 +43,14 @@ type ThreadData = {
 // ── State config ───────────────────────────────────────────────────────────────
 
 const STATE_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
-  awaiting_name:         { label: "Getting name",    color: "text-sky-600",     bg: "bg-sky-50 border-sky-200",     dot: "bg-sky-500" },
-  awaiting_address:      { label: "Getting address", color: "text-sky-600",     bg: "bg-sky-50 border-sky-200",     dot: "bg-sky-500" },
+  awaiting_name:         { label: "Getting name",    color: "text-sky-600",     bg: "bg-sky-50 border-sky-200",       dot: "bg-sky-500" },
+  awaiting_address:      { label: "Getting address", color: "text-sky-600",     bg: "bg-sky-50 border-sky-200",       dot: "bg-sky-500" },
   awaiting_items:        { label: "Listing items",   color: "text-violet-600",  bg: "bg-violet-50 border-violet-200", dot: "bg-violet-500" },
   awaiting_items_verify: { label: "Verifying items", color: "text-violet-600",  bg: "bg-violet-50 border-violet-200", dot: "bg-violet-500" },
-  awaiting_service_type: { label: "Service type",    color: "text-amber-600",   bg: "bg-amber-50 border-amber-200", dot: "bg-amber-500" },
-  awaiting_floor:        { label: "Floor details",   color: "text-amber-600",   bg: "bg-amber-50 border-amber-200", dot: "bg-amber-500" },
-  awaiting_access:       { label: "Access info",     color: "text-amber-600",   bg: "bg-amber-50 border-amber-200", dot: "bg-amber-500" },
-  awaiting_to_address:   { label: "Destination",     color: "text-amber-600",   bg: "bg-amber-50 border-amber-200", dot: "bg-amber-500" },
+  awaiting_service_type: { label: "Service type",    color: "text-amber-600",   bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-500" },
+  awaiting_floor:        { label: "Floor details",   color: "text-amber-600",   bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-500" },
+  awaiting_access:       { label: "Access info",     color: "text-amber-600",   bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-500" },
+  awaiting_to_address:   { label: "Destination",     color: "text-amber-600",   bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-500" },
   awaiting_date:         { label: "Choosing date",   color: "text-orange-600",  bg: "bg-orange-50 border-orange-200", dot: "bg-orange-500" },
   awaiting_confirmation: { label: "Confirming",      color: "text-yellow-700",  bg: "bg-yellow-50 border-yellow-200", dot: "bg-yellow-500" },
   submitted:             { label: "Submitted ✓",     color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
@@ -176,13 +177,172 @@ function InfoRow({ icon, label, value, multiline = false }: {
   );
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────────
+// ── Image lightbox ─────────────────────────────────────────────────────────────
 
-export default function AdminConversations() {
-  const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
+function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <button
+        className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all"
+        onClick={onClose}
+      >
+        <X className="w-5 h-5" />
+      </button>
+      <img
+        src={src}
+        alt="Customer photo"
+        className="max-w-full max-h-full rounded-2xl object-contain shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+// ── Message bubble (handles text + image) ──────────────────────────────────────
+
+function MessageBubble({
+  msg, isOut, isAdm, isBot, samePrev, sameNext, adminLabel, selectedPhone, selectedConvoName,
+}: {
+  msg: WaMessage; isOut: boolean; isAdm: boolean; isBot: boolean;
+  samePrev: boolean; sameNext: boolean; adminLabel: string | null;
+  selectedPhone: string; selectedConvoName: string | null;
+}) {
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  const isImage = msg.mediaType?.startsWith("image") ?? false;
+  // mediaUrl stores the WhatsApp media ID — route it through our proxy endpoint.
+  // Fall back to body if it happens to be a direct URL (legacy support).
+  const imgSrc = msg.mediaUrl
+    ? (msg.mediaUrl.startsWith("http") ? msg.mediaUrl : `${API_BASE}/api/admin/whatsapp/media/${msg.mediaUrl}`)
+    : (msg.body?.startsWith("http") ? msg.body : null);
+
+  const bubbleStyle = isOut
+    ? isAdm
+      ? "bg-indigo-600 text-white"
+      : "bg-[#25D366] text-white"
+    : "bg-white text-gray-800 border border-gray-200 shadow-sm";
+
+  const radius = isOut
+    ? `rounded-2xl ${samePrev ? "rounded-tr-md" : ""} ${sameNext ? "rounded-br-md" : "rounded-br-sm"}`
+    : `rounded-2xl ${samePrev ? "rounded-tl-md" : ""} ${sameNext ? "rounded-bl-md" : "rounded-bl-sm"}`;
+
+  const topGap = samePrev ? "mt-0.5" : "mt-4";
+
+  return (
+    <>
+      {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
+      <div
+        key={msg.id}
+        data-testid={`msg-${msg.id}`}
+        className={`flex items-end gap-2 ${isOut ? "justify-end" : "justify-start"} ${topGap}`}
+      >
+        {/* Inbound avatar */}
+        {!isOut && (
+          <div className="w-8 flex-shrink-0 self-end mb-0.5">
+            {!sameNext && (
+              <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarGradient(selectedPhone)} flex items-center justify-center text-white text-[10px] font-bold`}>
+                {getInitials(selectedConvoName, selectedPhone)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Bubble */}
+        <div className="max-w-[72%] sm:max-w-[60%] lg:max-w-[55%]">
+          {isAdm && !samePrev && (
+            <p className="text-[10px] text-indigo-500 text-right mb-1 mr-1 font-semibold">
+              {adminLabel || "Admin"}
+            </p>
+          )}
+
+          {/* Image bubble */}
+          {isImage && imgSrc ? (
+            <div className={`overflow-hidden ${radius} ${bubbleStyle} p-1`}>
+              <div className="relative group cursor-pointer" onClick={() => setLightbox(imgSrc)}>
+                <img
+                  src={imgSrc}
+                  alt="Photo"
+                  className="rounded-xl max-w-full max-h-64 object-cover w-full block"
+                  onError={e => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden");
+                  }}
+                />
+                <div className="hidden items-center gap-2 p-3 text-xs opacity-70">
+                  <ImageIcon className="w-4 h-4" />
+                  <span>Photo</span>
+                </div>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-xl transition-all flex items-center justify-center">
+                  <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-all drop-shadow-lg" />
+                </div>
+              </div>
+              {msg.body && !msg.body.startsWith("http") && msg.body !== "[image]" && (
+                <p className="text-sm px-2 pt-1 pb-0.5 leading-relaxed break-words">{msg.body}</p>
+              )}
+            </div>
+          ) : (
+            /* Text bubble */
+            <div className={`px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${radius} ${bubbleStyle}`}>
+              {isImage && !imgSrc ? (
+                <span className="flex items-center gap-2 opacity-70">
+                  <ImageIcon className="w-4 h-4 flex-shrink-0" />
+                  <span className="italic">Photo</span>
+                </span>
+              ) : (
+                msg.body
+              )}
+            </div>
+          )}
+
+          {!sameNext && (
+            <div className={`flex items-center gap-1 mt-1 ${isOut ? "justify-end pr-1" : "pl-1"}`}>
+              <span className="text-[10px] text-gray-400 tabular-nums">{formatTime(msg.createdAt)}</span>
+              {isBot && <Bot className="w-3 h-3 text-[#25D366]/70" />}
+              {isAdm && <CheckCheck className="w-3 h-3 text-indigo-400" />}
+            </div>
+          )}
+        </div>
+
+        {/* Outbound avatar */}
+        {isOut && (
+          <div className="w-8 flex-shrink-0 self-end mb-0.5">
+            {!sameNext && (
+              isBot
+                ? <div className="w-8 h-8 rounded-full bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center">
+                    <Bot className="w-4 h-4 text-[#25D366]" />
+                  </div>
+                : <div className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center">
+                    <User className="w-4 h-4 text-indigo-600" />
+                  </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ── Chat Modal ─────────────────────────────────────────────────────────────────
+
+function ChatModal({
+  selectedPhone,
+  selectedConvo,
+  onClose,
+}: {
+  selectedPhone: string;
+  selectedConvo: Conversation | undefined;
+  onClose: () => void;
+}) {
   const [replyText, setReplyText] = useState("");
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "unread" | "active" | "submitted">("all");
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -190,18 +350,12 @@ export default function AdminConversations() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: convos = [], isLoading: loadingConvos } = useQuery<Conversation[]>({
-    queryKey: ["/api/admin/whatsapp/conversations"],
-    refetchInterval: 8000,
-  });
-
   const { data: thread, isLoading: loadingThread } = useQuery<ThreadData>({
     queryKey: ["/api/admin/whatsapp/conversations", selectedPhone],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/admin/whatsapp/conversations/${selectedPhone}`, { credentials: "include" });
       return res.json();
     },
-    enabled: !!selectedPhone,
     refetchInterval: 4000,
   });
 
@@ -222,11 +376,14 @@ export default function AdminConversations() {
   }, [thread?.messages?.length]);
 
   useEffect(() => {
-    if (selectedPhone) {
-      setTimeout(() => messagesEndRef.current?.scrollIntoView(), 80);
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
-    }
-  }, [selectedPhone]);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView(), 80);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
 
   function handleSend() {
     if (!replyText.trim() || sendMutation.isPending) return;
@@ -237,21 +394,8 @@ export default function AdminConversations() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
-  const selectedConvo = convos.find(c => c.phone === selectedPhone);
-  const totalUnread = convos.reduce((s, c) => s + c.unreadCount, 0);
+  const session = thread?.session;
 
-  const filteredConvos = convos.filter(c => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || [c.name, c.phone, c.lastMessage].some(v => v?.toLowerCase().includes(q));
-    const matchFilter =
-      filter === "unread" ? c.unreadCount > 0 :
-      filter === "active" ? (!!c.state && c.state !== "submitted") :
-      filter === "submitted" ? c.state === "submitted" :
-      true;
-    return matchSearch && matchFilter;
-  });
-
-  // Group messages by date
   const grouped: { date: string; messages: WaMessage[] }[] = [];
   if (thread?.messages) {
     let lastDate = "";
@@ -262,171 +406,85 @@ export default function AdminConversations() {
     }
   }
 
-  const session = thread?.session;
-  const showList = !selectedPhone;
-
   return (
-    <div className="flex mt-14 h-[calc(100dvh-56px)] bg-[#F5F5F7] overflow-hidden lg:pl-56" data-testid="admin-conversations">
+    <div className="fixed inset-0 z-[100] flex items-stretch justify-stretch" data-testid="chat-modal">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-      {/* ═══ LEFT: Conversation List ══════════════════════════════════════ */}
-      <div className={`
-        ${showList ? "flex" : "hidden"} lg:flex
-        flex-col w-full lg:w-[300px] xl:w-[340px] flex-shrink-0
-        border-r border-gray-200 bg-white
-      `}>
-        {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-gray-100">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center">
-                <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+      {/* Modal container */}
+      <div className="relative z-10 flex w-full h-full md:m-4 lg:m-6 md:rounded-2xl overflow-hidden shadow-2xl">
+
+        {/* ═══ LEFT: Info Panel ═══════════════════════════════════════════════ */}
+        {showInfo && session && (
+          <div className="hidden lg:flex flex-col w-64 xl:w-72 flex-shrink-0 bg-white border-r border-gray-200 overflow-y-auto">
+            <div className="px-4 py-5">
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4">Customer Info</p>
+
+              <div className="flex flex-col items-center text-center gap-2 mb-5">
+                <Avatar name={selectedConvo?.name ?? null} phone={selectedPhone} size="lg" />
+                <div>
+                  <p className="text-sm font-bold text-gray-900">{selectedConvo?.name || "Unknown"}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 font-mono">{formatPhone(selectedPhone)}</p>
+                </div>
+                <a
+                  href={`https://wa.me/${selectedPhone}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-[11px] text-[#25D366] hover:underline font-medium"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Open in WhatsApp
+                </a>
               </div>
-              <span className="text-sm font-semibold text-gray-900">WhatsApp</span>
-              {totalUnread > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold min-w-[20px] text-center">
-                  {totalUnread > 99 ? "99+" : totalUnread}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] })}
-              className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-all"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
 
-          {/* Search */}
-          <div className="relative mb-2.5">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search conversations…"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 pl-8 pr-7 py-2 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
-              data-testid="search-conversations"
-            />
-            {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          {/* Filter Tabs */}
-          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-            {(["all", "unread", "active", "submitted"] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`flex-1 text-[10px] font-semibold py-1 rounded-lg capitalize transition-all ${
-                  filter === f ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                }`}
-                data-testid={`filter-${f}`}
-              >
-                {f === "unread" && totalUnread > 0 ? `Unread (${totalUnread})` : f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* List */}
-        <div className="flex-1 overflow-y-auto overscroll-contain">
-          {loadingConvos && [0,1,2,3].map(i => <ConvoSkeleton key={i} />)}
-
-          {!loadingConvos && filteredConvos.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 gap-3 px-6 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
-                <MessageCircle className="w-7 h-7 text-gray-300" />
-              </div>
-              <p className="text-sm font-medium text-gray-400">
-                {search ? "No results found" : filter !== "all" ? `No ${filter} conversations` : "No conversations yet"}
-              </p>
-            </div>
-          )}
-
-          {filteredConvos.map(convo => {
-            const sc = getState(convo.state);
-            const isSelected = selectedPhone === convo.phone;
-            const hasUnread = convo.unreadCount > 0;
-            return (
-              <button
-                key={convo.phone}
-                onClick={() => setSelectedPhone(convo.phone)}
-                data-testid={`convo-${convo.phone}`}
-                className={`w-full text-left px-4 py-3.5 transition-all border-b border-gray-100 ${
-                  isSelected
-                    ? "bg-blue-50 border-l-[3px] border-l-blue-500 pl-[13px]"
-                    : "hover:bg-gray-50 border-l-[3px] border-l-transparent"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="relative flex-shrink-0 mt-0.5">
-                    <Avatar name={convo.name} phone={convo.phone} size="md" />
-                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${sc.dot}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <span className={`text-sm leading-tight truncate ${hasUnread ? "font-bold text-gray-900" : "font-medium text-gray-800"}`}>
-                        {convo.name || formatPhone(convo.phone)}
-                      </span>
-                      <span className="text-[10px] text-gray-400 flex-shrink-0 tabular-nums">
-                        {relativeTime(convo.lastAt)}
-                      </span>
-                    </div>
-                    {convo.name && (
-                      <p className="text-[11px] text-gray-400 mb-0.5 font-mono">{formatPhone(convo.phone)}</p>
-                    )}
-                    <p className={`text-xs truncate leading-snug ${hasUnread ? "text-gray-700 font-medium" : "text-gray-400"}`}>
-                      {convo.lastMessage}
-                    </p>
-                    <div className="flex items-center justify-between mt-1.5">
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${sc.color} ${sc.bg}`}>
-                        {sc.label}
-                      </span>
-                      {hasUnread && (
-                        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                          {convo.unreadCount > 9 ? "9+" : convo.unreadCount}
-                        </span>
-                      )}
-                    </div>
+              {selectedConvo?.state && (
+                <div className={`rounded-xl px-3 py-3 mb-3 border ${getState(selectedConvo.state).bg}`}>
+                  <p className="text-[9px] text-gray-400 uppercase tracking-wider mb-1.5 font-semibold">Bot State</p>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${getState(selectedConvo.state).dot}`} />
+                    <span className={`text-xs font-semibold ${getState(selectedConvo.state).color}`}>
+                      {getState(selectedConvo.state).label}
+                    </span>
                   </div>
                 </div>
-              </button>
-            );
-          })}
-        </div>
+              )}
 
-        <div className="px-4 py-2 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400">{convos.length} conversation{convos.length !== 1 ? "s" : ""} · auto-refreshes</p>
-        </div>
-      </div>
+              <div className="space-y-2">
+                {session.collectedAddress && <InfoRow icon={<MapPin className="w-3 h-3" />} label="Address" value={session.collectedAddress} />}
+                {session.collectedToAddress && <InfoRow icon={<MapPin className="w-3 h-3" />} label="Destination" value={session.collectedToAddress} />}
+                {session.collectedItems && session.collectedItems !== "__scanning__" && (
+                  <InfoRow icon={<Package className="w-3 h-3" />} label="Items" value={session.collectedItems} multiline />
+                )}
+                {session.floorLevel && (
+                  <InfoRow icon={<Building2 className="w-3 h-3" />} label="Floor" value={`Level ${session.floorLevel} · ${session.hasLift ? "Lift" : "No lift"}`} />
+                )}
+                {session.accessDifficulty && (
+                  <InfoRow icon={<Layers className="w-3 h-3" />} label="Access" value={({ easy: "Easy", medium: "Moderate", hard: "Difficult" } as any)[session.accessDifficulty] || session.accessDifficulty} />
+                )}
+                {session.preferredDate && <InfoRow icon={<Calendar className="w-3 h-3" />} label="Preferred Date" value={session.preferredDate} />}
+              </div>
+            </div>
+          </div>
+        )}
 
-      {/* ═══ CENTER: Message Thread ═══════════════════════════════════════ */}
-      {selectedPhone && (
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
+        {/* ═══ RIGHT: Chat Panel ═══════════════════════════════════════════════ */}
+        <div className="flex-1 flex flex-col min-w-0 bg-white">
 
-          {/* Thread Header */}
+          {/* Header */}
           <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
-            {/* Single combined row — back arrow on mobile, avatar on desktop */}
             <div className="flex items-center gap-2 px-3 sm:px-4 py-3">
-
-              {/* Back arrow — mobile only */}
               <button
-                onClick={() => setSelectedPhone(null)}
-                data-testid="back-to-list"
-                className="lg:hidden flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-blue-600 transition-all -ml-1"
+                onClick={onClose}
+                data-testid="close-chat-modal"
+                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-blue-600 transition-all -ml-1"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
 
-              {/* Avatar — desktop only */}
-              <div className="hidden lg:block flex-shrink-0">
+              <div className="flex-shrink-0">
                 <Avatar name={selectedConvo?.name ?? null} phone={selectedPhone} size="sm" />
               </div>
 
-              {/* Name + state + phone */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-bold text-gray-900 truncate">
@@ -443,7 +501,6 @@ export default function AdminConversations() {
                 </p>
               </div>
 
-              {/* Actions */}
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <a
                   href={`https://wa.me/${selectedPhone}`}
@@ -457,22 +514,28 @@ export default function AdminConversations() {
                 </a>
                 {session && (
                   <button
-                    onClick={() => setShowInfo(!showInfo)}
-                    className={`hidden xl:flex px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                    onClick={() => setShowInfo(v => !v)}
+                    className={`hidden lg:flex px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                       showInfo ? "bg-gray-900 text-white border-gray-900" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
                     }`}
+                    data-testid="toggle-info"
                   >
                     Info
                   </button>
                 )}
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-all"
+                  data-testid="close-modal-x"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
           </div>
 
           {/* Messages */}
-          <div
-            className="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-5 py-4 bg-[#F5F5F7]"
-          >
+          <div className="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-5 py-4 bg-[#F5F5F7]">
             {loadingThread && (
               <div className="space-y-4 py-2 animate-pulse">
                 {[false, true, false, true, false].map((r, i) => (
@@ -491,7 +554,6 @@ export default function AdminConversations() {
 
             {grouped.map(group => (
               <div key={group.date}>
-                {/* Date divider */}
                 <div className="flex items-center gap-3 my-5">
                   <div className="flex-1 h-px bg-gray-200" />
                   <span className="text-[11px] text-gray-400 font-medium px-3 py-1 rounded-full bg-white border border-gray-200 shadow-sm">
@@ -506,73 +568,23 @@ export default function AdminConversations() {
                     const isAdm = !!msg.sentBy?.startsWith("admin:");
                     const isBot = isOut && !isAdm;
                     const adminLabel = isAdm ? msg.sentBy!.replace("admin:", "") : null;
-
                     const prev = idx > 0 ? group.messages[idx - 1] : null;
                     const next = idx < group.messages.length - 1 ? group.messages[idx + 1] : null;
                     const samePrev = prev?.direction === msg.direction && prev?.sentBy === msg.sentBy;
                     const sameNext = next?.direction === msg.direction && next?.sentBy === msg.sentBy;
-                    const showAvatar = !sameNext;
-                    const topGap = samePrev ? "mt-0.5" : "mt-4";
-
-                    const bubbleStyle = isOut
-                      ? isAdm
-                        ? "bg-indigo-600 text-white"
-                        : "bg-[#25D366] text-white"
-                      : "bg-white text-gray-800 border border-gray-200 shadow-sm";
-
-                    const radius = isOut
-                      ? `rounded-2xl ${samePrev ? "rounded-tr-md" : ""} ${sameNext ? "rounded-br-md" : "rounded-br-sm"}`
-                      : `rounded-2xl ${samePrev ? "rounded-tl-md" : ""} ${sameNext ? "rounded-bl-md" : "rounded-bl-sm"}`;
-
                     return (
-                      <div key={msg.id} data-testid={`msg-${msg.id}`}
-                        className={`flex items-end gap-2 ${isOut ? "justify-end" : "justify-start"} ${topGap}`}
-                      >
-                        {/* Inbound avatar */}
-                        {!isOut && (
-                          <div className="w-8 flex-shrink-0 self-end mb-0.5">
-                            {showAvatar && (
-                              <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarGradient(selectedPhone)} flex items-center justify-center text-white text-[10px] font-bold`}>
-                                {getInitials(selectedConvo?.name ?? null, selectedPhone)}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Bubble */}
-                        <div className="max-w-[72%] sm:max-w-[60%] lg:max-w-[55%]">
-                          {isAdm && !samePrev && (
-                            <p className="text-[10px] text-indigo-500 text-right mb-1 mr-1 font-semibold">
-                              {adminLabel || "Admin"}
-                            </p>
-                          )}
-                          <div className={`px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${radius} ${bubbleStyle}`}>
-                            {msg.body}
-                          </div>
-                          {!sameNext && (
-                            <div className={`flex items-center gap-1 mt-1 ${isOut ? "justify-end pr-1" : "pl-1"}`}>
-                              <span className="text-[10px] text-gray-400 tabular-nums">{formatTime(msg.createdAt)}</span>
-                              {isBot && <Bot className="w-3 h-3 text-[#25D366]/70" />}
-                              {isAdm && <CheckCheck className="w-3 h-3 text-indigo-400" />}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Outbound avatar */}
-                        {isOut && (
-                          <div className="w-8 flex-shrink-0 self-end mb-0.5">
-                            {showAvatar && (
-                              isBot
-                                ? <div className="w-8 h-8 rounded-full bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center">
-                                    <Bot className="w-4 h-4 text-[#25D366]" />
-                                  </div>
-                                : <div className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center">
-                                    <User className="w-4 h-4 text-indigo-600" />
-                                  </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <MessageBubble
+                        key={msg.id}
+                        msg={msg}
+                        isOut={isOut}
+                        isAdm={isAdm}
+                        isBot={isBot}
+                        samePrev={samePrev}
+                        sameNext={sameNext}
+                        adminLabel={adminLabel}
+                        selectedPhone={selectedPhone}
+                        selectedConvoName={selectedConvo?.name ?? null}
+                      />
                     );
                   })}
                 </div>
@@ -655,73 +667,197 @@ export default function AdminConversations() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main ───────────────────────────────────────────────────────────────────────
+
+export default function AdminConversations() {
+  const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "unread" | "active" | "submitted">("all");
+  const queryClient = useQueryClient();
+
+  const { data: convos = [], isLoading: loadingConvos } = useQuery<Conversation[]>({
+    queryKey: ["/api/admin/whatsapp/conversations"],
+    refetchInterval: 8000,
+  });
+
+  const selectedConvo = convos.find(c => c.phone === selectedPhone);
+  const totalUnread = convos.reduce((s, c) => s + c.unreadCount, 0);
+
+  const filteredConvos = convos.filter(c => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || [c.name, c.phone, c.lastMessage].some(v => v?.toLowerCase().includes(q));
+    const matchFilter =
+      filter === "unread" ? c.unreadCount > 0 :
+      filter === "active" ? (!!c.state && c.state !== "submitted") :
+      filter === "submitted" ? c.state === "submitted" :
+      true;
+    return matchSearch && matchFilter;
+  });
+
+  function openConvo(phone: string) {
+    setSelectedPhone(phone);
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
+  }
+
+  return (
+    <div className="flex mt-14 h-[calc(100dvh-56px)] bg-[#F5F5F7] overflow-hidden lg:pl-56" data-testid="admin-conversations">
+
+      {/* Chat Modal */}
+      {selectedPhone && (
+        <ChatModal
+          selectedPhone={selectedPhone}
+          selectedConvo={selectedConvo}
+          onClose={() => setSelectedPhone(null)}
+        />
       )}
 
-      {/* Empty state desktop */}
-      {!selectedPhone && (
-        <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4 bg-[#F5F5F7]">
-          <div className="w-16 h-16 rounded-2xl bg-white border border-gray-200 shadow-sm flex items-center justify-center">
-            <MessageCircle className="w-8 h-8 text-gray-300" />
-          </div>
-          <div className="text-center">
-            <p className="text-sm font-semibold text-gray-400">Select a conversation</p>
-            <p className="text-xs text-gray-300 mt-1">Choose from the list on the left</p>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ RIGHT: Customer Info Panel ══════════════════════════════════ */}
-      {selectedPhone && showInfo && session && (
-        <div className="hidden xl:flex flex-col w-64 flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto">
-          <div className="px-4 py-5">
-            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4">Customer Info</p>
-
-            <div className="flex flex-col items-center text-center gap-2 mb-5">
-              <Avatar name={selectedConvo?.name ?? null} phone={selectedPhone} size="lg" />
-              <div>
-                <p className="text-sm font-bold text-gray-900">{selectedConvo?.name || "Unknown"}</p>
-                <p className="text-xs text-gray-400 mt-0.5 font-mono">{formatPhone(selectedPhone)}</p>
+      {/* ═══ Conversation List (always visible) ════════════════════════════ */}
+      <div className="flex flex-col w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 border-r border-gray-200 bg-white">
+        {/* Header */}
+        <div className="px-4 pt-4 pb-3 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center">
+                <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
               </div>
-              <a
-                href={`https://wa.me/${selectedPhone}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[11px] text-[#25D366] hover:underline font-medium"
-              >
-                <ExternalLink className="w-3 h-3" />
-                Open in WhatsApp
-              </a>
+              <span className="text-sm font-semibold text-gray-900">WhatsApp</span>
+              {totalUnread > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold min-w-[20px] text-center">
+                  {totalUnread > 99 ? "99+" : totalUnread}
+                </span>
+              )}
             </div>
+            <button
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] })}
+              className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-all"
+              data-testid="refresh-conversations"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
-            {selectedConvo?.state && (
-              <div className={`rounded-xl px-3 py-3 mb-3 border ${getState(selectedConvo.state).bg}`}>
-                <p className="text-[9px] text-gray-400 uppercase tracking-wider mb-1.5 font-semibold">Bot State</p>
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${getState(selectedConvo.state).dot}`} />
-                  <span className={`text-xs font-semibold ${getState(selectedConvo.state).color}`}>
-                    {getState(selectedConvo.state).label}
-                  </span>
-                </div>
-              </div>
+          {/* Search */}
+          <div className="relative mb-2.5">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search conversations…"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 pl-8 pr-7 py-2 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
+              data-testid="search-conversations"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X className="w-3 h-3" />
+              </button>
             )}
+          </div>
 
-            <div className="space-y-2">
-              {session.collectedAddress && <InfoRow icon={<MapPin className="w-3 h-3" />} label="Address" value={session.collectedAddress} />}
-              {session.collectedToAddress && <InfoRow icon={<MapPin className="w-3 h-3" />} label="Destination" value={session.collectedToAddress} />}
-              {session.collectedItems && session.collectedItems !== "__scanning__" && (
-                <InfoRow icon={<Package className="w-3 h-3" />} label="Items" value={session.collectedItems} multiline />
-              )}
-              {session.floorLevel && (
-                <InfoRow icon={<Building2 className="w-3 h-3" />} label="Floor" value={`Level ${session.floorLevel} · ${session.hasLift ? "Lift" : "No lift"}`} />
-              )}
-              {session.accessDifficulty && (
-                <InfoRow icon={<Layers className="w-3 h-3" />} label="Access" value={({ easy: "Easy", medium: "Moderate", hard: "Difficult" } as any)[session.accessDifficulty] || session.accessDifficulty} />
-              )}
-              {session.preferredDate && <InfoRow icon={<Calendar className="w-3 h-3" />} label="Preferred Date" value={session.preferredDate} />}
-            </div>
+          {/* Filter Tabs */}
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+            {(["all", "unread", "active", "submitted"] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`flex-1 text-[10px] font-semibold py-1 rounded-lg capitalize transition-all ${
+                  filter === f ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+                data-testid={`filter-${f}`}
+              >
+                {f === "unread" && totalUnread > 0 ? `Unread (${totalUnread})` : f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
-      )}
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto overscroll-contain">
+          {loadingConvos && [0,1,2,3].map(i => <ConvoSkeleton key={i} />)}
+
+          {!loadingConvos && filteredConvos.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 gap-3 px-6 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
+                <MessageCircle className="w-7 h-7 text-gray-300" />
+              </div>
+              <p className="text-sm font-medium text-gray-400">
+                {search ? "No results found" : filter !== "all" ? `No ${filter} conversations` : "No conversations yet"}
+              </p>
+            </div>
+          )}
+
+          {filteredConvos.map(convo => {
+            const sc = getState(convo.state);
+            const hasUnread = convo.unreadCount > 0;
+            return (
+              <button
+                key={convo.phone}
+                onClick={() => openConvo(convo.phone)}
+                data-testid={`convo-${convo.phone}`}
+                className="w-full text-left px-4 py-3.5 transition-all border-b border-gray-100 hover:bg-blue-50 active:bg-blue-100 border-l-[3px] border-l-transparent hover:border-l-blue-400"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="relative flex-shrink-0 mt-0.5">
+                    <Avatar name={convo.name} phone={convo.phone} size="md" />
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${sc.dot}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <span className={`text-sm leading-tight truncate ${hasUnread ? "font-bold text-gray-900" : "font-medium text-gray-800"}`}>
+                        {convo.name || formatPhone(convo.phone)}
+                      </span>
+                      <span className="text-[10px] text-gray-400 flex-shrink-0 tabular-nums">
+                        {relativeTime(convo.lastAt)}
+                      </span>
+                    </div>
+                    {convo.name && (
+                      <p className="text-[11px] text-gray-400 mb-0.5 font-mono">{formatPhone(convo.phone)}</p>
+                    )}
+                    <p className={`text-xs truncate leading-snug ${hasUnread ? "text-gray-700 font-medium" : "text-gray-400"}`}>
+                      {convo.lastMessage}
+                    </p>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${sc.color} ${sc.bg}`}>
+                        {sc.label}
+                      </span>
+                      {hasUnread && (
+                        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                          {convo.unreadCount > 9 ? "9+" : convo.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 self-center text-gray-300">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="px-4 py-2 border-t border-gray-100">
+          <p className="text-[10px] text-gray-400">{convos.length} conversation{convos.length !== 1 ? "s" : ""} · auto-refreshes</p>
+        </div>
+      </div>
+
+      {/* Desktop: right side placeholder when no modal open */}
+      <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4 bg-[#F5F5F7]">
+        <div className="w-16 h-16 rounded-2xl bg-white border border-gray-200 shadow-sm flex items-center justify-center">
+          <MessageCircle className="w-8 h-8 text-gray-300" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-semibold text-gray-400">Select a conversation</p>
+          <p className="text-xs text-gray-300 mt-1">Click any chat to open it</p>
+        </div>
+      </div>
     </div>
   );
 }

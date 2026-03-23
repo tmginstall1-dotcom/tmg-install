@@ -2147,6 +2147,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
         direction: 'inbound',
         body: inboundText || (msg.type === 'image' ? '[Photo]' : '[Message]'),
         mediaType: msg.type === 'image' ? 'image' : undefined,
+        mediaUrl: msg.type === 'image' && msg.image?.id ? msg.image.id : undefined,
         wamid: msg.id,
       }).catch(() => {});
 
@@ -4565,6 +4566,25 @@ Respond directly — no JSON, just the message text.`,
     await db.insert(appSettings).values({ key: "app_latest_version", value: version }).onConflictDoUpdate({ target: appSettings.key, set: { value: version } });
     await db.insert(appSettings).values({ key: "app_apk_url", value: apkUrl }).onConflictDoUpdate({ target: appSettings.key, set: { value: apkUrl } });
     res.json({ message: "App version updated" });
+  });
+
+  // ── Admin: WhatsApp Media Proxy ────────────────────────────────────────────
+  // Proxies WhatsApp media images so the admin UI can display customer photos.
+  // mediaId = the WhatsApp media ID stored in waMessages.mediaUrl column.
+  app.get("/api/admin/whatsapp/media/:mediaId", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const { mediaId } = req.params;
+      const { base64, mimeType } = await downloadWhatsAppMedia(mediaId);
+      const buf = Buffer.from(base64, "base64");
+      res.setHeader("Content-Type", mimeType || "image/jpeg");
+      res.setHeader("Cache-Control", "private, max-age=86400");
+      res.send(buf);
+    } catch {
+      res.status(404).json({ message: "Media not found or expired" });
+    }
   });
 
   // ── Admin: WhatsApp Conversations ──────────────────────────────────────────
