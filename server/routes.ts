@@ -203,13 +203,14 @@ async function craftReply(
           role: "system",
           content:
             `${COORDINATOR_PERSONA}\n\n` +
-            `Write ONE short, warm sentence (8–15 words) that naturally acknowledges what the customer just said.\n\n` +
-            `Rules:\n` +
-            `- Vary your openings — do NOT always start with "Great!" or "Perfect!"\n` +
-            `- Reference the customer's actual words or info when possible\n` +
-            `- Customer name: ${ctx.name ? `"${ctx.name}" — use it if it sounds natural` : 'not yet known'}\n` +
-            `- Max 1 emoji\n` +
-            `- Output ONLY the single acknowledgment sentence — nothing else, no questions`,
+            `Write ONE short, warm acknowledgment sentence (8–15 words) that references what the customer just said.\n\n` +
+            `STRICT RULES — violating any rule makes the output unusable:\n` +
+            `- Output EXACTLY ONE sentence. No follow-up questions. No second sentence. Nothing after the period.\n` +
+            `- Do NOT start with "Great!", "Perfect!", or "Awesome!"\n` +
+            `- Do NOT ask about furniture, names, addresses, services, or anything else\n` +
+            `- Do NOT add emojis — the calling code will handle formatting\n` +
+            `- Customer name: ${ctx.name ? `"${ctx.name}" — use it if it sounds natural` : 'not yet known — do NOT ask for it'}\n` +
+            `- Examples of CORRECT output: "Thanks, got that!" / "Noted, let me sort that out for you." / "Appreciate you confirming that."`,
         },
         ...(ctx.history ? historyMessages(ctx.history, 2) : []),
         { role: "user", content: customerMsg },
@@ -2939,18 +2940,15 @@ IMPORTANT: If conversation history shows the bot recently asked "which item is t
             // Customer happy with pricing — proceed to booking flow
             if (nameAlready) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-              const nextPromptAddrPricing =
-                `Let's get you a personalised quote! 🎉\n\n` +
-                `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n` +
-                `_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
-              const replyYes = await craftReply(text, nextPromptAddrPricing, { name: nameAlready, history: conversationHistory });
+              const replyYes = await craftReply(text,
+                `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`,
+                { name: nameAlready, history: conversationHistory }
+              );
               await sendBotMessage(from, replyYes);
             } else {
+              // Use a direct message (no craftReply) to avoid GPT hallucinating extra questions
               await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-              const nextPromptNamePricing =
-                `To prepare your personalised quote, may I start with your *full name*? 😊`;
-              const replyYes = await craftReply(text, nextPromptNamePricing, { history: conversationHistory });
-              await sendBotMessage(from, replyYes);
+              await sendBotMessage(from, `Great! To prepare your personalised quote, may I start with your *full name*? 😊`);
             }
             return;
           }
@@ -3123,7 +3121,7 @@ Return JSON:
 }
 Rules:
 - name: a real human personal name (e.g. "John", "Mary Tan", "Ahmad Rashid"). Null for questions, statements, greetings (hi/ok/yes/no), pricing queries, furniture item names, or service types.
-- address: Singapore address if mentioned alongside a name, otherwise null
+- address: Singapore address ONLY if it appears in the customer's CURRENT message. NEVER extract an address from previous conversation turns. If the current message is just a name with no address, return null.
 - isPricingQuestion: true if they asked about cost/price/"how much" OR if the conversation history shows we asked for an item/service and they replied with a furniture item or service type
 - mentionedItem: specific furniture item name if pricing-related — even without explicit "how much" (e.g. "wardrobe", "PAX wardrobe", "3-door wardrobe", "queen bed frame", "dining table", "sofa"). Set when message is a furniture item name.
 - mentionedService: the service type if they specified one (installation/dismantling/relocation/disposal). Common patterns: "installation"→installation, "dismantle"→dismantling, "relocate"→relocation, "dispose"→disposal.
@@ -3589,6 +3587,18 @@ ${validResults.map((r, i) => `[Photo ${i + 1}]\n${r}`).join("\n\n")}`
         if (text.length < 3) {
           await sendBotMessage(from,
             `What furniture do you need help with? 😊\n\n📸 *Send a photo* and I'll detect the items — or just *type the list* below.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
+          );
+          return;
+        }
+
+        // ── Pre-check: customer is referring to a previously-sent photo ──────
+        const photoRefPattern = /\b(share[d]?|sent?|show[n]?|upload[ed]?|gave|given|forward[ed]?|already)\b.{0,30}\b(photo|picture|pic|image)\b|\b(photo|picture|pic|image)\b.{0,30}\b(already|earlier|before|just now|sent?|share[d]?)\b/i;
+        if (photoRefPattern.test(text)) {
+          await sendBotMessage(from,
+            `I see you mentioned sharing a photo earlier! 📸\n\n` +
+            `Please *re-send the photo* and I'll automatically detect the furniture for you — ` +
+            `or just *type the item names* below and I'll proceed from there.\n\n` +
+            `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
           );
           return;
         }
