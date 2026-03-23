@@ -145,6 +145,49 @@ async function saveHistory(phone: string, history: HistoryEntry[], customerMsg: 
   storage.upsertWhatsAppSession(phone, { conversationHistory: JSON.stringify(trimmed) }).catch(() => {});
 }
 
+/**
+ * Generate a natural, conversational reply using GPT-4o-mini.
+ * Acknowledges what the customer just said, then leads into the next structured step.
+ * Falls back to the plain nextStepPrompt if GPT is unavailable.
+ */
+async function craftReply(
+  customerMsg: string,
+  nextStepPrompt: string,
+  ctx: { name?: string | null; history?: HistoryEntry[] }
+): Promise<string> {
+  try {
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_tokens: 200,
+      messages: [
+        {
+          role: "system",
+          content:
+            `You are a friendly WhatsApp assistant for TMG Install (The Moving Guy Pte Ltd), ` +
+            `Singapore's professional furniture installation, dismantling, relocation and disposal company.\n\n` +
+            `Write a natural WhatsApp reply (2–4 short sentences) that:\n` +
+            `1. Briefly and genuinely acknowledges what the customer just said — vary your openings, ` +
+            `reference their actual words or info when possible, don't always start with "Great!" or "Perfect!"\n` +
+            `2. Smoothly leads into asking the next thing (preserve ALL *bold* formatting exactly as written below):\n\n` +
+            `NEXT STEP:\n${nextStepPrompt}\n\n` +
+            `Rules:\n` +
+            `- Customer name: ${ctx.name ? `"${ctx.name}" — use it naturally` : 'not yet known'}\n` +
+            `- Keep it concise and warm — WhatsApp style, not corporate\n` +
+            `- Max 2 emojis total\n` +
+            `- Do NOT add information not in the next step prompt\n` +
+            `- Do NOT ask more than one question\n` +
+            `- The next step content must appear in full, with *bold* markers intact`,
+        },
+        ...(ctx.history ? historyMessages(ctx.history, 3) : []),
+        { role: "user", content: customerMsg },
+      ],
+    });
+    return res.choices[0]?.message?.content?.trim() || nextStepPrompt;
+  } catch {
+    return nextStepPrompt;
+  }
+}
+
 /** Extract any service type already mentioned in conversation history */
 function extractServiceFromHistory(history: HistoryEntry[]): string | null {
   const histText = history.map(h => h.content).join(" ").toLowerCase();
@@ -2675,16 +2718,18 @@ Customer message: "${text}"`
             // Customer happy with pricing — proceed to booking flow
             if (nameAlready) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-              await sendBotMessage(from,
-                `Great, *${nameAlready}*! Let's get you a personalised quote. 🎉\n\n` +
+              const nextPromptAddrPricing =
+                `Let's get you a personalised quote! 🎉\n\n` +
                 `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n` +
-                `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
-              );
+                `_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
+              const replyYes = await craftReply(text, nextPromptAddrPricing, { name: nameAlready, history: conversationHistory });
+              await sendBotMessage(from, replyYes);
             } else {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-              await sendBotMessage(from,
-                `Let's get started! 🎉\n\nTo prepare your personalised quote, may I start with your *full name*? 😊`
-              );
+              const nextPromptNamePricing =
+                `To prepare your personalised quote, may I start with your *full name*? 😊`;
+              const replyYes = await craftReply(text, nextPromptNamePricing, { history: conversationHistory });
+              await sendBotMessage(from, replyYes);
             }
             return;
           }
@@ -3014,7 +3059,8 @@ If no installable items found, set noItems: true.`,
         // ── Valid name — proceed through the quote flow ────────────────────
         if (nameExtractedAddress) {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedName: extractedName, collectedAddress: nameExtractedAddress });
-          const replyNameAddr = `Nice to meet you, *${extractedName}*! 😊 I've noted your address: *${nameExtractedAddress}*.\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items automatically — or *type the list* below.`;
+          const nextPromptAddr = `📍 *Address noted: ${nameExtractedAddress}*\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items automatically — or *type the list* below.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
+          const replyNameAddr = await craftReply(text, nextPromptAddr, { name: extractedName, history: conversationHistory });
           await sendBotMessage(from, replyNameAddr);
           saveHistory(from, conversationHistory, text, replyNameAddr);
           return;
@@ -3035,10 +3081,12 @@ If no installable items found, set noItems: true.`,
             `Reply *YES* to confirm and send to our team. 😊`;
         } else if (alreadyHasAddress) {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items" });
-          replyName = `Got it, *${extractedName}*! 👍\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items — or *type the list* below.`;
+          const nextPromptItems = `What furniture do you need help with?\n\n📸 *Send a photo* and I'll detect the items — or *type the list* below.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
+          replyName = await craftReply(text, nextPromptItems, { name: extractedName, history: conversationHistory });
         } else {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-          replyName = `Nice to meet you, *${extractedName}*! 😊\n\n📍 Where is the job? Just drop the *address* below — block/unit number helps too.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
+          const nextPromptAddress = `📍 Where is the job? Just drop the *full address* below — block/unit number helps too.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
+          replyName = await craftReply(text, nextPromptAddress, { name: extractedName, history: conversationHistory });
         }
         await sendBotMessage(from, replyName);
         saveHistory(from, conversationHistory, text, replyName);
@@ -3113,12 +3161,13 @@ Rules:
             `Ready to go? Reply *YES* to send to our team. 😊`;
         } else {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: extractedAddress });
-          replyAddr =
-            `Got it! 📍 *${extractedAddress}*\n\n` +
-            `Now, what furniture do you need help with?\n\n` +
+          const nextPromptItems =
+            `📍 *${extractedAddress}* — noted!\n\n` +
+            `What furniture do you need help with?\n\n` +
             `📸 *Send a photo* and I'll detect the items automatically — or *type the list* below.\n\n` +
             `Mention the service too if you know it (install, dismantle, relocate, dispose).\n\n` +
             `_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle+dispose)\n• L-shaped sofa (disposal only)`;
+          replyAddr = await craftReply(text, nextPromptItems, { name: session?.collectedName, history: conversationHistory });
         }
         await sendBotMessage(from, replyAddr);
         saveHistory(from, conversationHistory, text, replyAddr);
@@ -3446,12 +3495,14 @@ If no installable furniture visible, respond only with: NO_FURNITURE`,
             return;
           }
           await storage.upsertWhatsAppSession(from, { state: "awaiting_floor", collectedItems: detectedItems, floorLevel: null, hasLift: null });
-          await sendBotMessage(from,
-            `Great! Just a couple more quick questions to complete your quote. 😊\n\n` +
+          const nextPromptFloor =
+            `Almost there — just a couple of quick logistics questions to finalise your quote!\n\n` +
             `*Which floor is the unit on?*\n\n` +
-            `Reply with the floor number (e.g. *1* for ground/first floor, *5* for fifth floor)\n` +
-            `And is there a *lift* available? (yes / no)`
-          );
+            `Reply with the floor number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
+            `And is there a *lift* available? (yes / no)`;
+          const replyVerifyYes = await craftReply(text, nextPromptFloor, { name: session.collectedName, history: conversationHistory });
+          await sendBotMessage(from, replyVerifyYes);
+          saveHistory(from, conversationHistory, text, replyVerifyYes);
           return;
         }
 
@@ -3804,13 +3855,14 @@ Rules:
           const hasLift = !!fp.hasLift;
           // Both floor and lift captured — move to access difficulty
           await storage.upsertWhatsAppSession(from, { floorLevel, hasLift, state: "awaiting_access" });
-          const replyFloor =
-            `${fp.reply || `Got it — Floor ${floorLevel}, ${hasLift ? "lift ✅" : "no lift"}.`} 👍\n\n` +
-            `Last question — how easy is access to the unit?\n\n` +
+          const nextPromptAccess =
+            `Floor ${floorLevel}, ${hasLift ? "lift available ✅" : "no lift"} — noted!\n\n` +
+            `One last thing — how easy is access to the unit?\n\n` +
             `1️⃣ *Easy* — clear corridors, no obstacles\n` +
             `2️⃣ *Moderate* — some tight corners or obstacles\n` +
             `3️⃣ *Difficult* — very narrow, many steps, or no lift access\n\n` +
             `Reply *1*, *2*, or *3*`;
+          const replyFloor = await craftReply(text, nextPromptAccess, { name: session.collectedName, history: conversationHistory });
           await sendBotMessage(from, replyFloor);
           saveHistory(from, conversationHistory, text, replyFloor);
         } catch (err) {
@@ -3888,15 +3940,20 @@ If unclear → null`
         // Decide next state: if relocation and no to-address yet → awaiting_to_address, else → awaiting_date
         if (session.isRelocation && !session.collectedToAddress) {
           await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_to_address" });
-          await sendBotMessage(from,
-            `${accessLabel} 👍\n\n` +
-            `Since this is a relocation, we also need the *destination address* 📍\n\n` +
-            `What's the address you'd like the furniture moved *to*? (e.g. 123 Tampines Ave 3, #05-12)`
-          );
+          const nextPromptToAddr =
+            `${accessLabel}\n\n` +
+            `Since this is a *relocation*, we need the destination address too 📍\n\n` +
+            `What's the address you'd like the furniture moved *to*?\n_e.g. 123 Tampines Ave 3, #05-12_`;
+          const replyAccess = await craftReply(text, nextPromptToAddr, { name: session.collectedName, history: conversationHistory });
+          await sendBotMessage(from, replyAccess);
+          saveHistory(from, conversationHistory, text, replyAccess);
         } else {
           await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_date" });
           const { message: dateMenu } = await buildDateMenuMessage();
-          await sendBotMessage(from, `${accessLabel} 👍\n\nAlmost there! When would you like this done?\n\n${dateMenu}`);
+          const nextPromptDate = `${accessLabel}\n\nAlmost there! When would you like this done?\n\n${dateMenu}`;
+          const replyAccess = await craftReply(text, nextPromptDate, { name: session.collectedName, history: conversationHistory });
+          await sendBotMessage(from, replyAccess);
+          saveHistory(from, conversationHistory, text, replyAccess);
         }
         return;
       }
@@ -3977,9 +4034,12 @@ Return JSON: { "address": "normalised address string or null if not an address",
         });
 
         const { message: dateMenu } = await buildDateMenuMessage();
-        await sendBotMessage(from,
-          `Got it! Moving *from:* ${session.collectedAddress}\n*To:* ${toAddress}${distanceDisplay}\n\nNow, let's sort the date. 📅\n\n${dateMenu}`
-        );
+        const nextPromptDate2 =
+          `Moving *from:* ${session.collectedAddress}\n*To:* ${toAddress}${distanceDisplay}\n\n` +
+          `Now let's sort the date. 📅\n\n${dateMenu}`;
+        const replyToAddr = await craftReply(text, nextPromptDate2, { name: session.collectedName, history: conversationHistory });
+        await sendBotMessage(from, replyToAddr);
+        saveHistory(from, conversationHistory, text, replyToAddr);
         return;
       }
 
