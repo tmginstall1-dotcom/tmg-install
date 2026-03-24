@@ -3560,15 +3560,35 @@ CRITICAL: If bot's last message asked for their name, a 1–4 word personal-name
           }
 
           if (sc.intent === "specific_price" && sc.itemQuery) {
-            const priceMsg = await smartPricingLookup(sc.itemQuery);
-            // After showing specific pricing, offer a quote — but as an open invitation, not a demand
+            // Build a detailed estimate using the real pricing engine (same as submission flow)
+            // Detect service type from the query so the breakdown shows the right services
+            const specificSvcType =
+              /dismantle|dismant|remove|removal/i.test(sc.itemQuery) ? "dismantle" :
+              /reloc|move|moving|shift/i.test(sc.itemQuery) ? "relocate" :
+              /dispos|junk|clear/i.test(sc.itemQuery) ? "dispose" : "install";
+            const specificItemText = sc.itemQuery + (specificSvcType !== "install" ? ` (${specificSvcType})` : "");
+            const fakeSpecificSession = {
+              collectedItems: specificItemText,
+              floorLevel: null as number | null,
+              hasLift: null as boolean | null,
+              accessDifficulty: null as string | null,
+              isRelocation: specificSvcType === "relocate",
+              distanceKm: null as string | null,
+            };
+            const detailedEstimate = await buildJobEstimateMessage(fakeSpecificSession as any);
             const quoteOffer = nameAlready
-              ? `\n\nWould you like me to put together a quote for you, *${nameAlready}*? Just say the word 😊`
-              : `\n\nWould you like a personalised quote? Just let me know 😊`;
-            await sendBotMessage(from, priceMsg
-              ? `${priceMsg}${quoteOffer}`
-              : `Our team will confirm the exact price for *${sc.itemQuery}* when they review your job.${quoteOffer}`
-            );
+              ? `\n\nWant me to prepare a full quote with your address and floor details, *${nameAlready}*? Just say the word 😊`
+              : `\n\nWould you like a personalised quote with your exact details? Just say *Yes* and I'll walk you through it! 😊`;
+            const floorNote = `\n\n_Floor surcharges & transport may apply depending on your address._`;
+            if (detailedEstimate) {
+              await sendBotMessage(from, `${detailedEstimate}${floorNote}${quoteOffer}`);
+            } else {
+              const priceMsg = await smartPricingLookup(sc.itemQuery);
+              await sendBotMessage(from, priceMsg
+                ? `${priceMsg}${quoteOffer}`
+                : `Our team will confirm the exact price for *${sc.itemQuery}* when they review your job.${quoteOffer}`
+              );
+            }
             return;
           }
 
