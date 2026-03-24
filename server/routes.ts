@@ -473,6 +473,77 @@ Common mistakes to AVOID:
 - OFFICE PHOTOS: An open-plan office with cubicle desks and partition panels = office workstations + partition panels. DO NOT return NONE just because it is a commercial/office environment. These items are regularly installed, dismantled, and relocated by furniture companies.
 `;
 
+interface ScannedFurnitureItem { name: string; count: number; }
+
+/**
+ * Comprehensive photo scan: returns ALL furniture types with per-type counts.
+ * Used by every WhatsApp photo handling path to ensure quantity accuracy.
+ */
+async function scanFurnitureInPhoto(mimeType: string, base64: string): Promise<ScannedFurnitureItem[] | null> {
+  try {
+    const scanRes = await openai.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 500,
+      response_format: { type: "json_object" },
+      messages: [{
+        role: "system",
+        content: `You are an expert furniture identifier for TMG Install, a Singapore professional furniture installation company. Examine the photo carefully.
+
+COUNTING RULES — critical for accurate pricing:
+- Count EACH individual unit separately. Example: 6 separate workstation cubicles = count 6 (NOT 1)
+- Group the same type together: all office workstations = one entry, count = 6
+- Office partition panels: count individual panels or estimate as a set (e.g. 12 panels)
+- Office chairs: count each chair
+- Beds, wardrobes, sofas, filing cabinets: count each unit
+- If you can see a cluster and cannot count exactly, give your best reasonable estimate
+
+${FURNITURE_VISION_GUIDE}
+
+Return JSON — one entry per distinct item TYPE, with the count of that type:
+{
+  "items": [
+    {"name": "office workstation", "count": 6},
+    {"name": "office partition panel", "count": 12},
+    {"name": "office chair", "count": 6}
+  ],
+  "noItems": false
+}
+
+Use descriptive names like: "queen bed frame", "2-door wardrobe", "3-seater sofa", "office workstation with partitions", "reception counter", "L-shaped executive desk", "filing cabinet", "conference table", "6-drawer chest of drawers".
+Set noItems: true ONLY if absolutely nothing installable is visible (empty room, food, people, vehicles only).`,
+      }, {
+        role: "user",
+        content: [{ type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "high" } }] as any,
+      }],
+    });
+    const parsed = JSON.parse(scanRes.choices[0]?.message?.content || "{}");
+    if (parsed.noItems || !Array.isArray(parsed.items) || !parsed.items.length) return null;
+    return parsed.items.filter((i: any) => i.name && typeof i.count === "number" && i.count > 0);
+  } catch {
+    return null;
+  }
+}
+
+/** Build a short display label from a scanned items list. e.g. "6× office workstations + 12 more items" */
+function buildScanDisplayLabel(items: ScannedFurnitureItem[]): string {
+  if (!items.length) return "furniture items";
+  const primary = items[0];
+  const primaryLabel = primary.count > 1 ? `${primary.count}× ${primary.name}` : primary.name;
+  if (items.length === 1) return primaryLabel;
+  const extraCount = items.slice(1).reduce((s, i) => s + i.count, 0);
+  return `${primaryLabel} + ${extraCount} more item${extraCount !== 1 ? "s" : ""}`;
+}
+
+/** Build a prefilledItems bullet string from scanned items + service label. */
+function buildPrefilledItems(items: ScannedFurnitureItem[], serviceLabel: string): string {
+  return items.map(i => `• ${i.count} ${i.name} (${serviceLabel})`).join("\n");
+}
+
+/** Build a collectedItems text suitable for buildJobEstimateMessage from scanned items + service. */
+function buildEstimateText(items: ScannedFurnitureItem[], serviceLabel: string): string {
+  return items.map(i => `${i.count} ${i.name} ${serviceLabel}`).join(", ");
+}
+
 /**
  * Generate a natural, conversational reply using GPT-4o-mini.
  * Acknowledges what the customer just said, then leads into the next structured step.
@@ -3402,26 +3473,19 @@ ${FURNITURE_VISION_GUIDE}`,
           else if (/dispos|haul|throw|throw away/.test(captionLower)) captionService = "disposal";
           else if (/install|assembly|assemble|set up|put up/.test(captionLower)) captionService = "installation";
 
-          let photoScanItem: string | null = null;
+          let scannedItems: ScannedFurnitureItem[] = [];
           try {
             const pMedia = await downloadWhatsAppMedia(msg.image.id);
             if (pMedia) {
-              const vRes = await openai.chat.completions.create({
-                model: "gpt-4o", max_tokens: 100,
-                messages: [
-                  { role: "system", content: `Identify the main furniture, office fixture, or commercial item in this photo. Return ONLY the item name. Examples: "IKEA PAX wardrobe", "queen bed frame", "chest of drawers", "office workstation with partitions", "cubicle workstation", "reception counter", "L-shaped office desk", "office partition panels", "conference table", "filing cabinet", "office credenza". This includes ALL residential AND commercial/office environments. If truly no installable item is visible, return "NONE".\n${FURNITURE_VISION_GUIDE}` },
-                  { role: "user", content: [{ type: "image_url", image_url: { url: `data:${pMedia.mimeType};base64,${pMedia.base64}`, detail: "high" } }] as any },
-                ],
-              });
-              const detectedItem = (vRes.choices[0]?.message?.content || "").trim();
-              if (detectedItem && detectedItem !== "NONE") photoScanItem = detectedItem;
+              const result = await scanFurnitureInPhoto(pMedia.mimeType, pMedia.base64);
+              if (result) scannedItems = result;
             }
           } catch { /* fall through */ }
 
+          const photoScanItem = scannedItems.length > 0 ? scannedItems[0].name : null;
+
           if (photoScanItem && captionService) {
-            // We know BOTH the item (from photo) AND the service (from caption).
-            // Check if the customer is ALSO asking for a price ("how much", "what's the cost", etc.)
-            // If so — answer the price first before collecting their details.
+            // We know BOTH the items (from photo, with counts) AND the service (from caption).
             const isPriceQuestion = /how much|what.*cost|what.*price|price|cost|rate|charges?|fees?|cheap|expensive/i.test(captionLower);
 
             const serviceActionMap: Record<string, string> = {
@@ -3432,15 +3496,13 @@ ${FURNITURE_VISION_GUIDE}`,
               "installation": "install",
             };
             const serviceAction = serviceActionMap[captionService] || captionService;
-
-            // Store detected item with a "photo_detected" flag in previousItems so the
-            // awaiting_address handler routes to awaiting_items_verify (not awaiting_confirmation)
-            const prefilledItems = `• 1 ${photoScanItem} (${captionService})`;
+            const displayLabel = buildScanDisplayLabel(scannedItems);
+            const prefilledItems = buildPrefilledItems(scannedItems, captionService);
 
             if (isPriceQuestion) {
-              // Customer asked about price — show detailed estimate, then gently offer a quote
+              // Customer asked about price — show detailed estimate with correct quantities
               const isReloc = captionService.includes("reloc");
-              const photoEstimateText = `${photoScanItem} ${captionService}`;
+              const photoEstimateText = buildEstimateText(scannedItems, captionService);
               const fakePhotoSession = {
                 collectedItems: photoEstimateText,
                 floorLevel: null as number | null,
@@ -3450,7 +3512,6 @@ ${FURNITURE_VISION_GUIDE}`,
                 distanceKm: null as string | null,
               };
               const photoEstimate = await buildJobEstimateMessage(fakePhotoSession as any);
-              // Save the detected item + service so next step is ready, but stay in pricing_shown
               await storage.upsertWhatsAppSession(from, {
                 collectedItems: prefilledItems,
                 previousItems: "photo_detected",
@@ -3461,7 +3522,7 @@ ${FURNITURE_VISION_GUIDE}`,
                 : `\n\nWould you like me to put together a personalised quote? Just let me know 😊`;
               const floorNote = `\n\n_Floor surcharges & transport may apply depending on your address._`;
               await sendBotMessage(from,
-                `📸 I can see a *${photoScanItem}* in your photo!\n\n` +
+                `📸 I can see *${displayLabel}* in your photo!\n\n` +
                 (photoEstimate
                   ? `${photoEstimate}${floorNote}${quoteOffer}`
                   : `We'd be happy to *${serviceAction}* that for you. Our team will confirm the exact price once we have your job details.${quoteOffer}`)
@@ -3470,7 +3531,6 @@ ${FURNITURE_VISION_GUIDE}`,
             }
 
             if (nameAlready) {
-              // Name known — skip to address
               await storage.upsertWhatsAppSession(from, {
                 state: "awaiting_address",
                 collectedItems: prefilledItems,
@@ -3478,13 +3538,12 @@ ${FURNITURE_VISION_GUIDE}`,
                 isRelocation: captionService.includes("reloc"),
               });
               await sendBotMessage(from,
-                `📸 I can see a *${photoScanItem}* in your photo — noted for *${captionService}*.\n\n` +
+                `📸 I can see *${displayLabel}* in your photo — noted for *${captionService}*.\n\n` +
                 `To give you an accurate quote, I just need a few more details.\n\n` +
                 `📍 What's the *full job address*?\n\n` +
                 `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
               );
             } else {
-              // No name yet — save detected item + service and go to name
               await storage.upsertWhatsAppSession(from, {
                 state: "awaiting_name",
                 collectedItems: prefilledItems,
@@ -3492,7 +3551,7 @@ ${FURNITURE_VISION_GUIDE}`,
                 isRelocation: captionService.includes("reloc"),
               });
               await sendBotMessage(from,
-                `📸 I can see a *${photoScanItem}* in your photo — we can *${serviceAction}* that for you.\n\n` +
+                `📸 I can see *${displayLabel}* in your photo — we can *${serviceAction}* that for you.\n\n` +
                 `To prepare an accurate quote, may I start with your *full name*? 😊`
               );
             }
@@ -3500,10 +3559,10 @@ ${FURNITURE_VISION_GUIDE}`,
           }
 
           if (photoScanItem) {
-            // Item detected but no service type in caption — show detailed install estimate (most common)
-            // and offer a full quote
+            // Item detected but no service type in caption — show detailed install estimate
+            const estimateText = buildEstimateText(scannedItems, "installation");
             const fakePhotoOnlySession = {
-              collectedItems: photoScanItem,
+              collectedItems: estimateText,
               floorLevel: null as number | null,
               hasLift: null as boolean | null,
               accessDifficulty: null as string | null,
@@ -3511,15 +3570,16 @@ ${FURNITURE_VISION_GUIDE}`,
               distanceKm: null as string | null,
             };
             const photoOnlyEstimate = await buildJobEstimateMessage(fakePhotoOnlySession as any);
+            const displayLabel = buildScanDisplayLabel(scannedItems);
             const followUp = nameAlready
               ? `\n\nReady to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
               : `\n\nWould you like a personalised quote? Reply *Yes* to get started 😊`;
             const floorNote = `\n\n_Floor surcharges & transport may apply depending on your address._`;
             await sendBotMessage(from,
-              `📸 I can see a *${photoScanItem}* in your photo!\n\n` +
+              `📸 I can see *${displayLabel}* in your photo!\n\n` +
               (photoOnlyEstimate
                 ? `${photoOnlyEstimate}${floorNote}${followUp}`
-                : `Our team will confirm the exact price for the *${photoScanItem}*.${followUp}`)
+                : `Our team will confirm the exact price for the *${displayLabel}*.${followUp}`)
             );
             return;
           }
@@ -3688,49 +3748,38 @@ CRITICAL: If bot's last message asked for their name, a 1–4 word personal-name
       if (state === "awaiting_name") {
         // If they send a photo with no (or very short) caption, proactively scan it for pricing
         if (msgType === "image" && text.length < 5) {
-          let scannedItem: string | null = null;
-          let scannedItemLabel: string | null = null;
+          let nameStateScanned: ScannedFurnitureItem[] = [];
           try {
             if (msg.image?.id) {
               const scanMedia = await downloadWhatsAppMedia(msg.image.id);
               if (scanMedia) {
-                const scanRes = await openai.chat.completions.create({
-                  model: "gpt-4o",
-                  max_tokens: 200,
-                  response_format: { type: "json_object" },
-                  messages: [{
-                    role: "system",
-                    content: `You are an expert at identifying furniture and office fixtures for a Singapore installation company.
-Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
-This includes ALL residential furniture AND commercial/office items (cubicle workstations, partition panels, reception counters, conference tables, filing cabinets, office chairs, etc.).
-Return JSON: { "mainItem": "short descriptive name of primary item (e.g. 'office workstation with partitions', 'cubicle system', 'queen bed frame', 'reception counter')", "allItems": "comma-separated list of all detected installable items", "noItems": true/false }
-Set noItems: true ONLY if the photo shows absolutely no furniture or installable fixtures (e.g. empty room, food, people only).
-${FURNITURE_VISION_GUIDE}`,
-                  }, {
-                    role: "user",
-                    content: [{ type: "image_url", image_url: { url: `data:${scanMedia.mimeType};base64,${scanMedia.base64}`, detail: "high" } }] as any,
-                  }],
-                });
-                const sc = JSON.parse(scanRes.choices[0]?.message?.content || "{}");
-                if (!sc.noItems && sc.mainItem) {
-                  scannedItem = sc.mainItem;
-                  scannedItemLabel = sc.allItems || sc.mainItem;
-                }
+                const result = await scanFurnitureInPhoto(scanMedia.mimeType, scanMedia.base64);
+                if (result) nameStateScanned = result;
               }
             }
           } catch { /* ignore */ }
 
-          if (scannedItem) {
-            const priceMsg = await smartPricingLookup(scannedItem);
+          if (nameStateScanned.length > 0) {
+            const displayLabel = buildScanDisplayLabel(nameStateScanned);
+            const estimateText = buildEstimateText(nameStateScanned, "installation");
+            const fakeSession = {
+              collectedItems: estimateText,
+              floorLevel: null as number | null,
+              hasLift: null as boolean | null,
+              accessDifficulty: null as string | null,
+              isRelocation: false,
+              distanceKm: null as string | null,
+            };
+            const priceMsg = await buildJobEstimateMessage(fakeSession as any);
             if (priceMsg) {
-              const reply = `${priceMsg}\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
+              const reply = `📸 I can see *${displayLabel}* in your photo!\n\n${priceMsg}\n\n_Floor surcharges & transport may apply._\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
               await sendBotMessage(from, reply);
-              saveHistory(from, conversationHistory, `[photo: ${scannedItem}]`, reply);
+              saveHistory(from, conversationHistory, `[photo: ${displayLabel}]`, reply);
               return;
             }
-            // Item detected but not in standard catalog — start custom quote flow
+            // Item detected but not in standard catalog
             const customReply0 =
-              `📸 I can see *${scannedItemLabel}* in your photo!\n\n` +
+              `📸 I can see *${displayLabel}* in your photo!\n\n` +
               `This looks like a custom or commercial job. Our team will prepare a tailored quote for you. 😊\n\n` +
               `To get started, what's your *full name*?`;
             await sendBotMessage(from, customReply0);
@@ -3860,46 +3909,33 @@ Key examples:
               try {
                 const svcMedia = await downloadWhatsAppMedia(msg.image.id);
                 if (svcMedia) {
-                  const svcScan = await openai.chat.completions.create({
-                    model: "gpt-4o", max_tokens: 200,
-                    response_format: { type: "json_object" },
-                    messages: [
-                      {
-                        role: "system",
-                        content: `You are an expert at identifying furniture and office fixtures for a Singapore installation company.
-Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
-This includes ALL residential furniture AND commercial/office items (cubicle workstations, partition panels, reception counters, conference tables, filing cabinets, office chairs, etc.).
-Return JSON:
-{
-  "mainItem": "short descriptive name of the primary/most prominent item (e.g. 'chest of drawers', 'wardrobe', 'office workstation with partitions', 'cubicle system', 'reception counter')",
-  "allItems": "comma-separated list of all detected installable items",
-  "isCommercial": true/false,
-  "noItems": true/false
-}
-Set noItems: true ONLY if the photo shows absolutely no furniture or installable fixtures.
-${FURNITURE_VISION_GUIDE}`,
-                      },
-                      { role: "user", content: [{ type: "image_url", image_url: { url: `data:${svcMedia.mimeType};base64,${svcMedia.base64}`, detail: "high" } }] as any },
-                    ],
-                  });
-                  const scanned = JSON.parse(svcScan.choices[0]?.message?.content || "{}");
-                  if (!scanned.noItems && scanned.mainItem) {
-                    itemFromPhoto = scanned.mainItem;
-                    detectedItemLabel = scanned.allItems || scanned.mainItem;
+                  const result = await scanFurnitureInPhoto(svcMedia.mimeType, svcMedia.base64);
+                  if (result && result.length > 0) {
+                    itemFromPhoto = result[0].name;
+                    detectedItemLabel = buildScanDisplayLabel(result);
+                    // Store full items in itemFromPhoto as an estimate-ready string
+                    itemFromPhoto = buildEstimateText(result, nameMentionedService);
                   }
                 }
               } catch { /* token expired or network error */ }
             }
             if (itemFromPhoto) {
-              // We have both item (from photo) and service — look up price
-              const priceMsg = await smartPricingLookup(`${itemFromPhoto} ${nameMentionedService}`);
+              // We have items (with counts) and service — build a proper estimate
+              const fakeItemSvcSession = {
+                collectedItems: itemFromPhoto,
+                floorLevel: null as number | null,
+                hasLift: null as boolean | null,
+                accessDifficulty: null as string | null,
+                isRelocation: nameMentionedService.includes("reloc"),
+                distanceKm: null as string | null,
+              };
+              const priceMsg = await buildJobEstimateMessage(fakeItemSvcSession as any);
               if (priceMsg) {
-                const reply = `${priceMsg}\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
+                const reply = `📸 I can see *${detectedItemLabel}* in your photo!\n\n${priceMsg}\n\n_Floor surcharges & transport may apply._\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
                 await sendBotMessage(from, reply);
                 saveHistory(from, conversationHistory, text, reply);
                 return;
               }
-              // Item detected but not in standard catalog — start custom quote flow
               await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
               const customReply =
                 `📸 I can see *${detectedItemLabel}* in your photo — ${nameMentionedService} noted!\n\n` +
@@ -3931,50 +3967,39 @@ ${FURNITURE_VISION_GUIDE}`,
 
           if (nameIsPricing) {
             // If caption had no item name but a photo was sent, scan the photo
+            let pricingScanned: ScannedFurnitureItem[] = [];
             let itemForLookup = nameMentionedItem;
             let detectedItemLabel2: string | null = null;
             if (!itemForLookup && msgType === "image" && msg.image?.id) {
               try {
                 const pricingMedia2 = await downloadWhatsAppMedia(msg.image.id);
                 if (pricingMedia2) {
-                  const visionRes2 = await openai.chat.completions.create({
-                    model: "gpt-4o",
-                    max_tokens: 200,
-                    response_format: { type: "json_object" },
-                    messages: [{
-                      role: "system",
-                      content: `You are an expert at identifying furniture and office fixtures for a Singapore installation company.
-Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
-This includes ALL residential furniture AND commercial/office items (cubicle workstations, partition panels, reception counters, conference tables, filing cabinets, office chairs, etc.).
-Return JSON:
-{
-  "mainItem": "short descriptive name of the primary/most prominent item (e.g. 'chest of drawers', 'wardrobe', 'queen bed frame', 'office workstation with partitions', 'cubicle system', 'reception counter')",
-  "allItems": "comma-separated list of all detected installable items",
-  "noItems": true/false
-}
-Set noItems: true ONLY if the photo shows absolutely no furniture or installable fixtures.
-${FURNITURE_VISION_GUIDE}`,
-                    }, {
-                      role: "user",
-                      content: [
-                        { type: "image_url", image_url: { url: `data:${pricingMedia2.mimeType};base64,${pricingMedia2.base64}`, detail: "high" } },
-                      ] as any,
-                    }],
-                  });
-                  const scanned2 = JSON.parse(visionRes2.choices[0]?.message?.content || "{}");
-                  if (!scanned2.noItems && scanned2.mainItem) {
-                    itemForLookup = scanned2.mainItem;
-                    detectedItemLabel2 = scanned2.allItems || scanned2.mainItem;
+                  const result2 = await scanFurnitureInPhoto(pricingMedia2.mimeType, pricingMedia2.base64);
+                  if (result2 && result2.length > 0) {
+                    pricingScanned = result2;
+                    detectedItemLabel2 = buildScanDisplayLabel(result2);
+                    const knownSvcForEstimate = extractServiceFromHistory(conversationHistory) || nameMentionedService || "installation";
+                    itemForLookup = buildEstimateText(result2, knownSvcForEstimate);
                   }
                 }
               } catch { /* ignore */ }
             }
             if (itemForLookup) {
-              const priceMsg = await smartPricingLookup(itemForLookup);
+              const fakeP2Session = {
+                collectedItems: itemForLookup,
+                floorLevel: null as number | null,
+                hasLift: null as boolean | null,
+                accessDifficulty: null as string | null,
+                isRelocation: (nameMentionedService || "").includes("reloc"),
+                distanceKm: null as string | null,
+              };
+              const priceMsg = pricingScanned.length > 0
+                ? await buildJobEstimateMessage(fakeP2Session as any)
+                : await smartPricingLookup(itemForLookup);
               if (priceMsg) {
-                const replyPrice =
-                  `${priceMsg}\n\n` +
-                  `Would you like a full personalised quote? To get started, what's your *full name*? 😊`;
+                const replyPrice = pricingScanned.length > 0
+                  ? `📸 I can see *${detectedItemLabel2}* in your photo!\n\n${priceMsg}\n\n_Floor surcharges & transport may apply._\n\nWould you like a full personalised quote? To get started, what's your *full name*? 😊`
+                  : `${priceMsg}\n\nWould you like a full personalised quote? To get started, what's your *full name*? 😊`;
                 await sendBotMessage(from, replyPrice);
                 saveHistory(from, conversationHistory, text, replyPrice);
                 return;
