@@ -133,15 +133,52 @@ function Avatar({ name, phone, size = "md" }: { name: string | null; phone: stri
   );
 }
 
-// ── Quick replies ──────────────────────────────────────────────────────────────
+// ── WhatsApp markdown renderer ────────────────────────────────────────────────
 
-const QUICK_REPLIES = [
-  "Hi! We have received your request and will get back to you shortly 😊",
-  "Could you please send us more photos of the furniture?",
-  "Our team will contact you within 1 business day to confirm the booking.",
-  "Please check your quote link for the latest status update.",
-  "Thank you for choosing TMG Install! 🙏 Our team will be in touch soon.",
-];
+function formatWhatsAppText(text: string): React.ReactNode {
+  const segments: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    const bold = remaining.match(/^\*([^*\n]+)\*/);
+    const italic = remaining.match(/^_([^_\n]+)_/);
+    const strike = remaining.match(/^~([^~\n]+)~/);
+    const mono = remaining.match(/^`([^`\n]+)`/);
+    const nl = remaining.match(/^(\n)/);
+
+    if (bold) {
+      segments.push(<strong key={key++} className="font-bold">{bold[1]}</strong>);
+      remaining = remaining.slice(bold[0].length);
+    } else if (italic) {
+      segments.push(<em key={key++} className="italic">{italic[1]}</em>);
+      remaining = remaining.slice(italic[0].length);
+    } else if (strike) {
+      segments.push(<del key={key++} className="line-through opacity-80">{strike[1]}</del>);
+      remaining = remaining.slice(strike[0].length);
+    } else if (mono) {
+      segments.push(<code key={key++} className="font-mono text-[0.9em] bg-black/10 rounded px-0.5">{mono[1]}</code>);
+      remaining = remaining.slice(mono[0].length);
+    } else if (nl) {
+      segments.push(<br key={key++} />);
+      remaining = remaining.slice(1);
+    } else {
+      // consume characters until next special char or newline
+      const nextSpecial = remaining.search(/[*_~`\n]/);
+      if (nextSpecial === -1) {
+        segments.push(<span key={key++}>{remaining}</span>);
+        remaining = "";
+      } else if (nextSpecial === 0) {
+        segments.push(<span key={key++}>{remaining[0]}</span>);
+        remaining = remaining.slice(1);
+      } else {
+        segments.push(<span key={key++}>{remaining.slice(0, nextSpecial)}</span>);
+        remaining = remaining.slice(nextSpecial);
+      }
+    }
+  }
+  return <>{segments}</>;
+}
 
 // ── Skeletons ──────────────────────────────────────────────────────────────────
 
@@ -288,19 +325,19 @@ function MessageBubble({
                 </div>
               </div>
               {msg.body && !msg.body.startsWith("http") && msg.body !== "[image]" && (
-                <p className="text-sm px-2 pt-1 pb-0.5 leading-relaxed break-words">{msg.body}</p>
+                <p className="text-sm px-2 pt-1 pb-0.5 leading-relaxed break-words">{formatWhatsAppText(msg.body)}</p>
               )}
             </div>
           ) : (
             /* Text bubble */
-            <div className={`px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${radius} ${bubbleStyle}`}>
+            <div className={`px-3.5 py-2 text-sm leading-relaxed break-words ${radius} ${bubbleStyle}`}>
               {isImage && !imgSrc ? (
                 <span className="flex items-center gap-2 opacity-70">
                   <ImageIcon className="w-4 h-4 flex-shrink-0" />
                   <span className="italic">Photo</span>
                 </span>
               ) : (
-                msg.body
+                formatWhatsAppText(msg.body || "")
               )}
             </div>
           )}
@@ -359,7 +396,12 @@ function ChatModal({
       const res = await fetch(`${API_BASE}/api/admin/whatsapp/conversations/${selectedPhone}`, { credentials: "include" });
       return res.json();
     },
-    refetchInterval: 15_000,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: true,
+  });
+
+  const { data: dbCannedReplies = [] } = useQuery<{ id: number; shortcut: string; title: string; body: string; active: boolean }[]>({
+    queryKey: ["/api/admin/canned-replies"],
   });
 
   const sendMutation = useMutation({
@@ -621,7 +663,7 @@ function ChatModal({
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-5 py-4 bg-[#F5F5F7]">
+          <div className="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-5 py-4" style={{ background: "#e5ddd5", backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8b9a8' fill-opacity='0.25'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"}  }>
             {loadingThread && (
               <div className="space-y-4 py-2 animate-pulse">
                 {[false, true, false, true, false].map((r, i) => (
@@ -722,17 +764,25 @@ function ChatModal({
           {/* Quick Replies */}
           {showQuickReplies && (
             <div className="flex-shrink-0 border-t border-gray-100 bg-white px-4 py-3">
-              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Quick Replies</p>
-              <div className="space-y-1 max-h-36 overflow-y-auto">
-                {QUICK_REPLIES.map((qr, i) => (
-                  <button
-                    key={i}
-                    onClick={() => { setReplyText(qr); setShowQuickReplies(false); textareaRef.current?.focus(); }}
-                    className="w-full text-left text-xs text-gray-600 hover:text-gray-900 px-3 py-2 rounded-xl hover:bg-gray-50 transition-all leading-relaxed border border-transparent hover:border-gray-200"
-                  >
-                    {qr}
-                  </button>
-                ))}
+              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Canned Replies</p>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {dbCannedReplies.filter(r => r.active).length === 0 ? (
+                  <p className="text-xs text-gray-400 px-2 py-1 italic">No canned replies configured. Add them in FAQ Manager → Canned Replies.</p>
+                ) : (
+                  dbCannedReplies.filter(r => r.active).map(r => (
+                    <button
+                      key={r.id}
+                      onClick={() => { setReplyText(r.body.replace(/\\n/g, "\n")); setShowQuickReplies(false); textareaRef.current?.focus(); }}
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-50 transition-all border border-transparent hover:border-gray-200"
+                    >
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <code className="text-[10px] font-mono bg-zinc-100 text-zinc-600 px-1 rounded">{r.shortcut}</code>
+                        <span className="text-xs font-semibold text-gray-700">{r.title}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 truncate">{r.body}</p>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -808,7 +858,8 @@ export default function AdminConversations() {
 
   const { data: convos = [], isLoading: loadingConvos } = useQuery<Conversation[]>({
     queryKey: ["/api/admin/whatsapp/conversations"],
-    refetchInterval: 20_000,
+    refetchInterval: 6_000,
+    refetchIntervalInBackground: true,
   });
 
   const selectedConvo = convos.find(c => c.phone === selectedPhone);

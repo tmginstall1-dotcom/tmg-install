@@ -27,7 +27,8 @@ export function AdminSidebar() {
   });
   const { data: convos = [] } = useQuery<any[]>({
     queryKey: ["/api/admin/whatsapp/conversations"],
-    refetchInterval: 60_000,
+    refetchInterval: 8_000,
+    refetchIntervalInBackground: true,
   });
   const { data: pendingReceipts = [] } = useQuery<any[]>({
     queryKey: ["/api/admin/receipts", "", "", ""],

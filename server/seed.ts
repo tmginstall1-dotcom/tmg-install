@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, catalogItems } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { users, catalogItems, faqEntries, cannedReplies } from "@shared/schema";
+import { eq, count } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 const ACCOUNTS = [
@@ -1107,5 +1107,63 @@ export async function seedDatabase() {
     for (const u of allVols) {
       await db.update(catalogItems).set({ volumeM3: u.vol }).where(eq(catalogItems.sku, u.sku));
     }
+  }
+
+  // ── FAQ Entries seed (skip if already seeded) ────────────────────────────
+  const [{ value: faqCount }] = await db.select({ value: count() }).from(faqEntries);
+  if (Number(faqCount) === 0) {
+    await db.insert(faqEntries).values([
+      // General
+      { question: "What does TMG Install do?", answer: "TMG Install (The Moving Guy Pte Ltd) is a Singapore-based furniture services company. We assemble, dismantle, and relocate furniture for homes and offices across Singapore. Whether it's IKEA furniture, wardrobes, beds, sofas, desks, or full office relocations, our experienced team handles it all professionally.", category: "general", sortOrder: 1 },
+      { question: "Do you install IKEA furniture?", answer: "Yes! IKEA furniture is one of our specialties. We install all IKEA ranges including PAX wardrobes, KALLAX shelves, MALM beds, HEMNES furniture, BILLY bookcases, BESTA TV units, MICKE desks, and more. We assemble directly from the flat-pack boxes.", category: "services", sortOrder: 2 },
+      { question: "What areas in Singapore do you cover?", answer: "We cover the entire Singapore island — HDB estates, condominiums, landed properties, and commercial offices. This includes all regions: North, South, East, West, and Central. There is no additional travel surcharge within Singapore.", category: "general", sortOrder: 3 },
+      { question: "Do you work on weekends and public holidays?", answer: "Yes, we operate 7 days a week including Saturdays and Sundays. For public holidays, availability may be limited and the bot will ask you to contact us directly for confirmation. Business hours are typically 9am–6pm daily.", category: "hours", sortOrder: 4 },
+      { question: "What are your operating hours?", answer: "We operate Monday to Sunday, 9:00am to 6:00pm. If you need after-hours or emergency services, contact us directly and we will do our best to accommodate.", category: "hours", sortOrder: 5 },
+      // Services
+      { question: "What services do you offer?", answer: "We offer: (1) *Installation/Assembly* – assembling new furniture from flat-pack; (2) *Dismantling* – taking apart furniture carefully; (3) *Relocation* – moving furniture from one unit to another (within or between buildings); (4) *Disposal* – disposing of old furniture responsibly. Most furniture types are covered.", category: "services", sortOrder: 10 },
+      { question: "Do you do full house or office moves?", answer: "We specialize in furniture assembly and relocation, not full house moves (boxes, personal belongings, etc.). However, we can relocate specific furniture items between locations within Singapore. For full office furniture relocations, we handle the dismantle, transport, and reinstallation.", category: "services", sortOrder: 11 },
+      { question: "Can you dispose of my old furniture?", answer: "Yes! We offer old furniture disposal as an add-on. Let us know during the booking and we'll arrange disposal at the same time as your installation or pick-up. Pricing depends on the item size.", category: "services", sortOrder: 12 },
+      { question: "Do you do TV wall mounting?", answer: "Yes, we offer TV wall mounting services. We'll mount your TV securely and cable-manage for a clean finish. Pricing starts from $80 depending on TV size and wall type.", category: "services", sortOrder: 13 },
+      { question: "Do you handle custom or built-in furniture?", answer: "We can dismantle and relocate custom-built furniture. For installation of custom/carpenter-made furniture, it depends on the complexity — please describe the furniture when you chat with us and we'll advise.", category: "services", sortOrder: 14 },
+      // Pricing
+      { question: "How much does furniture installation cost?", answer: "Pricing depends on the type and quantity of furniture. Example prices: IKEA PAX Wardrobe from $150, Queen Bed Frame from $80, Dining Table from $80, Office Desk from $50, Dining Chair from $20 each. Volume discounts apply for 3+ items. A minimum charge of $80 applies per job.", category: "pricing", sortOrder: 20 },
+      { question: "Is there a minimum charge?", answer: "Yes, there is a minimum job charge of $80. This covers our team's time and transport to your location.", category: "pricing", sortOrder: 21 },
+      { question: "Are there surcharges for high floors without a lift?", answer: "Yes. For floors above ground floor without lift access, a surcharge applies: floors 2–5 without lift add $10, floors 6–10 add $20, above floor 10 add $30. If a lift is available, no floor surcharge is applied.", category: "pricing", sortOrder: 22 },
+      { question: "Do you charge for transport?", answer: "A transport fee applies depending on the job size. For small jobs (1–2 items), transport starts from $20. For larger jobs, we calculate based on volume. The estimate will show the transport fee clearly.", category: "pricing", sortOrder: 23 },
+      { question: "Do you have any promotions or discounts?", answer: "Yes! We offer a bulk discount of 10% when you have 3 or more furniture items in one job. We also have promo codes periodically — use code *TMG50* for $50 off (subject to availability). Check our website for current promotions.", category: "pricing", sortOrder: 24 },
+      { question: "How do I get a price estimate?", answer: "You can get an instant estimate right here on WhatsApp — just tell me what furniture items you need help with, your address, floor, and whether there's a lift. I'll calculate a price breakdown for you. Alternatively, visit tmginstall.com to use our online estimator.", category: "pricing", sortOrder: 25 },
+      // Booking
+      { question: "How do I book?", answer: "Just tell me your name, address, what furniture you need help with, and your preferred date and time slot. I'll give you a price estimate and submit your request to our team. You'll receive confirmation within 2 business hours.", category: "booking", sortOrder: 30 },
+      { question: "How far in advance do I need to book?", answer: "We recommend booking at least 2–3 days in advance to secure your preferred time slot. For urgent or same-day requests, contact us directly and we'll check availability — a same-day surcharge may apply.", category: "booking", sortOrder: 31 },
+      { question: "What time slots are available?", answer: "We offer two daily time slots: *Morning* (9am–12pm) and *Afternoon* (1pm–5pm). You can request a preferred slot when booking and we'll confirm availability.", category: "booking", sortOrder: 32 },
+      { question: "Can I change or cancel my booking?", answer: "Yes. You can reschedule once for free. A second reschedule or cancellation within 24 hours of the appointment may incur a cancellation fee. Contact us as early as possible if plans change.", category: "booking", sortOrder: 33 },
+      { question: "How do I track the status of my job?", answer: "After booking, you'll receive a link to your job status page where you can track progress in real time. Our team will also message you before they arrive.", category: "booking", sortOrder: 34 },
+      // Policies
+      { question: "What payment methods do you accept?", answer: "We accept PayNow (UEN: 201800001K), bank transfer, and most major credit/debit cards. Cash is also accepted at the time of service. A 50% deposit is required to confirm the booking, with the balance payable on completion.", category: "policies", sortOrder: 40 },
+      { question: "What is your deposit policy?", answer: "A 50% deposit is required upon booking confirmation to secure your slot. The remaining 50% is payable after the job is completed to your satisfaction. We accept PayNow, bank transfer, and card payments.", category: "policies", sortOrder: 41 },
+      { question: "What if something is damaged during the job?", answer: "Our team handles all furniture with care and uses protective materials. In the unlikely event of damage caused by our team, please document it with photos and notify us immediately. We will assess and address it fairly.", category: "policies", sortOrder: 42 },
+      { question: "Do I need to prepare anything before the team arrives?", answer: "Please clear the area around the furniture to give our team room to work safely. If parking is restricted, let us know so we can plan accordingly. For condominiums, please arrange loading bay / lift access in advance.", category: "policies", sortOrder: 43 },
+      { question: "Do you bring your own tools?", answer: "Yes! Our team arrives fully equipped with all necessary tools — electric drills, hand tools, protective blankets, and hardware. You don't need to provide anything.", category: "policies", sortOrder: 44 },
+    ]);
+    console.log("[startup] FAQ entries seeded (25 entries).");
+  }
+
+  // ── Canned Replies seed (skip if already seeded) ─────────────────────────
+  const [{ value: cannedCount }] = await db.select({ value: count() }).from(cannedReplies);
+  if (Number(cannedCount) === 0) {
+    await db.insert(cannedReplies).values([
+      { shortcut: "/received", title: "Request Received", body: "Hi! We have received your request and our team will get back to you within 2 business hours to confirm your booking. 😊" },
+      { shortcut: "/photos", title: "Request Photos", body: "Could you please send us some photos of the furniture? This helps us give you a more accurate quote and prepare our team." },
+      { shortcut: "/confirm", title: "Booking Confirmed", body: "Great news! Your booking has been confirmed. 🎉 Our team will arrive at the agreed time. Please ensure the area is accessible." },
+      { shortcut: "/deposit", title: "Deposit Payment", body: "To confirm your booking, please transfer the 50% deposit via PayNow to UEN 201800001K. Once received, we'll lock in your slot. Thank you!" },
+      { shortcut: "/arrival", title: "Team on the Way", body: "Our team is on the way and will arrive at your location shortly. Please ensure access is ready. Thank you for your patience! 🚐" },
+      { shortcut: "/completed", title: "Job Completed", body: "Thank you for choosing TMG Install! 🙏 We hope everything looks great. Please make the final payment at your convenience. Do let us know if there's anything else you need." },
+      { shortcut: "/reschedule", title: "Reschedule Notice", body: "We'd like to reschedule your appointment. Apologies for any inconvenience — could you suggest another date and time that works for you?" },
+      { shortcut: "/parking", title: "Parking Info", body: "Could you let us know the parking arrangement at your location? Is there a loading bay, visitor parking, or should our team use public parking nearby?" },
+      { shortcut: "/followup", title: "Follow-up Check", body: "Hi! Just checking in to see if everything went smoothly with your TMG Install service. We'd love to hear your feedback! 😊" },
+      { shortcut: "/thanks", title: "Thank You", body: "Thank you for choosing TMG Install — The Moving Guy Pte Ltd! 🙏 We appreciate your support. Don't hesitate to reach out whenever you need us again." },
+      { shortcut: "/human", title: "Connect to Human", body: "I'm connecting you to our customer service team now. Someone will reply to you shortly. Our business hours are Mon–Sun, 9am–6pm. Thank you for your patience! 😊" },
+    ]);
+    console.log("[startup] Canned replies seeded (11 entries).");
   }
 }
