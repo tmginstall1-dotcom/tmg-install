@@ -3112,7 +3112,10 @@ ${FURNITURE_VISION_GUIDE}`,
 
           if (photoScanItem && captionService) {
             // We know BOTH the item (from photo) AND the service (from caption).
-            // Skip the price overview — confirm item+service and start the quote immediately.
+            // Check if the customer is ALSO asking for a price ("how much", "what's the cost", etc.)
+            // If so — answer the price first before collecting their details.
+            const isPriceQuestion = /how much|what.*cost|what.*price|price|cost|rate|charges?|fees?|cheap|expensive/i.test(captionLower);
+
             const serviceActionMap: Record<string, string> = {
               "relocation + dismantling": "dismantle and relocate",
               "relocation": "relocate",
@@ -3125,6 +3128,27 @@ ${FURNITURE_VISION_GUIDE}`,
             // Store detected item with a "photo_detected" flag in previousItems so the
             // awaiting_address handler routes to awaiting_items_verify (not awaiting_confirmation)
             const prefilledItems = `• 1 ${photoScanItem} (${captionService})`;
+
+            if (isPriceQuestion) {
+              // Customer asked about price — show it first, then gently offer a quote
+              const priceMsg = await smartPricingLookup(`${photoScanItem} ${captionService}`);
+              // Save the detected item + service so next step is ready, but stay in pricing_shown
+              await storage.upsertWhatsAppSession(from, {
+                collectedItems: prefilledItems,
+                previousItems: "photo_detected",
+                isRelocation: captionService.includes("reloc"),
+              });
+              const quoteOffer = nameAlready
+                ? `\n\nWould you like me to put together a personalised quote for you, *${nameAlready}*? Just say the word 😊`
+                : `\n\nWould you like me to put together a personalised quote? Just let me know 😊`;
+              await sendBotMessage(from,
+                `📸 I can see a *${photoScanItem}* in your photo!\n\n` +
+                (priceMsg
+                  ? `${priceMsg}${quoteOffer}`
+                  : `We'd be happy to *${serviceAction}* that for you. Our team will confirm the exact price once we have your job details.${quoteOffer}`)
+              );
+              return;
+            }
 
             if (nameAlready) {
               // Name known — skip to address
