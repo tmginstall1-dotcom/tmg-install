@@ -170,19 +170,70 @@ Hard rules:
 - never invent pricing, policy, or availability
 - if the case is complex, say the team/admin will review and follow up
 
-TMG Install facts:
-- Singapore furniture installation, dismantling, relocation (all-in-one move), and disposal company
-- Covers all Singapore: HDB, condo, landed, commercial & office
-- Pricing from SGD 80/item, min job SGD 180; transport fee applies for relocation
-- Payment: 50% deposit to confirm, 50% on completion — PayNow / bank transfer / card
-- Available weekdays & weekends (subject to availability); all tools supplied
-- No GST (nett pricing); relocation includes dismantling at origin and reinstallation at destination
+TMG Install — full company knowledge:
+Company: The Moving Guy Pte Ltd, trading as TMG Install
+Location: Singapore (all areas — HDB, condo, landed, commercial, office)
+WhatsApp: +65 8088 0757
+
+Services:
+1. INSTALLATION / ASSEMBLY — flat-pack furniture (IKEA, Taobao, self-purchased), gym equipment, TV brackets, shelving. From $80/item.
+2. DISMANTLING — safe disassembly for moving, renovation, or disposal. From $60/item.
+3. DISPOSAL — haul-away of unwanted furniture. From $80/item. Dismantle + dispose bundle saves money.
+4. RELOCATION — all-in-one service: dismantle at origin, transport, reinstall at destination. From $180 (varies by distance & volume).
+
+Typical item pricing (approximate, per item, SGD):
+- Single/super-single bed frame: $80–100 install, $60–80 dismantle
+- Queen/king bed frame: $100–150 install, $80–120 dismantle
+- IKEA PAX / 3-door wardrobe: $120–180 install, $100–150 dismantle
+- 4-door or custom wardrobe: $180–300
+- Dining table + 4 chairs: $80–120 install
+- Sofa (2–3 seater): $80–100 dismantle or relocate
+- Bookcase / shelving unit: $60–100
+- TV console / entertainment unit: $80–120
+- Office desk / workstation: $80–150
+- Chest of drawers / dresser: $80–100
+- Mattress disposal: $80–100
+- All prices per item; min. job $180; floor surcharge & transport fee may apply; no GST
+
+Process / how it works:
+1. Customer tells us what they need → we prepare a quote
+2. Admin reviews and confirms pricing → sends a deposit payment link
+3. Customer pays 50% deposit → slot is locked in
+4. Team arrives on the agreed date; full payment (remaining 50%) on job completion
+5. Payment methods: PayNow, bank transfer, credit/debit card
+
+Scheduling:
+- Available weekdays and weekends (subject to availability)
+- Minimum notice: 48 hours recommended; urgent same-day may be possible (ask admin)
+- Time windows: morning (9am–12pm) or afternoon (1pm–5pm)
+- Customer does not need to be home for some pickup/disposal jobs (admin can advise)
+
+Other policies:
+- All tools and equipment supplied by TMG — customer brings nothing
+- No GST; all prices are nett
+- Rescheduling: minimum 48 hours notice
+- For large or complex jobs (>5 items, multi-floor, very heavy items), admin will assess on-site if needed
+- TMG serves all of Singapore: Jurong, Tampines, Woodlands, Punggol, Sengkang, Bishan, Serangoon, Toa Payoh, Bedok, Clementi, Buona Vista, Orchard, CBD, etc.
 
 Natural acknowledgement examples:
 - "Got it, bed frame and wardrobe — noted."
 - "No problem, I've updated that."
 - "Thanks, that helps."
 - "Understood — making a note of that."`;
+
+// ─── Shared company FAQ knowledge for free-form answers ──────────────────────
+const FAQ_KNOWLEDGE = `TMG Install (The Moving Guy Pte Ltd) — Singapore furniture services.
+
+Services: installation/assembly, dismantling, relocation (all-in-one), disposal/haul-away.
+Coverage: all of Singapore — HDB, condo, landed, commercial & office.
+Pricing: from $80/item install, $60/item dismantle, $80/item disposal, from $180 relocation. Min. job $180. No GST.
+Common prices: bed frame install $80–150, wardrobe install $120–300, sofa dismantle $80–100, dining set $80–120.
+Payment: 50% deposit (PayNow / bank transfer / card) to confirm booking; 50% on completion.
+Availability: weekdays & weekends (subject to slots). Min. 48h notice. Morning (9am–12pm) or afternoon (1pm–5pm).
+All tools supplied. Customer doesn't need to be home for some pickup/disposal jobs.
+Rescheduling: min. 48h notice. Large/complex jobs may need on-site assessment.
+Booking process: share details → admin prepares quote → deposit locks in slot → job done → pay balance.`;
+
 
 /**
  * Shared furniture identification guide injected into all vision prompts.
@@ -2586,13 +2637,87 @@ Message: "${text}"`
             PRICING_OVERVIEW
           );
         } else {
-          // Simple greeting — show pricing overview
-          await sendBotMessage(from,
-            `👋 Hi there! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
-            `We handle:\n• 🔧 Furniture *installation* & assembly\n• 🔨 *Dismantling* & removal\n• 🚚 *Relocation* (home or office)\n• 🗑️ *Disposal*\n\n` +
-            `All across Singapore — no calls needed, upfront pricing.\n\n` +
-            PRICING_OVERVIEW
-          );
+          // Classify the first message intent before deciding what to show
+          // Pure greetings get a welcome; questions get answered directly; pricing requests get the table
+          let firstMsgReply: string | null = null;
+          let firstMsgShowPricing = false;
+          let firstMsgItem: string | null = null;
+
+          try {
+            const firstClassRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 60,
+              response_format: { type: "json_object" },
+              messages: [{
+                role: "system",
+                content: `A customer just messaged TMG Install (Singapore furniture installation).
+Classify their VERY FIRST message. Return JSON:
+{
+  "intent": "greeting" | "question" | "pricing_general" | "pricing_specific" | "ready_to_book",
+  "itemQuery": "furniture item if pricing_specific, else null"
+}
+- greeting: just saying hi/hello with no specific ask
+- question: asking about services, availability, process, warranty, coverage area, etc.
+- pricing_general: asking how much things cost in general
+- pricing_specific: asking about price for a NAMED item (e.g. "how much to install a wardrobe")
+- ready_to_book: explicitly says they want a quote or want to book right away`
+              }, { role: "user", content: text }],
+            });
+            const fc = JSON.parse(firstClassRes.choices[0]?.message?.content || "{}");
+
+            if (fc.intent === "pricing_specific" && fc.itemQuery) {
+              firstMsgItem = fc.itemQuery;
+            } else if (fc.intent === "pricing_general") {
+              firstMsgShowPricing = true;
+            } else if (fc.intent === "question") {
+              // Answer the question directly with company knowledge — no pricing template
+              const answerRes = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                max_tokens: 250,
+                messages: [
+                  {
+                    role: "system",
+                    content:
+                      `You are the WhatsApp coordinator for TMG Install (Singapore furniture services).\n\n` +
+                      FAQ_KNOWLEDGE +
+                      `\n\nAnswer the customer's question warmly and concisely (2–4 sentences). ` +
+                      `End with a friendly open invitation like "Anything else I can help you with? Or would you like a quote?" — ` +
+                      `but do NOT push them to book if they haven't asked about pricing yet.`,
+                  },
+                  { role: "user", content: text },
+                ],
+              });
+              firstMsgReply = answerRes.choices[0]?.message?.content?.trim() || null;
+            }
+          } catch { /* fall through to default */ }
+
+          if (firstMsgItem) {
+            // Specific item pricing inquiry
+            const priceMsg = await smartPricingLookup(firstMsgItem);
+            const intro = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n`;
+            await sendBotMessage(from, intro + (priceMsg
+              ? `${priceMsg}\n\nWould you like me to put together a personalised quote? Just let me know and I'll get the details from you. 😊`
+              : `We'd be happy to quote for *${firstMsgItem}*. Our team will confirm the exact price once we know more about your job.\n\nWould you like a quote? 😊`
+            ));
+          } else if (firstMsgReply) {
+            // Direct question — answer it, no pricing dump
+            await sendBotMessage(from, `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n${firstMsgReply}`);
+          } else if (firstMsgShowPricing) {
+            // They specifically asked about pricing — show the overview
+            await sendBotMessage(from,
+              `👋 Hi there! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
+              `We handle:\n• 🔧 Furniture *installation* & assembly\n• 🔨 *Dismantling* & removal\n• 🚚 *Relocation* (home or office)\n• 🗑️ *Disposal*\n\n` +
+              `All across Singapore — no calls needed, upfront pricing.\n\n` +
+              PRICING_OVERVIEW
+            );
+          } else {
+            // Plain greeting — friendly welcome, invite them to ask or tell us what they need
+            await sendBotMessage(from,
+              `👋 Hi there! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
+              `We help with furniture *installation*, *dismantling*, *relocation*, and *disposal* all across Singapore.\n\n` +
+              `What can I help you with today? Feel free to ask about pricing, availability, or just tell me what you need! 😊`
+            );
+          }
         }
         return;
       }
@@ -3059,122 +3184,121 @@ ${FURNITURE_VISION_GUIDE}`,
           return;
         }
 
-        // Use GPT to classify the reply
+        // Smart single-pass classification: classify + generate reply in one call
+        // IMPORTANT: only trigger the booking flow on EXPLICIT booking intent,
+        // not on casual "yes" responses or general positive reactions.
         try {
-          const pricingClassRes = await openai.chat.completions.create({
+          const smartClassRes = await openai.chat.completions.create({
             model: "gpt-4o",
-            max_tokens: 200,
+            max_tokens: 350,
             response_format: { type: "json_object" },
             messages: [
               {
                 role: "system",
-                content: `A customer is chatting with TMG Install (furniture installation Singapore).
-Classify their reply. Return JSON:
+                content:
+`You are the WhatsApp coordinator for TMG Install (Singapore furniture services).
+The customer is in a pre-quote conversation — they may have seen our pricing or just be chatting.
+
+${FAQ_KNOWLEDGE}
+
+Classify the customer's message AND write a warm, natural reply. Return JSON:
 {
-  "intent": "yes" | "item_price" | "decline" | "provide_name" | "other",
-  "name": "extracted name if intent=provide_name, else null",
-  "itemQuery": "item to look up pricing for if intent=item_price, else null"
+  "intent": "book_now" | "specific_price" | "general_price" | "question" | "decline" | "casual" | "provide_name",
+  "reply": "your WhatsApp reply to the customer (use *bold* for key words)",
+  "itemQuery": "furniture item name if intent=specific_price, else null",
+  "name": "customer personal name if intent=provide_name, else null"
 }
 
-INTENT RULES:
-- yes: agrees, happy, ok, sure, let's go, proceed, book, quote, ready, sounds good, great, let me book, affordable — any positive confirmation. IMPORTANT: A bare personal name like "Kayden" or "John" is NOT a yes — it is a provide_name.
-- item_price: asks about price/cost of a SPECIFIC item OR replies with a furniture item name when the bot just asked "which item is this for?" (e.g. "wardrobe", "bed frame", "PAX wardrobe", "sofa"). Also use item_price if the customer mentioned a service type (dismantle, relocate, install) with an item.
-- decline: says too expensive, not interested, nevermind, maybe later — explicit negative  
-- provide_name: customer provides a personal name. This includes BARE single-word names like "Kayden", "John", "Ahmad", "Wei" — no "I'm" or "My name is" phrasing required. The bot just asked "What's your full name?" so a 1–4 word reply that looks like a human name IS provide_name. Furniture items, service types, and greetings (hi/ok/yes/no) are NOT names.
-- other: general question not covered above
+INTENT RULES (read carefully):
+- book_now: ONLY when customer uses EXPLICIT booking language: "I want to book", "please give me a quote", "let's proceed", "book for me", "I'd like to get a quote", "prepare my quote", "can you do a quote for me". A bare "yes", "ok", "sounds good", "great" or "affordable" is NOT book_now — those are casual.
+- specific_price: asks about price for a named item or service (e.g. "how much to install a wardrobe", "what's the cost for a queen bed frame")
+- general_price: asks what prices are in general, or "how much do you charge"
+- decline: explicitly says too expensive, not interested, nevermind, cancel
+- provide_name: provides their personal name when bot asked for it (1–4 word reply that looks like a human name, not a furniture item)
+- question: any other question about services, availability, process, coverage, payment, timeline, etc.
+- casual: acknowledgment, greeting, or conversational reply ("ok", "I see", "thanks", "noted", etc.)
 
-IMPORTANT: If conversation history shows the bot recently asked "which item is this for?" or "what item would you like a price for?", and the customer replies with a furniture item name → classify as item_price.
-CRITICAL: If the bot's last message asked "What's your full name?" and the customer replies with a short word or two that looks like a personal name (not a furniture item or service type), ALWAYS classify as provide_name — never as yes.`
+REPLY RULES:
+- For "question" and "casual": answer helpfully and warmly. Do NOT end with "Happy with our pricing? Reply Yes". Just answer and leave it open — the customer will ask when they're ready.
+- For "specific_price": reply that you'll look up the price (don't invent numbers here — set reply to an acknowledgment, the price will be fetched separately).
+- For "general_price": reply that you'll share the full price list.
+- For "book_now": reply enthusiastically and say you'll get started — ask for their name if not known, or address if name is already known.
+- For "decline": reply graciously, no pressure, leave door open.
+- For "provide_name": reply warmly using their name and ask for the job address.
+
+CRITICAL: If conversation history shows the bot asked "which item is this for?" and customer replies with a furniture item name → classify as specific_price.
+CRITICAL: If bot's last message asked for their name, a 1–4 word personal-name reply is provide_name — never casual or book_now.`,
               },
-              ...historyMessages(conversationHistory, 4),
+              ...historyMessages(conversationHistory, 6),
               { role: "user", content: text },
             ],
           });
-          const pc = JSON.parse(pricingClassRes.choices[0]?.message?.content || "{}");
+          const sc = JSON.parse(smartClassRes.choices[0]?.message?.content || "{}");
 
-          if (pc.intent === "yes") {
-            // Customer happy with pricing — proceed to booking flow
+          if (sc.intent === "book_now") {
             if (nameAlready) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
               await sendBotMessage(from,
+                sc.reply ||
                 `Great, *${nameAlready}*! 😊\n\n` +
                 `📍 Where is the job? Drop the *full address* below — block/unit number helps too.\n\n` +
                 `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
               );
             } else {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-              await sendBotMessage(from, `What's your *full name*? 😊`);
+              await sendBotMessage(from, sc.reply || `What's your *full name*? 😊`);
             }
             return;
           }
 
-          if (pc.intent === "item_price" && pc.itemQuery) {
-            const priceMsg = await smartPricingLookup(pc.itemQuery);
-            const followUp = nameAlready
-              ? `Ready to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
-              : `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`;
+          if (sc.intent === "specific_price" && sc.itemQuery) {
+            const priceMsg = await smartPricingLookup(sc.itemQuery);
+            // After showing specific pricing, offer a quote — but as an open invitation, not a demand
+            const quoteOffer = nameAlready
+              ? `\n\nWould you like me to put together a quote for you, *${nameAlready}*? Just say the word 😊`
+              : `\n\nWould you like a personalised quote? Just let me know 😊`;
             await sendBotMessage(from, priceMsg
-              ? `${priceMsg}\n\n${followUp}`
-              : `I don't have an exact price for that item yet — our team will confirm it when they review your quote.\n\n${followUp}`
+              ? `${priceMsg}${quoteOffer}`
+              : `Our team will confirm the exact price for *${sc.itemQuery}* when they review your job.${quoteOffer}`
             );
             return;
           }
 
-          if (pc.intent === "decline") {
+          if (sc.intent === "general_price") {
+            await sendBotMessage(from, PRICING_OVERVIEW);
+            return;
+          }
+
+          if (sc.intent === "decline") {
             await sendBotMessage(from,
+              sc.reply ||
               `No worries at all! 😊 Prices are negotiable for larger jobs or repeat customers.\n\n` +
               `Feel free to message us anytime — we're happy to help when you're ready. 👍`
             );
             return;
           }
 
-          if (pc.intent === "provide_name" && pc.name) {
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_address", collectedName: pc.name });
+          if (sc.intent === "provide_name" && sc.name) {
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_address", collectedName: sc.name });
             await sendBotMessage(from,
-              `Nice to meet you, *${pc.name}*! 😊\n\n` +
+              sc.reply ||
+              `Nice to meet you, *${sc.name}*! 😊\n\n` +
               `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n` +
               `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
             );
             return;
           }
-        } catch { /* fall through to generic prompt */ }
 
-        // "other" intent or classification failed — answer any general question with company facts, then nudge CTA
-        try {
-          const faqRes = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            max_tokens: 200,
-            messages: [
-              {
-                role: "system",
-                content:
-                  `You are a WhatsApp assistant for TMG Install (The Moving Guy Pte Ltd), Singapore's furniture installation company.\n\n` +
-                  `Answer the customer's question briefly and warmly (1–3 sentences) using these facts:\n` +
-                  `- Services: installation, dismantling, relocation, disposal — all of Singapore (HDB, condo, landed, office)\n` +
-                  `- Pricing: from $80/item, minimum job $180; relocation adds transport fee; no GST\n` +
-                  `- Available weekdays & weekends (subject to availability)\n` +
-                  `- All tools & equipment supplied — customer brings nothing\n` +
-                  `- Payment: 50% deposit to confirm, 50% on completion — PayNow / bank transfer / card\n` +
-                  `- Quotes reviewed by admin; booking confirmed after deposit paid\n\n` +
-                  `If you can answer the question, do so then end with:\n` +
-                  `"Happy with our pricing? Reply *Yes* and I'll prepare a personalised quote in minutes! 😊"\n\n` +
-                  `If the message is just casual (greetings, "ok", "I see", etc.), respond warmly and say:\n` +
-                  `"Happy with our pricing? Reply *Yes* to get your personalised quote! 😊"`,
-              },
-              ...historyMessages(conversationHistory, 3),
-              { role: "user", content: text },
-            ],
-          });
-          const faqAnswer = faqRes.choices[0]?.message?.content?.trim();
-          if (faqAnswer) {
-            await sendBotMessage(from, faqAnswer);
+          // question or casual — use the GPT-generated reply directly, no forced CTA
+          if (sc.reply) {
+            await sendBotMessage(from, sc.reply);
             return;
           }
-        } catch { /* ignore */ }
+        } catch { /* fall through to hard fallback */ }
 
-        // Hard fallback
+        // Hard fallback — only if GPT call completely failed
         await sendBotMessage(from,
-          `Happy with our pricing? Reply *Yes* to start your personalised quote, or ask me about a specific item! 😊`
+          `Thanks for your message! Feel free to ask about our pricing, services, or anything else — or just let me know when you'd like a quote 😊`
         );
         return;
       }
