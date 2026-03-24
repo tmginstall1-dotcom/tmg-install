@@ -145,6 +145,112 @@ async function saveHistory(phone: string, history: HistoryEntry[], customerMsg: 
   storage.upsertWhatsAppSession(phone, { conversationHistory: JSON.stringify(trimmed) }).catch(() => {});
 }
 
+// ─── Build an itemised estimate message from a session ───────────────────────
+// Used when customer asks "how much is it?" mid-flow and items are already known.
+async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<typeof storage.getWhatsAppSession>>>): Promise<string | null> {
+  const itemsText = session.collectedItems;
+  if (!itemsText || itemsText === "__scanning__") return null;
+
+  try {
+    const catalog = await storage.getCatalogItems();
+
+    // Parse items with GPT — same prompt as the submission flow
+    let aiParsed: { detectedName: string; serviceType: string; quantity: number; estimatedUnitPrice: number }[] = [];
+    try {
+      const parseRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_tokens: 500,
+        response_format: { type: "json_object" },
+        messages: [{
+          role: "system",
+          content: `Parse furniture items from this text into structured JSON. Return {"items":[{"detectedName":"...","serviceType":"install|dismantle|relocate|dispose","quantity":1,"estimatedUnitPrice":80}]}. Default serviceType is "install".`,
+        }, { role: "user", content: itemsText }],
+      });
+      const raw = parseRes.choices[0].message.content || '{"items":[]}';
+      aiParsed = JSON.parse(raw).items || [];
+    } catch { /* fall through */ }
+
+    if (!aiParsed.length) return null;
+
+    // Match catalog + compute per-item subtotals
+    let totalEstimate = 0;
+    const lines: string[] = [];
+    const svcEmoji: Record<string, string> = { install: "🔧", dismantle: "🔨", relocate: "🚚", dispose: "🗑️", dismantle_dispose: "🔨🗑️" };
+    const svcLabel: Record<string, string> = { install: "Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal", dismantle_dispose: "Dismantle + Dispose" };
+
+    for (const item of aiParsed) {
+      const matched = catalog.find(c =>
+        c.serviceType === item.serviceType &&
+        item.detectedName.toLowerCase().includes(c.name.toLowerCase())
+      );
+      const unitPrice = matched ? Number(matched.basePrice) : (item.estimatedUnitPrice || 0);
+      const qty = item.quantity || 1;
+      const subtotal = unitPrice * qty;
+      totalEstimate += subtotal;
+      const emo = svcEmoji[item.serviceType] || "🔧";
+      const svc = svcLabel[item.serviceType] || item.serviceType;
+      if (unitPrice > 0) {
+        lines.push(`${emo} ${qty > 1 ? `${qty}× ` : ""}*${item.detectedName}* (${svc}): *$${subtotal.toFixed(0)}*`);
+      } else {
+        lines.push(`${emo} ${qty > 1 ? `${qty}× ` : ""}*${item.detectedName}* (${svc}): _price TBC_`);
+      }
+    }
+
+    // Bulk discount
+    const totalQty = aiParsed.reduce((s, i) => s + (i.quantity || 1), 0);
+    const discountTier = PricingConfig.bulkDiscount.find((t: { minQty: number; pct: number }) => totalQty >= t.minQty);
+    const discountPct = discountTier?.pct ?? 0;
+    const discountAmt = Math.round(totalEstimate * discountPct * 100) / 100;
+    if (discountAmt > 0) {
+      totalEstimate -= discountAmt;
+      lines.push(`🏷️ *Bulk Discount (${Math.round(discountPct * 100)}% off):* -$${discountAmt.toFixed(0)}`);
+    }
+
+    // Minimum charge
+    const MIN_CHARGE = 180;
+    if (totalEstimate < MIN_CHARGE && totalEstimate > 0) {
+      const adj = MIN_CHARGE - totalEstimate;
+      totalEstimate = MIN_CHARGE;
+      lines.push(`📌 *Minimum charge adjustment:* +$${adj.toFixed(0)}`);
+    }
+    const laborTotal = totalEstimate;
+
+    // Floor surcharge
+    const floorLevel = session.floorLevel ?? 1;
+    const hasLift = session.hasLift ?? true;
+    const floorsAbove = Math.max(0, floorLevel - 1);
+    const floorSurcharge = floorsAbove * (hasLift ? PricingConfig.floor.perFloorWithLift : PricingConfig.floor.perFloorNoLift);
+    if (floorSurcharge > 0) lines.push(`🏢 *Floor surcharge (Floor ${floorLevel}, ${hasLift ? "lift" : "no lift"}):* +$${floorSurcharge.toFixed(0)}`);
+
+    // Access surcharge
+    const access = session.accessDifficulty ?? "easy";
+    const accessPct = access === "medium" ? PricingConfig.access.mediumPct : access === "hard" ? PricingConfig.access.hardPct : 0;
+    const accessSurcharge = Math.round(laborTotal * accessPct * 100) / 100;
+    if (accessSurcharge > 0) lines.push(`🚪 *Access surcharge (${access === "medium" ? "Moderate" : "Difficult"}):* +$${accessSurcharge.toFixed(0)}`);
+
+    // Transport fee (relocation)
+    const distKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
+    const transportFee = session.isRelocation ? calcTransportFee(distKm) : 0;
+    if (transportFee > 0) lines.push(`🚛 *Transport fee:* +$${transportFee.toFixed(0)}`);
+
+    const grandTotal = laborTotal + floorSurcharge + accessSurcharge + transportFee;
+    const deposit = grandTotal * 0.5;
+
+    if (grandTotal === 0) return null;
+
+    const hasTBCItems = lines.some(l => l.includes("price TBC"));
+    let msg = `💰 *Estimated quote for your job:*\n\n`;
+    msg += lines.join("\n");
+    msg += `\n\n${"─".repeat(28)}\n`;
+    msg += `💵 *Estimated Total: SGD $${grandTotal.toFixed(0)}*\n`;
+    msg += `🔒 *50% Deposit to confirm: SGD $${deposit.toFixed(0)}*\n`;
+    msg += `\n_${hasTBCItems ? "Some items need manual pricing — " : ""}Prices are estimates; our team will confirm before any payment. No GST._`;
+    return msg;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Coordinator persona shared across all GPT reply functions ───────────────
 const COORDINATOR_PERSONA = `You are the TMGinstall WhatsApp customer coordinator.
 
@@ -3033,6 +3139,19 @@ ${FURNITURE_VISION_GUIDE}`,
                 }
                 return;
               }
+
+              // No specific item in the query — but customer already has items in session →
+              // show the full job estimate using the pricing engine
+              const hasCollectedItems = session?.collectedItems && session.collectedItems !== "__scanning__";
+              if (hasCollectedItems) {
+                const estimateMsg = await buildJobEstimateMessage(session!);
+                if (estimateMsg) {
+                  await sendBotMessage(from, `${estimateMsg}\n\n${continuePrompt}`);
+                  saveHistory(from, conversationHistory, text, estimateMsg);
+                  return;
+                }
+              }
+
               // No item found at all — if we're awaiting address, redirect there
               if (state === "awaiting_address") {
                 await sendBotMessage(from,
