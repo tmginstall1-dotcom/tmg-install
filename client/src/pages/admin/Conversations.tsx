@@ -133,7 +133,17 @@ function Avatar({ name, phone, size = "md" }: { name: string | null; phone: stri
   );
 }
 
-// ── WhatsApp markdown renderer ────────────────────────────────────────────────
+// ── WhatsApp markdown helpers ─────────────────────────────────────────────────
+
+function stripWhatsAppMarkdown(text: string): string {
+  return text
+    .replace(/\*([^*\n]+)\*/g, "$1")
+    .replace(/_([^_\n]+)_/g, "$1")
+    .replace(/~([^~\n]+)~/g, "$1")
+    .replace(/`([^`\n]+)`/g, "$1")
+    .replace(/\n/g, " ")
+    .trim();
+}
 
 function formatWhatsAppText(text: string): React.ReactNode {
   const segments: React.ReactNode[] = [];
@@ -1023,7 +1033,7 @@ export default function AdminConversations() {
                       <p className="text-[11px] text-zinc-400 mb-0.5 font-mono">{formatPhone(convo.phone)}</p>
                     )}
                     <p className={`text-xs truncate leading-snug ${hasUnread ? "text-zinc-700 font-medium" : "text-zinc-400"}`}>
-                      {convo.lastMessage}
+                      {convo.lastMessage ? stripWhatsAppMarkdown(convo.lastMessage) : ""}
                     </p>
                     <div className="flex items-center justify-between mt-1.5">
                       {isPaused ? (
