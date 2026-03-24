@@ -1141,11 +1141,13 @@ export class DatabaseStorage implements IStorage {
     return msg;
   }
 
-  async getWhatsAppMessages(phone: string, limit = 200): Promise<WhatsAppMessage[]> {
-    return db.select().from(whatsappMessages)
+  async getWhatsAppMessages(phone: string, limit = 300): Promise<WhatsAppMessage[]> {
+    // Fetch newest N messages (DESC) then reverse so display is oldest→newest
+    const rows = await db.select().from(whatsappMessages)
       .where(eq(whatsappMessages.phone, phone))
-      .orderBy(whatsappMessages.createdAt)
+      .orderBy(desc(whatsappMessages.createdAt))
       .limit(limit);
+    return rows.reverse();
   }
 
   async getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null; botPaused: boolean }[]> {

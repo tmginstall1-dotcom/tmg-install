@@ -4,7 +4,7 @@ import {
   MessageCircle, Send, Phone, RefreshCw, User, Bot, Search, X,
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
   CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
-  TriangleAlert, AlertCircle,
+  TriangleAlert, AlertCircle, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -396,6 +396,8 @@ function ChatModal({
   const [showInfo, setShowInfo] = useState(true);
   const [generatedQuote, setGeneratedQuote] = useState<{ quoteId: number; referenceNo: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -461,12 +463,27 @@ function ChatModal({
     onError: (err: any) => toast({ title: "Could not generate quote", description: err?.message || "Check that address has been collected", variant: "destructive" }),
   });
 
+  const isNearBottom = () => {
+    const el = chatScrollRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  };
+
+  const scrollToBottom = (smooth = true) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "instant" });
+    setHasNewMessages(false);
+  };
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isNearBottom()) {
+      scrollToBottom(true);
+    } else {
+      setHasNewMessages(true);
+    }
   }, [thread?.messages?.length]);
 
   useEffect(() => {
-    setTimeout(() => messagesEndRef.current?.scrollIntoView(), 80);
+    setTimeout(() => scrollToBottom(false), 80);
   }, []);
 
   useEffect(() => {
@@ -674,7 +691,16 @@ function ChatModal({
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-5 py-4" style={{ background: "#e5ddd5", backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8b9a8' fill-opacity='0.25'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"}  }>
+          <div className="relative flex-1 overflow-hidden">
+          {hasNewMessages && (
+            <button
+              onClick={() => scrollToBottom(true)}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#25D366] text-white text-xs font-semibold shadow-lg animate-bounce"
+            >
+              <ChevronDown className="w-3.5 h-3.5" /> New messages
+            </button>
+          )}
+          <div ref={chatScrollRef} className="h-full overflow-y-auto overscroll-contain px-3 sm:px-5 py-4" style={{ background: "#e5ddd5", backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8b9a8' fill-opacity='0.25'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"}  }>
             {loadingThread && (
               <div className="space-y-4 py-2 animate-pulse">
                 {[false, true, false, true, false].map((r, i) => (
@@ -730,6 +756,7 @@ function ChatModal({
               </div>
             ))}
             <div ref={messagesEndRef} className="h-1" />
+          </div>
           </div>
 
           {/* Generated quote success banner */}
