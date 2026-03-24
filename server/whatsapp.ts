@@ -254,6 +254,69 @@ export async function downloadWhatsAppMedia(
   }
 }
 
+// ── Upload image buffer to WhatsApp Media API + send as image message ─────────
+export async function sendWhatsAppImageMessage(
+  to: string,
+  imageBuffer: Buffer,
+  mimeType: string,
+  caption?: string,
+  opts?: { logAsSentBy?: string }
+): Promise<boolean> {
+  const ACCESS_TOKEN = await getAccessToken();
+  if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
+    throw new Error("WhatsApp credentials not configured");
+  }
+
+  // Step 1 — upload the image to WhatsApp Media API
+  const formData = new FormData();
+  formData.append("messaging_product", "whatsapp");
+  formData.append("type", mimeType);
+  formData.append("file", new Blob([imageBuffer], { type: mimeType }), `upload.${mimeType.split("/")[1] || "jpg"}`);
+
+  const uploadRes = await fetch(`${WA_API_BASE}/${PHONE_NUMBER_ID}/media`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+    body: formData,
+  });
+  const uploadData = await uploadRes.json() as any;
+  if (!uploadRes.ok || !uploadData.id) {
+    const errMsg = uploadData?.error?.message || JSON.stringify(uploadData);
+    console.error("[WhatsApp] Media upload error:", errMsg);
+    throw new Error(`WhatsApp media upload failed: ${errMsg}`);
+  }
+  const mediaId = uploadData.id as string;
+
+  // Step 2 — send image message using the media ID
+  const msgBody: any = {
+    messaging_product: "whatsapp",
+    to,
+    type: "image",
+    image: { id: mediaId, ...(caption ? { caption } : {}) },
+  };
+  const sendRes = await fetch(`${WA_API_BASE}/${PHONE_NUMBER_ID}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(msgBody),
+  });
+  const sendData = await sendRes.json() as any;
+  if (!sendRes.ok) {
+    const errMsg = sendData?.error?.message || JSON.stringify(sendData);
+    throw new Error(`WhatsApp send image failed: ${errMsg}`);
+  }
+
+  console.log(`[WhatsApp] Image sent to ${to} (mediaId=${mediaId})`);
+  const sentBy = opts?.logAsSentBy || "admin";
+  storage.logWhatsAppMessage({
+    phone: to,
+    direction: "outbound",
+    body: caption || "[image]",
+    mediaType: mimeType,
+    mediaUrl: mediaId,
+    sentBy,
+  }).catch(() => {});
+  return true;
+}
+
 // ── Send deposit payment link via WhatsApp ────────────────────────────────────
 export async function sendWhatsAppPaymentLink(
   to: string,

@@ -20,7 +20,9 @@ import {
   newEstimateAdminAlert,
   ADMIN_EMAIL
 } from "./email";
-import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN } from "./whatsapp";
+import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN, sendWhatsAppImageMessage } from "./whatsapp";
+import multer from "multer";
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 import { calcTransportFee, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes } from "@shared/schema";
@@ -6336,6 +6338,27 @@ Respond directly — no JSON, just the message text.`,
     } catch (err: any) {
       console.error("[Admin] Chat send failed:", err?.message);
       res.status(500).json({ message: err?.message || "Failed to send WhatsApp message" });
+    }
+  });
+
+  // ── Admin: send image/file to customer via WhatsApp ──────────────────────────
+  app.post("/api/admin/whatsapp/conversations/:phone/send-media", upload.single("file"), async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const phone = req.params.phone;
+    const file = (req as any).file as Express.Multer.File | undefined;
+    if (!file) return res.status(400).json({ message: "No file attached" });
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.mimetype)) return res.status(400).json({ message: "Only JPEG, PNG, WebP and GIF images are supported" });
+    const caption = (req.body as any)?.caption?.trim() || undefined;
+    try {
+      await sendWhatsAppImageMessage(phone, file.buffer, file.mimetype, caption, { logAsSentBy: `admin:${user.name || user.email}` });
+      await storage.upsertWhatsAppSession(phone, { botPaused: true, botPausedAt: new Date() });
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("[Admin] send-media failed:", err?.message);
+      res.status(500).json({ message: err?.message || "Failed to send image" });
     }
   });
 

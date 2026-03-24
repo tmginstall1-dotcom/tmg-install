@@ -112,7 +112,7 @@ export interface IStorage {
   deleteWhatsAppSession(phone: string): Promise<void>;
 
   // WhatsApp Message Log
-  logWhatsAppMessage(data: { phone: string; direction: 'inbound' | 'outbound'; body: string; mediaType?: string; wamid?: string; sentBy?: string }): Promise<WhatsAppMessage>;
+  logWhatsAppMessage(data: { phone: string; direction: 'inbound' | 'outbound'; body: string; mediaType?: string; mediaUrl?: string; wamid?: string; sentBy?: string }): Promise<WhatsAppMessage>;
   getWhatsAppMessages(phone: string, limit?: number): Promise<WhatsAppMessage[]>;
   getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null; botPaused: boolean }[]>;
   markWhatsAppMessagesRead(phone: string): Promise<void>;
@@ -1129,12 +1129,13 @@ export class DatabaseStorage implements IStorage {
     await db.delete(whatsappSessions).where(eq(whatsappSessions.phone, phone));
   }
 
-  async logWhatsAppMessage(data: { phone: string; direction: 'inbound' | 'outbound'; body: string; mediaType?: string; wamid?: string; sentBy?: string }): Promise<WhatsAppMessage> {
+  async logWhatsAppMessage(data: { phone: string; direction: 'inbound' | 'outbound'; body: string; mediaType?: string; mediaUrl?: string; wamid?: string; sentBy?: string }): Promise<WhatsAppMessage> {
     const [msg] = await db.insert(whatsappMessages).values({
       phone: data.phone,
       direction: data.direction,
       body: data.body,
       mediaType: data.mediaType ?? null,
+      mediaUrl: data.mediaUrl ?? null,
       wamid: data.wamid ?? null,
       sentBy: data.sentBy ?? (data.direction === 'outbound' ? 'bot' : null),
     }).returning();

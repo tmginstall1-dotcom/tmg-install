@@ -4,8 +4,9 @@ import {
   MessageCircle, Send, Phone, RefreshCw, User, Bot, Search, X,
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
   CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
-  TriangleAlert, AlertCircle, ChevronDown,
+  TriangleAlert, AlertCircle, ChevronDown, Paperclip, Smile, XCircle,
 } from "lucide-react";
+import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/queryClient";
@@ -393,12 +394,17 @@ function ChatModal({
 }) {
   const [replyText, setReplyText] = useState("");
   const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
   const [generatedQuote, setGeneratedQuote] = useState<{ quoteId: number; referenceNo: string } | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const [hasNewMessages, setHasNewMessages] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -463,6 +469,33 @@ function ChatModal({
     onError: (err: any) => toast({ title: "Could not generate quote", description: err?.message || "Check that address has been collected", variant: "destructive" }),
   });
 
+  const sendImageMutation = useMutation({
+    mutationFn: async ({ file, caption }: { file: File; caption?: string }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      if (caption) formData.append("caption", caption);
+      const res = await fetch(`${API_BASE}/api/admin/whatsapp/conversations/${selectedPhone}/send-media`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).message || "Failed to send image");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      setReplyText("");
+      clearImage();
+      setShowQuickReplies(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations", selectedPhone] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
+      toast({ title: "Image sent — Bot paused" });
+    },
+    onError: (err: any) => toast({ title: "Failed to send image", description: err?.message, variant: "destructive" }),
+  });
+
   const isNearBottom = () => {
     const el = chatScrollRef.current;
     if (!el) return true;
@@ -492,13 +525,68 @@ function ChatModal({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  // Close emoji picker on outside click
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showEmojiPicker]);
+
+  function clearImage() {
+    setImageFile(null);
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImagePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      toast({ title: "Invalid file type", description: "Only JPEG, PNG, WebP and GIF are supported", variant: "destructive" });
+      return;
+    }
+    if (file.size > 16 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum file size is 16 MB", variant: "destructive" });
+      return;
+    }
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+    setShowEmojiPicker(false);
+    setShowQuickReplies(false);
+  }
+
   function handleSend() {
+    if (imageFile) {
+      sendImageMutation.mutate({ file: imageFile, caption: replyText.trim() || undefined });
+      return;
+    }
     if (!replyText.trim() || sendMutation.isPending) return;
     sendMutation.mutate(replyText.trim());
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  }
+
+  function insertEmoji(emoji: string) {
+    const ta = textareaRef.current;
+    if (!ta) { setReplyText(t => t + emoji); return; }
+    const start = ta.selectionStart ?? replyText.length;
+    const end = ta.selectionEnd ?? replyText.length;
+    const newText = replyText.slice(0, start) + emoji + replyText.slice(end);
+    setReplyText(newText);
+    setTimeout(() => {
+      ta.focus();
+      ta.setSelectionRange(start + emoji.length, start + emoji.length);
+    }, 0);
   }
 
   const session = thread?.session;
@@ -827,57 +915,161 @@ function ChatModal({
 
           {/* Reply Box */}
           <div
-            className="flex-shrink-0 border-t border-gray-200 bg-white px-4 py-3"
-            style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
+            className="flex-shrink-0 border-t border-gray-200 bg-white relative"
+            style={{ paddingBottom: "max(0px, env(safe-area-inset-bottom))" }}
           >
-            <div className="flex items-end gap-2">
-              <button
-                onClick={() => setShowQuickReplies(v => !v)}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
-                  showQuickReplies
-                    ? "bg-indigo-600 text-white border-indigo-600"
-                    : "bg-gray-50 text-gray-400 hover:text-gray-700 hover:bg-gray-100 border-gray-200"
-                }`}
-                title="Quick replies"
-              >
-                <Zap className="w-4 h-4" />
-              </button>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={handleFileSelect}
+              data-testid="file-input-image"
+            />
 
-              <div className="flex-1">
-                <Textarea
-                  ref={textareaRef}
-                  value={replyText}
-                  onChange={e => setReplyText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Type a message… (Enter to send)"
-                  className="resize-none bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 text-sm min-h-[42px] max-h-[120px] py-2.5 px-3.5 rounded-xl focus:border-blue-400 focus:bg-white transition-all leading-relaxed"
-                  rows={1}
-                  data-testid="reply-input"
+            {/* Image preview panel */}
+            {imagePreviewUrl && imageFile && (
+              <div className="px-4 pt-3 pb-2 border-b border-gray-100 bg-gray-50">
+                <div className="flex items-start gap-3">
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={imagePreviewUrl}
+                      alt="Preview"
+                      className="w-20 h-20 object-cover rounded-xl border border-gray-200 shadow-sm"
+                    />
+                    <button
+                      onClick={clearImage}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-800 text-white flex items-center justify-center hover:bg-red-600 transition-all"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 truncate">{imageFile.name}</p>
+                    <p className="text-[10px] text-gray-400 mb-1.5">{(imageFile.size / 1024).toFixed(0)} KB · {imageFile.type.split("/")[1]?.toUpperCase()}</p>
+                    <input
+                      type="text"
+                      value={replyText}
+                      onChange={e => setReplyText(e.target.value)}
+                      placeholder="Add a caption (optional)…"
+                      className="w-full h-8 px-2.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-400 placeholder:text-gray-400"
+                      data-testid="image-caption-input"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Emoji picker — floats above reply box */}
+            {showEmojiPicker && (
+              <div ref={emojiPickerRef} className="absolute bottom-full left-3 z-50 mb-1 shadow-2xl rounded-2xl overflow-hidden border border-gray-200">
+                <EmojiPicker
+                  theme={Theme.LIGHT}
+                  onEmojiClick={(data: EmojiClickData) => {
+                    insertEmoji(data.emoji);
+                    setShowEmojiPicker(false);
+                  }}
+                  width={300}
+                  height={340}
+                  searchDisabled={false}
+                  skinTonesDisabled
+                  previewConfig={{ showPreview: false }}
                 />
               </div>
+            )}
 
-              <Button
-                onClick={handleSend}
-                disabled={!replyText.trim() || sendMutation.isPending}
-                className="w-9 h-9 rounded-xl bg-[#25D366] hover:bg-[#1db954] text-white flex-shrink-0 p-0 flex items-center justify-center mb-0.5 disabled:opacity-40 transition-all shadow-sm"
-                data-testid="send-reply"
-              >
-                {sendMutation.isPending
-                  ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                  : <Send className="w-3.5 h-3.5" />
-                }
-              </Button>
-            </div>
+            <div className="px-3 py-3">
+              <div className="flex items-end gap-1.5">
+                {/* Canned replies */}
+                <button
+                  onClick={() => { setShowQuickReplies(v => !v); setShowEmojiPicker(false); }}
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
+                    showQuickReplies
+                      ? "bg-indigo-600 text-white border-indigo-600"
+                      : "bg-gray-50 text-gray-400 hover:text-gray-700 hover:bg-gray-100 border-gray-200"
+                  }`}
+                  title="Quick replies"
+                  data-testid="btn-quick-replies"
+                >
+                  <Zap className="w-4 h-4" />
+                </button>
 
-            <div className="flex items-center justify-between mt-1.5 px-1">
-              <p className="text-[10px] text-gray-400">
-                Sending as <span className="text-indigo-600 font-semibold">Admin</span> · delivered to customer's WhatsApp
-              </p>
-              {replyText.length > 100 && (
-                <span className={`text-[10px] tabular-nums font-medium ${replyText.length > 900 ? "text-red-500" : "text-gray-400"}`}>
-                  {replyText.length}/1024
-                </span>
-              )}
+                {/* Emoji picker toggle */}
+                <button
+                  onClick={() => { setShowEmojiPicker(v => !v); setShowQuickReplies(false); }}
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
+                    showEmojiPicker
+                      ? "bg-yellow-400 text-white border-yellow-400"
+                      : "bg-gray-50 text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 border-gray-200"
+                  }`}
+                  title="Emoji picker"
+                  data-testid="btn-emoji-picker"
+                >
+                  <Smile className="w-4 h-4" />
+                </button>
+
+                {/* Image attach */}
+                <button
+                  onClick={() => { fileInputRef.current?.click(); setShowEmojiPicker(false); }}
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
+                    imageFile
+                      ? "bg-emerald-500 text-white border-emerald-500"
+                      : "bg-gray-50 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 border-gray-200"
+                  }`}
+                  title="Attach image"
+                  data-testid="btn-attach-image"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+
+                {/* Text input (hidden when image preview is shown) */}
+                {!imageFile && (
+                  <div className="flex-1">
+                    <Textarea
+                      ref={textareaRef}
+                      value={replyText}
+                      onChange={e => setReplyText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Type a message… (Enter to send)"
+                      className="resize-none bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 text-sm min-h-[42px] max-h-[120px] py-2.5 px-3.5 rounded-xl focus:border-blue-400 focus:bg-white transition-all leading-relaxed"
+                      rows={1}
+                      data-testid="reply-input"
+                    />
+                  </div>
+                )}
+                {imageFile && <div className="flex-1" />}
+
+                <Button
+                  onClick={handleSend}
+                  disabled={
+                    (imageFile ? sendImageMutation.isPending : (!replyText.trim() || sendMutation.isPending))
+                  }
+                  className="w-9 h-9 rounded-xl bg-[#25D366] hover:bg-[#1db954] text-white flex-shrink-0 p-0 flex items-center justify-center mb-0.5 disabled:opacity-40 transition-all shadow-sm"
+                  data-testid="send-reply"
+                >
+                  {(sendMutation.isPending || sendImageMutation.isPending)
+                    ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                    : <Send className="w-3.5 h-3.5" />
+                  }
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between mt-1 px-0.5">
+                <p className="text-[10px] text-gray-400">
+                  Sending as <span className="text-indigo-600 font-semibold">Admin</span> · delivered to customer's WhatsApp
+                </p>
+                {!imageFile && replyText.length > 100 && (
+                  <span className={`text-[10px] tabular-nums font-medium ${replyText.length > 900 ? "text-red-500" : "text-gray-400"}`}>
+                    {replyText.length}/1024
+                  </span>
+                )}
+                {imageFile && (
+                  <button onClick={clearImage} className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-600">
+                    <XCircle className="w-3 h-3" /> Remove image
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
