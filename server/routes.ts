@@ -174,9 +174,12 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
 
     // Match catalog + compute per-item subtotals
     let totalEstimate = 0;
-    const lines: string[] = [];
+    const itemLines: string[] = [];
+    const adjustmentLines: string[] = [];
+    const surchargeLines: string[] = [];
     const svcEmoji: Record<string, string> = { install: "🔧", dismantle: "🔨", relocate: "🚚", dispose: "🗑️", dismantle_dispose: "🔨🗑️" };
     const svcLabel: Record<string, string> = { install: "Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal", dismantle_dispose: "Dismantle + Dispose" };
+    let hasTBCItems = false;
 
     for (const item of aiParsed) {
       const matched = catalog.find(c =>
@@ -190,9 +193,14 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
       const emo = svcEmoji[item.serviceType] || "🔧";
       const svc = svcLabel[item.serviceType] || item.serviceType;
       if (unitPrice > 0) {
-        lines.push(`${emo} ${qty > 1 ? `${qty}× ` : ""}*${item.detectedName}* (${svc}): *$${subtotal.toFixed(0)}*`);
+        // Show: emoji Name (Service)\n   qty × $unit = $subtotal
+        const calcStr = qty > 1
+          ? `   ${qty} × $${unitPrice.toFixed(0)} = *$${subtotal.toFixed(0)}*`
+          : `   $${unitPrice.toFixed(0)}`;
+        itemLines.push(`${emo} *${item.detectedName}* _(${svc})_\n${calcStr}`);
       } else {
-        lines.push(`${emo} ${qty > 1 ? `${qty}× ` : ""}*${item.detectedName}* (${svc}): _price TBC_`);
+        hasTBCItems = true;
+        itemLines.push(`${emo} *${item.detectedName}* _(${svc})_\n   _price to be confirmed_`);
       }
     }
 
@@ -203,7 +211,7 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     const discountAmt = Math.round(totalEstimate * discountPct * 100) / 100;
     if (discountAmt > 0) {
       totalEstimate -= discountAmt;
-      lines.push(`🏷️ *Bulk Discount (${Math.round(discountPct * 100)}% off):* -$${discountAmt.toFixed(0)}`);
+      adjustmentLines.push(`🏷️ Bulk discount (${Math.round(discountPct * 100)}% off, ${totalQty} items): *-$${discountAmt.toFixed(0)}*`);
     }
 
     // Minimum charge
@@ -211,7 +219,7 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     if (totalEstimate < MIN_CHARGE && totalEstimate > 0) {
       const adj = MIN_CHARGE - totalEstimate;
       totalEstimate = MIN_CHARGE;
-      lines.push(`📌 *Minimum charge adjustment:* +$${adj.toFixed(0)}`);
+      adjustmentLines.push(`📌 Minimum job charge applied: *+$${adj.toFixed(0)}*`);
     }
     const laborTotal = totalEstimate;
 
@@ -220,31 +228,38 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     const hasLift = session.hasLift ?? true;
     const floorsAbove = Math.max(0, floorLevel - 1);
     const floorSurcharge = floorsAbove * (hasLift ? PricingConfig.floor.perFloorWithLift : PricingConfig.floor.perFloorNoLift);
-    if (floorSurcharge > 0) lines.push(`🏢 *Floor surcharge (Floor ${floorLevel}, ${hasLift ? "lift" : "no lift"}):* +$${floorSurcharge.toFixed(0)}`);
+    if (floorSurcharge > 0) surchargeLines.push(`🏢 Floor surcharge (Floor ${floorLevel}, ${hasLift ? "with lift" : "no lift"}): *+$${floorSurcharge.toFixed(0)}*`);
 
     // Access surcharge
     const access = session.accessDifficulty ?? "easy";
     const accessPct = access === "medium" ? PricingConfig.access.mediumPct : access === "hard" ? PricingConfig.access.hardPct : 0;
     const accessSurcharge = Math.round(laborTotal * accessPct * 100) / 100;
-    if (accessSurcharge > 0) lines.push(`🚪 *Access surcharge (${access === "medium" ? "Moderate" : "Difficult"}):* +$${accessSurcharge.toFixed(0)}`);
+    if (accessSurcharge > 0) surchargeLines.push(`🚪 Access surcharge (${access === "medium" ? "Moderate" : "Difficult"}): *+$${accessSurcharge.toFixed(0)}*`);
 
     // Transport fee (relocation)
     const distKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
     const transportFee = session.isRelocation ? calcTransportFee(distKm) : 0;
-    if (transportFee > 0) lines.push(`🚛 *Transport fee:* +$${transportFee.toFixed(0)}`);
+    if (transportFee > 0) surchargeLines.push(`🚛 Transport fee: *+$${transportFee.toFixed(0)}*`);
 
     const grandTotal = laborTotal + floorSurcharge + accessSurcharge + transportFee;
     const deposit = grandTotal * 0.5;
 
     if (grandTotal === 0) return null;
 
-    const hasTBCItems = lines.some(l => l.includes("price TBC"));
-    let msg = `💰 *Estimated quote for your job:*\n\n`;
-    msg += lines.join("\n");
-    msg += `\n\n${"─".repeat(28)}\n`;
-    msg += `💵 *Estimated Total: SGD $${grandTotal.toFixed(0)}*\n`;
-    msg += `🔒 *50% Deposit to confirm: SGD $${deposit.toFixed(0)}*\n`;
-    msg += `\n_${hasTBCItems ? "Some items need manual pricing — " : ""}Prices are estimates; our team will confirm before any payment. No GST._`;
+    const DIV = `━━━━━━━━━━━━━━━━━━━━━━━`;
+    let msg = `📋 *Price Breakdown*\n${DIV}\n\n`;
+    msg += itemLines.join("\n\n");
+    if (adjustmentLines.length > 0) {
+      msg += `\n\n${adjustmentLines.join("\n")}`;
+    }
+    msg += `\n\n${DIV}\n`;
+    if (surchargeLines.length > 0) {
+      msg += surchargeLines.join("\n") + "\n";
+    }
+    msg += `💰 *Total: SGD $${grandTotal.toFixed(0)}*\n`;
+    msg += `🔒 *50% deposit to confirm: SGD $${deposit.toFixed(0)}*\n`;
+    msg += `${DIV}\n`;
+    msg += `_${hasTBCItems ? "⚠️ Some items need manual pricing. " : ""}Prices are estimates — confirmed by our team before payment. No GST._`;
     return msg;
   } catch {
     return null;
