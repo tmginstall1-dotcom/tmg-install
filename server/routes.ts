@@ -217,14 +217,6 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
       totalEstimate -= discountAmt;
       adjustmentLines.push(`🏷️ Bulk discount (${Math.round(discountPct * 100)}% off, ${totalQty} items): *-$${discountAmt.toFixed(0)}*`);
     }
-
-    // Minimum charge
-    const MIN_CHARGE = 180;
-    if (totalEstimate < MIN_CHARGE && totalEstimate > 0) {
-      const adj = MIN_CHARGE - totalEstimate;
-      totalEstimate = MIN_CHARGE;
-      adjustmentLines.push(`📌 Minimum job charge applied: *+$${adj.toFixed(0)}*`);
-    }
     const laborTotal = totalEstimate;
 
     // Floor surcharge
@@ -245,7 +237,18 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     const transportFee = session.isRelocation ? calcTransportFee(distKm) : 0;
     if (transportFee > 0) surchargeLines.push(`🚛 Transport fee: *+$${transportFee.toFixed(0)}*`);
 
-    const grandTotal = laborTotal + floorSurcharge + accessSurcharge + transportFee;
+    // Minimum charge — checked against the FULL combined total (labor + transport + all surcharges)
+    // Only activates if the grand total is under $180. Transport counts toward the $180.
+    const MIN_CHARGE = 180;
+    const combinedTotal = laborTotal + floorSurcharge + accessSurcharge + transportFee;
+    let minAdj = 0;
+    let minimumLine = "";
+    if (combinedTotal > 0 && combinedTotal < MIN_CHARGE) {
+      minAdj = MIN_CHARGE - combinedTotal;
+      minimumLine = `📌 *Minimum job charge: +$${minAdj.toFixed(0)}* _(all jobs min. $${MIN_CHARGE})_`;
+    }
+
+    const grandTotal = combinedTotal + minAdj;
     const deposit = grandTotal * 0.5;
 
     if (grandTotal === 0) return null;
@@ -253,12 +256,18 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     const DIV = `━━━━━━━━━━━━━━━━━━━━━━━`;
     let msg = `📋 *Price Breakdown*\n${DIV}\n\n`;
     msg += itemLines.join("\n\n");
+    // Bulk discount (if any) shown right after items
     if (adjustmentLines.length > 0) {
       msg += `\n\n${adjustmentLines.join("\n")}`;
     }
     msg += `\n\n${DIV}\n`;
+    // Surcharges (floor, access, transport)
     if (surchargeLines.length > 0) {
       msg += surchargeLines.join("\n") + "\n";
+    }
+    // Minimum charge shown just before the total (after transport)
+    if (minimumLine) {
+      msg += `${minimumLine}\n`;
     }
     msg += `💰 *Total: SGD $${grandTotal.toFixed(0)}*\n`;
     msg += `🔒 *50% deposit to confirm: SGD $${deposit.toFixed(0)}*\n`;

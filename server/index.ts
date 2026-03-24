@@ -201,14 +201,8 @@ app.use((req, res, next) => {
 
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
-      log(`Port ${port} already in use — killing old process and retrying…`);
-      try { execSync(`lsof -ti:${port} | xargs -r kill -9 2>/dev/null || true`); } catch {}
-      setTimeout(() => {
-        httpServer.close();
-        httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
-          log(`serving on port ${port} (retry)`);
-        });
-      }, 1500);
+      log(`Port ${port} already in use — exiting so runner can restart cleanly.`);
+      process.exit(1);
     } else {
       throw err;
     }
