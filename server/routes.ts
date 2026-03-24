@@ -2493,8 +2493,23 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const text: string = (msg.text?.body || msg.image?.caption || "").trim();
       const textLower = text.toLowerCase();
 
-      const session = await storage.getWhatsAppSession(from);
-      const state = session?.state ?? "start";
+      let session = await storage.getWhatsAppSession(from);
+      let state = session?.state ?? "start";
+
+      // ── Auto-reset completed sessions — wipe ALL collected data so returning ───
+      // customers always start fresh instead of carrying over old names/addresses.
+      if (state === "submitted") {
+        const freshFields = {
+          state: "start",
+          collectedName: null, collectedAddress: null, collectedItems: null,
+          collectedDate: null, floorLevel: null, hasLift: null, liftAccess: null,
+          isRelocation: null, previousItems: null, conversationHistory: null,
+          botPaused: false,
+        };
+        await storage.upsertWhatsAppSession(from, freshFields);
+        session = session ? { ...session, ...freshFields } : null;
+        state = "start";
+      }
 
       // ── Load dynamic bot knowledge from DB (FAQ + business settings) ──────────
       const botKnowledge = await buildBotKnowledge();
@@ -2584,6 +2599,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
             collectedName: null, collectedAddress: null, collectedItems: null,
             previousItems: null, preferredDate: null, preferredDateIso: null,
             preferredTimeWindow: null, isRelocation: false, collectedToAddress: null, distanceKm: null,
+            conversationHistory: null,
           });
           // Scan the photo and offer pricing, or ask the customer to name the item
           let scannedItem0: string | null = null;
@@ -2676,6 +2692,7 @@ Message: "${text}"`
           isRelocation: false,
           collectedToAddress: null,
           distanceKm: null,
+          conversationHistory: null,
         });
 
         // ── Pricing overview message — shown to every new contact ──────────────
@@ -3723,7 +3740,20 @@ ${FURNITURE_VISION_GUIDE}`,
             saveHistory(from, conversationHistory, text, askItemMsg);
             return;
           }
-          // Could not extract a name — give a warm, specific re-prompt
+          // Could not extract a name — check if they sent an address by mistake
+          const looksLikeSingaporeAddress = /\d/.test(text) && text.length > 8 &&
+            /\b(blk|block|ave|avenue|st |street|road|rd|central|crescent|drive|place|close|lane|way|link|circle|park|hill|view|garden|grove|rise|terrace|walk|height|toa payoh|ang mo kio|bedok|tampines|jurong|yishun|woodlands|bishan|bukit|serangoon|hougang|punggol|sengkang|pasir|clementi|queenstown|redhill|tiong bahru|orchard|novena|toa|kallang|geylang|aljunied|paya lebar|choa chu kang|boon lay|pioneer|lakeside)\b/i.test(text);
+          if (looksLikeSingaporeAddress) {
+            // They seem to have given an address instead of a name — save it + ask for name
+            await storage.upsertWhatsAppSession(from, { collectedAddress: text, state: "awaiting_name" });
+            await sendBotMessage(from,
+              `📍 Got it — I've noted that address!\n\n` +
+              `Before I lock it in, could I get your *name*? 😊\n\n` +
+              `_e.g. "John", "Mary Tan", "Ahmad"_`
+            );
+            return;
+          }
+          // Generic re-ask for name
           await sendBotMessage(from,
             `Just your name to get started! 😊\n\n_e.g. "John", "Mary Tan", "Ahmad"_`
           );
