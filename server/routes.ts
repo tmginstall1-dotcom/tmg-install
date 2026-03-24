@@ -5618,25 +5618,9 @@ Return ONLY valid JSON.`,
           });
         }
 
-        // ── Minimum charge: SGD 180 (same rule as web flow) ──────────────────
-        const MIN_CHARGE = 180;
-        const minAdjustment = totalEstimate < MIN_CHARGE ? MIN_CHARGE - totalEstimate : 0;
-        const laborTotal = totalEstimate + minAdjustment;
-
-        if (minAdjustment > 0) {
-          quoteItems.push({
-            originalDescription: "Minimum Charge Adjustment",
-            detectedName: "Minimum Charge Adjustment",
-            serviceType: "adjustment",
-            quantity: 1,
-            unitPrice: minAdjustment.toFixed(2),
-            subtotal: minAdjustment.toFixed(2),
-            catalogItemId: undefined,
-          });
-        }
+        const laborSubtotalWA = totalEstimate;
 
         // ── Floor surcharge (same formula as web flow) ─────────────────────────
-        // $5/floor with lift, $15/floor without lift (only floors above ground)
         const sessionFloorLevel = session.floorLevel ?? 1;
         const sessionHasLift = session.hasLift ?? true;
         const floorsAboveGround = Math.max(0, sessionFloorLevel - 1);
@@ -5653,11 +5637,10 @@ Return ONLY valid JSON.`,
           });
         }
 
-        // ── Access difficulty surcharge (same formula as web flow) ─────────────
-        // +10% for medium, +20% for hard (applied to labor total)
+        // ── Access difficulty surcharge (applied to labor before minimum) ───────
         const sessionAccess = session.accessDifficulty ?? "easy";
         const accessPct = sessionAccess === "medium" ? PricingConfig.access.mediumPct : sessionAccess === "hard" ? PricingConfig.access.hardPct : 0;
-        const accessSurcharge = Math.round(laborTotal * accessPct * 100) / 100;
+        const accessSurcharge = Math.round(laborSubtotalWA * accessPct * 100) / 100;
         if (accessSurcharge > 0) {
           quoteItems.push({
             originalDescription: `Access Difficulty (${sessionAccess === "medium" ? "Moderate" : "Difficult"})`,
@@ -5670,13 +5653,29 @@ Return ONLY valid JSON.`,
           });
         }
 
-        const laborTotalWithSurcharges = laborTotal + floorSurcharge + accessSurcharge;
-
-        // ── Transport fee (relocation only — same formula as web flow) ─────────
-        // Base $80 + tiered rate per km over the first 5 km included
+        // ── Transport fee (relocation only) ───────────────────────────────────
         const sessionDistKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
         const transportFee = session.isRelocation ? calcTransportFee(sessionDistKm) : 0;
-        const grandTotal = laborTotalWithSurcharges + transportFee;
+
+        // ── Minimum charge: SGD 180 — checked AFTER all fees including transport ─
+        // Only activates if the combined total (labor + floor + access + transport) < $180
+        const MIN_CHARGE = 180;
+        const combinedBeforeMin = laborSubtotalWA + floorSurcharge + accessSurcharge + transportFee;
+        const minAdjustment = combinedBeforeMin < MIN_CHARGE ? MIN_CHARGE - combinedBeforeMin : 0;
+        if (minAdjustment > 0) {
+          quoteItems.push({
+            originalDescription: "Minimum Charge Adjustment",
+            detectedName: "Minimum Charge Adjustment",
+            serviceType: "adjustment",
+            quantity: 1,
+            unitPrice: minAdjustment.toFixed(2),
+            subtotal: minAdjustment.toFixed(2),
+            catalogItemId: undefined,
+          });
+        }
+
+        const laborTotalWithSurcharges = laborSubtotalWA + floorSurcharge + accessSurcharge;
+        const grandTotal = combinedBeforeMin + minAdjustment;
         // ─────────────────────────────────────────────────────────────────────
 
         const depositAmount = (grandTotal * 0.50).toFixed(2);
@@ -6543,12 +6542,7 @@ Respond directly — no JSON, just the message text.`,
       quoteItems.push({ originalDescription: `Bulk Discount (${Math.round(discountPctB * 100)}% off, ${totalQtyB} items)`, detectedName: `Bulk Discount (${Math.round(discountPctB * 100)}% off)`, serviceType: "discount", quantity: 1, unitPrice: (-discountAmountB).toFixed(2), subtotal: (-discountAmountB).toFixed(2), catalogItemId: undefined });
     }
 
-    const MIN_CHARGE = 180;
-    const minAdjustment = totalEstimate < MIN_CHARGE ? MIN_CHARGE - totalEstimate : 0;
-    const laborTotal = totalEstimate + minAdjustment;
-    if (minAdjustment > 0) {
-      quoteItems.push({ originalDescription: "Minimum Charge Adjustment", detectedName: "Minimum Charge Adjustment", serviceType: "adjustment", quantity: 1, unitPrice: minAdjustment.toFixed(2), subtotal: minAdjustment.toFixed(2), catalogItemId: undefined });
-    }
+    const laborSubtotalAdmin = totalEstimate;
 
     const sessionFloorLevel = session.floorLevel ?? 1;
     const sessionHasLift = session.hasLift ?? true;
@@ -6560,15 +6554,24 @@ Respond directly — no JSON, just the message text.`,
 
     const sessionAccess = session.accessDifficulty ?? "easy";
     const accessPct = sessionAccess === "medium" ? PricingConfig.access.mediumPct : sessionAccess === "hard" ? PricingConfig.access.hardPct : 0;
-    const accessSurcharge = Math.round(laborTotal * accessPct * 100) / 100;
+    const accessSurcharge = Math.round(laborSubtotalAdmin * accessPct * 100) / 100;
     if (accessSurcharge > 0) {
       quoteItems.push({ originalDescription: `Access Difficulty (${sessionAccess === "medium" ? "Moderate" : "Difficult"})`, detectedName: `Access Difficulty`, serviceType: "surcharge", quantity: 1, unitPrice: accessSurcharge.toFixed(2), subtotal: accessSurcharge.toFixed(2), catalogItemId: undefined });
     }
 
-    const laborTotalWithSurcharges = laborTotal + floorSurcharge + accessSurcharge;
     const sessionDistKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
     const transportFee = session.isRelocation ? calcTransportFee(sessionDistKm) : 0;
-    const grandTotal = laborTotalWithSurcharges + transportFee;
+
+    // ── Minimum charge: SGD 180 — checked AFTER all fees including transport ──
+    const MIN_CHARGE = 180;
+    const combinedBeforeMinAdmin = laborSubtotalAdmin + floorSurcharge + accessSurcharge + transportFee;
+    const minAdjustment = combinedBeforeMinAdmin < MIN_CHARGE ? MIN_CHARGE - combinedBeforeMinAdmin : 0;
+    if (minAdjustment > 0) {
+      quoteItems.push({ originalDescription: "Minimum Charge Adjustment", detectedName: "Minimum Charge Adjustment", serviceType: "adjustment", quantity: 1, unitPrice: minAdjustment.toFixed(2), subtotal: minAdjustment.toFixed(2), catalogItemId: undefined });
+    }
+
+    const laborTotalWithSurcharges = laborSubtotalAdmin + floorSurcharge + accessSurcharge;
+    const grandTotal = combinedBeforeMinAdmin + minAdjustment;
 
     const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
     const quote = await storage.createQuote(
