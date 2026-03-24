@@ -2761,7 +2761,9 @@ Respond with ONLY a JSON array (no prose, no markdown):
         let extractedAddress: string | null = null;
         let extractedItems: string | null = null;
 
-        if (text.length > 15 && !isGreeting) {
+        // Run extraction if: long enough AND (not a greeting OR long enough to have real content after "hi")
+        // e.g. "Hi I'd like to install a wardrobe how much?" → 44 chars → extract items even though starts with "hi"
+        if (text.length > 15 && (!isGreeting || text.length > 35)) {
           try {
             const extractRes = await openai.chat.completions.create({
               model: "gpt-4o",
@@ -2938,11 +2940,21 @@ Classify their VERY FIRST message. Return JSON:
           } catch { /* fall through to default */ }
 
           if (firstMsgItem) {
-            // Specific item pricing inquiry
-            const priceMsg = await smartPricingLookup(firstMsgItem);
+            // Specific item pricing inquiry — try to show actual estimate from the item(s)
             const intro = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n`;
-            await sendBotMessage(from, intro + (priceMsg
-              ? `${priceMsg}\n\nWould you like me to put together a personalised quote? Just let me know and I'll get the details from you. 😊`
+            // Build a fake session using the detected item query so we get real catalog prices
+            const fakeItemSession = {
+              collectedItems: firstMsgItem,
+              floorLevel: null as number | null,
+              hasLift: null as boolean | null,
+              accessDifficulty: null as string | null,
+              isRelocation: /reloc|move|moving|shift/i.test(firstMsgItem),
+              distanceKm: null as string | null,
+            };
+            const estimateMsg = await buildJobEstimateMessage(fakeItemSession as any);
+            const outro = `\n\nWould you like a full personalised quote? Just say *Yes* and I'll get the job details from you. 😊\n\n_Floor surcharges & transport confirmed once we know your address & floor._`;
+            await sendBotMessage(from, intro + (estimateMsg
+              ? `${estimateMsg}${outro}`
               : `We'd be happy to quote for *${firstMsgItem}*. Our team will confirm the exact price once we know more about your job.\n\nWould you like a quote? 😊`
             ));
           } else if (firstMsgReply) {
