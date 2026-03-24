@@ -5,6 +5,7 @@ import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { execSync } from "child_process";
 import { seedDatabase } from "./seed";
 import { autoBookPendingQuotes } from "./storage";
 import { refreshTokenIfNeeded } from "./whatsapp";
@@ -201,7 +202,6 @@ app.use((req, res, next) => {
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
       log(`Port ${port} already in use — killing old process and retrying…`);
-      const { execSync } = require("child_process");
       try { execSync(`fuser -k ${port}/tcp`); } catch {}
       setTimeout(() => {
         httpServer.close();

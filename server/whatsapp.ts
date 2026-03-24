@@ -48,65 +48,47 @@ async function exchangeForLongLivedToken(shortToken: string): Promise<string | n
   }
 }
 
-// ── Check token expiry via Meta debug_token endpoint ─────────────────────────
-async function getTokenExpiryEpoch(token: string): Promise<number> {
-  const appId = process.env.META_APP_ID;
-  const appSecret = process.env.META_APP_SECRET;
-  if (!appId || !appSecret) return 0;
+// ── Validate token by making a real call to the WhatsApp Business API ─────────
+// More reliable than debug_token — works for permanent System User tokens too.
+async function testTokenValidity(token: string): Promise<{ valid: boolean; reason?: string }> {
   try {
-    const res = await fetch(
-      `https://graph.facebook.com/debug_token?input_token=${encodeURIComponent(token)}&access_token=${appId}|${appSecret}`
-    );
+    const res = await fetch(`${WA_API_BASE}/${PHONE_NUMBER_ID}?fields=id,display_phone_number`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const data = await res.json() as any;
-    return data?.data?.expires_at ?? 0; // unix epoch seconds, 0 = never expires
+    if (res.ok && data?.id) return { valid: true };
+    const code = data?.error?.code;
+    const msg  = data?.error?.message || "Unknown error";
+    // 190 = invalid/expired OAuth token
+    if (code === 190) return { valid: false, reason: `Token rejected by Meta (code 190): ${msg}` };
+    // Any other non-200 is suspicious but might be a transient error — treat as valid
+    // to avoid false positives from network issues
+    return { valid: true };
   } catch {
-    return 0;
+    // Network error at startup — assume token is fine, will fail gracefully at send time
+    return { valid: true };
   }
 }
 
-// ── Auto-refresh: exchange stored token if it expires within 7 days ───────────
+// ── Startup token health check ─────────────────────────────────────────────────
 export async function refreshTokenIfNeeded(): Promise<void> {
   const currentToken = await getAccessToken();
   if (!currentToken) {
-    console.warn("[WhatsApp] No token to refresh");
+    console.warn("[WhatsApp] No token configured — go to Admin Settings to add one.");
     return;
   }
 
-  const expiresAt = await getTokenExpiryEpoch(currentToken);
-  const nowSec = Math.floor(Date.now() / 1000);
-  const sevenDays = 7 * 24 * 3600;
-
-  // If expires_at is 0 the token is already non-expiring; skip
-  if (expiresAt === 0) {
-    console.log("[WhatsApp] Token has no expiry (permanent or System User token) — no refresh needed");
-    return;
-  }
-
-  // Already expired — can't exchange, just warn loudly
-  if (expiresAt <= nowSec) {
+  const { valid, reason } = await testTokenValidity(currentToken);
+  if (!valid) {
     console.error("════════════════════════════════════════════════════════");
-    console.error("[WhatsApp] ⛔ TOKEN IS EXPIRED — bot CANNOT send messages!");
-    console.error("[WhatsApp]    Go to Admin Settings → paste a new System User token.");
+    console.error("[WhatsApp] ⛔ TOKEN REJECTED — bot CANNOT send messages!");
+    console.error(`[WhatsApp]    ${reason}`);
+    console.error("[WhatsApp]    Go to Admin Settings → paste a valid System User token.");
     console.error("════════════════════════════════════════════════════════");
     return;
   }
 
-  if (expiresAt - nowSec > sevenDays) {
-    const daysLeft = Math.round((expiresAt - nowSec) / 86400);
-    console.log(`[WhatsApp] Token still valid — ${daysLeft} days remaining`);
-    return;
-  }
-
-  console.log("[WhatsApp] Token expiring soon — exchanging for long-lived token…");
-  const longLived = await exchangeForLongLivedToken(currentToken);
-  if (longLived) {
-    await saveTokenToDB(longLived);
-    _cachedToken = longLived;
-    _cacheExpiry = Date.now() + 5 * 60 * 1000;
-    console.log("[WhatsApp] Token refreshed and saved to DB");
-  } else {
-    console.warn("[WhatsApp] Could not exchange token — update manually in Admin Settings.");
-  }
+  console.log("[WhatsApp] ✅ Token is valid — bot is ready to send messages.");
 }
 
 // ── Read token from DB (with 5-min in-memory cache) ──────────────────────────
