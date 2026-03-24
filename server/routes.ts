@@ -450,7 +450,7 @@ OFFICE / COMMERCIAL FURNITURE — these are equally valid and very common:
 
 10. OFFICE WORKSTATION / CUBICLE SYSTEM: An office desk (or cluster of desks) integrated with or surrounded by vertical PANEL PARTITIONS that form enclosed personal work areas. The panels are typically fabric-covered or solid, 100–180 cm tall. Common in open-plan offices and business premises. Count each individual seated work area as 1 unit. Name: "office workstation", "cubicle workstation", or "panel workstation". Do NOT return NONE for these — they require professional dismantling, relocation, or installation.
 
-11. OFFICE PARTITION PANEL: Freestanding or linked vertical dividers between workstations. Typically fabric or solid panels 100–180 cm tall. Separate from the desks themselves. Name: "office partition panel". Count panels individually or as a set.
+11. OFFICE PARTITION PANEL: Freestanding or linked vertical dividers between workstations. Typically fabric or solid panels 100–180 cm tall. IMPORTANT: If partition panels are attached to or form part of a cubicle workstation system, they are INCLUDED in the workstation count — do NOT list them as a separate item. Only list "office partition panel" as a separate item if the panels are completely standalone with NO desks or workstations present at all.
 
 12. RECEPTION COUNTER / FRONT DESK: A large counter unit typically found at the entrance of an office or building. Often L-shaped or straight with a raised front panel and internal storage or drawers. Name: "reception counter" or "reception desk".
 
@@ -492,8 +492,9 @@ async function scanFurnitureInPhoto(mimeType: string, base64: string): Promise<S
 COUNTING RULES — critical for accurate pricing:
 - Count EACH individual unit separately. Example: 6 separate workstation cubicles = count 6 (NOT 1)
 - Group the same type together: all office workstations = one entry, count = 6
-- Office partition panels: count individual panels or estimate as a set (e.g. 12 panels)
-- Office chairs: count each chair
+- OFFICE WORKSTATIONS: The partition panels are PART OF the workstation unit — do NOT list partition panels as a separate item when workstations are present. Count only the number of individual seated work areas (desks/workstations). Example: an office with 6 cubicles = {"name": "office workstation", "count": 6} — no separate partition panel entry.
+- Only list "office partition panel" as a separate item if you see STANDALONE divider panels with NO desks attached to them at all.
+- Office chairs: count each chair individually
 - Beds, wardrobes, sofas, filing cabinets: count each unit
 - If you can see a cluster and cannot count exactly, give your best reasonable estimate
 
@@ -503,13 +504,12 @@ Return JSON — one entry per distinct item TYPE, with the count of that type:
 {
   "items": [
     {"name": "office workstation", "count": 6},
-    {"name": "office partition panel", "count": 12},
     {"name": "office chair", "count": 6}
   ],
   "noItems": false
 }
 
-Use descriptive names like: "queen bed frame", "2-door wardrobe", "3-seater sofa", "office workstation with partitions", "reception counter", "L-shaped executive desk", "filing cabinet", "conference table", "6-drawer chest of drawers".
+Use descriptive names like: "queen bed frame", "2-door wardrobe", "3-seater sofa", "office workstation", "reception counter", "L-shaped executive desk", "filing cabinet", "conference table", "6-drawer chest of drawers".
 Set noItems: true ONLY if absolutely nothing installable is visible (empty room, food, people, vehicles only).`,
       }, {
         role: "user",
