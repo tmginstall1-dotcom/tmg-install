@@ -5673,13 +5673,47 @@ Return ONLY valid JSON.`,
 
         await storage.deleteWhatsAppSession(from);
 
+        // ── Build itemised quote breakdown for WhatsApp confirmation ─────────
+        const serviceEmoji: Record<string, string> = {
+          install: "🔧", dismantle: "🔨", relocate: "🚛", dispose: "🗑️",
+          dismantle_dispose: "🗑️", surcharge: "📐", discount: "💚", adjustment: "➕",
+        };
+        const serviceLabel: Record<string, string> = {
+          install: "Install", dismantle: "Dismantle", relocate: "Relocate",
+          dispose: "Dispose", dismantle_dispose: "Dismantle & Dispose",
+          surcharge: "", discount: "Discount", adjustment: "",
+        };
+        const lineItems = (quoteItems as any[]).map(qi => {
+          const emoji = serviceEmoji[qi.serviceType] || "•";
+          const svcLabel = serviceLabel[qi.serviceType] ?? qi.serviceType;
+          const itemName = qi.detectedName || qi.originalDescription;
+          const label = svcLabel ? `${itemName} (${svcLabel})` : itemName;
+          const qty = qi.quantity && qi.quantity > 1 ? ` ×${qi.quantity}` : "";
+          const price = `$${parseFloat(qi.subtotal).toFixed(2)}`;
+          return `${emoji} ${label}${qty}: ${price}`;
+        });
+
+        const breakdownLines = lineItems.join("\n");
+        const subtotalLine = `Subtotal: *$${laborTotalWithSurcharges.toFixed(2)}*`;
+        const transportLine = transportFee > 0 ? `🚛 Transport: *$${transportFee.toFixed(2)}*\n` : "";
+        const totalLine = `💰 *Total: $${grandTotal.toFixed(2)}*`;
+        const depositLine = `⬇️ *Deposit (50%): $${depositAmount}*`;
+
         await sendBotMessage(from,
-          `✅ All done, *${name}*! Your request has been submitted.\n\n` +
+          `✅ *Quote Ready, ${name}!*\n\n` +
           `🔖 *Reference:* ${quote.referenceNo}\n` +
           `📍 *Address:* ${address}\n` +
-          (session.preferredDate ? `📅 *Preferred date:* ${session.preferredDate}\n` : "") +
-          `\nOur team will review and send you a quote shortly — typically within 1 business day.\n\n` +
-          `Track your request: ${APP_URL}/quotes/${quote.id}\n\n` +
+          (session.isRelocation && session.collectedToAddress ? `📍 *To:* ${session.collectedToAddress}\n` : "") +
+          (session.preferredDate ? `📅 *Date:* ${session.preferredDate}\n` : "") +
+          `\n─────────────────\n` +
+          `${breakdownLines}\n` +
+          `─────────────────\n` +
+          `${subtotalLine}\n` +
+          `${transportLine}` +
+          `${totalLine}\n` +
+          `${depositLine}\n\n` +
+          `To confirm your booking, please make the *50% deposit ($${depositAmount})* via PayNow/bank transfer — our team will send payment details shortly.\n\n` +
+          `Track your quote: ${APP_URL}/quotes/${quote.id}\n\n` +
           `Thanks for choosing TMG Install! 🙏 Reply *hi* anytime for a new quote.`
         );
 
@@ -6514,15 +6548,42 @@ Respond directly — no JSON, just the message text.`,
     // Mark session as submitted but keep botPaused so admin stays in control
     await storage.upsertWhatsAppSession(phone, { state: "submitted" });
 
-    // ── Send confirmation to customer on WhatsApp ─────────────────────────────
+    // ── Send itemised confirmation to customer on WhatsApp ────────────────────
     try {
+      const adminDepositAmt = (grandTotal * 0.5).toFixed(2);
+      const adminSvcEmoji: Record<string, string> = {
+        install: "🔧", dismantle: "🔨", relocate: "🚛", dispose: "🗑️",
+        dismantle_dispose: "🗑️", surcharge: "📐", discount: "💚", adjustment: "➕",
+      };
+      const adminSvcLabel: Record<string, string> = {
+        install: "Install", dismantle: "Dismantle", relocate: "Relocate",
+        dispose: "Dispose", dismantle_dispose: "Dismantle & Dispose",
+        surcharge: "", discount: "Discount", adjustment: "",
+      };
+      const adminLineItems = (quoteItems as any[]).map(qi => {
+        const emoji = adminSvcEmoji[qi.serviceType] || "•";
+        const svcLabel = adminSvcLabel[qi.serviceType] ?? qi.serviceType;
+        const itemName = qi.detectedName || qi.originalDescription;
+        const label = svcLabel ? `${itemName} (${svcLabel})` : itemName;
+        const qty = qi.quantity && qi.quantity > 1 ? ` ×${qi.quantity}` : "";
+        return `${emoji} ${label}${qty}: $${parseFloat(qi.subtotal).toFixed(2)}`;
+      }).join("\n");
+
       await sendBotMessage(phone,
-        `✅ All done, *${name}*! Your request has been submitted.\n\n` +
+        `✅ *Quote Ready, ${name}!*\n\n` +
         `🔖 *Reference:* ${quote.referenceNo}\n` +
         `📍 *Address:* ${address}\n` +
-        (session.preferredDate ? `📅 *Preferred date:* ${session.preferredDate}\n` : "") +
-        `\nOur team will review and send you a quote shortly — typically within 1 business day.\n\n` +
-        `Track your request: ${APP_URL}/quotes/${quote.id}\n\n` +
+        (session.isRelocation && session.collectedToAddress ? `📍 *To:* ${session.collectedToAddress}\n` : "") +
+        (session.preferredDate ? `📅 *Date:* ${session.preferredDate}\n` : "") +
+        `\n─────────────────\n` +
+        `${adminLineItems}\n` +
+        `─────────────────\n` +
+        `Subtotal: *$${laborTotalWithSurcharges.toFixed(2)}*\n` +
+        (transportFee > 0 ? `🚛 Transport: *$${transportFee.toFixed(2)}*\n` : "") +
+        `💰 *Total: $${grandTotal.toFixed(2)}*\n` +
+        `⬇️ *Deposit (50%): $${adminDepositAmt}*\n\n` +
+        `To confirm your booking, please make the *50% deposit ($${adminDepositAmt})* via PayNow/bank transfer — our team will send payment details shortly.\n\n` +
+        `Track your quote: ${APP_URL}/quotes/${quote.id}\n\n` +
         `Thanks for choosing TMG Install! 🙏 Reply *hi* anytime for a new quote.`
       );
     } catch (waErr) {
