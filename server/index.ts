@@ -197,6 +197,23 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
+
+  httpServer.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      log(`Port ${port} already in use — killing old process and retrying…`);
+      const { execSync } = require("child_process");
+      try { execSync(`fuser -k ${port}/tcp`); } catch {}
+      setTimeout(() => {
+        httpServer.close();
+        httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+          log(`serving on port ${port} (retry)`);
+        });
+      }, 1500);
+    } else {
+      throw err;
+    }
+  });
+
   httpServer.listen(
     {
       port,

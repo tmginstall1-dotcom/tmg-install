@@ -422,6 +422,7 @@ function ChatModal({
       setShowQuickReplies(false);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations", selectedPhone] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
+      toast({ title: "Message sent — Bot paused", description: "You are now in admin mode. Resume bot when done." });
     },
     onError: (err: any) => {
       let reason = err?.message || "Failed to send message";

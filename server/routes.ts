@@ -3692,6 +3692,17 @@ ${FURNITURE_VISION_GUIDE}`,
           'dispose','disposal','wardrobe','sofa','bed','table','chair','cabinet',
           'drawer','shelf','bookshelf','mattress','desk','couch','closet','cupboard',
           'fridge','refrigerator','washing','machine','tv','television',
+          // Singapore malls, estates, landmarks, MRT areas (to prevent treating addresses as names)
+          'nex','jurong','tampines','bedok','clementi','woodlands','yishun','sembawang',
+          'choa','punggol','sengkang','hougang','serangoon','bishan','toa','payoh',
+          'ang','kio','bukit','timah','batok','panjang','gombak','novena','orchard',
+          'raffles','marina','harbourfront','dhoby','ghaut','boon','keng','kallang',
+          'pasir','ris','changi','airport','expo','tanah','merah','geylang','aljunied',
+          'paya','lebar','macpherson','tai','seng','bartley','kovan','lorong','chuan',
+          'centrepoint','plaza','mall','centre','city','square','exchange','hub',
+          'heartland','compass','northpoint','causeway','junction','westgate','jem',
+          'imm','parkway','parade','vivocity','harbourfront','bugis','dhoby','somerset',
+          'central','east','west','north','south','island','singapore','sg',
         ]);
         const fastPathWords = text.trim().split(/\s+/);
         const looksLikeName =
@@ -3701,8 +3712,9 @@ ${FURNITURE_VISION_GUIDE}`,
           !text.includes('@') &&
           !/\d/.test(text) &&
           /^[a-zA-Z\s'\-\.]+$/.test(text) &&
-          !NAME_BLOCKLIST.has(fastPathWords[0].toLowerCase()) &&
-          !NAME_BLOCKLIST.has(text.toLowerCase());
+          !NAME_BLOCKLIST.has(text.toLowerCase()) &&
+          // Reject if ANY word is a Singapore location/place/landmark keyword
+          !fastPathWords.some(w => NAME_BLOCKLIST.has(w.toLowerCase()));
 
         // Use GPT to extract name AND detect if the message is really a pricing question
         let extractedName: string | null = null;
@@ -3735,7 +3747,7 @@ Return JSON:
   "mentionedService": "installation"|"dismantling"|"relocation"|"disposal"|null
 }
 Rules:
-- name: Extract ANY personal name. ACCEPT single first names ("Kayden", "John", "Ahmad", "Wei Ling") — no "I'm" or "My name is" phrasing needed. REJECT only: yes/no/ok/sure, pricing questions, known furniture items (wardrobe/sofa/bed/table/cabinet/drawer/shelf/desk/couch), service types (installation/dismantling/relocation/disposal).
+- name: Extract a PERSONAL name only. ACCEPT single first names ("Kayden", "John", "Ahmad", "Wei Ling"). REJECT: yes/no/ok/sure, pricing questions, furniture items, service types (installation/dismantling/relocation/disposal), AND any Singapore location — mall names (NEX, Northpoint, Causeway Point, IMM, Westgate, JEM, Vivocity, Bugis, Junction 8, Centrepoint), estate names (Serangoon, Tampines, Bedok, Jurong, Woodlands, Yishun, Clementi, Bishan, Novena, Raffles, Marina, Orchard, Changi, Geylang, Hougang, Sengkang, Punggol, Bukit Batok, Bukit Panjang, Ang Mo Kio, Toa Payoh, Kallang, Pasir Ris), and generic location words (Central, East, West, North, South, MRT, Block, Blk, Road, Street, Avenue, Drive, Lane, Crescent).
 - address: Singapore address ONLY if it appears in the customer's CURRENT message. NEVER extract an address from previous conversation turns. If the current message is just a name with no address, return null.
 - isPricingQuestion: true if they asked about cost/price/"how much" OR if the conversation history shows we asked for an item/service and they replied with a furniture item or service type
 - mentionedItem: specific furniture item name if pricing-related — even without explicit "how much" (e.g. "wardrobe", "PAX wardrobe", "3-door wardrobe", "queen bed frame", "dining table", "sofa"). Set when message is a furniture item name.
@@ -6318,6 +6330,8 @@ Respond directly — no JSON, just the message text.`,
     try {
       // Use sendWhatsAppMessage so it throws on Meta API error — only logs if delivered
       await sendWhatsAppMessage(phone, message.trim(), { logAsSentBy: `admin:${user.name || user.email}` });
+      // Auto-pause the bot whenever an admin manually sends — prevents bot from overriding admin replies
+      await storage.upsertWhatsAppSession(phone, { botPaused: true, botPausedAt: new Date() });
       res.json({ ok: true });
     } catch (err: any) {
       console.error("[Admin] Chat send failed:", err?.message);
