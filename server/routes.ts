@@ -3778,7 +3778,8 @@ ${FURNITURE_VISION_GUIDE}`,
         await storage.upsertWhatsAppSession(from, { collectedName: extractedName });
 
         let replyName: string;
-        if (alreadyHasItemsToo) {
+        if (alreadyHasItemsToo && alreadyHasAddress) {
+          // Both name + address + items present — go to confirmation
           await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation" });
           replyName =
             `✅ Got it, *${extractedName}*! Here's your updated summary:\n\n` +
@@ -3786,6 +3787,13 @@ ${FURNITURE_VISION_GUIDE}`,
             `📍 *Address:* ${session!.collectedAddress}\n` +
             `🛋️ *Items:*\n${session!.collectedItems}\n\n` +
             `Reply *YES* to confirm and send to our team. 😊`;
+        } else if (alreadyHasItemsToo && !alreadyHasAddress) {
+          // Have items but no address — must collect address before confirming
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
+          replyName =
+            `Thanks, *${extractedName}*! 😊\n\n` +
+            `📍 Where is the job? Drop the *full address* — block/unit number helps too.\n\n` +
+            `_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
         } else if (alreadyHasAddress) {
           await storage.upsertWhatsAppSession(from, { state: "awaiting_items" });
           replyName =
@@ -5208,6 +5216,27 @@ CRITICAL for edit_items:
             );
             return;
           }
+        }
+
+        // ── Guard: required fields — redirect rather than fail silently ──────────
+        if (!session.collectedAddress) {
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
+          await sendBotMessage(from,
+            `Before I can submit, I need the *job address*! 📍\n\n` +
+            `Where will the work be done? (Block/unit number helps.)\n\n` +
+            `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+          );
+          return;
+        }
+        if (!session.collectedName) {
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
+          await sendBotMessage(from, `I just need your *name* before I can submit. What should I call you? 😊`);
+          return;
+        }
+        if (!session.collectedItems) {
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_items" });
+          await sendBotMessage(from, `What furniture do you need help with? Please list the items and services. 🛋️`);
+          return;
         }
 
         const name = session.collectedName!;
