@@ -3407,21 +3407,32 @@ ${FURNITURE_VISION_GUIDE}`,
             const prefilledItems = `• 1 ${photoScanItem} (${captionService})`;
 
             if (isPriceQuestion) {
-              // Customer asked about price — show it first, then gently offer a quote
-              const priceMsg = await smartPricingLookup(`${photoScanItem} ${captionService}`);
+              // Customer asked about price — show detailed estimate, then gently offer a quote
+              const isReloc = captionService.includes("reloc");
+              const photoEstimateText = `${photoScanItem} ${captionService}`;
+              const fakePhotoSession = {
+                collectedItems: photoEstimateText,
+                floorLevel: null as number | null,
+                hasLift: null as boolean | null,
+                accessDifficulty: null as string | null,
+                isRelocation: isReloc,
+                distanceKm: null as string | null,
+              };
+              const photoEstimate = await buildJobEstimateMessage(fakePhotoSession as any);
               // Save the detected item + service so next step is ready, but stay in pricing_shown
               await storage.upsertWhatsAppSession(from, {
                 collectedItems: prefilledItems,
                 previousItems: "photo_detected",
-                isRelocation: captionService.includes("reloc"),
+                isRelocation: isReloc,
               });
               const quoteOffer = nameAlready
                 ? `\n\nWould you like me to put together a personalised quote for you, *${nameAlready}*? Just say the word 😊`
                 : `\n\nWould you like me to put together a personalised quote? Just let me know 😊`;
+              const floorNote = `\n\n_Floor surcharges & transport may apply depending on your address._`;
               await sendBotMessage(from,
                 `📸 I can see a *${photoScanItem}* in your photo!\n\n` +
-                (priceMsg
-                  ? `${priceMsg}${quoteOffer}`
+                (photoEstimate
+                  ? `${photoEstimate}${floorNote}${quoteOffer}`
                   : `We'd be happy to *${serviceAction}* that for you. Our team will confirm the exact price once we have your job details.${quoteOffer}`)
               );
               return;
@@ -3458,14 +3469,26 @@ ${FURNITURE_VISION_GUIDE}`,
           }
 
           if (photoScanItem) {
-            // Item detected but no service type in caption — show full price table
-            const priceMsg = await smartPricingLookup(photoScanItem);
+            // Item detected but no service type in caption — show detailed install estimate (most common)
+            // and offer a full quote
+            const fakePhotoOnlySession = {
+              collectedItems: photoScanItem,
+              floorLevel: null as number | null,
+              hasLift: null as boolean | null,
+              accessDifficulty: null as string | null,
+              isRelocation: false,
+              distanceKm: null as string | null,
+            };
+            const photoOnlyEstimate = await buildJobEstimateMessage(fakePhotoOnlySession as any);
             const followUp = nameAlready
-              ? `Ready to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
-              : `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`;
-            await sendBotMessage(from, priceMsg
-              ? `${priceMsg}\n\n${followUp}`
-              : `Our team will confirm the exact price for the *${photoScanItem}*.\n\n${followUp}`
+              ? `\n\nReady to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
+              : `\n\nWould you like a personalised quote? Reply *Yes* to get started 😊`;
+            const floorNote = `\n\n_Floor surcharges & transport may apply depending on your address._`;
+            await sendBotMessage(from,
+              `📸 I can see a *${photoScanItem}* in your photo!\n\n` +
+              (photoOnlyEstimate
+                ? `${photoOnlyEstimate}${floorNote}${followUp}`
+                : `Our team will confirm the exact price for the *${photoScanItem}*.${followUp}`)
             );
             return;
           }
