@@ -1,0 +1,350 @@
+PROJECT: REBUILD TMGINSTALL WHATSAPP CHATBOT
+
+I want you to rebuild our WhatsApp chatbot for TMGINSTALL from the ground up in a clean, production-grade way.
+
+BUSINESS CONTEXT
+- Brand: TMGINSTALL
+- Website: tmginstall.com
+- WhatsApp is used for customer enquiry + quote collection
+- Business type: furniture installation, dismantling, relocation
+- Market: Singapore
+- The bot must feel natural, helpful, fast, and not robotic
+- The bot must answer common customer questions correctly
+- The bot must guide customers through our quote workflow smoothly
+- The bot must not hallucinate prices, policies, or operating hours
+- Any pricing, operating hours, FAQs, service areas, and policy answers must be editable in admin without code changes
+
+STRICT SCOPE
+Rebuild only the WhatsApp chatbot system and the minimum admin/config screens needed to manage it.
+Do not break our existing website, customer quote workflow, booking flow, admin workflow, or payment flow.
+If there is existing working logic or Supabase structure, reuse it safely where possible.
+Remove deprecated chatbot logic that causes wrong answers, dead ends, repeated questions, or robotic replies.
+Use clean architecture, clear file structure, and no messy duplicate logic.
+When editing files, prefer full-file clean replacements for the chatbot-related files only.
+
+CORE GOAL
+Build a WhatsApp chatbot that can:
+1. answer customer questions correctly about services, pricing basics, operating hours, service areas, payment process, and quote process
+2. collect quote details using a proper checklist
+3. know when to answer directly and when to switch into quote collection mode
+4. know when to escalate to human/admin
+5. save every conversation and quote lead properly
+6. feel like a real helpful operations assistant, not a generic bot
+
+CONVERSATION DESIGN REQUIREMENTS
+The bot must detect customer intent first:
+- FAQ / question answering
+- Start quote
+- Continue incomplete quote
+- Human handoff
+- Existing customer asking for update
+- Out-of-scope request
+
+The bot must behave like this:
+- warm, professional, concise, human-like
+- short messages, easy to read on WhatsApp
+- one main question at a time
+- no huge text walls
+- confirm understanding before moving on
+- never repeat questions if we already have the answer
+- if unsure, say admin will confirm instead of making things up
+- if the customer asks multiple things, answer clearly and then guide them back to the next step
+- always try to move the conversation forward naturally
+
+FAQ / KNOWLEDGE REQUIREMENTS
+Build a proper knowledge layer so the bot answers from structured business data, not from hardcoded random text.
+Create admin-editable data sources for:
+- business profile
+- operating hours
+- service areas
+- FAQ entries
+- pricing catalog / pricing rules / starting prices
+- payment policy
+- deposit policy
+- booking policy
+- lead time / availability notes
+- escalation rules
+- canned replies / fallback templates
+
+The bot must answer correctly for questions like:
+- What services do you provide?
+- Do you do installation only?
+- Do you do dismantling?
+- Do you do relocation?
+- How much do you charge?
+- Can you quote from photo?
+- Do you work on weekends?
+- What are your operating hours?
+- Do you cover all Singapore?
+- Do I need to pay deposit?
+- How does booking work?
+- Can I send photos here?
+- Can I get same-day service?
+- Can you assemble IKEA?
+- Can you do office furniture?
+- How long does quotation take?
+- Can I reschedule?
+- How do I pay?
+- Can I talk to someone?
+
+IMPORTANT ACCURACY RULES
+- Never invent exact prices if the data does not support it
+- For simple pricing questions, reply with “starting from” or “estimated from” only if pricing data exists
+- For complex jobs, the bot should say that final quote depends on item details, quantity, access conditions, and photos
+- Operating hours must come from admin settings, not hardcoded text
+- If there is no answer in the knowledge base, say a human will confirm
+- The bot must never confidently give wrong information
+
+QUOTE WORKFLOW TO IMPLEMENT
+The chatbot must support our quote checklist flow properly.
+
+Service types:
+- installation
+- dismantling
+- relocation
+- mixed service
+
+The quote collection flow should gather:
+1. customer name
+2. contact number if needed
+3. email
+4. service type
+5. residential or office/commercial
+6. item list with quantity
+7. brand / model if known
+8. photos / attachments if available
+9. pickup address if relocation
+10. delivery address if relocation
+11. floor level at each location
+12. lift available or staircase only
+13. preferred date / preferred time window
+14. extra notes
+
+QUOTE COLLECTION UX RULES
+- Ask one question at a time
+- If the customer already gave multiple answers in one message, parse and save all of them
+- Let the customer type naturally
+- Support photo uploads as part of the flow
+- If customer sends text like “1 queen bed, 2 wardrobes, move from Punggol to Tampines, both have lift”, parse it intelligently
+- After enough information is collected, show a clean summary and ask customer to confirm
+- Once confirmed, create a quote lead in database
+- Then respond with a professional acknowledgement that admin will review and confirm final quote if required
+- If your system supports instant estimate, only show a safe pre-quote clearly labeled as estimate / subject to review
+- Never present rough estimate as guaranteed final quote
+
+QUOTE CHECKLIST LOGIC
+Create strong extraction and validation for:
+- quantity
+- item names
+- service type
+- addresses
+- floor / lift / stairs
+- photos attached or not
+- missing required fields
+
+If missing details, the bot should ask smart follow-up questions.
+Example:
+- If relocation selected but no destination given, ask destination next
+- If wardrobe mentioned but no size/door type, ask only if needed for pricing
+- If office project with many items, collect basic summary and offer human follow-up
+- If customer already sent photos, do not keep asking for the same thing
+
+PRICING RESPONSE LOGIC
+The bot must answer pricing questions in a safe and useful way:
+- exact pricing only when simple, supported, and low-risk
+- otherwise give “from” pricing or explain quote factors
+- explain that final pricing depends on item type, quantity, access, floors, lift/stairs, transport, and photos
+- use admin pricing catalog / rules, not hardcoded numbers
+- where pricing confidence is low, do not guess
+
+OPERATING HOURS / BUSINESS INFO LOGIC
+Create admin-editable business settings such as:
+- business name
+- support WhatsApp number
+- operating hours by day
+- public holiday note
+- service areas
+- deposit percentage
+- response SLA
+- emergency / urgent job policy
+
+The bot should answer these correctly every time from settings.
+
+HUMAN HANDOFF RULES
+Create clear escalation rules.
+Escalate to human/admin when:
+- customer asks for manager or human
+- customer sounds upset
+- pricing is unclear or disputed
+- job is too large or commercial complex
+- custom carpentry / special installation / unusual item
+- same-day urgent request
+- repeated misunderstanding
+- customer asks for booking update and bot lacks enough data
+- FAQ confidence is low
+
+When escalating:
+- capture summary of the conversation
+- mark handoff reason
+- notify admin
+- send professional reply like:
+  “I’ve passed this to our team for review. We’ll get back to you shortly.”
+
+ADMIN / OPERATIONS REQUIREMENTS
+Build minimal but strong admin screens for:
+1. chatbot conversations
+2. leads / quote requests created from WhatsApp
+3. FAQ manager
+4. business settings
+5. pricing catalog / basic pricing rules
+6. canned replies
+7. escalation queue
+8. chat audit log
+
+Admin must be able to:
+- edit FAQ answers
+- edit operating hours
+- edit service areas
+- edit pricing guidance
+- see incomplete quote flows
+- resume or take over a conversation
+- see extracted quote data
+- see customer messages and bot replies in order
+- mark conversations resolved / handed off / converted
+
+DATA / BACKEND REQUIREMENTS
+Use clean, structured tables if needed, but avoid unnecessary schema sprawl.
+At minimum support:
+- conversations
+- conversation_messages
+- leads_or_quote_requests
+- faq_entries
+- business_settings
+- pricing_rules_or_catalog
+- canned_replies
+- escalation_events
+- chatbot_state
+
+Each conversation should track:
+- phone number
+- current intent
+- current step
+- collected fields
+- confidence / handoff flags
+- last customer message time
+- assigned admin if taken over
+- status: active / waiting_admin / completed / abandoned
+
+The bot must support resuming the conversation later without losing state.
+
+MESSAGE ENGINE REQUIREMENTS
+Build a proper conversation engine, not just keyword matching.
+Use:
+- intent detection
+- FAQ retrieval from structured data
+- state machine for quote collection
+- slot filling for required fields
+- safe fallbacks
+- response templates that sound natural
+
+The engine should prioritize:
+1. direct answer if customer asks a clear FAQ and no quote is in progress
+2. continue quote flow if quote collection already started
+3. handle interruptions naturally, answer briefly, then return to next step
+4. escalate when confidence is low
+
+IMPORTANT SAFETY / QUALITY RULES
+- No hallucinated business claims
+- No fake guarantees
+- No random made-up price numbers
+- No robotic repetitive replies
+- No long paragraphs
+- No getting stuck in loops
+- No asking for the same detail twice if it was already captured
+- No forcing the customer through irrelevant questions
+- Always log what was extracted and why
+
+WHATSAPP UX REQUIREMENTS
+- Use short conversational replies
+- Use numbered or bulleted options only when helpful
+- Use buttons / quick replies if available in the integration
+- Keep replies mobile-friendly
+- Use concise Singapore-friendly English
+- Support customers who type informally
+- Handle misspellings reasonably
+- Handle photo-first conversations
+- Handle customers who say “price?”, “quote”, “how much”, “can do today?”, “send me your hours”, etc.
+
+TONE REQUIREMENTS
+Tone should feel like:
+- professional operations coordinator
+- helpful, calm, efficient
+- not overly salesy
+- not stiff
+- not generic AI
+- sounds like a good human admin assistant
+
+EXAMPLE BEHAVIOUR
+If customer asks:
+“How much to move one queen bed from Bedok to Sengkang?”
+The bot should:
+- recognize relocation quote intent
+- ask only the missing info needed for estimate, such as lift/stairs and if dismantling is needed
+- if price cannot be exact yet, explain briefly and collect the remaining checklist items
+- then confirm summary and create lead
+
+If customer asks:
+“What time are you open?”
+The bot should answer from business settings immediately.
+
+If customer asks:
+“Do you install IKEA wardrobes?”
+The bot should answer from FAQ / service knowledge and then offer to start quote collection.
+
+If customer asks:
+“I already paid deposit, when is my booking?”
+The bot should either fetch the status if integrated, or escalate safely to admin without guessing.
+
+IF EXISTING SYSTEMS ALREADY EXIST
+If there is existing Supabase, WhatsApp integration, or quote workflow logic:
+- inspect it first
+- preserve working integrations
+- replace only broken chatbot parts
+- keep data compatibility where possible
+- do not create duplicate flows
+- do not reintroduce old broken logic
+- do not break admin or customer experience
+
+DELIVERABLES I EXPECT
+1. clean rebuilt WhatsApp chatbot logic
+2. proper state-based quote collection flow
+3. admin-editable FAQ / pricing / hours / settings
+4. conversation logging and escalation
+5. polished human-like response templates
+6. clear code organization
+7. seed data examples for FAQ, pricing guidance, and operating hours
+8. test cases for common customer scenarios
+9. no placeholder junk UI — make admin screens clean and usable
+10. brief README explaining where to edit hours, pricing, FAQs, and templates
+
+ACCEPTANCE TESTS
+The rebuild is only complete if all of these work:
+- customer asks FAQ and bot answers correctly
+- customer starts quote and bot collects checklist smoothly
+- customer interrupts with question mid-flow and bot handles it naturally
+- customer sends messy free text and bot extracts useful data
+- customer sends photos and flow continues correctly
+- incomplete quote can be resumed later
+- bot escalates when unsure
+- admin can edit hours, FAQ, and pricing without code changes
+- no repeated loops
+- no made-up prices
+- no hardcoded operating hours in chatbot reply logic
+
+SEED THE SYSTEM WITH EXAMPLE CONTENT
+Create sample FAQ, pricing guidance labels, and business settings in a structured way so the bot works immediately, but make all of them editable in admin.
+Do not fake exact business data unless explicitly marked as editable sample values.
+
+BUILD THIS CLEANLY, PROFESSIONALLY, AND PRODUCTION-SAFE.
+Before coding, inspect the current project structure and produce a short implementation plan.
+Then implement the rebuild end-to-end.

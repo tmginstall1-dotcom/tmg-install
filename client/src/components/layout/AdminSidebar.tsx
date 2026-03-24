@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import {
-  LayoutDashboard, Calendar, Users, BarChart2, FileDown, LogOut, Settings, MessageCircle, Receipt,
+  LayoutDashboard, Calendar, Users, BarChart2, FileDown, LogOut, Settings, MessageCircle, Receipt, HelpCircle,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -57,13 +57,15 @@ export function AdminSidebar() {
   const initials = user?.name?.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
   const bgColor = user?.id ? avatarColor(user.id) : "#6366f1";
 
+  const pausedCount = (convos as any[]).filter((c: any) => c.botPaused).length;
+
   const navSections = [
     {
       title: "Operations",
       items: [
         { href: "/admin",                icon: LayoutDashboard, label: "Dashboard",  badge: newCount + urgentPayment },
         { href: "/admin/schedule",       icon: Calendar,        label: "Schedule",   badge: scheduleCount },
-        { href: "/admin/conversations",  icon: MessageCircle,   label: "WhatsApp",   badge: waBadge },
+        { href: "/admin/conversations",  icon: MessageCircle,   label: "WhatsApp",   badge: waBadge + pausedCount },
       ],
     },
     {
@@ -74,6 +76,12 @@ export function AdminSidebar() {
         { href: "/admin/analytics", icon: BarChart2, label: "Analytics",  badge: 0 },
         { href: "/admin/export",    icon: FileDown,  label: "Export",     badge: 0 },
         { href: "/admin/settings",  icon: Settings,  label: "Settings",   badge: 0 },
+      ],
+    },
+    {
+      title: "Chatbot",
+      items: [
+        { href: "/admin/faq",  icon: HelpCircle, label: "FAQ Manager", badge: 0 },
       ],
     },
   ];

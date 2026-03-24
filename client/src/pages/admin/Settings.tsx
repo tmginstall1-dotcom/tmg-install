@@ -7,8 +7,32 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw } from "lucide-react";
+import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw, Clock, Bot, Globe } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+
+const DAYS = [
+  { key: "mon", label: "Monday" },
+  { key: "tue", label: "Tuesday" },
+  { key: "wed", label: "Wednesday" },
+  { key: "thu", label: "Thursday" },
+  { key: "fri", label: "Friday" },
+  { key: "sat", label: "Saturday" },
+  { key: "sun", label: "Sunday" },
+] as const;
+
+type DayKey = typeof DAYS[number]["key"];
+type DaySchedule = { open: boolean; start: string; end: string };
+type BusinessHours = Record<DayKey, DaySchedule>;
+
+const DEFAULT_HOURS: BusinessHours = {
+  mon: { open: true, start: "09:00", end: "18:00" },
+  tue: { open: true, start: "09:00", end: "18:00" },
+  wed: { open: true, start: "09:00", end: "18:00" },
+  thu: { open: true, start: "09:00", end: "18:00" },
+  fri: { open: true, start: "09:00", end: "18:00" },
+  sat: { open: true, start: "09:00", end: "18:00" },
+  sun: { open: true, start: "09:00", end: "18:00" },
+};
 
 export default function AdminSettings() {
   const { toast } = useToast();
@@ -134,6 +158,53 @@ export default function AdminSettings() {
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
+
+  // ── Business Hours / Chatbot Settings ─────────────────────────────────────
+  const { data: bizSettingsRaw = [] } = useQuery<{ key: string; value: string }[]>({
+    queryKey: ["/api/admin/app-settings"],
+  });
+
+  const bizSettings = Object.fromEntries((bizSettingsRaw as { key: string; value: string }[]).map(s => [s.key, s.value]));
+  const savedHours: BusinessHours = bizSettings.business_hours
+    ? (() => { try { return JSON.parse(bizSettings.business_hours); } catch { return DEFAULT_HOURS; } })()
+    : DEFAULT_HOURS;
+
+  const [hours, setHours] = useState<BusinessHours | null>(null);
+  const displayHours: BusinessHours = hours ?? savedHours;
+
+  const [serviceAreas, setServiceAreas] = useState<string | null>(null);
+  const [depositPct, setDepositPct] = useState<string | null>(null);
+  const [responseSla, setResponseSla] = useState<string | null>(null);
+  const [urgentPolicy, setUrgentPolicy] = useState<string | null>(null);
+
+  const displayServiceAreas = serviceAreas ?? (bizSettings.business_service_areas || "");
+  const displayDepositPct = depositPct ?? (bizSettings.business_deposit_pct || "50");
+  const displayResponseSla = responseSla ?? (bizSettings.business_response_sla || "within 2 hours during business hours");
+  const displayUrgentPolicy = urgentPolicy ?? (bizSettings.business_urgent_policy || "");
+
+  const saveBusinessSettings = useMutation({
+    mutationFn: (data: Record<string, string>) => apiRequest("POST", "/api/admin/app-settings/bulk", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/app-settings"] });
+      toast({ title: "Business settings saved", description: "The bot will use these settings immediately." });
+      setHours(null);
+      setServiceAreas(null);
+      setDepositPct(null);
+      setResponseSla(null);
+      setUrgentPolicy(null);
+    },
+    onError: (err: any) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
+  });
+
+  const handleSaveBusinessSettings = () => {
+    saveBusinessSettings.mutate({
+      business_hours: JSON.stringify(displayHours),
+      business_service_areas: displayServiceAreas,
+      business_deposit_pct: displayDepositPct,
+      business_response_sla: displayResponseSla,
+      business_urgent_policy: displayUrgentPolicy,
+    });
+  };
 
   return (
     <div className="min-h-screen bg-[#F5F5F7] pt-14 lg:pl-56 pb-24">
@@ -625,6 +696,134 @@ export default function AdminSettings() {
               + Add Promo Code
             </button>
           )}
+        </div>
+      </div>
+
+      {/* ── Business Hours & Chatbot Settings ──────────────────────────────── */}
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+              <Clock className="h-4 w-4 text-violet-600" />
+              Business Hours
+            </h2>
+            <p className="text-xs text-zinc-500 mt-1">The WhatsApp bot answers "What time are you open?" from these settings.</p>
+          </div>
+        </div>
+        <div className="p-5 space-y-2">
+          {DAYS.map(({ key, label }) => {
+            const day = displayHours[key] || { open: true, start: "09:00", end: "18:00" };
+            return (
+              <div key={key} className="flex items-center gap-3" data-testid={`hours-row-${key}`}>
+                <button
+                  type="button"
+                  onClick={() => setHours(h => ({ ...(h ?? displayHours), [key]: { ...day, open: !day.open } }))}
+                  className="flex items-center gap-1.5 w-28 shrink-0 text-sm"
+                >
+                  {day.open
+                    ? <ToggleRight className="w-4 h-4 text-blue-500" />
+                    : <ToggleLeft className="w-4 h-4 text-zinc-400" />}
+                  <span className={day.open ? "text-zinc-900 font-medium" : "text-zinc-400"}>{label}</span>
+                </button>
+                {day.open ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="time"
+                      value={day.start}
+                      onChange={e => setHours(h => ({ ...(h ?? displayHours), [key]: { ...day, start: e.target.value } }))}
+                      className="h-8 w-32 text-sm border-zinc-300"
+                    />
+                    <span className="text-xs text-zinc-400">to</span>
+                    <Input
+                      type="time"
+                      value={day.end}
+                      onChange={e => setHours(h => ({ ...(h ?? displayHours), [key]: { ...day, end: e.target.value } }))}
+                      className="h-8 w-32 text-sm border-zinc-300"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-xs text-zinc-400 italic">Closed</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+            <Bot className="h-4 w-4 text-blue-600" />
+            Chatbot Knowledge Settings
+          </h2>
+          <p className="text-xs text-zinc-500 mt-1">These values are read by the WhatsApp bot to answer customer questions accurately.</p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <Label className="text-xs text-zinc-500 uppercase tracking-wide font-semibold mb-1.5 block">
+              Service Areas
+            </Label>
+            <Textarea
+              data-testid="input-service-areas"
+              value={displayServiceAreas}
+              onChange={e => setServiceAreas(e.target.value)}
+              rows={3}
+              placeholder="All areas across Singapore — HDB, condo, landed, commercial..."
+              className="text-sm border-zinc-300 resize-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-zinc-500 uppercase tracking-wide font-semibold mb-1.5 block">
+                Deposit %
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  data-testid="input-deposit-pct"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={displayDepositPct}
+                  onChange={e => setDepositPct(e.target.value)}
+                  className="h-9 text-sm border-zinc-300 w-20"
+                />
+                <span className="text-sm text-zinc-500">%</span>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs text-zinc-500 uppercase tracking-wide font-semibold mb-1.5 block">
+                Response SLA
+              </Label>
+              <Input
+                data-testid="input-response-sla"
+                value={displayResponseSla}
+                onChange={e => setResponseSla(e.target.value)}
+                placeholder="within 2 hours during business hours"
+                className="h-9 text-sm border-zinc-300"
+              />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-500 uppercase tracking-wide font-semibold mb-1.5 block">
+              Urgent / Same-Day Policy
+            </Label>
+            <Textarea
+              data-testid="input-urgent-policy"
+              value={displayUrgentPolicy}
+              onChange={e => setUrgentPolicy(e.target.value)}
+              rows={2}
+              placeholder="Same-day and urgent jobs may be available subject to team availability..."
+              className="text-sm border-zinc-300 resize-none"
+            />
+          </div>
+          <Button
+            data-testid="button-save-business-settings"
+            onClick={handleSaveBusinessSettings}
+            disabled={saveBusinessSettings.isPending}
+            className="h-9 px-4 text-sm bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {saveBusinessSettings.isPending ? "Saving..." : "Save Chatbot Settings"}
+          </Button>
         </div>
       </div>
 

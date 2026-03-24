@@ -2,7 +2,7 @@ import { db } from "./db";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   attendanceAmendments, leaveRequests, payslips, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
-  receipts,
+  receipts, faqEntries, cannedReplies,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
   type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser,
@@ -11,6 +11,7 @@ import {
   type Payslip, type PayslipWithUser,
   type GpsTrackPoint, type SiteEvent, type WhatsAppSession, type WhatsAppMessage,
   type Receipt, type ReceiptWithUser,
+  type FaqEntry, type InsertFaqEntry, type CannedReply, type InsertCannedReply,
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 
@@ -113,7 +114,7 @@ export interface IStorage {
   // WhatsApp Message Log
   logWhatsAppMessage(data: { phone: string; direction: 'inbound' | 'outbound'; body: string; mediaType?: string; wamid?: string; sentBy?: string }): Promise<WhatsAppMessage>;
   getWhatsAppMessages(phone: string, limit?: number): Promise<WhatsAppMessage[]>;
-  getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null }[]>;
+  getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null; botPaused: boolean }[]>;
   markWhatsAppMessagesRead(phone: string): Promise<void>;
 
   // Receipts
@@ -123,6 +124,18 @@ export interface IStorage {
   getReceiptById(id: number): Promise<Receipt | undefined>;
   updateReceiptStatus(id: number, status: 'approved' | 'rejected', adminNote: string | null, reviewedBy: number): Promise<Receipt | undefined>;
   deleteReceipt(id: number): Promise<void>;
+
+  // FAQ Entries
+  getFaqEntries(activeOnly?: boolean): Promise<FaqEntry[]>;
+  createFaqEntry(data: InsertFaqEntry): Promise<FaqEntry>;
+  updateFaqEntry(id: number, data: Partial<InsertFaqEntry>): Promise<FaqEntry | undefined>;
+  deleteFaqEntry(id: number): Promise<void>;
+
+  // Canned Replies
+  getCannedReplies(activeOnly?: boolean): Promise<CannedReply[]>;
+  createCannedReply(data: InsertCannedReply): Promise<CannedReply>;
+  updateCannedReply(id: number, data: Partial<InsertCannedReply>): Promise<CannedReply | undefined>;
+  deleteCannedReply(id: number): Promise<void>;
 
   // Site Analytics
   addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
@@ -1135,25 +1148,27 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
-  async getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null }[]> {
-    // Get latest message per phone + unread count, joined with session for name/state
+  async getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null; botPaused: boolean }[]> {
+    // Get latest message per phone + unread count, joined with session for name/state/botPaused
     const rows = await db.execute(sql`
       SELECT
         m.phone,
         ws.collected_name AS name,
         ws.state,
+        ws.bot_paused,
         (SELECT body FROM whatsapp_messages WHERE phone = m.phone ORDER BY created_at DESC LIMIT 1) AS last_message,
         (SELECT created_at FROM whatsapp_messages WHERE phone = m.phone ORDER BY created_at DESC LIMIT 1) AS last_at,
         COUNT(CASE WHEN m.direction = 'inbound' AND m.read_at IS NULL THEN 1 END)::int AS unread_count
       FROM whatsapp_messages m
       LEFT JOIN whatsapp_sessions ws ON ws.phone = m.phone
-      GROUP BY m.phone, ws.collected_name, ws.state
+      GROUP BY m.phone, ws.collected_name, ws.state, ws.bot_paused
       ORDER BY last_at DESC
     `);
     return (rows.rows as any[]).map(r => ({
       phone: r.phone,
       name: r.name ?? null,
       state: r.state ?? null,
+      botPaused: r.bot_paused === true,
       lastMessage: r.last_message ?? "",
       lastAt: new Date(r.last_at),
       unreadCount: Number(r.unread_count ?? 0),
@@ -1438,6 +1453,55 @@ export class DatabaseStorage implements IStorage {
 
   async deleteReceipt(id: number): Promise<void> {
     await db.delete(receipts).where(eq(receipts.id, id));
+  }
+
+  // ── FAQ Entries ─────────────────────────────────────────────────────────────
+  async getFaqEntries(activeOnly = false): Promise<FaqEntry[]> {
+    const q = db.select().from(faqEntries);
+    if (activeOnly) {
+      return q.where(eq(faqEntries.active, true)).orderBy(faqEntries.sortOrder, faqEntries.id);
+    }
+    return q.orderBy(faqEntries.sortOrder, faqEntries.id);
+  }
+
+  async createFaqEntry(data: InsertFaqEntry): Promise<FaqEntry> {
+    const [created] = await db.insert(faqEntries).values(data).returning();
+    return created;
+  }
+
+  async updateFaqEntry(id: number, data: Partial<InsertFaqEntry>): Promise<FaqEntry | undefined> {
+    const [updated] = await db.update(faqEntries)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(faqEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteFaqEntry(id: number): Promise<void> {
+    await db.delete(faqEntries).where(eq(faqEntries.id, id));
+  }
+
+  // ── Canned Replies ───────────────────────────────────────────────────────────
+  async getCannedReplies(activeOnly = false): Promise<CannedReply[]> {
+    const q = db.select().from(cannedReplies);
+    if (activeOnly) {
+      return q.where(eq(cannedReplies.active, true)).orderBy(cannedReplies.shortcut);
+    }
+    return q.orderBy(cannedReplies.shortcut);
+  }
+
+  async createCannedReply(data: InsertCannedReply): Promise<CannedReply> {
+    const [created] = await db.insert(cannedReplies).values(data).returning();
+    return created;
+  }
+
+  async updateCannedReply(id: number, data: Partial<InsertCannedReply>): Promise<CannedReply | undefined> {
+    const [updated] = await db.update(cannedReplies).set(data).where(eq(cannedReplies.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCannedReply(id: number): Promise<void> {
+    await db.delete(cannedReplies).where(eq(cannedReplies.id, id));
   }
 }
 

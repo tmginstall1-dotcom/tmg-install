@@ -390,6 +390,34 @@ export type ReceiptWithUser = Receipt & { user?: Pick<typeof users.$inferSelect,
 
 export const insertReceiptSchema = createInsertSchema(receipts).omit({ id: true, createdAt: true, status: true, adminNote: true, reviewedBy: true, reviewedAt: true });
 
+// FAQ Entries — admin-editable knowledge base read by WhatsApp bot
+export const faqEntries = pgTable("faq_entries", {
+  id: serial("id").primaryKey(),
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  category: text("category").notNull().default("general"), // general | pricing | booking | services | policies | hours
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type FaqEntry = typeof faqEntries.$inferSelect;
+export type InsertFaqEntry = typeof faqEntries.$inferInsert;
+export const insertFaqEntrySchema = createInsertSchema(faqEntries).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Canned Replies — quick reply templates for admin manual responses
+export const cannedReplies = pgTable("canned_replies", {
+  id: serial("id").primaryKey(),
+  shortcut: text("shortcut").notNull().unique(), // e.g. /quote /hours /thanks
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type CannedReply = typeof cannedReplies.$inferSelect;
+export type InsertCannedReply = typeof cannedReplies.$inferInsert;
+export const insertCannedReplySchema = createInsertSchema(cannedReplies).omit({ id: true, createdAt: true });
+
 // Site Analytics Events — tracks customer page views and clicks
 export const siteEvents = pgTable("site_events", {
   id: serial("id").primaryKey(),

@@ -4,7 +4,7 @@ import {
   MessageCircle, Send, Phone, RefreshCw, User, Bot, Search, X,
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
   CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
-  TriangleAlert,
+  TriangleAlert, AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +22,7 @@ type Conversation = {
   lastAt: string;
   unreadCount: number;
   state: string | null;
+  botPaused: boolean;
 };
 
 type WaMessage = {
@@ -802,7 +803,7 @@ function ChatModal({
 export default function AdminConversations() {
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "unread" | "active" | "submitted">("all");
+  const [filter, setFilter] = useState<"all" | "unread" | "active" | "submitted" | "escalation">("all");
   const queryClient = useQueryClient();
 
   const { data: convos = [], isLoading: loadingConvos } = useQuery<Conversation[]>({
@@ -812,6 +813,7 @@ export default function AdminConversations() {
 
   const selectedConvo = convos.find(c => c.phone === selectedPhone);
   const totalUnread = convos.reduce((s, c) => s + c.unreadCount, 0);
+  const totalEscalation = convos.filter(c => c.botPaused).length;
 
   const filteredConvos = convos.filter(c => {
     const q = search.toLowerCase();
@@ -820,6 +822,7 @@ export default function AdminConversations() {
       filter === "unread" ? c.unreadCount > 0 :
       filter === "active" ? (!!c.state && c.state !== "submitted") :
       filter === "submitted" ? c.state === "submitted" :
+      filter === "escalation" ? c.botPaused :
       true;
     return matchSearch && matchFilter;
   });
@@ -886,16 +889,31 @@ export default function AdminConversations() {
 
           {/* Filter Tabs */}
           <div className="flex gap-1 bg-zinc-100 rounded-lg p-1">
-            {(["all", "unread", "active", "submitted"] as const).map(f => (
+            {(["all", "unread", "active", "escalation", "submitted"] as const).map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`flex-1 text-[10px] font-semibold py-1 rounded-md capitalize transition-all ${
-                  filter === f ? "bg-white text-zinc-900 shadow-sm border border-zinc-200" : "text-zinc-500 hover:text-zinc-700"
+                className={`flex-1 text-[10px] font-semibold py-1 rounded-md capitalize transition-all relative ${
+                  filter === f
+                    ? f === "escalation"
+                      ? "bg-red-50 text-red-700 shadow-sm border border-red-200"
+                      : "bg-white text-zinc-900 shadow-sm border border-zinc-200"
+                    : f === "escalation" && totalEscalation > 0
+                      ? "text-red-500 hover:text-red-700"
+                      : "text-zinc-500 hover:text-zinc-700"
                 }`}
                 data-testid={`filter-${f}`}
               >
-                {f === "unread" && totalUnread > 0 ? `Unread (${totalUnread})` : f.charAt(0).toUpperCase() + f.slice(1)}
+                {f === "escalation" ? (
+                  <span className="flex items-center justify-center gap-0.5">
+                    <AlertCircle className="w-2.5 h-2.5 flex-shrink-0" />
+                    {totalEscalation > 0 ? totalEscalation : ""}
+                  </span>
+                ) : f === "unread" && totalUnread > 0 ? (
+                  `Unread (${totalUnread})`
+                ) : (
+                  f.charAt(0).toUpperCase() + f.slice(1)
+                )}
               </button>
             ))}
           </div>
@@ -907,11 +925,14 @@ export default function AdminConversations() {
 
           {!loadingConvos && filteredConvos.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 gap-3 px-6 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center">
-                <MessageCircle className="w-7 h-7 text-zinc-300" />
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${filter === "escalation" ? "bg-red-50" : "bg-zinc-100"}`}>
+                {filter === "escalation"
+                  ? <AlertCircle className="w-7 h-7 text-red-300" />
+                  : <MessageCircle className="w-7 h-7 text-zinc-300" />
+                }
               </div>
               <p className="text-sm font-medium text-zinc-400">
-                {search ? "No results found" : filter !== "all" ? `No ${filter} conversations` : "No conversations yet"}
+                {search ? "No results found" : filter === "escalation" ? "No escalations — all clear!" : filter !== "all" ? `No ${filter} conversations` : "No conversations yet"}
               </p>
             </div>
           )}
@@ -919,19 +940,24 @@ export default function AdminConversations() {
           {filteredConvos.map(convo => {
             const sc = getState(convo.state);
             const hasUnread = convo.unreadCount > 0;
+            const isPaused = convo.botPaused;
             return (
               <button
                 key={convo.phone}
                 onClick={() => openConvo(convo.phone)}
                 data-testid={`convo-${convo.phone}`}
                 className={`w-full text-left px-4 py-3 border-b border-zinc-100 hover:bg-zinc-50 cursor-pointer transition-colors ${
-                  selectedPhone === convo.phone ? "bg-blue-50 hover:bg-blue-50" : ""
+                  selectedPhone === convo.phone ? "bg-blue-50 hover:bg-blue-50" :
+                  isPaused ? "bg-red-50/40 hover:bg-red-50" : ""
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div className="relative flex-shrink-0 mt-0.5">
                     <Avatar name={convo.name} phone={convo.phone} size="md" />
-                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${sc.dot}`} />
+                    {isPaused
+                      ? <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-red-500" />
+                      : <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${sc.dot}`} />
+                    }
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -949,9 +975,15 @@ export default function AdminConversations() {
                       {convo.lastMessage}
                     </p>
                     <div className="flex items-center justify-between mt-1.5">
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${sc.color} ${sc.bg}`}>
-                        {sc.label}
-                      </span>
+                      {isPaused ? (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border text-red-700 bg-red-50 border-red-200 flex items-center gap-1">
+                          <AlertCircle className="w-2.5 h-2.5" /> Needs Attention
+                        </span>
+                      ) : (
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${sc.color} ${sc.bg}`}>
+                          {sc.label}
+                        </span>
+                      )}
                       {hasUnread && (
                         <span className="min-w-[20px] h-5 px-1 rounded-full bg-blue-600 text-white text-[10px] font-semibold flex items-center justify-center">
                           {convo.unreadCount > 9 ? "9+" : convo.unreadCount}

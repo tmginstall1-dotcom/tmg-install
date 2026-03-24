@@ -221,7 +221,7 @@ Natural acknowledgement examples:
 - "Thanks, that helps."
 - "Understood — making a note of that."`;
 
-// ─── Shared company FAQ knowledge for free-form answers ──────────────────────
+// ─── Shared company FAQ knowledge for free-form answers (static fallback) ────
 const FAQ_KNOWLEDGE = `TMG Install (The Moving Guy Pte Ltd) — Singapore furniture services.
 
 Services: installation/assembly, dismantling, relocation (all-in-one), disposal/haul-away.
@@ -233,6 +233,56 @@ Availability: weekdays & weekends (subject to slots). Min. 48h notice. Morning (
 All tools supplied. Customer doesn't need to be home for some pickup/disposal jobs.
 Rescheduling: min. 48h notice. Large/complex jobs may need on-site assessment.
 Booking process: share details → admin prepares quote → deposit locks in slot → job done → pay balance.`;
+
+// ─── Dynamic bot knowledge — loads FAQ entries + settings from DB ─────────────
+async function buildBotKnowledge(): Promise<{ faqBlock: string; hoursBlock: string; policyBlock: string }> {
+  try {
+    const [faqRows, settingsRows] = await Promise.all([
+      storage.getFaqEntries(true), // active only
+      db.select().from(appSettings),
+    ]);
+
+    const settings = Object.fromEntries(settingsRows.map(s => [s.key, s.value]));
+
+    // ── Build FAQ block from DB entries ──────────────────────────────────────
+    let faqBlock = FAQ_KNOWLEDGE; // fallback
+    if (faqRows.length > 0) {
+      const grouped: Record<string, string[]> = {};
+      for (const entry of faqRows) {
+        if (!grouped[entry.category]) grouped[entry.category] = [];
+        grouped[entry.category].push(`Q: ${entry.question}\nA: ${entry.answer}`);
+      }
+      const sections = Object.entries(grouped)
+        .map(([cat, entries]) => `[${cat.toUpperCase()}]\n${entries.join("\n\n")}`)
+        .join("\n\n");
+      faqBlock = `TMG Install — Company FAQ (Singapore furniture services).\n\n${sections}\n\n${FAQ_KNOWLEDGE}`;
+    }
+
+    // ── Build business hours block from DB settings ───────────────────────────
+    let hoursBlock = "Available weekdays & weekends. Morning (9am–12pm) or afternoon (1pm–5pm) slots.";
+    if (settings.business_hours) {
+      try {
+        const hrs = JSON.parse(settings.business_hours) as Record<string, { open: boolean; start: string; end: string }>;
+        const DAY_NAMES: Record<string, string> = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+        const lines = Object.entries(hrs).map(([k, v]) =>
+          v.open ? `${DAY_NAMES[k] || k}: ${v.start} – ${v.end}` : `${DAY_NAMES[k] || k}: Closed`
+        );
+        hoursBlock = `Operating hours:\n${lines.join("\n")}`;
+      } catch {}
+    }
+
+    // ── Build policy block ────────────────────────────────────────────────────
+    const depositPct = settings.business_deposit_pct || "50";
+    const sla = settings.business_response_sla || "within 2 hours during business hours";
+    const urgent = settings.business_urgent_policy || "Same-day urgent service may be possible — ask admin.";
+    const areas = settings.business_service_areas || "All of Singapore — HDB, condo, landed, commercial.";
+    const policyBlock = `Payment: ${depositPct}% deposit to confirm booking; balance on completion. PayNow / bank transfer / card.\nResponse time: ${sla}.\nUrgent jobs: ${urgent}\nService areas: ${areas}`;
+
+    return { faqBlock, hoursBlock, policyBlock };
+  } catch {
+    return { faqBlock: FAQ_KNOWLEDGE, hoursBlock: "Weekdays & weekends, 9am–6pm.", policyBlock: "50% deposit required. PayNow / bank transfer / card." };
+  }
+}
 
 
 /**
@@ -2446,14 +2496,39 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const session = await storage.getWhatsAppSession(from);
       const state = session?.state ?? "start";
 
+      // ── Load dynamic bot knowledge from DB (FAQ + business settings) ──────────
+      const botKnowledge = await buildBotKnowledge();
+      const DYNAMIC_FAQ = botKnowledge.faqBlock;
+      const DYNAMIC_HOURS = botKnowledge.hoursBlock;
+      const DYNAMIC_POLICY = botKnowledge.policyBlock;
+
       // ── Admin takeover guard: if bot is paused for this number, do not respond ─
       if (session?.botPaused) {
         console.log(`[WhatsApp] Bot paused for ${from} — admin is handling this conversation`);
         return;
       }
 
-      // ── Escalation detection: anger / frustration / explicit human request ────
-      // Runs before any state processing so the customer is never left stranded.
+      // ── Escalation detection — runs before state processing so no customer is left stranded ───────
+      // 1. Existing customer / booking update requests
+      // ──────────────────────────────────────────────────────────────────────────────────────────────
+      const UPDATE_REQUEST_REGEX = /\b(already paid|paid (the |my )?deposit|paid deposit|transfer(red)? already|sent (the )?payment|made (the )?payment|confirm(ed)? my (booking|job|appointment|slot)|when (is|will) (my|the) (job|booking|appointment|installation|installer|team)|what time (is|will) (my|the) (job|booking|appointment)|update (my|the) (booking|order|job|appointment|address|items|date)|change (my|the) (booking|order|job|appointment|address|items|date|time)|reschedule|cancel (my|the) (booking|job|appointment|order)|status (of|on) (my|the) (booking|order|job)|tracking|track my|where (is|are) (my|the) (installer|team|movers|workers)|existing (customer|booking|client)|i (already )?(have a|have an) (booking|appointment|job|order)|follow.?up|follow up)\b/i;
+      if (UPDATE_REQUEST_REGEX.test(text) && !session?.botPaused) {
+        await storage.upsertWhatsAppSession(from, { botPaused: true, botPausedAt: new Date() });
+        const updateMsg = session?.collectedName
+          ? `Hi ${session.collectedName}! 😊 Thanks for reaching out.\n\nI've passed your message to our team and they'll get back to you shortly on WhatsApp to assist with your booking.\n\nWe appreciate your patience! 🙏`
+          : `Hi! 😊 It looks like you have an existing booking or enquiry.\n\nI've flagged this for our team — they'll follow up with you shortly on WhatsApp.\n\nThank you for your patience! 🙏`;
+        await sendBotMessage(from, updateMsg);
+        console.log(`[WhatsApp] UPDATE_REQUEST escalation for ${from}: "${text.slice(0, 80)}"`);
+        try {
+          await sendEmail({
+            to: ADMIN_EMAIL,
+            subject: `📋 WhatsApp Follow-up — ${from}${session?.collectedName ? ` (${session.collectedName})` : ""} — existing customer/booking update`,
+            html: `<p><strong>Customer ${from}${session?.collectedName ? ` (${session.collectedName})` : ""} is asking about an existing booking or requesting an update.</strong></p><p>Message: "${text.slice(0, 300)}"</p><p>Bot state: <code>${state}</code></p><p>Details on file: Name=${session?.collectedName || 'N/A'}, Address=${session?.collectedAddress || 'N/A'}, Items=${session?.collectedItems || 'N/A'}, Date=${session?.collectedDate || 'N/A'}</p><p>⚠️ Bot paused. Please reply manually on WhatsApp.</p>`,
+          });
+        } catch { /* non-critical */ }
+        return;
+      }
+
       const ESCALATION_REGEX = /\b(so angry|very angry|super angry|pissed off|ridiculous|useless bot|terrible service|horrible service|worst service|rubbish bot|stupid bot|waste of (my )?time|want to complain|complain about|refund me|i was cheated|scam(med)?|fraud|talk to (a |an )?human|speak to (a |an )?human|i need a human|want a human|need (an )?agent|speak to (an )?agent|real person|human please|get me (an )?agent|connect me|transfer me|supervisor|manager|call me (now|please)|i give up)\b/i;
       if (ESCALATION_REGEX.test(text) && !session?.botPaused && state !== "submitted") {
         await storage.upsertWhatsAppSession(from, { botPaused: true, botPausedAt: new Date() });
@@ -2679,8 +2754,9 @@ Classify their VERY FIRST message. Return JSON:
                     role: "system",
                     content:
                       `You are the WhatsApp coordinator for TMG Install (Singapore furniture services).\n\n` +
-                      FAQ_KNOWLEDGE +
-                      `\n\nAnswer the customer's question warmly and concisely (2–4 sentences). ` +
+                      DYNAMIC_FAQ +
+                      `\n\n${DYNAMIC_HOURS}\n\n${DYNAMIC_POLICY}\n\n` +
+                      `Answer the customer's question warmly and concisely (2–4 sentences). ` +
                       `End with a friendly open invitation like "Anything else I can help you with? Or would you like a quote?" — ` +
                       `but do NOT push them to book if they haven't asked about pricing yet.`,
                   },
@@ -3223,7 +3299,11 @@ ${FURNITURE_VISION_GUIDE}`,
 `You are the WhatsApp coordinator for TMG Install (Singapore furniture services).
 The customer is in a pre-quote conversation — they may have seen our pricing or just be chatting.
 
-${FAQ_KNOWLEDGE}
+${DYNAMIC_FAQ}
+
+${DYNAMIC_HOURS}
+
+${DYNAMIC_POLICY}
 
 Classify the customer's message AND write a warm, natural reply. Return JSON:
 {
@@ -5480,6 +5560,128 @@ Respond directly — no JSON, just the message text.`,
     } catch (err: any) {
       console.error("[Email] Resend deposit email error:", err);
       res.status(500).json({ message: err?.message || "Failed to send email" });
+    }
+  });
+
+  // ── Admin: App Settings (GET all + bulk save) ─────────────────────────────
+  app.get("/api/admin/app-settings", async (_req, res) => {
+    try {
+      const rows = await db.select().from(appSettings);
+      res.json(rows);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to load settings" });
+    }
+  });
+
+  app.post("/api/admin/app-settings/bulk", async (req, res) => {
+    try {
+      const data = req.body as Record<string, string>;
+      if (typeof data !== "object") return res.status(400).json({ message: "Invalid data" });
+      for (const [key, value] of Object.entries(data)) {
+        await db.insert(appSettings).values({ key, value })
+          .onConflictDoUpdate({ target: appSettings.key, set: { value } });
+      }
+      res.json({ message: "Settings saved" });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  // ── Admin: FAQ Entries ─────────────────────────────────────────────────────
+  app.get("/api/admin/faq", async (_req, res) => {
+    try {
+      const entries = await storage.getFaqEntries();
+      res.json(entries);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to load FAQ entries" });
+    }
+  });
+
+  app.post("/api/admin/faq", async (req, res) => {
+    try {
+      const data = req.body as { question: string; answer: string; category?: string; active?: boolean; sortOrder?: number };
+      if (!data.question?.trim() || !data.answer?.trim()) {
+        return res.status(400).json({ message: "Question and answer are required" });
+      }
+      const entry = await storage.createFaqEntry({
+        question: data.question.trim(),
+        answer: data.answer.trim(),
+        category: data.category || "general",
+        active: data.active !== false,
+        sortOrder: data.sortOrder ?? 0,
+      });
+      res.json(entry);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to create FAQ entry" });
+    }
+  });
+
+  app.patch("/api/admin/faq/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const data = req.body as Partial<{ question: string; answer: string; category: string; active: boolean; sortOrder: number }>;
+      const entry = await storage.updateFaqEntry(id, data);
+      if (!entry) return res.status(404).json({ message: "FAQ entry not found" });
+      res.json(entry);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to update FAQ entry" });
+    }
+  });
+
+  app.delete("/api/admin/faq/:id", async (req, res) => {
+    try {
+      await storage.deleteFaqEntry(parseInt(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to delete FAQ entry" });
+    }
+  });
+
+  // ── Admin: Canned Replies ──────────────────────────────────────────────────
+  app.get("/api/admin/canned-replies", async (_req, res) => {
+    try {
+      const replies = await storage.getCannedReplies();
+      res.json(replies);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to load canned replies" });
+    }
+  });
+
+  app.post("/api/admin/canned-replies", async (req, res) => {
+    try {
+      const data = req.body as { shortcut: string; title: string; body: string; active?: boolean };
+      if (!data.shortcut?.trim() || !data.title?.trim() || !data.body?.trim()) {
+        return res.status(400).json({ message: "Shortcut, title and body are required" });
+      }
+      const sc = data.shortcut.trim().startsWith("/") ? data.shortcut.trim() : `/${data.shortcut.trim()}`;
+      const reply = await storage.createCannedReply({ shortcut: sc, title: data.title.trim(), body: data.body.trim(), active: data.active !== false });
+      res.json(reply);
+    } catch (err: any) {
+      const msg = err?.message?.includes("unique") ? "That shortcut already exists" : "Failed to create canned reply";
+      res.status(500).json({ message: msg });
+    }
+  });
+
+  app.patch("/api/admin/canned-replies/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const data = req.body as Partial<{ shortcut: string; title: string; body: string; active: boolean }>;
+      if (data.shortcut && !data.shortcut.startsWith("/")) data.shortcut = `/${data.shortcut}`;
+      const reply = await storage.updateCannedReply(id, data);
+      if (!reply) return res.status(404).json({ message: "Canned reply not found" });
+      res.json(reply);
+    } catch (err: any) {
+      const msg = err?.message?.includes("unique") ? "That shortcut already exists" : "Failed to update canned reply";
+      res.status(500).json({ message: msg });
+    }
+  });
+
+  app.delete("/api/admin/canned-replies/:id", async (req, res) => {
+    try {
+      await storage.deleteCannedReply(parseInt(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to delete canned reply" });
     }
   });
 
