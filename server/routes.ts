@@ -426,6 +426,8 @@ async function buildBotKnowledge(): Promise<{ faqBlock: string; hoursBlock: stri
 const FURNITURE_VISION_GUIDE = `
 CRITICAL IDENTIFICATION RULES — read before answering:
 
+RESIDENTIAL FURNITURE:
+
 1. CHEST OF DRAWERS / DRESSER: An upright storage unit with MULTIPLE FULL-WIDTH DRAWERS stacked in rows (typically 3–8 drawers). NO doors. Usually 50–110cm wide, 60–130cm tall. The drawers are the PRIMARY visual feature. Do NOT call this a desk, table, or cabinet. Names: "chest of drawers", "dresser", "6-drawer dresser", etc.
 
 2. WARDROBE / CLOSET: Tall cabinet (typically 180–240cm) with HINGED or SLIDING DOORS. Contains hanging space for clothes. May or may not have drawers at the bottom. Names: "wardrobe", "IKEA PAX wardrobe", "2-door wardrobe", etc.
@@ -444,12 +446,31 @@ CRITICAL IDENTIFICATION RULES — read before answering:
 
 9. STANDING DESK (HEIGHT-ADJUSTABLE): Has clearly visible motorized or hand-crank adjustable legs. Look for an electric control panel on the leg, up/down buttons, a digital height display, or a hand crank. These are structural features you will see clearly. If you cannot see any height-adjustment mechanism → it is a REGULAR DESK, not a standing desk.
 
+OFFICE / COMMERCIAL FURNITURE — these are equally valid and very common:
+
+10. OFFICE WORKSTATION / CUBICLE SYSTEM: An office desk (or cluster of desks) integrated with or surrounded by vertical PANEL PARTITIONS that form enclosed personal work areas. The panels are typically fabric-covered or solid, 100–180 cm tall. Common in open-plan offices and business premises. Count each individual seated work area as 1 unit. Name: "office workstation", "cubicle workstation", or "panel workstation". Do NOT return NONE for these — they require professional dismantling, relocation, or installation.
+
+11. OFFICE PARTITION PANEL: Freestanding or linked vertical dividers between workstations. Typically fabric or solid panels 100–180 cm tall. Separate from the desks themselves. Name: "office partition panel". Count panels individually or as a set.
+
+12. RECEPTION COUNTER / FRONT DESK: A large counter unit typically found at the entrance of an office or building. Often L-shaped or straight with a raised front panel and internal storage or drawers. Name: "reception counter" or "reception desk".
+
+13. OFFICE CHAIR: A chair with wheels (castors) and height-adjustable seat, designed for office desk use. Name: "office chair" or "ergonomic chair". Count each one individually.
+
+14. FILING CABINET: A metal or wood storage unit with 2–5 deep drawers specifically sized for files and documents. Often steel/grey. Name: "filing cabinet". Count individually.
+
+15. LOCKER UNIT: Multiple individual locked compartments stacked in a grid, used for personal storage in offices, gyms, or schools. Name: "locker unit" or "office locker".
+
+16. CONFERENCE TABLE: A large table designed for group meetings. Usually rectangular or boat-shaped, 200–600 cm long, seats multiple people. Name: "conference table".
+
+17. CREDENZA / SIDEBOARD (OFFICE): A long low storage unit (typically 40–60 cm tall, 120–240 cm wide) placed behind a desk or along an office wall. Has doors and/or drawers. Name: "office credenza" or "sideboard".
+
 Common mistakes to AVOID:
 - A unit with MANY DRAWERS and NO doors = chest of drawers (NOT a desk)
 - A tall unit with DOORS = wardrobe (NOT a cabinet or cupboard unless clearly office storage)
 - A unit with a FLAT TOP and LEGS at sitting height = desk/table (NOT storage)
 - A desk with a FABRIC PANEL, MODESTY SCREEN, or PRIVACY SCREEN attached to the front = REGULAR DESK (e.g. "L-Shaped Executive Desk"). A fabric panel is decorative/privacy trim, NOT a standing mechanism. Do NOT classify as "standing desk" just because a panel is present.
 - Only call something a "standing desk" if you can clearly see electric controls, a height display, a hand crank, or visibly adjustable leg height.
+- OFFICE PHOTOS: An open-plan office with cubicle desks and partition panels = office workstations + partition panels. DO NOT return NONE just because it is a commercial/office environment. These items are regularly installed, dismantled, and relocated by furniture companies.
 `;
 
 /**
@@ -2744,9 +2765,9 @@ Respond with ONLY a JSON array (no prose, no markdown):
               const scanMedia0 = await downloadWhatsAppMedia(msg.image.id);
               if (scanMedia0) {
                 const scanRes0 = await openai.chat.completions.create({
-                  model: "gpt-4o", max_tokens: 60,
+                  model: "gpt-4o", max_tokens: 80,
                   messages: [
-                    { role: "system", content: `Identify the main furniture item in this photo. Return ONLY the item name (e.g. "wardrobe", "queen bed frame", "chest of drawers"). If no furniture, return "NONE".\n${FURNITURE_VISION_GUIDE}` },
+                    { role: "system", content: `Identify the main furniture or office fixture in this photo. Return ONLY the item name. Examples: "wardrobe", "queen bed frame", "chest of drawers", "office workstation", "cubicle workstation", "reception counter", "office partition panels", "conference table", "filing cabinet". If no installable furniture or office fixture is visible, return "NONE".\n${FURNITURE_VISION_GUIDE}` },
                     { role: "user", content: [{ type: "image_url", image_url: { url: `data:${scanMedia0.mimeType};base64,${scanMedia0.base64}`, detail: "high" } }] as any },
                   ],
                 });
@@ -3174,10 +3195,11 @@ If the case is unusual or complex, say the team will review and follow up.`
                       response_format: { type: "json_object" },
                       messages: [{
                         role: "system",
-                        content: `You are an expert at identifying furniture for a Singapore installation company.
-Look at the photo and identify ALL items that require professional installation, dismantling, relocation, or disposal.
-Include residential furniture AND commercial/office items.
-Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-separated list", "noItems": true/false }
+                        content: `You are an expert at identifying furniture and office fixtures for a Singapore installation company.
+Look at the photo and identify the PRIMARY item that requires professional installation, dismantling, relocation, or disposal.
+This includes ALL residential furniture AND commercial/office items (cubicle workstations, reception counters, partition panels, conference tables, filing cabinets, office chairs, etc.).
+Return JSON: { "mainItem": "short descriptive name of the primary item (e.g. 'office workstation with partitions', 'cubicle workstation system', 'reception counter', 'queen bed frame')", "allItems": "comma-separated list of all visible installable items", "noItems": true/false }
+Set noItems: true ONLY if the photo shows no furniture, fixtures, or installable items at all (e.g. empty room, food, people only).
 ${FURNITURE_VISION_GUIDE}`,
                       }, {
                         role: "user",
@@ -3385,9 +3407,9 @@ ${FURNITURE_VISION_GUIDE}`,
             const pMedia = await downloadWhatsAppMedia(msg.image.id);
             if (pMedia) {
               const vRes = await openai.chat.completions.create({
-                model: "gpt-4o", max_tokens: 80,
+                model: "gpt-4o", max_tokens: 100,
                 messages: [
-                  { role: "system", content: `Identify the main furniture item in this photo. Return ONLY the item name (e.g. "IKEA PAX wardrobe", "queen bed frame", "chest of drawers"). If no furniture, return "NONE".\n${FURNITURE_VISION_GUIDE}` },
+                  { role: "system", content: `Identify the main furniture, office fixture, or commercial item in this photo. Return ONLY the item name. Examples: "IKEA PAX wardrobe", "queen bed frame", "chest of drawers", "office workstation with partitions", "cubicle workstation", "reception counter", "L-shaped office desk", "office partition panels", "conference table", "filing cabinet", "office credenza". This includes ALL residential AND commercial/office environments. If truly no installable item is visible, return "NONE".\n${FURNITURE_VISION_GUIDE}` },
                   { role: "user", content: [{ type: "image_url", image_url: { url: `data:${pMedia.mimeType};base64,${pMedia.base64}`, detail: "high" } }] as any },
                 ],
               });
@@ -3505,8 +3527,8 @@ ${FURNITURE_VISION_GUIDE}`,
           // Photo scan failed or no item detected — use caption context if available
           if (captionService) {
             await sendBotMessage(from,
-              `Got it — *${captionService}*. 👍\n\nCouldn't identify the item from the photo — could you describe it?\n\n` +
-              `_e.g. IKEA PAX wardrobe, queen bed frame, 3-seater sofa_`
+              `Got it — *${captionService}*. 👍\n\nCould you describe the item(s) in the photo? This helps me give you an accurate price.\n\n` +
+              `_e.g. IKEA PAX wardrobe, queen bed frame, 3-seater sofa, office cubicle workstations, reception counter_`
             );
           } else {
             await sendBotMessage(from,
@@ -3678,11 +3700,11 @@ CRITICAL: If bot's last message asked for their name, a 1–4 word personal-name
                   response_format: { type: "json_object" },
                   messages: [{
                     role: "system",
-                    content: `You are an expert at identifying furniture for a Singapore installation company.
+                    content: `You are an expert at identifying furniture and office fixtures for a Singapore installation company.
 Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
-Include both residential furniture AND commercial/office items.
-Return JSON: { "mainItem": "short name of primary item", "allItems": "comma-separated list", "noItems": true/false }
-If no installable items found, set noItems: true.
+This includes ALL residential furniture AND commercial/office items (cubicle workstations, partition panels, reception counters, conference tables, filing cabinets, office chairs, etc.).
+Return JSON: { "mainItem": "short descriptive name of primary item (e.g. 'office workstation with partitions', 'cubicle system', 'queen bed frame', 'reception counter')", "allItems": "comma-separated list of all detected installable items", "noItems": true/false }
+Set noItems: true ONLY if the photo shows absolutely no furniture or installable fixtures (e.g. empty room, food, people only).
 ${FURNITURE_VISION_GUIDE}`,
                   }, {
                     role: "user",
@@ -3844,17 +3866,17 @@ Key examples:
                     messages: [
                       {
                         role: "system",
-                        content: `You are an expert at identifying furniture for a Singapore installation company.
+                        content: `You are an expert at identifying furniture and office fixtures for a Singapore installation company.
 Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
-Include both residential furniture AND commercial/office items.
+This includes ALL residential furniture AND commercial/office items (cubicle workstations, partition panels, reception counters, conference tables, filing cabinets, office chairs, etc.).
 Return JSON:
 {
-  "mainItem": "short name of the primary/most prominent item (e.g. 'chest of drawers', 'wardrobe', 'office workstation')",
-  "allItems": "comma-separated list of all detected items",
+  "mainItem": "short descriptive name of the primary/most prominent item (e.g. 'chest of drawers', 'wardrobe', 'office workstation with partitions', 'cubicle system', 'reception counter')",
+  "allItems": "comma-separated list of all detected installable items",
   "isCommercial": true/false,
   "noItems": true/false
 }
-If no installable items found, set noItems: true.
+Set noItems: true ONLY if the photo shows absolutely no furniture or installable fixtures.
 ${FURNITURE_VISION_GUIDE}`,
                       },
                       { role: "user", content: [{ type: "image_url", image_url: { url: `data:${svcMedia.mimeType};base64,${svcMedia.base64}`, detail: "high" } }] as any },
@@ -3921,16 +3943,16 @@ ${FURNITURE_VISION_GUIDE}`,
                     response_format: { type: "json_object" },
                     messages: [{
                       role: "system",
-                      content: `You are an expert at identifying furniture for a Singapore installation company.
+                      content: `You are an expert at identifying furniture and office fixtures for a Singapore installation company.
 Look at the photo and identify ALL items that would require professional installation, dismantling, relocation, or disposal.
-Include both residential furniture AND commercial/office items.
+This includes ALL residential furniture AND commercial/office items (cubicle workstations, partition panels, reception counters, conference tables, filing cabinets, office chairs, etc.).
 Return JSON:
 {
-  "mainItem": "short name of the primary/most prominent item (e.g. 'chest of drawers', 'wardrobe', 'queen bed frame')",
-  "allItems": "comma-separated list of all detected items",
+  "mainItem": "short descriptive name of the primary/most prominent item (e.g. 'chest of drawers', 'wardrobe', 'queen bed frame', 'office workstation with partitions', 'cubicle system', 'reception counter')",
+  "allItems": "comma-separated list of all detected installable items",
   "noItems": true/false
 }
-If no installable items found, set noItems: true.
+Set noItems: true ONLY if the photo shows absolutely no furniture or installable fixtures.
 ${FURNITURE_VISION_GUIDE}`,
                     }, {
                       role: "user",
