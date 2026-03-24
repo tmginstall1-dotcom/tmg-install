@@ -3210,13 +3210,16 @@ Classify the customer's message AND write a warm, natural reply. Return JSON:
 }
 
 INTENT RULES (read carefully):
-- book_now: ONLY when customer uses EXPLICIT booking language: "I want to book", "please give me a quote", "let's proceed", "book for me", "I'd like to get a quote", "prepare my quote", "can you do a quote for me". A bare "yes", "ok", "sounds good", "great" or "affordable" is NOT book_now — those are casual.
+- book_now: Customer has expressed clear intent to proceed with a quote or booking. Includes:
+  • EXPLICIT language at any time: "I want to book", "please give me a quote", "let's proceed", "book for me", "I'd like to get a quote", "can you prepare a quote", "let's go ahead"
+  • "yes", "ok", "sure", "yep" ONLY when the bot's LAST message offered/asked about making a quote (e.g. "Would you like a quote?", "Want me to prepare a personalised quote?", "Ready to get started?") — in that context, "yes" IS a booking confirmation
+  • NOT: "yes", "ok", "sounds good", "great", "affordable" said in response to pricing info or general chat — those are casual
 - specific_price: asks about price for a named item or service (e.g. "how much to install a wardrobe", "what's the cost for a queen bed frame")
 - general_price: asks what prices are in general, or "how much do you charge"
 - decline: explicitly says too expensive, not interested, nevermind, cancel
 - provide_name: provides their personal name when bot asked for it (1–4 word reply that looks like a human name, not a furniture item)
 - question: any other question about services, availability, process, coverage, payment, timeline, etc.
-- casual: acknowledgment, greeting, or conversational reply ("ok", "I see", "thanks", "noted", etc.)
+- casual: acknowledgment, greeting, or conversational reply that is NOT a booking confirmation
 
 REPLY RULES:
 - For "question" and "casual": answer helpfully and warmly. Do NOT end with "Happy with our pricing? Reply Yes". Just answer and leave it open — the customer will ask when they're ready.
@@ -3728,14 +3731,20 @@ Rules:
         const isPhotoDetectedItems = session?.previousItems === "photo_detected";
         let replyAddr: string;
         if (alreadyHasItems && !isPhotoDetectedItems) {
-          // Items were provided by the customer upfront — skip straight to confirmation
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation", collectedAddress: extractedAddress });
+          // Items already known — but we still MUST collect floor level, lift, and access
+          // before going to confirmation, so route through awaiting_floor (not awaiting_confirmation)
+          await storage.upsertWhatsAppSession(from, {
+            state: "awaiting_floor",
+            collectedAddress: extractedAddress,
+            floorLevel: null,
+            hasLift: null,
+          });
           replyAddr =
-            `✅ Address updated to *${extractedAddress}*!\n\n` +
-            `👤 *Name:* ${session.collectedName}\n` +
-            `📍 *Address:* ${extractedAddress}\n` +
-            `🛋️ *Items:*\n${session.collectedItems}\n\n` +
-            `Ready to go? Reply *YES* to send to our team. 😊`;
+            `📍 *${extractedAddress}* — noted!\n\n` +
+            `Almost there! Just a couple of quick questions to finalise your quote. 😊\n\n` +
+            `*Which floor is the unit on?*\n\n` +
+            `Reply with the floor number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
+            `And is there a *lift* available? (yes / no)`;
         } else if (alreadyHasItems && isPhotoDetectedItems) {
           // Items were detected from a photo — confirm them before moving to floor/access
           await storage.upsertWhatsAppSession(from, {
