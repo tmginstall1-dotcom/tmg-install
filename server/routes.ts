@@ -4538,9 +4538,46 @@ Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"disman
         if (detectedServiceType === "relocate") isRelocationSvc = true;
 
         if (!detectedServiceType) {
-          // Still can't understand — re-ask
+          // Check if the customer is asking a clarifying question rather than choosing a service type
+          // e.g. "What's the difference?", "can you explain?", "what does relocation mean?"
+          const looksLikeQuestion = /\?|what|which|how|why|difference|explain|mean|tell me|clarif|help|understand|between/i.test(text);
+          if (looksLikeQuestion) {
+            try {
+              const answerRes = await openai.chat.completions.create({
+                model: "gpt-4o",
+                max_tokens: 220,
+                messages: [{
+                  role: "system",
+                  content: `You are a helpful WhatsApp assistant for TMG Install, a furniture installation company in Singapore.
+The customer just asked a clarifying question about our service types while we were waiting for them to choose one.
+
+Our service types:
+• Installation — assemble new furniture (flat-pack, IKEA, local brands, etc.)
+• Dismantling — take apart & remove existing furniture (no moving, no disposal)
+• Relocation — dismantle at origin + move + reinstall at new address (all-in-one — most popular for moving house)
+• Disposal — haul away and dispose of unwanted furniture (we handle everything)
+• Dismantle + Dispose — take apart AND haul away, cheaper bundle (no move, no reinstall)
+
+Answer their question clearly and concisely (2–4 sentences max). End with:
+"Which service do you need? Reply with *Installation*, *Dismantling*, *Relocation*, *Disposal*, or *Dismantle + Dispose*."
+Write in the same language the customer used.`,
+                }, {
+                  role: "user",
+                  content: text,
+                }],
+              });
+              const clarifyAnswer = answerRes.choices[0]?.message?.content?.trim();
+              if (clarifyAnswer) {
+                await sendBotMessage(from, clarifyAnswer);
+                saveHistory(from, conversationHistory, text, clarifyAnswer);
+                return;
+              }
+            } catch { /* fall through to re-prompt below */ }
+          }
+
+          // Still can't understand — re-ask with a friendly tone
           await sendBotMessage(from,
-            `Sorry, I didn't catch that. Please choose one of:\n\n` +
+            `I want to make sure I get this right for you! 😊 Please choose one of:\n\n` +
             `• *Installation* — assemble new furniture\n` +
             `• *Dismantling* — take apart & remove existing furniture\n` +
             `• *Relocation* — dismantle + move + reinstall at new location _(all-in-one)_\n` +
