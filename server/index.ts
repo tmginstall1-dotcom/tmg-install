@@ -202,7 +202,7 @@ app.use((req, res, next) => {
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
       log(`Port ${port} already in use — killing old process and retrying…`);
-      try { execSync(`pkill -f "tsx server/index" || kill $(lsof -t -i:${port}) || true`); } catch {}
+      try { execSync(`lsof -ti:${port} | xargs -r kill -9 2>/dev/null || true`); } catch {}
       setTimeout(() => {
         httpServer.close();
         httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
