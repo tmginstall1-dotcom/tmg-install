@@ -184,7 +184,9 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     for (const item of aiParsed) {
       const matched = catalog.find(c =>
         c.serviceType === item.serviceType &&
-        item.detectedName.toLowerCase().includes(c.name.toLowerCase())
+        (item.detectedName.toLowerCase().includes(c.name.toLowerCase()) ||
+         c.name.toLowerCase().includes(item.detectedName.toLowerCase()) ||
+         item.detectedName.toLowerCase().split(/\s+/).some((w: string) => w.length > 3 && c.name.toLowerCase().includes(w)))
       );
       const unitPrice = matched ? Number(matched.basePrice) : (item.estimatedUnitPrice || 0);
       const qty = item.quantity || 1;
@@ -1624,9 +1626,11 @@ export async function registerRoutes(
         aiParsedItems = aiParsedItems.map((item: any) => {
           totalEstimate += (item.estimatedUnitPrice * item.quantity);
           if (item.confidence < lowestConfidence) lowestConfidence = item.confidence;
-          const matchedCatalogItem = catalogItems.find(c => 
-            c.serviceType === item.serviceType && 
-            item.detectedName.toLowerCase().includes(c.name.toLowerCase())
+          const matchedCatalogItem = catalogItems.find(c =>
+            c.serviceType === item.serviceType &&
+            (item.detectedName.toLowerCase().includes(c.name.toLowerCase()) ||
+             c.name.toLowerCase().includes(item.detectedName.toLowerCase()) ||
+             item.detectedName.toLowerCase().split(/\s+/).some((w: string) => w.length > 3 && c.name.toLowerCase().includes(w)))
           );
           return {
             originalDescription: input.itemsDescription,
@@ -5509,7 +5513,9 @@ Return ONLY valid JSON.`,
         const quoteItems = aiParsedItems.map((item) => {
           const matchedCatalogItem = catalog.find(c =>
             c.serviceType === item.serviceType &&
-            item.detectedName.toLowerCase().includes(c.name.toLowerCase())
+            (item.detectedName.toLowerCase().includes(c.name.toLowerCase()) ||
+             c.name.toLowerCase().includes(item.detectedName.toLowerCase()) ||
+             item.detectedName.toLowerCase().split(/\s+/).some((w: string) => w.length > 3 && c.name.toLowerCase().includes(w)))
           );
           const unitPrice = matchedCatalogItem ? Number(matchedCatalogItem.basePrice) : (item.estimatedUnitPrice || 0);
           const qty = item.quantity || 1;
@@ -6385,7 +6391,9 @@ Respond directly — no JSON, just the message text.`,
     const quoteItems = aiParsedItems.map((item) => {
       const matchedCatalogItem = catalog.find(c =>
         c.serviceType === item.serviceType &&
-        item.detectedName.toLowerCase().includes(c.name.toLowerCase())
+        (item.detectedName.toLowerCase().includes(c.name.toLowerCase()) ||
+         c.name.toLowerCase().includes(item.detectedName.toLowerCase()) ||
+         item.detectedName.toLowerCase().split(/\s+/).some((w: string) => w.length > 3 && c.name.toLowerCase().includes(w)))
       );
       const unitPrice = matchedCatalogItem ? Number(matchedCatalogItem.basePrice) : (item.estimatedUnitPrice || 0);
       const qty = item.quantity || 1;
