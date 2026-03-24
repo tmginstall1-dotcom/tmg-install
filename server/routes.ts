@@ -2834,6 +2834,38 @@ Message: "${text}"`
             `We handle furniture installation, dismantling, relocation & disposal all across Singapore.\n\n` +
             PRICING_OVERVIEW
           );
+        } else if (extractedItems) {
+          // Items were detected in the first message but no name/address yet.
+          // If the customer also asked about price, show them an actual estimate
+          // from the extracted items rather than generic per-item ranges.
+          const isPriceAsk = /how much|cost|price|rate|charge|quote|estimate|expensive/i.test(text);
+          if (isPriceAsk) {
+            const fakeSession = {
+              collectedItems: extractedItems,
+              floorLevel: null as number | null,
+              hasLift: null as boolean | null,
+              accessDifficulty: null as string | null,
+              isRelocation: false,
+              distanceKm: null as string | null,
+            };
+            const estimateMsg = await buildJobEstimateMessage(fakeSession as any);
+            if (estimateMsg) {
+              const intro = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n`;
+              const outro = `\n\nWould you like to get the full personalised quote? Just say *Yes* and I'll get the details from you! 😊\n\n_Floor surcharges & transport (for relocation) will be confirmed once we know more about your job._`;
+              await sendBotMessage(from, `${intro}${estimateMsg}${outro}`);
+              saveHistory(from, [], text, estimateMsg);
+              return;
+            }
+          }
+
+          // Items detected but no price question (or estimate couldn't be built) →
+          // acknowledge the items and invite them to start a full quote
+          const intro2 = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n`;
+          const itemsAck = `Got it — I can see you need help with:\n${extractedItems}\n\n`;
+          const cta = `Would you like me to prepare a personalised quote? Just reply *Yes* and I'll walk you through it! 😊`;
+          await sendBotMessage(from, `${intro2}${itemsAck}${cta}`);
+          saveHistory(from, [], text, `${intro2}${itemsAck}${cta}`);
+
         } else {
           // Classify the first message intent before deciding what to show
           // Pure greetings get a welcome; questions get answered directly; pricing requests get the table
