@@ -2829,31 +2829,35 @@ Respond with ONLY a JSON array (no prose, no markdown):
             preferredTimeWindow: null, isRelocation: false, collectedToAddress: null, distanceKm: null,
             conversationHistory: null,
           });
-          // Scan the photo and offer pricing, or ask the customer to name the item
-          let scannedItem0: string | null = null;
+          // Scan the photo and offer pricing with quantity accuracy
+          let scannedItems0: ScannedFurnitureItem[] = [];
           try {
             if (msg.image?.id) {
               const scanMedia0 = await downloadWhatsAppMedia(msg.image.id);
               if (scanMedia0) {
-                const scanRes0 = await openai.chat.completions.create({
-                  model: "gpt-4o", max_tokens: 80,
-                  messages: [
-                    { role: "system", content: `Identify the main furniture or office fixture in this photo. Return ONLY the item name. Examples: "wardrobe", "queen bed frame", "chest of drawers", "office workstation", "cubicle workstation", "reception counter", "office partition panels", "conference table", "filing cabinet". If no installable furniture or office fixture is visible, return "NONE".\n${FURNITURE_VISION_GUIDE}` },
-                    { role: "user", content: [{ type: "image_url", image_url: { url: `data:${scanMedia0.mimeType};base64,${scanMedia0.base64}`, detail: "high" } }] as any },
-                  ],
-                });
-                const d0 = (scanRes0.choices[0]?.message?.content || "").trim();
-                if (d0 && d0 !== "NONE") scannedItem0 = d0;
+                const result0 = await scanFurnitureInPhoto(scanMedia0.mimeType, scanMedia0.base64);
+                if (result0) scannedItems0 = result0;
               }
             }
           } catch { /* token expired or network error */ }
 
-          if (scannedItem0) {
-            const priceMsg0 = await smartPricingLookup(scannedItem0);
+          if (scannedItems0.length > 0) {
+            const displayLabel0 = buildScanDisplayLabel(scannedItems0);
+            const estimateText0 = buildEstimateText(scannedItems0, "installation");
+            const fakeSession0 = {
+              collectedItems: estimateText0,
+              floorLevel: null as number | null,
+              hasLift: null as boolean | null,
+              accessDifficulty: null as string | null,
+              isRelocation: false,
+              distanceKm: null as string | null,
+            };
+            const priceMsg0 = await buildJobEstimateMessage(fakeSession0 as any)
+              || await smartPricingLookup(scannedItems0[0].name);
             if (priceMsg0) {
-              const r0 = `${priceMsg0}\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
+              const r0 = `📸 I can see *${displayLabel0}* in your photo!\n\n${priceMsg0}\n\n_Floor surcharges & transport may apply._\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
               await sendBotMessage(from, r0);
-              saveHistory(from, [], `[photo: ${scannedItem0}]`, r0);
+              saveHistory(from, [], `[photo: ${displayLabel0}]`, r0);
               return;
             }
           }
@@ -3254,54 +3258,53 @@ If the case is unusual or complex, say the team will review and follow up.`
               };
               const serviceLabel = pricingService ? serviceLabelMap[pricingService] || pricingService : null;
 
-              // If customer sent a photo with "how much this cost?", scan it to identify the item
+              // If customer sent a photo with "how much this cost?", scan it to identify item(s) with counts
               let resolvedPricingItem = pricingItem;
+              let resolvedPricingItems: ScannedFurnitureItem[] = [];
               if (!resolvedPricingItem && msgType === "image" && msg.image?.id) {
                 try {
                   const pricingMedia = await downloadWhatsAppMedia(msg.image.id);
                   if (pricingMedia) {
-                    const visionRes = await openai.chat.completions.create({
-                      model: "gpt-4o",
-                      max_tokens: 200,
-                      response_format: { type: "json_object" },
-                      messages: [{
-                        role: "system",
-                        content: `You are an expert at identifying furniture and office fixtures for a Singapore installation company.
-Look at the photo and identify the PRIMARY item that requires professional installation, dismantling, relocation, or disposal.
-This includes ALL residential furniture AND commercial/office items (cubicle workstations, reception counters, partition panels, conference tables, filing cabinets, office chairs, etc.).
-Return JSON: { "mainItem": "short descriptive name of the primary item (e.g. 'office workstation with partitions', 'cubicle workstation system', 'reception counter', 'queen bed frame')", "allItems": "comma-separated list of all visible installable items", "noItems": true/false }
-Set noItems: true ONLY if the photo shows no furniture, fixtures, or installable items at all (e.g. empty room, food, people only).
-${FURNITURE_VISION_GUIDE}`,
-                      }, {
-                        role: "user",
-                        content: [
-                          { type: "image_url", image_url: { url: `data:${pricingMedia.mimeType};base64,${pricingMedia.base64}`, detail: "high" } },
-                        ] as any,
-                      }],
-                    });
-                    const scannedGlobal = JSON.parse(visionRes.choices[0]?.message?.content || "{}");
-                    if (!scannedGlobal.noItems && scannedGlobal.mainItem) resolvedPricingItem = scannedGlobal.mainItem;
+                    const scanResult = await scanFurnitureInPhoto(pricingMedia.mimeType, pricingMedia.base64);
+                    if (scanResult && scanResult.length > 0) {
+                      resolvedPricingItems = scanResult;
+                      resolvedPricingItem = scanResult[0].name;
+                    }
                   }
                 } catch { /* ignore scan errors */ }
               }
 
               if (resolvedPricingItem) {
-                // We know the item (from text or photo). If we also know the service from caption,
-                // acknowledge both and show price (or custom-job note) then continue the flow.
+                // Build estimate using the new quantity-aware engine
+                const displayItem = resolvedPricingItems.length > 0
+                  ? buildScanDisplayLabel(resolvedPricingItems)
+                  : resolvedPricingItem;
+                const svcForEstimate = serviceLabel || pricingService || "installation";
+                const estimateInputText = resolvedPricingItems.length > 0
+                  ? buildEstimateText(resolvedPricingItems, svcForEstimate)
+                  : `1 ${resolvedPricingItem} ${svcForEstimate}`;
+                const fakeEstSession = {
+                  collectedItems: estimateInputText,
+                  floorLevel: null as number | null,
+                  hasLift: null as boolean | null,
+                  accessDifficulty: null as string | null,
+                  isRelocation: pricingService === "relocate",
+                  distanceKm: null as string | null,
+                };
+                const priceMsg = await buildJobEstimateMessage(fakeEstSession as any)
+                  || await smartPricingLookup(resolvedPricingItem); // fallback if not in catalog
+                const floorNote = `\n\n_Floor surcharges & transport may apply._`;
                 if (serviceLabel) {
-                  const priceMsg = await smartPricingLookup(resolvedPricingItem);
                   const priceBlock = priceMsg
-                    ? `${priceMsg}\n`
+                    ? `${priceMsg}${floorNote}\n`
                     : `Our team will confirm the exact price for this job.\n`;
                   await sendBotMessage(from,
-                    `Got it — *${serviceLabel}* for a *${resolvedPricingItem}*. 📸\n\n${priceBlock}\n${continuePrompt}`
+                    `Got it — *${serviceLabel}* for *${displayItem}*. 📸\n\n${priceBlock}\n${continuePrompt}`
                   );
                 } else {
-                  // No specific service — show all service type prices
-                  const priceMsg = await smartPricingLookup(resolvedPricingItem);
                   await sendBotMessage(from, priceMsg
-                    ? `${priceMsg}\n\n${continuePrompt}`
-                    : `Our team will confirm the exact price for the *${resolvedPricingItem}*.\n\n${continuePrompt}`
+                    ? `${priceMsg}${floorNote}\n\n${continuePrompt}`
+                    : `Our team will confirm the exact price for the *${displayItem}*.\n\n${continuePrompt}`
                   );
                 }
                 return;
