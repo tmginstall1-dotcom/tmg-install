@@ -545,33 +545,150 @@ function buildEstimateText(items: ScannedFurnitureItem[], serviceLabel: string):
 }
 
 /**
- * Multi-photo batch deduplication.
- * WhatsApp sends N photos in one user "batch" as N separate webhook events,
- * each carrying the SAME caption. Without dedup this causes N separate estimates
- * and sometimes a duplicate greeting. We respond only to the FIRST event of each
- * batch and silently ignore the rest within a short time window.
+ * Multi-photo batch collector.
+ *
+ * WhatsApp fires one separate webhook event per photo when a user sends
+ * multiple photos at once. Photos in the same "group send" may arrive with
+ * the caption attached to only one event (and empty on the rest), making
+ * caption-based dedup unreliable. We solve this properly by buffering ALL
+ * images from the same phone for PHOTO_BATCH_DELAY_MS, then scanning all
+ * of them in one pass and sending a single combined estimate.
+ *
+ * Only applies to initial-state conversations (no session / awaiting_name /
+ * pricing_shown). Deep booking-flow states (awaiting_floor, awaiting_date,
+ * etc.) pass through immediately as usual.
  */
-const _photoBatchCache = new Map<string, number>(); // key → timestamp of first response
-const PHOTO_BATCH_WINDOW_MS = 5000; // 5-second window per batch
+interface PhotoBatch {
+  imageIds: string[];  // WhatsApp media IDs collected so far
+  caption: string;     // Best caption seen — first non-empty caption wins
+  timer: ReturnType<typeof setTimeout> | null;
+}
 
-function isPhotoBatchDuplicate(phone: string, caption: string): boolean {
-  // Only dedup image messages (caller ensures msgType === "image")
-  const normalized = caption.trim().toLowerCase();
-  const key = `${phone}:${normalized}`;
-  const now = Date.now();
-  const last = _photoBatchCache.get(key);
-  if (last !== undefined && now - last < PHOTO_BATCH_WINDOW_MS) {
-    return true; // duplicate — skip this event
+const pendingPhotoBatches = new Map<string, PhotoBatch>();
+const PHOTO_BATCH_DELAY_MS = 2500; // collect for 2.5 s then flush
+
+function addToPendingPhotoBatch(phone: string, imageId: string, caption: string): void {
+  const existing = pendingPhotoBatches.get(phone);
+  if (existing) {
+    if (existing.timer) clearTimeout(existing.timer);
+    existing.imageIds.push(imageId);
+    if (!existing.caption && caption) existing.caption = caption; // first non-empty caption wins
+    existing.timer = setTimeout(() => flushPhotoBatch(phone), PHOTO_BATCH_DELAY_MS);
+  } else {
+    const batch: PhotoBatch = { imageIds: [imageId], caption, timer: null };
+    batch.timer = setTimeout(() => flushPhotoBatch(phone), PHOTO_BATCH_DELAY_MS);
+    pendingPhotoBatches.set(phone, batch);
   }
-  _photoBatchCache.set(key, now);
-  // Prune stale entries periodically
-  if (_photoBatchCache.size > 1000) {
-    const cutoff = now - PHOTO_BATCH_WINDOW_MS * 4;
-    for (const [k, v] of _photoBatchCache.entries()) {
-      if (v < cutoff) _photoBatchCache.delete(k);
+}
+
+async function flushPhotoBatch(phone: string): Promise<void> {
+  const batch = pendingPhotoBatches.get(phone);
+  if (!batch) return;
+  pendingPhotoBatches.delete(phone);
+
+  console.log(`[WhatsApp] Flushing photo batch for ${phone}: ${batch.imageIds.length} photo(s), caption="${batch.caption.slice(0, 60)}"`);
+
+  // Load fresh session at flush time
+  const session = await storage.getWhatsAppSession(phone);
+  if (session?.botPaused) return; // admin is handling this conversation
+
+  // Detect service from the best caption we collected
+  const captionLower = batch.caption.toLowerCase();
+  let service = "installation"; // default
+  if (/dismantle.*reloc|reloc.*dismantle|move.*dismantle|shift.*dismantle/.test(captionLower)) service = "relocation + dismantling";
+  else if (/relocat|move|shift|transfer/.test(captionLower)) service = "relocation";
+  else if (/dismantle|dismant|take apart|remove/.test(captionLower)) service = "dismantling";
+  else if (/dispos|haul|throw|throw away/.test(captionLower)) service = "disposal";
+  else if (/install|assembly|assemble|set up|put up/.test(captionLower)) service = "installation";
+
+  // Scan ALL photos and collect items
+  const allItems: ScannedFurnitureItem[] = [];
+  for (const imageId of batch.imageIds) {
+    try {
+      const media = await downloadWhatsAppMedia(imageId);
+      if (media) {
+        const items = await scanFurnitureInPhoto(media.mimeType, media.base64);
+        if (items) allItems.push(...items);
+      }
+    } catch { /* WhatsApp token expired or network issue — skip this photo */ }
+  }
+
+  // Merge duplicate item names (sum their counts)
+  const merged: ScannedFurnitureItem[] = [];
+  for (const item of allItems) {
+    const existing = merged.find(m => m.name.toLowerCase() === item.name.toLowerCase());
+    if (existing) {
+      existing.count += item.count;
+    } else {
+      merged.push({ ...item });
     }
   }
-  return false;
+
+  const photoWord = batch.imageIds.length > 1 ? `your ${batch.imageIds.length} photos` : "your photo";
+
+  if (merged.length === 0) {
+    // No items detected — ask for description
+    const askMsg =
+      `Spotted your photo${batch.imageIds.length > 1 ? "s" : ""}! 📸 I couldn't quite make out the furniture from the image${batch.imageIds.length > 1 ? "s" : ""}. ` +
+      `Could you describe what items you need help with?\n\n` +
+      `_e.g. "2-door wardrobe — installation" or "queen bed frame — dismantling"_`;
+    await sendBotMessage(phone, askMsg);
+    if (!session) {
+      await storage.upsertWhatsAppSession(phone, {
+        state: "awaiting_name",
+        collectedName: null, collectedAddress: null, collectedItems: null,
+        previousItems: null, preferredDate: null, preferredDateIso: null,
+        preferredTimeWindow: null, isRelocation: false, collectedToAddress: null, distanceKm: null,
+        conversationHistory: null,
+      });
+    }
+    return;
+  }
+
+  // Build combined display label, estimate text, and price message
+  const displayLabel = buildScanDisplayLabel(merged);
+  const estimateText  = buildEstimateText(merged, service);
+  const isReloc = service.includes("reloc");
+  const fakeSession = {
+    collectedItems: estimateText,
+    floorLevel: null as number | null,
+    hasLift: null as boolean | null,
+    accessDifficulty: null as string | null,
+    isRelocation: isReloc,
+    distanceKm: null as string | null,
+  };
+  const priceMsg = await buildJobEstimateMessage(fakeSession as any)
+    || await smartPricingLookup(merged[0].name);
+
+  let responseMsg: string;
+  if (priceMsg) {
+    responseMsg =
+      `📸 I can see *${displayLabel}* across ${photoWord}!\n\n` +
+      `${priceMsg}\n\n` +
+      `_Floor surcharges & transport may apply depending on your address._\n\n` +
+      `Would you like a full personalised quote? What's your *full name*? 😊`;
+  } else {
+    responseMsg =
+      `📸 I can see *${displayLabel}* across ${photoWord}! ` +
+      `Let me put together a personalised quote for you 😊\n\nWhat's your *full name*?`;
+  }
+
+  await sendBotMessage(phone, responseMsg);
+
+  // Save session with pre-filled items (go straight to awaiting_name)
+  const prefilledItems = buildPrefilledItems(merged, service);
+  await storage.upsertWhatsAppSession(phone, {
+    state: "awaiting_name",
+    collectedName: null,
+    collectedAddress: null,
+    collectedItems: prefilledItems,
+    previousItems: "photo_detected",
+    preferredDate: null, preferredDateIso: null, preferredTimeWindow: null,
+    isRelocation: isReloc,
+    collectedToAddress: null, distanceKm: null, conversationHistory: null,
+  });
+
+  saveHistory(phone, [], `[${batch.imageIds.length} photo(s): ${displayLabel}]`, responseMsg);
 }
 
 /**
@@ -2751,15 +2868,6 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const text: string = (msg.text?.body || msg.image?.caption || "").trim();
       const textLower = text.toLowerCase();
 
-      // ── Multi-photo batch dedup ───────────────────────────────────────────────
-      // WhatsApp sends each photo in a batch as a separate webhook event (all
-      // carrying the same caption). Without this guard the bot replies once per
-      // photo. We respond only to the FIRST event and silently drop the rest.
-      if (msgType === "image" && isPhotoBatchDuplicate(from, text)) {
-        console.log(`[WhatsApp] Photo-batch dedup: dropping duplicate from ${from} caption="${text.slice(0, 60)}"`);
-        return; // 200 already sent to Meta; customer sees only one response
-      }
-
       let session = await storage.getWhatsAppSession(from);
       let state = session?.state ?? "start";
 
@@ -2788,6 +2896,22 @@ Respond with ONLY a JSON array (no prose, no markdown):
       if (session?.botPaused) {
         console.log(`[WhatsApp] Bot paused for ${from} — admin is handling this conversation`);
         return;
+      }
+
+      // ── Multi-photo batch collector ───────────────────────────────────────────
+      // Buffer ALL images from initial-state conversations (new session,
+      // awaiting_name, pricing_shown) for PHOTO_BATCH_DELAY_MS, then scan
+      // every photo in one pass and send a SINGLE combined estimate.
+      // This eliminates double greetings, per-photo separate quotes, and the
+      // race condition caused by concurrent webhook events.
+      if (msgType === "image" && msg.image?.id) {
+        const batchableStates = ["start", "awaiting_name", "pricing_shown"];
+        const currentState = session?.state ?? "start";
+        if (batchableStates.includes(currentState)) {
+          addToPendingPhotoBatch(from, msg.image.id, text);
+          console.log(`[WhatsApp] Photo batched for ${from} (n=${pendingPhotoBatches.get(from)?.imageIds.length}, state=${currentState}, caption="${text.slice(0, 50)}")`);
+          return; // 200 already sent to Meta; flushPhotoBatch will reply after delay
+        }
       }
 
       // ── Escalation detection — runs before state processing so no customer is left stranded ───────
