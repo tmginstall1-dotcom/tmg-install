@@ -545,6 +545,36 @@ function buildEstimateText(items: ScannedFurnitureItem[], serviceLabel: string):
 }
 
 /**
+ * Multi-photo batch deduplication.
+ * WhatsApp sends N photos in one user "batch" as N separate webhook events,
+ * each carrying the SAME caption. Without dedup this causes N separate estimates
+ * and sometimes a duplicate greeting. We respond only to the FIRST event of each
+ * batch and silently ignore the rest within a short time window.
+ */
+const _photoBatchCache = new Map<string, number>(); // key → timestamp of first response
+const PHOTO_BATCH_WINDOW_MS = 5000; // 5-second window per batch
+
+function isPhotoBatchDuplicate(phone: string, caption: string): boolean {
+  // Only dedup image messages (caller ensures msgType === "image")
+  const normalized = caption.trim().toLowerCase();
+  const key = `${phone}:${normalized}`;
+  const now = Date.now();
+  const last = _photoBatchCache.get(key);
+  if (last !== undefined && now - last < PHOTO_BATCH_WINDOW_MS) {
+    return true; // duplicate — skip this event
+  }
+  _photoBatchCache.set(key, now);
+  // Prune stale entries periodically
+  if (_photoBatchCache.size > 1000) {
+    const cutoff = now - PHOTO_BATCH_WINDOW_MS * 4;
+    for (const [k, v] of _photoBatchCache.entries()) {
+      if (v < cutoff) _photoBatchCache.delete(k);
+    }
+  }
+  return false;
+}
+
+/**
  * Generate a natural, conversational reply using GPT-4o-mini.
  * Acknowledges what the customer just said, then leads into the next structured step.
  * Falls back to the plain nextStepPrompt if GPT is unavailable.
@@ -2720,6 +2750,15 @@ Respond with ONLY a JSON array (no prose, no markdown):
       // are processed the same as plain text messages (caption = msg.image.caption)
       const text: string = (msg.text?.body || msg.image?.caption || "").trim();
       const textLower = text.toLowerCase();
+
+      // ── Multi-photo batch dedup ───────────────────────────────────────────────
+      // WhatsApp sends each photo in a batch as a separate webhook event (all
+      // carrying the same caption). Without this guard the bot replies once per
+      // photo. We respond only to the FIRST event and silently drop the rest.
+      if (msgType === "image" && isPhotoBatchDuplicate(from, text)) {
+        console.log(`[WhatsApp] Photo-batch dedup: dropping duplicate from ${from} caption="${text.slice(0, 60)}"`);
+        return; // 200 already sent to Meta; customer sees only one response
+      }
 
       let session = await storage.getWhatsAppSession(from);
       let state = session?.state ?? "start";
