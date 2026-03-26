@@ -27,6 +27,9 @@ import {
   Wrench,
   CreditCard,
   FileText,
+  Mail,
+  ScanSearch,
+  ListChecks,
 } from "lucide-react";
 import { useState } from "react";
 import { usePromoBar } from "@/hooks/use-promo-bar";
@@ -467,107 +470,194 @@ export default function Landing() {
       </section>
 
       {/* ═══════════════════ BOOKING FLOW ══════════════════════ */}
-      <section className="bg-black px-4 sm:px-6 lg:px-8 py-28 border-t border-white/8">
+      <section className="bg-white px-4 sm:px-6 lg:px-8 py-28 border-t border-black/8">
         <div className="max-w-6xl mx-auto">
 
+          {/* Header */}
           <motion.div {...fadeUpDelayed(0)} className="mb-16">
-            <p className="text-[10px] font-semibold tracking-widest text-white/30 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
-              From Enquiry to Done
+            <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+              The Full Booking Flow
             </p>
             <div className="flex items-end justify-between gap-4 flex-wrap">
-              <h2 className="section-title text-white">Your booking, step by step.</h2>
+              <h2 className="section-title text-black">From enquiry to job done.</h2>
               <Link
                 href="/estimate"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/60 border-b border-white/20 pb-0.5 hover:text-white hover:border-white/50 transition-colors whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors whitespace-nowrap"
               >
-                Get started <ArrowRight className="w-3.5 h-3.5" />
+                Start now <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
-            <p className="font-body text-sm text-white/40 mt-4 max-w-xl leading-relaxed">
-              Our booking process is simple, transparent, and fully managed over WhatsApp — no calls, no paperwork, no surprises.
+            <p className="font-body text-sm text-gray-500 mt-4 max-w-xl leading-relaxed">
+              Eight clear steps — four you complete online in minutes, four our team handles for you. No back-and-forth, no guesswork.
             </p>
           </motion.div>
 
-          {/* ── Desktop: connected horizontal track ── */}
-          <div className="hidden lg:block">
-            {/* Phase label row */}
-            <div className="grid grid-cols-3 gap-px mb-1">
-              <div className="col-span-3 grid grid-cols-6 gap-0 relative">
-                {/* Connector line */}
-                <div className="absolute top-[22px] left-[calc(1/12*100%)] right-[calc(1/12*100%)] h-px bg-white/10" />
+          {/* ── Desktop: two-phase 4+4 grid ── */}
+          <div className="hidden lg:block space-y-2">
 
-                {[
-                  { n: "01", icon: MessageCircle, title: "Get a Quote",        body: "WhatsApp a photo or use our online wizard. Instant itemised pricing in under 60 seconds.",          badge: "60 sec",        badgeColor: "border-white/20 text-white/50" },
-                  { n: "02", icon: FileText,       title: "Review Estimate",    body: "We send a full price breakdown — item by item, with transport and floor surcharges clearly listed.", badge: "No surprises",   badgeColor: "border-white/20 text-white/50" },
-                  { n: "03", icon: CreditCard,     title: "Pay 50% Deposit",    body: "Reply YES to confirm. Pay your 50% deposit via PayNow or bank transfer to lock in your slot.",       badge: "PayNow / Bank", badgeColor: "border-white/20 text-white/50" },
-                  { n: "04", icon: CalendarDays,   title: "Pick Your Date",     body: "Choose a date and time window that suits you. Same-week availability most weeks.",                   badge: "Same-week",      badgeColor: "border-emerald-800/60 text-emerald-400/80" },
-                  { n: "05", icon: Wrench,         title: "Team Arrives",       body: "Experienced installers show up on time with all tools. Just point — we handle everything.",          badge: "Tools included", badgeColor: "border-white/20 text-white/50" },
-                  { n: "06", icon: CheckCircle2,   title: "Job Done",           body: "Final 50% on completion. We tidy up and leave. You enjoy your space, we follow up on WhatsApp.",    badge: "Pay on done",   badgeColor: "border-emerald-800/60 text-emerald-400/80" },
-                ].map(({ n, icon: Icon, title, body, badge, badgeColor }, i) => (
-                  <motion.div
-                    key={n}
-                    {...fadeUpDelayed(i * 0.08)}
-                    className="relative flex flex-col items-center text-center px-4 pt-0 pb-0"
-                  >
-                    {/* Step node */}
-                    <div className="relative z-10 w-11 h-11 border border-white/15 bg-black flex items-center justify-center mb-6 group-hover:border-white/40 transition-colors">
-                      <Icon className="w-4 h-4 text-white/50" />
-                    </div>
+            {/* Phase 1 label */}
+            <motion.div {...fadeUpDelayed(0.05)} className="flex items-center gap-3 mb-6">
+              <span className="text-[10px] font-black tracking-[0.18em] uppercase text-black/35 px-2.5 py-1 border border-black/10 bg-black/[0.025]">
+                You complete online
+              </span>
+              <div className="flex-1 h-px bg-black/8" />
+            </motion.div>
 
-                    {/* Step number */}
-                    <p className="font-heading font-bold text-[10px] tracking-widest text-white/20 mb-1.5 uppercase" style={{ letterSpacing: "0.18em" }}>
-                      Step {n}
-                    </p>
-
-                    {/* Title */}
-                    <h3 className="card-title text-white mb-2 leading-snug">{title}</h3>
-
-                    {/* Body */}
-                    <p className="font-body text-xs text-white/40 leading-relaxed mb-4">{body}</p>
-
-                    {/* Badge */}
-                    <span className={`inline-flex items-center text-[10px] font-semibold px-2.5 py-1 border tracking-wide ${badgeColor}`}>
-                      {badge}
+            {/* Phase 1 steps 1–4 */}
+            <div className="relative grid grid-cols-4 gap-px bg-black/8 mb-2">
+              {/* Connector arrow between phases — rendered below */}
+              {[
+                {
+                  n: "01", icon: ListChecks,
+                  title: "Choose Your Service",
+                  body: "Select installation, dismantling, relocation, or any combination — across home, office, or commercial spaces.",
+                  tag: "Service type",
+                },
+                {
+                  n: "02", icon: MapPin,
+                  title: "Enter Your Location",
+                  body: "Provide your Singapore address. We cover all HDB, condo, landed, shophouse, and commercial premises island-wide.",
+                  tag: "All districts",
+                },
+                {
+                  n: "03", icon: Package,
+                  title: "Select Items",
+                  body: "Pick the exact furniture or equipment from our 450+ item catalog — beds, wardrobes, workstations, gym equipment, and more.",
+                  tag: "450+ items",
+                },
+                {
+                  n: "04", icon: CalendarDays,
+                  title: "Choose Date & Time",
+                  body: "Select your preferred appointment window. Same-week slots are usually available — we'll confirm it quickly.",
+                  tag: "Same-week slots",
+                },
+              ].map(({ n, icon: Icon, title, body, tag }, i) => (
+                <motion.div
+                  key={n}
+                  {...fadeUpDelayed(0.05 + i * 0.07)}
+                  className="bg-white p-8 group hover:bg-black/[0.018] transition-colors duration-300"
+                >
+                  <div className="flex items-start justify-between mb-6">
+                    <span className="font-heading font-bold text-[56px] leading-none text-black/[0.06] select-none group-hover:text-black/10 transition-colors">
+                      {n}
                     </span>
-                  </motion.div>
-                ))}
+                    <div className="w-9 h-9 border border-black/12 flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-4 h-4 text-black/40" />
+                    </div>
+                  </div>
+                  <h3 className="card-title text-black mb-2">{title}</h3>
+                  <p className="font-body text-sm text-gray-500 leading-relaxed mb-4">{body}</p>
+                  <span className="inline-flex items-center text-[10px] font-semibold px-2.5 py-1 border border-black/12 text-black/40 tracking-wide">
+                    {tag}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Phase divider with down-arrow */}
+            <motion.div {...fadeUpDelayed(0.35)} className="flex items-center justify-center py-5">
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-px h-5 bg-black/12" />
+                <div className="flex items-center gap-3">
+                  <div className="h-px w-20 bg-black/8" />
+                  <span className="text-[10px] font-black tracking-[0.18em] uppercase text-black/35 px-3 py-1 border border-black/10 bg-black/[0.025]">
+                    We handle the rest
+                  </span>
+                  <div className="h-px w-20 bg-black/8" />
+                </div>
+                <div className="w-px h-5 bg-black/12" />
               </div>
+            </motion.div>
+
+            {/* Phase 2 steps 5–8 */}
+            <div className="grid grid-cols-4 gap-px bg-black/8">
+              {[
+                {
+                  n: "05", icon: FileText,
+                  title: "Get Your Estimate",
+                  body: "An itemised quote is generated instantly — every item priced individually, with transport and access fees clearly shown.",
+                  tag: "Instant quote",
+                  highlight: false,
+                },
+                {
+                  n: "06", icon: ScanSearch,
+                  title: "Admin Review",
+                  body: "Our team reviews your submission, verifies the scope, and prepares your job confirmation with any clarifications needed.",
+                  tag: "Team verified",
+                  highlight: false,
+                },
+                {
+                  n: "07", icon: Mail,
+                  title: "Deposit via Email",
+                  body: "You receive a deposit invoice by email. Pay 50% via PayNow or bank transfer to lock in your scheduled slot.",
+                  tag: "50% deposit",
+                  highlight: true,
+                },
+                {
+                  n: "08", icon: CheckCircle2,
+                  title: "Job Confirmed",
+                  body: "Once deposit is received, your booking is confirmed. Crew details and arrival time sent via WhatsApp. Balance paid on completion.",
+                  tag: "You're booked",
+                  highlight: true,
+                },
+              ].map(({ n, icon: Icon, title, body, tag, highlight }, i) => (
+                <motion.div
+                  key={n}
+                  {...fadeUpDelayed(0.4 + i * 0.07)}
+                  className={`p-8 group transition-colors duration-300 ${highlight ? "bg-black hover:bg-neutral-900" : "bg-white hover:bg-black/[0.018]"}`}
+                >
+                  <div className="flex items-start justify-between mb-6">
+                    <span className={`font-heading font-bold text-[56px] leading-none select-none transition-colors ${highlight ? "text-white/[0.07] group-hover:text-white/10" : "text-black/[0.06] group-hover:text-black/10"}`}>
+                      {n}
+                    </span>
+                    <div className={`w-9 h-9 border flex items-center justify-center flex-shrink-0 ${highlight ? "border-white/15" : "border-black/12"}`}>
+                      <Icon className={`w-4 h-4 ${highlight ? "text-white/50" : "text-black/40"}`} />
+                    </div>
+                  </div>
+                  <h3 className={`card-title mb-2 ${highlight ? "text-white" : "text-black"}`}>{title}</h3>
+                  <p className={`font-body text-sm leading-relaxed mb-4 ${highlight ? "text-white/50" : "text-gray-500"}`}>{body}</p>
+                  <span className={`inline-flex items-center text-[10px] font-semibold px-2.5 py-1 border tracking-wide ${highlight ? "border-white/15 text-white/40" : "border-black/12 text-black/40"}`}>
+                    {tag}
+                  </span>
+                </motion.div>
+              ))}
             </div>
           </div>
 
-          {/* ── Mobile: vertical timeline ── */}
+          {/* ── Mobile: full vertical timeline ── */}
           <div className="lg:hidden">
-            <div className="relative pl-10">
-              {/* Left connector track */}
-              <div className="absolute left-[18px] top-3 bottom-3 w-px bg-white/10" />
+            <div className="relative pl-12">
+              <div className="absolute left-[19px] top-2 bottom-2 w-px bg-black/10" />
 
               {[
-                { n: "01", icon: MessageCircle, title: "Get a Quote",       body: "WhatsApp a photo or use our online wizard. Instant itemised pricing in under 60 seconds.",          badge: "60 sec" },
-                { n: "02", icon: FileText,      title: "Review Estimate",   body: "We send a full price breakdown — item by item, with transport and floor surcharges clearly listed.", badge: "No surprises" },
-                { n: "03", icon: CreditCard,    title: "Pay 50% Deposit",   body: "Reply YES to confirm. Pay your 50% deposit via PayNow or bank transfer to lock in your slot.",       badge: "PayNow / Bank" },
-                { n: "04", icon: CalendarDays,  title: "Pick Your Date",    body: "Choose a date and time window that suits you. Same-week availability most weeks.",                   badge: "Same-week", highlight: true },
-                { n: "05", icon: Wrench,        title: "Team Arrives",      body: "Experienced installers show up on time with all tools. Just point — we handle everything.",          badge: "Tools included" },
-                { n: "06", icon: CheckCircle2,  title: "Job Done",          body: "Final 50% on completion. We tidy up and leave. You enjoy your space, we follow up on WhatsApp.",    badge: "Pay on done", highlight: true },
-              ].map(({ n, icon: Icon, title, body, badge, highlight }, i) => (
+                { n: "01", icon: ListChecks,   title: "Choose Your Service",  body: "Installation, dismantling, relocation — home, office, or commercial. Pick what applies.",         tag: "Service type",  dark: false },
+                { n: "02", icon: MapPin,        title: "Enter Your Location",  body: "All HDB, condo, landed, shophouse, and commercial premises island-wide.",                          tag: "All districts", dark: false },
+                { n: "03", icon: Package,       title: "Select Items",         body: "Pick from our 450+ catalog — beds, wardrobes, workstations, gym equipment, and more.",             tag: "450+ items",    dark: false },
+                { n: "04", icon: CalendarDays,  title: "Choose Date & Time",   body: "Select your preferred slot. Same-week availability most weeks.",                                   tag: "Same-week",     dark: false },
+                { n: "05", icon: FileText,      title: "Get Your Estimate",    body: "Itemised quote generated instantly — every item, every fee, clearly listed.",                      tag: "Instant quote", dark: false },
+                { n: "06", icon: ScanSearch,    title: "Admin Review",         body: "Our team reviews your submission, verifies the scope, and prepares your confirmation.",            tag: "Team verified", dark: false },
+                { n: "07", icon: Mail,          title: "Deposit via Email",    body: "Invoice sent by email. Pay 50% via PayNow or bank transfer to lock your slot.",                    tag: "50% deposit",   dark: true },
+                { n: "08", icon: CheckCircle2,  title: "Job Confirmed",        body: "Booking locked in. Crew details and arrival time sent via WhatsApp. Pay balance on completion.",   tag: "You're booked", dark: true },
+              ].map(({ n, icon: Icon, title, body, tag, dark }, i) => (
                 <motion.div
                   key={n}
-                  {...fadeUpDelayed(i * 0.07)}
+                  {...fadeUpDelayed(i * 0.06)}
                   className="relative flex gap-4 mb-8 last:mb-0"
                 >
-                  {/* Node dot on the track */}
-                  <div className="absolute -left-10 top-0 w-9 h-9 border border-white/15 bg-black flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-3.5 h-3.5 text-white/50" />
+                  {/* Node */}
+                  <div className={`absolute -left-12 top-0 w-9 h-9 border flex items-center justify-center flex-shrink-0 ${dark ? "border-black/20 bg-black" : "border-black/12 bg-white"}`}>
+                    <Icon className={`w-3.5 h-3.5 ${dark ? "text-white/60" : "text-black/40"}`} />
                   </div>
 
                   {/* Content */}
-                  <div className="pt-1">
-                    <p className="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-1" style={{ letterSpacing: "0.15em" }}>
+                  <div className={`flex-1 p-4 border ${dark ? "border-black/15 bg-black" : "border-black/8 bg-white"}`}>
+                    <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${dark ? "text-white/25" : "text-black/25"}`} style={{ letterSpacing: "0.15em" }}>
                       Step {n}
                     </p>
-                    <h3 className="card-title text-white mb-1.5">{title}</h3>
-                    <p className="font-body text-xs text-white/40 leading-relaxed mb-2.5">{body}</p>
-                    <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 border ${highlight ? "border-emerald-800/60 text-emerald-400/80" : "border-white/15 text-white/40"}`}>
-                      {badge}
+                    <h3 className={`card-title mb-1.5 ${dark ? "text-white" : "text-black"}`}>{title}</h3>
+                    <p className={`font-body text-xs leading-relaxed mb-2.5 ${dark ? "text-white/45" : "text-gray-500"}`}>{body}</p>
+                    <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 border tracking-wide ${dark ? "border-white/15 text-white/40" : "border-black/12 text-black/40"}`}>
+                      {tag}
                     </span>
                   </div>
                 </motion.div>
@@ -576,16 +666,16 @@ export default function Landing() {
           </div>
 
           {/* ── Bottom CTA ── */}
-          <motion.div {...fadeUpDelayed(0.5)} className="mt-14 pt-10 border-t border-white/8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          <motion.div {...fadeUpDelayed(0.7)} className="mt-14 pt-10 border-t border-black/8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div>
-              <p className="text-sm font-semibold text-white mb-1">Ready to get started?</p>
-              <p className="text-xs text-white/40 font-body">WhatsApp a photo of your furniture or use the online wizard — both take under 60 seconds.</p>
+              <p className="text-sm font-semibold text-black mb-1">Ready to begin?</p>
+              <p className="text-xs text-gray-400 font-body">Use the online wizard or WhatsApp us directly — both take under 60 seconds to get your estimate.</p>
             </div>
             <div className="flex gap-3 flex-shrink-0">
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "booking_flow_estimate")}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-white text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-white/90 transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
               >
                 Get Estimate <ArrowRight className="w-3.5 h-3.5" />
               </Link>
@@ -594,7 +684,7 @@ export default function Landing() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => trackEvent("cta_click", "/", "booking_flow_whatsapp")}
-                className="inline-flex items-center gap-2 px-6 py-3 border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-white/50 hover:bg-white/5 transition-all"
+                className="inline-flex items-center gap-2 px-6 py-3 border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/50 hover:bg-gray-50 transition-all"
               >
                 <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
               </a>
