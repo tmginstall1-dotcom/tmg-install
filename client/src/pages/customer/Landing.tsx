@@ -410,66 +410,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ═══════════════════════ HOW IT WORKS ══════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-28">
-        <div className="max-w-6xl mx-auto">
-          <motion.div {...fadeUpDelayed(0)} className="mb-16">
-            <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
-              The Process
-            </p>
-            <h2 className="section-title text-black">How it works.</h2>
-          </motion.div>
-
-          <div className="grid md:grid-cols-3 gap-px bg-black/8">
-            {[
-              {
-                n: "01",
-                icon: Zap,
-                title: "Select Service",
-                body: "Choose installation, dismantling, relocation, or any combination — across home, office, or commercial spaces.",
-              },
-              {
-                n: "02",
-                icon: MapPin,
-                title: "Tell Us Your Location",
-                body: "Enter your Singapore address. We cover all districts — HDB, condo, landed, shophouse, and commercial premises.",
-              },
-              {
-                n: "03",
-                icon: Package,
-                title: "Pick Items & Get Quote",
-                body: "Browse our 450+ item catalog spanning beds, wardrobes, gym equipment, appliances, blinds, and more. Pricing is generated instantly.",
-              },
-            ].map(({ n, icon: Icon, title, body }, i) => (
-              <motion.div
-                key={n}
-                {...fadeUpDelayed(i * 0.1)}
-                className="bg-white p-10 group hover:bg-black/[0.018] transition-colors duration-300"
-              >
-                <div className="flex items-start justify-between mb-8">
-                  <span className="font-heading font-bold text-[48px] leading-none text-black/8 select-none group-hover:text-black/12 transition-colors">
-                    {n}
-                  </span>
-                  <div className="w-9 h-9 border border-black/12 flex items-center justify-center">
-                    <Icon className="w-4 h-4 text-black/50" />
-                  </div>
-                </div>
-                <h3 className="card-title text-black mb-3">{title}</h3>
-                <p className="font-body text-sm text-gray-500 leading-relaxed">{body}</p>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.div {...fadeUpDelayed(0.3)} className="mt-10 flex justify-center">
-            <Link
-              href="/estimate"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-black border-b-2 border-black pb-0.5 hover:opacity-60 transition-opacity"
-            >
-              Start your estimate <ArrowRight className="w-4 h-4" />
-            </Link>
-          </motion.div>
-        </div>
-      </section>
 
       {/* ═══════════════════ BOOKING FLOW ══════════════════════ */}
       <section className="bg-white px-4 sm:px-6 lg:px-8 py-28 border-t border-black/8">
