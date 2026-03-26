@@ -2851,21 +2851,46 @@ Respond with ONLY a JSON array (no prose, no markdown):
       // ── Mark as read immediately — shows double blue ticks to customer ────────
       markAsRead(msg.id).catch(() => {});
 
+      // ── Extract readable text from any WhatsApp message type ─────────────────
+      // WhatsApp sends text in different fields depending on message type:
+      // text→msg.text.body | image/video/doc→caption | interactive→button/list reply title | button→msg.button.text
+      const extractText = (m: any): string => (
+        m.text?.body ||
+        m.image?.caption ||
+        m.video?.caption ||
+        m.document?.caption ||
+        m.interactive?.button_reply?.title ||
+        m.interactive?.list_reply?.title ||
+        m.button?.text ||
+        ""
+      ).trim();
+
+      const inboundText = extractText(msg);
+
+      // Friendly fallback labels for media-only messages
+      const fallbackLabel =
+        msg.type === 'image'    ? '[Photo]'    :
+        msg.type === 'video'    ? '[Video]'    :
+        msg.type === 'audio'    ? '[Voice note]' :
+        msg.type === 'sticker'  ? '[Sticker]'  :
+        msg.type === 'document' ? '[Document]' :
+        msg.type === 'location' ? '[Location]' :
+        msg.type === 'contacts' ? '[Contact]'  :
+        '[Message]';
+
       // ── Log inbound message for admin conversations view ─────────────────────
-      const inboundText = (msg.text?.body || msg.image?.caption || "").trim();
       storage.logWhatsAppMessage({
         phone: from,
         direction: 'inbound',
-        body: inboundText || (msg.type === 'image' ? '[Photo]' : '[Message]'),
+        body: inboundText || fallbackLabel,
         mediaType: msg.type === 'image' ? 'image' : undefined,
         mediaUrl: msg.type === 'image' && msg.image?.id ? msg.image.id : undefined,
         wamid: msg.id,
       }).catch(() => {});
 
       const msgType: string = msg.type || "text";
-      // Include image/video captions in text so pricing questions sent with a photo
-      // are processed the same as plain text messages (caption = msg.image.caption)
-      const text: string = (msg.text?.body || msg.image?.caption || "").trim();
+      // Include captions and interactive reply text so all message types are processed
+      const text: string = extractText(msg);
       const textLower = text.toLowerCase();
 
       let session = await storage.getWhatsAppSession(from);
