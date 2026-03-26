@@ -30,6 +30,8 @@ import {
   Mail,
   ScanSearch,
   ListChecks,
+  Users,
+  Receipt,
 } from "lucide-react";
 import { useState } from "react";
 import { usePromoBar } from "@/hooks/use-promo-bar";
@@ -488,188 +490,169 @@ export default function Landing() {
               </Link>
             </div>
             <p className="font-body text-sm text-gray-500 mt-4 max-w-xl leading-relaxed">
-              Eight clear steps — four you complete online in minutes, four our team handles for you. No back-and-forth, no guesswork.
+              Ten clear steps — from choosing your service to final payment. Every stage is transparent, online, and confirmed in writing.
             </p>
           </motion.div>
 
-          {/* ── Desktop: two-phase 4+4 grid ── */}
-          <div className="hidden lg:block space-y-2">
+          {/* ══════════ DESKTOP LAYOUT ══════════ */}
+          <div className="hidden lg:block space-y-0">
 
-            {/* Phase 1 label */}
-            <motion.div {...fadeUpDelayed(0.05)} className="flex items-center gap-3 mb-6">
-              <span className="text-[10px] font-black tracking-[0.18em] uppercase text-black/35 px-2.5 py-1 border border-black/10 bg-black/[0.025]">
-                You complete online
+            {/* ── Phase 1: YOU DO ONLINE ── */}
+            <motion.div {...fadeUpDelayed(0.04)} className="flex items-center gap-3 mb-4">
+              <span className="text-[9px] font-black tracking-[0.2em] uppercase text-black/40 px-2.5 py-1 border border-black/10 bg-black/[0.025] flex-shrink-0">
+                Step 1–4 &nbsp;·&nbsp; You complete online
               </span>
               <div className="flex-1 h-px bg-black/8" />
             </motion.div>
 
-            {/* Phase 1 steps 1–4 */}
-            <div className="relative grid grid-cols-4 gap-px bg-black/8 mb-2">
-              {/* Connector arrow between phases — rendered below */}
-              {[
-                {
-                  n: "01", icon: ListChecks,
-                  title: "Choose Your Service",
-                  body: "Select installation, dismantling, relocation, or any combination — across home, office, or commercial spaces.",
-                  tag: "Service type",
-                },
-                {
-                  n: "02", icon: MapPin,
-                  title: "Enter Your Location",
-                  body: "Provide your Singapore address. We cover all HDB, condo, landed, shophouse, and commercial premises island-wide.",
-                  tag: "All districts",
-                },
-                {
-                  n: "03", icon: Package,
-                  title: "Select Items",
-                  body: "Pick the exact furniture or equipment from our 450+ item catalog — beds, wardrobes, workstations, gym equipment, and more.",
-                  tag: "450+ items",
-                },
-                {
-                  n: "04", icon: CalendarDays,
-                  title: "Choose Date & Time",
-                  body: "Select your preferred appointment window. Same-week slots are usually available — we'll confirm it quickly.",
-                  tag: "Same-week slots",
-                },
-              ].map(({ n, icon: Icon, title, body, tag }, i) => (
-                <motion.div
-                  key={n}
-                  {...fadeUpDelayed(0.05 + i * 0.07)}
-                  className="bg-white p-8 group hover:bg-black/[0.018] transition-colors duration-300"
-                >
+            <div className="grid grid-cols-4 gap-px bg-black/8 mb-6">
+              {([
+                { n: "01", icon: ListChecks,  title: "Choose Your Service",   body: "Select installation, dismantling, or relocation — or any combination. Covers home, office, and commercial.",   tag: "Service type"    },
+                { n: "02", icon: MapPin,       title: "Enter Your Location",   body: "Your Singapore address. All HDB, condo, landed, shophouse, and commercial premises across every district.",     tag: "Island-wide"     },
+                { n: "03", icon: Package,      title: "Select Items",          body: "Pick from 450+ items — beds, wardrobes, workstations, gym equipment, blinds, appliances, and more.",            tag: "450+ catalog"    },
+                { n: "04", icon: CalendarDays, title: "Choose Date & Time",    body: "Select your preferred appointment window. Same-week slots are usually available — we confirm quickly.",          tag: "Same-week slots" },
+              ] as const).map(({ n, icon: Icon, title, body, tag }, i) => (
+                <motion.div key={n} {...fadeUpDelayed(0.06 + i * 0.07)} className="bg-white p-8 group hover:bg-black/[0.018] transition-colors duration-300">
                   <div className="flex items-start justify-between mb-6">
-                    <span className="font-heading font-bold text-[56px] leading-none text-black/[0.06] select-none group-hover:text-black/10 transition-colors">
-                      {n}
-                    </span>
+                    <span className="font-heading font-bold text-[52px] leading-none text-black/[0.05] select-none group-hover:text-black/10 transition-colors">{n}</span>
                     <div className="w-9 h-9 border border-black/12 flex items-center justify-center flex-shrink-0">
                       <Icon className="w-4 h-4 text-black/40" />
                     </div>
                   </div>
                   <h3 className="card-title text-black mb-2">{title}</h3>
                   <p className="font-body text-sm text-gray-500 leading-relaxed mb-4">{body}</p>
-                  <span className="inline-flex items-center text-[10px] font-semibold px-2.5 py-1 border border-black/12 text-black/40 tracking-wide">
-                    {tag}
-                  </span>
+                  <span className="inline-flex text-[10px] font-semibold px-2.5 py-1 border border-black/10 text-black/40 tracking-wide">{tag}</span>
                 </motion.div>
               ))}
             </div>
 
-            {/* Phase divider with down-arrow */}
-            <motion.div {...fadeUpDelayed(0.35)} className="flex items-center justify-center py-5">
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-px h-5 bg-black/12" />
-                <div className="flex items-center gap-3">
-                  <div className="h-px w-20 bg-black/8" />
-                  <span className="text-[10px] font-black tracking-[0.18em] uppercase text-black/35 px-3 py-1 border border-black/10 bg-black/[0.025]">
-                    We handle the rest
-                  </span>
-                  <div className="h-px w-20 bg-black/8" />
-                </div>
-                <div className="w-px h-5 bg-black/12" />
-              </div>
+            {/* ── Phase 2: WE PREPARE ── */}
+            <motion.div {...fadeUpDelayed(0.34)} className="flex items-center gap-3 mb-4">
+              <span className="text-[9px] font-black tracking-[0.2em] uppercase text-black/40 px-2.5 py-1 border border-black/10 bg-black/[0.025] flex-shrink-0">
+                Step 5–7 &nbsp;·&nbsp; We prepare your booking
+              </span>
+              <div className="flex-1 h-px bg-black/8" />
             </motion.div>
 
-            {/* Phase 2 steps 5–8 */}
-            <div className="grid grid-cols-4 gap-px bg-black/8">
-              {[
+            <div className="grid grid-cols-3 gap-px bg-black/8 mb-6">
+              {([
                 {
                   n: "05", icon: FileText,
-                  title: "Get Your Estimate",
-                  body: "An itemised quote is generated instantly — every item priced individually, with transport and access fees clearly shown.",
-                  tag: "Instant quote",
-                  highlight: false,
+                  title: "Estimate Generated",
+                  body: "An itemised quote is produced instantly — every item priced individually. Transport, floor, and access surcharges are listed separately so there are no surprises.",
+                  tag: "Instant & itemised",
+                  dark: false,
                 },
                 {
                   n: "06", icon: ScanSearch,
-                  title: "Admin Review",
-                  body: "Our team reviews your submission, verifies the scope, and prepares your job confirmation with any clarifications needed.",
+                  title: "Admin Review & Approval",
+                  body: "Our team reviews your submission, verifies the scope of work, resolves any questions, and greenlights the job before sending payment details.",
                   tag: "Team verified",
-                  highlight: false,
+                  dark: false,
                 },
                 {
                   n: "07", icon: Mail,
-                  title: "Deposit via Email",
-                  body: "You receive a deposit invoice by email. Pay 50% via PayNow or bank transfer to lock in your scheduled slot.",
-                  tag: "50% deposit",
-                  highlight: true,
+                  title: "Deposit Invoice — Pay via Stripe",
+                  body: "A deposit invoice is emailed to you with a secure Stripe payment link. Click to pay 50% online by card. Your time slot is held for 48 hours.",
+                  tag: "Secure · Stripe · 50% deposit",
+                  dark: false,
                 },
-                {
-                  n: "08", icon: CheckCircle2,
-                  title: "Job Confirmed",
-                  body: "Once deposit is received, your booking is confirmed. Crew details and arrival time sent via WhatsApp. Balance paid on completion.",
-                  tag: "You're booked",
-                  highlight: true,
-                },
-              ].map(({ n, icon: Icon, title, body, tag, highlight }, i) => (
-                <motion.div
-                  key={n}
-                  {...fadeUpDelayed(0.4 + i * 0.07)}
-                  className={`p-8 group transition-colors duration-300 ${highlight ? "bg-black hover:bg-neutral-900" : "bg-white hover:bg-black/[0.018]"}`}
-                >
+              ] as const).map(({ n, icon: Icon, title, body, tag, dark }, i) => (
+                <motion.div key={n} {...fadeUpDelayed(0.36 + i * 0.07)} className={`p-8 group transition-colors duration-300 ${dark ? "bg-black hover:bg-neutral-900" : "bg-white hover:bg-black/[0.018]"}`}>
                   <div className="flex items-start justify-between mb-6">
-                    <span className={`font-heading font-bold text-[56px] leading-none select-none transition-colors ${highlight ? "text-white/[0.07] group-hover:text-white/10" : "text-black/[0.06] group-hover:text-black/10"}`}>
-                      {n}
-                    </span>
-                    <div className={`w-9 h-9 border flex items-center justify-center flex-shrink-0 ${highlight ? "border-white/15" : "border-black/12"}`}>
-                      <Icon className={`w-4 h-4 ${highlight ? "text-white/50" : "text-black/40"}`} />
+                    <span className={`font-heading font-bold text-[52px] leading-none select-none transition-colors ${dark ? "text-white/[0.06] group-hover:text-white/10" : "text-black/[0.05] group-hover:text-black/10"}`}>{n}</span>
+                    <div className={`w-9 h-9 border flex items-center justify-center flex-shrink-0 ${dark ? "border-white/15" : "border-black/12"}`}>
+                      <Icon className={`w-4 h-4 ${dark ? "text-white/50" : "text-black/40"}`} />
                     </div>
                   </div>
-                  <h3 className={`card-title mb-2 ${highlight ? "text-white" : "text-black"}`}>{title}</h3>
-                  <p className={`font-body text-sm leading-relaxed mb-4 ${highlight ? "text-white/50" : "text-gray-500"}`}>{body}</p>
-                  <span className={`inline-flex items-center text-[10px] font-semibold px-2.5 py-1 border tracking-wide ${highlight ? "border-white/15 text-white/40" : "border-black/12 text-black/40"}`}>
-                    {tag}
-                  </span>
+                  <h3 className={`card-title mb-2 ${dark ? "text-white" : "text-black"}`}>{title}</h3>
+                  <p className={`font-body text-sm leading-relaxed mb-4 ${dark ? "text-white/45" : "text-gray-500"}`}>{body}</p>
+                  <span className={`inline-flex text-[10px] font-semibold px-2.5 py-1 border tracking-wide ${dark ? "border-white/15 text-white/40" : "border-black/10 text-black/40"}`}>{tag}</span>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* ── Phase 3: JOB DAY & COMPLETION ── */}
+            <motion.div {...fadeUpDelayed(0.6)} className="flex items-center gap-3 mb-4">
+              <span className="text-[9px] font-black tracking-[0.2em] uppercase text-white/50 px-2.5 py-1 border border-white/10 bg-white/[0.06] flex-shrink-0">
+                Step 8–10 &nbsp;·&nbsp; Job day & completion
+              </span>
+              <div className="flex-1 h-px bg-white/10" />
+            </motion.div>
+
+            <div className="grid grid-cols-3 gap-px bg-white/8">
+              {([
+                {
+                  n: "08", icon: CheckCircle2,
+                  title: "Booking Confirmed",
+                  body: "Once deposit clears, your booking is locked. You receive a confirmation email with your appointment date, time window, and job reference number.",
+                  tag: "Confirmed by email",
+                },
+                {
+                  n: "09", icon: Users,
+                  title: "Crew Arrives & Completes",
+                  body: "Our experienced team shows up at your door on time with all tools and equipment. Just direct us — we handle everything from start to finish.",
+                  tag: "Tools included",
+                },
+                {
+                  n: "10", icon: Receipt,
+                  title: "Final Payment — Pay via Stripe",
+                  body: "After the job is complete, a final invoice is emailed with a secure Stripe payment link. Pay the remaining 50% online by card. Receipt issued instantly.",
+                  tag: "Secure · Stripe · Balance due",
+                },
+              ] as const).map(({ n, icon: Icon, title, body, tag }, i) => (
+                <motion.div key={n} {...fadeUpDelayed(0.62 + i * 0.07)} className="bg-black p-8 group hover:bg-neutral-900 transition-colors duration-300">
+                  <div className="flex items-start justify-between mb-6">
+                    <span className="font-heading font-bold text-[52px] leading-none text-white/[0.06] select-none group-hover:text-white/10 transition-colors">{n}</span>
+                    <div className="w-9 h-9 border border-white/15 flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-4 h-4 text-white/50" />
+                    </div>
+                  </div>
+                  <h3 className="card-title text-white mb-2">{title}</h3>
+                  <p className="font-body text-sm text-white/45 leading-relaxed mb-4">{body}</p>
+                  <span className="inline-flex text-[10px] font-semibold px-2.5 py-1 border border-white/15 text-white/40 tracking-wide">{tag}</span>
                 </motion.div>
               ))}
             </div>
           </div>
 
-          {/* ── Mobile: full vertical timeline ── */}
+          {/* ══════════ MOBILE LAYOUT ══════════ */}
           <div className="lg:hidden">
             <div className="relative pl-12">
               <div className="absolute left-[19px] top-2 bottom-2 w-px bg-black/10" />
 
-              {[
-                { n: "01", icon: ListChecks,   title: "Choose Your Service",  body: "Installation, dismantling, relocation — home, office, or commercial. Pick what applies.",         tag: "Service type",  dark: false },
-                { n: "02", icon: MapPin,        title: "Enter Your Location",  body: "All HDB, condo, landed, shophouse, and commercial premises island-wide.",                          tag: "All districts", dark: false },
-                { n: "03", icon: Package,       title: "Select Items",         body: "Pick from our 450+ catalog — beds, wardrobes, workstations, gym equipment, and more.",             tag: "450+ items",    dark: false },
-                { n: "04", icon: CalendarDays,  title: "Choose Date & Time",   body: "Select your preferred slot. Same-week availability most weeks.",                                   tag: "Same-week",     dark: false },
-                { n: "05", icon: FileText,      title: "Get Your Estimate",    body: "Itemised quote generated instantly — every item, every fee, clearly listed.",                      tag: "Instant quote", dark: false },
-                { n: "06", icon: ScanSearch,    title: "Admin Review",         body: "Our team reviews your submission, verifies the scope, and prepares your confirmation.",            tag: "Team verified", dark: false },
-                { n: "07", icon: Mail,          title: "Deposit via Email",    body: "Invoice sent by email. Pay 50% via PayNow or bank transfer to lock your slot.",                    tag: "50% deposit",   dark: true },
-                { n: "08", icon: CheckCircle2,  title: "Job Confirmed",        body: "Booking locked in. Crew details and arrival time sent via WhatsApp. Pay balance on completion.",   tag: "You're booked", dark: true },
-              ].map(({ n, icon: Icon, title, body, tag, dark }, i) => (
-                <motion.div
-                  key={n}
-                  {...fadeUpDelayed(i * 0.06)}
-                  className="relative flex gap-4 mb-8 last:mb-0"
-                >
-                  {/* Node */}
-                  <div className={`absolute -left-12 top-0 w-9 h-9 border flex items-center justify-center flex-shrink-0 ${dark ? "border-black/20 bg-black" : "border-black/12 bg-white"}`}>
-                    <Icon className={`w-3.5 h-3.5 ${dark ? "text-white/60" : "text-black/40"}`} />
+              {([
+                { n: "01", icon: ListChecks,   title: "Choose Your Service",          body: "Installation, dismantling, or relocation — home, office, commercial.",                                                                    tag: "Service type",                    dark: false },
+                { n: "02", icon: MapPin,        title: "Enter Your Location",          body: "All Singapore districts — HDB, condo, landed, office, commercial.",                                                                         tag: "Island-wide",                     dark: false },
+                { n: "03", icon: Package,       title: "Select Items",                 body: "450+ item catalog — beds, wardrobes, workstations, gym equipment, and more.",                                                               tag: "450+ catalog",                    dark: false },
+                { n: "04", icon: CalendarDays,  title: "Choose Date & Time",           body: "Pick your preferred slot. Same-week availability most weeks.",                                                                              tag: "Same-week",                       dark: false },
+                { n: "05", icon: FileText,      title: "Estimate Generated",           body: "Instant itemised quote — every item and fee listed clearly.",                                                                               tag: "Instant & itemised",              dark: false },
+                { n: "06", icon: ScanSearch,    title: "Admin Review & Approval",      body: "Our team checks the scope and verifies everything before sending payment.",                                                                 tag: "Team verified",                   dark: false },
+                { n: "07", icon: Mail,          title: "Deposit Invoice via Email",    body: "Email with a secure Stripe payment link. Pay 50% online by card — slot held 48 hrs.",                                                      tag: "Stripe · 50% deposit",            dark: true  },
+                { n: "08", icon: CheckCircle2,  title: "Booking Confirmed",            body: "Deposit cleared — booking locked. Confirmation email with date, time, and job reference.",                                                  tag: "Confirmed by email",              dark: true  },
+                { n: "09", icon: Users,         title: "Crew Arrives & Completes",     body: "Team arrives on time with all tools. We handle everything — you just direct us.",                                                           tag: "Tools included",                  dark: true  },
+                { n: "10", icon: Receipt,       title: "Final Payment via Email",      body: "Job done — final invoice emailed with a Stripe link. Pay the remaining 50% online. Receipt issued instantly.",                              tag: "Stripe · Balance due",            dark: true  },
+              ] as const).map(({ n, icon: Icon, title, body, tag, dark }, i) => (
+                <motion.div key={n} {...fadeUpDelayed(i * 0.05)} className="relative flex gap-0 mb-5 last:mb-0">
+                  <div className={`absolute -left-12 top-0 w-9 h-9 border flex items-center justify-center flex-shrink-0 z-10 ${dark ? "bg-black border-black/25" : "bg-white border-black/12"}`}>
+                    <Icon className={`w-3.5 h-3.5 ${dark ? "text-white/55" : "text-black/40"}`} />
                   </div>
-
-                  {/* Content */}
-                  <div className={`flex-1 p-4 border ${dark ? "border-black/15 bg-black" : "border-black/8 bg-white"}`}>
-                    <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${dark ? "text-white/25" : "text-black/25"}`} style={{ letterSpacing: "0.15em" }}>
-                      Step {n}
-                    </p>
+                  <div className={`flex-1 p-4 border ${dark ? "bg-black border-black/20" : "bg-white border-black/8"}`}>
+                    <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${dark ? "text-white/20" : "text-black/20"}`} style={{ letterSpacing: "0.2em" }}>Step {n}</p>
                     <h3 className={`card-title mb-1.5 ${dark ? "text-white" : "text-black"}`}>{title}</h3>
-                    <p className={`font-body text-xs leading-relaxed mb-2.5 ${dark ? "text-white/45" : "text-gray-500"}`}>{body}</p>
-                    <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 border tracking-wide ${dark ? "border-white/15 text-white/40" : "border-black/12 text-black/40"}`}>
-                      {tag}
-                    </span>
+                    <p className={`font-body text-xs leading-relaxed mb-2.5 ${dark ? "text-white/40" : "text-gray-500"}`}>{body}</p>
+                    <span className={`inline-flex text-[10px] font-semibold px-2 py-0.5 border tracking-wide ${dark ? "border-white/12 text-white/35" : "border-black/10 text-black/35"}`}>{tag}</span>
                   </div>
                 </motion.div>
               ))}
             </div>
           </div>
 
-          {/* ── Bottom CTA ── */}
-          <motion.div {...fadeUpDelayed(0.7)} className="mt-14 pt-10 border-t border-black/8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          {/* ── CTA ── */}
+          <motion.div {...fadeUpDelayed(0.8)} className="mt-14 pt-10 border-t border-black/8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div>
               <p className="text-sm font-semibold text-black mb-1">Ready to begin?</p>
-              <p className="text-xs text-gray-400 font-body">Use the online wizard or WhatsApp us directly — both take under 60 seconds to get your estimate.</p>
+              <p className="text-xs text-gray-400 font-body">Use the online wizard or WhatsApp us — both generate your full estimate in under 60 seconds.</p>
             </div>
             <div className="flex gap-3 flex-shrink-0">
               <Link
