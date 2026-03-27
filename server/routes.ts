@@ -1962,6 +1962,116 @@ Category rules:
     }
   });
 
+  // ── Admin: AI-scan floor plan / delivery order / photo for item detection ──
+  app.post("/api/admin/jobs/scan-attachment", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const { fileData, fileType, fileName } = z.object({
+        fileData: z.string().min(10),
+        fileType: z.string(),
+        fileName: z.string().optional().default("upload"),
+      }).parse(req.body);
+
+      const isImage = fileType.startsWith("image/");
+      const isPdf   = fileType === "application/pdf";
+      if (!isImage && !isPdf) {
+        return res.status(400).json({ message: "Unsupported file type. Upload an image (PNG, JPG, WEBP) or PDF." });
+      }
+
+      const allItems = await storage.getCatalogItems();
+      const byCategory: Record<string, string[]> = {};
+      allItems.forEach(item => {
+        const cat = item.category || "General";
+        if (!byCategory[cat]) byCategory[cat] = [];
+        const n = item.name;
+        if (!byCategory[cat].includes(n)) byCategory[cat].push(n);
+      });
+      const catalogList = Object.entries(byCategory)
+        .map(([cat, names]) => `${cat}: ${names.join(" | ")}`).join("\n");
+
+      const systemPrompt = `You are an expert furniture installation estimator for TMG Install, a Singapore furniture installation and relocation company.
+You are analyzing a floor plan, interior design drawing, delivery order, IKEA purchase receipt, packing list, or furniture photo.
+
+Extract:
+1. All furniture items requiring assembly, installation, dismantling, or relocation
+2. Service address if visible (Singapore postal format)
+3. Special notes (floor level, lift access, condo rules, parking, fragile items)
+
+Available service catalog (prefer these names):
+${catalogList}
+
+Pricing reference (SGD, adjust for quantity/complexity):
+- Bed frames (single/queen/king): $60–$100 install
+- Wardrobes (PAX etc): $100–$180 per unit
+- Sofas (2/3 seater): $60–$90
+- Dining table: $60–$80
+- Office desk: $50–$80
+- Bookshelf/display cabinet: $50–$80
+- TV console: $50–$70
+- Gym equipment: $80–$200
+- TV wall mounting: $80
+- Curtains/blinds per window: $30–$50
+
+Reply with ONLY valid JSON — no markdown, no code blocks:
+{
+  "items": [{"name":"catalog name","quantity":1,"unitPrice":"80.00","serviceType":"install"}],
+  "address": "full Singapore address string or null",
+  "notes": "short notes about floor, lift, access or null",
+  "confidence": "high|medium|low"
+}`;
+
+      const userContent: any[] = [];
+
+      if (isImage) {
+        userContent.push(
+          { type: "text", text: "Analyze this floor plan, delivery order, or furniture photo. Extract all furniture items requiring professional installation/assembly/relocation." },
+          { type: "image_url", image_url: { url: `data:${fileType};base64,${fileData}`, detail: "high" } }
+        );
+      } else {
+        // PDF: pass as base64 data URI (GPT-4o supports PDFs via vision API)
+        userContent.push(
+          { type: "text", text: `Analyze this PDF document (${fileName}). Extract all furniture items and any visible service address or access notes.` },
+          { type: "image_url", image_url: { url: `data:application/pdf;base64,${fileData}` } }
+        );
+      }
+
+      const scanRes = await openai.chat.completions.create({
+        model: "gpt-4o",
+        max_tokens: 900,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
+        ],
+      });
+
+      const raw = scanRes.choices[0]?.message?.content?.trim() || "{}";
+      let parsed: any = {};
+      try {
+        let cleaned = raw.replace(/```(?:json)?\n?/g, "").replace(/\n?```/g, "").trim();
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (match) cleaned = match[0];
+        parsed = JSON.parse(cleaned);
+      } catch { parsed = {}; }
+
+      const items = Array.isArray(parsed.items) ? parsed.items.slice(0, 20).map((item: any) => ({
+        name:        typeof item.name === "string"       ? item.name.slice(0, 200)  : "Unknown Item",
+        quantity:    typeof item.quantity === "number"   ? Math.max(1, Math.min(item.quantity, 50)) : 1,
+        unitPrice:   typeof item.unitPrice === "string" && /^\d+(\.\d{1,2})?$/.test(item.unitPrice) ? item.unitPrice : "0.00",
+        serviceType: typeof item.serviceType === "string" ? item.serviceType : "install",
+      })) : [];
+
+      res.json({
+        items,
+        address:    typeof parsed.address === "string" && parsed.address !== "null" ? parsed.address.slice(0, 300) : null,
+        notes:      typeof parsed.notes   === "string" && parsed.notes   !== "null" ? parsed.notes.slice(0, 500)   : null,
+        confidence: ["high","medium","low"].includes(parsed.confidence)  ? parsed.confidence : "medium",
+      });
+    } catch (e: any) {
+      console.error("[scan-attachment]", e.message);
+      res.status(500).json({ message: e.message || "Scan failed" });
+    }
+  });
+
   // ── Admin: Create job manually (phone-in, IKEA direct, referral, etc.) ──────
   app.post("/api/admin/jobs/create", async (req, res) => {
     try {
@@ -2623,10 +2733,10 @@ Category rules:
       const existing = await storage.getQuote(id);
       if (!existing) return res.status(404).json({ message: "Quote not found" });
 
-      // Only allow editing before deposit is paid
-      const editableStatuses = ['submitted', 'under_review', 'approved', 'deposit_requested'];
+      // Allow editing before deposit is paid, plus admin-created booked/assigned jobs
+      const editableStatuses = ['submitted', 'under_review', 'approved', 'deposit_requested', 'booked', 'assigned'];
       if (!editableStatuses.includes(existing.status)) {
-        return res.status(400).json({ message: "Quote can only be edited before deposit is paid" });
+        return res.status(400).json({ message: "Quote cannot be edited in its current status" });
       }
 
       const { customerUpdates, quoteUpdates, items } = z.object({
@@ -2645,9 +2755,9 @@ Category rules:
           notes: z.string().optional(),
         }).optional(),
         items: z.array(z.object({
-          catalogItemId: z.number().optional(),
+          catalogItemId: z.number().nullable().optional(),
           originalDescription: z.string(),
-          detectedName: z.string().optional(),
+          detectedName: z.string().nullable().optional(),
           serviceType: z.string(),
           quantity: z.number().min(1),
           unitPrice: z.string(),

@@ -7,7 +7,8 @@ import { useState, useEffect } from "react";
 import { 
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
-  ClipboardList, Banknote, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail
+  ClipboardList, Banknote, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
+  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -111,7 +112,7 @@ export default function AdminQuoteDetail() {
     );
   }
 
-  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested'].includes(quote.status);
+  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'booked', 'assigned'].includes(quote.status);
 
   const handleStartEdit = () => {
     setEditCustomer({
@@ -242,6 +243,139 @@ export default function AdminQuoteDetail() {
   const editTransport = Number(editQuoteData.transportFee || 0);
   const editTotal = editSubtotal + editTransport;
 
+  const handlePrintQuote = () => {
+    const q = quote;
+    const items = (q.items || []) as any[];
+    const services = (() => { try { return JSON.parse(q.selectedServices || "[]"); } catch { return []; } })();
+    const scheduledDate = q.scheduledAt ? new Date(q.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : null;
+    const address = q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress || "—");
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Job Order — ${q.referenceNo}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 32px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 2px solid #000; }
+    .company h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+    .company p { font-size: 10px; color: #555; margin-top: 2px; line-height: 1.5; }
+    .doc-meta { text-align: right; }
+    .doc-meta .ref { font-size: 16px; font-weight: 700; font-family: monospace; }
+    .doc-meta .label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #888; }
+    .doc-meta .status { display: inline-block; background: #000; color: #fff; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 99px; margin-top: 4px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .card { background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; padding: 14px 16px; }
+    .card-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
+    .card p { font-size: 11px; line-height: 1.6; color: #222; }
+    .card strong { color: #000; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #666; font-weight: 700; text-align: left; padding: 8px 10px; border-bottom: 2px solid #000; }
+    th:last-child, td:last-child { text-align: right; }
+    th:nth-child(2), td:nth-child(2) { text-align: center; width: 60px; }
+    th:nth-child(3), td:nth-child(3) { text-align: right; width: 90px; }
+    td { padding: 9px 10px; border-bottom: 1px solid #eee; font-size: 11px; color: #333; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    .totals { margin-left: auto; width: 280px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 11px; color: #444; }
+    .totals-row.grand { font-size: 15px; font-weight: 800; color: #000; border-top: 2px solid #000; margin-top: 6px; padding-top: 8px; }
+    .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: flex-end; }
+    .footer p { font-size: 9px; color: #999; line-height: 1.7; }
+    .sig-box { border: 1px dashed #ccc; border-radius: 6px; padding: 10px 16px; min-width: 180px; }
+    .sig-box .sig-label { font-size: 9px; color: #999; margin-top: 24px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .badge-paid { background: #dcfce7; color: #166534; }
+    .badge-partial { background: #fef9c3; color: #713f12; }
+    .badge-unpaid { background: #fee2e2; color: #991b1b; }
+    @media print { body { padding: 20px; } button { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="company">
+      <h1>The Moving Guy Pte Ltd</h1>
+      <p>UEN: 202424156H &nbsp;|&nbsp; 160 Robinson Road #14-04, Singapore 068914<br/>+65 8088 0757 &nbsp;|&nbsp; sales@tmginstall.com &nbsp;|&nbsp; tmginstall.com</p>
+    </div>
+    <div class="doc-meta">
+      <div class="label">Job Order / Quotation</div>
+      <div class="ref">${q.referenceNo}</div>
+      <div class="status">${(q.status || "").replace(/_/g, " ")}</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Customer</div>
+      <p><strong>${q.customer?.name || "—"}</strong></p>
+      <p>${q.customer?.phone || "—"}</p>
+      <p>${q.customer?.email ? q.customer.email.includes("@tmginstall.com") ? "" : q.customer.email : ""}</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Job Details</div>
+      <p><strong>Address:</strong> ${address}</p>
+      ${scheduledDate ? `<p><strong>Date:</strong> ${scheduledDate}${q.timeWindow ? ` · ${q.timeWindow}` : ""}</p>` : ""}
+      ${services.length ? `<p><strong>Services:</strong> ${services.join(", ")}</p>` : ""}
+      ${q.notes ? `<p><strong>Notes:</strong> ${q.notes}</p>` : ""}
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Qty</th>
+        <th>Unit Price</th>
+        <th>Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${items.length > 0
+        ? items.map((item: any) => `
+        <tr>
+          <td>${item.detectedName || item.originalDescription || "—"}</td>
+          <td>${item.quantity}</td>
+          <td>S$${Number(item.unitPrice || 0).toFixed(2)}</td>
+          <td>S$${Number(item.subtotal || 0).toFixed(2)}</td>
+        </tr>`).join("")
+        : '<tr><td colspan="4" style="text-align:center;color:#999;padding:20px">No line items</td></tr>'
+      }
+    </tbody>
+  </table>
+
+  <div class="totals">
+    ${Number(q.discount || 0) > 0 ? `<div class="totals-row"><span>Discount</span><span>−S$${Number(q.discount).toFixed(2)}</span></div>` : ""}
+    ${Number(q.transportFee || 0) > 0 ? `<div class="totals-row"><span>Transport</span><span>S$${Number(q.transportFee).toFixed(2)}</span></div>` : ""}
+    ${Number(q.promoDiscount || 0) > 0 ? `<div class="totals-row"><span>Promo (${q.promoCode || ""})</span><span>−S$${Number(q.promoDiscount).toFixed(2)}</span></div>` : ""}
+    <div class="totals-row grand"><span>Total</span><span>S$${Number(q.total || 0).toFixed(2)}</span></div>
+    <div class="totals-row" style="margin-top:8px;font-size:10px;">
+      <span>Payment</span>
+      <span>
+        ${q.paymentStatus === "paid_in_full" ? '<span class="badge badge-paid">Paid in Full</span>' : q.paymentStatus === "deposit_paid" ? `<span class="badge badge-partial">Deposit Paid · Balance S$${(Number(q.total||0)-Number(q.depositAmount||0)).toFixed(2)}</span>` : '<span class="badge badge-unpaid">Unpaid</span>'}
+      </span>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>
+      <p>Payment via PayNow to UEN 202424156H or bank transfer.<br/>50% deposit required to confirm booking. Balance payable on completion.<br/>Generated ${new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" })}</p>
+    </div>
+    <div class="sig-box">
+      <div class="sig-label">Customer Signature &amp; Date</div>
+    </div>
+  </div>
+
+  <script>window.onload = function() { window.print(); }</script>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  };
+
   return (
     <div className="min-h-screen pt-14 pb-32 lg:pb-16 lg:pl-56 bg-[#F5F5F7] overflow-x-hidden relative">
 
@@ -273,6 +407,14 @@ export default function AdminQuoteDetail() {
                 <Edit2 className="w-4 h-4 text-zinc-400" /> Edit
               </button>
             )}
+            <button
+              onClick={handlePrintQuote}
+              data-testid="button-print-quote"
+              title="Print / Download PDF"
+              className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors"
+            >
+              <Printer className="w-4 h-4 text-zinc-400" /> Print / PDF
+            </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
               data-testid="button-delete-quote"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   User, Phone, MapPin, Calendar, Clock, Package, DollarSign,
-  Plus, Trash2, CheckCircle2, ExternalLink,
+  Plus, Trash2, CheckCircle2, ExternalLink, Sparkles, Upload,
+  X, FileImage, AlertCircle, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 const SERVICE_OPTIONS = [
@@ -41,11 +42,24 @@ const PAYMENT_OPTIONS = [
   { value: "paid_in_full", label: "Paid in Full" },
 ];
 
-type LineItem = { id: number; description: string; quantity: number; unitPrice: string };
+const CONFIDENCE_COLORS: Record<string, string> = {
+  high:   "bg-green-50 text-green-700 border-green-200",
+  medium: "bg-amber-50 text-amber-700 border-amber-200",
+  low:    "bg-red-50 text-red-700 border-red-200",
+};
+
+type LineItem = { id: number; description: string; quantity: number; unitPrice: string; aiGenerated?: boolean };
 let _id = 1;
 const genId = () => _id++;
 
 type StaffMember = { id: number; name: string; role: string };
+
+type ScanResult = {
+  items: { name: string; quantity: number; unitPrice: string; serviceType: string }[];
+  address: string | null;
+  notes: string | null;
+  confidence: "high" | "medium" | "low";
+};
 
 type CreatedJob = {
   id: number;
@@ -62,7 +76,17 @@ interface Props {
 export function CreateJobModal({ open, onClose }: Props) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Scan state
+  const [scanFile, setScanFile]         = useState<File | null>(null);
+  const [scanPreview, setScanPreview]   = useState<string | null>(null);
+  const [scanResult, setScanResult]     = useState<ScanResult | null>(null);
+  const [scanning, setScanning]         = useState(false);
+  const [scanError, setScanError]       = useState<string | null>(null);
+  const [scanCollapsed, setScanCollapsed] = useState(false);
+
+  // Form state
   const [customerName, setCustomerName]       = useState("");
   const [customerPhone, setCustomerPhone]     = useState("");
   const [serviceAddress, setServiceAddress]   = useState("");
@@ -86,6 +110,76 @@ export function CreateJobModal({ open, onClose }: Props) {
     return sum + (item.quantity * parseFloat(item.unitPrice || "0"));
   }, 0);
 
+  // ── AI Scan ────────────────────────────────────────────────────────────────
+  const handleFileSelect = (file: File) => {
+    const isImage = file.type.startsWith("image/");
+    const isPdf   = file.type === "application/pdf";
+    if (!isImage && !isPdf) {
+      toast({ title: "Unsupported file", description: "Upload a JPG, PNG, WEBP image or PDF.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max 10 MB.", variant: "destructive" });
+      return;
+    }
+    setScanFile(file);
+    setScanResult(null);
+    setScanError(null);
+    setScanCollapsed(false);
+
+    // Show thumbnail for images
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onload = e => setScanPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setScanPreview(null);
+    }
+    // Auto-trigger scan
+    doScan(file);
+  };
+
+  const doScan = async (file: File) => {
+    setScanning(true);
+    setScanError(null);
+    try {
+      const base64 = await fileToBase64(file);
+      const res = await apiRequest("POST", "/api/admin/jobs/scan-attachment", {
+        fileData: base64,
+        fileType: file.type,
+        fileName: file.name,
+      });
+      const data: ScanResult = await res.json();
+      setScanResult(data);
+    } catch (e: any) {
+      setScanError(e.message || "Scan failed. You can fill items manually.");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const applyScanResult = () => {
+    if (!scanResult) return;
+    if (scanResult.items.length > 0) {
+      setItems(scanResult.items.map(i => ({
+        id:           genId(),
+        description:  i.name,
+        quantity:     i.quantity,
+        unitPrice:    i.unitPrice,
+        aiGenerated:  true,
+      })));
+    }
+    if (scanResult.address && !serviceAddress) {
+      setServiceAddress(scanResult.address);
+    }
+    if (scanResult.notes && !notes) {
+      setNotes(scanResult.notes);
+    }
+    setScanCollapsed(true);
+    toast({ title: "AI suggestions applied", description: `${scanResult.items.length} item${scanResult.items.length !== 1 ? "s" : ""} added to the quote.` });
+  };
+
+  // ── Job creation ───────────────────────────────────────────────────────────
   const createJob = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const res = await apiRequest("POST", "/api/admin/jobs/create", data);
@@ -121,7 +215,7 @@ export function CreateJobModal({ open, onClose }: Props) {
       depositAmount:    "0",
       paymentStatus,
       sourceChannel,
-      items:            validItems.map(i => ({
+      items: validItems.map(i => ({
         description: i.description,
         quantity:    i.quantity,
         unitPrice:   i.unitPrice || "0",
@@ -143,6 +237,8 @@ export function CreateJobModal({ open, onClose }: Props) {
     setItems([{ id: genId(), description: "", quantity: 1, unitPrice: "" }]);
     setManualTotal(""); setPaymentStatus("unpaid"); setAssignedStaffId("");
     setSourceChannel("phone"); setNotes("");
+    setScanFile(null); setScanPreview(null); setScanResult(null);
+    setScanError(null); setScanning(false); setScanCollapsed(false);
   };
 
   const toggleService = (s: string) => {
@@ -171,7 +267,7 @@ export function CreateJobModal({ open, onClose }: Props) {
         </DialogHeader>
 
         {createdJob ? (
-          /* ── Success state ─────────────────────────────────────── */
+          /* ── Success state ─────────────────────────────────── */
           <div className="p-8 flex flex-col items-center text-center gap-4">
             <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
               <CheckCircle2 className="w-8 h-8 text-green-600" />
@@ -188,7 +284,7 @@ export function CreateJobModal({ open, onClose }: Props) {
                 className="flex-1 bg-black hover:bg-zinc-800 text-white text-sm gap-2"
                 onClick={() => { setLocation(`/admin/quotes/${createdJob.id}`); handleClose(); }}
               >
-                <ExternalLink className="w-4 h-4" /> View Job
+                <ExternalLink className="w-4 h-4" /> View & Edit Quote
               </Button>
               <Button
                 data-testid="button-create-another-job"
@@ -200,7 +296,7 @@ export function CreateJobModal({ open, onClose }: Props) {
               </Button>
             </div>
             <p className="text-xs text-zinc-400">
-              Customer can track at:{" "}
+              Customer tracker:{" "}
               <a
                 href={`/track/${createdJob.referenceNo}`}
                 target="_blank"
@@ -212,8 +308,158 @@ export function CreateJobModal({ open, onClose }: Props) {
             </p>
           </div>
         ) : (
-          /* ── Form ────────────────────────────────────────────────── */
+          /* ── Form ─────────────────────────────────────────── */
           <div className="divide-y divide-zinc-100">
+
+            {/* ── AI Floor Plan / Photo Scan ── */}
+            <div className="px-6 py-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-violet-500" /> Floor Plan / Photo Scan
+                  <span className="ml-1 text-[10px] font-normal normal-case text-zinc-400">(optional — auto-fills items)</span>
+                </p>
+                {scanFile && (
+                  <button
+                    type="button"
+                    onClick={() => setScanCollapsed(v => !v)}
+                    className="text-xs text-zinc-400 hover:text-zinc-600 flex items-center gap-1"
+                  >
+                    {scanCollapsed ? <><ChevronDown className="w-3 h-3" /> Show</> : <><ChevronUp className="w-3 h-3" /> Hide</>}
+                  </button>
+                )}
+              </div>
+
+              {/* Drop zone */}
+              {!scanFile && (
+                <div
+                  data-testid="scan-dropzone"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={e => { e.preventDefault(); }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files[0];
+                    if (file) handleFileSelect(file);
+                  }}
+                  className="border-2 border-dashed border-zinc-200 rounded-xl p-6 text-center cursor-pointer hover:border-violet-300 hover:bg-violet-50/40 transition-all group"
+                >
+                  <Upload className="w-7 h-7 mx-auto mb-2 text-zinc-300 group-hover:text-violet-400 transition-colors" />
+                  <p className="text-sm font-medium text-zinc-500 group-hover:text-violet-600">
+                    Upload floor plan, delivery order, or furniture photo
+                  </p>
+                  <p className="text-xs text-zinc-400 mt-1">JPG, PNG, WEBP, PDF · Max 10 MB</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }}
+                    data-testid="input-scan-file"
+                  />
+                </div>
+              )}
+
+              {/* File selected — preview + scan results */}
+              {scanFile && !scanCollapsed && (
+                <div className="space-y-3">
+                  {/* File pill + remove */}
+                  <div className="flex items-center gap-3">
+                    {scanPreview ? (
+                      <img src={scanPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-zinc-200 shrink-0" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0">
+                        <FileImage className="w-5 h-5 text-zinc-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-700 truncate">{scanFile.name}</p>
+                      <p className="text-xs text-zinc-400">{(scanFile.size / 1024).toFixed(0)} KB</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setScanFile(null); setScanPreview(null); setScanResult(null); setScanError(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                      className="w-7 h-7 flex items-center justify-center rounded-full text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Scanning indicator */}
+                  {scanning && (
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-violet-50 border border-violet-100 rounded-lg">
+                      <div className="w-4 h-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin shrink-0" />
+                      <span className="text-sm text-violet-700 font-medium">AI is analyzing your document…</span>
+                    </div>
+                  )}
+
+                  {/* Scan error */}
+                  {scanError && !scanning && (
+                    <div className="flex items-start gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-lg">
+                      <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm text-red-700 font-medium">Scan failed</p>
+                        <p className="text-xs text-red-500 mt-0.5">{scanError}</p>
+                        <button type="button" onClick={() => doScan(scanFile)} className="text-xs text-red-600 underline mt-1">Retry</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scan results */}
+                  {scanResult && !scanning && (
+                    <div className="border border-zinc-200 rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-50 border-b border-zinc-100">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+                          <span className="text-xs font-semibold text-zinc-700">AI detected {scanResult.items.length} item{scanResult.items.length !== 1 ? "s" : ""}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${CONFIDENCE_COLORS[scanResult.confidence]}`}>
+                            {scanResult.confidence} confidence
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          data-testid="button-apply-scan"
+                          onClick={applyScanResult}
+                          className="h-7 px-3 text-xs bg-violet-600 hover:bg-violet-700 text-white gap-1"
+                        >
+                          <Plus className="w-3 h-3" /> Apply to Quote
+                        </Button>
+                      </div>
+
+                      <div className="divide-y divide-zinc-50 max-h-48 overflow-y-auto">
+                        {scanResult.items.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                            <span className="text-zinc-700 flex-1 truncate">{item.name}</span>
+                            <span className="text-zinc-400 text-xs mx-3 shrink-0">×{item.quantity}</span>
+                            <span className="text-zinc-600 font-mono text-xs shrink-0">${item.unitPrice}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {(scanResult.address || scanResult.notes) && (
+                        <div className="px-4 py-2.5 bg-blue-50 border-t border-blue-100 space-y-1">
+                          {scanResult.address && (
+                            <p className="text-xs text-blue-700"><span className="font-semibold">Address: </span>{scanResult.address}</p>
+                          )}
+                          {scanResult.notes && (
+                            <p className="text-xs text-blue-600"><span className="font-semibold">Notes: </span>{scanResult.notes}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Collapsed summary */}
+              {scanFile && scanCollapsed && scanResult && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-lg border border-violet-100">
+                  <Sparkles className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                  <span className="text-xs text-violet-700 font-medium">
+                    {scanResult.items.length} AI items applied from <span className="font-semibold">{scanFile.name}</span>
+                  </span>
+                </div>
+              )}
+            </div>
 
             {/* Customer */}
             <Section icon={<User className="w-4 h-4 text-zinc-500" />} title="Customer">
@@ -315,13 +561,18 @@ export function CreateJobModal({ open, onClose }: Props) {
               <div className="space-y-2">
                 {items.map((item, idx) => (
                   <div key={item.id} className="flex items-center gap-2" data-testid={`item-row-${idx}`}>
-                    <Input
-                      data-testid={`input-item-description-${idx}`}
-                      value={item.description}
-                      onChange={e => updateItem(item.id, "description", e.target.value)}
-                      placeholder="e.g. IKEA Kallax shelf assembly"
-                      className="h-9 flex-1 text-sm border-zinc-300"
-                    />
+                    <div className="relative flex-1">
+                      {item.aiGenerated && (
+                        <Sparkles className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-violet-400 pointer-events-none" />
+                      )}
+                      <Input
+                        data-testid={`input-item-description-${idx}`}
+                        value={item.description}
+                        onChange={e => updateItem(item.id, "description", e.target.value)}
+                        placeholder="e.g. IKEA Kallax shelf assembly"
+                        className={`h-9 text-sm border-zinc-300 ${item.aiGenerated ? "pl-8" : ""}`}
+                      />
+                    </div>
                     <Input
                       data-testid={`input-item-qty-${idx}`}
                       type="number"
@@ -487,6 +738,22 @@ export function CreateJobModal({ open, onClose }: Props) {
       </DialogContent>
     </Dialog>
   );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip the data URL prefix to get pure base64
+      const base64 = result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function Section({
