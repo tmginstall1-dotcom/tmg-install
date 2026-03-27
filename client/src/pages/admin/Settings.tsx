@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw, Clock, Bot, Globe } from "lucide-react";
+import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw, Clock, Bot, Globe, Star } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
 const DAYS = [
@@ -176,11 +176,13 @@ export default function AdminSettings() {
   const [depositPct, setDepositPct] = useState<string | null>(null);
   const [responseSla, setResponseSla] = useState<string | null>(null);
   const [urgentPolicy, setUrgentPolicy] = useState<string | null>(null);
+  const [googleReviewUrl, setGoogleReviewUrl] = useState<string | null>(null);
 
   const displayServiceAreas = serviceAreas ?? (bizSettings.business_service_areas || "");
   const displayDepositPct = depositPct ?? (bizSettings.business_deposit_pct || "50");
   const displayResponseSla = responseSla ?? (bizSettings.business_response_sla || "within 2 hours during business hours");
   const displayUrgentPolicy = urgentPolicy ?? (bizSettings.business_urgent_policy || "");
+  const displayGoogleReviewUrl = googleReviewUrl ?? (bizSettings.google_review_url || "");
 
   const saveBusinessSettings = useMutation({
     mutationFn: (data: Record<string, string>) => apiRequest("POST", "/api/admin/app-settings/bulk", data),
@@ -192,6 +194,7 @@ export default function AdminSettings() {
       setDepositPct(null);
       setResponseSla(null);
       setUrgentPolicy(null);
+      setGoogleReviewUrl(null);
     },
     onError: (err: any) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
   });
@@ -203,6 +206,7 @@ export default function AdminSettings() {
       business_deposit_pct: displayDepositPct,
       business_response_sla: displayResponseSla,
       business_urgent_policy: displayUrgentPolicy,
+      google_review_url: displayGoogleReviewUrl,
     });
   };
 
@@ -815,6 +819,22 @@ export default function AdminSettings() {
               placeholder="Same-day and urgent jobs may be available subject to team availability..."
               className="text-sm border-zinc-300 resize-none"
             />
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-500 uppercase tracking-wide font-semibold mb-1.5 flex items-center gap-1.5">
+              <Star className="w-3 h-3 text-yellow-500" />
+              Google Review Link
+            </Label>
+            <Input
+              data-testid="input-google-review-url"
+              value={displayGoogleReviewUrl}
+              onChange={e => setGoogleReviewUrl(e.target.value)}
+              placeholder="https://g.page/r/YOUR_PLACE_ID/review"
+              className="h-9 text-sm border-zinc-300"
+            />
+            <p className="text-xs text-zinc-400 mt-1.5">
+              When a job is marked <strong>Completed</strong>, the bot automatically sends this link to the customer via WhatsApp to request a Google review.
+            </p>
           </div>
           <Button
             data-testid="button-save-business-settings"

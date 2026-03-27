@@ -25,8 +25,8 @@ import multer from "multer";
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 import { calcTransportFee, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
-import { appSettings, attendanceLogs, promoCodes } from "@shared/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, users as usersTable, jobUpdates as jobUpdatesTable } from "@shared/schema";
+import { eq, and, isNull, desc } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
@@ -919,6 +919,12 @@ export async function registerRoutes(
             html: depositReceivedEmail(quote),
           });
           console.log(`Stripe webhook: deposit paid for ${quote.referenceNo} (SGD ${amountPaid})`);
+          // Send tracker link via WhatsApp
+          const trackPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+          if (trackPhone) {
+            const trackMsg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
+            await sendWhatsAppMessage(trackPhone, trackMsg).catch(() => {});
+          }
         }
 
         if (type === "final") {
@@ -1909,6 +1915,53 @@ Category rules:
     }
   });
 
+  // ── Public job tracker (no auth) ────────────────────────────────────────────
+  app.get("/api/public/track/:referenceNo", async (req, res) => {
+    try {
+      const refNo = req.params.referenceNo.toUpperCase();
+      const [quote] = await db.select().from(quotesTable).where(eq(quotesTable.referenceNo, refNo)).limit(1);
+      if (!quote) return res.status(404).json({ message: "Job not found" });
+
+      let installerName: string | null = null;
+      if (quote.assignedStaffId) {
+        const [staff] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, quote.assignedStaffId));
+        if (staff?.name) installerName = staff.name.split(" ")[0];
+      }
+
+      const updates = await db.select().from(jobUpdatesTable)
+        .where(eq(jobUpdatesTable.quoteId, quote.id))
+        .orderBy(desc(jobUpdatesTable.createdAt));
+
+      const publicUpdates = updates
+        .filter(u => u.statusChange !== "review_requested")
+        .map(u => ({
+          statusChange: u.statusChange,
+          note: u.actorType === "admin" || u.actorType === "staff" ? u.note : null,
+          photoUrls: u.photoUrl
+            ? (() => { try { return JSON.parse(u.photoUrl!); } catch { return [u.photoUrl]; } })()
+            : [],
+          createdAt: u.createdAt,
+        }));
+
+      res.json({
+        referenceNo: quote.referenceNo,
+        status: quote.status,
+        scheduledAt: quote.scheduledAt,
+        timeWindow: quote.timeWindow,
+        preferredDate: quote.preferredDate,
+        preferredTimeWindow: quote.preferredTimeWindow,
+        serviceAddress: quote.serviceAddress,
+        selectedServices: quote.selectedServices
+          ? (() => { try { return JSON.parse(quote.selectedServices); } catch { return []; } })()
+          : [],
+        installerName,
+        updates: publicUpdates,
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   app.get("/api/quotes/schedule", async (req, res) => {
     try {
       const pending = await storage.getQuotesByStatuses(['booking_requested']);
@@ -2136,7 +2189,27 @@ Category rules:
           html: emailHtml,
         });
       }
-      
+
+      // Auto-send review request via WhatsApp when job is marked completed
+      if (input.status === "completed" && quote.customerWhatsappPhone) {
+        const [reviewSetting] = await db.select().from(appSettings).where(eq(appSettings.key, "google_review_url"));
+        const reviewUrl = reviewSetting?.value;
+        if (reviewUrl) {
+          const alreadySent = (quote.updates ?? []).some(u => u.statusChange === "review_requested");
+          if (!alreadySent) {
+            const phone = quote.customerWhatsappPhone.replace(/\D/g, "");
+            const msg = `Hi! 👋 Thank you for choosing *TMG Install* — we hope the installation went smoothly!\n\nIf you're happy with the service, we'd truly appreciate a quick Google review — it helps us a lot:\n\n${reviewUrl}\n\n_Thank you for your support!_ 🙏`;
+            await sendWhatsAppMessage(phone, msg).catch(() => {});
+            await storage.addJobUpdate({
+              quoteId: id,
+              statusChange: "review_requested",
+              actorType: "system",
+              note: "Review request sent via WhatsApp",
+            });
+          }
+        }
+      }
+
       res.json(quote);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -2152,7 +2225,7 @@ Category rules:
       const quote = await storage.updateQuotePayment(id, input.paymentType, input.amount);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
       
-      // After deposit paid, send slot confirmation email
+      // After deposit paid, send slot confirmation email + WhatsApp tracking link
       if (input.paymentType === 'deposit' && quote.customer) {
         const emailHtml = depositReceivedEmail(quote);
         await sendEmail({
@@ -2160,6 +2233,11 @@ Category rules:
           subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
           html: emailHtml,
         });
+        const trackPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+        if (trackPhone) {
+          const trackMsg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
+          await sendWhatsAppMessage(trackPhone, trackMsg).catch(() => {});
+        }
       }
 
       // After final payment, send case closed email

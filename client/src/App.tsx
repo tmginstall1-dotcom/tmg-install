@@ -17,6 +17,7 @@ import Landing from "@/pages/customer/Landing";
 
 const QuoteStatus = lazy(() => import("@/pages/customer/QuoteStatus"));
 const StatusRedirect = lazy(() => import("@/pages/customer/StatusRedirect"));
+const JobTracker = lazy(() => import("@/pages/customer/JobTracker"));
 const EstimateWizard = lazy(() => import("@/pages/customer/Estimate"));
 const Terms = lazy(() => import("@/pages/customer/Terms"));
 const Privacy = lazy(() => import("@/pages/customer/Privacy"));
@@ -121,6 +122,7 @@ function Router() {
           <Route path="/estimate" component={EstimateWizard} />
           <Route path="/quotes/:id" component={QuoteStatus} />
           <Route path="/status/:refNo" component={StatusRedirect} />
+          <Route path="/track/:referenceNo" component={JobTracker} />
           <Route path="/terms" component={Terms} />
           <Route path="/privacy" component={Privacy} />
 
