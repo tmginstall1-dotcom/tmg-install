@@ -4,6 +4,10 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { randomBytes } from "crypto";
+import { execSync } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import Stripe from "stripe";
 import admin from "firebase-admin";
 import { openai } from "./replit_integrations/audio/client";
@@ -1993,31 +1997,43 @@ Category rules:
         .map(([cat, names]) => `${cat}: ${names.join(" | ")}`).join("\n");
 
       const systemPrompt = `You are an expert furniture installation estimator for TMG Install, a Singapore furniture installation and relocation company.
-You are analyzing a floor plan, interior design drawing, delivery order, IKEA purchase receipt, packing list, or furniture photo.
+You are analyzing a document that may be a floor plan, interior design drawing, delivery order (DO), purchase receipt, packing list, furniture inventory, or a furniture photo.
+
+IMPORTANT — DOCUMENT FORMATS TO RECOGNISE:
+- Delivery Order / Packing List table: rows of items with columns like "Item Code | Description | Colour | Qty" or "Product | Color | Quantity". Each row is one line item. Read EVERY row.
+- Colour legend: colours like White / Oak / Grey / Walnut / Black may appear as column headers or legend swatches — these are finishes/colours of furniture, NOT separate items. Include the colour in the item name (e.g. "PAX Wardrobe (White)").
+- Quantity column: the number in the Qty column tells you how many of each item. If Qty=3, set quantity=3 in your output.
+- IKEA article numbers (e.g. 793.361.22) next to item names — these help identify the item.
 
 Extract:
-1. All furniture items requiring assembly, installation, dismantling, or relocation
-2. Service address if visible (Singapore postal format)
-3. Special notes (floor level, lift access, condo rules, parking, fragile items)
+1. ALL furniture items in the document that require assembly, installation, dismantling, or relocation — do not skip any rows.
+2. Service/delivery address if visible anywhere (Singapore postal format preferred)
+3. Special access notes (floor level, lift, condo rules, parking, fragile items)
 
-Available service catalog (prefer these names):
+Available service catalog (match to closest name):
 ${catalogList}
 
-Pricing reference (SGD, adjust for quantity/complexity):
+Pricing reference (SGD):
 - Bed frames (single/queen/king): $60–$100 install
-- Wardrobes (PAX etc): $100–$180 per unit
+- Wardrobes (PAX etc, per unit): $100–$180
+- Sliding door wardrobes: $120–$200
 - Sofas (2/3 seater): $60–$90
+- Sectional sofa: $100–$150
 - Dining table: $60–$80
-- Office desk: $50–$80
+- Dining chairs (per 4): $40
+- Office/study desk: $50–$80
 - Bookshelf/display cabinet: $50–$80
-- TV console: $50–$70
+- TV console / sideboard: $50–$70
+- Coffee table: $50
+- Shoe cabinet: $50
 - Gym equipment: $80–$200
 - TV wall mounting: $80
 - Curtains/blinds per window: $30–$50
+- Curtain rod installation: $40–$60
 
 Reply with ONLY valid JSON — no markdown, no code blocks:
 {
-  "items": [{"name":"catalog name","quantity":1,"unitPrice":"80.00","serviceType":"install"}],
+  "items": [{"name":"catalog name (colour if applicable)","quantity":1,"unitPrice":"80.00","serviceType":"install"}],
   "address": "full Singapore address string or null",
   "notes": "short notes about floor, lift, access or null",
   "confidence": "high|medium|low"
@@ -2040,28 +2056,71 @@ Reply with ONLY valid JSON — no markdown, no code blocks:
           ],
         });
       } else {
-        // PDF: extract text first, then send to GPT-4o as text (vision API does not support PDFs)
+        // PDF: smart two-stage approach
+        // Stage 1 — try text extraction (works for text-layer PDFs like IKEA receipts, typed DOs)
         const pdfBuffer = Buffer.from(fileData, "base64");
         let pdfText = "";
         try {
           const pdfData = await pdfParse(pdfBuffer);
           pdfText = pdfData.text?.trim() || "";
         } catch (pdfErr: any) {
-          console.warn("[scan-attachment] pdf-parse failed:", pdfErr.message);
+          console.warn("[scan-attachment] pdf-parse:", pdfErr.message);
         }
 
-        const pdfPrompt = pdfText.length > 50
-          ? `Analyze this PDF document "${fileName}".\n\nExtracted text content:\n---\n${pdfText.slice(0, 6000)}\n---\n\nExtract all furniture items, the service address (if visible), and any special access notes.`
-          : `The PDF "${fileName}" could not be parsed for text. Based on the filename and common furniture delivery order formats, make your best guess at common furniture items. Return confidence: low.`;
+        if (pdfText.length > 100) {
+          // Text-layer PDF — send as text prompt
+          const pdfPrompt = `Analyze this PDF document "${fileName}".\n\nExtracted text content:\n---\n${pdfText.slice(0, 6000)}\n---\n\nExtract all furniture items (look for item codes, names, quantities, colours), the service address if visible, and any special access notes.`;
+          scanRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 1200,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: pdfPrompt },
+            ],
+          });
+        } else {
+          // Image-only / scanned PDF — convert pages to JPEG via pdftoppm, then use vision API
+          const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tmg-pdf-"));
+          const inputPath = path.join(tmpDir, "input.pdf");
+          const imgPrefix = path.join(tmpDir, "page");
+          const visionContent: any[] = [];
 
-        scanRes = await openai.chat.completions.create({
-          model: "gpt-4o",
-          max_tokens: 900,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: pdfPrompt },
-          ],
-        });
+          try {
+            fs.writeFileSync(inputPath, pdfBuffer);
+            // Convert first 3 pages at 150 dpi to JPEG
+            execSync(`pdftoppm -jpeg -r 150 -f 1 -l 3 "${inputPath}" "${imgPrefix}"`, { timeout: 30000 });
+
+            const pageFiles = fs.readdirSync(tmpDir)
+              .filter(f => f.startsWith("page") && f.endsWith(".jpg"))
+              .sort()
+              .slice(0, 3);
+
+            if (pageFiles.length === 0) throw new Error("pdftoppm produced no output");
+
+            visionContent.push({ type: "text", text: `Analyze this ${pageFiles.length}-page PDF document "${fileName}". It may be a delivery order, purchase receipt, or furniture inventory with colour and quantity columns. Extract ALL furniture items shown (each row/item may have a colour like White/Oak/Grey and a quantity number).` });
+
+            for (const pf of pageFiles) {
+              const imgBuf = fs.readFileSync(path.join(tmpDir, pf));
+              const b64 = imgBuf.toString("base64");
+              visionContent.push({
+                type: "image_url",
+                image_url: { url: `data:image/jpeg;base64,${b64}`, detail: "high" },
+              });
+            }
+          } finally {
+            // Clean up temp files
+            try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+          }
+
+          scanRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 1500,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: visionContent },
+            ],
+          });
+        }
       }
 
       const raw = scanRes.choices[0]?.message?.content?.trim() || "{}";
