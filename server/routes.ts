@@ -1996,46 +1996,86 @@ Category rules:
       const catalogList = Object.entries(byCategory)
         .map(([cat, names]) => `${cat}: ${names.join(" | ")}`).join("\n");
 
-      const systemPrompt = `You are an expert furniture installation estimator for TMG Install, a Singapore furniture installation and relocation company.
-You are analyzing a document that may be a floor plan, interior design drawing, delivery order (DO), purchase receipt, packing list, furniture inventory, or a furniture photo.
+      const systemPrompt = `You are a senior interior design consultant and furniture installation estimator for TMG Install, Singapore. You have 15 years of experience reading architectural drawings, office floor plans, furniture schedules, and delivery orders.
 
-IMPORTANT — DOCUMENT FORMATS TO RECOGNISE:
-- Delivery Order / Packing List table: rows of items with columns like "Item Code | Description | Colour | Qty" or "Product | Color | Quantity". Each row is one line item. Read EVERY row.
-- Colour legend: colours like White / Oak / Grey / Walnut / Black may appear as column headers or legend swatches — these are finishes/colours of furniture, NOT separate items. Include the colour in the item name (e.g. "PAX Wardrobe (White)").
-- Quantity column: the number in the Qty column tells you how many of each item. If Qty=3, set quantity=3 in your output.
-- IKEA article numbers (e.g. 793.361.22) next to item names — these help identify the item.
+You are analyzing a document. It may be ONE of these formats — identify which first:
 
-Extract:
-1. ALL furniture items in the document that require assembly, installation, dismantling, or relocation — do not skip any rows.
-2. Service/delivery address if visible anywhere (Singapore postal format preferred)
-3. Special access notes (floor level, lift, condo rules, parking, fragile items)
+TYPE A — OFFICE / COMMERCIAL FLOOR PLAN (architectural drawing with furniture layout)
+TYPE B — FURNITURE SCHEDULE / FF&E SCHEDULE (table mapping item codes to descriptions + quantities)
+TYPE C — DELIVERY ORDER / PACKING LIST (table with Item Code, Description, Colour, Qty columns)
+TYPE D — RESIDENTIAL FLOOR PLAN (home layout with furniture symbols)
+TYPE E — PHOTO of furniture, receipt, or handwritten list
 
-Available service catalog (match to closest name):
+═══════════════════════════════════════════
+FLOOR PLAN READING RULES (TYPE A & B):
+═══════════════════════════════════════════
+
+Step 1 — FIND THE FURNITURE SCHEDULE / LEGEND
+Most professional floor plans include a schedule table (often on a separate page or in a corner panel) that maps item codes (e.g. TB01, WS-A, CH.01) to full descriptions. This is your primary reference. Find it FIRST across all pages.
+
+Step 2 — DECODE ITEM CODES
+Match every code on the schedule to its description. Office furniture codes typically mean:
+- WS / WK / DS = Workstation / Desk (may have sizes like 1200x600, 1400x700, L-shaped)
+- TB / T = Table (conference, meeting, training, discussion)
+- CH / C = Chair (task chair, visitor chair, training chair)
+- SC / S = Soft seating (sofa, lounge chair, ottoman)
+- ST = Storage / pedestal / cabinet
+- SS / SH = Shelving / bookcase
+- RD / RC = Reception desk / counter
+- PT = Partition / screen panel
+- WB = Whiteboard
+- CB = Credenza / cabinet
+- LC = Lounge chair
+
+Step 3 — COUNT INSTANCES
+Count how many times each item code appears on the floor plan layout pages. The quantity in your output must reflect the ACTUAL COUNT shown on the plan, not just what the schedule says.
+
+Step 4 — IDENTIFY WHAT NEEDS INSTALLATION
+Focus on items TMG Install would be hired to assemble/install:
+- Workstations, desks, tables → assembly service
+- Chairs → typically no installation (skip unless specifically bulky)
+- Storage, pedestals, shelving → assembly
+- Soft seating (sofas, lounge chairs) → delivery placement
+- Partitions / screens → installation
+- Whiteboards → wall mounting
+- Reception desk / counters → installation
+
+═══════════════════════════════════════════
+DELIVERY ORDER / PACKING LIST RULES (TYPE C):
+═══════════════════════════════════════════
+- Each table row = one line item. Read EVERY row including the last rows.
+- Colour column = finish/colour of the furniture (White, Oak, Grey, Walnut, Black). Include in item name: "PAX Wardrobe (White)".
+- Qty column = the exact quantity to use. Never default to 1 if a Qty column exists.
+- IKEA article numbers (e.g. 293.361.22) help identify the item — include them if helpful.
+
+═══════════════════════════════════════════
+SINGAPORE OFFICE FURNITURE PRICING (SGD):
+═══════════════════════════════════════════
+- Single workstation / desk (straight): $60–$80
+- L-shaped / corner workstation: $80–$120
+- Back-to-back workstation cluster (per person): $60
+- Meeting / conference table (small 4-6 pax): $100–$150
+- Meeting table (large 8–12 pax): $150–$250
+- Training / discussion table: $60–$80
+- Bullet / modular table: $60–$80
+- Reception desk / counter: $150–$300
+- Sofa (2-seater): $80; (3-seater): $100
+- Lounge / soft chair: $50
+- Partition / screen panel (per piece): $40–$80
+- Whiteboard (wall mount): $80
+- Storage cabinet / pedestal: $50–$80
+- Bookcase / open shelving: $50–$70
+- Wardrobe (per unit): $100–$180
+- Bed frame (residential): $60–$100
+
+Available catalog items:
 ${catalogList}
-
-Pricing reference (SGD):
-- Bed frames (single/queen/king): $60–$100 install
-- Wardrobes (PAX etc, per unit): $100–$180
-- Sliding door wardrobes: $120–$200
-- Sofas (2/3 seater): $60–$90
-- Sectional sofa: $100–$150
-- Dining table: $60–$80
-- Dining chairs (per 4): $40
-- Office/study desk: $50–$80
-- Bookshelf/display cabinet: $50–$80
-- TV console / sideboard: $50–$70
-- Coffee table: $50
-- Shoe cabinet: $50
-- Gym equipment: $80–$200
-- TV wall mounting: $80
-- Curtains/blinds per window: $30–$50
-- Curtain rod installation: $40–$60
 
 Reply with ONLY valid JSON — no markdown, no code blocks:
 {
-  "items": [{"name":"catalog name (colour if applicable)","quantity":1,"unitPrice":"80.00","serviceType":"install"}],
-  "address": "full Singapore address string or null",
-  "notes": "short notes about floor, lift, access or null",
+  "items": [{"name":"full item name (colour/finish if applicable)","quantity":1,"unitPrice":"80.00","serviceType":"install"}],
+  "address": "full Singapore address or null",
+  "notes": "floor level, lift access, any special notes or null",
   "confidence": "high|medium|low"
 }`;
 
@@ -2044,12 +2084,20 @@ Reply with ONLY valid JSON — no markdown, no code blocks:
       let scanRes: any;
       if (isImage) {
         userContent.push(
-          { type: "text", text: "Analyze this floor plan, delivery order, or furniture photo. Extract all furniture items requiring professional installation/assembly/relocation." },
+          { type: "text", text: `Analyze this image. It may be a floor plan, delivery order, furniture photo, or furniture schedule.
+
+If it is a FLOOR PLAN: identify item codes, read any legend/schedule panel, decode item codes to descriptions, and count how many of each item appears. Output full item names (not just codes like "TB01" — decode to "Bullet Discussion Table").
+
+If it is a DELIVERY ORDER / TABLE: read every row. The Qty column = exact quantity. The Colour column = furniture finish (include in item name). Do not skip rows.
+
+If it is a PHOTO: identify each visible furniture piece and estimate what assembly/installation work is needed.
+
+List only items needing assembly, installation, or professional placement.` },
           { type: "image_url", image_url: { url: `data:${fileType};base64,${fileData}`, detail: "high" } }
         );
         scanRes = await openai.chat.completions.create({
           model: "gpt-4o",
-          max_tokens: 900,
+          max_tokens: 1500,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userContent },
@@ -2087,39 +2135,98 @@ Reply with ONLY valid JSON — no markdown, no code blocks:
 
           try {
             fs.writeFileSync(inputPath, pdfBuffer);
-            // Convert first 3 pages at 150 dpi to JPEG
-            execSync(`pdftoppm -jpeg -r 150 -f 1 -l 3 "${inputPath}" "${imgPrefix}"`, { timeout: 30000 });
+            // Convert up to 5 pages at 250 dpi — sharper text for small floor plan annotations
+            execSync(`pdftoppm -jpeg -r 250 -f 1 -l 5 "${inputPath}" "${imgPrefix}"`, { timeout: 45000 });
 
             const pageFiles = fs.readdirSync(tmpDir)
               .filter(f => f.startsWith("page") && f.endsWith(".jpg"))
               .sort()
-              .slice(0, 3);
+              .slice(0, 5);
 
             if (pageFiles.length === 0) throw new Error("pdftoppm produced no output");
 
-            visionContent.push({ type: "text", text: `Analyze this ${pageFiles.length}-page PDF document "${fileName}". It may be a delivery order, purchase receipt, or furniture inventory with colour and quantity columns. Extract ALL furniture items shown (each row/item may have a colour like White/Oak/Grey and a quantity number).` });
+            // ── PASS 1: "reading" call — describe every page in detail (plain text) ──
+            const readingContent: any[] = [];
+            readingContent.push({ type: "text", text: `You are an experienced interior designer and space planner reading ${pageFiles.length} pages of a construction/fit-out document: "${fileName}".
+
+For EACH page, describe in detail:
+
+1. PAGE TYPE — Is it: (A) office/commercial floor plan, (B) furniture schedule table, (C) delivery order/packing list, (D) residential floor plan, (E) other?
+
+2. LEGEND / KEY BOXES — Look for small colored boxes, colored lines, or colored rectangles anywhere on the page with item codes and counts (e.g. "TB01 × 7", "TB06A × 8"). Read EVERY legend entry — code AND quantity. These may be handwritten-style annotations. Look carefully in ALL corners and margins.
+
+3. FURNITURE SCHEDULE TABLES — If there is a table mapping item codes to descriptions (e.g. "TB01 | Bullet Discussion Table | 1200mm"), read EVERY row.
+
+4. OPEN PLAN WORKSTATIONS — Count individual desk/workstation symbols (small rectangles arranged in rows or clusters in large open areas). Give a specific count estimate (e.g. "approximately 80 individual workstation desks in open area"). Be as precise as possible.
+
+5. MEETING ROOMS — List each meeting room with the table type and number of chairs/seats.
+
+6. OTHER NOTABLE FURNITURE — Reception desks, storage units, soft seating, whiteboards, etc.
+
+7. ADDRESS / LOCATION — Any project address, building name, floor level shown.
+
+Output plain text — no JSON. Be thorough and precise. Aggregate nothing — just describe what you see on each page.` });
 
             for (const pf of pageFiles) {
               const imgBuf = fs.readFileSync(path.join(tmpDir, pf));
               const b64 = imgBuf.toString("base64");
-              visionContent.push({
+              readingContent.push({
                 type: "image_url",
                 image_url: { url: `data:image/jpeg;base64,${b64}`, detail: "high" },
               });
             }
+
+            const readingRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 3000,
+              messages: [
+                { role: "user", content: readingContent },
+              ],
+            });
+
+            const pageDescription = readingRes.choices[0]?.message?.content?.trim() || "";
+
+            // ── PASS 2: "structuring" call — aggregate and produce JSON ──
+            visionContent.push({ type: "text", text: `A document analysis expert has read the ${pageFiles.length}-page document "${fileName}" and produced this detailed description of its contents:
+
+---
+${pageDescription}
+---
+
+Your job is to aggregate this information and produce a furniture installation quote.
+
+AGGREGATION RULES:
+- If the SAME item code (e.g. TB01) appears across multiple pages, ADD the quantities together (e.g. TB01×7 on page 1 + TB01×3 on page 2 = TB01 total 10).
+- TB06 and TB06A are DIFFERENT items — list them separately.
+- For open-plan workstations/desks counted from the floor plan, include them as one line item with the total count.
+- If an item code has a description (from a schedule), use the full description. If not, use the code as the name (e.g. "TB01 Meeting Table").
+- Exclude chairs/task chairs (no installation needed). Include tables, desks, workstations, storage, reception desks, soft seating, whiteboards, partitions.
+- Skip items with 0 quantity.
+
+Pricing reference (SGD):
+- Open-plan workstation / hot desk (per desk): $60
+- Meeting/discussion table (small <6 pax): $80–$100
+- Meeting/boardroom table (large 8+ pax): $150–$200
+- Bullet/modular discussion table: $60–$80
+- Reception/counter desk: $150–$300
+- Storage cabinet / pedestal: $50–$70
+- Soft seating (sofa/lounge): $80–$100
+- Whiteboard (wall-mount): $80
+- Partition/screen panel: $50
+
+${systemPrompt}` });
+
+            scanRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 2000,
+              messages: [
+                { role: "user", content: visionContent },
+              ],
+            });
           } finally {
             // Clean up temp files
             try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
           }
-
-          scanRes = await openai.chat.completions.create({
-            model: "gpt-4o",
-            max_tokens: 1500,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: visionContent },
-            ],
-          });
         }
       }
 
