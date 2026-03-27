@@ -2135,8 +2135,11 @@ List only items needing assembly, installation, or professional placement.` },
 
           try {
             fs.writeFileSync(inputPath, pdfBuffer);
+            // Find pdftoppm — may be in PATH or a Nix store path
+            let pdftoppmBin = "pdftoppm";
+            try { pdftoppmBin = execSync("which pdftoppm", { timeout: 5000 }).toString().trim() || "pdftoppm"; } catch {}
             // Convert up to 5 pages at 250 dpi — sharper text for small floor plan annotations
-            execSync(`pdftoppm -jpeg -r 250 -f 1 -l 5 "${inputPath}" "${imgPrefix}"`, { timeout: 45000 });
+            execSync(`"${pdftoppmBin}" -jpeg -r 250 -f 1 -l 5 "${inputPath}" "${imgPrefix}"`, { timeout: 45000 });
 
             const pageFiles = fs.readdirSync(tmpDir)
               .filter(f => f.startsWith("page") && f.endsWith(".jpg"))
