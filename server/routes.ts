@@ -1962,6 +1962,88 @@ Category rules:
     }
   });
 
+  // ── Admin: Create job manually (phone-in, IKEA direct, referral, etc.) ──────
+  app.post("/api/admin/jobs/create", async (req, res) => {
+    try {
+      if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+      const caller = await storage.getUserById(req.session.userId);
+      if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+
+      const body = z.object({
+        customerName:     z.string().min(1),
+        customerPhone:    z.string().min(6),
+        serviceAddress:   z.string().min(1),
+        scheduledDate:    z.string().optional().nullable(),
+        timeWindow:       z.string().optional().nullable(),
+        selectedServices: z.array(z.string()).optional().default([]),
+        notes:            z.string().optional().nullable(),
+        assignedStaffId:  z.number().int().positive().optional().nullable(),
+        total:            z.string().optional().default("0"),
+        depositAmount:    z.string().optional().default("0"),
+        paymentStatus:    z.enum(["unpaid", "deposit_paid", "paid_in_full"]).optional().default("unpaid"),
+        sourceChannel:    z.string().optional().default("phone"),
+        items:            z.array(z.object({
+          description: z.string().min(1),
+          quantity:    z.number().int().positive().default(1),
+          unitPrice:   z.string().default("0"),
+        })).optional().default([]),
+      }).parse(req.body);
+
+      const refNo = `TMG-${randomBytes(4).toString("hex").toUpperCase()}`;
+      const phone = body.customerPhone.replace(/\D/g, "");
+
+      let scheduledAt: Date | undefined;
+      if (body.scheduledDate) {
+        const startTime = body.timeWindow ? body.timeWindow.split("-")[0] : "09:00";
+        scheduledAt = new Date(`${body.scheduledDate}T${startTime}:00+08:00`);
+      }
+
+      const subtotal = body.items.reduce((sum, item) => {
+        return sum + (item.quantity * parseFloat(item.unitPrice || "0"));
+      }, 0);
+      const total = parseFloat(body.total || "0") || subtotal;
+
+      const quote = await storage.createQuote(
+        {
+          name: body.customerName,
+          email: `${phone}@tmginstall.com`,
+          phone: body.customerPhone,
+          companyName: undefined,
+        },
+        {
+          referenceNo:         refNo,
+          serviceAddress:      body.serviceAddress,
+          status:              "booked",
+          sourceChannel:       body.sourceChannel || "phone",
+          customerWhatsappPhone: phone,
+          selectedServices:    body.selectedServices?.length ? JSON.stringify(body.selectedServices) : undefined,
+          scheduledAt:         scheduledAt,
+          timeWindow:          body.timeWindow || undefined,
+          assignedStaffId:     body.assignedStaffId || undefined,
+          notes:               body.notes || undefined,
+          subtotal:            subtotal.toFixed(2),
+          total:               total.toFixed(2),
+          depositAmount:       body.depositAmount || "0",
+          paymentStatus:       body.paymentStatus === "paid_in_full" ? "paid_in_full" : body.paymentStatus === "deposit_paid" ? "deposit_paid" : "unpaid",
+          requiresManualReview: false,
+        },
+        body.items.map(item => ({
+          originalDescription: item.description,
+          serviceType:         "manual",
+          quantity:            item.quantity,
+          unitPrice:           item.unitPrice,
+          subtotal:            (item.quantity * parseFloat(item.unitPrice || "0")).toFixed(2),
+        }))
+      );
+
+      res.json(quote);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      console.error("Create manual job error:", err);
+      res.status(500).json({ message: "Failed to create job" });
+    }
+  });
+
   app.get("/api/quotes/schedule", async (req, res) => {
     try {
       const pending = await storage.getQuotesByStatuses(['booking_requested']);

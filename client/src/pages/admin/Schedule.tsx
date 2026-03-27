@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
+import { CreateJobModal } from "@/components/admin/CreateJobModal";
 
 const TIME_SLOTS = [
   { value: "09:00-12:00", label: "Morning  09:00 – 12:00" },
@@ -28,6 +29,7 @@ export default function AdminSchedule() {
   const [blockSlot, setBlockSlot]     = useState<string>("all");
   const [blockReason, setBlockReason] = useState("");
   const [showForm, setShowForm]       = useState(false);
+  const [showNewJob, setShowNewJob]   = useState(false);
 
   const handleConfirm = async (id: number) => {
     try {
@@ -101,15 +103,24 @@ export default function AdminSchedule() {
                 {confirmed.length > 0 && ` · ${confirmed.length} upcoming`}
               </p>
             </div>
-            <button onClick={() => setShowForm(v => !v)}
-              data-testid="button-add-block"
-              className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-colors shrink-0 ${
-                showForm
-                  ? "bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
-              }`}>
-              {showForm ? <><X className="w-4 h-4" /> Cancel</> : <><Plus className="w-4 h-4" /> Block Date</>}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                data-testid="button-new-job"
+                onClick={() => setShowNewJob(true)}
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium bg-black hover:bg-zinc-800 text-white transition-colors"
+              >
+                <Plus className="w-4 h-4" /> New Job
+              </button>
+              <button onClick={() => setShowForm(v => !v)}
+                data-testid="button-add-block"
+                className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-colors ${
+                  showForm
+                    ? "bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                    : "bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                }`}>
+                {showForm ? <><X className="w-4 h-4" /> Cancel</> : <><Ban className="w-3.5 h-3.5 text-red-500" /> Block Date</>}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -368,6 +379,8 @@ export default function AdminSchedule() {
         </section>
 
       </div>
+
+      <CreateJobModal open={showNewJob} onClose={() => setShowNewJob(false)} />
     </div>
   );
 }
