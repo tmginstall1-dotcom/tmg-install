@@ -32,8 +32,8 @@ const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 import { calcTransportFee, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
-import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, users as usersTable, jobUpdates as jobUpdatesTable } from "@shared/schema";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable } from "@shared/schema";
+import { eq, and, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
@@ -1273,6 +1273,195 @@ export async function registerRoutes(
       const days = Math.min(90, Math.max(1, parseInt(req.query.days as string) || 7));
       const data = await storage.getSiteAnalytics(days);
       res.json(data);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Business Analytics (quotes, revenue, WhatsApp, staff) ──────────────────
+  app.get("/api/admin/analytics/business", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const days = Math.min(365, Math.max(7, parseInt(req.query.days as string) || 30));
+      const now = new Date();
+      const since = new Date(now);
+      since.setDate(since.getDate() - days);
+
+      // ── All quotes (no filter) for pipeline ──
+      const allQuotes = await db.select({
+        id: quotesTable.id, status: quotesTable.status,
+        total: quotesTable.total, sourceChannel: quotesTable.sourceChannel,
+        paymentStatus: quotesTable.paymentStatus,
+        createdAt: quotesTable.createdAt, scheduledAt: quotesTable.scheduledAt,
+        assignedStaffId: quotesTable.assignedStaffId,
+        selectedServices: quotesTable.selectedServices,
+      }).from(quotesTable).orderBy(desc(quotesTable.createdAt));
+
+      const quotesInPeriod = allQuotes.filter(q => q.createdAt && q.createdAt >= since);
+
+      // ── KPIs ──
+      const ACTIVE_STATUSES = ["submitted","under_review","approved","deposit_requested","deposit_paid","booked","assigned","in_progress"];
+      const DONE_STATUSES   = ["completed","final_payment_requested","final_paid","closed"];
+      const pipelineValue = allQuotes
+        .filter(q => [...ACTIVE_STATUSES, ...DONE_STATUSES].includes(q.status))
+        .reduce((s, q) => s + parseFloat(q.total || "0"), 0);
+      const completedJobs = allQuotes.filter(q => DONE_STATUSES.includes(q.status)).length;
+      const quotesThisPeriod = quotesInPeriod.length;
+      const quotesWithValue = allQuotes.filter(q => parseFloat(q.total || "0") > 0);
+      const avgQuoteValue = quotesWithValue.length > 0
+        ? quotesWithValue.reduce((s, q) => s + parseFloat(q.total || "0"), 0) / quotesWithValue.length : 0;
+      const nonCancelledTotal = allQuotes.filter(q => q.status !== "cancelled" && q.status !== "rejected").length;
+      const conversionRate = nonCancelledTotal > 0 ? Math.round((completedJobs / nonCancelledTotal) * 100) : 0;
+
+      // ── Quote by status ──
+      const statusMap: Record<string, { count: number; value: number }> = {};
+      for (const q of allQuotes) {
+        if (!statusMap[q.status]) statusMap[q.status] = { count: 0, value: 0 };
+        statusMap[q.status].count++;
+        statusMap[q.status].value += parseFloat(q.total || "0");
+      }
+      const quotesByStatus = Object.entries(statusMap).map(([status, d]) => ({ status, ...d }))
+        .sort((a, b) => b.count - a.count);
+
+      // ── Quote trend by month (last 6 months) ──
+      const sixMonthsAgo = new Date(now);
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+      sixMonthsAgo.setDate(1);
+      const monthlyMap: Record<string, { count: number; value: number }> = {};
+      for (const q of allQuotes) {
+        if (!q.createdAt || q.createdAt < sixMonthsAgo) continue;
+        const key = `${q.createdAt.getFullYear()}-${String(q.createdAt.getMonth() + 1).padStart(2, "0")}`;
+        if (!monthlyMap[key]) monthlyMap[key] = { count: 0, value: 0 };
+        monthlyMap[key].count++;
+        monthlyMap[key].value += parseFloat(q.total || "0");
+      }
+      const quoteTrend = Object.entries(monthlyMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, d]) => ({ month, ...d, label: new Date(month + "-01").toLocaleDateString("en-SG", { month: "short", year: "2-digit" }) }));
+
+      // ── Revenue by payment status ──
+      const payMap: Record<string, { count: number; value: number }> = {};
+      for (const q of allQuotes) {
+        if (q.status === "cancelled" || q.status === "rejected") continue;
+        const ps = q.paymentStatus || "unpaid";
+        if (!payMap[ps]) payMap[ps] = { count: 0, value: 0 };
+        payMap[ps].count++;
+        payMap[ps].value += parseFloat(q.total || "0");
+      }
+      const paymentBreakdown = Object.entries(payMap).map(([status, d]) => ({ status, ...d }));
+
+      // ── Source channel ──
+      const srcMap: Record<string, number> = {};
+      for (const q of allQuotes) {
+        const ch = q.sourceChannel || "web";
+        srcMap[ch] = (srcMap[ch] || 0) + 1;
+      }
+      const sourceChannels = Object.entries(srcMap).map(([channel, count]) => ({ channel, count }));
+
+      // ── Service type breakdown from quoteItems ──
+      const items = await db.select({
+        serviceType: quoteItemsTable.serviceType,
+        subtotal: quoteItemsTable.subtotal,
+        quantity: quoteItemsTable.quantity,
+        detectedName: quoteItemsTable.detectedName,
+        originalDescription: quoteItemsTable.originalDescription,
+      }).from(quoteItemsTable);
+
+      const svcMap: Record<string, { count: number; value: number }> = {};
+      for (const item of items) {
+        const st = item.serviceType || "other";
+        if (!svcMap[st]) svcMap[st] = { count: 0, value: 0 };
+        svcMap[st].count += item.quantity || 1;
+        svcMap[st].value += parseFloat(item.subtotal || "0");
+      }
+      const serviceBreakdown = Object.entries(svcMap)
+        .map(([serviceType, d]) => ({ serviceType, ...d }))
+        .sort((a, b) => b.count - a.count);
+
+      // ── Top requested items (by detected name) ──
+      const itemNameMap: Record<string, number> = {};
+      for (const item of items) {
+        const name = item.detectedName || item.originalDescription || "Unknown";
+        itemNameMap[name] = (itemNameMap[name] || 0) + (item.quantity || 1);
+      }
+      const topItems = Object.entries(itemNameMap)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      // ── WhatsApp metrics ──
+      const waSessions = await db.select({
+        id: whatsappSessionsTable.id, state: whatsappSessionsTable.state,
+        botPaused: whatsappSessionsTable.botPaused, createdAt: whatsappSessionsTable.createdAt,
+      }).from(whatsappSessionsTable).orderBy(desc(whatsappSessionsTable.createdAt));
+
+      const waInPeriod = waSessions.filter(s => s.createdAt && s.createdAt >= since);
+      const waLeads = waInPeriod.length;
+      const waSubmitted = waSessions.filter(s => s.state === "submitted").length;
+      const waEscalated = waSessions.filter(s => s.botPaused).length;
+      const waConversionRate = waSessions.length > 0 ? Math.round((waSubmitted / waSessions.length) * 100) : 0;
+
+      // ── WhatsApp daily trend ──
+      const waTrendMap: Record<string, number> = {};
+      for (const s of waInPeriod) {
+        if (!s.createdAt) continue;
+        const key = s.createdAt.toISOString().split("T")[0];
+        waTrendMap[key] = (waTrendMap[key] || 0) + 1;
+      }
+      const whatsappTrend = Object.entries(waTrendMap).sort(([a],[b]) => a.localeCompare(b)).map(([date, count]) => ({ date, count }));
+
+      // ── Staff attendance (last 30 days) ──
+      const thirtyAgo = new Date(now);
+      thirtyAgo.setDate(thirtyAgo.getDate() - 30);
+      const logs = await db.select({
+        userId: attendanceLogs.userId, clockInAt: attendanceLogs.clockInAt, clockOutAt: attendanceLogs.clockOutAt,
+      }).from(attendanceLogs).where(gte(attendanceLogs.clockInAt, thirtyAgo));
+
+      const staffList = await storage.getStaffMembers();
+      const staffHoursMap: Record<number, number> = {};
+      for (const log of logs) {
+        if (!log.clockOutAt || !log.clockInAt) continue;
+        const hrs = (log.clockOutAt.getTime() - log.clockInAt.getTime()) / 3600000;
+        staffHoursMap[log.userId] = (staffHoursMap[log.userId] || 0) + hrs;
+      }
+      const staffJobsMap: Record<number, number> = {};
+      for (const q of allQuotes) {
+        if (q.assignedStaffId && DONE_STATUSES.includes(q.status)) {
+          staffJobsMap[q.assignedStaffId] = (staffJobsMap[q.assignedStaffId] || 0) + 1;
+        }
+      }
+      const staffAttendance = staffList.map((s: any) => ({
+        id: s.id, name: s.fullName || s.username,
+        hours: Math.round((staffHoursMap[s.id] || 0) * 10) / 10,
+        jobs: staffJobsMap[s.id] || 0,
+      })).sort((a: any, b: any) => b.hours - a.hours);
+
+      // ── Selected services breakdown from quotes.selectedServices ──
+      const svcTagMap: Record<string, number> = {};
+      for (const q of allQuotes) {
+        try {
+          const tags: string[] = JSON.parse(q.selectedServices || "[]");
+          for (const t of tags) svcTagMap[t] = (svcTagMap[t] || 0) + 1;
+        } catch {}
+      }
+      const selectedServicesBreakdown = Object.entries(svcTagMap)
+        .map(([service, count]) => ({ service, count }))
+        .sort((a, b) => b.count - a.count);
+
+      res.json({
+        period: { days, from: since.toISOString(), to: now.toISOString() },
+        kpis: {
+          pipelineValue: Math.round(pipelineValue),
+          quotesThisPeriod, avgQuoteValue: Math.round(avgQuoteValue),
+          completedJobs, conversionRate,
+          whatsappLeads: waLeads, waConversionRate, waEscalated,
+          totalQuotes: allQuotes.length, totalWaSessions: waSessions.length,
+        },
+        quotesByStatus, quoteTrend, paymentBreakdown, sourceChannels,
+        serviceBreakdown, selectedServicesBreakdown, topItems,
+        staffAttendance, whatsappTrend,
+        waSubmitted, waEscalated,
+      });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
