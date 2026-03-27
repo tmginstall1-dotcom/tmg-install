@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+Disallow: /quotes/
+Disallow: /status/
+
+Sitemap: https://tmginstall.com/sitemap.xml

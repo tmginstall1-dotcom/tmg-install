@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
+import { useSEO } from "@/hooks/use-seo";
 import {
   ArrowRight,
   CheckCircle2,
@@ -152,6 +153,50 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 export default function Landing() {
   usePageTracker("/");
   const { visible: promoVisible } = usePromoBar();
+
+  useSEO({
+    title: "TMG Install | Furniture Installation, Dismantling & Relocation Singapore",
+    description: "Singapore's furniture installation specialists. Wardrobe assembly, bed frame installation, office fit-outs, gym equipment & more. Instant itemised quote in 60 seconds. Island-wide coverage — HDB, condo, landed, commercial.",
+    canonical: "https://tmginstall.com/",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": FAQS.map(({ q, a }) => ({
+          "@type": "Question",
+          "name": q,
+          "acceptedAnswer": { "@type": "Answer", "text": a },
+        })),
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "name": "Furniture Installation & Relocation Singapore",
+        "provider": {
+          "@type": "LocalBusiness",
+          "name": "TMG Install",
+          "telephone": "+6580880757",
+          "url": "https://tmginstall.com",
+        },
+        "areaServed": { "@type": "Country", "name": "Singapore" },
+        "serviceType": [
+          "Furniture Installation",
+          "Furniture Dismantling",
+          "Furniture Relocation",
+          "Office Fit-Out",
+          "IKEA Assembly",
+          "Wardrobe Installation",
+          "Bed Frame Assembly",
+          "Gym Equipment Installation",
+        ],
+        "offers": {
+          "@type": "Offer",
+          "priceCurrency": "SGD",
+          "description": "Fixed-price catalog of 450+ items. Instant upfront quote.",
+        },
+      },
+    ],
+  });
 
   return (
     <div className={`min-h-screen bg-white text-black ${promoVisible ? "pt-24" : "pt-14"}`}>

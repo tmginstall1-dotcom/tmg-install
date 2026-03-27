@@ -1,5 +1,6 @@
 import { useParams, useLocation } from "wouter";
 import { useQuote, useRescheduleBooking } from "@/hooks/use-quotes";
+import { useSEO } from "@/hooks/use-seo";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   CheckCircle2, CreditCard, CalendarDays, Receipt, Clock, MapPin,
@@ -38,6 +39,12 @@ export default function QuoteStatus() {
   const params = useParams();
   const id = params.id!;
   const { data: quote, isLoading } = useQuote(id);
+  useSEO({
+    title: quote ? `Quote ${quote.referenceNo} | TMG Install` : "Your Quote | TMG Install",
+    description: "View your furniture installation quote status, pay your deposit, and manage your booking with TMG Install.",
+    canonical: `https://tmginstall.com/quotes/${id}`,
+    noIndex: true,
+  });
   const { toast } = useToast();
 
   const rescheduleMutation = useRescheduleBooking();

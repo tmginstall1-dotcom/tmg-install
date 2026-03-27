@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { usePromoBar } from "@/hooks/use-promo-bar";
+import { useSEO } from "@/hooks/use-seo";
 
 const EFFECTIVE_DATE   = "1 January 2026";
 const COMPANY          = "The Moving Guy Pte Ltd";
@@ -13,6 +14,11 @@ const WEBSITE          = "https://tmginstall.com";
 
 export default function Privacy() {
   const { visible: promoVisible } = usePromoBar();
+  useSEO({
+    title: "Privacy Policy | TMG Install — The Moving Guy Pte Ltd",
+    description: "Privacy policy for TMG Install (The Moving Guy Pte Ltd). How we collect, use, and protect your personal data in accordance with Singapore's PDPA.",
+    canonical: "https://tmginstall.com/privacy",
+  });
   return (
     <div className={`min-h-screen bg-white ${promoVisible ? "pt-24" : "pt-14"}`}>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">

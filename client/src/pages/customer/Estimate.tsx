@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { useLocation } from "wouter";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
+import { useSEO } from "@/hooks/use-seo";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -182,6 +183,11 @@ function toDateStr(y: number, m: number, d: number) {
 export default function EstimateWizard() {
   const [, setLocation] = useLocation();
   usePageTracker("/estimate");
+  useSEO({
+    title: "Get an Instant Quote | Furniture Installation Singapore — TMG Install",
+    description: "Use our free online quote wizard to get an instant itemised price for furniture installation, dismantling, or relocation anywhere in Singapore. 450+ items, upfront pricing.",
+    canonical: "https://tmginstall.com/estimate",
+  });
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const wizardStartFired = useRef(false);
   useEffect(() => {

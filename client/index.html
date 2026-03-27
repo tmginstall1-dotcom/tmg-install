@@ -35,36 +35,95 @@
     <meta property="og:image:height" content="512" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:locale" content="en_SG" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image:alt" content="TMG Install — Furniture Installation & Relocation Singapore" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@tmginstall" />
+    <meta name="twitter:title" content="TMG Install | Furniture Installation &amp; Relocation Singapore" />
+    <meta name="twitter:description" content="Professional furniture installation, dismantling and relocation services in Singapore. Get an instant upfront quote — no phone calls needed." />
     <meta name="twitter:image" content="https://tmginstall.com/icon-512.png" />
-    <!-- Schema.org — primary signal for Google logo identification -->
+    <!-- Schema.org — LocalBusiness + WebSite for Google Knowledge Panel -->
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "LocalBusiness",
-      "name": "TMG Install",
-      "alternateName": "The Moving Guy Pte Ltd",
-      "url": "https://tmginstall.com",
-      "logo": "https://tmginstall.com/icon-512.png",
-      "image": "https://tmginstall.com/icon-512.png",
-      "description": "Professional furniture installation, dismantling and relocation services across all of Singapore.",
-      "address": {
-        "@type": "PostalAddress",
-        "addressCountry": "SG",
-        "addressRegion": "Singapore"
+    [
+      {
+        "@context": "https://schema.org",
+        "@type": "LocalBusiness",
+        "@id": "https://tmginstall.com/#business",
+        "name": "TMG Install",
+        "legalName": "The Moving Guy Pte Ltd",
+        "alternateName": "The Moving Guy",
+        "url": "https://tmginstall.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://tmginstall.com/icon-512.png",
+          "width": 512,
+          "height": 512
+        },
+        "image": "https://tmginstall.com/icon-512.png",
+        "description": "Singapore's furniture installation specialists. Wardrobe assembly, bed frame installation, office fit-outs, gym equipment & more. Instant itemised quote — island-wide coverage.",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "160 Robinson Road, #14-04 SBF Center",
+          "addressLocality": "Singapore",
+          "postalCode": "068914",
+          "addressCountry": "SG"
+        },
+        "geo": {
+          "@type": "GeoCoordinates",
+          "latitude": 1.3521,
+          "longitude": 103.8198
+        },
+        "areaServed": {
+          "@type": "Country",
+          "name": "Singapore"
+        },
+        "priceRange": "$$",
+        "telephone": "+6580880757",
+        "email": "sales@tmginstall.com",
+        "openingHours": "Mo-Su 08:00-20:00",
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "customer service",
+          "telephone": "+6580880757",
+          "contactOption": "TollFree",
+          "availableLanguage": ["English", "Chinese"],
+          "areaServed": "SG"
+        },
+        "sameAs": [
+          "https://wa.me/6580880757",
+          "https://www.facebook.com/tmginstall"
+        ],
+        "hasOfferCatalog": {
+          "@type": "OfferCatalog",
+          "name": "Furniture Installation Services",
+          "itemListElement": [
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Furniture Installation" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Furniture Dismantling" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Furniture Relocation" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "IKEA Assembly" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wardrobe Installation" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Office Fit-Out" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Gym Equipment Installation" } }
+          ]
+        }
       },
-      "geo": {
-        "@type": "GeoCoordinates",
-        "latitude": 1.3521,
-        "longitude": 103.8198
-      },
-      "areaServed": "Singapore",
-      "priceRange": "$$",
-      "telephone": "+6580880757",
-      "email": "sales@tmginstall.com",
-      "openingHours": "Mo-Su 08:00-20:00",
-      "sameAs": ["https://wa.me/6580880757"]
-    }
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": "https://tmginstall.com/#website",
+        "url": "https://tmginstall.com",
+        "name": "TMG Install",
+        "description": "Furniture installation, dismantling and relocation services in Singapore",
+        "publisher": { "@id": "https://tmginstall.com/#business" },
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://tmginstall.com/estimate?q={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        }
+      }
+    ]
     </script>
     <script>
       // Never register a service worker in the Capacitor native app.

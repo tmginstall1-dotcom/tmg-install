@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { usePromoBar } from "@/hooks/use-promo-bar";
+import { useSEO } from "@/hooks/use-seo";
 
 const EFFECTIVE_DATE = "1 January 2026";
 const COMPANY = "The Moving Guy Pte Ltd";
@@ -11,6 +12,11 @@ const WHATSAPP = "https://wa.me/6580880757?text=hi";
 
 export default function Terms() {
   const { visible: promoVisible } = usePromoBar();
+  useSEO({
+    title: "Terms & Conditions | TMG Install — The Moving Guy Pte Ltd",
+    description: "Read the terms and conditions for furniture installation, dismantling, and relocation services by TMG Install (The Moving Guy Pte Ltd), Singapore.",
+    canonical: "https://tmginstall.com/terms",
+  });
   return (
     <div className={`min-h-screen bg-white ${promoVisible ? "pt-24" : "pt-14"}`}>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
