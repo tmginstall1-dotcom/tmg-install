@@ -1657,6 +1657,68 @@ export async function registerRoutes(
     res.json({ fileData: receipt.fileData, fileType: receipt.fileType, fileName: receipt.fileName });
   });
 
+  // Admin: AI-scan a receipt image and return extracted fields
+  app.post("/api/admin/receipts/analyze", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const { fileData, fileType } = z.object({
+        fileData: z.string().min(10),
+        fileType: z.string(),
+      }).parse(req.body);
+
+      if (!fileType.startsWith("image/")) {
+        return res.json({ amount: null, receiptDate: null, category: null, description: null, merchant: null });
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const aiRes = await openai.chat.completions.create({
+        model: "gpt-4o",
+        max_tokens: 400,
+        messages: [
+          {
+            role: "system",
+            content: `You are a receipt parser for a Singapore furniture installation company. Extract structured data from the receipt image. Today's date is ${today}.
+
+Reply with ONLY a valid JSON object (no markdown, no code blocks) with these exact keys:
+{
+  "amount": "decimal string like 45.50 — total amount paid in SGD, null if unreadable",
+  "receiptDate": "YYYY-MM-DD format — the transaction date, null if unreadable",
+  "merchant": "string — merchant/vendor name, null if missing",
+  "category": "one of: fuel | tools | transport | meals | parking | other",
+  "description": "short plain-English summary of what was purchased, max 80 chars, null if unclear"
+}
+
+Category rules:
+- fuel → petrol stations, fuel, diesel
+- tools → hardware, tools, equipment, batteries, materials
+- transport → taxi, grab, bus, MRT, EZ-Link top-up, parking coupons for transport
+- meals → food, drinks, restaurants, hawker, delivery, coffee
+- parking → carpark, parking fees, season parking
+- other → everything else`,
+          },
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:${fileType};base64,${fileData}`, detail: "high" } },
+            ] as any,
+          },
+        ],
+      });
+
+      const raw = aiRes.choices[0]?.message?.content?.trim() || "{}";
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+
+      res.json({
+        amount:      typeof parsed.amount      === "string" && /^\d+(\.\d{1,2})?$/.test(parsed.amount) ? parsed.amount : null,
+        receiptDate: typeof parsed.receiptDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.receiptDate) ? parsed.receiptDate : null,
+        merchant:    typeof parsed.merchant    === "string" ? parsed.merchant.slice(0, 80)    : null,
+        category:    ["fuel","tools","transport","meals","parking","other"].includes(parsed.category) ? parsed.category : null,
+        description: typeof parsed.description === "string" ? parsed.description.slice(0, 200) : null,
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // Admin: manually create a receipt for any staff member (auto-approved)
   app.post("/api/admin/receipts", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
