@@ -113,11 +113,11 @@ export function Navbar() {
   }
 
   const adminLinks = [
-    { href: "/admin",           label: "Dashboard", icon: LayoutDashboard },
-    { href: "/admin/schedule",  label: "Schedule",  icon: Calendar },
-    { href: "/admin/staff",     label: "Staff",     icon: Users },
-    { href: "/admin/export",    label: "Export",    icon: FileDown },
-    { href: "/admin/settings",  label: "Settings",  icon: Settings },
+    { href: "/admin",               label: "Dashboard",  icon: LayoutDashboard },
+    { href: "/admin/schedule",      label: "Schedule",   icon: Calendar },
+    { href: "/admin/conversations", label: "WhatsApp",   icon: MessageCircle },
+    { href: "/admin/staff",         label: "Staff",      icon: Users },
+    { href: "/admin/settings",      label: "Settings",   icon: Settings },
   ];
 
   const staffLinks = [
