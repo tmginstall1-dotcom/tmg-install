@@ -5,7 +5,8 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import {
   Receipt, Download, Check, X, Loader2, Filter, ChevronDown, ChevronUp,
-  FileText, AlertCircle, Plus, Upload, User, Sparkles, Pencil,
+  FileText, AlertCircle, Plus, Upload, User, Sparkles, Pencil, Trash2,
+  ChevronRight, ImagePlus,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -140,14 +141,23 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-// ── Add Receipt Modal ──────────────────────────────────────────────────────────
+// ── Multi-receipt types ────────────────────────────────────────────────────────
 
-type AiDetectedFields = {
-  amount: string | null;
-  receiptDate: string | null;
-  category: string | null;
-  description: string | null;
-  merchant: string | null;
+let _entryCounter = 0;
+function genId() { return `entry-${++_entryCounter}`; }
+
+type ReceiptEntry = {
+  id: string;
+  file: File;
+  preview: string | null;
+  b64: string | null;        // base64 — stored after conversion so we don't re-encode on submit
+  scanning: boolean;
+  amount: string;
+  receiptDate: string;
+  category: string;
+  description: string;
+  merchant: string;
+  aiFields: Set<string>;
 };
 
 function AiBadge() {
@@ -158,6 +168,208 @@ function AiBadge() {
   );
 }
 
+// ── Per-entry edit card ────────────────────────────────────────────────────────
+
+function ReceiptCard({
+  entry,
+  expanded,
+  onToggleExpand,
+  onUpdate,
+  onRemove,
+}: {
+  entry: ReceiptEntry;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onUpdate: (patch: Partial<ReceiptEntry>) => void;
+  onRemove: () => void;
+}) {
+  const today = format(new Date(), "yyyy-MM-dd");
+  const cat = RECEIPT_CATEGORIES.find(c => c.value === entry.category);
+
+  function clearAi(field: string, patch: Partial<ReceiptEntry>) {
+    const n = new Set(entry.aiFields);
+    n.delete(field);
+    onUpdate({ ...patch, aiFields: n });
+  }
+
+  return (
+    <div
+      className={`border rounded-2xl overflow-hidden transition-colors ${entry.scanning ? "border-violet-300 bg-violet-50/30" : "border-zinc-200 bg-white"}`}
+      data-testid={`receipt-entry-${entry.id}`}
+    >
+      {/* Collapsed row */}
+      <div className="flex items-center gap-3 px-3 py-3">
+        {/* Thumbnail */}
+        <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-100 shrink-0 relative">
+          {entry.preview ? (
+            <>
+              <img src={entry.preview} alt="" className="w-full h-full object-cover" />
+              {entry.scanning && (
+                <div className="absolute inset-0 bg-violet-800/60 flex items-center justify-center">
+                  <Loader2 className="w-4 h-4 text-white animate-spin" />
+                </div>
+              )}
+              {!entry.scanning && entry.aiFields.size > 0 && (
+                <div className="absolute bottom-0 right-0 bg-violet-600 text-white text-[9px] font-bold px-1 py-0.5 rounded-tl-lg">
+                  <Sparkles className="w-2.5 h-2.5" />
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              {entry.scanning
+                ? <Loader2 className="w-4 h-4 text-violet-500 animate-spin" />
+                : <FileText className="w-5 h-5 text-zinc-400" />}
+            </div>
+          )}
+        </div>
+
+        {/* Summary */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {entry.amount ? (
+              <span className="text-sm font-bold text-zinc-900">S${parseFloat(entry.amount).toFixed(2)}</span>
+            ) : (
+              <span className="text-sm font-medium text-zinc-400 italic">Amount needed</span>
+            )}
+            {cat && (
+              <span className="text-[11px] bg-zinc-100 text-zinc-600 rounded-full px-2 py-0.5 font-medium">
+                {cat.emoji} {cat.label}
+              </span>
+            )}
+            {entry.scanning && (
+              <span className="text-[11px] bg-violet-100 text-violet-700 rounded-full px-2 py-0.5 font-semibold animate-pulse">
+                Scanning…
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-zinc-400 truncate mt-0.5">
+            {entry.receiptDate} · {entry.merchant || entry.file.name}
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={onRemove}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+            data-testid={`button-remove-entry-${entry.id}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 transition-colors"
+            data-testid={`button-expand-entry-${entry.id}`}
+          >
+            <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded edit fields */}
+      {expanded && (
+        <div className="border-t border-zinc-100 px-4 py-4 space-y-3 bg-zinc-50/50">
+
+          {/* Merchant banner */}
+          {entry.merchant && (
+            <div className="bg-violet-50 border border-violet-200 rounded-xl px-3 py-2 flex items-center gap-2">
+              <Sparkles className="w-3 h-3 text-violet-500 shrink-0" />
+              <p className="text-xs font-semibold text-violet-900 truncate flex-1">{entry.merchant}</p>
+              <button type="button" onClick={() => onUpdate({ merchant: "" })} className="text-violet-400 hover:text-violet-600 ml-auto">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          {/* Date + Amount */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[11px] font-semibold text-zinc-600 flex items-center mb-1">
+                Date {entry.aiFields.has("receiptDate") && <AiBadge />}
+              </label>
+              <input
+                type="date"
+                value={entry.receiptDate}
+                max={today}
+                onChange={e => clearAi("receiptDate", { receiptDate: e.target.value })}
+                data-testid={`input-date-${entry.id}`}
+                className={`w-full h-9 px-2.5 border rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${entry.aiFields.has("receiptDate") ? "border-violet-400 bg-violet-50/60" : "border-zinc-300"}`}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-zinc-600 flex items-center mb-1">
+                Amount (SGD) <span className="text-red-500 ml-0.5">*</span>
+                {entry.aiFields.has("amount") && <AiBadge />}
+              </label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 font-semibold pointer-events-none">$</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={entry.amount}
+                  onChange={e => clearAi("amount", { amount: e.target.value })}
+                  data-testid={`input-amount-${entry.id}`}
+                  className={`w-full h-9 pl-6 pr-2.5 border rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${entry.aiFields.has("amount") ? "border-violet-400 bg-violet-50/60" : "border-zinc-300"}`}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Category */}
+          <div>
+            <label className="text-[11px] font-semibold text-zinc-600 flex items-center mb-1.5">
+              Category {entry.aiFields.has("category") && <AiBadge />}
+            </label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {RECEIPT_CATEGORIES.map(c => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => clearAi("category", { category: c.value })}
+                  data-testid={`button-category-${c.value}-${entry.id}`}
+                  className={`flex items-center gap-1.5 px-2 py-2 rounded-xl border text-[11px] font-medium transition-all ${
+                    entry.category === c.value
+                      ? entry.aiFields.has("category")
+                        ? "border-violet-500 bg-violet-50 text-violet-700"
+                        : "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-zinc-200 text-zinc-600 hover:bg-zinc-50"
+                  }`}
+                >
+                  <span>{c.emoji}</span><span>{c.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-[11px] font-semibold text-zinc-600 flex items-center mb-1">
+              Description <span className="text-zinc-400 ml-1 font-normal">(optional)</span>
+              {entry.aiFields.has("description") && <AiBadge />}
+            </label>
+            <textarea
+              placeholder="Brief description of purchase"
+              value={entry.description}
+              onChange={e => clearAi("description", { description: e.target.value })}
+              rows={2}
+              maxLength={500}
+              data-testid={`input-description-${entry.id}`}
+              className={`w-full px-3 py-2 border rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors resize-none ${entry.aiFields.has("description") ? "border-violet-400 bg-violet-50/60" : "border-zinc-300"}`}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Add Receipt Modal (multi-file) ─────────────────────────────────────────────
+
 function AddReceiptModal({
   onClose,
   onSuccess,
@@ -166,28 +378,34 @@ function AddReceiptModal({
   onSuccess: () => void;
 }) {
   const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef  = useRef<HTMLInputElement>(null);
+  const addMoreRef    = useRef<HTMLInputElement>(null);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
   const [userId, setUserId]         = useState<string>("");
-  const [receiptDate, setDate]      = useState(today);
-  const [amount, setAmount]         = useState("");
-  const [category, setCategory]     = useState("other");
-  const [description, setDesc]      = useState("");
-  const [file, setFile]             = useState<File | null>(null);
-  const [preview, setPreview]       = useState<string | null>(null);
+  const [entries, setEntries]       = useState<ReceiptEntry[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dragOver, setDragOver]     = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [scanning, setScanning]     = useState(false);
-  const [aiFields, setAiFields]     = useState<Set<string>>(new Set()); // which fields were AI-filled
-  const [merchant, setMerchant]     = useState<string>("");
+  const [saveProgress, setSaveProgress] = useState<{ done: number; total: number } | null>(null);
 
   const { data: staffList = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
 
-  const runAiScan = useCallback(async (f: File, b64: string) => {
-    if (!f.type.startsWith("image/")) return; // skip PDF
-    setScanning(true);
+  // Update a single entry by id
+  const patchEntry = useCallback((id: string, patch: Partial<ReceiptEntry>) => {
+    setEntries(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+  }, []);
+
+  const removeEntry = useCallback((id: string) => {
+    setEntries(prev => prev.filter(e => e.id !== id));
+    setExpandedId(curr => curr === id ? null : curr);
+  }, []);
+
+  // Run AI scan for one entry
+  const runScan = useCallback(async (id: string, f: File, b64: string) => {
+    if (!f.type.startsWith("image/")) return;
+    patchEntry(id, { scanning: true });
     try {
       const res = await fetch("/api/admin/receipts/analyze", {
         method: "POST",
@@ -196,91 +414,114 @@ function AddReceiptModal({
         body: JSON.stringify({ fileData: b64, fileType: f.type }),
       });
       if (!res.ok) return;
-      const data: AiDetectedFields = await res.json();
-
+      const data = await res.json();
       const detected = new Set<string>();
-      if (data.amount)      { setAmount(data.amount);          detected.add("amount"); }
-      if (data.receiptDate) { setDate(data.receiptDate);       detected.add("receiptDate"); }
-      if (data.category)    { setCategory(data.category);      detected.add("category"); }
-      if (data.description) { setDesc(data.description);       detected.add("description"); }
-      if (data.merchant)    { setMerchant(data.merchant);      detected.add("merchant"); }
-      setAiFields(detected);
+      const patch: Partial<ReceiptEntry> = {};
+      if (data.amount)      { patch.amount      = data.amount;      detected.add("amount"); }
+      if (data.receiptDate) { patch.receiptDate  = data.receiptDate; detected.add("receiptDate"); }
+      if (data.category)    { patch.category     = data.category;    detected.add("category"); }
+      if (data.description) { patch.description  = data.description; detected.add("description"); }
+      if (data.merchant)    { patch.merchant     = data.merchant;    detected.add("merchant"); }
+      patchEntry(id, { ...patch, aiFields: detected, scanning: false });
+    } catch {
+      patchEntry(id, { scanning: false });
+    }
+  }, [patchEntry]);
 
-      if (detected.size > 0) {
-        toast({
-          title: "Receipt scanned",
-          description: `AI detected ${detected.size} field${detected.size > 1 ? "s" : ""} — review before saving.`,
-        });
-      } else {
-        toast({ title: "Couldn't read receipt", description: "Fill in the details manually.", variant: "destructive" });
-      }
-    } catch { /* silent — user can fill manually */ }
-    finally { setScanning(false); }
-  }, [toast]);
-
-  const handleFile = useCallback(async (selected: File | null) => {
-    if (!selected) return;
+  // Add files — filter, create entries, kick off parallel scans
+  const addFiles = useCallback(async (files: FileList | File[]) => {
+    const list = Array.from(files);
     const allowed = ["image/jpeg","image/png","image/webp","image/heic","image/heif","application/pdf"];
-    if (!allowed.includes(selected.type) && !selected.type.startsWith("image/")) {
-      toast({ title: "Unsupported file", description: "Please upload a JPG, PNG, WebP or PDF.", variant: "destructive" });
-      return;
+    const valid: File[] = [];
+    for (const f of list) {
+      if (!allowed.includes(f.type) && !f.type.startsWith("image/")) continue;
+      if (f.size > 16 * 1024 * 1024) { toast({ title: `${f.name} is too large (max 16 MB)`, variant: "destructive" }); continue; }
+      valid.push(f);
     }
-    if (selected.size > 16 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Maximum file size is 16 MB.", variant: "destructive" });
-      return;
-    }
-    setFile(selected);
-    setAiFields(new Set());
-    setMerchant("");
+    if (!valid.length) return;
 
-    if (selected.type.startsWith("image/")) {
-      const url = URL.createObjectURL(selected);
-      setPreview(url);
-      // Convert and scan in parallel
-      const b64 = await fileToBase64(selected);
-      runAiScan(selected, b64);
-    } else {
-      setPreview(null);
-    }
-  }, [toast, runAiScan]);
+    // Create entries immediately so they appear in the list
+    const newEntries: ReceiptEntry[] = valid.map(f => ({
+      id:          genId(),
+      file:        f,
+      preview:     f.type.startsWith("image/") ? URL.createObjectURL(f) : null,
+      b64:         null,
+      scanning:    false,
+      amount:      "",
+      receiptDate: today,
+      category:    "other",
+      description: "",
+      merchant:    "",
+      aiFields:    new Set(),
+    }));
+
+    setEntries(prev => [...prev, ...newEntries]);
+    // Auto-expand first new entry if list was empty
+    if (entries.length === 0 && newEntries.length > 0) setExpandedId(newEntries[0].id);
+
+    // Convert to base64 + scan in parallel
+    await Promise.all(newEntries.map(async entry => {
+      const b64 = await fileToBase64(entry.file);
+      patchEntry(entry.id, { b64 });
+      runScan(entry.id, entry.file, b64);
+    }));
+  }, [today, entries.length, patchEntry, runScan, toast]);
+
+  const anyScanning  = entries.some(e => e.scanning);
+  const canSave      = !submitting && !anyScanning && entries.length > 0 && !!userId;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!userId) { toast({ title: "Select a staff member", variant: "destructive" }); return; }
-    if (!file)   { toast({ title: "Upload a receipt file", variant: "destructive" }); return; }
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      toast({ title: "Enter a valid amount", variant: "destructive" }); return;
+    if (!userId)          { toast({ title: "Select a staff member", variant: "destructive" }); return; }
+    if (!entries.length)  { toast({ title: "Upload at least one receipt", variant: "destructive" }); return; }
+
+    const invalid = entries.filter(en => !en.amount || parseFloat(en.amount) <= 0);
+    if (invalid.length) {
+      toast({ title: `${invalid.length} receipt${invalid.length > 1 ? "s" : ""} missing amount`, description: "Expand each card and fill in the amount.", variant: "destructive" });
+      if (invalid[0]) setExpandedId(invalid[0].id);
+      return;
     }
 
     setSubmitting(true);
-    try {
-      const fileData = await fileToBase64(file);
-      await apiRequest("POST", "/api/admin/receipts", {
-        userId:      parseInt(userId),
-        receiptDate,
-        amount:      parseFloat(amount).toFixed(2),
-        category,
-        description: [merchant, description].filter(Boolean).join(" · ").trim() || undefined,
-        fileData,
-        fileType:    file.type,
-        fileName:    file.name,
-      });
-      toast({ title: "Receipt added", description: "Receipt saved and approved." });
+    setSaveProgress({ done: 0, total: entries.length });
+    let saved = 0;
+    let failed = 0;
+
+    for (const en of entries) {
+      try {
+        const fileData = en.b64 ?? await fileToBase64(en.file);
+        await apiRequest("POST", "/api/admin/receipts", {
+          userId:      parseInt(userId),
+          receiptDate: en.receiptDate,
+          amount:      parseFloat(en.amount).toFixed(2),
+          category:    en.category,
+          description: [en.merchant, en.description].filter(Boolean).join(" · ").trim() || undefined,
+          fileData,
+          fileType:    en.file.type,
+          fileName:    en.file.name,
+        });
+        saved++;
+        setSaveProgress({ done: saved, total: entries.length });
+      } catch { failed++; }
+    }
+
+    setSaveProgress(null);
+    setSubmitting(false);
+
+    if (failed === 0) {
+      toast({ title: `${saved} receipt${saved > 1 ? "s" : ""} saved`, description: "All approved and logged." });
       onSuccess();
       onClose();
-    } catch (err: any) {
-      toast({ title: "Failed to add receipt", description: err.message, variant: "destructive" });
-    } finally {
-      setSubmitting(false);
+    } else {
+      toast({ title: `${saved} saved, ${failed} failed`, description: "Some receipts could not be saved.", variant: "destructive" });
+      onSuccess();
     }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
-      {/* Panel */}
       <div
         className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92dvh] flex flex-col"
         data-testid="modal-add-receipt"
@@ -289,12 +530,18 @@ function AddReceiptModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 shrink-0">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-zinc-900">Add Receipt</h2>
+              <h2 className="text-base font-bold text-zinc-900">
+                Add Receipts{entries.length > 0 ? ` (${entries.length})` : ""}
+              </h2>
               <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 text-violet-700 text-[10px] font-bold px-2 py-0.5">
                 <Sparkles className="w-3 h-3" /> AI Scan
               </span>
             </div>
-            <p className="text-xs text-zinc-500 mt-0.5">Upload a photo — AI will auto-fill the details</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {entries.length === 0
+                ? "Upload one or more receipts — AI auto-fills the details"
+                : `${entries.filter(e => !e.scanning && e.amount).length} of ${entries.length} scanned`}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -307,114 +554,9 @@ function AddReceiptModal({
 
         {/* Scrollable body */}
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1">
-          <div className="px-5 py-5 space-y-4">
+          <div className="px-5 py-4 space-y-4">
 
-            {/* ── FILE UPLOAD FIRST — triggers AI scan ── */}
-            <div>
-              <label className="text-xs font-semibold text-zinc-700 block mb-1.5">
-                Receipt Photo / File <span className="text-red-500">*</span>
-                <span className="text-zinc-400 font-normal ml-1">JPG, PNG, WebP or PDF · max 16 MB</span>
-              </label>
-
-              {file ? (
-                <div className="border border-zinc-200 rounded-xl overflow-hidden bg-zinc-50">
-                  {preview ? (
-                    <div className="relative">
-                      <img
-                        src={preview}
-                        alt="Receipt preview"
-                        className="w-full max-h-52 object-contain bg-zinc-100"
-                        data-testid="img-receipt-preview"
-                      />
-                      {/* Scanning overlay */}
-                      {scanning && (
-                        <div className="absolute inset-0 bg-violet-900/60 flex flex-col items-center justify-center gap-2">
-                          <Loader2 className="w-6 h-6 text-white animate-spin" />
-                          <p className="text-white text-xs font-semibold">Scanning receipt…</p>
-                        </div>
-                      )}
-                      {/* Done overlay flash */}
-                      {!scanning && aiFields.size > 0 && (
-                        <div className="absolute top-2 right-2 bg-violet-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                          <Sparkles className="w-3 h-3" /> {aiFields.size} fields detected
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 p-4">
-                      <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                        <FileText className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-zinc-900 truncate">{file.name}</p>
-                        <p className="text-xs text-zinc-500">{(file.size / 1024).toFixed(0)} KB · PDF (manual entry required)</p>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-200 bg-white">
-                    <p className="text-xs text-zinc-600 truncate max-w-[200px]">{file.name}</p>
-                    <button
-                      type="button"
-                      onClick={() => { setFile(null); setPreview(null); setAiFields(new Set()); setMerchant(""); }}
-                      data-testid="button-remove-file"
-                      className="text-xs font-medium text-red-600 hover:text-red-700 transition-colors"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={e => {
-                    e.preventDefault();
-                    setDragOver(false);
-                    const f = e.dataTransfer.files?.[0];
-                    if (f) handleFile(f);
-                  }}
-                  data-testid="dropzone-receipt-file"
-                  className={`flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
-                    dragOver
-                      ? "border-violet-400 bg-violet-50"
-                      : "border-zinc-300 bg-zinc-50 hover:border-violet-400 hover:bg-violet-50/40"
-                  }`}
-                >
-                  <div className="w-12 h-12 rounded-full bg-white border border-zinc-200 flex items-center justify-center shadow-sm">
-                    <Sparkles className="w-5 h-5 text-violet-500" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-zinc-700">Click or drag receipt here</p>
-                    <p className="text-xs text-zinc-400 mt-1">AI will scan & auto-fill amount, date, category</p>
-                  </div>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,application/pdf"
-                className="hidden"
-                data-testid="input-file-upload"
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-              />
-            </div>
-
-            {/* ── MERCHANT (AI-detected, read-only display) ── */}
-            {merchant && (
-              <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-violet-500 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wide">Merchant detected</p>
-                  <p className="text-sm font-semibold text-violet-900 truncate">{merchant}</p>
-                </div>
-                <button type="button" onClick={() => setMerchant("")} className="ml-auto text-violet-400 hover:text-violet-600">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Staff member */}
+            {/* Staff selector */}
             <div>
               <label className="text-xs font-semibold text-zinc-700 block mb-1.5">
                 Staff Member <span className="text-red-500">*</span>
@@ -436,101 +578,79 @@ function AddReceiptModal({
               </div>
             </div>
 
-            {/* Date + Amount row */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-zinc-700 flex items-center mb-1.5">
-                  Receipt Date <span className="text-red-500 ml-0.5">*</span>
-                  {aiFields.has("receiptDate") && <AiBadge />}
-                </label>
-                <input
-                  type="date"
-                  value={receiptDate}
-                  onChange={e => { setDate(e.target.value); setAiFields(prev => { const n = new Set(prev); n.delete("receiptDate"); return n; }); }}
-                  max={today}
-                  required
-                  data-testid="input-receipt-date"
-                  className={`w-full h-10 px-3 border rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${aiFields.has("receiptDate") ? "border-violet-400 bg-violet-50/50" : "border-zinc-300"}`}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-zinc-700 flex items-center mb-1.5">
-                  Amount (SGD) <span className="text-red-500 ml-0.5">*</span>
-                  {aiFields.has("amount") && <AiBadge />}
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-zinc-500 font-semibold pointer-events-none">$</span>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={amount}
-                    onChange={e => { setAmount(e.target.value); setAiFields(prev => { const n = new Set(prev); n.delete("amount"); return n; }); }}
-                    required
-                    data-testid="input-receipt-amount"
-                    className={`w-full h-10 pl-7 pr-3 border rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${aiFields.has("amount") ? "border-violet-400 bg-violet-50/50" : "border-zinc-300"}`}
-                  />
+            {/* Drop zone — compact when files exist, full when empty */}
+            {entries.length === 0 ? (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files); }}
+                data-testid="dropzone-receipt-file"
+                className={`flex flex-col items-center justify-center gap-3 p-10 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+                  dragOver ? "border-violet-400 bg-violet-50" : "border-zinc-300 bg-zinc-50 hover:border-violet-400 hover:bg-violet-50/30"
+                }`}
+              >
+                <div className="w-14 h-14 rounded-full bg-white border border-zinc-200 flex items-center justify-center shadow-sm">
+                  <Sparkles className="w-6 h-6 text-violet-500" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-zinc-700">Click or drag receipts here</p>
+                  <p className="text-xs text-zinc-400 mt-1">Multiple files supported · AI scans each one</p>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div
+                onClick={() => addMoreRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files); }}
+                data-testid="dropzone-receipt-file"
+                className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                  dragOver ? "border-violet-400 bg-violet-50" : "border-zinc-200 hover:border-violet-400 hover:bg-violet-50/20"
+                }`}
+              >
+                <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
+                  <ImagePlus className="w-4 h-4 text-violet-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-zinc-700">Add more receipts</p>
+                  <p className="text-[11px] text-zinc-400">Drop files or click to browse</p>
+                </div>
+              </div>
+            )}
 
-            {/* Category */}
-            <div>
-              <label className="text-xs font-semibold text-zinc-700 flex items-center mb-1.5">
-                Category {aiFields.has("category") && <AiBadge />}
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {RECEIPT_CATEGORIES.map(cat => (
-                  <button
-                    key={cat.value}
-                    type="button"
-                    onClick={() => { setCategory(cat.value); setAiFields(prev => { const n = new Set(prev); n.delete("category"); return n; }); }}
-                    data-testid={`button-category-${cat.value}`}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                      category === cat.value
-                        ? aiFields.has("category")
-                          ? "border-violet-500 bg-violet-50 text-violet-700 ring-1 ring-violet-300"
-                          : "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-zinc-200 text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50"
-                    }`}
-                  >
-                    <span className="text-base">{cat.emoji}</span>
-                    <span className="text-xs">{cat.label}</span>
-                  </button>
+            {/* Hidden file inputs */}
+            <input ref={fileInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
+              data-testid="input-file-upload"
+              onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+            <input ref={addMoreRef}   type="file" accept="image/*,application/pdf" multiple className="hidden"
+              onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+
+            {/* Receipt entry cards */}
+            {entries.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
+                    {entries.length} Receipt{entries.length > 1 ? "s" : ""}
+                  </p>
+                  {anyScanning && (
+                    <span className="text-[11px] text-violet-600 font-semibold flex items-center gap-1 animate-pulse">
+                      <Sparkles className="w-3 h-3" /> Scanning…
+                    </span>
+                  )}
+                </div>
+                {entries.map((entry) => (
+                  <ReceiptCard
+                    key={entry.id}
+                    entry={entry}
+                    expanded={expandedId === entry.id}
+                    onToggleExpand={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
+                    onUpdate={patch => patchEntry(entry.id, patch)}
+                    onRemove={() => removeEntry(entry.id)}
+                  />
                 ))}
               </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="text-xs font-semibold text-zinc-700 flex items-center mb-1.5">
-                Description <span className="text-zinc-400 font-normal ml-1">(optional)</span>
-                {aiFields.has("description") && <AiBadge />}
-              </label>
-              <div className="relative">
-                <textarea
-                  placeholder="e.g. Petrol for job at Tampines on 27 Mar"
-                  value={description}
-                  onChange={e => { setDesc(e.target.value); setAiFields(prev => { const n = new Set(prev); n.delete("description"); return n; }); }}
-                  rows={2}
-                  maxLength={500}
-                  data-testid="input-receipt-description"
-                  className={`w-full px-3 py-2.5 border rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${aiFields.has("description") ? "border-violet-400 bg-violet-50/50" : "border-zinc-300"}`}
-                />
-                {aiFields.has("description") && (
-                  <button
-                    type="button"
-                    onClick={() => { setDesc(""); setAiFields(prev => { const n = new Set(prev); n.delete("description"); return n; }); }}
-                    className="absolute top-2 right-2 text-zinc-400 hover:text-zinc-600"
-                    title="Clear AI value"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
+            )}
           </div>
 
           {/* Footer */}
@@ -538,21 +658,23 @@ function AddReceiptModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 h-11 rounded-xl border border-zinc-200 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors"
+              className="w-24 h-11 rounded-xl border border-zinc-200 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shrink-0"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={submitting || scanning || !file || !userId}
+              disabled={!canSave}
               data-testid="button-submit-add-receipt"
               className="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {submitting
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
-                : scanning
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Scanning…</>
-                : <><Check className="w-4 h-4" /> Save Receipt</>
+              {submitting && saveProgress
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving {saveProgress.done}/{saveProgress.total}…</>
+                : anyScanning
+                ? <><Loader2 className="w-4 h-4 animate-spin text-violet-300" /> Scanning…</>
+                : entries.length === 0
+                ? <><Plus className="w-4 h-4" /> Upload Receipts</>
+                : <><Check className="w-4 h-4" /> Save {entries.length} Receipt{entries.length > 1 ? "s" : ""}</>
               }
             </button>
           </div>
