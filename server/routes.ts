@@ -22,6 +22,9 @@ import {
 } from "./email";
 import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN, sendWhatsAppImageMessage } from "./whatsapp";
 import multer from "multer";
+import { createRequire } from "module";
+const _require = createRequire(import.meta.url);
+const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 import { calcTransportFee, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
@@ -2022,27 +2025,44 @@ Reply with ONLY valid JSON — no markdown, no code blocks:
 
       const userContent: any[] = [];
 
+      let scanRes: any;
       if (isImage) {
         userContent.push(
           { type: "text", text: "Analyze this floor plan, delivery order, or furniture photo. Extract all furniture items requiring professional installation/assembly/relocation." },
           { type: "image_url", image_url: { url: `data:${fileType};base64,${fileData}`, detail: "high" } }
         );
+        scanRes = await openai.chat.completions.create({
+          model: "gpt-4o",
+          max_tokens: 900,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+        });
       } else {
-        // PDF: pass as base64 data URI (GPT-4o supports PDFs via vision API)
-        userContent.push(
-          { type: "text", text: `Analyze this PDF document (${fileName}). Extract all furniture items and any visible service address or access notes.` },
-          { type: "image_url", image_url: { url: `data:application/pdf;base64,${fileData}` } }
-        );
-      }
+        // PDF: extract text first, then send to GPT-4o as text (vision API does not support PDFs)
+        const pdfBuffer = Buffer.from(fileData, "base64");
+        let pdfText = "";
+        try {
+          const pdfData = await pdfParse(pdfBuffer);
+          pdfText = pdfData.text?.trim() || "";
+        } catch (pdfErr: any) {
+          console.warn("[scan-attachment] pdf-parse failed:", pdfErr.message);
+        }
 
-      const scanRes = await openai.chat.completions.create({
-        model: "gpt-4o",
-        max_tokens: 900,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-      });
+        const pdfPrompt = pdfText.length > 50
+          ? `Analyze this PDF document "${fileName}".\n\nExtracted text content:\n---\n${pdfText.slice(0, 6000)}\n---\n\nExtract all furniture items, the service address (if visible), and any special access notes.`
+          : `The PDF "${fileName}" could not be parsed for text. Based on the filename and common furniture delivery order formats, make your best guess at common furniture items. Return confidence: low.`;
+
+        scanRes = await openai.chat.completions.create({
+          model: "gpt-4o",
+          max_tokens: 900,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: pdfPrompt },
+          ],
+        });
+      }
 
       const raw = scanRes.choices[0]?.message?.content?.trim() || "{}";
       let parsed: any = {};
