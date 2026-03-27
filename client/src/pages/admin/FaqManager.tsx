@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   HelpCircle, MessageSquare, Plus, Pencil, Trash2, X, ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Search, Tag,
+  Brain, Zap, AlertTriangle, CheckCircle,
 } from "lucide-react";
 
 type FaqEntry = {
@@ -587,10 +588,293 @@ function CannedRepliesTab() {
   );
 }
 
+// ── Bot Training Tab ─────────────────────────────────────────────────────────
+
+type PricingCorrection = {
+  id: number;
+  detectedDescription: string;
+  correctedName: string;
+  catalogItemName: string | null;
+  notes: string | null;
+  active: boolean;
+  createdAt: string;
+};
+
+function CorrectionModal({
+  correction,
+  onClose,
+  onSave,
+  saving,
+}: {
+  correction: Partial<PricingCorrection> | null;
+  onClose: () => void;
+  onSave: (data: Partial<PricingCorrection>) => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<Partial<PricingCorrection>>({
+    detectedDescription: correction?.detectedDescription ?? "",
+    correctedName: correction?.correctedName ?? "",
+    catalogItemName: correction?.catalogItemName ?? "",
+    notes: correction?.notes ?? "",
+    active: correction?.active !== false,
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl border border-zinc-200 shadow-2xl w-full max-w-lg flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+            <Brain className="w-4 h-4 text-violet-600" />
+            {correction?.id ? "Edit Correction" : "Teach the Bot"}
+          </h2>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-6 space-y-4 overflow-y-auto">
+          <div className="bg-violet-50 border border-violet-100 rounded-lg px-4 py-3 text-xs text-violet-800">
+            <strong>How this works:</strong> When the bot detects an item matching the phrase below, it will look up the corrected catalog item for pricing instead of guessing.
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-500 uppercase tracking-wide font-semibold mb-1.5 block">
+              What the customer / AI says <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              data-testid="input-correction-detected"
+              value={form.detectedDescription}
+              onChange={e => setForm(f => ({ ...f, detectedDescription: e.target.value }))}
+              placeholder='e.g. "Framery O", "privacy pod", "acoustic cabin"'
+              className="h-9 text-sm border-zinc-300"
+            />
+            <p className="text-[11px] text-zinc-400 mt-1">The phrase or item name that gets misidentified</p>
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-500 uppercase tracking-wide font-semibold mb-1.5 block">
+              Correct item name (shown to customer) <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              data-testid="input-correction-corrected"
+              value={form.correctedName}
+              onChange={e => setForm(f => ({ ...f, correctedName: e.target.value }))}
+              placeholder='e.g. "Solo Phone Booth (1-Person)"'
+              className="h-9 text-sm border-zinc-300"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-500 uppercase tracking-wide font-semibold mb-1.5 block">
+              Catalog item to use for pricing
+            </Label>
+            <Input
+              data-testid="input-correction-catalog"
+              value={form.catalogItemName ?? ""}
+              onChange={e => setForm(f => ({ ...f, catalogItemName: e.target.value }))}
+              placeholder='Must match exactly, e.g. "Solo Phone Booth (1-Person)"'
+              className="h-9 text-sm border-zinc-300 font-mono text-xs"
+            />
+            <p className="text-[11px] text-zinc-400 mt-1">Leave blank to use corrected name as the lookup key</p>
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-500 uppercase tracking-wide font-semibold mb-1.5 block">Admin notes (optional)</Label>
+            <Input
+              data-testid="input-correction-notes"
+              value={form.notes ?? ""}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="e.g. Framery O is a 1-person acoustic phone booth brand"
+              className="h-9 text-sm border-zinc-300"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              data-testid="toggle-correction-active"
+              type="button"
+              onClick={() => setForm(f => ({ ...f, active: !f.active }))}
+              className="flex items-center gap-2 text-sm text-zinc-700"
+            >
+              {form.active
+                ? <ToggleRight className="w-5 h-5 text-violet-600" />
+                : <ToggleLeft className="w-5 h-5 text-zinc-400" />}
+              {form.active ? "Active — bot uses this correction" : "Inactive — bot ignores this"}
+            </button>
+          </div>
+        </div>
+        <div className="px-6 py-4 border-t border-zinc-100 flex justify-end gap-3">
+          <Button variant="outline" size="sm" onClick={onClose} className="h-9 px-4 text-sm">Cancel</Button>
+          <Button
+            data-testid="button-save-correction"
+            size="sm"
+            disabled={saving || !form.detectedDescription?.trim() || !form.correctedName?.trim()}
+            onClick={() => onSave(form)}
+            className="h-9 px-4 text-sm bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            {saving ? "Saving..." : "Save Correction"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BotTrainingTab() {
+  const { toast } = useToast();
+  const [editCorrection, setEditCorrection] = useState<Partial<PricingCorrection> | null | false>(false);
+
+  const { data: corrections = [], isLoading } = useQuery<PricingCorrection[]>({
+    queryKey: ["/api/admin/pricing-corrections"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: Partial<PricingCorrection>) => apiRequest("POST", "/api/admin/pricing-corrections", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/pricing-corrections"] });
+      setEditCorrection(false);
+      toast({ title: "Correction saved — bot will use this immediately" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<PricingCorrection> }) =>
+      apiRequest("PATCH", `/api/admin/pricing-corrections/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/pricing-corrections"] });
+      setEditCorrection(false);
+      toast({ title: "Correction updated" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/pricing-corrections/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/pricing-corrections"] });
+      toast({ title: "Correction deleted" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const toggleActive = (c: PricingCorrection) =>
+    updateMutation.mutate({ id: c.id, data: { active: !c.active } });
+
+  const handleSave = (data: Partial<PricingCorrection>) => {
+    if ((editCorrection as PricingCorrection)?.id) {
+      updateMutation.mutate({ id: (editCorrection as PricingCorrection).id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const activeCount = corrections.filter(c => c.active).length;
+
+  return (
+    <>
+      {editCorrection !== false && (
+        <CorrectionModal
+          correction={editCorrection}
+          onClose={() => setEditCorrection(false)}
+          onSave={handleSave}
+          saving={createMutation.isPending || updateMutation.isPending}
+        />
+      )}
+
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <Brain className="w-4 h-4 text-violet-600" />
+              Pricing Corrections
+            </h2>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {activeCount} active rule{activeCount !== 1 ? "s" : ""} · {corrections.length} total — bot consults these on every photo/pricing lookup
+            </p>
+          </div>
+          <Button
+            data-testid="button-add-correction"
+            size="sm"
+            onClick={() => setEditCorrection({})}
+            className="h-9 px-4 text-sm bg-violet-600 hover:bg-violet-700 text-white gap-1.5"
+          >
+            <Plus className="w-4 h-4" /> Teach Bot
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <div className="px-5 py-12 text-center text-sm text-zinc-400">Loading...</div>
+        ) : corrections.length === 0 ? (
+          <div className="px-5 py-12 text-center">
+            <Brain className="w-8 h-8 text-zinc-300 mx-auto mb-2" />
+            <p className="text-sm text-zinc-500">No corrections yet</p>
+            <p className="text-xs text-zinc-400 mt-1">Add a correction to teach the bot how to price specific items</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-zinc-100">
+            {corrections.map(c => (
+              <div
+                key={c.id}
+                data-testid={`correction-row-${c.id}`}
+                className={`px-5 py-3.5 hover:bg-zinc-50 transition-colors ${!c.active ? "opacity-50" : ""}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <span className="inline-flex items-center gap-1 text-xs font-mono bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
+                        <AlertTriangle className="w-3 h-3" />
+                        {c.detectedDescription}
+                      </span>
+                      <Zap className="w-3 h-3 text-violet-400 shrink-0" />
+                      <span className="inline-flex items-center gap-1 text-xs font-mono bg-violet-50 text-violet-800 border border-violet-200 px-1.5 py-0.5 rounded">
+                        <CheckCircle className="w-3 h-3" />
+                        {c.correctedName}
+                      </span>
+                      {!c.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-500">Inactive</span>}
+                    </div>
+                    {c.catalogItemName && (
+                      <p className="text-[11px] text-zinc-400 mt-0.5">
+                        Catalog: <code className="bg-zinc-100 px-1 rounded text-[10px]">{c.catalogItemName}</code>
+                      </p>
+                    )}
+                    {c.notes && (
+                      <p className="text-xs text-zinc-500 mt-0.5 italic">{c.notes}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <button
+                      data-testid={`toggle-active-correction-${c.id}`}
+                      onClick={() => toggleActive(c)}
+                      className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors"
+                      title={c.active ? "Deactivate" : "Activate"}
+                    >
+                      {c.active ? <ToggleRight className="w-4 h-4 text-violet-500" /> : <ToggleLeft className="w-4 h-4" />}
+                    </button>
+                    <button
+                      data-testid={`edit-correction-${c.id}`}
+                      onClick={() => setEditCorrection(c)}
+                      className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      data-testid={`delete-correction-${c.id}`}
+                      onClick={() => {
+                        if (confirm("Delete this correction?")) deleteMutation.mutate(c.id);
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-red-50 text-zinc-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function FaqManager() {
-  const [tab, setTab] = useState<"faq" | "canned">("faq");
+  const [tab, setTab] = useState<"faq" | "canned" | "training">("faq");
 
   return (
     <div className="min-h-screen pt-14 pb-16 lg:pl-56 bg-[#F5F5F7]">
@@ -628,6 +912,18 @@ export default function FaqManager() {
             >
               Canned Replies
             </button>
+            <button
+              data-testid="tab-training"
+              onClick={() => setTab("training")}
+              className={`pb-4 px-1 ml-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                tab === "training"
+                  ? "border-violet-600 text-violet-600"
+                  : "border-transparent text-zinc-500 hover:text-zinc-700"
+              }`}
+            >
+              <Brain className="w-3.5 h-3.5" />
+              Bot Training
+            </button>
           </div>
         </div>
       </div>
@@ -635,21 +931,29 @@ export default function FaqManager() {
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Info banner */}
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4 flex items-start gap-3">
-          <HelpCircle className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+        <div className={`border rounded-xl px-5 py-4 flex items-start gap-3 ${
+          tab === "training"
+            ? "bg-violet-50 border-violet-100"
+            : "bg-blue-50 border-blue-100"
+        }`}>
+          {tab === "training"
+            ? <Brain className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
+            : <HelpCircle className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />}
           <div>
-            <p className="text-sm font-medium text-blue-900">
-              {tab === "faq" ? "How FAQ entries work" : "How canned replies work"}
+            <p className={`text-sm font-medium ${tab === "training" ? "text-violet-900" : "text-blue-900"}`}>
+              {tab === "faq" ? "How FAQ entries work" : tab === "canned" ? "How canned replies work" : "How Bot Training works"}
             </p>
-            <p className="text-xs text-blue-700 mt-0.5">
+            <p className={`text-xs mt-0.5 ${tab === "training" ? "text-violet-700" : "text-blue-700"}`}>
               {tab === "faq"
                 ? "Active FAQ entries are loaded into the WhatsApp bot's knowledge base at runtime. When a customer asks a question, the bot searches these entries first before generating a response. Inactive entries are ignored."
-                : "Canned replies are quick-response templates for admin use in manual conversations. Type the shortcut in the message box to insert the template."}
+                : tab === "canned"
+                ? "Canned replies are quick-response templates for admin use in manual conversations. Type the shortcut in the message box to insert the template."
+                : "Teach the bot to correctly identify items it misidentifies. For example, if a customer sends a photo of a Framery pod but the bot calls it 'installation', add a correction: Framery → Solo Phone Booth (1-Person). Active corrections are consulted on every pricing lookup."}
             </p>
           </div>
         </div>
 
-        {tab === "faq" ? <FaqTab /> : <CannedRepliesTab />}
+        {tab === "faq" ? <FaqTab /> : tab === "canned" ? <CannedRepliesTab /> : <BotTrainingTab />}
       </div>
     </div>
   );

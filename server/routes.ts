@@ -43,13 +43,23 @@ const APP_URL = process.env.APP_URL || "http://localhost:5000";
 // Returns null only on network/DB errors (not on mismatch — we always match).
 async function smartPricingLookup(query: string): Promise<string | null> {
   try {
-    const catalog = await storage.getCatalogItems();
+    const [catalog, corrections] = await Promise.all([
+      storage.getCatalogItems(),
+      storage.getPricingCorrections(true), // active corrections = self-learning layer
+    ]);
     const uniqueNames = [...new Set(catalog.map(c => c.name))].join(", ");
+
+    // Build corrections block — these are PRIORITY overrides taught by admin
+    const correctionBlock = corrections.length > 0
+      ? `\n\nADMIN-VERIFIED CORRECTIONS — use these FIRST, they override all other matching:\n${
+          corrections.map(c => `- If query contains or is similar to "${c.detectedDescription}" → use catalog item: "${c.catalogItemName || c.correctedName}"${c.notes ? ` (note: ${c.notes})` : ""}`).join("\n")
+        }`
+      : "";
 
     // Ask GPT to find the BEST matching catalog item(s) — always return something
     const matchRes = await openai.chat.completions.create({
       model: "gpt-4o",
-      max_tokens: 200,
+      max_tokens: 300,
       response_format: { type: "json_object" },
       messages: [{
         role: "system",
@@ -58,6 +68,7 @@ The customer is asking about pricing for: "${query}"
 
 Available catalog items (exact names — use these EXACTLY):
 ${uniqueNames}
+${correctionBlock}
 
 Your job: find the BEST matching catalog item(s). ALWAYS return at least one match — never return an empty list.
 
@@ -70,7 +81,13 @@ Matching rules (use these to guide fuzzy matching):
 - "sofa", "couch", "settee", "loveseat" → appropriate sofa size
 - "wardrobe", "closet", "built-in" → appropriate wardrobe type
 - "bed", "bed frame" → appropriate bed frame size
-- For anything else: pick the most visually/functionally similar item from the list
+- "solo phone booth", "privacy pod", "acoustic pod", "phone booth pod", "office pod", "focus pod", "work pod", "soundproof booth", "Framery", "Zenbooth", "Hushoffice", "office cabin", "isolation pod" → "Solo Phone Booth (1-Person)" or "Freestanding Acoustic Booth"
+- "duo pod", "duo phone booth", "2-person pod", "2-person booth", "double booth" → "Duo Phone Booth (2-Person)"
+- "meeting pod", "huddle pod", "4-person pod", "collaboration pod", "team pod" → "Meeting Pod (4-Person)"
+- "meeting room pod", "large pod", "6-person pod", "8-person pod", "conference pod" → "Meeting Room Pod (6-Person)" or "Large Meeting Pod (8-Person)"
+- "standing kiosk", "kiosk", "mini pod", "display kiosk", "standing pod" → "Standing Kiosk / Mini Pod"
+- "acoustic booth", "freestanding booth", "semi-open pod" → "Freestanding Acoustic Booth"
+- For anything else: pick the most visually/functionally similar item from the list — NEVER pick an item by service type name (e.g. "installation" is not a furniture item, pick the actual furniture)
 
 Return JSON:
 {
@@ -471,6 +488,20 @@ OFFICE / COMMERCIAL FURNITURE — these are equally valid and very common:
 
 17. CREDENZA / SIDEBOARD (OFFICE): A long low storage unit (typically 40–60 cm tall, 120–240 cm wide) placed behind a desk or along an office wall. Has doors and/or drawers. Name: "office credenza" or "sideboard".
 
+SPECIALTY / ARCHITECTURAL OFFICE ITEMS — VERY IMPORTANT, do not miss these:
+
+18. PRIVACY POD / ACOUSTIC PHONE BOOTH (1-person): A small self-contained enclosed or semi-enclosed cabin designed for ONE person to make private calls or do focused work. Usually has: a door or open front, glass panels, acoustic interior lining, a small built-in desk, and ventilation. Looks like a tiny room or capsule placed inside an office. Typically 100–140cm wide × 100–140cm deep × 220–240cm tall. Brands: Framery O, Framery One, Zenbooth Solo, Meavo, Hushoffice, Kolo, SnapCab. THIS IS NOT a wardrobe, not a booth stall, not a locker. Name: "solo phone booth". CRITICAL: if you see a glass/aluminum pod or cabin with one seat inside in an office, call it "solo phone booth" — NOT "installation", NOT "wardrobe", NOT "cabinet".
+
+19. DUO PHONE BOOTH / 2-PERSON ACOUSTIC BOOTH: Like item 18 but larger, fits 2 people side by side. Usually 170–210cm wide. Name: "duo phone booth".
+
+20. MEETING POD / HUDDLE POD (4-person): A larger enclosed or semi-enclosed collaborative workspace pod with seating for 4 people around a small table. Clearly bigger than a solo phone booth — often 200–280cm wide. Name: "meeting pod".
+
+21. MEETING ROOM POD (6–8 person): A large enclosed modular meeting room or conference pod, typically glass-walled, housing 6–8 people. Often resembles a small glass-box meeting room freestanding on the office floor. Name: "meeting room pod" or "large meeting pod".
+
+22. STANDING KIOSK / MINI POD: A narrow tall freestanding display stand or single-person standing workstation pod. No seating. Name: "standing kiosk" or "mini pod".
+
+23. FREESTANDING ACOUSTIC BOOTH: A semi-open acoustic booth (may not have a door) designed for privacy without full enclosure. Often fabric or felt-panelled. Fits 1–2 people. Name: "freestanding acoustic booth".
+
 Common mistakes to AVOID:
 - A unit with MANY DRAWERS and NO doors = chest of drawers (NOT a desk)
 - A tall unit with DOORS = wardrobe (NOT a cabinet or cupboard unless clearly office storage)
@@ -478,6 +509,7 @@ Common mistakes to AVOID:
 - A desk with a FABRIC PANEL, MODESTY SCREEN, or PRIVACY SCREEN attached to the front = REGULAR DESK (e.g. "L-Shaped Executive Desk"). A fabric panel is decorative/privacy trim, NOT a standing mechanism. Do NOT classify as "standing desk" just because a panel is present.
 - Only call something a "standing desk" if you can clearly see electric controls, a height display, a hand crank, or visibly adjustable leg height.
 - OFFICE PHOTOS: An open-plan office with cubicle desks and partition panels = office workstations + partition panels. DO NOT return NONE just because it is a commercial/office environment. These items are regularly installed, dismantled, and relocated by furniture companies.
+- A GLASS/ALUMINUM POD OR CABIN with one or two seats inside = "solo phone booth" or "duo phone booth" — NOT "installation", NOT "cabinet", NOT "wardrobe". These are specialty items that need professional installation.
 `;
 
 interface ScannedFurnitureItem { name: string; count: number; }
@@ -7039,6 +7071,56 @@ Respond directly — no JSON, just the message text.`,
       res.json({ message: "Deleted" });
     } catch (err) {
       res.status(500).json({ message: "Failed to delete canned reply" });
+    }
+  });
+
+  // ── Admin: Pricing Corrections (self-learning) ─────────────────────────────
+  app.get("/api/admin/pricing-corrections", async (_req, res) => {
+    try {
+      const rows = await storage.getPricingCorrections();
+      res.json(rows);
+    } catch {
+      res.status(500).json({ message: "Failed to load pricing corrections" });
+    }
+  });
+
+  app.post("/api/admin/pricing-corrections", async (req, res) => {
+    try {
+      const data = req.body as { detectedDescription: string; correctedName: string; catalogItemName?: string; notes?: string; active?: boolean };
+      if (!data.detectedDescription?.trim() || !data.correctedName?.trim()) {
+        return res.status(400).json({ message: "Detected description and corrected name are required" });
+      }
+      const row = await storage.createPricingCorrection({
+        detectedDescription: data.detectedDescription.trim(),
+        correctedName: data.correctedName.trim(),
+        catalogItemName: data.catalogItemName?.trim() || null,
+        notes: data.notes?.trim() || null,
+        active: data.active !== false,
+      });
+      res.json(row);
+    } catch {
+      res.status(500).json({ message: "Failed to create pricing correction" });
+    }
+  });
+
+  app.patch("/api/admin/pricing-corrections/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const data = req.body as Partial<{ detectedDescription: string; correctedName: string; catalogItemName: string; notes: string; active: boolean }>;
+      const row = await storage.updatePricingCorrection(id, data);
+      if (!row) return res.status(404).json({ message: "Not found" });
+      res.json(row);
+    } catch {
+      res.status(500).json({ message: "Failed to update pricing correction" });
+    }
+  });
+
+  app.delete("/api/admin/pricing-corrections/:id", async (req, res) => {
+    try {
+      await storage.deletePricingCorrection(parseInt(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch {
+      res.status(500).json({ message: "Failed to delete pricing correction" });
     }
   });
 

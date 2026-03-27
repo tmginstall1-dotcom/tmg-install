@@ -405,6 +405,21 @@ export type FaqEntry = typeof faqEntries.$inferSelect;
 export type InsertFaqEntry = typeof faqEntries.$inferInsert;
 export const insertFaqEntrySchema = createInsertSchema(faqEntries).omit({ id: true, createdAt: true, updatedAt: true });
 
+// Pricing Corrections — admin-teachable mapping: detected item → correct catalog item
+// The bot reads these during smartPricingLookup to self-improve over time.
+export const pricingCorrections = pgTable("pricing_corrections", {
+  id: serial("id").primaryKey(),
+  detectedDescription: text("detected_description").notNull(), // phrase bot or customer used (e.g. "privacy pod", "Framery")
+  correctedName: text("corrected_name").notNull(),             // human-friendly correct name (e.g. "Solo Phone Booth (1-Person)")
+  catalogItemName: text("catalog_item_name"),                  // exact catalog item name to match (must exist in catalog)
+  notes: text("notes"),                                        // optional context (e.g. "Framery O = 1-person pod")
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type PricingCorrection = typeof pricingCorrections.$inferSelect;
+export type InsertPricingCorrection = typeof pricingCorrections.$inferInsert;
+export const insertPricingCorrectionSchema = createInsertSchema(pricingCorrections).omit({ id: true, createdAt: true });
+
 // Canned Replies — quick reply templates for admin manual responses
 export const cannedReplies = pgTable("canned_replies", {
   id: serial("id").primaryKey(),

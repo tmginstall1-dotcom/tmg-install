@@ -2,7 +2,7 @@ import { db } from "./db";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   attendanceAmendments, leaveRequests, payslips, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
-  receipts, faqEntries, cannedReplies,
+  receipts, faqEntries, cannedReplies, pricingCorrections,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
   type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser,
@@ -12,6 +12,7 @@ import {
   type GpsTrackPoint, type SiteEvent, type WhatsAppSession, type WhatsAppMessage,
   type Receipt, type ReceiptWithUser,
   type FaqEntry, type InsertFaqEntry, type CannedReply, type InsertCannedReply,
+  type PricingCorrection, type InsertPricingCorrection,
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 
@@ -136,6 +137,12 @@ export interface IStorage {
   createCannedReply(data: InsertCannedReply): Promise<CannedReply>;
   updateCannedReply(id: number, data: Partial<InsertCannedReply>): Promise<CannedReply | undefined>;
   deleteCannedReply(id: number): Promise<void>;
+
+  // Pricing Corrections (self-learning)
+  getPricingCorrections(activeOnly?: boolean): Promise<PricingCorrection[]>;
+  createPricingCorrection(data: InsertPricingCorrection): Promise<PricingCorrection>;
+  updatePricingCorrection(id: number, data: Partial<InsertPricingCorrection>): Promise<PricingCorrection | undefined>;
+  deletePricingCorrection(id: number): Promise<void>;
 
   // Site Analytics
   addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
@@ -1505,6 +1512,29 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCannedReply(id: number): Promise<void> {
     await db.delete(cannedReplies).where(eq(cannedReplies.id, id));
+  }
+
+  // ── Pricing Corrections ──────────────────────────────────────────────────────
+  async getPricingCorrections(activeOnly = false): Promise<PricingCorrection[]> {
+    const q = db.select().from(pricingCorrections);
+    if (activeOnly) {
+      return q.where(eq(pricingCorrections.active, true)).orderBy(desc(pricingCorrections.createdAt));
+    }
+    return q.orderBy(desc(pricingCorrections.createdAt));
+  }
+
+  async createPricingCorrection(data: InsertPricingCorrection): Promise<PricingCorrection> {
+    const [created] = await db.insert(pricingCorrections).values(data).returning();
+    return created;
+  }
+
+  async updatePricingCorrection(id: number, data: Partial<InsertPricingCorrection>): Promise<PricingCorrection | undefined> {
+    const [updated] = await db.update(pricingCorrections).set(data).where(eq(pricingCorrections.id, id)).returning();
+    return updated;
+  }
+
+  async deletePricingCorrection(id: number): Promise<void> {
+    await db.delete(pricingCorrections).where(eq(pricingCorrections.id, id));
   }
 }
 
