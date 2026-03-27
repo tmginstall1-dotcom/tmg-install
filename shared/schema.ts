@@ -414,6 +414,7 @@ export const pricingCorrections = pgTable("pricing_corrections", {
   catalogItemName: text("catalog_item_name"),                  // exact catalog item name to match (must exist in catalog)
   notes: text("notes"),                                        // optional context (e.g. "Framery O = 1-person pod")
   active: boolean("active").notNull().default(true),
+  autoLearned: boolean("auto_learned").notNull().default(false), // true = bot discovered this automatically
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type PricingCorrection = typeof pricingCorrections.$inferSelect;

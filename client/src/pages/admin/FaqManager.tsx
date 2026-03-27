@@ -597,6 +597,7 @@ type PricingCorrection = {
   catalogItemName: string | null;
   notes: string | null;
   active: boolean;
+  autoLearned: boolean;
   createdAt: string;
 };
 
@@ -761,7 +762,17 @@ function BotTrainingTab() {
     }
   };
 
+  const [filter, setFilter] = useState<"all" | "manual" | "auto">("all");
+
   const activeCount = corrections.filter(c => c.active).length;
+  const autoCount = corrections.filter(c => c.autoLearned).length;
+  const manualCount = corrections.length - autoCount;
+
+  const filtered = corrections.filter(c => {
+    if (filter === "auto") return c.autoLearned;
+    if (filter === "manual") return !c.autoLearned;
+    return true;
+  });
 
   return (
     <>
@@ -774,38 +785,70 @@ function BotTrainingTab() {
         />
       )}
 
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white border border-zinc-200 rounded-xl px-4 py-3">
+          <p className="text-xs text-zinc-500">Total Rules</p>
+          <p className="text-2xl font-bold text-slate-900 mt-0.5">{corrections.length}</p>
+          <p className="text-[11px] text-zinc-400">{activeCount} active</p>
+        </div>
+        <div className="bg-white border border-violet-100 rounded-xl px-4 py-3">
+          <p className="text-xs text-violet-600 flex items-center gap-1"><Brain className="w-3 h-3" /> Auto-Learned</p>
+          <p className="text-2xl font-bold text-violet-700 mt-0.5">{autoCount}</p>
+          <p className="text-[11px] text-zinc-400">discovered from live chats</p>
+        </div>
+        <div className="bg-white border border-blue-100 rounded-xl px-4 py-3">
+          <p className="text-xs text-blue-600">Manually Added</p>
+          <p className="text-2xl font-bold text-blue-700 mt-0.5">{manualCount}</p>
+          <p className="text-[11px] text-zinc-400">added by admin</p>
+        </div>
+      </div>
+
       <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <Brain className="w-4 h-4 text-violet-600" />
-              Pricing Corrections
-            </h2>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {activeCount} active rule{activeCount !== 1 ? "s" : ""} · {corrections.length} total — bot consults these on every photo/pricing lookup
-            </p>
+        <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            {(["all", "manual", "auto"] as const).map(f => (
+              <button
+                key={f}
+                data-testid={`filter-corrections-${f}`}
+                onClick={() => setFilter(f)}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                  filter === f
+                    ? "bg-violet-100 text-violet-700"
+                    : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                }`}
+              >
+                {f === "all" ? "All" : f === "manual" ? "Manual" : "Auto-Learned"}
+              </button>
+            ))}
           </div>
           <Button
             data-testid="button-add-correction"
             size="sm"
             onClick={() => setEditCorrection({})}
-            className="h-9 px-4 text-sm bg-violet-600 hover:bg-violet-700 text-white gap-1.5"
+            className="h-8 px-3 text-xs bg-violet-600 hover:bg-violet-700 text-white gap-1.5"
           >
-            <Plus className="w-4 h-4" /> Teach Bot
+            <Plus className="w-3.5 h-3.5" /> Teach Bot Manually
           </Button>
         </div>
 
         {isLoading ? (
           <div className="px-5 py-12 text-center text-sm text-zinc-400">Loading...</div>
-        ) : corrections.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="px-5 py-12 text-center">
             <Brain className="w-8 h-8 text-zinc-300 mx-auto mb-2" />
-            <p className="text-sm text-zinc-500">No corrections yet</p>
-            <p className="text-xs text-zinc-400 mt-1">Add a correction to teach the bot how to price specific items</p>
+            <p className="text-sm text-zinc-500">
+              {filter === "auto" ? "No auto-learned rules yet" : filter === "manual" ? "No manual rules" : "No corrections yet"}
+            </p>
+            <p className="text-xs text-zinc-400 mt-1">
+              {filter === "auto"
+                ? "Rules appear here automatically as customers chat with the bot"
+                : "Add a correction to teach the bot how to price specific items"}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-100">
-            {corrections.map(c => (
+            {filtered.map(c => (
               <div
                 key={c.id}
                 data-testid={`correction-row-${c.id}`}
@@ -814,6 +857,11 @@ function BotTrainingTab() {
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      {c.autoLearned && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700">
+                          <Brain className="w-2.5 h-2.5" /> Auto
+                        </span>
+                      )}
                       <span className="inline-flex items-center gap-1 text-xs font-mono bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
                         <AlertTriangle className="w-3 h-3" />
                         {c.detectedDescription}

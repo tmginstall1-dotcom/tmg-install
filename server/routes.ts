@@ -108,6 +108,25 @@ Return JSON:
     const matched = catalog.filter(c => matchedNames.includes(c.name));
     if (matched.length === 0) return null;
 
+    // ── Auto-learn: save this match as a correction if one doesn't exist yet ──
+    // Only auto-learn when the query looks like a real item name (not a generic phrase
+    // that's already covered by built-in rules), and GPT returned a confident match.
+    const genericPhrases = ["furniture", "items", "stuff", "things", "my furniture", "these items"];
+    const queryNorm = query.trim().toLowerCase();
+    const alreadyHasCorrection = corrections.some(c =>
+      c.detectedDescription.toLowerCase() === queryNorm
+    );
+    if (!alreadyHasCorrection && queryNorm.length > 2 && !genericPhrases.includes(queryNorm)) {
+      storage.createPricingCorrection({
+        detectedDescription: query.trim(),
+        correctedName: itemLabel || matchedNames[0],
+        catalogItemName: matchedNames[0],
+        notes: `Auto-learned from live lookup (${isApproximate ? "approximate" : "confident"} match)`,
+        active: true,
+        autoLearned: true,
+      }).catch(() => {}); // fire-and-forget — never block the response
+    }
+
     // Group prices by service type
     const byType: Record<string, number[]> = {};
     matched.forEach(item => {
@@ -207,6 +226,10 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     const svcLabel: Record<string, string> = { install: "Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal", dismantle_dispose: "Dismantle + Dispose" };
     let hasTBCItems = false;
 
+    // Load corrections once for auto-learn de-dupe check
+    let existingCorrections: { detectedDescription: string }[] = [];
+    try { existingCorrections = await storage.getPricingCorrections(); } catch { /* ignore */ }
+
     for (const item of aiParsed) {
       const matched = catalog.find(c =>
         c.serviceType === item.serviceType &&
@@ -214,6 +237,25 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
          c.name.toLowerCase().includes(item.detectedName.toLowerCase()) ||
          item.detectedName.toLowerCase().split(/\s+/).some((w: string) => w.length > 3 && c.name.toLowerCase().includes(w)))
       );
+
+      // Auto-learn: if we found a confident catalog match and no correction exists yet, save it
+      if (matched) {
+        const detectedNorm = item.detectedName.trim().toLowerCase();
+        const alreadyKnown = existingCorrections.some(c =>
+          c.detectedDescription.toLowerCase() === detectedNorm
+        );
+        if (!alreadyKnown && detectedNorm.length > 3) {
+          storage.createPricingCorrection({
+            detectedDescription: item.detectedName.trim(),
+            correctedName: matched.name,
+            catalogItemName: matched.name,
+            notes: `Auto-learned from quote estimate (service: ${item.serviceType})`,
+            active: true,
+            autoLearned: true,
+          }).catch(() => {});
+        }
+      }
+
       const unitPrice = matched ? Number(matched.basePrice) : (item.estimatedUnitPrice || 0);
       const qty = item.quantity || 1;
       const subtotal = unitPrice * qty;
