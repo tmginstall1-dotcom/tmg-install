@@ -1657,6 +1657,36 @@ export async function registerRoutes(
     res.json({ fileData: receipt.fileData, fileType: receipt.fileType, fileName: receipt.fileName });
   });
 
+  // Admin: manually create a receipt for any staff member (auto-approved)
+  app.post("/api/admin/receipts", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const body = z.object({
+        userId:      z.number().int().positive(),
+        receiptDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        amount:      z.string().regex(/^\d+(\.\d{1,2})?$/),
+        category:    z.enum(["fuel","tools","transport","meals","parking","other"]),
+        description: z.string().max(500).optional(),
+        fileData:    z.string().min(10),
+        fileType:    z.string(),
+        fileName:    z.string(),
+      }).parse(req.body);
+
+      const receipt = await storage.createReceipt(body.userId, {
+        receiptDate: body.receiptDate,
+        amount:      body.amount,
+        category:    body.category,
+        description: body.description,
+        fileData:    body.fileData,
+        fileType:    body.fileType,
+        fileName:    body.fileName,
+      });
+      // Auto-approve — admin is manually adding a verified receipt
+      const approved = await storage.updateReceiptStatus(receipt.id, "approved", "Added by admin", req.session.userId);
+      res.json(approved ?? receipt);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
   // Admin: approve or reject a receipt
   app.patch("/api/admin/receipts/:id/status", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
