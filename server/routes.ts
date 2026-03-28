@@ -3918,12 +3918,28 @@ Respond with ONLY a JSON array (no prose, no markdown):
         '[Message]';
 
       // ── Log inbound message for admin conversations view ─────────────────────
+      const inboundMediaId =
+        msg.type === 'image'    ? msg.image?.id    :
+        msg.type === 'document' ? msg.document?.id :
+        msg.type === 'video'    ? msg.video?.id    :
+        msg.type === 'audio'    ? msg.audio?.id    :
+        undefined;
+      const inboundMediaType =
+        msg.type === 'image'    ? (msg.image?.mime_type || 'image/jpeg') :
+        msg.type === 'document' ? (msg.document?.mime_type || 'application/octet-stream') :
+        msg.type === 'video'    ? (msg.video?.mime_type || 'video/mp4') :
+        msg.type === 'audio'    ? (msg.audio?.mime_type || 'audio/ogg') :
+        undefined;
+      // Use filename as body for documents when no caption is provided
+      const inboundBody =
+        inboundText ||
+        (msg.type === 'document' && msg.document?.filename ? `[Document: ${msg.document.filename}]` : fallbackLabel);
       storage.logWhatsAppMessage({
         phone: from,
         direction: 'inbound',
-        body: inboundText || fallbackLabel,
-        mediaType: msg.type === 'image' ? 'image' : undefined,
-        mediaUrl: msg.type === 'image' && msg.image?.id ? msg.image.id : undefined,
+        body: inboundBody,
+        mediaType: inboundMediaType,
+        mediaUrl: inboundMediaId,
         wamid: msg.id,
       }).catch(() => {});
 
