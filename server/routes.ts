@@ -4159,11 +4159,14 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
         // Run extraction if: long enough AND (not a greeting OR long enough to have real content after "hi")
         // e.g. "Hi I'd like to install a wardrobe how much?" → 44 chars → extract items even though starts with "hi"
+        let extractedToAddress: string | null = null;
+        let extractedIsRelocation = false;
+
         if (text.length > 15 && (!isGreeting || text.length > 35)) {
           try {
             const extractRes = await openai.chat.completions.create({
               model: "gpt-4o",
-              max_tokens: 300,
+              max_tokens: 400,
               response_format: { type: "json_object" },
               messages: [{
                 role: "system",
@@ -4172,18 +4175,24 @@ Extract any details they provided. Return JSON:
 {
   "name": string or null,
   "address": string or null,
+  "toAddress": string or null,
+  "isRelocation": boolean,
   "items": string or null
 }
 - name: their personal name (not company name). Null if not clearly stated.
-- address: full Singapore address/location. Null if not stated. Accept postal codes (S123456).
+- address: full Singapore pickup/from/job address. Null if not stated. Accept postal codes (S123456).
+- toAddress: delivery/destination/to address for relocations. Null if not a relocation or not stated.
+- isRelocation: true if customer mentions moving, relocation, shifting, pick up and deliver furniture.
 - items: formatted bullet list of furniture items mentioned (one • per line with service type in brackets if stated). Null if no furniture mentioned.
 
-Message: "${text}"`
+Message: "${text.slice(0, 600)}"`
               }]
             });
             const extracted = JSON.parse(extractRes.choices[0]?.message?.content || "{}");
             extractedName = extracted.name || null;
             extractedAddress = extracted.address || null;
+            extractedToAddress = extracted.toAddress || null;
+            extractedIsRelocation = !!extracted.isRelocation;
             extractedItems = extracted.items || null;
           } catch {}
         }
@@ -4208,8 +4217,8 @@ Message: "${text}"`
           preferredDate: null,
           preferredDateIso: null,
           preferredTimeWindow: null,
-          isRelocation: false,
-          collectedToAddress: null,
+          isRelocation: extractedIsRelocation,
+          collectedToAddress: extractedToAddress,
           distanceKm: null,
           conversationHistory: null,
         });
@@ -4285,6 +4294,7 @@ Message: "${text}"`
           let firstMsgReply: string | null = null;
           let firstMsgShowPricing = false;
           let firstMsgItem: string | null = null;
+          let firstMsgIsReadyToBook = false;
 
           try {
             const firstClassRes = await openai.chat.completions.create({
@@ -4312,6 +4322,28 @@ Classify their VERY FIRST message. Return JSON:
               firstMsgItem = fc.itemQuery;
             } else if (fc.intent === "pricing_general") {
               firstMsgShowPricing = true;
+            } else if (fc.intent === "ready_to_book") {
+              // Customer has clear intent to book — acknowledge their specific request and start the flow
+              firstMsgIsReadyToBook = true;
+              const readyReply = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                max_tokens: 200,
+                messages: [
+                  {
+                    role: "system",
+                    content:
+                      `You are the WhatsApp coordinator for TMG Install (Singapore furniture services in Singapore).\n\n` +
+                      `A customer just sent their FIRST message expressing clear intent to book or arrange a service.\n` +
+                      `Acknowledge the SPECIFIC details they mentioned (service type, items, date, time, urgency — whatever they said).\n` +
+                      `Then ask for their name to get started.\n` +
+                      `Keep it warm, concise, and human. 2–3 sentences max. Use *bold* for key words.\n` +
+                      `Example: "Got it — *moving tomorrow at 2pm*! Let me get that sorted for you. Could I start with your *name*? 😊"\n` +
+                      `Do NOT repeat pricing. Do NOT send a generic welcome. Acknowledge exactly what they said.`,
+                  },
+                  { role: "user", content: text },
+                ],
+              });
+              firstMsgReply = readyReply.choices[0]?.message?.content?.trim() || null;
             } else if (fc.intent === "question") {
               // Answer the question directly with company knowledge — no pricing template
               const answerRes = await openai.chat.completions.create({
@@ -4353,6 +4385,11 @@ Classify their VERY FIRST message. Return JSON:
               ? `${estimateMsg}${outro}`
               : `We'd be happy to quote for *${firstMsgItem}*. Our team will confirm the exact price once we know more about your job.\n\nWould you like a quote? 😊`
             ));
+          } else if (firstMsgReply && firstMsgIsReadyToBook) {
+            // Ready to book — acknowledge their specific request, move to name collection
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
+            await sendBotMessage(from, firstMsgReply);
+            saveHistory(from, [], text, firstMsgReply);
           } else if (firstMsgReply) {
             // Direct question — answer it, no pricing dump
             await sendBotMessage(from, `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n${firstMsgReply}`);
@@ -4946,18 +4983,64 @@ CRITICAL: If bot's last message asked for their name, a 1–4 word personal-name
           const sc = JSON.parse(smartClassRes.choices[0]?.message?.content || "{}");
 
           if (sc.intent === "book_now") {
-            if (nameAlready) {
-              await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-              await sendBotMessage(from,
-                sc.reply ||
-                `Great, *${nameAlready}*! 😊\n\n` +
-                `📍 Where is the job? Drop the *full address* below — block/unit number helps too.\n\n` +
-                `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
-              );
-            } else {
-              await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-              await sendBotMessage(from, sc.reply || `What's your *full name*? 😊`);
+            // Extract all job details from the message BEFORE transitioning — critical for multi-field messages
+            let bookItems: string | null = null;
+            let bookPickupAddr: string | null = null;
+            let bookDeliveryAddr: string | null = null;
+            let bookIsRelocation = false;
+            if (text.length > 20) {
+              try {
+                const bookExtract = await openai.chat.completions.create({
+                  model: "gpt-4o",
+                  max_tokens: 400,
+                  response_format: { type: "json_object" },
+                  messages: [{
+                    role: "system",
+                    content: `Extract job details from this WhatsApp message to TMG Install (Singapore furniture services).
+Return JSON:
+{
+  "items": "bullet list of furniture items with service type in brackets, one • per line. Null if none mentioned.",
+  "pickupAddress": "the FROM/pickup/collection/job address. Null if not mentioned.",
+  "deliveryAddress": "the TO/delivery/destination address (for relocations, movings). Null if not mentioned.",
+  "isRelocation": true or false
+}
+Rules:
+- isRelocation: true if customer mentions relocation, moving, shifting, transporting, pick up and deliver
+- For relocations: pickupAddress = the address they are moving FROM, deliveryAddress = the address they are moving TO
+- items: include service type e.g. "• 1 king size bed (relocate)", "• 1 old bed frame (dispose)"
+- Use exact addresses from the message (block number, street, postal code, unit)
+Message: "${text.slice(0, 600)}"`,
+                  }],
+                });
+                const be = JSON.parse(bookExtract.choices[0]?.message?.content || "{}");
+                bookItems = be.items || null;
+                bookPickupAddr = be.pickupAddress || null;
+                bookDeliveryAddr = be.deliveryAddress || null;
+                bookIsRelocation = !!be.isRelocation;
+              } catch { /* non-critical */ }
             }
+
+            // Build the session update — save everything we found
+            const bookUpdates: Record<string, unknown> = {};
+            if (bookItems) bookUpdates.collectedItems = bookItems;
+            if (bookPickupAddr) bookUpdates.collectedAddress = bookPickupAddr;
+            if (bookDeliveryAddr) bookUpdates.collectedToAddress = bookDeliveryAddr;
+            if (bookIsRelocation) bookUpdates.isRelocation = true;
+
+            // Determine best next state given what was extracted
+            const hasAddr = !!(bookPickupAddr || session?.collectedAddress);
+            const hasItems = !!(bookItems || (session?.collectedItems && session.collectedItems !== "__scanning__"));
+            if (nameAlready) {
+              bookUpdates.state = hasAddr && hasItems ? "awaiting_floor" : hasAddr ? "awaiting_items" : "awaiting_address";
+            } else {
+              bookUpdates.state = "awaiting_name";
+            }
+
+            await storage.upsertWhatsAppSession(from, bookUpdates);
+            await sendBotMessage(from, sc.reply || (nameAlready
+              ? `Great, *${nameAlready}*! 😊\n\n📍 Where is the job? Drop the *full address* below — block/unit number helps too.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
+              : `What's your *full name*? 😊`
+            ));
             return;
           }
 
@@ -5009,13 +5092,31 @@ CRITICAL: If bot's last message asked for their name, a 1–4 word personal-name
           }
 
           if (sc.intent === "provide_name" && sc.name) {
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_address", collectedName: sc.name });
-            await sendBotMessage(from,
-              sc.reply ||
-              `Nice to meet you, *${sc.name}*! 😊\n\n` +
-              `📍 What's the *full job address*? (That's where we'll be doing the work.)\n\n` +
-              `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
-            );
+            const pnHasAddr = !!session?.collectedAddress;
+            const pnHasItems = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
+            const pnIsReloc = !!session?.isRelocation;
+            const pnHasToAddr = !!session?.collectedToAddress;
+            let pnNextState: string;
+            let pnReply: string;
+            if (pnHasAddr && pnHasItems) {
+              pnNextState = "awaiting_floor";
+              const pnAddrLine = pnIsReloc && pnHasToAddr
+                ? `📍 *From:* ${session!.collectedAddress}\n📍 *To:* ${session!.collectedToAddress}\n`
+                : `📍 *Address:* ${session!.collectedAddress}\n`;
+              pnReply = sc.reply ||
+                `Thanks, *${sc.name}*! 😊 Here's what I have so far:\n\n` +
+                `👤 *Name:* ${sc.name}\n` + pnAddrLine +
+                `🛋️ *Items:*\n${session!.collectedItems}\n\n` +
+                `Which *floor* is the unit on?\n\nReply with a number (e.g. *1*, *5*) and whether there's a *lift* (yes / no)`;
+            } else if (pnHasAddr) {
+              pnNextState = "awaiting_items";
+              pnReply = sc.reply || `Nice to meet you, *${sc.name}*! 😊\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
+            } else {
+              pnNextState = "awaiting_address";
+              pnReply = sc.reply || `Nice to meet you, *${sc.name}*! 😊\n\n📍 What's the *full job address*?\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
+            }
+            await storage.upsertWhatsAppSession(from, { state: pnNextState, collectedName: sc.name });
+            await sendBotMessage(from, pnReply);
             return;
           }
 
@@ -5358,18 +5459,26 @@ Key examples:
 
         const alreadyHasAddress = !!session?.collectedAddress;
         const alreadyHasItemsToo = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
+        const alreadyIsRelocation = !!session?.isRelocation;
+        const alreadyHasToAddress = !!session?.collectedToAddress;
         await storage.upsertWhatsAppSession(from, { collectedName: extractedName });
 
         let replyName: string;
         if (alreadyHasItemsToo && alreadyHasAddress) {
-          // Both name + address + items present — go to confirmation
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_confirmation" });
+          // Both address + items present — proceed to floor collection (not straight to confirm)
+          // For relocations with both addresses, show the full picture; still need floor info
+          await storage.upsertWhatsAppSession(from, { state: "awaiting_floor" });
+          const addrLine = alreadyIsRelocation && alreadyHasToAddress
+            ? `📍 *From:* ${session!.collectedAddress}\n📍 *To:* ${session!.collectedToAddress}\n`
+            : `📍 *Address:* ${session!.collectedAddress}\n`;
           replyName =
-            `✅ Got it, *${extractedName}*! Here's your updated summary:\n\n` +
+            `Thanks, *${extractedName}*! 😊 Here's what I have so far:\n\n` +
             `👤 *Name:* ${extractedName}\n` +
-            `📍 *Address:* ${session!.collectedAddress}\n` +
+            addrLine +
             `🛋️ *Items:*\n${session!.collectedItems}\n\n` +
-            `Reply *YES* to confirm and send to our team. 😊`;
+            `Just a couple more details — which *floor* is the unit on?\n\n` +
+            `Reply with a number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
+            `And is there a *lift* available? (yes / no)`;
         } else if (alreadyHasItemsToo && !alreadyHasAddress) {
           // Have items but no address — must collect address before confirming
           await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
