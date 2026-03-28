@@ -391,55 +391,58 @@ export default function AdminQuoteDetail() {
     <div className="min-h-screen pt-14 pb-32 lg:pb-16 lg:pl-56 bg-[#F5F5F7] overflow-x-hidden relative">
 
       {/* Sticky Header */}
-      <div className="sticky top-14 z-30 bg-white border-b border-zinc-200 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+      <div className="sticky top-14 z-30 bg-white border-b border-zinc-200 px-3 sm:px-6 py-2 sm:py-3">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <Link href="/admin">
-              <button className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors">
+              <button className="inline-flex items-center justify-center w-8 h-8 shrink-0 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors">
                 <ArrowLeft className="w-4 h-4" />
               </button>
             </Link>
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-xs text-zinc-500 font-mono tracking-wider">{quote.referenceNo}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                <span className="text-[11px] text-zinc-500 font-mono tracking-wider">{quote.referenceNo}</span>
                 <StatusBadge status={quote.status} />
                 {!TERMINAL_STATUSES_UI.includes(quote.status) && isFetching && (
                   <Loader2 className="w-3 h-3 text-zinc-400 animate-spin" />
                 )}
               </div>
-              <h1 className="text-lg font-semibold text-zinc-900">{quote.customer?.name}</h1>
+              <h1 className="text-sm sm:text-base font-semibold text-zinc-900 truncate">{quote.customer?.name}</h1>
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 shrink-0">
             {canEdit && !isEditing && (
               <button onClick={handleStartEdit} data-testid="button-edit-quote"
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors">
-                <Edit2 className="w-4 h-4 text-zinc-400" /> Edit
+                className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs sm:text-sm font-medium transition-colors">
+                <Edit2 className="w-3.5 h-3.5 text-zinc-400" />
+                <span className="hidden sm:inline">Edit</span>
               </button>
             )}
             <button
               onClick={handlePrintQuote}
               data-testid="button-print-quote"
               title="Print / Download PDF"
-              className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs sm:text-sm font-medium transition-colors"
             >
-              <Printer className="w-4 h-4 text-zinc-400" /> Print / PDF
+              <Printer className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="hidden sm:inline">Print</span>
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
               data-testid="button-delete-quote"
-              className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-red-600 hover:bg-red-50 text-sm font-medium transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-white border border-zinc-200 text-red-500 hover:bg-red-50 text-xs sm:text-sm font-medium transition-colors"
             >
-              <Trash2 className="w-4 h-4" /> Delete
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Delete</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 sm:gap-6">
           
           {/* Left Column */}
           <div className="space-y-6">
@@ -667,12 +670,31 @@ export default function AdminQuoteDetail() {
                 </div>
               ) : (
                 <>
-                  <table className="table-fixed w-full">
+                  {/* Mobile card layout */}
+                  <div className="sm:hidden divide-y divide-zinc-100">
+                    {quote.items?.map((item: any) => (
+                      <div key={item.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-zinc-900 leading-snug">{item.detectedName || item.originalDescription}</p>
+                          <p className="text-xs text-zinc-400 mt-0.5 capitalize">
+                            {item.serviceType} · qty {item.quantity} · ${Number(item.unitPrice).toFixed(0)}/ea
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold text-zinc-900 tabular-nums shrink-0">{formatMoney(item.subtotal)}</span>
+                      </div>
+                    ))}
+                    {(!quote.items || quote.items.length === 0) && (
+                      <div className="px-4 py-8 text-center text-sm text-zinc-400">No items in this quote.</div>
+                    )}
+                  </div>
+
+                  {/* Desktop table layout */}
+                  <table className="hidden sm:table table-fixed w-full">
                     <thead>
                       <tr>
                         <th className="px-5 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Item Details</th>
-                        <th className="w-20 px-5 py-3 text-center text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Qty</th>
-                        <th className="w-32 px-5 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Total</th>
+                        <th className="w-16 px-3 py-3 text-center text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Qty</th>
+                        <th className="w-28 px-5 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200">Total</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -682,7 +704,7 @@ export default function AdminQuoteDetail() {
                             <p className="text-sm font-medium text-zinc-900 leading-tight">{item.detectedName || item.originalDescription}</p>
                             <p className="text-xs text-zinc-500 mt-0.5 capitalize">{item.serviceType} · ${Number(item.unitPrice).toFixed(0)}/ea</p>
                           </td>
-                          <td className="px-5 py-3 border-b border-zinc-100 text-center text-sm text-zinc-700">
+                          <td className="px-3 py-3 border-b border-zinc-100 text-center text-sm text-zinc-700">
                             {item.quantity}
                           </td>
                           <td className="px-5 py-3 border-b border-zinc-100 text-right text-sm font-medium text-zinc-900 tabular-nums">
@@ -700,12 +722,24 @@ export default function AdminQuoteDetail() {
                     </tbody>
                   </table>
                   
-                  <div className="bg-zinc-50 px-5 py-4 border-t border-zinc-200">
+                  <div className="bg-zinc-50 px-4 sm:px-5 py-4 border-t border-zinc-200">
                     <div className="w-full sm:w-64 ml-auto space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-zinc-500">Subtotal</span>
                         <span className="font-medium text-zinc-900 tabular-nums">{formatMoney(quote.subtotal || 0)}</span>
                       </div>
+                      {Number(quote.discount || 0) > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-zinc-500">Discount</span>
+                          <span className="font-medium text-green-700 tabular-nums">−{formatMoney(quote.discount)}</span>
+                        </div>
+                      )}
+                      {Number(quote.promoDiscount || 0) > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-zinc-500">Promo ({quote.promoCode})</span>
+                          <span className="font-medium text-green-700 tabular-nums">−{formatMoney(quote.promoDiscount)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-sm">
                         <span className="text-zinc-500">Transport Fee</span>
                         <span className="font-medium text-zinc-900 tabular-nums">{formatMoney(quote.transportFee || 0)}</span>
@@ -963,6 +997,47 @@ export default function AdminQuoteDetail() {
           </div>
         </div>
       </div>
+
+      {/* Mobile floating action bar — primary action pinned to bottom, hidden on lg */}
+      {!isEditing && (() => {
+        const s = quote.status;
+        if (['submitted', 'under_review'].includes(s)) return (
+          <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+            <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending}
+              className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+              <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
+            </button>
+          </div>
+        );
+        if (s === 'deposit_paid') return (
+          <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+            <button onClick={handleConfirmBooking} disabled={confirmBooking.isPending}
+              className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+              <CalendarCheck className="w-4 h-4" /> Confirm Booking
+            </button>
+          </div>
+        );
+        if (['booked', 'assigned', 'in_progress', 'completed'].includes(s)) return (
+          <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+            <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
+              className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+              <CheckCircle2 className="w-4 h-4" /> Mark Done & Request Final Payment
+            </button>
+          </div>
+        );
+        if (s === 'deposit_requested') return (
+          <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+            <div className="flex items-center gap-2">
+              <span className="flex-1 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">Awaiting deposit payment</span>
+              <button onClick={() => resendDepositEmail.mutate()} disabled={resendDepositEmail.isPending}
+                className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-white border border-zinc-200 text-zinc-700 text-sm font-medium transition-colors">
+                <Mail className="w-4 h-4" /> Resend
+              </button>
+            </div>
+          </div>
+        );
+        return null;
+      })()}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
