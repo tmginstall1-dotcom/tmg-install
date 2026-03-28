@@ -291,7 +291,21 @@ export default function AdminQuoteDetail() {
     .totals { margin-left: auto; width: 280px; }
     .totals-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 11px; color: #444; }
     .totals-row.grand { font-size: 15px; font-weight: 800; color: #000; border-top: 2px solid #000; margin-top: 6px; padding-top: 8px; }
-    .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: flex-end; }
+    .payment-section { margin-top: 32px; display: flex; gap: 24px; align-items: flex-start; padding: 16px 18px; background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; }
+    .payment-details { flex: 1; }
+    .payment-details h3 { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
+    .payment-details table { margin-bottom: 0; }
+    .payment-details table th, .payment-details table td { padding: 3px 8px; font-size: 10px; border-bottom: none; text-align: left; }
+    .payment-details table th { width: 110px; color: #888; font-weight: 600; background: none; border: none; }
+    .payment-details table td { color: #111; font-weight: 500; }
+    .qr-block { text-align: center; flex-shrink: 0; }
+    .qr-block img { width: 130px; height: 100px; display: block; object-fit: contain; background: #fff; }
+    .qr-block p { font-size: 8px; color: #999; margin-top: 4px; }
+    .tnc { margin-top: 24px; padding: 14px 18px; border: 1px solid #e5e5e5; border-radius: 8px; }
+    .tnc h3 { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
+    .tnc ol { padding-left: 14px; }
+    .tnc li { font-size: 9px; color: #555; line-height: 1.7; }
+    .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: flex-end; }
     .footer p { font-size: 9px; color: #999; line-height: 1.7; }
     .sig-box { border: 1px dashed #ccc; border-radius: 6px; padding: 10px 16px; min-width: 180px; }
     .sig-box .sig-label { font-size: 9px; color: #999; margin-top: 24px; }
@@ -367,9 +381,45 @@ export default function AdminQuoteDetail() {
     </div>
   </div>
 
+  <!-- Payment Details -->
+  <div class="payment-section">
+    <div class="payment-details">
+      <h3>Payment Details</h3>
+      <table>
+        <tr><th>Bank</th><td>OCBC Bank</td></tr>
+        <tr><th>Account No.</th><td>596795617001</td></tr>
+        <tr><th>Account Name</th><td>The Moving Guy Pte. Ltd.</td></tr>
+        <tr><th>Currency</th><td>SGD</td></tr>
+        <tr><th>PayNow (UEN)</th><td>202424156H</td></tr>
+      </table>
+      <p style="margin-top:10px;font-size:9px;color:#555;">
+        Please include your <strong>reference number (${q.referenceNo})</strong> in the payment remarks.
+      </p>
+    </div>
+    <div class="qr-block">
+      <img src="${window.location.origin}/paynow-qr.png" alt="PayNow QR Code" />
+      <p>Scan to Pay via PayNow</p>
+    </div>
+  </div>
+
+  <!-- Terms & Conditions -->
+  <div class="tnc">
+    <h3>Terms &amp; Conditions</h3>
+    <ol>
+      <li>This quotation is valid for <strong>14 days</strong> from the date of issue.</li>
+      <li><strong>Payment Terms:</strong> 50% deposit is required to confirm the booking. The remaining balance is payable upon completion of the installation.</li>
+      <li>Rescheduling with less than <strong>24 hours' notice</strong> may incur a cancellation/admin fee.</li>
+      <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable.</li>
+      <li>TMG Install is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
+      <li>Customer is responsible for ensuring clear access to the premises on the scheduled date and time.</li>
+      <li>Any additional work not stated in this quotation will be charged separately and agreed upon in writing.</li>
+      <li>All prices are in Singapore Dollars (SGD) and are <strong>not subject to GST</strong> (we are not GST-registered).</li>
+    </ol>
+  </div>
+
   <div class="footer">
     <div>
-      <p>Payment via PayNow to UEN 202424156H or bank transfer.<br/>50% deposit required to confirm booking. Balance payable on completion.<br/>Generated ${new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" })}</p>
+      <p>Generated ${new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" })} &nbsp;·&nbsp; TMG Install Pte Ltd &nbsp;·&nbsp; UEN 202424156H<br/>+65 8088 0757 &nbsp;·&nbsp; sales@tmginstall.com &nbsp;·&nbsp; tmginstall.com</p>
     </div>
     <div class="sig-box">
       <div class="sig-label">Customer Signature &amp; Date</div>
