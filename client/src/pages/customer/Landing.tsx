@@ -34,7 +34,7 @@ import {
   Users,
   Receipt,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 
 const WHATSAPP = "https://wa.me/6580880757?text=hi";
@@ -146,6 +146,13 @@ export default function Landing() {
   usePageTracker("/");
   const { visible: promoVisible } = usePromoBar();
   const [pricingTab, setPricingTab] = useState<"install" | "dismantle" | "relocate">("install");
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 320);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useSEO({
     title: "TMG Install | Furniture Installation, Dismantling & Relocation Singapore",
@@ -223,7 +230,7 @@ export default function Landing() {
                 Get your quote in under 60 seconds, no calls required.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-3 mb-12">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Link
                   href="/estimate"
                   data-testid="hero-cta-guided"
@@ -242,6 +249,20 @@ export default function Landing() {
                 >
                   <MessageCircle className="w-4 h-4" /> WHATSAPP US
                 </a>
+              </div>
+
+              {/* ── Micro-trust line ── */}
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-4 mb-8">
+                {[
+                  "No calls required",
+                  "Instant itemised quote",
+                  "Upfront pricing — no hidden fees",
+                ].map(t => (
+                  <span key={t} className="flex items-center gap-1.5 text-xs text-black/40 font-body">
+                    <CheckCircle2 className="w-3 h-3 text-black/30 flex-shrink-0" />
+                    {t}
+                  </span>
+                ))}
               </div>
 
               {/* Trust row — desktop */}
@@ -1043,6 +1064,49 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      {/* ══════════════ STICKY MOBILE BOTTOM BAR ══════════════════ */}
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-40 sm:hidden transition-transform duration-300 ${
+          scrolled ? "translate-y-0" : "translate-y-full"
+        }`}
+      >
+        <div className="bg-black border-t border-white/10 px-4 py-3 flex items-center gap-3">
+          <Link
+            href="/estimate"
+            data-testid="sticky-cta-estimate"
+            onClick={() => trackEvent("cta_click", "/", "sticky_bar_estimate")}
+            className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-white text-black font-black text-xs uppercase tracking-[0.12em]"
+          >
+            GET ESTIMATE <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+          <a
+            href={WHATSAPP}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="sticky-cta-whatsapp"
+            onClick={() => trackEvent("cta_click", "/", "sticky_bar_whatsapp")}
+            className="flex items-center justify-center gap-2 px-5 py-3.5 border border-white/20 text-white flex-shrink-0"
+          >
+            <MessageCircle className="w-4 h-4" />
+          </a>
+        </div>
+      </div>
+
+      {/* ══════════════ FLOATING WHATSAPP BUTTON (desktop) ═════════ */}
+      <a
+        href={WHATSAPP}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-testid="floating-whatsapp"
+        onClick={() => trackEvent("cta_click", "/", "floating_whatsapp")}
+        className={`fixed bottom-6 right-6 z-40 hidden sm:flex items-center gap-2.5 px-5 py-3 bg-[#25D366] text-white font-black text-xs uppercase tracking-wide shadow-[0_4px_24px_rgba(37,211,102,0.35)] hover:bg-[#1fb854] hover:shadow-[0_4px_28px_rgba(37,211,102,0.5)] transition-all duration-300 ${
+          scrolled ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3 pointer-events-none"
+        }`}
+      >
+        <MessageCircle className="w-4 h-4" />
+        WhatsApp Us
+      </a>
     </div>
   );
 }
