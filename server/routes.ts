@@ -2351,9 +2351,10 @@ TYPE F — QUOTATION / INVOICE / PROPOSAL (numbered line items with descriptions
 TYPE F — QUOTATION / INVOICE RULES (HIGHEST PRIORITY):
 ═══════════════════════════════════════════
 If the document is a TYPE F (contains numbered line items with amounts, a subtotal/grand total, and scope/exclusion sections), apply these rules EXACTLY:
-- Extract EVERY numbered line item — do NOT skip any.
+- Extract EVERY numbered line item — do NOT skip any, do NOT stop early.
+- Count all line items in the document first, then output all of them. If there are 23 items, output 23 items.
 - Use the line item description exactly as written (e.g. "1F Guest room installation", "-1F Laundry room installation").
-- Use the Amount column value as the unitPrice EXACTLY (e.g. 1800.00, 900.00).
+- Use the Amount column value as the unitPrice EXACTLY as a plain number string with no commas (e.g. "1800.00", "900.00").
 - Set quantity = 1 for every line item.
 - Set serviceType = "install" for installation work, "dismantle" for dismantling, "relocate" for relocation.
 - DO NOT substitute catalog prices — use the prices from the document as-is.
@@ -2589,18 +2590,31 @@ ${systemPrompt}` });
       }
 
       const raw = scanRes.choices[0]?.message?.content?.trim() || "{}";
+      console.log(`[scan-attachment] raw GPT response (${raw.length} chars):`, raw.slice(0, 500));
       let parsed: any = {};
       try {
         let cleaned = raw.replace(/```(?:json)?\n?/g, "").replace(/\n?```/g, "").trim();
         const match = cleaned.match(/\{[\s\S]*\}/);
         if (match) cleaned = match[0];
         parsed = JSON.parse(cleaned);
-      } catch { parsed = {}; }
+      } catch (parseErr: any) {
+        console.warn("[scan-attachment] JSON parse failed:", parseErr.message, "| raw snippet:", raw.slice(0, 300));
+        parsed = {};
+      }
 
-      const items = Array.isArray(parsed.items) ? parsed.items.slice(0, 20).map((item: any) => ({
-        name:        typeof item.name === "string"       ? item.name.slice(0, 200)  : "Unknown Item",
-        quantity:    typeof item.quantity === "number"   ? Math.max(1, Math.min(item.quantity, 50)) : 1,
-        unitPrice:   typeof item.unitPrice === "string" && /^\d+(\.\d{1,2})?$/.test(item.unitPrice) ? item.unitPrice : "0.00",
+      const parseUnitPrice = (v: any): string => {
+        // Accept number or string, strip commas/spaces, keep up to 2 decimal places
+        const raw = typeof v === "number" ? v.toString() : (typeof v === "string" ? v : "");
+        const cleaned = raw.replace(/[,$\s]/g, "");           // remove commas, $, spaces
+        const num = parseFloat(cleaned);
+        if (isNaN(num) || num < 0) return "0.00";
+        return num.toFixed(2);
+      };
+
+      const items = Array.isArray(parsed.items) ? parsed.items.slice(0, 60).map((item: any) => ({
+        name:        typeof item.name === "string"     ? item.name.slice(0, 200) : "Unknown Item",
+        quantity:    typeof item.quantity === "number"  ? Math.max(1, Math.min(item.quantity, 50)) : 1,
+        unitPrice:   parseUnitPrice(item.unitPrice),
         serviceType: typeof item.serviceType === "string" ? item.serviceType : "install",
       })) : [];
 
