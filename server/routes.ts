@@ -4434,7 +4434,38 @@ Classify their VERY FIRST message. Return JSON:
             ));
           } else if (firstMsgReply && firstMsgIsReadyToBook) {
             // Ready to book — acknowledge their specific request, move to name collection
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
+            // Reset floor/lift so stale data from previous conversations never carries over
+            const firstMsgSessionFields: Record<string, unknown> = { state: "awaiting_name", floorLevel: null, hasLift: null };
+
+            // Extract any date/time preference the customer already mentioned
+            try {
+              const today = new Date();
+              const fdRes = await openai.chat.completions.create({
+                model: "gpt-4o", max_tokens: 120, response_format: { type: "json_object" },
+                messages: [{ role: "system", content: `Today is ${today.toISOString().slice(0, 10)} (${today.toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}).
+Extract any date/time preference from the customer's first message. Return JSON:
+{ "isoDate": "yyyy-MM-dd or null", "timeWindow": "09:00-12:00 or 13:00-17:00 or null", "display": "friendly readable label or null", "hasDate": boolean }
+- "tomorrow afternoon 2pm" → isoDate=tomorrow's date, timeWindow="13:00-17:00"
+- "morning" = 09:00-12:00; "afternoon" = 13:00-17:00
+- weekday name → resolve to upcoming occurrence in yyyy-MM-dd
+- "anytime"/"flexible"/"whenever" → hasDate:false
+Customer message: "${text.slice(0, 300)}"` }]
+              });
+              const fdp = JSON.parse(fdRes.choices[0]?.message?.content || "{}");
+              if (fdp.hasDate && fdp.isoDate && /^\d{4}-\d{2}-\d{2}$/.test(fdp.isoDate)) {
+                const twOk = !fdp.timeWindow || ["09:00-12:00", "13:00-17:00"].includes(fdp.timeWindow);
+                if (twOk) {
+                  const slotFree = fdp.timeWindow ? await storage.isSlotAvailable(fdp.isoDate, fdp.timeWindow) : true;
+                  if (slotFree) {
+                    firstMsgSessionFields.preferredDateIso = fdp.isoDate;
+                    firstMsgSessionFields.preferredDate = fdp.display || fdp.isoDate;
+                    if (fdp.timeWindow) firstMsgSessionFields.preferredTimeWindow = fdp.timeWindow;
+                  }
+                }
+              }
+            } catch {}
+
+            await storage.upsertWhatsAppSession(from, firstMsgSessionFields);
             await sendBotMessage(from, firstMsgReply);
             saveHistory(from, [], text, firstMsgReply);
           } else if (firstMsgReply) {
@@ -5487,6 +5518,8 @@ Key examples:
             let nameStateToAddr: string | null = null;
             let nameStateItems: string | null = null;
             let nameStateIsReloc = false;
+            // Declare saveFields before try so lift/floor extraction can populate it
+            const saveFields: Record<string, unknown> = { state: "awaiting_name" };
             try {
               const fullRes = await openai.chat.completions.create({
                 model: "gpt-4o",
@@ -5499,7 +5532,11 @@ Key examples:
   "fromAddress": string or null,
   "toAddress": string or null,
   "isRelocation": boolean,
-  "items": string or null
+  "items": string or null,
+  "liftFrom": boolean or null,
+  "liftTo": boolean or null,
+  "floorFrom": number or null,
+  "floorTo": number or null
 }
 - fromAddress: pickup/collection/from address. Null if not present.
 - toAddress: delivery/drop-off/to address for relocations only. Null if not stated.
@@ -5508,6 +5545,10 @@ Key examples:
   Service: move/relocate/shift=relocate; dismantle/remove/take apart=dismantle; dispose/throw/haul away/get rid of=dispose; install/assemble/set up=install.
   Examples: "• 1 king size bed (relocate)\\n• 1 wardrobe (relocate)\\n• 1 bed frame (dispose)\\n• 1 mattress (dispose)"
   Return null for items ONLY if absolutely no furniture is mentioned.
+- liftFrom: true/false if customer mentions lift at FROM/pickup address. Null if not stated.
+- liftTo: true/false if customer mentions lift at TO/delivery address. Null if not stated.
+- floorFrom: floor number of FROM address if stated or inferable from unit# (e.g. #09-xxxx → 9). Null if unknown.
+- floorTo: floor number of TO address if stated or inferable from unit# (e.g. #03-xxxx → 3). Null if unknown.
 
 Message: "${text.slice(0, 800)}"`
                 }]
@@ -5517,10 +5558,16 @@ Message: "${text.slice(0, 800)}"`
               nameStateToAddr = fe.toAddress || null;
               nameStateItems = fe.items || null;
               nameStateIsReloc = !!fe.isRelocation;
+              // Lift: worst case — if EITHER address has no lift, hasLift=false
+              if (fe.liftFrom === false || fe.liftTo === false) (saveFields as any).hasLift = false;
+              else if (fe.liftFrom === true && fe.liftTo !== false) (saveFields as any).hasLift = true;
+              else if (fe.liftFrom === true || fe.liftTo === true) (saveFields as any).hasLift = true;
+              // Floor: use higher floor (more work = more relevant for pricing)
+              const floorVals = [fe.floorFrom, fe.floorTo].filter((v): v is number => typeof v === "number" && v > 0);
+              if (floorVals.length > 0) (saveFields as any).floorLevel = Math.max(...floorVals);
             } catch {}
 
             // Save everything we found — only ask for the missing name
-            const saveFields: Record<string, unknown> = { state: "awaiting_name" };
             if (nameStateFromAddr) saveFields.collectedAddress = nameStateFromAddr;
             if (nameStateToAddr) saveFields.collectedToAddress = nameStateToAddr;
             if (nameStateItems) saveFields.collectedItems = nameStateItems;
@@ -5568,20 +5615,39 @@ Message: "${text.slice(0, 800)}"`
 
         let replyName: string;
         if (alreadyHasItemsToo && alreadyHasAddress) {
-          // Both address + items present — proceed to floor collection (not straight to confirm)
-          // For relocations with both addresses, show the full picture; still need floor info
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_floor" });
+          // Both address + items present — check if floor/lift were already extracted
+          const floorAlreadyKnown = session?.floorLevel != null && session.floorLevel > 0;
+          const liftAlreadyKnown = session?.hasLift != null;
           const addrLine = alreadyIsRelocation && alreadyHasToAddress
             ? `📍 *From:* ${session!.collectedAddress}\n📍 *To:* ${session!.collectedToAddress}\n`
             : `📍 *Address:* ${session!.collectedAddress}\n`;
-          replyName =
-            `Thanks, *${extractedName}*! 😊 Here's what I have so far:\n\n` +
+          const summaryHeader =
+            `Thanks, *${extractedName}*! 😊 Here's what I have:\n\n` +
             `👤 *Name:* ${extractedName}\n` +
             addrLine +
-            `🛋️ *Items:*\n${session!.collectedItems}\n\n` +
-            `Just a couple more details — which *floor* is the unit on?\n\n` +
-            `Reply with a number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
-            `And is there a *lift* available? (yes / no)`;
+            `🛋️ *Items:*\n${session!.collectedItems}\n\n`;
+
+          if (floorAlreadyKnown && liftAlreadyKnown) {
+            // Floor and lift already captured from earlier message — skip straight to access
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_access" });
+            const liftTag = session!.hasLift ? "lift ✅" : "no lift";
+            replyName =
+              summaryHeader +
+              `Floor *${session!.floorLevel}*, *${liftTag}* — already noted! ✅\n\n` +
+              `Almost there! How easy is access to the unit?\n\n` +
+              `1️⃣ *Easy* — clear corridors, no obstacles\n` +
+              `2️⃣ *Moderate* — some tight corners or obstacles\n` +
+              `3️⃣ *Difficult* — very narrow, many steps\n\n` +
+              `Reply *1*, *2*, or *3*`;
+          } else {
+            // Need floor/lift info
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_floor" });
+            replyName =
+              summaryHeader +
+              `Just a couple more details — which *floor* is the unit on?\n\n` +
+              `Reply with a number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
+              `And is there a *lift* available? (yes / no)`;
+          }
         } else if (alreadyHasItemsToo && !alreadyHasAddress) {
           // Have items but no address — must collect address before confirming
           await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
@@ -6287,21 +6353,41 @@ For reply: be natural and friendly, confirm what you did.`,
               return;
             }
 
-            // Proceed to floor/access questions regardless of relocation (relocation address collected after access)
-            // Clear floorLevel/hasLift so stale data can't trigger the partial-state shortcut
-            await storage.upsertWhatsAppSession(from, {
-              state: "awaiting_floor",
-              collectedItems: finalItems,
-              isRelocation: resolvedIsRelocation,
-              floorLevel: null,
-              hasLift: null,
-            });
-            await sendBotMessage(from,
-              `${aiReply ? aiReply + "\n\n" : ""}Just a couple more quick questions to complete your quote. 😊\n\n` +
-              `*Which floor is the unit on?*\n\n` +
-              `Reply with the floor number (e.g. *1* for ground/first floor, *5* for fifth floor)\n` +
-              `And is there a *lift* available? (yes / no)`
-            );
+            // Proceed to floor/access questions — skip if floor+lift already extracted from earlier message
+            const verifyFloorKnown = session?.floorLevel != null && session.floorLevel > 0;
+            const verifyLiftKnown = session?.hasLift != null;
+            if (verifyFloorKnown && verifyLiftKnown) {
+              // Floor and lift were already captured — skip straight to access
+              await storage.upsertWhatsAppSession(from, {
+                state: "awaiting_access",
+                collectedItems: finalItems,
+                isRelocation: resolvedIsRelocation,
+              });
+              const liftLabel = session!.hasLift ? "lift available ✅" : "no lift";
+              await sendBotMessage(from,
+                `${aiReply ? aiReply + "\n\n" : ""}Almost there! 😊\n\n` +
+                `Floor *${session!.floorLevel}*, *${liftLabel}* — already noted!\n\n` +
+                `How easy is access to the unit?\n\n` +
+                `1️⃣ *Easy* — clear corridors, no obstacles\n` +
+                `2️⃣ *Moderate* — some tight corners or obstacles\n` +
+                `3️⃣ *Difficult* — very narrow, many steps\n\n` +
+                `Reply *1*, *2*, or *3*`
+              );
+            } else {
+              await storage.upsertWhatsAppSession(from, {
+                state: "awaiting_floor",
+                collectedItems: finalItems,
+                isRelocation: resolvedIsRelocation,
+                floorLevel: null,
+                hasLift: null,
+              });
+              await sendBotMessage(from,
+                `${aiReply ? aiReply + "\n\n" : ""}Just a couple more quick questions to complete your quote. 😊\n\n` +
+                `*Which floor is the unit on?*\n\n` +
+                `Reply with the floor number (e.g. *1* for ground/first floor, *5* for fifth floor)\n` +
+                `And is there a *lift* available? (yes / no)`
+              );
+            }
             return;
           }
 
@@ -6683,6 +6769,38 @@ If unclear → null`
           const replyAccess = await craftReply(text, nextPromptToAddr, { name: session.collectedName, history: conversationHistory });
           await sendBotMessage(from, replyAccess);
           saveHistory(from, conversationHistory, text, replyAccess);
+        } else if (session.preferredDateIso) {
+          // Date was already captured from the first message — skip the date picker
+          const slotStillFree = session.preferredTimeWindow
+            ? await storage.isSlotAvailable(session.preferredDateIso, session.preferredTimeWindow)
+            : true;
+          if (slotStillFree) {
+            // Confirm and move straight to remarks
+            await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_remarks" });
+            const twLabel = session.preferredTimeWindow === "09:00-12:00"
+              ? " — Morning (9am–12pm)"
+              : session.preferredTimeWindow === "13:00-17:00"
+                ? " — Afternoon (1pm–5pm)"
+                : "";
+            const dateConfirmMsg =
+              `${accessLabel}\n\n✅ Date confirmed: *${session.preferredDate}${twLabel}*\n\n` +
+              `Almost done! Any special notes or requests? (e.g. fragile items, parking, entry instructions)\n\nOr reply *skip* if none.`;
+            const replyDateConfirm = await craftReply(text, dateConfirmMsg, { name: session.collectedName, history: conversationHistory });
+            await sendBotMessage(from, replyDateConfirm);
+            saveHistory(from, conversationHistory, text, replyDateConfirm);
+          } else {
+            // That slot is taken — show fresh date menu
+            await storage.upsertWhatsAppSession(from, {
+              accessDifficulty, state: "awaiting_date",
+              preferredDate: null, preferredDateIso: null, preferredTimeWindow: null,
+            });
+            const { message: dateMenu } = await buildDateMenuMessage();
+            const nextPromptDate =
+              `${accessLabel}\n\n⚠️ The slot you mentioned is no longer available. Here are our current openings:\n\n${dateMenu}`;
+            const replyAccess = await craftReply(text, nextPromptDate, { name: session.collectedName, history: conversationHistory });
+            await sendBotMessage(from, replyAccess);
+            saveHistory(from, conversationHistory, text, replyAccess);
+          }
         } else {
           await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_date" });
           const { message: dateMenu } = await buildDateMenuMessage();
