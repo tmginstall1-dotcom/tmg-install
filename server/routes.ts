@@ -3585,7 +3585,74 @@ Respond with ONLY a JSON array (no prose, no markdown):
       }
 
       console.log("[detect-items] detected items:", detected);
-      res.json({ detected });
+
+      // ── Server-side catalog matching ─────────────────────────────────────
+      // Build catalog groups from freshly-fetched allItems (same DB read as above)
+      type SrvEntry = { id: number; sku: string; serviceType: string; basePrice: string; volumeM3?: number };
+      type SrvGroup = { name: string; category: string; entries: SrvEntry[] };
+      const groupMap: Record<string, SrvGroup> = {};
+      allItems.forEach(item => {
+        const key = item.name.toLowerCase().trim();
+        if (!groupMap[key]) groupMap[key] = { name: item.name, category: item.category || "", entries: [] };
+        if (!groupMap[key].entries.some(e => e.serviceType === item.serviceType)) {
+          groupMap[key].entries.push({
+            id: item.id,
+            sku: item.sku || "",
+            serviceType: item.serviceType,
+            basePrice: item.basePrice,
+            volumeM3: item.volumeM3 ? parseFloat(item.volumeM3 as string) : undefined,
+          });
+        }
+      });
+      const catalogGroupsList = Object.values(groupMap);
+
+      // Same scoring logic as frontend matchScore
+      const srvStripParens = (s: string) => s.replace(/\s*\(.*?\)/g, "").trim();
+      const srvStem = (w: string) => w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w;
+      const CAT_FAMILIES = [
+        ["wardrobe", "pax", "closet"],
+        ["island", "kitchen island"],
+        ["sofa", "couch", "sectional", "chaise"],
+        ["treadmill", "elliptical", "rowing machine"],
+        ["piano"],
+        ["pool table", "billiard", "foosball"],
+        ["pod", "phone booth"],
+      ];
+      function srvMatchScore(det: string, cat: string): number {
+        const d = det.toLowerCase(), c = cat.toLowerCase();
+        const dC = srvStripParens(d), cC = srvStripParens(c);
+        if (d === c) return 100;
+        if (dC === cC) return 90;
+        if (c.includes(d) || d.includes(c)) return 80;
+        if (cC.includes(dC) || dC.includes(cC)) return 75;
+        for (const family of CAT_FAMILIES) {
+          const detHas = family.some(kw => d.includes(kw));
+          const catHas = family.some(kw => c.includes(kw));
+          if (detHas !== catHas) return 0;
+        }
+        const ikeaModel = d.match(/\b(pax|kallax|billy|malm|hemnes|besta|micke|lack|alex|po[äa]ng|kivik|ivar|trofast|stuva|vittsjo|lill[aå]ng[eé]n|godmorgon|kleppstad|vadholma|stenstorp|raskog|r[aå]skog)\b/i);
+        if (ikeaModel && c.includes(ikeaModel[1].toLowerCase().replace("ä","a").replace("å","a").replace("é","e"))) return 70;
+        const dWords = dC.split(/\s+/).filter(w => w.length > 3).map(srvStem);
+        const cWords = cC.split(/\s+/).filter(w => w.length > 3).map(srvStem);
+        const overlap = dWords.filter(w => cWords.some(cw => cw.includes(w) || w.includes(cw)));
+        if (overlap.length >= 2) return 60;
+        if (overlap.length >= 1) return 40;
+        return 0;
+      }
+
+      // Enrich each detected item with its matched catalog group
+      const enriched = detected.map(({ name, quantity }) => {
+        let best: { group: SrvGroup; score: number } | null = null;
+        for (const g of catalogGroupsList) {
+          const score = srvMatchScore(name, g.name);
+          if (score > 0 && (!best || score > best.score)) best = { group: g, score };
+        }
+        const catalogGroup = best && best.score >= 40 ? best.group : null;
+        return { name, quantity, catalogGroup };
+      });
+
+      console.log("[detect-items] enriched with catalog:", enriched.map(e => `${e.name} → ${e.catalogGroup?.name ?? "UNMATCHED"} (${e.catalogGroup?.entries.length ?? 0} entries)`));
+      res.json({ detected: enriched });
     } catch (err) {
       console.error("Photo detection error:", err);
       res.status(500).json({ message: "Failed to detect items from photo", detected: [] });

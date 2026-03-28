@@ -553,15 +553,16 @@ export default function EstimateWizard() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || "Detection failed");
 
-        const detected: { name: string; quantity: number }[] = data.detected || [];
+        const detected: { name: string; quantity: number; catalogGroup?: CatalogGroup }[] = data.detected || [];
         if (detected.length === 0) continue;
 
         anyDetected = true;
         let matchCount = 0;
         const nameList: string[] = [];
 
-        detected.forEach(({ name, quantity }) => {
-          const matched = bestCatalogMatch(name);
+        detected.forEach(({ name, quantity, catalogGroup: serverGroup }) => {
+          // Prefer server-returned catalog group (always fresh from DB) over client-side cache
+          const matched = serverGroup || bestCatalogMatch(name);
           if (matched) {
             addCatalogGroup(matched, quantity || 1);
           } else {
