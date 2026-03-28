@@ -35,6 +35,7 @@ import {
   Receipt,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 
 const WHATSAPP = "https://wa.me/6580880757?text=hi";
@@ -89,7 +90,6 @@ const PRICING_SAMPLES = [
   { item: "L-Shaped Executive Desk",         install: 100, dismantle: 80,  relocate: 160 },
 ];
 
-const REVIEWS: { name: string; loc: string; stars: number; text: string }[] = [];
 
 const FAQS = [
   {
@@ -153,6 +153,15 @@ export default function Landing() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const { data: reviewConfig } = useQuery<{ writeUrl: string; viewUrl: string }>({
+    queryKey: ["/api/public/google-review"],
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: testimonials = [] } = useQuery<{ name: string; loc: string; stars: number; date: string; text: string }[]>({
+    queryKey: ["/api/public/testimonials"],
+    staleTime: 5 * 60 * 1000,
+  });
 
   useSEO({
     title: "TMG Install | Furniture Installation, Dismantling & Relocation Singapore",
@@ -820,47 +829,91 @@ export default function Landing() {
       {/* ═══════════════════════ SOCIAL PROOF ══════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
-          <motion.div {...fadeUpDelayed(0)} className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
-                Customer Reviews
-              </p>
-              <h2 className="section-title text-black mb-4">See what our clients say.</h2>
-              <p className="font-body text-sm text-gray-500 leading-relaxed mb-8">
-                Our reviews are on Google — unedited, from real customers. Click below to read them directly.
-              </p>
+          <motion.div {...fadeUpDelayed(0)}>
+            {/* Header row */}
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-12">
+              <div>
+                <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+                  Customer Reviews
+                </p>
+                <h2 className="section-title text-black">What our clients say.</h2>
+              </div>
+              {/* Google rating badge */}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex gap-0.5">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-black text-black" />
+                  ))}
+                </div>
+                <div>
+                  <p className="text-sm font-black text-black leading-tight">5.0 · Google</p>
+                  <p className="text-[11px] text-black/40 font-body">Verified customer reviews</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Review cards */}
+            {testimonials.length > 0 && (
+              <div className="grid md:grid-cols-3 gap-5 mb-10">
+                {testimonials.map((r, i) => (
+                  <motion.div
+                    key={i}
+                    {...fadeUpDelayed(i * 0.08)}
+                    className="border border-black/8 bg-white p-6 flex flex-col"
+                    data-testid={`review-card-${i}`}
+                  >
+                    {/* Stars */}
+                    <div className="flex gap-0.5 mb-4">
+                      {[...Array(r.stars)].map((_, j) => (
+                        <Star key={j} className="w-3.5 h-3.5 fill-black text-black" />
+                      ))}
+                    </div>
+                    {/* Text */}
+                    <p className="font-body text-sm text-gray-600 leading-relaxed flex-1 mb-5">
+                      &ldquo;{r.text}&rdquo;
+                    </p>
+                    {/* Footer */}
+                    <div className="flex items-center justify-between pt-4 border-t border-black/6">
+                      <div>
+                        <p className="text-xs font-semibold text-black">{r.name}</p>
+                        <p className="text-[11px] text-black/40 font-body">{r.loc} · {r.date}</p>
+                      </div>
+                      {/* Google G colour mark */}
+                      <svg width="18" height="18" viewBox="0 0 24 24" aria-label="Google" className="flex-shrink-0">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                      </svg>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+
+            {/* CTA buttons */}
+            <div className="flex flex-col sm:flex-row gap-3">
               <a
-                href="https://www.google.com/search?q=TMG+Install+Singapore+reviews"
+                href={reviewConfig?.viewUrl || "https://g.page/r/Cd2v7iBjl_GKEBM"}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => trackEvent("cta_click", "/", "google_reviews")}
-                className="inline-flex items-center gap-2 px-6 py-3 border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/50 hover:bg-gray-50 transition-all"
+                onClick={() => trackEvent("cta_click", "/", "google_reviews_view")}
+                data-testid="btn-read-reviews"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-black/80 transition-colors"
               >
                 <Star className="w-3.5 h-3.5" /> Read Google Reviews
               </a>
-            </div>
-            <motion.div {...fadeUpDelayed(0.1)} className="border border-black/8 bg-white p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-black flex items-center justify-center flex-shrink-0">
-                  <Star className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-black leading-tight">Google Reviews</p>
-                  <p className="text-xs text-black/40 font-body">Verified customer feedback</p>
-                </div>
-              </div>
-              <p className="font-body text-sm text-gray-500 leading-relaxed mb-6">
-                We let our work speak for itself. All customer feedback is collected through Google — publicly visible and unmodified.
-              </p>
               <a
-                href="https://www.google.com/search?q=TMG+Install+Singapore+reviews"
+                href={reviewConfig?.writeUrl || "https://g.page/r/Cd2v7iBjl_GKEBM/review"}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors inline-flex items-center gap-1.5"
+                onClick={() => trackEvent("cta_click", "/", "google_reviews_write")}
+                data-testid="btn-write-review"
+                className="inline-flex items-center gap-2 px-6 py-3 border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/60 hover:bg-gray-50 transition-all"
               >
-                View all reviews <ArrowRight className="w-3.5 h-3.5" />
+                Write a Review <ArrowRight className="w-3.5 h-3.5" />
               </a>
-            </motion.div>
+            </div>
           </motion.div>
         </div>
       </section>

@@ -7476,6 +7476,38 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── Public review + testimonials endpoints (no auth required) ────────────
+
+  // GET /api/public/google-review — returns the stored Google review URLs
+  app.get("/api/public/google-review", async (_req, res) => {
+    try {
+      const [row] = await db.select().from(appSettings).where(eq(appSettings.key, "google_review_url"));
+      const writeUrl = row?.value || "https://g.page/r/Cd2v7iBjl_GKEBM/review";
+      const viewUrl = writeUrl.replace(/\/review$/, "");
+      res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
+      return res.json({ writeUrl, viewUrl });
+    } catch {
+      return res.json({
+        writeUrl: "https://g.page/r/Cd2v7iBjl_GKEBM/review",
+        viewUrl:  "https://g.page/r/Cd2v7iBjl_GKEBM",
+      });
+    }
+  });
+
+  // GET /api/public/testimonials — returns admin-editable testimonial cards
+  app.get("/api/public/testimonials", async (_req, res) => {
+    try {
+      const [row] = await db.select().from(appSettings).where(eq(appSettings.key, "testimonials"));
+      if (row?.value) {
+        res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
+        return res.json(JSON.parse(row.value));
+      }
+      return res.json([]);
+    } catch {
+      return res.json([]);
+    }
+  });
+
   // ── Promo code routes ─────────────────────────────────────────────────────
 
   // GET /api/promo-bar — public: returns active promo info for the banner
