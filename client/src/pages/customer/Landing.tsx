@@ -41,16 +41,16 @@ import { usePromoBar } from "@/hooks/use-promo-bar";
 const WHATSAPP = "https://wa.me/6580880757?text=hi";
 
 const fadeUp = {
-  initial: { opacity: 0, y: 24 },
+  initial: { opacity: 0, y: 52 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+  transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] },
 };
 
 const fadeUpDelayed = (delay: number) => ({
-  initial: { opacity: 0, y: 24 },
+  initial: { opacity: 0, y: 52 },
   whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true },
-  transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1], delay },
+  viewport: { once: true, margin: "-8% 0px" },
+  transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1], delay },
 });
 
 const MARQUEE_ITEMS = [
@@ -211,7 +211,7 @@ export default function Landing() {
     <div className={`min-h-screen bg-white text-black ${promoVisible ? "pt-24" : "pt-14"}`}>
 
       {/* ═══════════════════════════ HERO ═══════════════════════════ */}
-      <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-20 pb-24 lg:pt-28 lg:pb-32">
+      <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-24 pb-32 lg:pt-36 lg:pb-52">
         <div className="absolute inset-0 pointer-events-none select-none">
           <div className="absolute top-0 right-0 w-[600px] h-[600px] opacity-[0.03]"
             style={{ background: "radial-gradient(circle at top right, #000 0%, transparent 70%)" }} />
@@ -244,9 +244,9 @@ export default function Landing() {
                   href="/estimate"
                   data-testid="hero-cta-guided"
                   onClick={() => trackEvent("cta_click", "/", "hero_get_estimate")}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
+                  className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
                 >
-                  GET ESTIMATE <ArrowRight className="w-4 h-4" />
+                  GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </Link>
                 <a
                   href={WHATSAPP}
@@ -254,7 +254,7 @@ export default function Landing() {
                   rel="noopener noreferrer"
                   data-testid="hero-cta-whatsapp"
                   onClick={() => trackEvent("cta_click", "/", "hero_whatsapp")}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/50 hover:bg-gray-50 transition-all"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/60 hover:bg-gray-50 transition-all"
                 >
                   <MessageCircle className="w-4 h-4" /> WHATSAPP US
                 </a>
@@ -453,45 +453,72 @@ export default function Landing() {
             <Link
               href="/estimate"
               onClick={() => trackEvent("cta_click", "/", "gallery_estimate")}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors whitespace-nowrap flex-shrink-0"
+              className="group inline-flex items-center gap-1.5 text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors whitespace-nowrap flex-shrink-0"
             >
-              Get your quote <ArrowRight className="w-3.5 h-3.5" />
+              Get your quote <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
           </motion.div>
 
-          {/* ── Desktop grid ── */}
-          <div className="hidden sm:grid grid-cols-4 gap-px bg-black/8">
-            {[
-              { src: "/work/office-fitout.jpg",         label: "Office Fit-Out",          sub: "Sit-stand workstations & overhead cabinets", tag: "Commercial" },
-              { src: "/work/wardrobe-install-team.jpg", label: "Wardrobe Installation",   sub: "Two-man crew · Large sliding wardrobe",       tag: "Residential" },
-              { src: "/work/shelving-assembly.jpg",     label: "IKEA Assembly",           sub: "Kallax shelving · New HDB home",              tag: "Residential" },
-              { src: "/work/office-pod.jpg",            label: "Office Phone Booth",      sub: "Commercial fit-out · CBD workspace",          tag: "Commercial" },
-              { src: "/work/wardrobe-oak.jpg",          label: "Wardrobe Installation",   sub: "2-door with drawers · Oak finish",            tag: "Completed" },
-              { src: "/work/wardrobe-white.jpg",        label: "Wardrobe Installation",   sub: "2-door with drawers · White finish",          tag: "Completed" },
-              { src: "/work/conference-table.jpg",      label: "Conference Table",        sub: "Boardroom install · Cable management ports",  tag: "Commercial" },
-              { src: "/work/delivery-truck.jpg",        label: "On-Site Delivery",        sub: "Tools & equipment brought every job",         tag: "Every Job" },
-            ].map(({ src, label, sub, tag }, i) => (
-              <motion.div
-                key={src}
-                {...fadeUpDelayed(i * 0.05)}
-                className="relative overflow-hidden bg-neutral-900 group aspect-[4/5]"
-              >
-                <img
-                  src={src}
-                  alt={label}
-                  loading={i < 4 ? "eager" : "lazy"}
-                  decoding={i < 4 ? "sync" : "async"}
-                  fetchPriority={i < 2 ? "high" : "auto"}
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-85 group-hover:opacity-100"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-4">
-                  <span className="inline-block text-[9px] font-black tracking-[0.18em] uppercase text-white/45 mb-1">{tag}</span>
-                  <p className="text-sm font-bold text-white leading-tight mb-0.5">{label}</p>
-                  <p className="text-[10px] text-white/50 font-body leading-snug">{sub}</p>
-                </div>
-              </motion.div>
-            ))}
+          {/* ── Desktop: editorial 2-tier layout ── */}
+          <div className="hidden sm:flex flex-col gap-px">
+            {/* Row 1: featured wide + side */}
+            <div className="grid gap-px" style={{ gridTemplateColumns: "3fr 2fr" }}>
+              {[
+                { src: "/work/office-fitout.jpg",         label: "Office Fit-Out",        sub: "Sit-stand workstations & overhead cabinets", tag: "Commercial" },
+                { src: "/work/wardrobe-install-team.jpg", label: "Wardrobe Installation", sub: "Two-man crew · Large sliding wardrobe",       tag: "Residential" },
+              ].map(({ src, label, sub, tag }, i) => (
+                <motion.div
+                  key={src}
+                  {...fadeUpDelayed(i * 0.06)}
+                  className="relative overflow-hidden bg-neutral-900 group"
+                  style={{ aspectRatio: "16/9" }}
+                >
+                  <img
+                    src={src}
+                    alt={label}
+                    loading="eager"
+                    decoding="sync"
+                    fetchPriority="high"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04] opacity-85 group-hover:opacity-100"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-6">
+                    <span className="inline-block text-[9px] font-black tracking-[0.2em] uppercase text-white/40 mb-1.5">{tag}</span>
+                    <p className="text-base font-bold text-white leading-tight mb-1">{label}</p>
+                    <p className="text-xs text-white/50 font-body">{sub}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+            {/* Row 2: four equal thumbnails */}
+            <div className="grid grid-cols-4 gap-px">
+              {[
+                { src: "/work/shelving-assembly.jpg", label: "IKEA Assembly",       sub: "Kallax shelving · HDB",          tag: "Residential" },
+                { src: "/work/office-pod.jpg",         label: "Office Phone Booth",  sub: "CBD commercial fit-out",         tag: "Commercial"  },
+                { src: "/work/wardrobe-oak.jpg",       label: "Wardrobe Install",    sub: "2-door with drawers · Oak",     tag: "Completed"   },
+                { src: "/work/conference-table.jpg",   label: "Conference Table",    sub: "Boardroom · Cable management",   tag: "Commercial"  },
+              ].map(({ src, label, sub, tag }, i) => (
+                <motion.div
+                  key={src}
+                  {...fadeUpDelayed(0.12 + i * 0.06)}
+                  className="relative overflow-hidden bg-neutral-900 group aspect-square"
+                >
+                  <img
+                    src={src}
+                    alt={label}
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06] opacity-80 group-hover:opacity-100"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-4">
+                    <span className="inline-block text-[9px] font-black tracking-[0.18em] uppercase text-white/40 mb-1">{tag}</span>
+                    <p className="text-xs font-bold text-white leading-tight">{label}</p>
+                    <p className="text-[10px] text-white/45 font-body">{sub}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           </div>
 
           {/* ── Mobile: horizontal scroll strip ── */}
@@ -544,9 +571,9 @@ export default function Landing() {
               <h2 className="section-title text-black">What we handle.</h2>
               <Link
                 href="/estimate"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors whitespace-nowrap"
+                className="group inline-flex items-center gap-1.5 text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors whitespace-nowrap"
               >
-                Browse full catalog <ArrowRight className="w-3.5 h-3.5" />
+                Browse full catalog <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </div>
           </motion.div>
@@ -585,9 +612,9 @@ export default function Landing() {
               <h2 className="section-title text-black">From enquiry to job done.</h2>
               <Link
                 href="/estimate"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors whitespace-nowrap"
+                className="group inline-flex items-center gap-1.5 text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors whitespace-nowrap"
               >
-                Start now <ArrowRight className="w-3.5 h-3.5" />
+                Start now <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </div>
             <p className="font-body text-sm text-gray-500 mt-4 max-w-xl leading-relaxed">
@@ -919,9 +946,9 @@ export default function Landing() {
                 rel="noopener noreferrer"
                 onClick={() => trackEvent("cta_click", "/", "google_reviews_write")}
                 data-testid="btn-write-review"
-                className="inline-flex items-center gap-2 px-6 py-3 border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/60 hover:bg-gray-50 transition-all"
+                className="group inline-flex items-center gap-2 px-6 py-3 border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/60 hover:bg-gray-50 transition-all"
               >
-                Write a Review <ArrowRight className="w-3.5 h-3.5" />
+                Write a Review <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
               </a>
             </div>
           </motion.div>
@@ -939,8 +966,8 @@ export default function Landing() {
                 body: "Beds, wardrobes, sofas, office furniture, gym equipment, kitchen pieces, blinds, appliances — all priced upfront.",
               },
               {
-                stat: "SG-Wide",
-                label: "Island Coverage",
+                stat: "SG",
+                label: "Island-Wide",
                 body: "All 28 districts — HDB, condo, landed, shophouse, commercial, and industrial premises.",
               },
               {
@@ -952,9 +979,11 @@ export default function Landing() {
               <motion.div
                 key={label}
                 {...fadeUpDelayed(i * 0.1)}
-                className="bg-white p-10"
+                className="bg-white p-10 group hover:bg-neutral-50 transition-colors"
+                data-testid={`stat-card-${i}`}
               >
-                <div className="font-heading font-bold text-[64px] leading-none text-black/[0.07] mb-4 select-none">{stat}</div>
+                <div className="stat-display text-black mb-3" data-testid={`stat-number-${i}`}>{stat}</div>
+                <div className="w-8 h-px bg-black/20 mb-4" />
                 <h3 className="card-title text-black mb-2">{label}</h3>
                 <p className="font-body text-sm text-gray-500 leading-relaxed">{body}</p>
               </motion.div>
@@ -1043,9 +1072,9 @@ export default function Landing() {
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "pricing_table_estimate")}
-                className="flex-shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
+                className="group flex-shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
               >
-                Get Full Quote <ArrowRight className="w-3 h-3" />
+                Get Full Quote <ArrowRight className="w-3 h-3 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </div>
           </motion.div>
@@ -1128,9 +1157,9 @@ export default function Landing() {
                 href="/estimate"
                 data-testid="bottom-cta-estimate"
                 onClick={() => trackEvent("cta_click", "/", "bottom_get_estimate")}
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
+                className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
               >
-                GET ESTIMATE <ArrowRight className="w-4 h-4" />
+                GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
               <a
                 href={WHATSAPP}
@@ -1138,7 +1167,7 @@ export default function Landing() {
                 rel="noopener noreferrer"
                 data-testid="bottom-cta-whatsapp"
                 onClick={() => trackEvent("cta_click", "/", "bottom_whatsapp")}
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/50 hover:bg-gray-50 transition-all"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/60 hover:bg-gray-50 transition-all"
               >
                 <MessageCircle className="w-4 h-4" /> WHATSAPP US
               </a>
