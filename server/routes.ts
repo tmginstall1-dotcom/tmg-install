@@ -203,7 +203,7 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     let aiParsed: { detectedName: string; serviceType: string; quantity: number; estimatedUnitPrice: number }[] = [];
     try {
       const parseRes = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         max_tokens: 500,
         response_format: { type: "json_object" },
         messages: [{
@@ -862,7 +862,7 @@ async function craftReply(
 ): Promise<string> {
   try {
     const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       max_tokens: 60,
       messages: [
         {
@@ -4373,7 +4373,7 @@ Classify their VERY FIRST message. Return JSON:
               // Customer has clear intent to book — acknowledge their specific request and start the flow
               firstMsgIsReadyToBook = true;
               const readyReply = await openai.chat.completions.create({
-                model: "gpt-4o-mini",
+                model: "gpt-4o",
                 max_tokens: 200,
                 messages: [
                   {
@@ -4394,7 +4394,7 @@ Classify their VERY FIRST message. Return JSON:
             } else if (fc.intent === "question") {
               // Answer the question directly with company knowledge — no pricing template
               const answerRes = await openai.chat.completions.create({
-                model: "gpt-4o-mini",
+                model: "gpt-4o",
                 max_tokens: 250,
                 messages: [
                   {
@@ -5615,38 +5615,90 @@ Rules:
           }
         } catch {}
 
-        const alreadyHasItems = session?.collectedItems && session.collectedItems !== "__scanning__";
+        // If the message is long and contains furniture keywords, try to extract items + toAddress too
+        // (customer often sends address AND items together in one message)
+        let extractedItemsInAddr: string | null = null;
+        let extractedToAddrInAddr: string | null = null;
+        let detectedIsRelocationInAddr = session?.isRelocation ?? false;
+        const hasComplexContent = text.length > 40 &&
+          /\b(wardrobe|bed|sofa|table|chair|cabinet|mattress|desk|fridge|washing|king|queen|move|relocate|dismantle|dispose|deliver|delivery|pick.?up|pickup|frame|couch|shelf|bookshelf|rack)\b/i.test(text);
+        if (hasComplexContent) {
+          try {
+            const compRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 600,
+              response_format: { type: "json_object" },
+              messages: [{
+                role: "system",
+                content: `Extract all furniture job details from this Singapore customer message. Return JSON:
+{
+  "fromAddress": string or null,
+  "toAddress": string or null,
+  "isRelocation": boolean,
+  "items": string or null
+}
+- fromAddress: main/pickup/from address. Null if not present.
+- toAddress: delivery/destination address for relocations only. Null if not stated.
+- isRelocation: true if customer is moving furniture between two locations.
+- items: ALWAYS extract furniture items if mentioned. Bullet list — one • per line, quantity + name + service in brackets.
+  Service: move/relocate/shift=relocate; dismantle/remove/take apart=dismantle; dispose/throw/haul away/get rid of=dispose; install/assemble/set up=install.
+  Examples: "• 1 king size bed (relocate)" "• 1 old bed frame (dispose)" "• 1 wardrobe (install)"
+  Return null for items ONLY if no furniture is mentioned at all.
+
+Message: "${text.slice(0, 800)}"`
+              }]
+            });
+            const comp = JSON.parse(compRes.choices[0]?.message?.content || "{}");
+            extractedItemsInAddr = comp.items || null;
+            extractedToAddrInAddr = comp.toAddress || null;
+            if (comp.isRelocation) detectedIsRelocationInAddr = true;
+            if (comp.fromAddress) extractedAddress = comp.fromAddress; // use cleaner from-address if extracted
+          } catch {}
+        }
+
+        const effectiveItems = extractedItemsInAddr ||
+          (session?.collectedItems && session.collectedItems !== "__scanning__" ? session.collectedItems : null);
         const isPhotoDetectedItems = session?.previousItems === "photo_detected";
+
+        // Save address + any newly-extracted items/toAddress/relocation flag
+        const addrUpdates: Record<string, unknown> = { collectedAddress: extractedAddress };
+        if (extractedItemsInAddr) addrUpdates.collectedItems = extractedItemsInAddr;
+        if (extractedToAddrInAddr) addrUpdates.collectedToAddress = extractedToAddrInAddr;
+        if (detectedIsRelocationInAddr) addrUpdates.isRelocation = true;
+
         let replyAddr: string;
-        if (alreadyHasItems && !isPhotoDetectedItems) {
-          // Items already known — but we still MUST collect floor level, lift, and access
-          // before going to confirmation, so route through awaiting_floor (not awaiting_confirmation)
+        if (effectiveItems && !isPhotoDetectedItems) {
+          // Items already known or just extracted — skip straight to floor/lift collection
           await storage.upsertWhatsAppSession(from, {
+            ...addrUpdates,
             state: "awaiting_floor",
-            collectedAddress: extractedAddress,
             floorLevel: null,
             hasLift: null,
           });
+          const addrDisplay = detectedIsRelocationInAddr && extractedToAddrInAddr
+            ? `📍 *From:* ${extractedAddress}\n📍 *To:* ${extractedToAddrInAddr}\n`
+            : `📍 *${extractedAddress}* — noted!\n`;
           replyAddr =
-            `📍 *${extractedAddress}* — noted!\n\n` +
+            addrDisplay + `\n` +
+            (extractedItemsInAddr ? `🛋️ *Items noted:*\n${extractedItemsInAddr}\n\n` : "") +
             `Almost there! Just a couple of quick questions to finalise your quote. 😊\n\n` +
             `*Which floor is the unit on?*\n\n` +
             `Reply with the floor number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
             `And is there a *lift* available? (yes / no)`;
-        } else if (alreadyHasItems && isPhotoDetectedItems) {
+        } else if (effectiveItems && isPhotoDetectedItems) {
           // Items were detected from a photo — confirm them before moving to floor/access
           await storage.upsertWhatsAppSession(from, {
+            ...addrUpdates,
             state: "awaiting_items_verify",
-            collectedAddress: extractedAddress,
             previousItems: null, // clear the flag
           });
           replyAddr =
             `📍 *${extractedAddress}* — noted!\n\n` +
             `Here's what I've got so far:\n\n` +
-            `🛋️ *Items:*\n${session.collectedItems}\n\n` +
+            `🛋️ *Items:*\n${effectiveItems}\n\n` +
             `Does this look right? Reply *YES* to confirm, or tell me what to change.`;
         } else {
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedAddress: extractedAddress });
+          await storage.upsertWhatsAppSession(from, { ...addrUpdates, state: "awaiting_items" });
           const nextPromptItems =
             `📍 *${extractedAddress}* — noted!\n\n` +
             `What furniture do you need help with?\n\n` +
@@ -5821,6 +5873,29 @@ ${validResults.map((r, i) => `[Photo ${i + 1}]\n${r}`).join("\n\n")}`
             `or just *type the item names* below and I'll proceed from there.\n\n` +
             `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
           );
+          return;
+        }
+
+        // ── Pre-check: customer is frustrated / saying they already shared info ─
+        const alreadySharedPattern = /\b(already\s+(shared|told|gave|given|sent|provided|said|mentioned|informed)|i\s+just\s+(told|shared|said|gave|mentioned)|just\s+now|not\s+(reading|listening)|read\s+my\s+message|check\s+(my|the)\s+message|you\s+(didn.?t|don.?t|have.?n.?t)\s+(read|see|check|receive|got)|above|scroll\s+up|refer\s+to)\b/i;
+        if (alreadySharedPattern.test(text)) {
+          // Bot missed some info — re-check what we already have and recover
+          const knownItems = session?.collectedItems && session.collectedItems !== "__scanning__"
+            ? session.collectedItems : null;
+          if (knownItems) {
+            await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify" });
+            await sendBotMessage(from,
+              `Apologies for the confusion! 🙏 Here's what I have:\n\n` +
+              `🛋️ *Items:*\n${knownItems}\n\n` +
+              `Does this look right?\n• Reply *YES* to proceed\n• *Type any corrections* if needed`
+            );
+          } else {
+            await sendBotMessage(from,
+              `So sorry about that! 🙏 I may have missed some details.\n\n` +
+              `Could you please *re-type the furniture items* you need help with? I'll make sure to capture everything correctly this time.\n\n` +
+              `_e.g. 1 king size bed (relocate), 1 wardrobe (dispose)_`
+            );
+          }
           return;
         }
 
@@ -8118,7 +8193,7 @@ Respond directly — no JSON, just the message text.`,
     if (itemsText) {
       try {
         const aiResponse = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: "gpt-4o",
           max_tokens: 500,
           messages: [
             {
