@@ -79,41 +79,22 @@ const SERVICES = [
 ];
 
 const PRICING_SAMPLES = [
-  { item: "3-Door Wardrobe",         install: 110, dismantle: 75,  relocate: 160 },
-  { item: "Queen / King Bed Frame",  install: 80,  dismantle: 50,  relocate: 110 },
-  { item: "2-Seater Sofa",           install: 50,  dismantle: 40,  relocate: 75  },
-  { item: "L-Shaped Desk",           install: 65,  dismantle: 45,  relocate: 95  },
-  { item: "Treadmill / Gym Machine", install: 90,  dismantle: 60,  relocate: 130 },
-  { item: "Kitchen Cabinet Unit",    install: 55,  dismantle: 35,  relocate: 75  },
-  { item: "Roller Blind",            install: 35,  dismantle: 25,  relocate: 50  },
-  { item: "Office Workstation",      install: 80,  dismantle: 55,  relocate: 115 },
+  { item: "IKEA Hemnes Wardrobe (3-door)",   install: 120, dismantle: 90,  relocate: 180 },
+  { item: "Queen Bed Frame",                 install: 80,  dismantle: 60,  relocate: 120 },
+  { item: "2-Seater Sofa",                   install: 60,  dismantle: 45,  relocate: 110 },
+  { item: "Corner / L-Shaped Study Desk",    install: 80,  dismantle: 60,  relocate: 130 },
+  { item: "Treadmill",                       install: 80,  dismantle: 60,  relocate: 140 },
+  { item: "Kitchen Hutch / Pantry Cabinet",  install: 80,  dismantle: 60,  relocate: 120 },
+  { item: "Roller Blind (per window)",       install: 50,  dismantle: 30,  relocate: 70  },
+  { item: "L-Shaped Executive Desk",         install: 100, dismantle: 80,  relocate: 160 },
 ];
 
-const REVIEWS = [
-  {
-    name: "Priya T.",
-    loc: "Sengkang",
-    stars: 5,
-    text: "Had them install our entire IKEA bedroom set — wardrobe, bed frame, study desk. Efficient, clean, no damage. Done in under 3 hours.",
-  },
-  {
-    name: "Jason L.",
-    loc: "Tanjong Pagar",
-    stars: 5,
-    text: "Office fit-out for 20 workstations done in a single day. The team was professional and knew exactly what they were doing. Will use again.",
-  },
-  {
-    name: "Michelle K.",
-    loc: "Tampines",
-    stars: 5,
-    text: "Got an instant quote online, booked a slot for the next day. Crew arrived on time and completed the job without any fuss. Great service.",
-  },
-];
+const REVIEWS: { name: string; loc: string; stars: number; text: string }[] = [];
 
 const FAQS = [
   {
     q: "How is the price calculated?",
-    a: "We use a fixed-price catalog of 450+ items. Select exactly what needs to be installed, dismantled, or relocated and the total is generated instantly — no guesswork, no surprise charges.",
+    a: "We use a fixed-price catalog of 250+ furniture items. Select exactly what needs to be installed, dismantled, or relocated and the total is generated instantly — no guesswork, no surprise charges.",
   },
   {
     q: "Do you cover all of Singapore?",
@@ -204,7 +185,7 @@ export default function Landing() {
         "offers": {
           "@type": "Offer",
           "priceCurrency": "SGD",
-          "description": "Fixed-price catalog of 450+ items. Instant upfront quote.",
+          "description": "Fixed-price catalog of 250+ furniture items. Instant upfront quote.",
         },
       },
     ],
@@ -280,7 +261,7 @@ export default function Landing() {
               {/* Mobile stats strip */}
               <div className="sm:hidden grid grid-cols-3 gap-3 pt-2">
                 {[
-                  { val: "450+", label: "Items" },
+                  { val: "250+", label: "Items" },
                   { val: "60s",  label: "Quote" },
                   { val: "SG",   label: "Island-wide" },
                 ].map(({ val, label }) => (
@@ -506,7 +487,7 @@ export default function Landing() {
               {([
                 { n: "01", icon: ListChecks,  title: "Choose Your Service",   body: "Select installation, dismantling, or relocation — or any combination. Covers home, office, and commercial.",   tag: "Service type"    },
                 { n: "02", icon: MapPin,       title: "Enter Your Location",   body: "Your Singapore address. All HDB, condo, landed, shophouse, and commercial premises across every district.",     tag: "Island-wide"     },
-                { n: "03", icon: Package,      title: "Select Items",          body: "Pick from 450+ items — beds, wardrobes, workstations, gym equipment, blinds, appliances, and more.",            tag: "450+ catalog"    },
+                { n: "03", icon: Package,      title: "Select Items",          body: "Pick from 250+ items — beds, wardrobes, workstations, gym equipment, blinds, appliances, and more.",            tag: "250+ catalog"    },
                 { n: "04", icon: CalendarDays, title: "Choose Date & Time",    body: "Select your preferred appointment window. Same-week slots are usually available — we confirm quickly.",          tag: "Same-week slots" },
               ] as const).map(({ n, icon: Icon, title, body, tag }, i) => (
                 <motion.div key={n} {...fadeUpDelayed(0.06 + i * 0.07)} className="bg-white p-8 group hover:bg-black/[0.018] transition-colors duration-300">
@@ -621,7 +602,7 @@ export default function Landing() {
               {([
                 { n: "01", icon: ListChecks,   title: "Choose Your Service",          body: "Installation, dismantling, or relocation — home, office, commercial.",                                                                    tag: "Service type",                    dark: false },
                 { n: "02", icon: MapPin,        title: "Enter Your Location",          body: "All Singapore districts — HDB, condo, landed, office, commercial.",                                                                         tag: "Island-wide",                     dark: false },
-                { n: "03", icon: Package,       title: "Select Items",                 body: "450+ item catalog — beds, wardrobes, workstations, gym equipment, and more.",                                                               tag: "450+ catalog",                    dark: false },
+                { n: "03", icon: Package,       title: "Select Items",                 body: "250+ item catalog — beds, wardrobes, workstations, gym equipment, and more.",                                                               tag: "250+ catalog",                    dark: false },
                 { n: "04", icon: CalendarDays,  title: "Choose Date & Time",           body: "Pick your preferred slot. Same-week availability most weeks.",                                                                              tag: "Same-week",                       dark: false },
                 { n: "05", icon: FileText,      title: "Estimate Generated",           body: "Instant itemised quote — every item and fee listed clearly.",                                                                               tag: "Instant & itemised",              dark: false },
                 { n: "06", icon: ScanSearch,    title: "Admin Review & Approval",      body: "Our team checks the scope and verifies everything before sending payment.",                                                                 tag: "Team verified",                   dark: false },
@@ -725,38 +706,48 @@ export default function Landing() {
       {/* ═══════════════════════ SOCIAL PROOF ══════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
-          <motion.div {...fadeUpDelayed(0)} className="mb-12">
-            <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
-              Customer Reviews
-            </p>
-            <h2 className="section-title text-black">What clients say.</h2>
-          </motion.div>
-
-          <div className="grid md:grid-cols-3 gap-px bg-black/8">
-            {REVIEWS.map(({ name, loc, stars, text }, i) => (
-              <motion.div
-                key={name}
-                {...fadeUpDelayed(i * 0.1)}
-                className="bg-white p-8"
+          <motion.div {...fadeUpDelayed(0)} className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+                Customer Reviews
+              </p>
+              <h2 className="section-title text-black mb-4">See what our clients say.</h2>
+              <p className="font-body text-sm text-gray-500 leading-relaxed mb-8">
+                Our reviews are on Google — unedited, from real customers. Click below to read them directly.
+              </p>
+              <a
+                href="https://www.google.com/search?q=TMG+Install+Singapore+reviews"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackEvent("cta_click", "/", "google_reviews")}
+                className="inline-flex items-center gap-2 px-6 py-3 border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/50 hover:bg-gray-50 transition-all"
               >
-                <div className="flex gap-0.5 mb-5">
-                  {Array.from({ length: stars }).map((_, s) => (
-                    <Star key={s} className="w-3.5 h-3.5 fill-black text-black" />
-                  ))}
+                <Star className="w-3.5 h-3.5" /> Read Google Reviews
+              </a>
+            </div>
+            <motion.div {...fadeUpDelayed(0.1)} className="border border-black/8 bg-white p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-black flex items-center justify-center flex-shrink-0">
+                  <Star className="w-5 h-5 text-white" />
                 </div>
-                <p className="font-body text-sm text-gray-600 leading-relaxed mb-6">"{text}"</p>
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 bg-black/8 flex items-center justify-center text-[11px] font-bold text-black/60">
-                    {name[0]}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-black leading-none">{name}</p>
-                    <p className="text-[11px] text-black/35 mt-0.5">{loc}</p>
-                  </div>
+                <div>
+                  <p className="text-sm font-semibold text-black leading-tight">Google Reviews</p>
+                  <p className="text-xs text-black/40 font-body">Verified customer feedback</p>
                 </div>
-              </motion.div>
-            ))}
-          </div>
+              </div>
+              <p className="font-body text-sm text-gray-500 leading-relaxed mb-6">
+                We let our work speak for itself. All customer feedback is collected through Google — publicly visible and unmodified.
+              </p>
+              <a
+                href="https://www.google.com/search?q=TMG+Install+Singapore+reviews"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors inline-flex items-center gap-1.5"
+              >
+                View all reviews <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 
@@ -766,7 +757,7 @@ export default function Landing() {
           <div className="grid md:grid-cols-3 gap-px bg-black/8">
             {[
               {
-                stat: "450+",
+                stat: "250+",
                 label: "Item Catalog",
                 body: "Beds, wardrobes, sofas, office furniture, gym equipment, kitchen pieces, blinds, appliances — all priced upfront.",
               },
@@ -807,7 +798,7 @@ export default function Landing() {
                 Install, dismantle<br className="hidden sm:block" /> or relocate — all priced upfront.
               </h2>
               <p className="font-body text-sm text-gray-500 max-w-sm leading-relaxed">
-                Fixed-price catalog of 1,600+ entries. Every service type priced individually per item — no guesswork, no surprise charges.
+                Fixed-price catalog of 250+ furniture items. Every service type priced individually per item — no guesswork, no surprise charges.
               </p>
             </div>
           </motion.div>
@@ -870,7 +861,7 @@ export default function Landing() {
             ))}
             <div className="px-6 py-4 border-t border-black/8 bg-black/[0.02] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <p className="font-body text-xs text-black/40">
-                Sample prices per item (SGD). Transport surcharge, floor level, and access fees quoted separately. 1,600+ items in the full catalog — get an exact quote below.
+                Sample prices per item (SGD). Transport surcharge, floor level, and access fees quoted separately. 250+ items in the full catalog — get an exact quote below.
               </p>
               <Link
                 href="/estimate"
@@ -1041,12 +1032,14 @@ export default function Landing() {
             <p className="font-body text-white/20 text-xs">
               © {new Date().getFullYear()} The Moving Guy Pte Ltd · UEN: 202424156H · Singapore
             </p>
-            <div className="flex items-center gap-1">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-3 h-3 fill-white/15 text-white/15" />
-              ))}
-              <span className="text-white/20 text-xs ml-2 font-body">Rated 5.0</span>
-            </div>
+            <a
+              href="https://www.google.com/search?q=TMG+Install+Singapore+reviews"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white/25 text-xs font-body hover:text-white/50 transition-colors"
+            >
+              Google Reviews →
+            </a>
           </div>
         </div>
       </footer>
