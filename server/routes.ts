@@ -2815,9 +2815,9 @@ ${systemPrompt}` });
         }
       }
 
-      // Send deposit request email when admin approves
+      // Send deposit request when admin sets status to deposit_requested
       if (input.status === "deposit_requested" && quote.customer) {
-        const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.3;
+        const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.5;
         const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
         const stripeUrl = await createStripePaymentLink(
           `Deposit for ${quote.referenceNo} — TMG Install`,
@@ -2826,12 +2826,44 @@ ${systemPrompt}` });
           quotePageUrl
         );
         const paymentLink = stripeUrl || quotePageUrl;
-        const emailHtml = depositRequestEmail(quote, paymentLink);
-        await sendEmail({
-          to: quote.customer.email,
-          subject: `[${quote.referenceNo}] Deposit Payment Required — TMG Install`,
-          html: emailHtml,
-        });
+
+        // Determine if the customer has a real email (WhatsApp customers get placeholder
+        // emails like "65XXXXXXXX@tmginstall.com" — these can never receive emails)
+        const hasRealEmail = quote.customer.email &&
+          !quote.customer.email.endsWith("@tmginstall.com") &&
+          quote.customer.email.includes("@");
+
+        if (hasRealEmail) {
+          const emailHtml = depositRequestEmail(quote, paymentLink);
+          const sent = await sendEmail({
+            to: quote.customer.email,
+            subject: `[${quote.referenceNo}] Deposit Payment Required — TMG Install`,
+            html: emailHtml,
+          });
+          if (sent) {
+            console.log(`[Deposit] Email sent to ${quote.customer.email} for ${quote.referenceNo}`);
+          } else {
+            console.error(`[Deposit] Email FAILED to ${quote.customer.email} for ${quote.referenceNo} — falling back to WhatsApp`);
+            // Fall through to WhatsApp below
+          }
+        }
+
+        // Always send WhatsApp for WhatsApp-originated customers, or as fallback if email failed
+        const waPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+        if (waPhone && (!hasRealEmail)) {
+          const waMsg =
+            `💰 *Deposit Invoice — ${quote.referenceNo}*\n\n` +
+            `Hi ${quote.customer.name || "there"}! Your quote has been approved.\n\n` +
+            `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* to confirm your slot:\n\n` +
+            `${paymentLink}\n\n` +
+            `_Your slot is held for 48 hours. Once deposit is received, your booking is confirmed._ ✅`;
+          const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
+          if (waSent) {
+            console.log(`[Deposit] WhatsApp payment link sent to ${waPhone} for ${quote.referenceNo}`);
+          } else {
+            console.error(`[Deposit] WhatsApp send FAILED to ${waPhone} for ${quote.referenceNo}`);
+          }
+        }
       }
 
       // Auto-send review request via WhatsApp when job is marked completed
@@ -6961,7 +6993,7 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
-  // ── Admin: Resend deposit request email ────────────────────────────────────
+  // ── Admin: Resend deposit request (email or WhatsApp) ─────────────────────
   app.post("/api/admin/quotes/:id/resend-deposit-email", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
     const id = parseInt(req.params.id);
@@ -6969,10 +7001,8 @@ Respond directly — no JSON, just the message text.`,
     try {
       const quote = await storage.getQuote(id);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
-      if (!quote.customer?.email || quote.customer.email.endsWith("@tmginstall.com")) {
-        return res.status(400).json({ message: "No real customer email on file for this quote." });
-      }
-      const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.3;
+
+      const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.5;
       const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
       const stripeUrl = await createStripePaymentLink(
         `Deposit for ${quote.referenceNo} — TMG Install`,
@@ -6981,16 +7011,58 @@ Respond directly — no JSON, just the message text.`,
         quotePageUrl
       );
       const paymentLink = stripeUrl || quotePageUrl;
-      const emailHtml = depositRequestEmail(quote, paymentLink);
-      await sendEmail({
-        to: quote.customer.email,
-        subject: `[${quote.referenceNo}] Deposit Payment Required — TMG Install`,
-        html: emailHtml,
+
+      const hasRealEmail = quote.customer?.email &&
+        !quote.customer.email.endsWith("@tmginstall.com") &&
+        quote.customer.email.includes("@");
+
+      let channel = "";
+      let channelTarget = "";
+
+      if (hasRealEmail) {
+        const emailHtml = depositRequestEmail(quote, paymentLink);
+        const sent = await sendEmail({
+          to: quote.customer!.email,
+          subject: `[${quote.referenceNo}] Deposit Payment Required — TMG Install`,
+          html: emailHtml,
+        });
+        if (!sent) {
+          return res.status(500).json({ message: `Resend API rejected the email to ${quote.customer!.email}. Check server logs.` });
+        }
+        channel = "email";
+        channelTarget = quote.customer!.email;
+        console.log(`[Deposit] Resent email to ${channelTarget} for ${quote.referenceNo}`);
+      } else {
+        // No real email — send via WhatsApp
+        const waPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+        if (!waPhone) {
+          return res.status(400).json({ message: "No real email and no WhatsApp number found for this customer." });
+        }
+        const waMsg =
+          `💰 *Deposit Invoice — ${quote.referenceNo}*\n\n` +
+          `Hi ${quote.customer?.name || "there"}! Your quote has been approved.\n\n` +
+          `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* to confirm your slot:\n\n` +
+          `${paymentLink}\n\n` +
+          `_Your slot is held for 48 hours. Once deposit is received, your booking is confirmed._ ✅`;
+        const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
+        if (!waSent) {
+          return res.status(500).json({ message: `WhatsApp send failed to +${waPhone}. Check that the WhatsApp token is valid.` });
+        }
+        channel = "whatsapp";
+        channelTarget = `+${waPhone}`;
+        console.log(`[Deposit] Resent WhatsApp payment link to ${channelTarget} for ${quote.referenceNo}`);
+      }
+
+      res.json({
+        message: channel === "email"
+          ? `Deposit invoice sent via email to ${channelTarget}`
+          : `Deposit payment link sent via WhatsApp to ${channelTarget}`,
+        channel,
+        channelTarget,
       });
-      res.json({ message: "Deposit email resent", email: quote.customer.email });
     } catch (err: any) {
-      console.error("[Email] Resend deposit email error:", err);
-      res.status(500).json({ message: err?.message || "Failed to send email" });
+      console.error("[Deposit] Resend error:", err);
+      res.status(500).json({ message: err?.message || "Failed to send deposit notification" });
     }
   });
 

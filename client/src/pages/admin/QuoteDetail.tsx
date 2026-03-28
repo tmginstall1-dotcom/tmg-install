@@ -72,15 +72,22 @@ export default function AdminQuoteDetail() {
   });
 
   const resendDepositEmail = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/admin/quotes/${id}/resend-deposit-email`),
-    onSuccess: () => {
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/admin/quotes/${id}/resend-deposit-email`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
       setEmailSentAt(new Date());
-      toast({ title: "✅ Email Sent", description: "Deposit payment email resent to customer." });
+      const isWa = data?.channel === "whatsapp";
+      toast({
+        title: isWa ? "✅ WhatsApp Sent" : "✅ Email Sent",
+        description: data?.message || (isWa ? "Payment link sent via WhatsApp." : "Deposit invoice sent via email."),
+      });
     },
     onError: (err: any) => {
-      let reason = err?.message || "Could not send email.";
+      let reason = err?.message || "Could not send payment notification.";
       try { reason = JSON.parse(reason.replace(/^\d+:\s*/, "")).message || reason; } catch {}
-      toast({ title: "Failed to send email", description: reason, variant: "destructive" });
+      toast({ title: "Failed to send", description: reason, variant: "destructive" });
     },
   });
 
@@ -772,7 +779,8 @@ export default function AdminQuoteDetail() {
                     </div>
                     <button onClick={() => resendDepositEmail.mutate()} disabled={resendDepositEmail.isPending}
                       className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors disabled:opacity-50">
-                      <Mail className="w-4 h-4" /> Resend Payment Email
+                      <Mail className="w-4 h-4" />
+                      {resendDepositEmail.isPending ? "Sending…" : "Resend Payment Notification"}
                     </button>
                   </div>
                 )}
