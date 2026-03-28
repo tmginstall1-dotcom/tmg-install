@@ -5478,16 +5478,65 @@ Key examples:
             saveHistory(from, conversationHistory, text, askItemMsg);
             return;
           }
-          // Could not extract a name — check if they sent an address by mistake
+          // Could not extract a name — check if they sent a complex job info message
           const looksLikeSingaporeAddress = /\d/.test(text) && text.length > 8 &&
             /\b(blk|block|ave|avenue|st |street|road|rd|central|crescent|drive|place|close|lane|way|link|circle|park|hill|view|garden|grove|rise|terrace|walk|height|toa payoh|ang mo kio|bedok|tampines|jurong|yishun|woodlands|bishan|bukit|serangoon|hougang|punggol|sengkang|pasir|clementi|queenstown|redhill|tiong bahru|orchard|novena|toa|kallang|geylang|aljunied|paya lebar|choa chu kang|boon lay|pioneer|lakeside)\b/i.test(text);
-          if (looksLikeSingaporeAddress) {
-            // They seem to have given an address instead of a name — save it + ask for name
-            await storage.upsertWhatsAppSession(from, { collectedAddress: text, state: "awaiting_name" });
+          if (looksLikeSingaporeAddress || text.length > 60) {
+            // Comprehensive extraction — pull address + toAddress + items + isRelocation
+            let nameStateFromAddr: string | null = null;
+            let nameStateToAddr: string | null = null;
+            let nameStateItems: string | null = null;
+            let nameStateIsReloc = false;
+            try {
+              const fullRes = await openai.chat.completions.create({
+                model: "gpt-4o",
+                max_tokens: 700,
+                response_format: { type: "json_object" },
+                messages: [{
+                  role: "system",
+                  content: `Extract all furniture job details from this Singapore customer message. Return JSON:
+{
+  "fromAddress": string or null,
+  "toAddress": string or null,
+  "isRelocation": boolean,
+  "items": string or null
+}
+- fromAddress: pickup/collection/from address. Null if not present.
+- toAddress: delivery/drop-off/to address for relocations only. Null if not stated.
+- isRelocation: true if moving furniture between two locations.
+- items: ALWAYS extract if mentioned. Bullet list, one • per line, quantity + name + service type in brackets.
+  Service: move/relocate/shift=relocate; dismantle/remove/take apart=dismantle; dispose/throw/haul away/get rid of=dispose; install/assemble/set up=install.
+  Examples: "• 1 king size bed (relocate)\\n• 1 wardrobe (relocate)\\n• 1 bed frame (dispose)\\n• 1 mattress (dispose)"
+  Return null for items ONLY if absolutely no furniture is mentioned.
+
+Message: "${text.slice(0, 800)}"`
+                }]
+              });
+              const fe = JSON.parse(fullRes.choices[0]?.message?.content || "{}");
+              nameStateFromAddr = fe.fromAddress || null;
+              nameStateToAddr = fe.toAddress || null;
+              nameStateItems = fe.items || null;
+              nameStateIsReloc = !!fe.isRelocation;
+            } catch {}
+
+            // Save everything we found — only ask for the missing name
+            const saveFields: Record<string, unknown> = { state: "awaiting_name" };
+            if (nameStateFromAddr) saveFields.collectedAddress = nameStateFromAddr;
+            if (nameStateToAddr) saveFields.collectedToAddress = nameStateToAddr;
+            if (nameStateItems) saveFields.collectedItems = nameStateItems;
+            if (nameStateIsReloc) saveFields.isRelocation = true;
+            await storage.upsertWhatsAppSession(from, saveFields);
+
+            const addrSummary = nameStateIsReloc && nameStateToAddr
+              ? `📍 *From:* ${nameStateFromAddr || "noted"}\n📍 *To:* ${nameStateToAddr}\n`
+              : nameStateFromAddr ? `📍 *Address:* ${nameStateFromAddr}\n` : "";
+            const itemsSummary = nameStateItems ? `🛋️ *Items:*\n${nameStateItems}\n\n` : "";
+            const gotSomething = addrSummary || itemsSummary;
             await sendBotMessage(from,
-              `📍 Got it — I've noted that address!\n\n` +
-              `Before I lock it in, could I get your *name*? 😊\n\n` +
-              `_e.g. "John", "Mary Tan", "Ahmad"_`
+              gotSomething
+                ? `Got it! Here's what I've noted:\n\n${addrSummary}${itemsSummary}` +
+                  `Before I lock it in, could I get your *full name*? 😊\n\n_e.g. "John", "Mary Tan", "Ahmad"_`
+                : `📍 Got it — I've noted that address!\n\nBefore I lock it in, could I get your *name*? 😊\n\n_e.g. "John", "Mary Tan", "Ahmad"_`
             );
             return;
           }
