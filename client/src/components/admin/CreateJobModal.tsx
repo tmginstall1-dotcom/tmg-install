@@ -48,14 +48,14 @@ const CONFIDENCE_COLORS: Record<string, string> = {
   low:    "bg-red-50 text-red-700 border-red-200",
 };
 
-type LineItem = { id: number; description: string; quantity: number; unitPrice: string; aiGenerated?: boolean };
+type LineItem = { id: number; description: string; quantity: number; unitPrice: string; remark?: string | null; aiGenerated?: boolean };
 let _id = 1;
 const genId = () => _id++;
 
 type StaffMember = { id: number; name: string; role: string };
 
 type ScanResult = {
-  items: { name: string; quantity: number; unitPrice: string; serviceType: string }[];
+  items: { name: string; quantity: number; unitPrice: string; serviceType: string; remark?: string | null }[];
   address: string | null;
   notes: string | null;
   confidence: "high" | "medium" | "low";
@@ -166,6 +166,7 @@ export function CreateJobModal({ open, onClose }: Props) {
         description:  i.name,
         quantity:     i.quantity,
         unitPrice:    i.unitPrice,
+        remark:       i.remark || null,
         aiGenerated:  true,
       })));
     }
@@ -219,6 +220,7 @@ export function CreateJobModal({ open, onClose }: Props) {
         description: i.description,
         quantity:    i.quantity,
         unitPrice:   i.unitPrice || "0",
+        remark:      i.remark || null,
       })),
     });
   };

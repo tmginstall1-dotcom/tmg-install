@@ -2358,6 +2358,7 @@ If the document is a TYPE F (contains numbered line items with amounts, a subtot
 - Set quantity = 1 for every line item.
 - Set serviceType = "install" for installation work, "dismantle" for dismantling, "relocate" for relocation.
 - DO NOT substitute catalog prices — use the prices from the document as-is.
+- If a "Why this pricing" / "Remarks" / reason column exists, capture it in the "remark" field (concise, max 200 chars). Otherwise omit or set to null.
 - Extract address from the document (project address field or header).
 - Extract the client name and any scope/remarks as notes.
 - Confidence = "high" if all line items and amounts are clearly readable.
@@ -2429,7 +2430,7 @@ ${catalogList}
 
 Reply with ONLY valid JSON — no markdown, no code blocks:
 {
-  "items": [{"name":"full item name (colour/finish if applicable)","quantity":1,"unitPrice":"80.00","serviceType":"install"}],
+  "items": [{"name":"full item name (colour/finish if applicable)","quantity":1,"unitPrice":"80.00","serviceType":"install","remark":"optional reason / why this pricing / scope note — null if none"}],
   "address": "full Singapore address or null",
   "notes": "client name, scope summary, floor level, lift access, or any special notes — null if none",
   "confidence": "high|medium|low"
@@ -2473,7 +2474,7 @@ List only items needing assembly, installation, or professional placement.` },
 
         if (pdfText.length > 100) {
           // Text-layer PDF — send as text prompt
-          const pdfPrompt = `Analyze this PDF document "${fileName}".\n\nExtracted text content:\n---\n${pdfText.slice(0, 8000)}\n---\n\nFirst identify the document TYPE (A–F as defined in the system instructions). Then apply the matching rules for that type.\n\nFor TYPE F (quotation/invoice): extract EVERY numbered line item with its exact description and the Amount/price shown. Do NOT invent prices — use the amounts from the document.\n\nFor other types: extract all relevant items (furniture, equipment) with item codes, names, quantities, colours, and any address or access notes visible.`;
+          const pdfPrompt = `Analyze this PDF document "${fileName}".\n\nExtracted text content:\n---\n${pdfText.slice(0, 8000)}\n---\n\nFirst identify the document TYPE (A–F as defined in the system instructions). Then apply the matching rules for that type.\n\nFor TYPE F (quotation/invoice): extract EVERY numbered line item with its exact description and the Amount/price shown. Do NOT invent prices — use the amounts from the document. If a "Why this pricing" or reason/remark column is present, capture it in the remark field (concise summary, max 200 chars).\n\nFor other types: extract all relevant items (furniture, equipment) with item codes, names, quantities, colours, and any address or access notes visible.`;
           scanRes = await openai.chat.completions.create({
             model: "gpt-4o",
             max_tokens: 2500,
@@ -2616,6 +2617,7 @@ ${systemPrompt}` });
         quantity:    typeof item.quantity === "number"  ? Math.max(1, Math.min(item.quantity, 50)) : 1,
         unitPrice:   parseUnitPrice(item.unitPrice),
         serviceType: typeof item.serviceType === "string" ? item.serviceType : "install",
+        remark:      typeof item.remark === "string" && item.remark !== "null" ? item.remark.slice(0, 300) : null,
       })) : [];
 
       res.json({
@@ -2654,6 +2656,7 @@ ${systemPrompt}` });
           description: z.string().min(1),
           quantity:    z.number().int().positive().default(1),
           unitPrice:   z.string().default("0"),
+          remark:      z.string().nullable().optional(),
         })).optional().default([]),
       }).parse(req.body);
 
@@ -2701,6 +2704,7 @@ ${systemPrompt}` });
           quantity:            item.quantity,
           unitPrice:           item.unitPrice,
           subtotal:            (item.quantity * parseFloat(item.unitPrice || "0")).toFixed(2),
+          remark:              item.remark || null,
         }))
       );
 

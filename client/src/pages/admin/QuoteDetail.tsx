@@ -358,7 +358,10 @@ export default function AdminQuoteDetail() {
       ${items.length > 0
         ? items.map((item: any) => `
         <tr>
-          <td>${item.detectedName || item.originalDescription || "—"}</td>
+          <td>
+            ${item.detectedName || item.originalDescription || "—"}
+            ${item.remark ? `<div style="font-size:9px;color:#888;margin-top:3px;line-height:1.5;">${item.remark}</div>` : ""}
+          </td>
           <td>${item.quantity}</td>
           <td>S$${Number(item.unitPrice || 0).toFixed(2)}</td>
           <td>S$${Number(item.subtotal || 0).toFixed(2)}</td>
@@ -729,6 +732,9 @@ export default function AdminQuoteDetail() {
                           <p className="text-xs text-zinc-400 mt-0.5 capitalize">
                             {item.serviceType} · qty {item.quantity} · ${Number(item.unitPrice).toFixed(0)}/ea
                           </p>
+                          {item.remark && (
+                            <p className="text-xs text-zinc-400 mt-1 italic leading-snug">{item.remark}</p>
+                          )}
                         </div>
                         <span className="text-sm font-semibold text-zinc-900 tabular-nums shrink-0">{formatMoney(item.subtotal)}</span>
                       </div>
@@ -753,6 +759,9 @@ export default function AdminQuoteDetail() {
                           <td className="px-5 py-3 border-b border-zinc-100">
                             <p className="text-sm font-medium text-zinc-900 leading-tight">{item.detectedName || item.originalDescription}</p>
                             <p className="text-xs text-zinc-500 mt-0.5 capitalize">{item.serviceType} · ${Number(item.unitPrice).toFixed(0)}/ea</p>
+                            {item.remark && (
+                              <p className="text-xs text-zinc-400 mt-0.5 italic leading-snug">{item.remark}</p>
+                            )}
                           </td>
                           <td className="px-3 py-3 border-b border-zinc-100 text-center text-sm text-zinc-700">
                             {item.quantity}

@@ -300,6 +300,7 @@ export const quoteItems = pgTable("quote_items", {
   catalogItemId: integer("catalog_item_id").references(() => catalogItems.id),
   originalDescription: text("original_description").notNull(),
   detectedName: text("detected_name"),
+  remark: text("remark"),
   serviceType: text("service_type").notNull(),
   quantity: integer("quantity").notNull().default(1),
   unitPrice: numeric("unit_price").notNull().default("0"),
