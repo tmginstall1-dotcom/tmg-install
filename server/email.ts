@@ -565,7 +565,7 @@ export function finalPaymentEmail(quote: any, paymentLink: string): string {
   `);
 }
 
-export function caseClosedEmail(quote: any): string {
+export function caseClosedEmail(quote: any, reviewUrl?: string): string {
   const c = quote.customer;
 
   return shell("All Done — Thank You", `
@@ -594,6 +594,19 @@ export function caseClosedEmail(quote: any): string {
         </td>
       </tr>
     </table>
+
+    ${reviewUrl ? `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">
+      <tr>
+        <td align="center" style="padding:28px 24px;background-color:#fffbeb;border:1px solid #fde68a;border-radius:12px;">
+          <div style="${FONT}font-size:22px;margin-bottom:8px;">⭐</div>
+          <div style="${FONT}font-size:15px;font-weight:700;color:#92400e;margin-bottom:6px;">Happy with the service?</div>
+          <div style="${FONT}font-size:13px;color:#78350f;margin-bottom:16px;">A quick Google review means the world to our small team.</div>
+          <a href="${reviewUrl}" style="display:inline-block;background:#111111;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;font-weight:600;text-decoration:none;padding:12px 28px;border-radius:8px;">Leave a Google Review</a>
+        </td>
+      </tr>
+    </table>
+    ` : ""}
 
     ${notice("ok", `<strong>Need us again?</strong> Save our contact for your next furniture installation, assembly, or relocation job. We cover homes, offices, and commercial spaces across Singapore.`)}
 

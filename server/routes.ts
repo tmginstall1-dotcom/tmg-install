@@ -486,6 +486,83 @@ async function buildBotKnowledge(): Promise<{ faqBlock: string; hoursBlock: stri
 
 
 /**
+ * Send case-closed notifications to the customer via the best available channel.
+ * Sends: (1) a case-closed receipt email/WhatsApp and (2) a Google review request via WhatsApp.
+ * Called from: Stripe final-payment webhook, manual admin close, and updateQuotePayment final path.
+ */
+async function sendCaseClosedNotifications(quote: any): Promise<void> {
+  if (!quote?.customer) return;
+  const name = quote.customer.name || "there";
+  const ref  = quote.referenceNo;
+
+  // ── 0. Fetch review URL once ──────────────────────────────────────────────
+  let reviewUrl: string | undefined;
+  try {
+    const [rs] = await db.select().from(appSettings).where(eq(appSettings.key, "google_review_url"));
+    reviewUrl = rs?.value || undefined;
+  } catch {}
+
+  // ── 1. Case-closed receipt (email → WhatsApp fallback) ───────────────────
+  const hasRealEmail = quote.customer.email &&
+    !quote.customer.email.endsWith("@tmginstall.com") &&
+    quote.customer.email.includes("@");
+
+  let closedViaMail = false;
+  if (hasRealEmail) {
+    closedViaMail = await sendEmail({
+      to: quote.customer.email,
+      subject: `[${ref}] Payment Received — Case Closed`,
+      html: caseClosedEmail(quote, reviewUrl),
+    });
+    if (closedViaMail) console.log(`[Closed] Receipt email → ${quote.customer.email} for ${ref}`);
+    else               console.error(`[Closed] Receipt email FAILED for ${ref}`);
+  }
+
+  const waPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+  if (!closedViaMail && waPhone) {
+    const total    = Number(quote.total || 0).toFixed(2);
+    const closeMsg =
+      `✅ *Case ${ref} — Fully Closed!*\n\n` +
+      `Hi ${name}! Your final payment has been received. Thank you for choosing *TMG Install*.\n\n` +
+      `*Total paid: $${total}*\n\n` +
+      `We hope you're happy with the result. Feel free to reach out anytime for future jobs. 😊`;
+    const waSent = await sendWhatsAppMessage(waPhone, closeMsg).catch(() => false);
+    console.log(waSent
+      ? `[Closed] WhatsApp receipt → +${waPhone} for ${ref}`
+      : `[Closed] WhatsApp receipt FAILED for ${ref}`);
+  }
+
+  // ── 2. Google review request via WhatsApp (if URL configured) ────────────
+  if (waPhone && reviewUrl) {
+    try {
+      const alreadySent = (quote.updates ?? []).some((u: any) => u.statusChange === "review_requested");
+      if (!alreadySent) {
+        const reviewMsg =
+          `⭐ *Quick favour, ${name}!*\n\n` +
+          `We'd love to hear how your installation went. A quick Google review goes a long way for a small local business:\n\n` +
+          `${reviewUrl}\n\n` +
+          `_Thank you so much — it really means a lot to the team!_ 🙏`;
+        const sent = await sendWhatsAppMessage(waPhone, reviewMsg).catch(() => false);
+        if (sent) {
+          await storage.addJobUpdate({
+            quoteId: quote.id,
+            statusChange: "review_requested",
+            actorType: "system",
+            note: "Google review request sent via WhatsApp (on case close)",
+          });
+          console.log(`[Closed] Review request → +${waPhone} for ${ref}`);
+        } else {
+          console.error(`[Closed] Review request WhatsApp FAILED for ${ref}`);
+        }
+      }
+    } catch (e) {
+      console.error(`[Closed] Review request error for ${ref}:`, e);
+    }
+  }
+}
+
+
+/**
  * Shared furniture identification guide injected into all vision prompts.
  * Prevents common misidentification errors (e.g. chest of drawers → "desk").
  */
@@ -1009,12 +1086,8 @@ export async function registerRoutes(
         }
 
         if (type === "final") {
-          await sendEmail({
-            to: quote.customer.email,
-            subject: `[${quote.referenceNo}] Payment Received — Case Closed`,
-            html: caseClosedEmail(quote),
-          });
           console.log(`Stripe webhook: final payment for ${quote.referenceNo} (SGD ${amountPaid})`);
+          await sendCaseClosedNotifications(quote);
         }
       } catch (err) {
         console.error("Stripe webhook: error processing payment:", err);
@@ -2916,14 +2989,9 @@ ${systemPrompt}` });
         }
       }
 
-      // After final payment, send case closed email
+      // After final payment, send case-closed notification (dual-channel) + Google review
       if (input.paymentType === 'final' && quote.customer) {
-        const emailHtml = caseClosedEmail(quote);
-        await sendEmail({
-          to: quote.customer.email,
-          subject: `[${quote.referenceNo}] Payment Received — Case Closed`,
-          html: emailHtml,
-        });
+        await sendCaseClosedNotifications(quote);
       }
 
       res.json(quote);
@@ -3359,6 +3427,8 @@ ${systemPrompt}` });
         note: reason || 'Case manually closed by admin'
       });
       if (!quote) return res.status(404).json({ message: "Quote not found" });
+      // Notify customer + send Google review request (fire-and-forget)
+      sendCaseClosedNotifications(quote).catch(e => console.error("[ManualClose] notification error:", e));
       res.json(quote);
     } catch (err) {
       res.status(500).json({ message: "Internal error" });
