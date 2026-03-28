@@ -1144,13 +1144,20 @@ export default function EstimateWizard() {
                       <p className="font-black text-sm">${subtotal.toFixed(2)}</p>
                     </div>
                     <div className="divide-y divide-black/6">
-                      {items.map(item => (
+                      {items.map((item, idx) => {
+                        const computedLine = pricingResult.itemLines[idx];
+                        const displayUnitPrice = item.isCustom && computedLine?.unitPrice > 0
+                          ? computedLine.unitPrice
+                          : item.unitPrice;
+                        const isFallback = item.isCustom && computedLine?.fallbackUsed && computedLine?.unitPrice > 0;
+                        return (
                         <div key={item.id} data-testid={`item-${item.id}`} className="px-5 py-4 flex items-center gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <p className="font-semibold text-sm truncate">{item.name}</p>
                               {item.sku && <span className="text-[10px] border border-black/10 px-2 py-0.5 font-mono text-black/40">{item.sku}</span>}
                               {item.isCustom && <span className="text-[10px] border border-black/15 px-2 py-0.5 font-black uppercase tracking-[0.06em] text-black/50">Custom</span>}
+                              {isFallback && <span className="text-[10px] border border-amber-200 bg-amber-50 px-2 py-0.5 font-black uppercase tracking-[0.06em] text-amber-600">Est.</span>}
                             </div>
                             <div className="flex items-center gap-2">
                               {serviceBadge(item.serviceType)}
@@ -1171,8 +1178,8 @@ export default function EstimateWizard() {
                             </button>
                           </div>
                           <div className="text-right w-20">
-                            <p className="font-black text-sm">${(item.unitPrice * item.quantity).toFixed(2)}</p>
-                            <p className="text-xs text-black/35">${item.unitPrice.toFixed(2)} ea</p>
+                            <p className="font-black text-sm">{isFallback ? "~" : ""}${(displayUnitPrice * item.quantity).toFixed(2)}</p>
+                            <p className="text-xs text-black/35">{isFallback ? "~" : ""}${displayUnitPrice.toFixed(2)} ea</p>
                           </div>
                           <button onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))}
                             data-testid={`button-remove-${item.id}`}
@@ -1180,7 +1187,8 @@ export default function EstimateWizard() {
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     <div className="px-5 py-4 bg-black/[0.025] space-y-1.5 text-sm border-t border-black/8">
                       <div className="flex justify-between text-black/45"><span>Labor subtotal</span><span>${subtotal.toFixed(2)}</span></div>
