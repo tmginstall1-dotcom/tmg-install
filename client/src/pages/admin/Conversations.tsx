@@ -5,6 +5,7 @@ import {
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
   CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
   TriangleAlert, AlertCircle, ChevronDown, Paperclip, Smile, XCircle,
+  Download, Music, Video, File,
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
@@ -268,12 +269,35 @@ function MessageBubble({
 }) {
   const [lightbox, setLightbox] = useState<string | null>(null);
 
-  const isImage = msg.mediaType?.startsWith("image") ?? false;
+  const isImage    = msg.mediaType?.startsWith("image") ?? false;
+  const isDocument = !isImage && !!msg.mediaUrl && !!msg.mediaType && !msg.mediaType.startsWith("video") && !msg.mediaType.startsWith("audio");
+  const isVideo    = msg.mediaType?.startsWith("video") ?? false;
+  const isAudio    = msg.mediaType?.startsWith("audio") ?? false;
+
+  // Detect legacy [Document] body (no mediaUrl stored — old messages before fix)
+  const isLegacyDoc = !msg.mediaUrl && (msg.body?.startsWith("[Document") ?? false);
+
   // mediaUrl stores the WhatsApp media ID — route it through our proxy endpoint.
   // Fall back to body if it happens to be a direct URL (legacy support).
-  const imgSrc = msg.mediaUrl
+  const mediaSrc = msg.mediaUrl
     ? (msg.mediaUrl.startsWith("http") ? msg.mediaUrl : `${API_BASE}/api/admin/whatsapp/media/${msg.mediaUrl}`)
     : (msg.body?.startsWith("http") ? msg.body : null);
+  const imgSrc = isImage ? mediaSrc : null;
+
+  // Filename: prefer body text when it contains [Document: filename.pdf], else use mime type
+  const docFilename = (() => {
+    const m = msg.body?.match(/^\[Document:\s*(.+)\]$/);
+    if (m) return m[1];
+    if (msg.mediaType && msg.mediaType !== 'application/octet-stream') {
+      const ext = msg.mediaType.split("/")[1]?.split(";")[0] || "file";
+      return `document.${ext}`;
+    }
+    return "document";
+  })();
+
+  const docIcon = msg.mediaType?.includes("pdf") ? <FileText className="w-5 h-5 flex-shrink-0" />
+    : msg.mediaType?.includes("word") || msg.mediaType?.includes("document") ? <File className="w-5 h-5 flex-shrink-0" />
+    : <File className="w-5 h-5 flex-shrink-0" />;
 
   const bubbleStyle = isOut
     ? isAdm
@@ -339,6 +363,62 @@ function MessageBubble({
                 <p className="text-sm px-2 pt-1 pb-0.5 leading-relaxed break-words">{formatWhatsAppText(msg.body)}</p>
               )}
             </div>
+
+          ) : isDocument && mediaSrc ? (
+            /* Document bubble — clickable download card */
+            <a
+              href={mediaSrc}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={docFilename}
+              className={`flex items-center gap-3 px-4 py-3 ${radius} ${bubbleStyle} hover:opacity-90 transition-opacity min-w-[200px] max-w-full`}
+            >
+              <div className={`p-2 rounded-lg flex-shrink-0 ${isOut ? "bg-white/20" : "bg-blue-50"}`}>
+                {docIcon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{docFilename}</p>
+                <p className={`text-[11px] mt-0.5 ${isOut ? "opacity-70" : "text-gray-400"}`}>
+                  {msg.mediaType?.split("/")[1]?.split(";")[0]?.toUpperCase() || "FILE"} · Tap to open
+                </p>
+              </div>
+              <Download className="w-4 h-4 flex-shrink-0 opacity-60" />
+            </a>
+
+          ) : isVideo && mediaSrc ? (
+            /* Video bubble */
+            <div className={`overflow-hidden ${radius} ${bubbleStyle} p-1`}>
+              <video
+                src={mediaSrc}
+                controls
+                className="rounded-xl max-w-full max-h-64 w-full block"
+              />
+              {msg.body && msg.body !== "[Video]" && (
+                <p className="text-sm px-2 pt-1 pb-0.5 leading-relaxed break-words">{formatWhatsAppText(msg.body)}</p>
+              )}
+            </div>
+
+          ) : isAudio && mediaSrc ? (
+            /* Audio bubble */
+            <div className={`flex items-center gap-3 px-4 py-3 ${radius} ${bubbleStyle} min-w-[200px]`}>
+              <Music className="w-4 h-4 flex-shrink-0 opacity-60" />
+              <audio src={mediaSrc} controls className="flex-1 h-8 max-w-[180px]" />
+            </div>
+
+          ) : isLegacyDoc ? (
+            /* Legacy document — no media URL stored, show label with warning */
+            <div className={`flex items-center gap-3 px-4 py-3 ${radius} ${bubbleStyle} min-w-[200px]`}>
+              <div className={`p-2 rounded-lg flex-shrink-0 ${isOut ? "bg-white/20" : "bg-gray-100"}`}>
+                <FileText className="w-5 h-5 flex-shrink-0 opacity-60" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Document</p>
+                <p className={`text-[11px] mt-0.5 ${isOut ? "opacity-60" : "text-gray-400"}`}>
+                  Open WhatsApp to view
+                </p>
+              </div>
+            </div>
+
           ) : (
             /* Text bubble */
             <div className={`px-3.5 py-2 text-sm leading-relaxed break-words ${radius} ${bubbleStyle}`}>
