@@ -78,6 +78,17 @@ const SERVICES = [
   { icon: Truck,      label: "Appliance Relocation", count: "20+" },
 ];
 
+const PRICING_SAMPLES = [
+  { item: "3-Door Wardrobe",         install: 110, dismantle: 75,  relocate: 160 },
+  { item: "Queen / King Bed Frame",  install: 80,  dismantle: 50,  relocate: 110 },
+  { item: "2-Seater Sofa",           install: 50,  dismantle: 40,  relocate: 75  },
+  { item: "L-Shaped Desk",           install: 65,  dismantle: 45,  relocate: 95  },
+  { item: "Treadmill / Gym Machine", install: 90,  dismantle: 60,  relocate: 130 },
+  { item: "Kitchen Cabinet Unit",    install: 55,  dismantle: 35,  relocate: 75  },
+  { item: "Roller Blind",            install: 35,  dismantle: 25,  relocate: 50  },
+  { item: "Office Workstation",      install: 80,  dismantle: 55,  relocate: 115 },
+];
+
 const REVIEWS = [
   {
     name: "Priya T.",
@@ -153,6 +164,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 export default function Landing() {
   usePageTracker("/");
   const { visible: promoVisible } = usePromoBar();
+  const [pricingTab, setPricingTab] = useState<"install" | "dismantle" | "relocate">("install");
 
   useSEO({
     title: "TMG Install | Furniture Installation, Dismantling & Relocation Singapore",
@@ -307,9 +319,9 @@ export default function Landing() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-[10px] text-black/35 font-semibold uppercase mb-1" style={{ letterSpacing: "0.12em" }}>Service Type</p>
-                        <div className="flex gap-2">
-                          {["Installation", "Dismantling"].map(s => (
-                            <span key={s} className={`text-xs px-2.5 py-0.5 border font-medium ${s === "Installation" ? "border-black/20 bg-black text-white" : "border-black/12 text-black/50"}`}>
+                        <div className="flex flex-wrap gap-1.5">
+                          {["Installation", "Dismantling", "Relocation"].map(s => (
+                            <span key={s} className={`text-[10px] px-2 py-0.5 border font-semibold tracking-wide ${s === "Installation" ? "border-black/20 bg-black text-white" : "border-black/12 text-black/45"}`}>
                               {s}
                             </span>
                           ))}
@@ -780,6 +792,122 @@ export default function Landing() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ════════════════════ PRICING GUIDE ════════════════════════ */}
+      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+        <div className="max-w-6xl mx-auto">
+          <motion.div {...fadeUpDelayed(0)} className="mb-10">
+            <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+              Transparent Pricing
+            </p>
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <h2 className="section-title text-black">
+                Install, dismantle<br className="hidden sm:block" /> or relocate — all priced upfront.
+              </h2>
+              <p className="font-body text-sm text-gray-500 max-w-sm leading-relaxed">
+                Fixed-price catalog of 1,600+ entries. Every service type priced individually per item — no guesswork, no surprise charges.
+              </p>
+            </div>
+          </motion.div>
+
+          {/* ── Mobile Tab Switcher ── */}
+          <div className="lg:hidden mb-5">
+            <div className="flex border border-black/12 bg-white">
+              {(["install", "dismantle", "relocate"] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setPricingTab(tab)}
+                  className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] transition-colors ${pricingTab === tab ? "bg-black text-white" : "text-black/40 hover:text-black/70"}`}
+                >
+                  {tab === "install" ? "Install" : tab === "dismantle" ? "Dismantle" : "Relocate"}
+                </button>
+              ))}
+            </div>
+            {pricingTab === "relocate" && (
+              <p className="text-[10px] text-black/40 font-body mt-2 px-1">
+                Relocation includes dismantling at origin + reinstallation at destination.
+              </p>
+            )}
+          </div>
+
+          {/* ── Desktop: 3-Column Comparison Table ── */}
+          <motion.div {...fadeUpDelayed(0.08)} className="hidden lg:block border border-black/10 bg-white overflow-hidden">
+            <div className="grid grid-cols-[2fr_1fr_1fr_1fr] border-b border-black/10 bg-black/[0.025]">
+              <div className="px-6 py-4">
+                <span className="text-[10px] font-semibold tracking-widest text-black/35 uppercase" style={{ letterSpacing: "0.15em" }}>Furniture Item</span>
+              </div>
+              {[
+                { label: "Installation",  sub: "Assemble & fix in place" },
+                { label: "Dismantling",   sub: "Take apart & remove" },
+                { label: "Relocation",    sub: "Dismantle + move + reinstall", highlight: true },
+              ].map(({ label, sub, highlight }) => (
+                <div key={label} className={`px-6 py-4 border-l border-black/8 ${highlight ? "bg-black text-white" : ""}`}>
+                  <p className={`text-[10px] font-black tracking-[0.12em] uppercase mb-0.5 ${highlight ? "text-white" : "text-black"}`}>{label}</p>
+                  <p className={`text-[10px] font-body ${highlight ? "text-white/45" : "text-black/35"}`}>{sub}</p>
+                </div>
+              ))}
+            </div>
+            {PRICING_SAMPLES.map(({ item, install, dismantle, relocate }, i) => (
+              <div
+                key={item}
+                className={`grid grid-cols-[2fr_1fr_1fr_1fr] border-b border-black/5 last:border-0 hover:bg-black/[0.018] transition-colors ${i % 2 !== 0 ? "bg-black/[0.012]" : "bg-white"}`}
+              >
+                <div className="px-6 py-4 flex items-center">
+                  <span className="text-sm text-black font-medium">{item}</span>
+                </div>
+                <div className="px-6 py-4 border-l border-black/5 flex items-center">
+                  <span className="text-sm font-semibold text-black">${install}</span>
+                </div>
+                <div className="px-6 py-4 border-l border-black/5 flex items-center">
+                  <span className="text-sm font-semibold text-black">${dismantle}</span>
+                </div>
+                <div className="px-6 py-4 border-l border-black/5 flex items-center bg-black/[0.04]">
+                  <span className="text-sm font-bold text-black">${relocate}</span>
+                </div>
+              </div>
+            ))}
+            <div className="px-6 py-4 border-t border-black/8 bg-black/[0.02] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <p className="font-body text-xs text-black/40">
+                Sample prices per item (SGD). Transport surcharge, floor level, and access fees quoted separately. 1,600+ items in the full catalog — get an exact quote below.
+              </p>
+              <Link
+                href="/estimate"
+                onClick={() => trackEvent("cta_click", "/", "pricing_table_estimate")}
+                className="flex-shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
+              >
+                Get Full Quote <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </motion.div>
+
+          {/* ── Mobile: Single Column by Tab ── */}
+          <motion.div {...fadeUpDelayed(0.08)} className="lg:hidden border border-black/10 bg-white overflow-hidden">
+            {PRICING_SAMPLES.map(({ item, install, dismantle, relocate }, i) => (
+              <div
+                key={item}
+                className={`flex items-center justify-between px-4 py-4 border-b border-black/5 last:border-0 ${i % 2 !== 0 ? "bg-black/[0.012]" : ""}`}
+              >
+                <span className="text-sm text-black font-medium pr-4">{item}</span>
+                <span className="text-sm font-bold text-black flex-shrink-0">
+                  ${pricingTab === "install" ? install : pricingTab === "dismantle" ? dismantle : relocate}
+                </span>
+              </div>
+            ))}
+            <div className="px-4 py-4 border-t border-black/8 bg-black/[0.02]">
+              <p className="font-body text-xs text-black/40 mb-3">
+                Sample prices per item (SGD). Transport surcharge added separately.
+              </p>
+              <Link
+                href="/estimate"
+                onClick={() => trackEvent("cta_click", "/", "pricing_table_mobile_estimate")}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
+              >
+                Get Full Quote <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </motion.div>
         </div>
       </section>
 
