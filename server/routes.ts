@@ -6652,7 +6652,17 @@ Return JSON: { "address": "normalised address string or null if not an address",
           ? availableSlots.map((s, i) => `${i + 1}. ${s.display} (${s.date} ${s.timeWindow})`).join("\n")
           : "No specific slots listed — customer may type any date.";
 
-        let preferredDateDisplay = text.trim();
+        // Pre-process: "Can Friday?", "Is Saturday ok?", "Friday?" → strip question wrapper → "Friday"
+        // Prevents GPT from misreading polite day requests as "flexible/anytime"
+        const WEEKDAY_NAMES = "monday|tuesday|wednesday|thursday|friday|saturday|sunday";
+        const WEEKDAY_NORMALIZE_RE = new RegExp(
+          `^(?:(?:can(?:\\s+i(?:\\s+(?:do|book|get))?)?|is|how about|what about)\\s+)?(?:this\\s+|next\\s+)?(${WEEKDAY_NAMES})(?:\\s+(?:ok(?:ay)?|good|please|works?))?[?!.\\s]*$`,
+          "i"
+        );
+        const weekdayNorm = text.trim().match(WEEKDAY_NORMALIZE_RE);
+        const dateInputText = weekdayNorm ? weekdayNorm[1] : text; // "Can Friday?" → "friday"
+
+        let preferredDateDisplay = dateInputText.trim();
         let preferredDateIso: string | null = null;
         let preferredTimeWindow: string | null = null;
         let isFlexible = false;
@@ -6670,7 +6680,7 @@ Return JSON: { "address": "normalised address string or null if not an address",
 The customer was shown this numbered list of available slots and asked to choose:
 ${slotListForGpt}
 
-They replied: "${text}"
+They replied: "${dateInputText}"
 
 Interpret their reply and return JSON:
 {
@@ -6684,8 +6694,8 @@ Rules:
 - If they say "1", "option 1", "first one", "the morning one on Saturday" etc → set slotIndex to the matching number; copy isoDate and timeWindow from that slot.
 - If they say "morning" without a day → find the first morning slot in the list.
 - If they type a specific date not in the list → set isoDate to that date in yyyy-MM-dd; timeWindow based on AM/PM if mentioned, else null.
-- Relative dates ("this Saturday", "next Monday") → resolve to actual yyyy-MM-dd.
-- "anytime", "flexible", "whenever", "no preference", "not sure" → flexible=true, isoDate=null, timeWindow=null.
+- Relative dates ("this Saturday", "next Monday", or just "Friday") → resolve to the nearest upcoming occurrence in yyyy-MM-dd. NEVER treat a weekday name as flexible.
+- "anytime", "flexible", "whenever", "no preference", "not sure" → flexible=true, isoDate=null, timeWindow=null. Only set flexible=true for these exact phrases — a weekday name is NEVER flexible.
 - display: always write a friendly readable summary of what was chosen.`
             }]
           });
