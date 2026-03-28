@@ -470,6 +470,9 @@ export default function Landing() {
                 <img
                   src={src}
                   alt={label}
+                  loading={i < 4 ? "eager" : "lazy"}
+                  decoding={i < 4 ? "sync" : "async"}
+                  fetchPriority={i < 2 ? "high" : "auto"}
                   className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-85 group-hover:opacity-100"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
@@ -502,6 +505,9 @@ export default function Landing() {
                   <img
                     src={src}
                     alt={label}
+                    loading={i < 2 ? "eager" : "lazy"}
+                    decoding={i < 2 ? "sync" : "async"}
+                    fetchPriority={i === 0 ? "high" : "auto"}
                     className="absolute inset-0 w-full h-full object-cover opacity-85"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
