@@ -431,6 +431,74 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ════════════════════ WORK GALLERY ════════════════════════ */}
+      <section className="px-4 sm:px-6 lg:px-8 py-16 border-b border-black/8">
+        <div className="max-w-6xl mx-auto">
+          <motion.div {...fadeUpDelayed(0)} className="flex items-end justify-between gap-4 mb-8 flex-wrap">
+            <div>
+              <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-2" style={{ letterSpacing: "0.2em" }}>
+                Our Work
+              </p>
+              <h2 className="section-title text-black">Real jobs. Real results.</h2>
+            </div>
+            <Link
+              href="/estimate"
+              onClick={() => trackEvent("cta_click", "/", "gallery_estimate")}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-black border-b border-black/30 pb-0.5 hover:border-black transition-colors whitespace-nowrap flex-shrink-0"
+            >
+              Get your quote <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </motion.div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-black/8">
+            {[
+              {
+                src: "/work/wardrobe-oak.jpg",
+                label: "Wardrobe Installation",
+                sub: "2-door with drawers · Oak finish",
+                tag: "Completed",
+              },
+              {
+                src: "/work/wardrobe-white.jpg",
+                label: "Wardrobe Installation",
+                sub: "2-door with drawers · White finish",
+                tag: "Completed",
+              },
+              {
+                src: "/work/delivery-truck.jpg",
+                label: "On-Site Delivery",
+                sub: "Tools & equipment included",
+                tag: "Every Job",
+              },
+              {
+                src: "/work/ikea-boxes.jpg",
+                label: "IKEA Assembly",
+                sub: "All brands & models handled",
+                tag: "Specialists",
+              },
+            ].map(({ src, label, sub, tag }, i) => (
+              <motion.div
+                key={src}
+                {...fadeUpDelayed(i * 0.07)}
+                className="relative overflow-hidden bg-black group aspect-[3/4]"
+              >
+                <img
+                  src={src}
+                  alt={label}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-90 group-hover:opacity-100"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <span className="inline-block text-[9px] font-black tracking-[0.18em] uppercase text-white/50 mb-1.5">{tag}</span>
+                  <p className="text-sm font-bold text-white leading-tight mb-0.5">{label}</p>
+                  <p className="text-[11px] text-white/55 font-body leading-snug">{sub}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ════════════════════ WHAT WE HANDLE ══════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
