@@ -846,15 +846,25 @@ export default function Landing() {
                   ))}
                 </div>
                 <div>
-                  <p className="text-sm font-black text-black leading-tight">5.0 · Google</p>
-                  <p className="text-[11px] text-black/40 font-body">Verified customer reviews</p>
+                  <p className="text-sm font-black text-black leading-tight">
+                    5.0 · {testimonials.length} {testimonials.length === 1 ? "review" : "reviews"}
+                  </p>
+                  <p className="text-[11px] text-black/40 font-body">Verified on Google</p>
                 </div>
               </div>
             </div>
 
-            {/* Review cards */}
+            {/* Review cards — adaptive columns */}
             {testimonials.length > 0 && (
-              <div className="grid md:grid-cols-3 gap-5 mb-10">
+              <div
+                className={`grid gap-5 mb-10 ${
+                  testimonials.length === 1
+                    ? "grid-cols-1 max-w-xl"
+                    : testimonials.length === 2
+                    ? "grid-cols-1 sm:grid-cols-2"
+                    : "grid-cols-1 md:grid-cols-3"
+                }`}
+              >
                 {testimonials.map((r, i) => (
                   <motion.div
                     key={i}
@@ -901,7 +911,7 @@ export default function Landing() {
                 data-testid="btn-read-reviews"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-black/80 transition-colors"
               >
-                <Star className="w-3.5 h-3.5" /> Read Google Reviews
+                <Star className="w-3.5 h-3.5" /> Read on Google
               </a>
               <a
                 href={reviewConfig?.writeUrl || "https://g.page/r/Cd2v7iBjl_GKEBM/review"}
