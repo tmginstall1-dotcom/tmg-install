@@ -4195,7 +4195,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
           try {
             const extractRes = await openai.chat.completions.create({
               model: "gpt-4o",
-              max_tokens: 400,
+              max_tokens: 700,
               response_format: { type: "json_object" },
               messages: [{
                 role: "system",
@@ -4209,12 +4209,18 @@ Extract any details they provided. Return JSON:
   "items": string or null
 }
 - name: their personal name (not company name). Null if not clearly stated.
-- address: full Singapore pickup/from/job address. Null if not stated. Accept postal codes (S123456).
-- toAddress: delivery/destination/to address for relocations. Null if not a relocation or not stated.
-- isRelocation: true if customer mentions moving, relocation, shifting, pick up and deliver furniture.
-- items: formatted bullet list of furniture items mentioned (one • per line with service type in brackets if stated). Null if no furniture mentioned.
+- address: full Singapore pickup/from/job address (pickup/from/collection address for relocations). Null if not stated. Accept postal codes (S123456).
+- toAddress: delivery/destination/drop-off address for relocations only. Null if not stated.
+- isRelocation: true if customer mentions moving, relocation, shifting, pick up and deliver, or from+to address.
+- items: ALWAYS try to extract furniture items mentioned. Format as a bullet list — one • per line, include quantity (default 1) and service type in brackets.
+  Service type mapping: move/relocate/shift = relocate; dismantle/take apart/remove = dismantle; dispose/throw/haul away/get rid of = dispose; install/assemble/set up/put up = install.
+  Examples:
+    "I need to move king size bed and wardrobe" → "• 1 king size bed (relocate)\n• 1 wardrobe (relocate)"
+    "also dispose away old bed frame and mattress" → "• 1 bed frame (dispose)\n• 1 mattress (dispose)"
+    "install 2 PAX wardrobes and dismantle the old one" → "• 2 PAX wardrobe (install)\n• 1 wardrobe (dismantle)"
+  Return null ONLY if absolutely no furniture items are mentioned anywhere in the message.
 
-Message: "${text.slice(0, 600)}"`
+Message: "${text.slice(0, 800)}"`
               }]
             });
             const extracted = JSON.parse(extractRes.choices[0]?.message?.content || "{}");
@@ -4277,6 +4283,18 @@ Message: "${text.slice(0, 600)}"`
             `👋 Hi *${extractedName}*! I've noted your address: *${extractedAddress}*.\n\n` +
             `What furniture do you need help with?\n\n📸 *Send a photo* and I'll identify everything, or *type the list* below.\n\n` +
             `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
+          );
+        } else if (extractedAddress && extractedItems) {
+          // Have address + items but no name — acknowledge everything and ask for name
+          const addrLine = extractedToAddress
+            ? `📍 *From:* ${extractedAddress}\n📍 *To:* ${extractedToAddress}\n`
+            : `📍 *Address:* ${extractedAddress}\n`;
+          await sendBotMessage(from,
+            `👋 Hi! Got it — here's what I've noted:\n\n` +
+            addrLine +
+            `🛋️ *Items:*\n${extractedItems}\n\n` +
+            `Before I lock it in, could I get your *full name*? 😊\n\n` +
+            `_e.g. "John", "Mary Tan", "Ahmad"_`
           );
         } else if (extractedName) {
           // Got name but no address — show pricing first addressed to them
