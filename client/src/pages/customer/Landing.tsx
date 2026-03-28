@@ -450,51 +450,70 @@ export default function Landing() {
             </Link>
           </motion.div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-black/8">
+          {/* ── Desktop grid ── */}
+          <div className="hidden sm:grid grid-cols-4 gap-px bg-black/8">
             {[
-              {
-                src: "/work/wardrobe-oak.jpg",
-                label: "Wardrobe Installation",
-                sub: "2-door with drawers · Oak finish",
-                tag: "Completed",
-              },
-              {
-                src: "/work/wardrobe-white.jpg",
-                label: "Wardrobe Installation",
-                sub: "2-door with drawers · White finish",
-                tag: "Completed",
-              },
-              {
-                src: "/work/delivery-truck.jpg",
-                label: "On-Site Delivery",
-                sub: "Tools & equipment included",
-                tag: "Every Job",
-              },
-              {
-                src: "/work/ikea-boxes.jpg",
-                label: "IKEA Assembly",
-                sub: "All brands & models handled",
-                tag: "Specialists",
-              },
+              { src: "/work/office-fitout.jpg",         label: "Office Fit-Out",          sub: "Sit-stand workstations & overhead cabinets", tag: "Commercial" },
+              { src: "/work/wardrobe-install-team.jpg", label: "Wardrobe Installation",   sub: "Two-man crew · Large sliding wardrobe",       tag: "Residential" },
+              { src: "/work/shelving-assembly.jpg",     label: "IKEA Assembly",           sub: "Kallax shelving · New HDB home",              tag: "Residential" },
+              { src: "/work/office-pod.jpg",            label: "Office Phone Booth",      sub: "Commercial fit-out · CBD workspace",          tag: "Commercial" },
+              { src: "/work/wardrobe-oak.jpg",          label: "Wardrobe Installation",   sub: "2-door with drawers · Oak finish",            tag: "Completed" },
+              { src: "/work/wardrobe-white.jpg",        label: "Wardrobe Installation",   sub: "2-door with drawers · White finish",          tag: "Completed" },
+              { src: "/work/conference-table.jpg",      label: "Conference Table",        sub: "Boardroom install · Cable management ports",  tag: "Commercial" },
+              { src: "/work/delivery-truck.jpg",        label: "On-Site Delivery",        sub: "Tools & equipment brought every job",         tag: "Every Job" },
             ].map(({ src, label, sub, tag }, i) => (
               <motion.div
                 key={src}
-                {...fadeUpDelayed(i * 0.07)}
-                className="relative overflow-hidden bg-black group aspect-[3/4]"
+                {...fadeUpDelayed(i * 0.05)}
+                className="relative overflow-hidden bg-neutral-900 group aspect-[4/5]"
               >
                 <img
                   src={src}
                   alt={label}
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-90 group-hover:opacity-100"
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-85 group-hover:opacity-100"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-4">
-                  <span className="inline-block text-[9px] font-black tracking-[0.18em] uppercase text-white/50 mb-1.5">{tag}</span>
+                  <span className="inline-block text-[9px] font-black tracking-[0.18em] uppercase text-white/45 mb-1">{tag}</span>
                   <p className="text-sm font-bold text-white leading-tight mb-0.5">{label}</p>
-                  <p className="text-[11px] text-white/55 font-body leading-snug">{sub}</p>
+                  <p className="text-[10px] text-white/50 font-body leading-snug">{sub}</p>
                 </div>
               </motion.div>
             ))}
+          </div>
+
+          {/* ── Mobile: horizontal scroll strip ── */}
+          <div className="sm:hidden -mx-4 px-4">
+            <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-none">
+              {[
+                { src: "/work/office-fitout.jpg",         label: "Office Fit-Out",        sub: "Workstations & overhead cabinets", tag: "Commercial" },
+                { src: "/work/shelving-assembly.jpg",     label: "IKEA Assembly",         sub: "New HDB home · Two-man crew",     tag: "Residential" },
+                { src: "/work/office-pod.jpg",            label: "Office Phone Booth",    sub: "CBD commercial fit-out",           tag: "Commercial" },
+                { src: "/work/wardrobe-install-team.jpg", label: "Wardrobe Installation", sub: "Large sliding wardrobe",           tag: "Residential" },
+                { src: "/work/wardrobe-oak.jpg",          label: "Wardrobe Installation", sub: "2-door with drawers · Oak",       tag: "Completed" },
+                { src: "/work/conference-table.jpg",      label: "Conference Table",      sub: "Cable management included",        tag: "Commercial" },
+                { src: "/work/wardrobe-white.jpg",        label: "Wardrobe Installation", sub: "2-door with drawers · White",     tag: "Completed" },
+                { src: "/work/delivery-truck.jpg",        label: "On-Site Delivery",      sub: "Tools brought every job",          tag: "Every Job" },
+              ].map(({ src, label, sub, tag }, i) => (
+                <div
+                  key={src}
+                  className="relative flex-shrink-0 w-56 overflow-hidden bg-neutral-900 snap-start aspect-[3/4] rounded-none"
+                >
+                  <img
+                    src={src}
+                    alt={label}
+                    className="absolute inset-0 w-full h-full object-cover opacity-85"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-3">
+                    <span className="inline-block text-[9px] font-black tracking-[0.16em] uppercase text-white/45 mb-1">{tag}</span>
+                    <p className="text-xs font-bold text-white leading-tight mb-0.5">{label}</p>
+                    <p className="text-[10px] text-white/50 font-body">{sub}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-black/30 font-body mt-2 text-center">← scroll to see more →</p>
           </div>
         </div>
       </section>
