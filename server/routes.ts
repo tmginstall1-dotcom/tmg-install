@@ -2351,9 +2351,10 @@ TYPE F — QUOTATION / INVOICE / PROPOSAL (numbered line items with descriptions
 TYPE F — QUOTATION / INVOICE RULES (HIGHEST PRIORITY):
 ═══════════════════════════════════════════
 If the document is a TYPE F (contains numbered line items with amounts, a subtotal/grand total, and scope/exclusion sections), apply these rules EXACTLY:
-- Extract EVERY numbered line item — do NOT skip any, do NOT stop early.
-- Count all line items in the document first, then output all of them. If there are 23 items, output 23 items.
-- Use the line item description exactly as written (e.g. "1F Guest room installation", "-1F Laundry room installation").
+- Extract EVERY individual line item — do NOT skip any, do NOT stop early.
+- SKIP any row that is a summary or total row. Specifically EXCLUDE any row whose description contains words like "subtotal", "sub-total", "total", "grand total", "final amount", "balance", "gst", "tax", or "deposit". These are summary rows, not billable items.
+- Count only the individual work items (not summaries). For Edy-style documents: -1F has 7 items, 1F has 7 items, 2F has 5 items, 3F has 4 items = 23 items total. Output exactly 23 items.
+- Use the line item description exactly as written (e.g. "Guest room installation labour", "Laundry room installation labour").
 - Use the Amount column value as the unitPrice EXACTLY as a plain number string with no commas (e.g. "1800.00", "900.00").
 - Set quantity = 1 for every line item.
 - Set serviceType = "install" for installation work, "dismantle" for dismantling, "relocate" for relocation.
@@ -2612,13 +2613,21 @@ ${systemPrompt}` });
         return num.toFixed(2);
       };
 
-      const items = Array.isArray(parsed.items) ? parsed.items.slice(0, 60).map((item: any) => ({
-        name:        typeof item.name === "string"     ? item.name.slice(0, 200) : "Unknown Item",
-        quantity:    typeof item.quantity === "number"  ? Math.max(1, Math.min(item.quantity, 50)) : 1,
-        unitPrice:   parseUnitPrice(item.unitPrice),
-        serviceType: typeof item.serviceType === "string" ? item.serviceType : "install",
-        remark:      typeof item.remark === "string" && item.remark !== "null" ? item.remark.slice(0, 300) : null,
-      })) : [];
+      const SUMMARY_KEYWORDS = /\b(subtotal|sub-total|sub total|grand total|grand-total|total labour|total labor|final amount|final payable|amount payable|gst|vat|tax|deposit due)\b/i;
+
+      const items = Array.isArray(parsed.items) ? parsed.items
+        .filter((item: any) => {
+          const name = typeof item.name === "string" ? item.name : "";
+          return !SUMMARY_KEYWORDS.test(name);  // drop subtotal/total rows
+        })
+        .slice(0, 60)
+        .map((item: any) => ({
+          name:        typeof item.name === "string"     ? item.name.slice(0, 200) : "Unknown Item",
+          quantity:    typeof item.quantity === "number"  ? Math.max(1, Math.min(item.quantity, 50)) : 1,
+          unitPrice:   parseUnitPrice(item.unitPrice),
+          serviceType: typeof item.serviceType === "string" ? item.serviceType : "install",
+          remark:      typeof item.remark === "string" && item.remark !== "null" ? item.remark.slice(0, 300) : null,
+        })) : [];
 
       res.json({
         items,
