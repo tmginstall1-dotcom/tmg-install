@@ -280,10 +280,12 @@ export default function EstimateWizard() {
 
   const isRelocation = services.includes("relocate");
 
-  // Fetch catalog
+  // Fetch catalog — stale for 5 min to match server's Cache-Control max-age=300
   const { data: catalogRaw } = useQuery<CatalogItem[]>({
     queryKey: ["/api/catalog"],
     queryFn: () => fetch("/api/catalog").then(r => r.json()),
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
   });
 
   // Fetch slot availability (blocked + held + capacities)

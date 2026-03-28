@@ -140,10 +140,16 @@
     <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
     <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
     <link rel="dns-prefetch" href="https://wa.me" />
-    <!-- Fonts: Teko (headings) + Inter (body) — Oswald removed as redundant fallback -->
+    <!-- Preconnect to font servers (reduces latency) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <!-- Preload local heading font (highest priority — used in hero above fold) -->
+    <link rel="preload" href="/fonts/TStar-Bold.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Preload first gallery image visible on mobile -->
+    <link rel="preload" href="/work/office-fitout.jpg" as="image" fetchpriority="high" />
+    <!-- Google Fonts: non-blocking load (Teko 600+700 only · Inter 400-900) -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Teko:wght@600;700&family=Inter:wght@400;500;600;700;800;900&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Teko:wght@600;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" /></noscript>
     <!-- Instant splash — visible before JS loads -->
     <style>
       html, body { margin: 0; padding: 0; background: #fff; overflow-x: hidden; }

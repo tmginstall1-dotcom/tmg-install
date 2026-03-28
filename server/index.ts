@@ -18,6 +18,19 @@ app.set("trust proxy", 1);
 // Gzip compress all responses — reduces JSON payload size by 70-90%
 app.use(compression());
 
+// Security + performance headers on every response
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-DNS-Prefetch-Control", "on");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
 // Capacitor Android apps send requests from capacitor://localhost or http://localhost.
 // Without explicit CORS headers the WebView blocks every cross-origin request.
 const ALLOWED_ORIGINS = new Set([
