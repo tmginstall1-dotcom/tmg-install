@@ -205,10 +205,14 @@ export default function AdminQuoteDetail() {
 
   const handleRequestFinalPayment = async () => {
     try {
-      await requestFinalPayment.mutateAsync(parseInt(id));
-      toast({ title: "Final Payment Requested", description: "Email sent to customer." });
+      const data = await requestFinalPayment.mutateAsync(parseInt(id));
+      const isWa = data?.channel === "whatsapp";
+      toast({
+        title: isWa ? "✅ WhatsApp Sent" : "✅ Final Payment Email Sent",
+        description: data?.message || (isWa ? "Payment link sent via WhatsApp." : "Final payment invoice sent via email."),
+      });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Failed to send", description: err.message, variant: "destructive" });
     }
   };
 
@@ -856,7 +860,8 @@ export default function AdminQuoteDetail() {
                     <div className="pt-2 border-t border-zinc-100">
                       <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
                         className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                        <CheckCircle2 className="w-4 h-4" /> Mark Done & Request Final
+                        <CheckCircle2 className="w-4 h-4" />
+                        {requestFinalPayment.isPending ? "Sending…" : "Mark Done & Request Final"}
                       </button>
                     </div>
                   </div>

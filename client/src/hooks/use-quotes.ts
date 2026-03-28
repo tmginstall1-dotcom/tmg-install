@@ -274,8 +274,9 @@ export function useRequestFinalPayment() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to request final payment");
-      return res.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to request final payment");
+      return data; // includes { channel, channelTarget, message }
     },
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: [api.quotes.get.path, id] });

@@ -3258,7 +3258,7 @@ ${systemPrompt}` });
     }
   });
 
-  // Admin: Request final payment
+  // Admin: Request final payment (email for real emails, WhatsApp for chatbot customers)
   app.post("/api/quotes/:id/request-final-payment", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -3277,20 +3277,72 @@ ${systemPrompt}` });
         quotePageUrl
       );
       const paymentLink = stripeUrl || quotePageUrl;
-      
-      const emailHtml = finalPaymentEmail(quote, paymentLink);
-      const emailSent = await sendEmail({
-        to: quote.customer.email,
-        subject: `[${quote.referenceNo}] Final Payment Due — TMG Install`,
-        html: emailHtml,
-      });
+
+      // Determine send channel (same logic as deposit)
+      const hasRealEmail = quote.customer.email &&
+        !quote.customer.email.endsWith("@tmginstall.com") &&
+        quote.customer.email.includes("@");
+
+      let channel = "";
+      let channelTarget = "";
+      let sendOk = false;
+
+      if (hasRealEmail) {
+        const emailHtml = finalPaymentEmail(quote, paymentLink);
+        sendOk = await sendEmail({
+          to: quote.customer.email,
+          subject: `[${quote.referenceNo}] Final Payment Due — TMG Install`,
+          html: emailHtml,
+        });
+        if (sendOk) {
+          channel = "email";
+          channelTarget = quote.customer.email;
+          console.log(`[FinalPayment] Email sent to ${channelTarget} for ${quote.referenceNo}`);
+        } else {
+          console.error(`[FinalPayment] Email FAILED for ${quote.referenceNo}`);
+        }
+      }
+
+      // WhatsApp fallback for chatbot customers (or if email failed)
+      if (!sendOk) {
+        const waPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+        if (waPhone) {
+          const waMsg =
+            `💳 *Final Payment Due — ${quote.referenceNo}*\n\n` +
+            `Hi ${quote.customer.name || "there"}! Your installation job is complete.\n\n` +
+            `Please pay the *outstanding balance of $${finalAmount.toFixed(2)}* to close your case:\n\n` +
+            `${paymentLink}\n\n` +
+            `_Thank you for choosing TMG Install!_ 🙏`;
+          const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
+          sendOk = !!waSent;
+          if (sendOk) {
+            channel = "whatsapp";
+            channelTarget = `+${waPhone}`;
+            console.log(`[FinalPayment] WhatsApp sent to ${channelTarget} for ${quote.referenceNo}`);
+          } else {
+            console.error(`[FinalPayment] WhatsApp FAILED to ${waPhone} for ${quote.referenceNo}`);
+          }
+        }
+      }
+
+      if (!sendOk) {
+        return res.status(500).json({ message: "Could not send final payment notification — no valid email or WhatsApp number." });
+      }
 
       const updated = await storage.updateQuoteStatus(id, "final_payment_requested", {
         actorType: "admin",
-        note: "Final payment request sent to customer"
+        note: `Final payment request sent via ${channel} to ${channelTarget}`
       });
 
-      res.json({ success: emailSent, quote: updated });
+      res.json({
+        success: true,
+        channel,
+        channelTarget,
+        message: channel === "email"
+          ? `Final payment invoice sent via email to ${channelTarget}`
+          : `Final payment link sent via WhatsApp to ${channelTarget}`,
+        quote: updated,
+      });
     } catch (err) {
       console.error("Error requesting final payment:", err);
       res.status(500).json({ message: "Failed to request final payment" });
