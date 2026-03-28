@@ -751,13 +751,14 @@ async function flushPhotoBatch(phone: string): Promise<void> {
   if (session?.botPaused) return; // admin is handling this conversation
 
   // Detect service from the best caption we collected
+  // Use internal catalog types (relocate/dismantle/dispose/install) — NOT display labels
   const captionLower = batch.caption.toLowerCase();
-  let service = "installation"; // default
-  if (/dismantle.*reloc|reloc.*dismantle|move.*dismantle|shift.*dismantle/.test(captionLower)) service = "relocation + dismantling";
-  else if (/relocat|move|shift|transfer/.test(captionLower)) service = "relocation";
-  else if (/dismantle|dismant|take apart|remove/.test(captionLower)) service = "dismantling";
-  else if (/dispos|haul|throw|throw away/.test(captionLower)) service = "disposal";
-  else if (/install|assembly|assemble|set up|put up/.test(captionLower)) service = "installation";
+  let service = "install"; // default (internal type)
+  if (/dismantle.{0,20}reloc|reloc.{0,20}dismantle|move.*dismantle|shift.*dismantle/.test(captionLower)) service = "relocate";
+  else if (/relocat|move|shift|transfer/.test(captionLower)) service = "relocate";
+  else if (/dismantle|dismant|take apart|remove/.test(captionLower)) service = "dismantle";
+  else if (/dispos|haul|throw|throw away/.test(captionLower)) service = "dispose";
+  else if (/install|assembly|assemble|set up|put up/.test(captionLower)) service = "install";
 
   // Scan ALL photos and collect items
   const allItems: ScannedFurnitureItem[] = [];
@@ -4789,14 +4790,21 @@ If the case is unusual or complex, say the team will review and follow up.`
 
         // If they sent a photo — scan it and show specific pricing
         if (msgType === "image" && msg.image?.id) {
-          // Detect service type from caption so we don't ask for it again if scan fails
+          // Detect service type from caption — use internal catalog types (relocate/dismantle/dispose/install)
           const captionLower = text.toLowerCase();
-          let captionService: string | null = null;
-          if (/dismantle.*reloc|reloc.*dismantle|move.*dismantle|shift.*dismantle/.test(captionLower)) captionService = "relocation + dismantling";
-          else if (/relocat|move|shift|transfer/.test(captionLower)) captionService = "relocation";
-          else if (/dismantle|dismant|take apart|remove/.test(captionLower)) captionService = "dismantling";
-          else if (/dispos|haul|throw|throw away/.test(captionLower)) captionService = "disposal";
-          else if (/install|assembly|assemble|set up|put up/.test(captionLower)) captionService = "installation";
+          let captionService: string | null = null;       // internal catalog type
+          let captionServiceLabel: string | null = null;  // human-readable display label
+          if (/dismantle.{0,20}reloc|reloc.{0,20}dismantle|move.*dismantle|shift.*dismantle/.test(captionLower)) {
+            captionService = "relocate"; captionServiceLabel = "relocation (dismantle + move)";
+          } else if (/relocat|move|shift|transfer/.test(captionLower)) {
+            captionService = "relocate"; captionServiceLabel = "relocation";
+          } else if (/dismantle|dismant|take apart|remove/.test(captionLower)) {
+            captionService = "dismantle"; captionServiceLabel = "dismantling";
+          } else if (/dispos|haul|throw|throw away/.test(captionLower)) {
+            captionService = "dispose"; captionServiceLabel = "disposal";
+          } else if (/install|assembly|assemble|set up|put up/.test(captionLower)) {
+            captionService = "install"; captionServiceLabel = "installation";
+          }
 
           let scannedItems: ScannedFurnitureItem[] = [];
           try {
@@ -4814,11 +4822,10 @@ If the case is unusual or complex, say the team will review and follow up.`
             const isPriceQuestion = /how much|what.*cost|what.*price|price|cost|rate|charges?|fees?|cheap|expensive/i.test(captionLower);
 
             const serviceActionMap: Record<string, string> = {
-              "relocation + dismantling": "dismantle and relocate",
-              "relocation": "relocate",
-              "dismantling": "dismantle",
-              "disposal": "dispose of",
-              "installation": "install",
+              relocate: "relocate",
+              dismantle: "dismantle",
+              dispose: "dispose of",
+              install: "install",
             };
             const serviceAction = serviceActionMap[captionService] || captionService;
             const displayLabel = buildScanDisplayLabel(scannedItems);
@@ -4863,7 +4870,7 @@ If the case is unusual or complex, say the team will review and follow up.`
                 isRelocation: captionService.includes("reloc"),
               });
               await sendBotMessage(from,
-                `📸 I can see *${displayLabel}* in your photo — noted for *${captionService}*.\n\n` +
+                `📸 I can see *${displayLabel}* in your photo — noted for *${captionServiceLabel || captionService}*.\n\n` +
                 `To give you an accurate quote, I just need a few more details.\n\n` +
                 `📍 What's the *full job address*?\n\n` +
                 `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
@@ -4876,7 +4883,7 @@ If the case is unusual or complex, say the team will review and follow up.`
                 isRelocation: captionService.includes("reloc"),
               });
               await sendBotMessage(from,
-                `📸 I can see *${displayLabel}* in your photo — we can *${serviceAction}* that for you.\n\n` +
+                `📸 I can see *${displayLabel}* in your photo — we can *${captionServiceLabel || serviceAction}* that for you.\n\n` +
                 `To prepare an accurate quote, may I start with your *full name*? 😊`
               );
             }
@@ -4912,7 +4919,7 @@ If the case is unusual or complex, say the team will review and follow up.`
           // Photo scan failed or no item detected — use caption context if available
           if (captionService) {
             await sendBotMessage(from,
-              `Got it — *${captionService}*. 👍\n\nCould you describe the item(s) in the photo? This helps me give you an accurate price.\n\n` +
+              `Got it — *${captionServiceLabel || captionService}*. 👍\n\nCould you describe the item(s) in the photo? This helps me give you an accurate price.\n\n` +
               `_e.g. IKEA PAX wardrobe, queen bed frame, 3-seater sofa, office cubicle workstations, reception counter_`
             );
           } else {
@@ -5048,6 +5055,7 @@ Message: "${text.slice(0, 600)}"`,
             // Build a detailed estimate using the real pricing engine (same as submission flow)
             // Detect service type from the query so the breakdown shows the right services
             const specificSvcType =
+              /dismantle.{0,20}reloc|reloc.{0,20}dismantle/i.test(sc.itemQuery) ? "relocate" :
               /dismantle|dismant|remove|removal/i.test(sc.itemQuery) ? "dismantle" :
               /reloc|move|moving|shift/i.test(sc.itemQuery) ? "relocate" :
               /dispos|junk|clear/i.test(sc.itemQuery) ? "dispose" : "install";
