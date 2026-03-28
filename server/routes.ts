@@ -4077,6 +4077,34 @@ Respond with ONLY a JSON array (no prose, no markdown):
         return;
       }
 
+      // ── Global: service-explanation intercept ────────────────────────────────
+      // If a customer asks "what's the difference between the services?" at ANY
+      // point in the flow, answer immediately then let them pick up where they left off.
+      const SERVICE_DIFF_REGEX = /\b(what(?:'s| is| are)? (?:the )?difference|differ(?:ent|ence)|which service|what service|what(?:'s| is) (?:an? )?(install(?:ation)?|dismantle|dismantling|relocat(?:ion|e)|disposal)|explain.{0,20}service|service.{0,20}option|what.{0,20}(service|offer)|install(?:ation)? (vs|or|versus) (?:dismantle|reloc|disposal)|service type)/i;
+      if (SERVICE_DIFF_REGEX.test(text) && !session?.botPaused) {
+        // Map current state → contextual follow-up prompt so they can keep going
+        const stateResumePrompt: Record<string, string> = {
+          awaiting_name:      `\n\nNow, may I have your *full name* to get started? 😊`,
+          awaiting_address:   `\n\nWhen you're ready, just send me the *full job address*. 📍`,
+          awaiting_items:     `\n\nSo, what items do you need help with? 😊`,
+          awaiting_service:   `\n\nWhich of the above services do you need? Just let me know! 😊`,
+          awaiting_date:      `\n\nBack to your quote — what *date* works best for you? 📅`,
+          pricing_shown:      `\n\nWould you like to proceed with a full personalised quote? 😊`,
+          confirm_booking:    `\n\nReady to confirm? Just reply *Yes* to lock in your booking 😊`,
+        };
+        const resumeHint = stateResumePrompt[session?.state ?? ""] ?? `\n\nLet me know how I can help you! 😊`;
+        await sendBotMessage(from,
+          `Great question! Here's a quick rundown of our services:\n\n` +
+          `🔧 *Installation* — We assemble and set up your new or flat-pack furniture at your place.\n\n` +
+          `🔨 *Dismantling* — We carefully take apart your existing furniture (item stays at your place, no disposal).\n\n` +
+          `🚚 *Relocation* — Full service: we dismantle at the current address, transport everything, and reassemble at the new address.\n\n` +
+          `🗑️ *Disposal* — We collect and haul away furniture you no longer need.\n\n` +
+          `_Need a mix? e.g. dismantle the old wardrobe + install the new one — just tell us and we'll price it all together!_` +
+          resumeHint
+        );
+        return;
+      }
+
       // ── Load conversation history for context-aware GPT calls ────────────────
       const conversationHistory = loadHistory(session);
 
