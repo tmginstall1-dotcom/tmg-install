@@ -5,7 +5,6 @@ import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { execSync } from "child_process";
 import { seedDatabase } from "./seed";
 import { autoBookPendingQuotes } from "./storage";
 import { refreshTokenIfNeeded } from "./whatsapp";
@@ -14,6 +13,9 @@ const app = express();
 const httpServer = createServer(app);
 
 app.set("trust proxy", 1);
+
+// ── Health check — always respond immediately, before any DB work ─────────────
+app.get("/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
 // Gzip compress all responses — reduces JSON payload size by 70-90%
 app.use(compression());
@@ -31,8 +33,6 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// Capacitor Android apps send requests from capacitor://localhost or http://localhost.
-// Without explicit CORS headers the WebView blocks every cross-origin request.
 const ALLOWED_ORIGINS = new Set([
   "capacitor://localhost",
   "http://localhost",
@@ -74,6 +74,12 @@ app.use(session({
     conString: process.env.DATABASE_URL,
     tableName: "session",
     createTableIfMissing: true,
+    errorLog: (err: Error) => {
+      // Suppress repeated Neon "endpoint disabled" noise — it recovers automatically
+      if (!err.message?.includes("endpoint has been disabled")) {
+        console.warn("[session-store]", err.message);
+      }
+    },
   }),
   secret: process.env.SESSION_SECRET || "tmg-install-secret-2026",
   resave: false,
@@ -134,12 +140,58 @@ app.use((req, res, next) => {
   next();
 });
 
+/** Retry a DB operation up to maxAttempts times, with delay between attempts.
+ *  Needed for Neon's auto-suspend: the first connection wakes the endpoint,
+ *  but may fail; subsequent attempts succeed once the endpoint is live. */
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 4, delayMs = 2000): Promise<T> {
+  let last: Error | null = null;
+  for (let i = 1; i <= maxAttempts; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      last = e;
+      const isEndpointDisabled = e?.message?.includes("endpoint has been disabled") ||
+                                 e?.code === "XX000";
+      if (i < maxAttempts && isEndpointDisabled) {
+        console.log(`[startup] DB not ready yet (attempt ${i}/${maxAttempts}), retrying in ${delayMs}ms…`);
+        await new Promise(r => setTimeout(r, delayMs));
+      } else if (i < maxAttempts) {
+        throw e; // non-transient error — don't retry
+      }
+    }
+  }
+  throw last;
+}
+
+// ── Bind the port FIRST so health checks pass immediately ─────────────────────
+const port = parseInt(process.env.PORT || "5000", 10);
+
+httpServer.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EADDRINUSE") {
+    log(`Port ${port} already in use — exiting so runner can restart cleanly.`);
+    process.exit(1);
+  } else {
+    throw err;
+  }
+});
+
+httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+  log(`serving on port ${port}`);
+});
+
+// ── Async startup — runs after port is already bound ─────────────────────────
 (async () => {
-  // Ensure session table exists (connect-pg-simple createTableIfMissing can be unreliable)
+  // Ensure session + promo tables exist; retry for Neon auto-suspend
   try {
     const { Pool } = await import("pg");
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    await pool.query(`
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
+      max: 5,
+    });
+
+    await withRetry(() => pool.query(`
       CREATE TABLE IF NOT EXISTS "session" (
         "sid" varchar NOT NULL COLLATE "default",
         "sess" json NOT NULL,
@@ -147,10 +199,9 @@ app.use((req, res, next) => {
         CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE
       ) WITH (OIDS=FALSE);
       CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-    `);
+    `));
 
-    // Ensure promo_codes table + quotes columns exist (idempotent schema migration)
-    await pool.query(`
+    await withRetry(() => pool.query(`
       CREATE TABLE IF NOT EXISTS promo_codes (
         id SERIAL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
@@ -162,19 +213,30 @@ app.use((req, res, next) => {
       );
       ALTER TABLE quotes ADD COLUMN IF NOT EXISTS promo_code TEXT;
       ALTER TABLE quotes ADD COLUMN IF NOT EXISTS promo_discount NUMERIC DEFAULT 0;
+      ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS remark TEXT;
       INSERT INTO promo_codes (code, discount_amount, max_uses, uses_count, active)
       VALUES ('TMG50', 50, 100, 0, TRUE)
       ON CONFLICT (code) DO NOTHING;
-    `);
-    console.log("[startup] promo_codes table ready, TMG50 seeded.");
+    `));
 
+    console.log("[startup] DB schema ready, TMG50 seeded.");
     await pool.end();
-  } catch (e) {
-    console.warn("[session] table setup warning:", e);
+  } catch (e: any) {
+    console.warn("[startup] DB setup warning (non-fatal):", e?.message || e);
   }
 
-  await seedDatabase();
-  await autoBookPendingQuotes();
+  try {
+    await seedDatabase();
+  } catch (e: any) {
+    console.warn("[startup] seedDatabase warning:", e?.message || e);
+  }
+
+  try {
+    await autoBookPendingQuotes();
+  } catch (e: any) {
+    console.warn("[startup] autoBookPendingQuotes warning:", e?.message || e);
+  }
+
   await registerRoutes(httpServer, app);
 
   // Auto-refresh WhatsApp token on startup, then every 6 days
@@ -196,9 +258,6 @@ app.use((req, res, next) => {
     return res.status(status).json({ message });
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
   } else {
@@ -206,29 +265,8 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-
-  httpServer.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code === "EADDRINUSE") {
-      log(`Port ${port} already in use — exiting so runner can restart cleanly.`);
-      process.exit(1);
-    } else {
-      throw err;
-    }
-  });
-
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
-})();
+  log("startup complete");
+})().catch(e => {
+  console.error("[startup] Fatal error:", e);
+  process.exit(1);
+});
