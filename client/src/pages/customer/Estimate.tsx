@@ -727,7 +727,7 @@ export default function EstimateWizard() {
                       type: "relocate" as ServiceType,
                       icon: <Truck className="w-6 h-6" />,
                       label: "Relocation / Move",
-                      desc: "Move furniture between locations — pickup & delivery",
+                      desc: "Dismantle at origin, transport & reinstall at the new location",
                     },
                   ]).map(({ type, icon, label, desc }) => {
                     const active = services.includes(type);
