@@ -78,14 +78,14 @@ const SERVICES = [
 ];
 
 const PRICING_SAMPLES = [
-  { item: "IKEA Hemnes Wardrobe (3-door)",   install: 120, dismantle: 90,  relocate: 180 },
-  { item: "Queen Bed Frame",                 install: 80,  dismantle: 60,  relocate: 120 },
-  { item: "2-Seater Sofa",                   install: 60,  dismantle: 45,  relocate: 110 },
-  { item: "Corner / L-Shaped Study Desk",    install: 80,  dismantle: 60,  relocate: 130 },
-  { item: "Treadmill",                       install: 80,  dismantle: 60,  relocate: 140 },
-  { item: "Kitchen Hutch / Pantry Cabinet",  install: 80,  dismantle: 60,  relocate: 120 },
-  { item: "Roller Blind (per window)",       install: 50,  dismantle: 30,  relocate: 70  },
-  { item: "L-Shaped Executive Desk",         install: 100, dismantle: 80,  relocate: 160 },
+  { item: "IKEA Hemnes Wardrobe (3-door)",   install: 120, dismantle: 90  },
+  { item: "Queen Bed Frame",                 install: 80,  dismantle: 60  },
+  { item: "2-Seater Sofa",                   install: 60,  dismantle: 45  },
+  { item: "Corner / L-Shaped Study Desk",    install: 80,  dismantle: 60  },
+  { item: "Treadmill",                       install: 80,  dismantle: 60  },
+  { item: "Kitchen Hutch / Pantry Cabinet",  install: 80,  dismantle: 60  },
+  { item: "Roller Blind (per window)",       install: 50,  dismantle: 30  },
+  { item: "L-Shaped Executive Desk",         install: 100, dismantle: 80  },
 ];
 
 
@@ -1084,16 +1084,19 @@ export default function Landing() {
               ))}
             </div>
             {pricingTab === "relocate" && (
-              <div className="mt-2 px-1 space-y-1">
-                <p className="text-[10px] text-black/40 font-body">
-                  Relocation includes dismantling at origin + reinstallation at destination.
-                </p>
-                <p className="text-[10px] text-black/40 font-body">
-                  Transport (2.4m van): from $68 flat. Includes 1 helper + first 3 km. +$0.50/km after.
-                </p>
-                <p className="text-[10px] text-black/40 font-body">
-                  Crew time: 90 min included. Overtime $30/30-min block, capped at $200.
-                </p>
+              <div className="mt-3 space-y-2">
+                <div className="border border-black/10 bg-white p-3 space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.1em] text-black">Carry Only — Transport &amp; Stairs</p>
+                  <p className="text-[10px] text-black/50 font-body">No per-item labor. You pay transport fee only.</p>
+                  <p className="text-[11px] font-semibold text-black">From $68 <span className="text-black/40 font-normal">(≤3 km, 1 helper incl.)</span></p>
+                  <p className="text-[10px] text-black/45">+$0.50/km · Stairs: +$5/level (lift), +$15/level (no lift)</p>
+                </div>
+                <div className="border border-black bg-black p-3 space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white">Dismantle &amp; Reinstall — Full Service</p>
+                  <p className="text-[10px] text-white/55 font-body">Transport + dismantle at origin + reassemble at destination.</p>
+                  <p className="text-[11px] font-semibold text-white">From $68 <span className="text-white/50 font-normal">+ D&amp;R labor per item below</span></p>
+                  <p className="text-[10px] text-white/45">+$0.50/km · 90 min crew · Overtime $30/30-min block</p>
+                </div>
               </div>
             )}
           </div>
@@ -1107,7 +1110,7 @@ export default function Landing() {
               {[
                 { label: "Installation",  sub: "Assemble & fix in place" },
                 { label: "Dismantling",   sub: "Take apart & remove" },
-                { label: "Relocation",    sub: "Dismantle + move + reinstall", highlight: true },
+                { label: "D&R Labor",     sub: "Dismantle + reinstall only", highlight: true },
               ].map(({ label, sub, highlight }) => (
                 <div key={label} className={`px-6 py-4 border-l border-black/8 ${highlight ? "bg-black text-white" : ""}`}>
                   <p className={`text-[10px] font-black tracking-[0.12em] uppercase mb-0.5 ${highlight ? "text-white" : "text-black"}`}>{label}</p>
@@ -1115,7 +1118,7 @@ export default function Landing() {
                 </div>
               ))}
             </div>
-            {PRICING_SAMPLES.map(({ item, install, dismantle, relocate }, i) => (
+            {PRICING_SAMPLES.map(({ item, install, dismantle }, i) => (
               <div
                 key={item}
                 className={`grid grid-cols-[2fr_1fr_1fr_1fr] border-b border-black/5 last:border-0 hover:bg-black/[0.018] transition-colors ${i % 2 !== 0 ? "bg-black/[0.012]" : "bg-white"}`}
@@ -1130,13 +1133,13 @@ export default function Landing() {
                   <span className="text-sm font-semibold text-black">${dismantle}</span>
                 </div>
                 <div className="px-6 py-4 border-l border-black/5 flex items-center bg-black/[0.04]">
-                  <span className="text-sm font-bold text-black">${relocate}</span>
+                  <span className="text-sm font-bold text-black">${install + dismantle}</span>
                 </div>
               </div>
             ))}
             <div className="px-6 py-4 border-t border-black/8 bg-black/[0.02] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <p className="font-body text-xs text-black/40">
-                Sample prices per item (SGD). Transport, floor, and access fees quoted separately. Relocation transport: 2.4m van from $68 (3 km) + $0.50/km after · 90 min crew included · Overtime $30/30 min.
+                D&R Labor = dismantle + reinstall per item. Transport &amp; stair fees quoted separately. See Relocation Pricing breakdown below.
               </p>
               <Link
                 href="/estimate"
@@ -1150,20 +1153,37 @@ export default function Landing() {
 
           {/* ── Mobile: Single Column by Tab ── */}
           <motion.div {...fadeUpDelayed(0.08)} className="lg:hidden border border-black/10 bg-white overflow-hidden">
-            {PRICING_SAMPLES.map(({ item, install, dismantle, relocate }, i) => (
-              <div
-                key={item}
-                className={`flex items-center justify-between px-4 py-4 border-b border-black/5 last:border-0 ${i % 2 !== 0 ? "bg-black/[0.012]" : ""}`}
-              >
-                <span className="text-sm text-black font-medium pr-4">{item}</span>
-                <span className="text-sm font-bold text-black flex-shrink-0">
-                  ${pricingTab === "install" ? install : pricingTab === "dismantle" ? dismantle : relocate}
-                </span>
-              </div>
-            ))}
+            {pricingTab === "relocate" ? (
+              PRICING_SAMPLES.map(({ item, install, dismantle }, i) => (
+                <div
+                  key={item}
+                  className={`flex items-center justify-between px-4 py-4 border-b border-black/5 last:border-0 ${i % 2 !== 0 ? "bg-black/[0.012]" : ""}`}
+                >
+                  <span className="text-sm text-black font-medium pr-4">{item}</span>
+                  <div className="text-right flex-shrink-0">
+                    <span className="text-sm font-bold text-black">${install + dismantle}</span>
+                    <p className="text-[10px] text-black/35">D&amp;R labor</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              PRICING_SAMPLES.map(({ item, install, dismantle }, i) => (
+                <div
+                  key={item}
+                  className={`flex items-center justify-between px-4 py-4 border-b border-black/5 last:border-0 ${i % 2 !== 0 ? "bg-black/[0.012]" : ""}`}
+                >
+                  <span className="text-sm text-black font-medium pr-4">{item}</span>
+                  <span className="text-sm font-bold text-black flex-shrink-0">
+                    ${pricingTab === "install" ? install : dismantle}
+                  </span>
+                </div>
+              ))
+            )}
             <div className="px-4 py-4 border-t border-black/8 bg-black/[0.02]">
               <p className="font-body text-xs text-black/40 mb-3">
-                Sample prices per item (SGD). Transport, floor &amp; access fees extra. Relocation transport from $68 · 90 min crew included · Overtime $30/30 min.
+                {pricingTab === "relocate"
+                  ? "D&R Labor shown. Transport from $68 (≤3km, 1 helper incl.) + $0.50/km. Carry Only = transport fee only."
+                  : "Sample prices per item (SGD). Transport & access fees extra."}
               </p>
               <Link
                 href="/estimate"
@@ -1171,6 +1191,89 @@ export default function Landing() {
                 className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
               >
                 Get Full Quote <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </motion.div>
+
+          {/* ── Relocation Pricing Breakdown ── */}
+          <motion.div {...fadeUpDelayed(0.16)} className="border border-black/10 bg-white overflow-hidden">
+            <div className="px-6 py-5 border-b border-black/8 bg-black/[0.025]">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-black/50 mb-1">Relocation Pricing</p>
+              <p className="font-heading text-xl font-black uppercase tracking-[-0.01em] text-black">Two ways to relocate — you choose.</p>
+            </div>
+            <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-black/8">
+              {/* Carry Only */}
+              <div className="p-6 space-y-5">
+                <div>
+                  <div className="inline-flex items-center gap-2 mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] bg-black/8 px-2 py-1">Carry Only</span>
+                  </div>
+                  <p className="text-sm text-black/55 font-body">We transport your furniture as-is. No assembly or disassembly involved.</p>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { label: "2.4m Van (Toyota Hiace)", val: "Included" },
+                    { label: "1 helper", val: "Included" },
+                    { label: "First 3 km", val: "Included" },
+                    { label: "Additional distance", val: "+$0.50/km" },
+                    { label: "Stairs (with lift)", val: "+$5/level" },
+                    { label: "Stairs (no lift)", val: "+$15/level" },
+                    { label: "Per-item labor", val: "None" },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="flex items-center justify-between text-sm border-b border-black/5 pb-2 last:border-0">
+                      <span className="text-black/55">{label}</span>
+                      <span className="font-semibold text-black">{val}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-black/[0.04] px-4 py-3">
+                  <p className="text-[10px] text-black/40 font-body mb-1">Example: 10 km, ground floor both ends</p>
+                  <p className="text-xl font-black text-black">$71.50 <span className="text-sm font-normal text-black/40">total</span></p>
+                  <p className="text-[10px] text-black/35">$68 base + 7km × $0.50</p>
+                </div>
+              </div>
+              {/* Dismantle & Reinstall */}
+              <div className="p-6 space-y-5 bg-black text-white">
+                <div>
+                  <div className="inline-flex items-center gap-2 mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] bg-white/15 px-2 py-1 text-white">Dismantle &amp; Reinstall</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.08em] text-white/50">Full Service</span>
+                  </div>
+                  <p className="text-sm text-white/55 font-body">We dismantle at origin, transport, and reassemble at destination.</p>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { label: "2.4m Van (Toyota Hiace)", val: "Included" },
+                    { label: "1 helper", val: "Included" },
+                    { label: "First 3 km", val: "Included" },
+                    { label: "Additional distance", val: "+$0.50/km" },
+                    { label: "Stairs (with lift)", val: "+$5/level" },
+                    { label: "Stairs (no lift)", val: "+$15/level" },
+                    { label: "Per-item D&R labor", val: "See table above" },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="flex items-center justify-between text-sm border-b border-white/10 pb-2 last:border-0">
+                      <span className="text-white/55">{label}</span>
+                      <span className="font-semibold text-white">{val}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-white/10 px-4 py-3">
+                  <p className="text-[10px] text-white/40 font-body mb-1">Example: 10 km, 1 × Queen Bed Frame, ground floor</p>
+                  <p className="text-xl font-black text-white">$211.50 <span className="text-sm font-normal text-white/40">total</span></p>
+                  <p className="text-[10px] text-white/35">$68 base + 7km × $0.50 + $140 D&R labor</p>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-black/8 bg-black/[0.02] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <p className="font-body text-xs text-black/40">
+                Van base $38 (first 3 km) + 1 helper $30 = $68 minimum · 90-min crew time included · Overtime $30/30-min block, capped at $200.
+              </p>
+              <Link
+                href="/estimate"
+                onClick={() => trackEvent("cta_click", "/", "pricing_relocation_estimate")}
+                className="group flex-shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
+              >
+                Get Relocation Quote <ArrowRight className="w-3 h-3 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </div>
           </motion.div>

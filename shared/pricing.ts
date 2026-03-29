@@ -70,6 +70,7 @@ export interface PricingItem {
   quantity: number;
   unitPrice: number; // 0 = no catalog price available (will trigger fallback)
   volumeM3?: number; // cubic metres per unit (optional — used for trip calculation)
+  carryOnly?: boolean; // Carry-only relocate: no per-item labor, skip fallback (logistics + stairs only)
 }
 
 export interface PricingFloor {
@@ -176,10 +177,10 @@ export function computePricing(input: PricingInput): PricingResult {
 
   const itemLines: ItemLine[] = input.items.map(item => {
     const qty = Math.max(1, Math.round(item.quantity));
-    let unitPrice = item.unitPrice;
+    let unitPrice = item.carryOnly ? 0 : item.unitPrice;
     let fallbackUsed = false;
 
-    if (!(unitPrice > 0)) {
+    if (!item.carryOnly && !(unitPrice > 0)) {
       fallbackUsed = true;
       // Try catalog: find install_price and apply multiplier
       const installPrice = findInstallPrice(item.name, input.catalogEntries);
