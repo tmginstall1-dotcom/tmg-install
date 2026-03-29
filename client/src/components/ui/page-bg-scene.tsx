@@ -1,8 +1,8 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Environment, ContactShadows } from "@react-three/drei";
 import { useRef, useMemo, useEffect, useState } from "react";
 import * as THREE from "three";
 
-/* ─── WebGL check ─── */
 function checkWebGL(): boolean {
   try {
     const c = document.createElement("canvas");
@@ -11,364 +11,524 @@ function checkWebGL(): boolean {
 }
 
 const lerp = THREE.MathUtils.lerp;
+const clamp = THREE.MathUtils.clamp;
 
-/* ─── Easing ─── */
 function easeInOut(t: number) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
 function easeOut(t: number) { return 1 - (1 - t) * (1 - t); }
+function easeOutCubic(t: number) { return 1 - Math.pow(1 - t, 3); }
 
-/* ─── Shared materials (silver/metallic palette) ─── */
+/* ─── Phase helpers ─── */
+function phase(progress: number, start: number, end: number) {
+  return clamp((progress - start) / (end - start), 0, 1);
+}
+
+/* ─── Procedural wood texture ─── */
+function makeWoodTexture(w = 128, h = 512): THREE.CanvasTexture {
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d")!;
+  const base = ctx.createLinearGradient(0, 0, w, 0);
+  base.addColorStop(0.00, "#d6c4a4");
+  base.addColorStop(0.25, "#c9b58e");
+  base.addColorStop(0.55, "#d4c09a");
+  base.addColorStop(0.80, "#bea87c");
+  base.addColorStop(1.00, "#cdb98b");
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 22; i++) {
+    const x = Math.random() * w;
+    const alpha = 0.04 + Math.random() * 0.1;
+    ctx.strokeStyle = `rgba(80,50,20,${alpha})`;
+    ctx.lineWidth = 0.4 + Math.random() * 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x + (Math.random() - 0.5) * 4, 0);
+    ctx.bezierCurveTo(
+      x + (Math.random() - 0.5) * 6, h * 0.33,
+      x + (Math.random() - 0.5) * 6, h * 0.66,
+      x + (Math.random() - 0.5) * 4, h
+    );
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(1, 3);
+  return tex;
+}
+
+/* ─── PBR material palette ─── */
 function useMaterials() {
-  return useMemo(() => ({
-    body:   new THREE.MeshStandardMaterial({ color: "#9a9a9a", roughness: 0.22, metalness: 0.88 }),
-    door:   new THREE.MeshStandardMaterial({ color: "#b8b8b8", roughness: 0.12, metalness: 0.92 }),
-    chrome: new THREE.MeshStandardMaterial({ color: "#e0e0e0", roughness: 0.02, metalness: 1.0, emissive: "#555" }),
-    trim:   new THREE.MeshStandardMaterial({ color: "#686868", roughness: 0.40, metalness: 0.55 }),
-    shelf:  new THREE.MeshStandardMaterial({ color: "#909090", roughness: 0.48, metalness: 0.40 }),
-    desk:   new THREE.MeshStandardMaterial({ color: "#7a7a7a", roughness: 0.38, metalness: 0.62 }),
-    wood:   new THREE.MeshStandardMaterial({ color: "#8a7560", roughness: 0.72, metalness: 0.08 }),
-    frame:  new THREE.MeshStandardMaterial({ color: "#505050", roughness: 0.30, metalness: 0.78 }),
-    accent: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.05, metalness: 1.0, emissive: "#888" }),
-  }), []);
+  return useMemo(() => {
+    const woodTex = makeWoodTexture();
+    return {
+      lacquer: new THREE.MeshPhysicalMaterial({
+        color: "#f4f1ec",
+        roughness: 0.08,
+        metalness: 0.0,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.06,
+      }),
+      lacquerDeep: new THREE.MeshPhysicalMaterial({
+        color: "#ede9e2",
+        roughness: 0.10,
+        metalness: 0.0,
+        clearcoat: 0.85,
+        clearcoatRoughness: 0.08,
+      }),
+      mirror: new THREE.MeshPhysicalMaterial({
+        color: "#c8d4e0",
+        roughness: 0.04,
+        metalness: 0.85,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.02,
+        reflectivity: 1.0,
+      }),
+      wood: new THREE.MeshStandardMaterial({
+        map: woodTex,
+        roughness: 0.72,
+        metalness: 0.0,
+      }),
+      chrome: new THREE.MeshStandardMaterial({
+        color: "#d6d6d6",
+        roughness: 0.04,
+        metalness: 1.0,
+        envMapIntensity: 2.0,
+      }),
+      back: new THREE.MeshStandardMaterial({
+        color: "#e8e3db",
+        roughness: 0.55,
+        metalness: 0.0,
+      }),
+      floor: new THREE.MeshStandardMaterial({
+        color: "#1a1a2e",
+        roughness: 0.85,
+        metalness: 0.08,
+        transparent: true,
+        opacity: 0.0,
+      }),
+    };
+  }, []);
 }
 
-/* ══════════════════════════════════════════════════════
-   DISMANTLING WARDROBE
-   progress 0 → assembled  |  progress 1 → fully dismantled
-   Scroll back = reassembles in reverse
-══════════════════════════════════════════════════════ */
-function DismantleWardrobe({ progress }: { progress: number }) {
+/* ══════════════════════════════════════════════════════════════════
+   REALISTIC PAX-STYLE WARDROBE
+   Dimensions (Three.js units, 1 unit ≈ 1m):
+     Width: 1.26 m  |  Depth: 0.60 m  |  Height: 2.40 m
+   Assembled: progress 0  →  Dismantled: progress 1
+══════════════════════════════════════════════════════════════════ */
+function WardrobeUnit({ progress }: { progress: number }) {
   const m = useMaterials();
-  const p = easeInOut(Math.max(0, Math.min(1, progress)));
-  const po = easeOut(Math.max(0, Math.min(1, progress)));   // faster pop out
+
+  /* ── Phase breakdown ──
+     [0.00 – 0.20] doors swing open on hinges
+     [0.20 – 0.48] shelves & divider fly out
+     [0.48 – 1.00] body panels explode apart
+  */
+  const pDoor   = easeOut(phase(progress, 0.00, 0.22));
+  const pShelf  = easeOut(phase(progress, 0.20, 0.50));
+  const pExplode = easeInOut(phase(progress, 0.44, 1.00));
+  const pPop    = easeOutCubic(phase(progress, 0.44, 1.00));
+
+  const W  = 1.26;   // outer width
+  const H  = 2.40;   // outer height
+  const D  = 0.60;   // outer depth
+  const T  = 0.022;  // panel thickness
+  const iW = W - T * 2;   // inner width
+  const iH = H - T * 2;
+  const halfH = H / 2;
 
   return (
-    <group position={[0, -0.2, 0]}>
+    <group position={[0, -halfH, 0]}>
 
-      {/* ── LEFT SIDE PANEL ── slides left + spin */}
-      <mesh
-        position={[lerp(-0.625, -7.5, po), lerp(0, 0.8, p), lerp(0, -1.5, p)]}
-        rotation={[lerp(0, 0.4, p), lerp(0, -2.2, po), lerp(0, 0.7, p)]}
-        material={m.body} castShadow>
-        <boxGeometry args={[0.058, 2.38, 0.54]} />
-      </mesh>
-
-      {/* ── RIGHT SIDE PANEL ── slides right + spin */}
-      <mesh
-        position={[lerp(0.625, 7.5, po), lerp(0, 0.8, p), lerp(0, -1.5, p)]}
-        rotation={[lerp(0, -0.4, p), lerp(0, 2.2, po), lerp(0, -0.7, p)]}
-        material={m.body} castShadow>
-        <boxGeometry args={[0.058, 2.38, 0.54]} />
-      </mesh>
-
-      {/* ── TOP PANEL ── flies upward + tumbles */}
-      <mesh
-        position={[lerp(0, 1.5, p), lerp(1.23, 9, po), lerp(0, -3, p)]}
-        rotation={[lerp(0, -1.4, po), lerp(0, 1.2, p), lerp(0, 0.5, p)]}
-        material={m.trim} castShadow>
-        <boxGeometry args={[1.32, 0.072, 0.58]} />
-      </mesh>
-
-      {/* ── BOTTOM PANEL ── falls down + slides forward */}
-      <mesh
-        position={[lerp(0, -1.8, p), lerp(-1.23, -7, po), lerp(0, 4, p)]}
-        rotation={[lerp(0, 1.8, po), lerp(0, -0.9, p), lerp(0, -0.4, p)]}
-        material={m.trim}>
-        <boxGeometry args={[1.32, 0.072, 0.58]} />
-      </mesh>
-
-      {/* ── BACK PANEL ── pulls away backwards */}
-      <mesh
-        position={[lerp(0, 2, p), lerp(0, 2.5, p), lerp(-0.27, -8.5, po)]}
-        rotation={[lerp(0, 0.6, p), lerp(0, 0.3, p), lerp(0, 0.2, p)]}
-        material={m.shelf} castShadow>
-        <boxGeometry args={[1.2, 2.34, 0.024]} />
-      </mesh>
-
-      {/* ── LEFT DOOR ── swings open then launches left */}
+      {/* ── BACK PANEL ── slides deep backward then flies */}
       <mesh
         position={[
-          lerp(-0.31, -8, po),
-          lerp(0, -0.5, p),
-          lerp(0.29, 3.5, p),
+          lerp(0, lerp(0, 3.5, pExplode), pExplode),
+          lerp(halfH, halfH + lerp(0, 2.5, pExplode), pExplode),
+          lerp(-D / 2 + T / 2, -D / 2 + T / 2 - lerp(0, 9, pPop), pExplode),
+        ]}
+        rotation={[lerp(0, 0.5, pExplode), lerp(0, 0.4, pExplode), lerp(0, 0.25, pExplode)]}
+        material={m.back}
+      >
+        <boxGeometry args={[iW, iH, T * 0.7]} />
+      </mesh>
+
+      {/* ── LEFT SIDE PANEL ── slides left and spins */}
+      <mesh
+        position={[
+          lerp(-W / 2 + T / 2, -W / 2 + T / 2 - lerp(0, 8.5, pPop), pExplode),
+          lerp(halfH, halfH + lerp(0, 0.8, pExplode), pExplode),
+          lerp(0, lerp(0, -1.8, pExplode), pExplode),
+        ]}
+        rotation={[lerp(0, 0.45, pExplode), lerp(0, -2.4, pPop), lerp(0, 0.7, pExplode)]}
+        material={m.lacquer}
+        castShadow
+      >
+        <boxGeometry args={[T, H, D]} />
+      </mesh>
+
+      {/* ── RIGHT SIDE PANEL ── mirror of left */}
+      <mesh
+        position={[
+          lerp(W / 2 - T / 2, W / 2 - T / 2 + lerp(0, 8.5, pPop), pExplode),
+          lerp(halfH, halfH + lerp(0, 0.8, pExplode), pExplode),
+          lerp(0, lerp(0, -1.8, pExplode), pExplode),
+        ]}
+        rotation={[lerp(0, -0.45, pExplode), lerp(0, 2.4, pPop), lerp(0, -0.7, pExplode)]}
+        material={m.lacquer}
+        castShadow
+      >
+        <boxGeometry args={[T, H, D]} />
+      </mesh>
+
+      {/* ── TOP PANEL ── tumbles up */}
+      <mesh
+        position={[
+          lerp(0, lerp(0, 1.8, pExplode), pExplode),
+          lerp(H - T / 2, H - T / 2 + lerp(0, 8.8, pPop), pExplode),
+          lerp(0, lerp(0, -2.5, pExplode), pExplode),
+        ]}
+        rotation={[lerp(0, -1.5, pPop), lerp(0, 1.3, pExplode), lerp(0, 0.5, pExplode)]}
+        material={m.lacquer}
+        castShadow
+      >
+        <boxGeometry args={[W, T, D]} />
+      </mesh>
+
+      {/* ── BOTTOM PANEL ── drops down */}
+      <mesh
+        position={[
+          lerp(0, lerp(0, -2.0, pExplode), pExplode),
+          lerp(T / 2, T / 2 - lerp(0, 7.5, pPop), pExplode),
+          lerp(0, lerp(0, 4.2, pExplode), pExplode),
+        ]}
+        rotation={[lerp(0, 2.0, pPop), lerp(0, -1.0, pExplode), lerp(0, -0.4, pExplode)]}
+        material={m.lacquer}
+      >
+        <boxGeometry args={[W, T, D]} />
+      </mesh>
+
+      {/* ── BASE PLINTH ── front trim piece */}
+      <mesh
+        position={[
+          lerp(0, 2.8, pPop),
+          lerp(0.055, 0.055 - lerp(0, 7, pPop), pExplode),
+          lerp(D / 2 - 0.03, D / 2 + lerp(0, 3.5, pExplode), pExplode),
+        ]}
+        rotation={[lerp(0, 1.4, pPop), lerp(0, -1.8, pExplode), lerp(0, -0.3, pExplode)]}
+        material={m.lacquerDeep}
+      >
+        <boxGeometry args={[W, 0.11, 0.04]} />
+      </mesh>
+
+      {/* ── CENTER DIVIDER ── pulls backward then up */}
+      <mesh
+        position={[
+          lerp(0, lerp(0, 0.3, pShelf), pShelf),
+          lerp(halfH, halfH + lerp(0, 7.5, pShelf * pShelf), pShelf),
+          lerp(0, lerp(0, -6, easeOut(pShelf)), pShelf),
+        ]}
+        rotation={[lerp(0, 0.3, pShelf), lerp(0, Math.PI * 0.8, easeOut(pShelf)), lerp(0, 0.5, pShelf)]}
+        material={m.lacquer}
+        castShadow
+      >
+        <boxGeometry args={[T, iH - T, D - T * 2]} />
+      </mesh>
+
+      {/* ── SHELF 1 (top) ── rockets up-right */}
+      <mesh
+        position={[
+          lerp(0, lerp(0, 6.5, pShelf), pShelf),
+          lerp(H * 0.62, H * 0.62 + lerp(0, 6, pShelf * pShelf), pShelf),
+          lerp(0, lerp(0, -4, easeOut(pShelf)), pShelf),
+        ]}
+        rotation={[lerp(0, 1.8, easeOut(pShelf)), lerp(0, 4.2, easeOut(pShelf)), lerp(0, 0.5, pShelf)]}
+        material={m.wood}
+        castShadow
+      >
+        <boxGeometry args={[(iW - T * 2) / 2, T, D - T * 2]} />
+      </mesh>
+
+      {/* ── SHELF 2 (mid) ── flies backward-left */}
+      <mesh
+        position={[
+          lerp(0, lerp(0, -7, pShelf), pShelf),
+          lerp(H * 0.40, H * 0.40 - lerp(0, 3.5, pShelf), pShelf),
+          lerp(0, lerp(0, 6, easeOut(pShelf)), pShelf),
+        ]}
+        rotation={[lerp(0, -2.8, easeOut(pShelf)), lerp(0, -2.2, easeOut(pShelf)), lerp(0, 0.4, pShelf)]}
+        material={m.wood}
+        castShadow
+      >
+        <boxGeometry args={[(iW - T * 2) / 2, T, D - T * 2]} />
+      </mesh>
+
+      {/* ── SHELF 3 (lower) ── diagonal */}
+      <mesh
+        position={[
+          lerp(0, lerp(0, 6, pShelf), pShelf),
+          lerp(H * 0.22, H * 0.22 - lerp(0, 7.2, pShelf * pShelf), pShelf),
+          lerp(0, lerp(0, 2.5, pShelf), pShelf),
+        ]}
+        rotation={[lerp(0, 3.1, easeOut(pShelf)), lerp(0, -3.8, easeOut(pShelf)), lerp(0, -0.6, pShelf)]}
+        material={m.wood}
+        castShadow
+      >
+        <boxGeometry args={[(iW - T * 2) / 2, T, D - T * 2]} />
+      </mesh>
+
+      {/* ── LEFT DOOR GROUP ── hinges from left edge, swings open CCW */}
+      <group
+        position={[
+          lerp(-W / 2 + T + W / 4, -W / 2 + T + W / 4 - lerp(0, 8, pPop), pExplode),
+          lerp(halfH, halfH - lerp(0, 0.5, pExplode), pExplode),
+          lerp(D / 2 + 0.012, D / 2 + 0.012 + lerp(0, 4, pExplode), pExplode),
         ]}
         rotation={[
-          lerp(0, 0.5, p),
-          lerp(0, -Math.PI * 2.2, po),
-          lerp(0, -0.9, p),
+          lerp(0, 0.4, pExplode),
+          lerp(0, -Math.PI * 0.72 - Math.PI * 1.8 * pExplode, pDoor),
+          lerp(0, -0.85, pExplode),
         ]}
-        material={m.door} castShadow>
-        <boxGeometry args={[0.575, 2.22, 0.052]} />
-      </mesh>
-      {/* Left handle */}
-      <mesh
-        position={[
-          lerp(-0.31 + 0.08, -8 + 0.08, po),
-          lerp(0, -0.5, p),
-          lerp(0.32, 3.55, p),
-        ]}
-        rotation={[lerp(0, 0.5, p), lerp(0, -Math.PI * 2.2, po), lerp(0, -0.9, p)]}
-        material={m.chrome}>
-        <boxGeometry args={[0.036, 0.27, 0.036]} />
-      </mesh>
-
-      {/* ── RIGHT DOOR ── swings open then launches right */}
-      <mesh
-        position={[
-          lerp(0.31, 8, po),
-          lerp(0, -0.5, p),
-          lerp(0.29, 3.5, p),
-        ]}
-        rotation={[
-          lerp(0, -0.5, p),
-          lerp(0, Math.PI * 2.2, po),
-          lerp(0, 0.9, p),
-        ]}
-        material={m.door} castShadow>
-        <boxGeometry args={[0.575, 2.22, 0.052]} />
-      </mesh>
-      {/* Right handle */}
-      <mesh
-        position={[
-          lerp(0.31 - 0.08, 8 - 0.08, po),
-          lerp(0, -0.5, p),
-          lerp(0.32, 3.55, p),
-        ]}
-        rotation={[lerp(0, -0.5, p), lerp(0, Math.PI * 2.2, po), lerp(0, 0.9, p)]}
-        material={m.chrome}>
-        <boxGeometry args={[0.036, 0.27, 0.036]} />
-      </mesh>
-
-      {/* ── SHELF TOP ── spins up and to the right */}
-      <mesh
-        position={[lerp(0, 6, po), lerp(0.35, 6, po), lerp(0, -3.5, p)]}
-        rotation={[lerp(0, 1.6, po), lerp(0, 3.8, po), lerp(0, 0.4, p)]}
-        material={m.shelf}>
-        <boxGeometry args={[1.18, 0.020, 0.47]} />
-      </mesh>
-
-      {/* ── SHELF MID ── launches backwards-left */}
-      <mesh
-        position={[lerp(0, -6.5, po), lerp(-0.45, -3, p), lerp(0, 5.5, po)]}
-        rotation={[lerp(0, -2.5, po), lerp(0, -2.0, po), lerp(0, 0.5, p)]}
-        material={m.shelf}>
-        <boxGeometry args={[1.18, 0.020, 0.47]} />
-      </mesh>
-
-      {/* ── SHELF BOTTOM ── rockets diagonally */}
-      <mesh
-        position={[lerp(0, 5.5, po), lerp(-0.8, -7, po), lerp(0, 2, p)]}
-        rotation={[lerp(0, 2.8, po), lerp(0, -3.4, po), lerp(0, -0.6, p)]}
-        material={m.shelf}>
-        <boxGeometry args={[1.18, 0.020, 0.47]} />
-      </mesh>
-
-      {/* ── CROWN TRIM (top rail) ── */}
-      <mesh
-        position={[lerp(0, -2, p), lerp(1.28, 9.5, po), lerp(0, -2.5, p)]}
-        rotation={[lerp(0, -1.0, po), lerp(0, 1.5, po), lerp(0, 0.3, p)]}
-        material={m.accent}>
-        <boxGeometry args={[1.34, 0.11, 0.60]} />
-      </mesh>
-
-      {/* ── BASE TRIM ── */}
-      <mesh
-        position={[lerp(0, 2.5, p), lerp(-1.28, -8.5, po), lerp(0, 3, p)]}
-        rotation={[lerp(0, 1.2, po), lerp(0, -1.6, p), lerp(0, -0.3, p)]}
-        material={m.accent}>
-        <boxGeometry args={[1.28, 0.11, 0.58]} />
-      </mesh>
-
-      {/* ── CENTER DIVIDER (vertical mid-panel) ── */}
-      <mesh
-        position={[lerp(0, 0, p), lerp(0, 0, p), lerp(-0.26, -7, po)]}
-        rotation={[lerp(0, 0.3, p), lerp(0, Math.PI, po), lerp(0, 0.5, p)]}
-        material={m.body}>
-        <boxGeometry args={[0.04, 2.3, 0.44]} />
-      </mesh>
-    </group>
-  );
-}
-
-/* ─── Background desk (stable, for depth) ─── */
-function BackgroundDesk({ pos, rot }: { pos: [number,number,number]; rot: number }) {
-  const m = useMaterials();
-  return (
-    <group position={pos} rotation={[0, rot, 0]}>
-      <mesh position={[0, 0.77, 0]} material={m.wood} castShadow>
-        <boxGeometry args={[1.65, 0.055, 0.78]} />
-      </mesh>
-      {([[-0.74,0,-0.34],[0.74,0,-0.34],[-0.74,0,0.34],[0.74,0,0.34]] as [number,number,number][]).map((p,i)=>(
-        <mesh key={i} position={p} material={m.frame} castShadow>
-          <boxGeometry args={[0.055, 0.77, 0.055]} />
+      >
+        <mesh material={m.mirror} castShadow>
+          <boxGeometry args={[iW / 2 - T / 2, iH, 0.024]} />
         </mesh>
-      ))}
-      <mesh position={[0, 0.36, -0.34]} material={m.frame}>
-        <boxGeometry args={[1.48, 0.04, 0.04]} />
-      </mesh>
+        {/* H-bar handle */}
+        <mesh
+          position={[iW / 4 - 0.04, 0, 0.018]}
+          rotation={[0, 0, 0]}
+          material={m.chrome}
+        >
+          <boxGeometry args={[0.010, 0.26, 0.010]} />
+        </mesh>
+        <mesh position={[iW / 4 - 0.04, 0.10, 0.022]} material={m.chrome}>
+          <boxGeometry args={[0.028, 0.010, 0.008]} />
+        </mesh>
+        <mesh position={[iW / 4 - 0.04, -0.10, 0.022]} material={m.chrome}>
+          <boxGeometry args={[0.028, 0.010, 0.008]} />
+        </mesh>
+      </group>
+
+      {/* ── RIGHT DOOR GROUP ── hinges from right edge, swings open CW */}
+      <group
+        position={[
+          lerp(W / 2 - T - W / 4, W / 2 - T - W / 4 + lerp(0, 8, pPop), pExplode),
+          lerp(halfH, halfH - lerp(0, 0.5, pExplode), pExplode),
+          lerp(D / 2 + 0.012, D / 2 + 0.012 + lerp(0, 4, pExplode), pExplode),
+        ]}
+        rotation={[
+          lerp(0, -0.4, pExplode),
+          lerp(0, Math.PI * 0.72 + Math.PI * 1.8 * pExplode, pDoor),
+          lerp(0, 0.85, pExplode),
+        ]}
+      >
+        <mesh material={m.mirror} castShadow>
+          <boxGeometry args={[iW / 2 - T / 2, iH, 0.024]} />
+        </mesh>
+        {/* H-bar handle */}
+        <mesh
+          position={[-(iW / 4 - 0.04), 0, 0.018]}
+          material={m.chrome}
+        >
+          <boxGeometry args={[0.010, 0.26, 0.010]} />
+        </mesh>
+        <mesh position={[-(iW / 4 - 0.04), 0.10, 0.022]} material={m.chrome}>
+          <boxGeometry args={[0.028, 0.010, 0.008]} />
+        </mesh>
+        <mesh position={[-(iW / 4 - 0.04), -0.10, 0.022]} material={m.chrome}>
+          <boxGeometry args={[0.028, 0.010, 0.008]} />
+        </mesh>
+      </group>
+
     </group>
   );
 }
 
-/* ─── Background bed frame ─── */
-function BackgroundBed({ pos, rot }: { pos: [number,number,number]; rot: number }) {
+/* ─── Subtle background furniture (depth cues) ─── */
+function BGFurniture() {
   const m = useMaterials();
   return (
-    <group position={pos} rotation={[0, rot, 0]}>
-      <mesh position={[0, 0.2, 0]} material={m.frame} castShadow receiveShadow>
-        <boxGeometry args={[1.65, 0.22, 2.15]} />
-      </mesh>
-      <mesh position={[0, 0.38, 0]} material={m.body}>
-        <boxGeometry args={[1.5, 0.19, 2.0]} />
-      </mesh>
-      <mesh position={[0, 0.72, -1.04]} material={m.frame} castShadow>
-        <boxGeometry args={[1.65, 0.72, 0.1]} />
-      </mesh>
-      <mesh position={[0, 0.32, 1.04]} material={m.frame}>
-        <boxGeometry args={[1.65, 0.2, 0.08]} />
-      </mesh>
+    <group>
+      {/* Far-left desk */}
+      <group position={[-5.5, -2.8, -10]} rotation={[0, Math.PI / 5, 0]}>
+        <mesh position={[0, 0.77, 0]} material={m.wood} castShadow>
+          <boxGeometry args={[1.5, 0.05, 0.72]} />
+        </mesh>
+        {([-0.7, -0.7, 0.7, 0.7] as number[]).map((x, i) => (
+          <mesh key={i} position={[x, 0.35, i < 2 ? -0.3 : 0.3]} material={m.lacquerDeep}>
+            <boxGeometry args={[0.05, 0.7, 0.05]} />
+          </mesh>
+        ))}
+      </group>
+      {/* Far-right desk */}
+      <group position={[6.5, -2.8, -16]} rotation={[0, -Math.PI / 6, 0]}>
+        <mesh position={[0, 0.77, 0]} material={m.wood} castShadow>
+          <boxGeometry args={[1.6, 0.05, 0.75]} />
+        </mesh>
+        {([-0.72, -0.72, 0.72, 0.72] as number[]).map((x, i) => (
+          <mesh key={i} position={[x, 0.35, i < 2 ? -0.32 : 0.32]} material={m.lacquerDeep}>
+            <boxGeometry args={[0.05, 0.7, 0.05]} />
+          </mesh>
+        ))}
+      </group>
+      {/* Bed frame far-left */}
+      <group position={[-7, -3.0, -18]} rotation={[0, Math.PI / 7, 0]}>
+        <mesh position={[0, 0.24, 0]} material={m.lacquer} castShadow>
+          <boxGeometry args={[1.62, 0.22, 2.1]} />
+        </mesh>
+        <mesh position={[0, 0.68, -1.0]} material={m.lacquer} castShadow>
+          <boxGeometry args={[1.62, 0.68, 0.1]} />
+        </mesh>
+      </group>
     </group>
   );
 }
 
-/* ─── Floating wireframe geometry (architectural depth cues) ─── */
-function FloatBox({ pos, size, rotSeed }: { pos: [number,number,number]; size: [number,number,number]; rotSeed: number }) {
-  const ref = useRef<THREE.Mesh>(null);
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#666", wireframe: true, transparent: true, opacity: 0.22 }), []);
-  useFrame(({ clock }) => {
-    if (!ref.current) return;
-    const t = clock.elapsedTime * 0.18;
-    ref.current.rotation.x = t * rotSeed;
-    ref.current.rotation.y = t * rotSeed * 0.7;
-  });
-  return <mesh ref={ref} position={pos} material={mat}><boxGeometry args={size} /></mesh>;
-}
-
-/* ─── Particles ─── */
+/* ─── Amber debris particles (TMG brand color) ─── */
 function Particles({ dismantleP }: { dismantleP: number }) {
   const ref = useRef<THREE.InstancedMesh>(null);
-  const N = 180;
-  const data = useMemo(() => Array.from({ length: N }, () => ({
-    x: (Math.random() - 0.5) * 24,
-    y: (Math.random() - 0.5) * 14,
-    z: Math.random() * -32,
-    vx: (Math.random() - 0.5) * 12,
-    vy: (Math.random() - 0.5) * 12,
-    vz: (Math.random() - 0.5) * 8,
-    spd: 0.15 + Math.random() * 0.6,
-    off: Math.random() * Math.PI * 2,
-    sz:  0.015 + Math.random() * 0.04,
+  const N = 200;
+  const data = useMemo(() => Array.from({ length: N }, (_, i) => ({
+    ox: (Math.random() - 0.5) * 2.5,
+    oy: Math.random() * 2.2,
+    oz: (Math.random() - 0.5) * 1.2,
+    vx: (Math.random() - 0.5) * 14,
+    vy: -2 + Math.random() * 8,
+    vz: (Math.random() - 0.5) * 10,
+    spd: 0.2 + Math.random() * 0.5,
+    off: (Math.random() * Math.PI * 2),
+    sz: 0.008 + Math.random() * 0.025,
+    type: i % 3,
   })), []);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  const matGold = useMemo(() => new THREE.MeshStandardMaterial({
+    color: "#f59e0b",
+    emissive: "#b45309",
+    emissiveIntensity: 0.6,
+    roughness: 0.3,
+    metalness: 0.6,
+    transparent: true,
+    opacity: 0.85,
+  }), []);
 
   useFrame(({ clock }) => {
     if (!ref.current) return;
     const t = clock.elapsedTime;
+    const burst = easeOut(clamp(dismantleP * 3.5 - 0.3, 0, 1));
     data.forEach((p, i) => {
-      const burst = dismantleP * 4.5;
+      const wobble = Math.sin(t * p.spd + p.off) * 0.4;
       dummy.position.set(
-        p.x + Math.sin(t * p.spd * 0.5 + p.off) * 0.6 + p.vx * dismantleP,
-        p.y + Math.sin(t * p.spd + p.off) * 0.8 + p.vy * dismantleP,
-        p.z + p.vz * dismantleP * 0.4
+        p.ox + p.vx * burst + wobble,
+        p.oy + p.vy * burst + Math.abs(Math.sin(t * p.spd * 0.5 + p.off)) * 0.3,
+        p.oz + p.vz * burst * 0.6,
       );
-      dummy.scale.setScalar(p.sz * (1 + burst * 0.25));
+      const scale = p.sz * (1 + burst * 0.8);
+      dummy.scale.setScalar(scale);
       dummy.updateMatrix();
       ref.current!.setMatrixAt(i, dummy.matrix);
     });
     ref.current.instanceMatrix.needsUpdate = true;
+    (ref.current.material as THREE.MeshStandardMaterial).opacity =
+      clamp(dismantleP * 4 - 0.2, 0, 1) * clamp(2 - dismantleP * 2.5, 0, 1) * 0.75;
   });
 
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, N]}>
+    <instancedMesh ref={ref} args={[undefined, matGold, N]}>
       <sphereGeometry args={[1, 5, 5]} />
-      <meshBasicMaterial color="#aaaaff" transparent opacity={0.3} />
     </instancedMesh>
   );
 }
 
-/* ─── Grid floor ─── */
-function GridFloor() {
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#3a3a5a", wireframe: true, transparent: true, opacity: 0.18 }), []);
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.5, -15]} material={mat}>
-      <planeGeometry args={[80, 60, 50, 36]} />
-    </mesh>
-  );
-}
-
-/* ─── Camera rig — orbits around wardrobe while it dismantles ─── */
-function CameraRig({
-  dismantleP, mouseX, mouseY,
-}: { dismantleP: number; mouseX: number; mouseY: number }) {
+/* ─── Camera rig ─── */
+function CameraRig({ dismantleP, mouseX, mouseY }: { dismantleP: number; mouseX: number; mouseY: number }) {
   const { camera } = useThree();
-  const camPos = useRef(new THREE.Vector3(0, 1.2, 7));
-  const camTgt = useRef(new THREE.Vector3(0, 0, 0));
+  const pos = useRef(new THREE.Vector3(0, 0.8, 7.5));
+  const tgt = useRef(new THREE.Vector3(0, 0.4, 0));
 
   useFrame(() => {
     const p = easeInOut(dismantleP);
-    // Orbit: starts front-center, swings 45° right and pulls back as dismantle progresses
-    const angle = lerp(0, Math.PI * 0.32, p);
-    const dist  = lerp(7, 11, p);
-    const height= lerp(1.2, 3.5, p);
+    const angle  = lerp(0, Math.PI * 0.28, p);
+    const dist   = lerp(7.5, 12, p);
+    const height = lerp(0.8, 3.2, p);
 
-    const targetCamX = Math.sin(angle) * dist + mouseX * 0.7;
-    const targetCamY = height + mouseY * -0.4;
-    const targetCamZ = Math.cos(angle) * dist;
+    const tx = Math.sin(angle) * dist + mouseX * 0.6;
+    const ty = height + mouseY * -0.35;
+    const tz = Math.cos(angle) * dist;
 
-    const targetLookX = lerp(0, 1.2, p);
-    const targetLookY = lerp(0, 0.8, p);
+    pos.current.lerp(new THREE.Vector3(tx, ty, tz), 0.045);
+    tgt.current.lerp(new THREE.Vector3(lerp(0, 1.0, p), lerp(0.4, 0.9, p), 0), 0.045);
 
-    camPos.current.lerp(new THREE.Vector3(targetCamX, targetCamY, targetCamZ), 0.04);
-    camTgt.current.lerp(new THREE.Vector3(targetLookX, targetLookY, 0), 0.04);
-
-    camera.position.copy(camPos.current);
-    camera.lookAt(camTgt.current);
+    camera.position.copy(pos.current);
+    camera.lookAt(tgt.current);
   });
   return null;
 }
 
-/* ─── Scene ─── */
-function Scene({
-  dismantleP, mouseX, mouseY,
-}: { dismantleP: number; mouseX: number; mouseY: number }) {
+/* ─── Full scene ─── */
+function Scene({ dismantleP, mouseX, mouseY }: { dismantleP: number; mouseX: number; mouseY: number }) {
   return (
     <>
-      {/* Lighting */}
-      <ambientLight intensity={0.3} color="#99aaff" />
-      <directionalLight position={[8, 16, 10]}  intensity={5.0} color="#fff5e8" castShadow
-        shadow-mapSize={[1024, 1024]} shadow-camera-far={80} />
-      <directionalLight position={[-10, 6, -4]} intensity={2.2} color="#7799ff" />
-      <directionalLight position={[0, -3, -12]} intensity={1.8} color="#ffffff" />
-      <pointLight position={[0, 8, 5]}   intensity={40} color="#ffffff" distance={24} />
-      <pointLight position={[-5, 4, -6]} intensity={22} color="#aabbff" distance={20} />
-      <pointLight position={[6, 3, -14]} intensity={16} color="#ffeedd" distance={22} />
-      <pointLight position={[0, 2, -22]} intensity={12} color="#ffffff"  distance={20} />
+      {/* IBL environment for realistic reflections */}
+      <Environment preset="apartment" />
 
-      {/* HERO: the main dismantling wardrobe */}
-      <DismantleWardrobe progress={dismantleP} />
+      {/* Lighting setup */}
+      <ambientLight intensity={0.4} color="#fff8f0" />
 
-      {/* Background furniture for depth */}
-      <BackgroundDesk pos={[-8, -2.5, -12]} rot={-Math.PI / 5} />
-      <BackgroundDesk pos={[9, -2.5, -20]}  rot={Math.PI / 6} />
-      <BackgroundBed  pos={[-6, -3.2, -18]} rot={Math.PI / 7} />
-      <BackgroundBed  pos={[7, -3.2, -28]}  rot={-Math.PI / 6} />
+      {/* Key light — warm sun from upper-right-front */}
+      <directionalLight
+        position={[6, 12, 8]}
+        intensity={4.5}
+        color="#fff3e0"
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-near={0.5}
+        shadow-camera-far={50}
+        shadow-camera-left={-8}
+        shadow-camera-right={8}
+        shadow-camera-top={8}
+        shadow-camera-bottom={-8}
+        shadow-bias={-0.001}
+      />
+      {/* Fill light — cool from left */}
+      <directionalLight position={[-8, 5, 2]} intensity={1.8} color="#c8d8f0" />
+      {/* Rim light — behind, slightly above */}
+      <directionalLight position={[0, 6, -10]} intensity={1.4} color="#e8f4ff" />
+      {/* Under bounce */}
+      <pointLight position={[0, -2, 4]} intensity={15} color="#fffbe8" distance={10} />
+      {/* Scene fill */}
+      <pointLight position={[-4, 4, -6]} intensity={12} color="#aac0e8" distance={18} />
 
-      {/* Wireframe accent geometry */}
-      <FloatBox pos={[5,  3.5,  -6]}  size={[2.5, 2.5, 2.5]} rotSeed={0.4} />
-      <FloatBox pos={[-6, 4.5, -14]}  size={[3.0, 1.8, 3.0]} rotSeed={0.6} />
-      <FloatBox pos={[9,  2.5, -22]}  size={[2.0, 3.5, 2.0]} rotSeed={0.9} />
-      <FloatBox pos={[-10,2.0, -30]}  size={[4.0, 4.0, 4.0]} rotSeed={0.2} />
+      {/* Main wardrobe */}
+      <WardrobeUnit progress={dismantleP} />
 
-      <GridFloor />
+      {/* Contact shadow on floor */}
+      <ContactShadows
+        position={[0, -1.22, 0]}
+        opacity={lerp(0.55, 0.15, dismantleP)}
+        scale={5}
+        blur={2.2}
+        far={3}
+        resolution={512}
+        color="#000000"
+      />
+
+      {/* Background furniture for scene depth */}
+      <BGFurniture />
+
+      {/* Amber particles on dismantle */}
       <Particles dismantleP={dismantleP} />
 
+      {/* Camera orbit */}
       <CameraRig dismantleP={dismantleP} mouseX={mouseX} mouseY={mouseY} />
     </>
   );
 }
 
-/* ─── Public component ─── */
+/* ─── Public export ─── */
 export default function PageBgScene({
-  scrollProgress, mouseX, mouseY,
+  scrollProgress,
+  mouseX,
+  mouseY,
 }: {
   scrollProgress: number;
   mouseX: number;
@@ -378,19 +538,17 @@ export default function PageBgScene({
   useEffect(() => { setWebglOk(checkWebGL()); }, []);
   if (!webglOk) return null;
 
-  // Map full page scroll to dismantle progress (0 = assembled, 1 = fully apart)
-  const dismantleP = Math.max(0, Math.min(1, scrollProgress / 0.75));
+  const dismantleP = clamp(scrollProgress / 0.80, 0, 1);
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none" }}>
       <Canvas
-        camera={{ position: [0, 1.2, 7], fov: 50, near: 0.1, far: 140 }}
+        camera={{ position: [0, 0.8, 7.5], fov: 48, near: 0.1, far: 160 }}
         style={{ background: "transparent" }}
         shadows
-        gl={{ antialias: true, alpha: true, failIfMajorPerformanceCaveat: false }}
-        dpr={[1, 1.5]}
+        gl={{ antialias: true, alpha: true, failIfMajorPerformanceCaveat: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.15 }}
+        dpr={[1, 1.75]}
       >
-        <fog attach="fog" args={["#080814", 30, 90]} />
         <Scene dismantleP={dismantleP} mouseX={mouseX} mouseY={mouseY} />
       </Canvas>
     </div>

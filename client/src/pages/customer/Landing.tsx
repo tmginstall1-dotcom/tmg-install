@@ -253,7 +253,7 @@ function TrustStripAnimated() {
   const c7 = useCountUp(7, 900);
 
   return (
-    <section className="border-b border-black/8 bg-white px-4 sm:px-6 lg:px-8 py-10">
+    <section className="border-b border-black/10 bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-10">
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-black/8">
           <div className="sm:px-8 first:pl-0 flex items-start sm:items-center gap-3">
@@ -421,8 +421,8 @@ export default function Landing() {
           className="h-[2px] transition-all duration-100"
           style={{
             width: `${scrollProgress * 100}%`,
-            background: "linear-gradient(to right, #4455ff, #8866ff, #aa88ff)",
-            boxShadow: "0 0 8px rgba(100, 80, 255, 0.7)",
+            background: "linear-gradient(to right, #f59e0b, #f97316, #fbbf24)",
+            boxShadow: "0 0 10px rgba(245, 158, 11, 0.8)",
           }}
         />
       </div>
@@ -638,9 +638,9 @@ export default function Landing() {
           animate={{ opacity: dismantlePct > 12 ? 0 : 1 }}
           transition={{ duration: 0.5 }}
         >
-          <span className="text-[9px] font-black tracking-[0.22em] uppercase text-white/35">scroll to dismantle</span>
+          <span className="text-[9px] font-black tracking-[0.22em] uppercase text-amber-400/60">scroll to dismantle</span>
           <motion.div
-            className="w-px h-8 bg-gradient-to-b from-white/40 to-transparent"
+            className="w-px h-8 bg-gradient-to-b from-amber-400/50 to-transparent"
             animate={{ scaleY: [1, 0.4, 1] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
           />
@@ -652,10 +652,10 @@ export default function Landing() {
             data-testid="dismantle-badge"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute top-6 right-6 flex items-center gap-2 px-3 py-1.5 border border-white/15 bg-black/40 backdrop-blur-md pointer-events-none select-none"
+            className="absolute top-6 right-6 flex items-center gap-2 px-3 py-1.5 border border-amber-400/30 bg-black/50 backdrop-blur-md pointer-events-none select-none"
           >
-            <div className="animate-pulse w-1.5 h-1.5 rounded-full bg-white/60" />
-            <span className="text-[10px] font-black tracking-[0.15em] text-white/50 uppercase">
+            <div className="animate-pulse w-1.5 h-1.5 rounded-full bg-amber-400" />
+            <span className="text-[10px] font-black tracking-[0.15em] text-amber-400/80 uppercase">
               {dismantlePct >= 100 ? "dismantled" : `dismantling ${dismantlePct}%`}
             </span>
           </motion.div>
@@ -663,7 +663,7 @@ export default function Landing() {
       </section>
 
       {/* ═══════════════════════ MARQUEE TICKER ════════════════════════ */}
-      <div className="border-t border-b border-black/8 bg-black overflow-hidden py-3.5 select-none">
+      <div className="border-t border-b border-white/10 bg-black/75 backdrop-blur-sm overflow-hidden py-3.5 select-none">
         <div className="marquee-track">
           {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
             <span key={i} className="flex items-center gap-4 px-6">
@@ -680,7 +680,7 @@ export default function Landing() {
       <TrustStripAnimated />
 
       {/* ════════════════════ WORK GALLERY ════════════════════════ */}
-      <section className="bg-white px-4 sm:px-6 lg:px-8 py-16 border-b border-black/8">
+      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-16 border-b border-black/10">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="flex items-end justify-between gap-4 mb-8 flex-wrap">
             <div>
@@ -806,7 +806,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════ WHAT WE HANDLE ══════════════════════ */}
-      <section className="bg-white px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-12">
             <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
@@ -852,7 +852,7 @@ export default function Landing() {
 
 
       {/* ═══════════════════ BOOKING FLOW ══════════════════════ */}
-      <section className="bg-white px-4 sm:px-6 lg:px-8 py-28 border-t border-black/8">
+      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-28 border-t border-black/10">
         <div className="max-w-6xl mx-auto">
 
           {/* Header */}
@@ -1077,7 +1077,7 @@ export default function Landing() {
       </section>
 
       {/* ═══════════════════════ WHY TMG INSTALL ═══════════════════ */}
-      <section className="bg-black px-4 sm:px-6 lg:px-8 py-28">
+      <section className="bg-black/85 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-28">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-16">
             <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
@@ -1124,7 +1124,7 @@ export default function Landing() {
       </section>
 
       {/* ═══════════════════════ SOCIAL PROOF ══════════════════════ */}
-      <section className="bg-white px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)}>
             {/* Header row */}
@@ -1229,7 +1229,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════ PRICING GUIDE ════════════════════════ */}
-      <section className="bg-white px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-10">
             <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
@@ -1456,7 +1456,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════════ FAQ ═══════════════════════════════ */}
-      <section className="bg-white px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-[1fr_2fr] gap-16">
             <motion.div {...fadeUpDelayed(0)}>
@@ -1487,7 +1487,7 @@ export default function Landing() {
       </section>
 
       {/* ═════════════════════ BOTTOM CTA BAND ═════════════════════ */}
-      <section className="bg-white px-4 sm:px-6 lg:px-8 py-28">
+      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-28">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="max-w-2xl">
             <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-4" style={{ letterSpacing: "0.2em" }}>
@@ -1524,7 +1524,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════════ FOOTER ═══════════════════════════ */}
-      <footer className="bg-black text-white px-4 sm:px-6 lg:px-8 pt-16 pb-10">
+      <footer className="bg-black/88 backdrop-blur-xl text-white px-4 sm:px-6 lg:px-8 pt-16 pb-10">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-4 gap-12 mb-14">
             <div className="md:col-span-2">
