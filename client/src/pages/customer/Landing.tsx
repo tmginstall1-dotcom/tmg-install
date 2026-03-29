@@ -190,7 +190,7 @@ function useCountUp(target: number, duration = 1800) {
 function TiltCard({
   children,
   className = "",
-  intensity = 8,
+  intensity = 13,
 }: {
   children: React.ReactNode;
   className?: string;
@@ -393,8 +393,17 @@ export default function Landing() {
       {/* ═══════════════════════════ HERO ═══════════════════════════ */}
       <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-24 pb-32 lg:pt-36 lg:pb-52">
         <div className="absolute inset-0 pointer-events-none select-none">
-          <div className="absolute top-0 right-0 w-[600px] h-[600px] opacity-[0.03]"
-            style={{ background: "radial-gradient(circle at top right, #000 0%, transparent 70%)" }} />
+          {/* subtle vignette top */}
+          <div className="absolute top-0 inset-x-0 h-40 opacity-60"
+            style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)" }} />
+          {/* vignette sides */}
+          <div className="absolute inset-y-0 left-0 w-32 opacity-30"
+            style={{ background: "linear-gradient(to right, rgba(0,0,0,0.8) 0%, transparent 100%)" }} />
+          <div className="absolute inset-y-0 right-0 w-32 opacity-30"
+            style={{ background: "linear-gradient(to left, rgba(0,0,0,0.8) 0%, transparent 100%)" }} />
+          {/* bottom fade to transparent so marquee (bg-black) connects smoothly */}
+          <div className="absolute bottom-0 inset-x-0 h-48"
+            style={{ background: "linear-gradient(to bottom, transparent 0%, rgba(0,0,4,0.7) 100%)" }} />
         </div>
 
         <div className="max-w-6xl mx-auto">

@@ -22,7 +22,8 @@
 
 /* 3D background scene support — dark canvas visible through transparent sections */
 html {
-  background: #030303;
+  background: radial-gradient(ellipse at 50% 0%, #12122a 0%, #030308 55%, #000000 100%);
+  background-attachment: fixed;
 }
 body {
   background: transparent;

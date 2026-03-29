@@ -6,292 +6,302 @@ function checkWebGL(): boolean {
   try {
     const c = document.createElement("canvas");
     return !!(c.getContext("webgl2") || c.getContext("webgl") || c.getContext("experimental-webgl"));
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 const lerp = THREE.MathUtils.lerp;
 
+// Camera keyframes — dramatic fly-through a furniture showroom
 const CAM_KEYS = [
-  { t: 0,   pos: [0, 1.8, 14] as const,  tgt: [0, 0, 0]   as const },
-  { t: 0.2, pos: [-1, 0.8, 8] as const,  tgt: [0, 0, -4]  as const },
-  { t: 0.4, pos: [2, 0, 2]    as const,  tgt: [-1, 0, -10] as const },
-  { t: 0.6, pos: [-2, -0.5, -5] as const, tgt: [1, -1, -16] as const },
-  { t: 0.8, pos: [1, -1, -12]  as const, tgt: [0, -1, -22] as const },
-  { t: 1,   pos: [0, -1.5, -20] as const, tgt: [0, -1, -28] as const },
+  { t: 0,    pos: [0, 2.5, 20]  as const, tgt: [0,  0.5, 0]    as const },
+  { t: 0.18, pos: [-2, 1.5, 12] as const, tgt: [0,  0,   -2]   as const },
+  { t: 0.35, pos: [3, 0.5, 5]   as const, tgt: [-1, 0,   -8]   as const },
+  { t: 0.55, pos: [-3, 0, -2]   as const, tgt: [1, -0.5, -14]  as const },
+  { t: 0.75, pos: [2, -1, -10]  as const, tgt: [0, -1,   -20]  as const },
+  { t: 1,    pos: [0, -2, -20]  as const, tgt: [0, -1.5, -30]  as const },
 ];
 
-function sampleCamPath(progress: number) {
+function samplePath(progress: number) {
   const p = Math.max(0, Math.min(1, progress));
   let i = 0;
   for (let k = 0; k < CAM_KEYS.length - 1; k++) {
     if (p >= CAM_KEYS[k].t && p <= CAM_KEYS[k + 1].t) { i = k; break; }
   }
   const a = CAM_KEYS[i];
-  const b = CAM_KEYS[i + 1] ?? a;
-  const span = b.t - a.t;
-  const local = span === 0 ? 0 : (p - a.t) / span;
+  const b = CAM_KEYS[Math.min(i + 1, CAM_KEYS.length - 1)];
+  const span = b.t - a.t || 1;
+  const local = (p - a.t) / span;
   const ease = local < 0.5 ? 2 * local * local : -1 + (4 - 2 * local) * local;
   return {
-    px: lerp(a.pos[0], b.pos[0], ease),
-    py: lerp(a.pos[1], b.pos[1], ease),
-    pz: lerp(a.pos[2], b.pos[2], ease),
-    tx: lerp(a.tgt[0], b.tgt[0], ease),
-    ty: lerp(a.tgt[1], b.tgt[1], ease),
-    tz: lerp(a.tgt[2], b.tgt[2], ease),
+    px: lerp(a.pos[0], b.pos[0], ease), py: lerp(a.pos[1], b.pos[1], ease), pz: lerp(a.pos[2], b.pos[2], ease),
+    tx: lerp(a.tgt[0], b.tgt[0], ease), ty: lerp(a.tgt[1], b.tgt[1], ease), tz: lerp(a.tgt[2], b.tgt[2], ease),
   };
 }
 
-function Wardrobe({ position, scale = 1, color = "#0d0d0d" }: { position: [number, number, number]; scale?: number; color?: string }) {
-  const body = useMemo(() => new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.15 }), [color]);
-  const door = useMemo(() => new THREE.MeshStandardMaterial({ color: "#151515", roughness: 0.2, metalness: 0.25 }), []);
-  const chrome = useMemo(() => new THREE.MeshStandardMaterial({ color: "#888", roughness: 0.05, metalness: 0.95 }), []);
-  const trim = useMemo(() => new THREE.MeshStandardMaterial({ color: "#060606", roughness: 0.6 }), []);
+// Shared visible materials — silver/metal tones so they pop against dark bg
+function useMaterials() {
+  return useMemo(() => ({
+    body:   new THREE.MeshStandardMaterial({ color: "#9a9a9a", roughness: 0.25, metalness: 0.85 }),
+    door:   new THREE.MeshStandardMaterial({ color: "#b0b0b0", roughness: 0.15, metalness: 0.90 }),
+    chrome: new THREE.MeshStandardMaterial({ color: "#d8d8d8", roughness: 0.03, metalness: 1.0, emissive: "#444" }),
+    trim:   new THREE.MeshStandardMaterial({ color: "#606060", roughness: 0.45, metalness: 0.5 }),
+    shelf:  new THREE.MeshStandardMaterial({ color: "#888888", roughness: 0.5, metalness: 0.35 }),
+    desk:   new THREE.MeshStandardMaterial({ color: "#787878", roughness: 0.4, metalness: 0.6 }),
+    wood:   new THREE.MeshStandardMaterial({ color: "#8a7560", roughness: 0.75, metalness: 0.05 }),
+    frame:  new THREE.MeshStandardMaterial({ color: "#505050", roughness: 0.3, metalness: 0.75 }),
+    wire:   new THREE.MeshBasicMaterial({ color: "#555", wireframe: true }),
+  }), []);
+}
 
+function Wardrobe({ pos, rot = 0, scale = 1 }: { pos: [number,number,number]; rot?: number; scale?: number }) {
+  const m = useMaterials();
   return (
-    <group position={position} scale={scale}>
-      <mesh material={body} castShadow receiveShadow>
-        <boxGeometry args={[1.2, 2.3, 0.52]} />
+    <group position={pos} rotation={[0, rot, 0]} scale={scale}>
+      <mesh material={m.body} castShadow receiveShadow>
+        <boxGeometry args={[1.2, 2.4, 0.54]} />
       </mesh>
-      <mesh position={[-0.305, 0, 0.29]} material={door} castShadow>
-        <boxGeometry args={[0.575, 2.12, 0.05]} />
+      <mesh position={[-0.305, 0, 0.29]} material={m.door} castShadow>
+        <boxGeometry args={[0.57, 2.2, 0.05]} />
       </mesh>
-      <mesh position={[0.305, 0, 0.29]} material={door} castShadow>
-        <boxGeometry args={[0.575, 2.12, 0.05]} />
+      <mesh position={[0.305, 0, 0.29]} material={m.door} castShadow>
+        <boxGeometry args={[0.57, 2.2, 0.05]} />
       </mesh>
-      <mesh position={[0, 0, 0.315]} material={trim}>
-        <boxGeometry args={[0.02, 2.12, 0.01]} />
+      <mesh position={[0, 0, 0.32]} material={m.trim}>
+        <boxGeometry args={[0.02, 2.2, 0.01]} />
       </mesh>
-      <mesh position={[-0.07, 0, 0.34]} material={chrome}>
-        <boxGeometry args={[0.035, 0.26, 0.035]} />
+      {/* Handles */}
+      {([-0.08, 0.08] as number[]).map((x, i) => (
+        <group key={i} position={[x, 0, 0.35]}>
+          <mesh material={m.chrome}>
+            <boxGeometry args={[0.035, 0.26, 0.035]} />
+          </mesh>
+          <mesh position={[0, 0.14, 0]} material={m.chrome}><boxGeometry args={[0.048, 0.04, 0.04]} /></mesh>
+          <mesh position={[0, -0.14, 0]} material={m.chrome}><boxGeometry args={[0.048, 0.04, 0.04]} /></mesh>
+        </group>
+      ))}
+      {/* Crown + base */}
+      <mesh position={[0, 1.27, 0]} material={m.trim} castShadow>
+        <boxGeometry args={[1.32, 0.1, 0.58]} />
       </mesh>
-      <mesh position={[0.07, 0, 0.34]} material={chrome}>
-        <boxGeometry args={[0.035, 0.26, 0.035]} />
+      <mesh position={[0, -1.27, 0]} material={m.trim}>
+        <boxGeometry args={[1.26, 0.1, 0.56]} />
       </mesh>
-      <mesh position={[0, 1.2, 0]} material={trim} castShadow>
-        <boxGeometry args={[1.3, 0.1, 0.56]} />
-      </mesh>
-      <mesh position={[0, -1.22, 0]} material={trim}>
-        <boxGeometry args={[1.24, 0.1, 0.54]} />
-      </mesh>
-      <mesh position={[0.614, 0, 0]} material={trim}>
-        <boxGeometry args={[0.012, 2.3, 0.52]} />
-      </mesh>
-      <mesh position={[-0.614, 0, 0]} material={trim}>
-        <boxGeometry args={[0.012, 2.3, 0.52]} />
-      </mesh>
+      {/* Shelves */}
+      <mesh position={[0, 0.35, 0]} material={m.shelf}><boxGeometry args={[1.16, 0.018, 0.46]} /></mesh>
+      <mesh position={[0, -0.45, 0]} material={m.shelf}><boxGeometry args={[1.16, 0.018, 0.46]} /></mesh>
     </group>
   );
 }
 
-function Desk({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) {
-  const wood = useMemo(() => new THREE.MeshStandardMaterial({ color: "#111", roughness: 0.4, metalness: 0.1 }), []);
-  const metal = useMemo(() => new THREE.MeshStandardMaterial({ color: "#1a1a1a", roughness: 0.15, metalness: 0.8 }), []);
-
+function Desk({ pos, rot = 0, scale = 1 }: { pos: [number,number,number]; rot?: number; scale?: number }) {
+  const m = useMaterials();
   return (
-    <group position={position} scale={scale}>
-      <mesh position={[0, 0.76, 0]} material={wood} castShadow>
-        <boxGeometry args={[1.6, 0.05, 0.75]} />
+    <group position={pos} rotation={[0, rot, 0]} scale={scale}>
+      {/* Top surface */}
+      <mesh position={[0, 0.77, 0]} material={m.wood} castShadow>
+        <boxGeometry args={[1.65, 0.055, 0.78]} />
       </mesh>
-      {[[-0.72, 0, -0.32], [0.72, 0, -0.32], [-0.72, 0, 0.32], [0.72, 0, 0.32]].map((p, i) => (
-        <mesh key={i} position={p as [number,number,number]} material={metal} castShadow>
-          <boxGeometry args={[0.05, 0.76, 0.05]} />
+      {/* Legs */}
+      {([[-0.74, 0, -0.34], [0.74, 0, -0.34], [-0.74, 0, 0.34], [0.74, 0, 0.34]] as [number,number,number][]).map((p, i) => (
+        <mesh key={i} position={p} material={m.frame} castShadow>
+          <boxGeometry args={[0.055, 0.77, 0.055]} />
         </mesh>
       ))}
-      <mesh position={[0, 0.4, -0.32]} material={metal}>
-        <boxGeometry args={[1.44, 0.04, 0.04]} />
+      {/* Cross rail */}
+      <mesh position={[0, 0.36, -0.34]} material={m.frame}><boxGeometry args={[1.48, 0.04, 0.04]} /></mesh>
+      {/* Monitor (simplified) */}
+      <mesh position={[0, 1.38, -0.28]} material={m.body} castShadow>
+        <boxGeometry args={[0.62, 0.38, 0.04]} />
+      </mesh>
+      <mesh position={[0, 1.14, -0.28]} material={m.frame}>
+        <boxGeometry args={[0.06, 0.28, 0.06]} />
       </mesh>
     </group>
   );
 }
 
-function BedFrame({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) {
-  const frame = useMemo(() => new THREE.MeshStandardMaterial({ color: "#0d0d0d", roughness: 0.35, metalness: 0.12 }), []);
-  const mattress = useMemo(() => new THREE.MeshStandardMaterial({ color: "#181818", roughness: 0.9, metalness: 0.0 }), []);
-
+function BedFrame({ pos, rot = 0, scale = 1 }: { pos: [number,number,number]; rot?: number; scale?: number }) {
+  const m = useMaterials();
   return (
-    <group position={position} scale={scale}>
-      <mesh position={[0, 0.18, 0]} material={frame} castShadow receiveShadow>
-        <boxGeometry args={[1.6, 0.2, 2.1]} />
+    <group position={pos} rotation={[0, rot, 0]} scale={scale}>
+      <mesh position={[0, 0.2, 0]} material={m.frame} castShadow receiveShadow>
+        <boxGeometry args={[1.65, 0.22, 2.15]} />
       </mesh>
-      <mesh position={[0, 0.35, 0]} material={mattress}>
-        <boxGeometry args={[1.45, 0.18, 1.95]} />
+      <mesh position={[0, 0.38, 0]} material={m.body}>
+        <boxGeometry args={[1.5, 0.19, 2.0]} />
       </mesh>
-      <mesh position={[0, 0.55, -0.95]} material={frame} castShadow>
-        <boxGeometry args={[1.6, 0.6, 0.1]} />
+      {/* Headboard */}
+      <mesh position={[0, 0.72, -1.04]} material={m.frame} castShadow>
+        <boxGeometry args={[1.65, 0.72, 0.1]} />
       </mesh>
-      <mesh position={[0, 0.3, 0.95]} material={frame}>
-        <boxGeometry args={[1.6, 0.2, 0.08]} />
+      <mesh position={[0, 0.32, 1.04]} material={m.frame}>
+        <boxGeometry args={[1.65, 0.2, 0.08]} />
       </mesh>
     </group>
+  );
+}
+
+function FloatingFrame({ pos, size, rot = 0 }: { pos: [number,number,number]; size: [number,number,number]; rot?: number }) {
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#555", wireframe: true, transparent: true, opacity: 0.3 }), []);
+  return (
+    <mesh position={pos} rotation={[rot, rot * 0.7, 0]} material={mat}>
+      <boxGeometry args={size} />
+    </mesh>
   );
 }
 
 function GridFloor() {
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#1a1a1a", wireframe: true, transparent: true, opacity: 0.25 }), []);
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#333", wireframe: true, transparent: true, opacity: 0.2 }), []);
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.8, -12]} material={mat}>
-      <planeGeometry args={[60, 60, 40, 40]} />
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.2, -15]} material={mat}>
+      <planeGeometry args={[80, 60, 50, 36]} />
     </mesh>
   );
 }
 
 function Particles() {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const count = 120;
-
-  const data = useMemo(() => Array.from({ length: count }, () => ({
-    x: (Math.random() - 0.5) * 24,
-    y: (Math.random() - 0.5) * 14,
-    z: Math.random() * -32,
-    speed: 0.15 + Math.random() * 0.4,
-    offset: Math.random() * Math.PI * 2,
-    size: 0.008 + Math.random() * 0.022,
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const N = 150;
+  const data = useMemo(() => Array.from({ length: N }, () => ({
+    x: (Math.random() - 0.5) * 28,
+    y: (Math.random() - 0.5) * 18,
+    z: Math.random() * -36,
+    spd: 0.1 + Math.random() * 0.5,
+    off: Math.random() * Math.PI * 2,
+    sz:  0.012 + Math.random() * 0.035,
   })), []);
-
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
-  useFrame((state) => {
-    if (!meshRef.current) return;
-    const t = state.clock.elapsedTime;
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    const t = clock.elapsedTime;
     data.forEach((p, i) => {
       dummy.position.set(
-        p.x + Math.sin(t * p.speed * 0.4 + p.offset) * 0.4,
-        p.y + Math.sin(t * p.speed + p.offset) * 0.6,
+        p.x + Math.sin(t * p.spd * 0.5 + p.off) * 0.5,
+        p.y + Math.sin(t * p.spd + p.off) * 0.8,
         p.z
       );
-      dummy.scale.setScalar(p.size * (0.75 + Math.sin(t * p.speed + p.offset) * 0.25));
+      dummy.scale.setScalar(p.sz * (0.8 + Math.sin(t * p.spd + p.off) * 0.2));
       dummy.updateMatrix();
-      meshRef.current!.setMatrixAt(i, dummy.matrix);
+      ref.current!.setMatrixAt(i, dummy.matrix);
     });
-    meshRef.current.instanceMatrix.needsUpdate = true;
+    ref.current.instanceMatrix.needsUpdate = true;
   });
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
-      <sphereGeometry args={[1, 4, 4]} />
-      <meshBasicMaterial color="#ffffff" transparent opacity={0.12} />
+    <instancedMesh ref={ref} args={[undefined, undefined, N]}>
+      <sphereGeometry args={[1, 5, 5]} />
+      <meshBasicMaterial color="#aaaaff" transparent opacity={0.35} />
     </instancedMesh>
   );
 }
 
-function SceneObjects() {
-  const group = useRef<THREE.Group>(null);
-  let yaw = 0;
+function SceneObjects({ scrollProgress }: { scrollProgress: number }) {
+  const ref = useRef<THREE.Group>(null);
+  let elapsed = 0;
 
   useFrame((_, delta) => {
-    if (!group.current) return;
-    yaw += delta * 0.08;
-    group.current.children.forEach((child, i) => {
-      if (child instanceof THREE.Group) {
-        child.rotation.y = yaw * (i % 2 === 0 ? 1 : -1) * 0.18 + Math.PI / 6;
-      }
-    });
+    elapsed += delta;
+    if (!ref.current) return;
+    // Slow continuous rotation of the whole scene for life
+    ref.current.rotation.y = elapsed * 0.025;
   });
 
   return (
-    <group ref={group}>
-      <Wardrobe position={[0, -0.6, 0]} scale={1} />
-      <Wardrobe position={[-7, -0.6, -10]} scale={0.88} color="#0a0a0a" />
-      <Wardrobe position={[8, -0.4, -17]} scale={0.76} color="#111" />
-      <Desk     position={[5, -2.2, -7]} scale={1.1} />
-      <Desk     position={[-6, -2.2, -20]} scale={0.9} />
-      <BedFrame position={[-4, -2.5, -13]} scale={0.85} />
-      <BedFrame position={[6, -2.5, -24]} scale={0.9} />
+    <group ref={ref}>
+      {/* Hero wardrobe — front center */}
+      <Wardrobe pos={[0, -0.5, 0]} rot={Math.PI / 8} scale={1.05} />
+      {/* Second wardrobe — left mid */}
+      <Wardrobe pos={[-8, -0.5, -10]} rot={-Math.PI / 5} scale={0.9} />
+      {/* Third wardrobe — right deep */}
+      <Wardrobe pos={[9, -0.5, -18]} rot={Math.PI / 4} scale={0.8} />
+
+      {/* Desks */}
+      <Desk pos={[6, -2.5, -7]} rot={-Math.PI / 6} scale={1.0} />
+      <Desk pos={[-7, -2.5, -22]} rot={Math.PI / 5} scale={0.85} />
+
+      {/* Bed frames */}
+      <BedFrame pos={[-5, -3.0, -14]} rot={Math.PI / 7} scale={0.9} />
+      <BedFrame pos={[7, -3.0, -26]} rot={-Math.PI / 6} scale={0.85} />
+
+      {/* Floating wireframe boxes — design accents */}
+      <FloatingFrame pos={[4, 3, -5]} size={[2.5, 2.5, 2.5]} rot={0.4} />
+      <FloatingFrame pos={[-5, 4, -12]} size={[3, 1.5, 3]} rot={0.7} />
+      <FloatingFrame pos={[8, 2, -20]} size={[2, 3, 2]} rot={1.1} />
+      <FloatingFrame pos={[-9, 1, -28]} size={[4, 4, 4]} rot={0.2} />
+
+      <GridFloor />
+      <Particles />
     </group>
   );
 }
 
-function CameraRig({
-  scrollProgress,
-  mouseX,
-  mouseY,
-}: {
-  scrollProgress: number;
-  mouseX: number;
-  mouseY: number;
-}) {
+function CameraRig({ scrollProgress, mouseX, mouseY }: { scrollProgress: number; mouseX: number; mouseY: number }) {
   const { camera } = useThree();
-  const camPos = useRef(new THREE.Vector3(0, 1.8, 14));
-  const camTgt = useRef(new THREE.Vector3(0, 0, 0));
+  const pos = useRef(new THREE.Vector3(0, 2.5, 20));
+  const tgt = useRef(new THREE.Vector3(0, 0.5, 0));
 
   useFrame(() => {
-    const k = sampleCamPath(scrollProgress);
-    const destPos = new THREE.Vector3(
-      k.px + mouseX * 0.5,
-      k.py + mouseY * -0.3,
+    const k = samplePath(scrollProgress);
+    const dPos = new THREE.Vector3(
+      k.px + mouseX * 0.8,
+      k.py + mouseY * -0.5,
       k.pz
     );
-    const destTgt = new THREE.Vector3(k.tx, k.ty, k.tz);
-
-    camPos.current.lerp(destPos, 0.045);
-    camTgt.current.lerp(destTgt, 0.045);
-
-    camera.position.copy(camPos.current);
-    camera.lookAt(camTgt.current);
+    const dTgt = new THREE.Vector3(k.tx, k.ty, k.tz);
+    pos.current.lerp(dPos, 0.038);
+    tgt.current.lerp(dTgt, 0.038);
+    camera.position.copy(pos.current);
+    camera.lookAt(tgt.current);
   });
-
   return null;
 }
 
-function Scene({
-  scrollProgress,
-  mouseX,
-  mouseY,
-}: {
-  scrollProgress: number;
-  mouseX: number;
-  mouseY: number;
-}) {
+function Scene({ scrollProgress, mouseX, mouseY }: { scrollProgress: number; mouseX: number; mouseY: number }) {
   return (
     <>
-      <ambientLight intensity={0.45} color="#ffffff" />
-      <directionalLight position={[5, 8, 5]} intensity={2.2} color="#e8eeff" castShadow />
-      <directionalLight position={[-4, 3, -4]} intensity={0.5} color="#8899ff" />
-      <pointLight position={[0, 4, 2]} intensity={18} color="#ffffff" distance={14} />
-      <pointLight position={[-5, 3, -8]} intensity={8} color="#aabbff" distance={16} />
-      <pointLight position={[6, 2, -15]} intensity={6} color="#ffffff" distance={14} />
-      <Particles />
-      <SceneObjects />
-      <GridFloor />
+      {/* Ambient — low, dramatic */}
+      <ambientLight intensity={0.35} color="#aabbff" />
+
+      {/* Key light — warm, from top-front-right */}
+      <directionalLight position={[8, 14, 10]} intensity={4.5} color="#fff5e0" castShadow
+        shadow-mapSize={[1024, 1024]} shadow-camera-far={80} />
+
+      {/* Fill light — cool blue from left */}
+      <directionalLight position={[-10, 6, -4]} intensity={1.8} color="#8899ff" />
+
+      {/* Rim / back light — separates models from background */}
+      <directionalLight position={[0, -4, -14]} intensity={1.5} color="#ffffff" />
+
+      {/* Accent point lights */}
+      <pointLight position={[0, 6, 4]}   intensity={35} color="#ffffff" distance={22} />
+      <pointLight position={[-6, 4, -8]} intensity={18} color="#aabbff" distance={20} />
+      <pointLight position={[8, 3, -16]} intensity={14} color="#ffeedd" distance={22} />
+      <pointLight position={[0, 2, -24]} intensity={10} color="#ffffff"  distance={18} />
+
+      <SceneObjects scrollProgress={scrollProgress} />
       <CameraRig scrollProgress={scrollProgress} mouseX={mouseX} mouseY={mouseY} />
     </>
   );
 }
 
-interface PageBgSceneProps {
-  scrollProgress: number;
-  mouseX: number;
-  mouseY: number;
-}
-
-export default function PageBgScene({ scrollProgress, mouseX, mouseY }: PageBgSceneProps) {
+export default function PageBgScene({
+  scrollProgress, mouseX, mouseY,
+}: { scrollProgress: number; mouseX: number; mouseY: number }) {
   const [webglOk, setWebglOk] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    setWebglOk(checkWebGL());
-  }, []);
-
+  useEffect(() => { setWebglOk(checkWebGL()); }, []);
   if (!webglOk) return null;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: -1,
-        pointerEvents: "none",
-      }}
-    >
+    <div style={{ position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none" }}>
       <Canvas
-        camera={{ position: [0, 1.8, 14], fov: 48, near: 0.1, far: 120 }}
+        camera={{ position: [0, 2.5, 20], fov: 50, near: 0.1, far: 140 }}
         style={{ background: "transparent" }}
         shadows
         gl={{ antialias: true, alpha: true, failIfMajorPerformanceCaveat: false }}
         dpr={[1, 1.5]}
       >
-        <fog attach="fog" args={["#030303", 18, 60]} />
+        <fog attach="fog" args={["#080814", 28, 80]} />
         <Scene scrollProgress={scrollProgress} mouseX={mouseX} mouseY={mouseY} />
       </Canvas>
     </div>
