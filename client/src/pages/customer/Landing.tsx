@@ -12,10 +12,8 @@ import {
   Shield,
   Clock,
   Building2,
-  Home,
   Truck,
   Star,
-  ChevronDown,
   Sofa,
   Monitor,
   Dumbbell,
@@ -25,7 +23,6 @@ import {
   Plus,
   Minus,
   CalendarDays,
-  Wrench,
   CreditCard,
   FileText,
   Mail,
@@ -487,10 +484,10 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-black/8">
             {[
-              { icon: Shield,    label: "Experienced Installers",   sub: "Skilled & professional team" },
-              { icon: Zap,       label: "Upfront Pricing",          sub: "No hidden costs, ever" },
-              { icon: Clock,     label: "Fast Scheduling",          sub: "Same-week availability" },
-              { icon: Building2, label: "Residential & Commercial", sub: "HDB, condo, office & more" },
+              { icon: Package,   label: "250+ Items in Catalog",    sub: "Every item fixed-priced upfront" },
+              { icon: Zap,       label: "60-Second Quote",          sub: "No calls, no waiting, no forms" },
+              { icon: Clock,     label: "7 Days a Week",            sub: "Weekends & public holidays included" },
+              { icon: Shield,    label: "ACRA Registered",          sub: "The Moving Guy Pte Ltd · UEN 202424156H" },
             ].map(({ icon: Icon, label, sub }) => (
               <div key={label} className="sm:px-8 first:pl-0 last:pr-0 flex items-start sm:items-center gap-3">
                 <Icon className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
@@ -915,14 +912,14 @@ export default function Landing() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/8">
             {[
               {
-                icon: Building2,
-                title: "Office & Commercial",
-                body: "Workstations, sit-stand desks, partitions, ergonomic chairs, reception counters — full office fits and strip-outs.",
+                icon: Package,
+                title: "Fixed-Price Catalog",
+                body: "Every one of our 250+ items has a locked price. No negotiations, no variations — your neighbour pays the same rate you do.",
               },
               {
-                icon: Home,
-                title: "Home & Residential",
-                body: "Beds, wardrobes, gym equipment, kitchen furniture, blinds, appliance relocation — all property types across Singapore.",
+                icon: Zap,
+                title: "No Callbacks Needed",
+                body: "Build your estimate online in 60 seconds. No phone tag, no site visit required just to get a number.",
               },
               {
                 icon: Truck,
@@ -1053,43 +1050,6 @@ export default function Landing() {
               </a>
             </div>
           </motion.div>
-        </div>
-      </section>
-
-      {/* ════════════════════ CONFIDENCE STATS ═════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-3 gap-px bg-black/8">
-            {[
-              {
-                stat: "250+",
-                label: "Item Catalog",
-                body: "Beds, wardrobes, sofas, office furniture, gym equipment, kitchen pieces, blinds, appliances — all priced upfront.",
-              },
-              {
-                stat: "SG",
-                label: "Island-Wide",
-                body: "All 28 districts — HDB, condo, landed, shophouse, commercial, and industrial premises.",
-              },
-              {
-                stat: "60s",
-                label: "Instant Quote",
-                body: "Select your items and get a full, itemised quote with transport in under a minute — no calls, no waiting.",
-              },
-            ].map(({ stat, label, body }, i) => (
-              <motion.div
-                key={label}
-                {...fadeUpDelayed(i * 0.1)}
-                className="bg-white p-10 group hover:bg-neutral-50 transition-colors"
-                data-testid={`stat-card-${i}`}
-              >
-                <div className="stat-display text-black mb-3" data-testid={`stat-number-${i}`}>{stat}</div>
-                <div className="w-8 h-px bg-black/20 mb-4" />
-                <h3 className="card-title text-black mb-2">{label}</h3>
-                <p className="font-body text-sm text-gray-500 leading-relaxed">{body}</p>
-              </motion.div>
-            ))}
-          </div>
         </div>
       </section>
 
