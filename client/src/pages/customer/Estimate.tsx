@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import type { CatalogItem } from "@shared/schema";
-import { computePricing, type PricingCatalogEntry } from "@shared/pricing";
+import { computePricing, PricingConfig, type PricingCatalogEntry } from "@shared/pricing";
 
 type ServiceType = "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose";
 
@@ -411,9 +411,10 @@ export default function EstimateWizard() {
           const carryPrice = parseFloat(relocateEntry.basePrice);
           const installEntry = group.entries.find(e => e.serviceType === 'install');
           const dismantleEntry = group.entries.find(e => e.serviceType === 'dismantle');
+          const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount; // 0.60
           const fullPrice = (installEntry && dismantleEntry)
-            ? parseFloat(installEntry.basePrice) + parseFloat(dismantleEntry.basePrice)
-            : carryPrice * 1.5; // fallback: 1.5× carry-only
+            ? (parseFloat(installEntry.basePrice) + parseFloat(dismantleEntry.basePrice)) * drDiscount
+            : carryPrice * 1.5 * drDiscount; // fallback: 1.5× carry-only with bundle discount
           const existing = updated.find(i => i.catalogItemId === relocateEntry.id);
           if (existing) {
             updated = updated.map(i => i.catalogItemId === relocateEntry.id ? { ...i, quantity: i.quantity + qty } : i);
@@ -1041,9 +1042,10 @@ export default function EstimateWizard() {
                                     if (rel) {
                                       const inst = group.entries.find(e => e.serviceType === 'install');
                                       const dis = group.entries.find(e => e.serviceType === 'dismantle');
+                                      const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
                                       const fullPrice = (inst && dis)
-                                        ? parseFloat(inst.basePrice) + parseFloat(dis.basePrice)
-                                        : parseFloat(rel.basePrice) * 1.5;
+                                        ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
+                                        : parseFloat(rel.basePrice) * 1.5 * drDiscount;
                                       return (
                                         <div className="flex items-center gap-2 justify-end">
                                           {serviceBadge('relocate')}
@@ -1225,9 +1227,10 @@ export default function EstimateWizard() {
                                     const inst = grp?.entries.find(e => e.serviceType === 'install');
                                     const dis = grp?.entries.find(e => e.serviceType === 'dismantle');
                                     const carry = rel ? parseFloat(rel.basePrice) : (i.carryPrice ?? i.unitPrice);
+                                    const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
                                     const full = (inst && dis)
-                                      ? parseFloat(inst.basePrice) + parseFloat(dis.basePrice)
-                                      : (i.fullPrice ?? carry * 1.5);
+                                      ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
+                                      : (i.fullPrice ?? carry * 1.5 * drDiscount);
                                     return { ...i, relocateMode: 'full', carryPrice: carry, fullPrice: full, unitPrice: full };
                                   }))}
                                   className={`px-2.5 py-1.5 transition-colors ${item.relocateMode === 'full' ? 'bg-black text-white' : 'bg-white text-black/40 hover:text-black/70'}`}
@@ -1244,9 +1247,10 @@ export default function EstimateWizard() {
                                     const inst = grp?.entries.find(e => e.serviceType === 'install');
                                     const dis = grp?.entries.find(e => e.serviceType === 'dismantle');
                                     const carry = rel ? parseFloat(rel.basePrice) : (i.carryPrice ?? i.unitPrice);
+                                    const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
                                     const full = (inst && dis)
-                                      ? parseFloat(inst.basePrice) + parseFloat(dis.basePrice)
-                                      : (i.fullPrice ?? carry * 1.5);
+                                      ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
+                                      : (i.fullPrice ?? carry * 1.5 * drDiscount);
                                     return { ...i, relocateMode: 'carry', carryPrice: carry, fullPrice: full, unitPrice: 0 };
                                   }))}
                                   className={`px-2.5 py-1.5 border-l border-black/15 transition-colors ${item.relocateMode === 'carry' ? 'bg-black text-white' : 'bg-white text-black/40 hover:text-black/70'}`}

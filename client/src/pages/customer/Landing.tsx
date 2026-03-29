@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { PricingConfig } from "@shared/pricing";
 import { motion } from "framer-motion";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
 import { useSEO } from "@/hooks/use-seo";
@@ -1133,13 +1134,13 @@ export default function Landing() {
                   <span className="text-sm font-semibold text-black">${dismantle}</span>
                 </div>
                 <div className="px-6 py-4 border-l border-black/5 flex items-center bg-black/[0.04]">
-                  <span className="text-sm font-bold text-black">${install + dismantle}</span>
+                  <span className="text-sm font-bold text-black">${Math.round((install + dismantle) * (1 - PricingConfig.fallback.relocateDRDiscount))}</span>
                 </div>
               </div>
             ))}
             <div className="px-6 py-4 border-t border-black/8 bg-black/[0.02] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <p className="font-body text-xs text-black/40">
-                D&R Labor = dismantle + reinstall per item. Transport &amp; stair fees quoted separately. See Relocation Pricing breakdown below.
+                D&amp;R Labor = 40% bundle discount applied (dismantle + reinstall, bundled with transport). Transport &amp; stair fees quoted separately.
               </p>
               <Link
                 href="/estimate"
@@ -1161,8 +1162,8 @@ export default function Landing() {
                 >
                   <span className="text-sm text-black font-medium pr-4">{item}</span>
                   <div className="text-right flex-shrink-0">
-                    <span className="text-sm font-bold text-black">${install + dismantle}</span>
-                    <p className="text-[10px] text-black/35">D&amp;R labor</p>
+                    <span className="text-sm font-bold text-black">${Math.round((install + dismantle) * (1 - PricingConfig.fallback.relocateDRDiscount))}</span>
+                    <p className="text-[10px] text-black/35">D&amp;R labor (40% off)</p>
                   </div>
                 </div>
               ))
@@ -1259,14 +1260,14 @@ export default function Landing() {
                 </div>
                 <div className="bg-white/10 px-4 py-3">
                   <p className="text-[10px] text-white/40 font-body mb-1">Example: 10 km, 1 × Queen Bed Frame, ground floor</p>
-                  <p className="text-xl font-black text-white">$211.50 <span className="text-sm font-normal text-white/40">total</span></p>
-                  <p className="text-[10px] text-white/35">$68 base + 7km × $0.50 + $140 D&R labor</p>
+                  <p className="text-xl font-black text-white">$155.50 <span className="text-sm font-normal text-white/40">total</span></p>
+                  <p className="text-[10px] text-white/35">$68 base + 7km × $0.50 + $84 D&R labor (40% bundle discount)</p>
                 </div>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-black/8 bg-black/[0.02] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <p className="font-body text-xs text-black/40">
-                Van base $38 (first 3 km) + 1 helper $30 = $68 minimum · 90-min crew time included · Overtime $30/30-min block, capped at $200.
+                Van base $38 (first 3 km) + 1 helper $30 = $68 minimum · 120-min crew time included · Overtime $30/30-min block, capped at $200.
               </p>
               <Link
                 href="/estimate"

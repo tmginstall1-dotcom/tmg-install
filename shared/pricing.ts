@@ -13,6 +13,7 @@ export const PricingConfig = {
     disposeMultiplier: 0.65,         // dispose-only    = install * 0.65 when no catalog entry
     dismantleDisposeMultiplier: 0.95, // dismantle+dispose bundle = install * 0.95 when no catalog entry
     genericFallback: 150,            // SGD per unit when absolutely no catalog price found
+    relocateDRDiscount: 0.40,        // D&R labor discount for relocation — 40% off install+dismantle (bundled with transport)
   },
   bulkDiscount: [
     { minQty: 100, pct: 0.15 },
