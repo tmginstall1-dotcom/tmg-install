@@ -1084,8 +1084,9 @@ export default function AdminQuoteDetail() {
               </div>
             </div>
 
-            {/* Overtime / Additional Charges Calculator */}
-            {['in_progress', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status) && (
+            {/* Overtime / Additional Charges Calculator — relocation jobs only */}
+            {['in_progress', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status) &&
+             (quote.items || []).some((item: any) => item.serviceType === 'relocate') && (
               <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
                 <div className="px-5 py-4 border-b border-zinc-100 flex items-center gap-2">
                   <Timer className="w-4 h-4 text-amber-500" />
