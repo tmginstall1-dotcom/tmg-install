@@ -369,6 +369,11 @@ export default function Landing() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: recentJobs = [] } = useQuery<{ label: string }[]>({
+    queryKey: ["/api/public/recent-jobs"],
+    staleTime: 2 * 60 * 1000,
+  });
+
   useSEO({
     title: "TMG Install | Furniture Installation, Dismantling & Relocation Singapore",
     description: "Singapore's furniture installation specialists. Wardrobe assembly, bed frame installation, office fit-outs, gym equipment & more. Instant itemised quote in 60 seconds. Island-wide coverage — HDB, condo, landed, commercial.",
@@ -683,18 +688,39 @@ export default function Landing() {
       </section>
 
       {/* ═══════════════════════ MARQUEE TICKER ════════════════════════ */}
-      <div className="border-t border-b border-white/10 glass-marquee overflow-hidden py-3.5 select-none">
-        <div className="marquee-track">
-          {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
-            <span key={i} className="flex items-center gap-4 px-6">
-              <span className="text-[10px] font-black tracking-[0.18em] uppercase text-white/60 whitespace-nowrap">
-                {item}
-              </span>
-              <span className="w-1 h-1 bg-white/20 flex-shrink-0" />
-            </span>
-          ))}
-        </div>
-      </div>
+      {(() => {
+        // Use real job feed when available, otherwise fall back to static labels
+        const marqueeItems = recentJobs.length > 0
+          ? recentJobs.map(j => j.label)
+          : MARQUEE_ITEMS;
+        // Duplicate enough times to fill the strip without gaps
+        const repeated = marqueeItems.length < 8
+          ? [...marqueeItems, ...marqueeItems, ...marqueeItems]
+          : [...marqueeItems, ...marqueeItems];
+        const isLive = recentJobs.length > 0;
+        return (
+          <div className="relative border-t border-b border-white/10 glass-marquee overflow-hidden py-3.5 select-none">
+            {isLive && (
+              <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center px-3 glass-marquee border-r border-white/10">
+                <span className="flex items-center gap-1.5 text-[9px] font-black tracking-[0.18em] uppercase text-amber-400 whitespace-nowrap">
+                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
+                  Live Jobs
+                </span>
+              </div>
+            )}
+            <div className={`marquee-track ${isLive ? "pl-24" : ""}`}>
+              {repeated.map((item, i) => (
+                <span key={i} className="flex items-center gap-4 px-6">
+                  <span className={`text-[10px] font-black tracking-[0.18em] ${isLive ? "normal-case" : "uppercase"} text-white/60 whitespace-nowrap`}>
+                    {item}
+                  </span>
+                  <span className="w-1 h-1 bg-white/20 flex-shrink-0" />
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ═══════════════════════ TRUST STRIP ═══════════════════════ */}
       <TrustStripAnimated />

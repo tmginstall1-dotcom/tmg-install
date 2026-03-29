@@ -6172,6 +6172,118 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // GET /api/public/recent-jobs — anonymised live job feed for the marquee ticker
+  app.get("/api/public/recent-jobs", async (_req, res) => {
+    try {
+      // Singapore districts for address parsing
+      const SG_AREAS = [
+        "Admiralty","Aljunied","Ang Mo Kio","Balestier","Bedok","Bishan","Boon Lay",
+        "Boustead","Bugis","Bukit Batok","Bukit Merah","Bukit Panjang","Bukit Timah",
+        "Cairnhill","Changi","Choa Chu Kang","Clementi","Commonwealth","Dhoby Ghaut",
+        "Dempsey","Dover","Eunos","Farrer Park","Geylang","Hillview","Holland",
+        "Hougang","Jalan Besar","Jurong East","Jurong West","Kallang","Katong",
+        "Kembangan","Kent Ridge","Kovan","Lavender","Lim Chu Kang","Little India",
+        "Loyang","MacPherson","Marine Parade","Marsiling","Marymount","Mountbatten",
+        "Novena","Orchard","Outram","Pandan","Pasir Ris","Paya Lebar","Pioneer",
+        "Potong Pasir","Punggol","Queenstown","Redhill","Rochor","Sembawang",
+        "Sengkang","Serangoon","Simei","Tampines","Tanglin","Telok Blangah",
+        "Thomson","Tiong Bahru","Toa Payoh","Tuas","Ubi","Woodlands","Yew Tee",
+        "Yishun","Jurong","Clementi","Buona Vista","Boon Keng","Bendemeer",
+        "Bedok North","Bedok Reservoir","Fernvale","Khatib","Kranji","Lakeside",
+        "Lentor","Springleaf","Tengah","Upper Thomson","Lentor","Turf City",
+      ];
+
+      function extractArea(addr: string): string {
+        if (!addr) return "Singapore";
+        const upper = addr.toUpperCase();
+        for (const a of SG_AREAS) {
+          if (upper.includes(a.toUpperCase())) return a;
+        }
+        // Fall back to first meaningful word segment
+        const parts = addr.split(/[,\n#]+/);
+        for (const p of parts) {
+          const trimmed = p.trim().replace(/^\d+\s*/, "");
+          if (trimmed.length > 3 && !/^\d+$/.test(trimmed)) return trimmed.split(" ").slice(0, 2).join(" ");
+        }
+        return "Singapore";
+      }
+
+      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // last 90 days
+      const rows = await db
+        .select({
+          id:               quotesTable.id,
+          serviceAddress:   quotesTable.serviceAddress,
+          scheduledAt:      quotesTable.scheduledAt,
+          createdAt:        quotesTable.createdAt,
+          selectedServices: quotesTable.selectedServices,
+          status:           quotesTable.status,
+        })
+        .from(quotesTable)
+        .where(
+          and(
+            inArray(quotesTable.status, ["booked","assigned","in_progress","completed","paid"]),
+            gte(quotesTable.createdAt, cutoff),
+          )
+        )
+        .orderBy(desc(quotesTable.scheduledAt))
+        .limit(40);
+
+      // Fetch first item name for each quote
+      const quoteIds = rows.map(r => r.id);
+      const itemRows = quoteIds.length
+        ? await db
+            .select({ quoteId: quoteItemsTable.quoteId, originalDescription: quoteItemsTable.originalDescription, serviceType: quoteItemsTable.serviceType })
+            .from(quoteItemsTable)
+            .where(inArray(quoteItemsTable.quoteId, quoteIds))
+        : [];
+
+      const itemsByQuote: Record<number, typeof itemRows> = {};
+      for (const r of itemRows) {
+        if (!itemsByQuote[r.quoteId]) itemsByQuote[r.quoteId] = [];
+        itemsByQuote[r.quoteId].push(r);
+      }
+
+      const SERVICE_LABEL: Record<string, string> = {
+        install: "Installation", dismantle: "Dismantling", relocate: "Relocation",
+        installation: "Installation", dismantling: "Dismantling", relocation: "Relocation",
+      };
+
+      const now = Date.now();
+      const feed = rows.map(q => {
+        const items = itemsByQuote[q.id] || [];
+        const firstItem = items[0];
+        const svcType = firstItem
+          ? SERVICE_LABEL[firstItem.serviceType?.toLowerCase()] || "Installation"
+          : "Installation";
+        const itemName = firstItem?.originalDescription
+          ? firstItem.originalDescription.split(/[-–(]/)[0].trim().replace(/^\d+\s*x?\s*/i, "")
+          : "Furniture";
+
+        const area = extractArea(q.serviceAddress);
+
+        // Use scheduledAt only if it's in the past; fall back to createdAt
+        const rawDate = q.scheduledAt || q.createdAt;
+        const dateMs = rawDate ? new Date(rawDate).getTime() : now;
+        const effectiveMs = dateMs > now ? (q.createdAt ? new Date(q.createdAt).getTime() : now) : dateMs;
+        const days = Math.floor((now - effectiveMs) / 86400000);
+        const timeLabel = days <= 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
+
+        // Strip trailing service-type words already baked into the description
+        const cleanName = itemName
+          .replace(/\s+(installation|assembly|dismantling|dismantle|relocation|reinstall|reassembly)$/i, "")
+          .trim();
+
+        return { label: `${cleanName} ${svcType} · ${area} · ${timeLabel}` };
+      });
+
+      res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=60");
+      return res.json(feed);
+    } catch (err) {
+      console.error("[recent-jobs]", err);
+      return res.json([]);
+    }
+  });
+
   // ── Promo code routes ─────────────────────────────────────────────────────
 
   // GET /api/promo-bar — public: returns active promo info for the banner
