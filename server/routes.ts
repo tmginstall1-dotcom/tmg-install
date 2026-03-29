@@ -337,6 +337,9 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     }
     msg += `💰 *Total: SGD $${grandTotal.toFixed(0)}*\n`;
     msg += `🔒 *50% deposit to confirm: SGD $${deposit.toFixed(0)}*\n`;
+    if (session.isRelocation) {
+      msg += `⏱ _Relocation includes 90 mins crew time. Additional charges apply after._\n`;
+    }
     msg += `${DIV}\n`;
     msg += `_${hasTBCItems ? "⚠️ Some items need manual pricing. " : ""}Prices are estimates — confirmed by our team before payment. No GST._`;
     return msg;
