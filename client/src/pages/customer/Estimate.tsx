@@ -28,6 +28,10 @@ interface LineItem {
   unitPrice: number;
   volumeM3?: number;
   isCustom: boolean;
+  // Relocation sub-mode: full = dismantle + move + reinstall; carry = move as-is
+  relocateMode?: 'full' | 'carry';
+  carryPrice?: number;   // carry-only catalog price
+  fullPrice?: number;    // dismantle + install combined price
 }
 
 interface Floor {
@@ -399,15 +403,37 @@ export default function EstimateWizard() {
           updated.push({ id: uid(), sku: "", name: group.name, category: group.category, serviceType: st, quantity: qty, unitPrice: 0, isCustom: true });
         });
       } else {
-        // Add ALL matching service variants (one line per selected service type)
-        relevant.forEach(entry => {
-          const existing = updated.find(i => i.catalogItemId === entry.id);
+        // For relocation: show as a SINGLE line with a full/carry toggle
+        const relocateEntry = relevant.find(e => e.serviceType === 'relocate');
+        if (relocateEntry && services.length === 1 && services[0] === 'relocate') {
+          const carryPrice = parseFloat(relocateEntry.basePrice);
+          const installEntry = group.entries.find(e => e.serviceType === 'install');
+          const dismantleEntry = group.entries.find(e => e.serviceType === 'dismantle');
+          const fullPrice = (installEntry && dismantleEntry)
+            ? parseFloat(installEntry.basePrice) + parseFloat(dismantleEntry.basePrice)
+            : carryPrice * 1.5; // fallback: 1.5× carry-only
+          const existing = updated.find(i => i.catalogItemId === relocateEntry.id);
           if (existing) {
-            updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
+            updated = updated.map(i => i.catalogItemId === relocateEntry.id ? { ...i, quantity: i.quantity + qty } : i);
           } else {
-            updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), volumeM3: entry.volumeM3, isCustom: false });
+            updated.push({
+              id: uid(), catalogItemId: relocateEntry.id, sku: relocateEntry.sku,
+              name: group.name, category: group.category, serviceType: 'relocate',
+              quantity: qty, unitPrice: fullPrice, volumeM3: relocateEntry.volumeM3, isCustom: false,
+              relocateMode: 'full', carryPrice, fullPrice,
+            });
           }
-        });
+        } else {
+          // Non-relocate, or mixed services: add one line per service type
+          relevant.forEach(entry => {
+            const existing = updated.find(i => i.catalogItemId === entry.id);
+            if (existing) {
+              updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
+            } else {
+              updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), volumeM3: entry.volumeM3, isCustom: false });
+            }
+          });
+        }
       }
       return updated;
     });
@@ -1006,12 +1032,31 @@ export default function EstimateWizard() {
                                 <p className="text-xs text-black/35">{group.category}</p>
                               </div>
                               <div className="text-right shrink-0 space-y-0.5">
-                                {group.entries.filter(e => services.includes(e.serviceType)).map(e => (
-                                  <div key={e.id} className="flex items-center gap-2 justify-end">
-                                    {serviceBadge(e.serviceType)}
-                                    <span className="text-xs font-bold">${e.basePrice}</span>
-                                  </div>
-                                ))}
+                                {(() => {
+                                  // For pure relocation, show combined full-relocation price
+                                  if (services.length === 1 && services[0] === 'relocate') {
+                                    const rel = group.entries.find(e => e.serviceType === 'relocate');
+                                    if (rel) {
+                                      const inst = group.entries.find(e => e.serviceType === 'install');
+                                      const dis = group.entries.find(e => e.serviceType === 'dismantle');
+                                      const fullPrice = (inst && dis)
+                                        ? parseFloat(inst.basePrice) + parseFloat(dis.basePrice)
+                                        : parseFloat(rel.basePrice) * 1.5;
+                                      return (
+                                        <div className="flex items-center gap-2 justify-end">
+                                          {serviceBadge('relocate')}
+                                          <span className="text-xs font-bold">${fullPrice.toFixed(0)}</span>
+                                        </div>
+                                      );
+                                    }
+                                  }
+                                  return group.entries.filter(e => services.includes(e.serviceType)).map(e => (
+                                    <div key={e.id} className="flex items-center gap-2 justify-end">
+                                      {serviceBadge(e.serviceType)}
+                                      <span className="text-xs font-bold">${e.basePrice}</span>
+                                    </div>
+                                  ));
+                                })()}
                               </div>
                             </button>
                           ))}
@@ -1153,7 +1198,7 @@ export default function EstimateWizard() {
                           : item.unitPrice;
                         const isFallback = item.isCustom && computedLine?.fallbackUsed && computedLine?.unitPrice > 0;
                         return (
-                        <div key={item.id} data-testid={`item-${item.id}`} className="px-5 py-4 flex items-center gap-4">
+                        <div key={item.id} data-testid={`item-${item.id}`} className="px-5 py-4 flex items-start gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <p className="font-semibold text-sm truncate">{item.name}</p>
@@ -1161,12 +1206,37 @@ export default function EstimateWizard() {
                               {item.isCustom && <span className="text-[10px] border border-black/15 px-2 py-0.5 font-black uppercase tracking-[0.06em] text-black/50">Custom</span>}
                               {isFallback && <span className="text-[10px] border border-amber-200 bg-amber-50 px-2 py-0.5 font-black uppercase tracking-[0.06em] text-amber-600">Est.</span>}
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               {serviceBadge(item.serviceType)}
                               {item.category && <span className="text-xs text-black/35">{item.category}</span>}
                             </div>
+                            {/* Relocate sub-mode toggle */}
+                            {item.serviceType === 'relocate' && item.relocateMode !== undefined && (
+                              <div className="mt-2 inline-flex border border-black/15 overflow-hidden text-[10px] font-black uppercase tracking-[0.06em]">
+                                <button
+                                  data-testid={`button-full-relocate-${item.id}`}
+                                  onClick={() => setItems(prev => prev.map(i => i.id === item.id
+                                    ? { ...i, relocateMode: 'full', unitPrice: i.fullPrice ?? i.unitPrice }
+                                    : i
+                                  ))}
+                                  className={`px-2.5 py-1.5 transition-colors ${item.relocateMode === 'full' ? 'bg-black text-white' : 'bg-white text-black/40 hover:text-black/70'}`}
+                                >
+                                  Dismantle &amp; Reinstall
+                                </button>
+                                <button
+                                  data-testid={`button-carry-only-${item.id}`}
+                                  onClick={() => setItems(prev => prev.map(i => i.id === item.id
+                                    ? { ...i, relocateMode: 'carry', unitPrice: i.carryPrice ?? i.unitPrice }
+                                    : i
+                                  ))}
+                                  className={`px-2.5 py-1.5 border-l border-black/15 transition-colors ${item.relocateMode === 'carry' ? 'bg-black text-white' : 'bg-white text-black/40 hover:text-black/70'}`}
+                                >
+                                  Carry Only
+                                </button>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 mt-0.5">
                             <button onClick={() => setItems(prev => prev.map(i => i.id === item.id && i.quantity > 1 ? { ...i, quantity: i.quantity - 1 } : i))}
                               data-testid={`button-decrease-${item.id}`}
                               className="w-7 h-7 border border-black/10 flex items-center justify-center hover:bg-slate-50 transition-colors">
@@ -1417,10 +1487,16 @@ export default function EstimateWizard() {
                       <div className="space-y-2">
                         {items.map(item => (
                           <div key={item.id} className="flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               {serviceBadge(item.serviceType)}
                               <span className="text-black/70">{item.name} ×{item.quantity}</span>
                               {item.isCustom && <span className="text-xs text-black/30">(TBD)</span>}
+                              {item.serviceType === 'relocate' && item.relocateMode === 'carry' && (
+                                <span className="text-[10px] font-black uppercase tracking-[0.06em] text-black/40">Carry Only</span>
+                              )}
+                              {item.serviceType === 'relocate' && item.relocateMode === 'full' && (
+                                <span className="text-[10px] font-black uppercase tracking-[0.06em] text-black/40">Dismantle &amp; Reinstall</span>
+                              )}
                             </div>
                             <span className="font-black text-sm">{item.isCustom ? "TBD" : `$${(item.unitPrice * item.quantity).toFixed(2)}`}</span>
                           </div>
