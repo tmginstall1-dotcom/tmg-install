@@ -233,22 +233,22 @@ body {
   }
 }
 
-/* ── Scroll-driven glass sections (alpha driven by --section-alpha / --dark-alpha CSS vars set from JS) ── */
+/* ── Scroll-driven glass sections — transparent so video background shows through ── */
 :root {
-  --section-alpha: 0.88;
-  --dark-alpha: 0.85;
-  --marquee-alpha: 0.75;
+  --section-alpha: 0.0;
+  --dark-alpha: 0.22;
+  --marquee-alpha: 0.72;
 }
 
+/* Light sections: fully transparent — video visible behind content */
 .glass-light {
-  background: rgba(255, 255, 255, var(--section-alpha, 0.88));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: transparent;
 }
+/* Dark sections: subtle dark veil for readability contrast */
 .glass-dark {
-  background: rgba(0, 0, 0, var(--dark-alpha, 0.85));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(0, 0, 0, var(--dark-alpha, 0.22));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 .glass-footer {
   background: rgba(0, 0, 0, 0.92);
@@ -256,9 +256,23 @@ body {
   -webkit-backdrop-filter: blur(24px);
 }
 .glass-marquee {
-  background: rgba(0, 0, 0, var(--marquee-alpha, 0.75));
+  background: rgba(0, 0, 0, var(--marquee-alpha, 0.72));
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+/* Glass card — reusable glassmorphism card token */
+.glass-card-light {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+.glass-card-dark {
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* ── Marquee animation ── */
