@@ -160,6 +160,16 @@ function isRelocationJob(quote: any): boolean {
   return svc.includes('relocate') || (!!quote.pickupAddress && !!quote.dropoffAddress);
 }
 
+// Overtime only applies to Carry Only relocation jobs (D&R jobs have no time cap)
+function isCarryOnlyRelocation(quote: any): boolean {
+  if (!isRelocationJob(quote)) return false;
+  const items: any[] = Array.isArray(quote.items) ? quote.items : [];
+  const relocateItems = items.filter((i: any) => i.serviceType === 'relocate');
+  if (relocateItems.length === 0) return false;
+  // If any relocate item has unitPrice > 0, it's a D&R job — no overtime
+  return !relocateItems.some((i: any) => parseFloat(i.unitPrice ?? '0') > 0);
+}
+
 function relocationOvertimeNotice(): string {
   return notice("warn",
     `<strong>Relocation — Additional Charges Notice</strong><br>` +
@@ -349,7 +359,7 @@ export function estimateSubmittedEmail(quote: any): string {
 
     ${notice("info", `<strong>What happens next?</strong><br>Our team will review your estimate, confirm the pricing, and send you a deposit invoice. Once the 50% deposit is paid, your appointment slot is locked in.`)}
 
-    ${isRelocationJob(quote) ? relocationOvertimeNotice() : ''}
+    ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
 
     ${divider()}
     ${contactStrip()}
@@ -393,7 +403,7 @@ export function depositRequestEmail(quote: any, paymentLink: string): string {
       "Secure payment via Stripe &nbsp;&middot;&nbsp; Card details are never stored.",
     )}
 
-    ${isRelocationJob(quote) ? relocationOvertimeNotice() : ''}
+    ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
 
     ${notice("warn", `<strong>Cancellation Policy</strong><br>Cancellation more than 48 hours before your appointment: deposit refunded minus a $30 admin fee.<br>Cancellation less than 48 hours before your appointment: deposit is forfeited in full.<br>Please review the full policy at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`)}
 
@@ -437,7 +447,7 @@ export function depositReceivedEmail(quote: any): string {
       "Note any special access instructions (carpark, loading bay, lift access) and send them to us via WhatsApp",
     ]))}
 
-    ${isRelocationJob(quote) ? relocationOvertimeNotice() : ''}
+    ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
 
     ${notice("info", `<strong>Next step:</strong> Our team will assign a technician and send you a formal appointment confirmation with the date, time, and technician details.`)}
 
@@ -531,7 +541,7 @@ export function bookingConfirmationEmail(quote: any): string {
       `The remaining balance of <strong>$${Number(quote.finalAmount || 0).toFixed(2)}</strong> is due once all work is completed`,
     ]))}
 
-    ${isRelocationJob(quote) ? relocationOvertimeNotice() : ''}
+    ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
 
     ${notice("warn", `<strong>Reschedule Policy:</strong> If you need to change your appointment, please contact us on WhatsApp at least <strong>48 hours</strong> before the scheduled time. Late changes may incur a rescheduling fee. Full details at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`)}
 

@@ -3331,7 +3331,17 @@ ${systemPrompt}` });
           : (raw.selectedServices ? (() => { try { return JSON.parse(raw.selectedServices); } catch { return []; } })() : []);
         const isRelocation = svc.includes('relocate') || (!!raw.pickupAddress && !!raw.dropoffAddress);
 
-        if (isRelocation) {
+        // D&R items have unitPrice > 0 for relocate service — no overtime applies
+        const quoteItemsList: any[] = Array.isArray(raw.items) ? raw.items : [];
+        const hasDRItems = quoteItemsList.some(
+          (item: any) => item.serviceType === 'relocate' && parseFloat(item.unitPrice ?? '0') > 0
+        );
+
+        if (isRelocation && hasDRItems) {
+          console.log(`[Overtime] Quote #${id}: D&R job — no overtime charge applied`);
+        }
+
+        if (isRelocation && !hasDRItems) {
           // Find the most recent in_progress update (arrival time)
           const [arrivalUpdate] = await db
             .select()
