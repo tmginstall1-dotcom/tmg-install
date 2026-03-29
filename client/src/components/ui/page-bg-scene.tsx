@@ -276,7 +276,22 @@ function WardrobeUnit({ progress }: { progress: number }) {
         <boxGeometry args={[(iW - T * 2) / 2, T, D - T * 2]} />
       </mesh>
 
-      {/* ── LEFT DOOR GROUP ── hinges from left edge, swings open CCW */}
+      {/* ── HANGING ROD ── chrome rail, flies out with shelves */}
+      <mesh
+        position={[
+          lerp(0, lerp(0, -6, pShelf), pShelf),
+          lerp(H * 0.73, H * 0.73 + lerp(0, 6.5, pShelf * pShelf), pShelf),
+          lerp(0, lerp(0, 4.5, easeOut(pShelf)), pShelf),
+        ]}
+        rotation={[lerp(0, -1.4, easeOut(pShelf)), lerp(0, 2.2, easeOut(pShelf)), lerp(0, 0.7, pShelf)]}
+        material={m.chrome}
+        castShadow
+      >
+        <boxGeometry args={[iW - 0.08, 0.022, 0.022]} />
+      </mesh>
+
+      {/* ── LEFT DOOR GROUP ── hinged left edge, swings open CCW
+           Door design: lacquer outer frame + recessed mirror inset panel ── */}
       <group
         position={[
           lerp(-W / 2 + T + W / 4, -W / 2 + T + W / 4 - lerp(0, 8, pPop), pExplode),
@@ -289,26 +304,27 @@ function WardrobeUnit({ progress }: { progress: number }) {
           lerp(0, -0.85, pExplode),
         ]}
       >
-        <mesh material={m.mirror} castShadow>
-          <boxGeometry args={[iW / 2 - T / 2, iH, 0.024]} />
+        {/* Lacquer outer door panel (provides border frame effect) */}
+        <mesh material={m.lacquer} castShadow>
+          <boxGeometry args={[iW / 2 - T / 2, iH, 0.026]} />
         </mesh>
-        {/* H-bar handle */}
-        <mesh
-          position={[iW / 4 - 0.04, 0, 0.018]}
-          rotation={[0, 0, 0]}
-          material={m.chrome}
-        >
-          <boxGeometry args={[0.010, 0.26, 0.010]} />
+        {/* Mirror inset — sits proud of door face, 38mm inset on all sides */}
+        <mesh position={[0, 0, 0.016]} material={m.mirror}>
+          <boxGeometry args={[iW / 2 - T / 2 - 0.076, iH - 0.076, 0.006]} />
         </mesh>
-        <mesh position={[iW / 4 - 0.04, 0.10, 0.022]} material={m.chrome}>
-          <boxGeometry args={[0.028, 0.010, 0.008]} />
+        {/* H-bar handle — chrome bar */}
+        <mesh position={[iW / 4 - 0.048, 0, 0.024]} material={m.chrome}>
+          <boxGeometry args={[0.010, 0.28, 0.010]} />
         </mesh>
-        <mesh position={[iW / 4 - 0.04, -0.10, 0.022]} material={m.chrome}>
-          <boxGeometry args={[0.028, 0.010, 0.008]} />
+        <mesh position={[iW / 4 - 0.048, 0.115, 0.028]} material={m.chrome}>
+          <boxGeometry args={[0.030, 0.010, 0.008]} />
+        </mesh>
+        <mesh position={[iW / 4 - 0.048, -0.115, 0.028]} material={m.chrome}>
+          <boxGeometry args={[0.030, 0.010, 0.008]} />
         </mesh>
       </group>
 
-      {/* ── RIGHT DOOR GROUP ── hinges from right edge, swings open CW */}
+      {/* ── RIGHT DOOR GROUP ── hinged right edge, swings open CW */}
       <group
         position={[
           lerp(W / 2 - T - W / 4, W / 2 - T - W / 4 + lerp(0, 8, pPop), pExplode),
@@ -321,21 +337,23 @@ function WardrobeUnit({ progress }: { progress: number }) {
           lerp(0, 0.85, pExplode),
         ]}
       >
-        <mesh material={m.mirror} castShadow>
-          <boxGeometry args={[iW / 2 - T / 2, iH, 0.024]} />
+        {/* Lacquer outer door panel */}
+        <mesh material={m.lacquer} castShadow>
+          <boxGeometry args={[iW / 2 - T / 2, iH, 0.026]} />
+        </mesh>
+        {/* Mirror inset panel */}
+        <mesh position={[0, 0, 0.016]} material={m.mirror}>
+          <boxGeometry args={[iW / 2 - T / 2 - 0.076, iH - 0.076, 0.006]} />
         </mesh>
         {/* H-bar handle */}
-        <mesh
-          position={[-(iW / 4 - 0.04), 0, 0.018]}
-          material={m.chrome}
-        >
-          <boxGeometry args={[0.010, 0.26, 0.010]} />
+        <mesh position={[-(iW / 4 - 0.048), 0, 0.024]} material={m.chrome}>
+          <boxGeometry args={[0.010, 0.28, 0.010]} />
         </mesh>
-        <mesh position={[-(iW / 4 - 0.04), 0.10, 0.022]} material={m.chrome}>
-          <boxGeometry args={[0.028, 0.010, 0.008]} />
+        <mesh position={[-(iW / 4 - 0.048), 0.115, 0.028]} material={m.chrome}>
+          <boxGeometry args={[0.030, 0.010, 0.008]} />
         </mesh>
-        <mesh position={[-(iW / 4 - 0.04), -0.10, 0.022]} material={m.chrome}>
-          <boxGeometry args={[0.028, 0.010, 0.008]} />
+        <mesh position={[-(iW / 4 - 0.048), -0.115, 0.028]} material={m.chrome}>
+          <boxGeometry args={[0.030, 0.010, 0.008]} />
         </mesh>
       </group>
 
@@ -497,6 +515,10 @@ function Scene({ dismantleP, mouseX, mouseY }: { dismantleP: number; mouseX: num
       <pointLight position={[0, -2, 4]} intensity={15} color="#fffbe8" distance={10} />
       {/* Scene fill */}
       <pointLight position={[-4, 4, -6]} intensity={12} color="#aac0e8" distance={18} />
+      {/* Amber dismantle glow — intensifies as wardrobe breaks apart */}
+      <pointLight position={[0, 1.8, 3.5]} intensity={dismantleP * 48} color="#f59e0b" distance={16} decay={2} />
+      {/* Secondary amber rim from behind-left */}
+      <pointLight position={[-3, 2.5, -4]} intensity={dismantleP * 22} color="#fb923c" distance={14} decay={2} />
 
       {/* Main wardrobe */}
       <WardrobeUnit progress={dismantleP} />

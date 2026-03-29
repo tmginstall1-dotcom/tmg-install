@@ -253,7 +253,7 @@ function TrustStripAnimated() {
   const c7 = useCountUp(7, 900);
 
   return (
-    <section className="border-b border-black/10 bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-10">
+    <section className="border-b border-black/10 glass-light px-4 sm:px-6 lg:px-8 py-10">
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-black/8">
           <div className="sm:px-8 first:pl-0 flex items-start sm:items-center gap-3">
@@ -352,6 +352,14 @@ export default function Landing() {
     return () => window.removeEventListener("mousemove", onMouseMove);
   }, []);
 
+  /* ── Drive glass-section transparency via CSS custom properties ── */
+  useEffect(() => {
+    const dp = Math.min(1, scrollProgress / 0.80);
+    document.documentElement.style.setProperty("--section-alpha", Math.max(0.74, 0.88 - dp * 0.14).toFixed(3));
+    document.documentElement.style.setProperty("--dark-alpha", Math.max(0.70, 0.85 - dp * 0.15).toFixed(3));
+    document.documentElement.style.setProperty("--marquee-alpha", Math.max(0.58, 0.75 - dp * 0.17).toFixed(3));
+  }, [scrollProgress]);
+
   const { data: reviewConfig } = useQuery<{ writeUrl: string; viewUrl: string }>({
     queryKey: ["/api/public/google-review"],
     staleTime: 5 * 60 * 1000,
@@ -406,6 +414,7 @@ export default function Landing() {
   });
 
   const dismantlePct = Math.round(Math.min(100, (scrollProgress / 0.75) * 100));
+  const dismantleP   = Math.min(1, scrollProgress / 0.80);
 
   return (
     <div className={`min-h-screen bg-transparent text-white ${promoVisible ? "pt-24" : "pt-14"}`}>
@@ -429,6 +438,16 @@ export default function Landing() {
 
       {/* ══════ FULL-PAGE 3D BACKGROUND ══════ */}
       <PageBgScene scrollProgress={scrollProgress} mouseX={mouseX} mouseY={mouseY} />
+
+      {/* ── Warm amber dismantle wash — glows in as scroll increases, page reacts to 3D state ── */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse 130% 90% at 50% 30%, rgba(245, 158, 11, 0.20) 0%, rgba(251, 146, 60, 0.08) 48%, transparent 80%)",
+          opacity: Math.max(0, Math.min(1, dismantleP * 1.6 - 0.22)),
+          zIndex: 2,
+        }}
+      />
 
       {/* ═══════════════════════════ HERO ═══════════════════════════ */}
       <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-24 pb-32 lg:pt-36 lg:pb-52">
@@ -663,7 +682,7 @@ export default function Landing() {
       </section>
 
       {/* ═══════════════════════ MARQUEE TICKER ════════════════════════ */}
-      <div className="border-t border-b border-white/10 bg-black/75 backdrop-blur-sm overflow-hidden py-3.5 select-none">
+      <div className="border-t border-b border-white/10 glass-marquee overflow-hidden py-3.5 select-none">
         <div className="marquee-track">
           {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
             <span key={i} className="flex items-center gap-4 px-6">
@@ -680,7 +699,7 @@ export default function Landing() {
       <TrustStripAnimated />
 
       {/* ════════════════════ WORK GALLERY ════════════════════════ */}
-      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-16 border-b border-black/10">
+      <section className="glass-light px-4 sm:px-6 lg:px-8 py-16 border-b border-black/10">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="flex items-end justify-between gap-4 mb-8 flex-wrap">
             <div>
@@ -806,7 +825,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════ WHAT WE HANDLE ══════════════════════ */}
-      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
+      <section className="glass-light px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-12">
             <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
@@ -832,7 +851,7 @@ export default function Landing() {
               >
                 <motion.div {...(i % 2 === 0 ? fadeFromLeft(i * 0.05) : fadeFromRight(i * 0.05))}>
                   <TiltCard className="bg-white p-7 group hover:bg-black hover:text-white transition-colors duration-300 cursor-pointer h-full" intensity={13}>
-                    <Icon className="w-5 h-5 text-black/30 group-hover:text-white/40 mb-5 transition-colors" />
+                    <Icon className="w-5 h-5 text-amber-500/55 group-hover:text-amber-300 mb-5 transition-colors" />
                     <p className="text-sm font-semibold text-black group-hover:text-white transition-colors leading-snug mb-1">
                       {label}
                     </p>
@@ -852,7 +871,7 @@ export default function Landing() {
 
 
       {/* ═══════════════════ BOOKING FLOW ══════════════════════ */}
-      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-28 border-t border-black/10">
+      <section className="glass-light px-4 sm:px-6 lg:px-8 py-28 border-t border-black/10">
         <div className="max-w-6xl mx-auto">
 
           {/* Header */}
@@ -1077,7 +1096,7 @@ export default function Landing() {
       </section>
 
       {/* ═══════════════════════ WHY TMG INSTALL ═══════════════════ */}
-      <section className="bg-black/85 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-28">
+      <section className="glass-dark px-4 sm:px-6 lg:px-8 py-28">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-16">
             <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
@@ -1124,7 +1143,7 @@ export default function Landing() {
       </section>
 
       {/* ═══════════════════════ SOCIAL PROOF ══════════════════════ */}
-      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
+      <section className="glass-light px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)}>
             {/* Header row */}
@@ -1139,7 +1158,7 @@ export default function Landing() {
               <div className="flex items-center gap-3 shrink-0">
                 <div className="flex gap-0.5">
                   {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-black text-black" />
+                    <Star key={i} className="w-4 h-4 fill-amber-500 text-amber-500" />
                   ))}
                 </div>
                 <div>
@@ -1174,7 +1193,7 @@ export default function Landing() {
                     {/* Stars */}
                     <div className="flex gap-0.5 mb-4">
                       {[...Array(r.stars)].map((_, j) => (
-                        <Star key={j} className="w-3.5 h-3.5 fill-black text-black" />
+                        <Star key={j} className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
                       ))}
                     </div>
                     {/* Text */}
@@ -1229,7 +1248,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════ PRICING GUIDE ════════════════════════ */}
-      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
+      <section className="glass-light px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-10">
             <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
@@ -1456,7 +1475,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════════ FAQ ═══════════════════════════════ */}
-      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
+      <section className="glass-light px-4 sm:px-6 lg:px-8 py-24 border-b border-black/10">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-[1fr_2fr] gap-16">
             <motion.div {...fadeUpDelayed(0)}>
@@ -1487,7 +1506,7 @@ export default function Landing() {
       </section>
 
       {/* ═════════════════════ BOTTOM CTA BAND ═════════════════════ */}
-      <section className="bg-white/88 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-28">
+      <section className="glass-light px-4 sm:px-6 lg:px-8 py-28">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="max-w-2xl">
             <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-4" style={{ letterSpacing: "0.2em" }}>
@@ -1524,7 +1543,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════════ FOOTER ═══════════════════════════ */}
-      <footer className="bg-black/88 backdrop-blur-xl text-white px-4 sm:px-6 lg:px-8 pt-16 pb-10">
+      <footer className="glass-footer text-white px-4 sm:px-6 lg:px-8 pt-16 pb-10">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-4 gap-12 mb-14">
             <div className="md:col-span-2">

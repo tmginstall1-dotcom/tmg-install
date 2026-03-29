@@ -233,6 +233,34 @@ body {
   }
 }
 
+/* ── Scroll-driven glass sections (alpha driven by --section-alpha / --dark-alpha CSS vars set from JS) ── */
+:root {
+  --section-alpha: 0.88;
+  --dark-alpha: 0.85;
+  --marquee-alpha: 0.75;
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, var(--section-alpha, 0.88));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.glass-dark {
+  background: rgba(0, 0, 0, var(--dark-alpha, 0.85));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.glass-footer {
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+.glass-marquee {
+  background: rgba(0, 0, 0, var(--marquee-alpha, 0.75));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
 /* ── Marquee animation ── */
 @keyframes marquee {
   0%   { transform: translateX(0); }
