@@ -5063,13 +5063,21 @@ If the case is unusual or complex, say the team will review and follow up.`
                   const priceBlock = priceMsg
                     ? `${priceMsg}${floorNote}\n`
                     : `Our team will confirm the exact price for this job.\n`;
+                  // When at confirmation stage, make it crystal-clear this is a SIDE price check,
+                  // not a new booking — the original quote is still waiting for YES.
+                  const confirmationReminder = state === "awaiting_confirmation"
+                    ? `\n\n---\n_⬆️ That's just a side price check! Your *original quote* (${session?.collectedName ? session.collectedName + "'s " : ""}${session?.isRelocation ? "relocation" : "installation"} job) is still waiting — reply *YES* to submit it when ready, or tell me what to change._`
+                    : `\n\n${continuePrompt}`;
                   await sendBotMessage(from,
-                    `Got it — *${serviceLabel}* for *${displayItem}*. 📸\n\n${priceBlock}\n${continuePrompt}`
+                    `Got it — *${serviceLabel}* for *${displayItem}*. 📸\n\n${priceBlock}${confirmationReminder}`
                   );
                 } else {
+                  const confirmationReminder2 = state === "awaiting_confirmation"
+                    ? `\n---\n_⬆️ That's just a side price check! Your *original quote* is still waiting — reply *YES* to submit it when ready, or tell me what to change._`
+                    : `\n\n${continuePrompt}`;
                   await sendBotMessage(from, priceMsg
-                    ? `${priceMsg}${floorNote}\n\n${continuePrompt}`
-                    : `Our team will confirm the exact price for the *${displayItem}*.\n\n${continuePrompt}`
+                    ? `${priceMsg}${floorNote}${confirmationReminder2}`
+                    : `Our team will confirm the exact price for the *${displayItem}*.${confirmationReminder2}`
                   );
                 }
                 return;
@@ -5184,6 +5192,19 @@ If the case is unusual or complex, say the team will review and follow up.`
             } else if (gc.command === "farewell") {
               // Warm, sales-focused goodbye — session state unchanged so they pick up where they left off
               const name = session.collectedName ? `, *${session.collectedName}*` : "";
+
+              // Special case: if at confirmation stage, the customer might mean "go with original quote, not the side item"
+              // Redirect them to YES rather than treating as a full exit
+              if (state === "awaiting_confirmation") {
+                const confirmFarewellReply =
+                  `No worries${name}! 😊\n\n` +
+                  `Your *original quote* is still here and ready — just reply *YES* to submit it to our team! 🎉\n\n` +
+                  `_Or message us again later and we'll pick up right where we left off._`;
+                await sendBotMessage(from, confirmFarewellReply);
+                saveHistory(from, conversationHistory, text, confirmFarewellReply);
+                return;
+              }
+
               const resumeStepHint: Record<string, string> = {
                 pricing_shown: "Just reply *Yes* whenever you're happy with our pricing and we'll get started!",
                 awaiting_name: "We just need your *name* to get started.",
@@ -5196,7 +5217,6 @@ If the case is unusual or complex, say the team will review and follow up.`
                 awaiting_to_address: "We just need the *destination address* for the relocation.",
                 awaiting_date: "We just need a *preferred date* and we're good to go.",
                 awaiting_remarks: "We're almost done — just any special notes (or reply *none*) and I'll show the full summary!",
-                awaiting_confirmation: "Your quote is almost ready — just tap *YES* to confirm when you're back!",
               };
               const hint = resumeStepHint[state] || "Your quote is saved and ready to complete.";
               const farewellReply =
