@@ -385,7 +385,8 @@ export default function EstimateWizard() {
   const finalAmt = pricingResult.finalAmount;
 
   const MIN_JOB = 180;
-  const belowMinimum = items.length > 0 && total < MIN_JOB;
+  const isRelocationJob = services.length > 0 && services.every(s => s === 'relocate');
+  const belowMinimum = items.length > 0 && total < MIN_JOB && !isRelocationJob;
   const effectiveTotal = belowMinimum ? MIN_JOB : total;
   // Promo discount is applied AFTER the $180 minimum — it can bring total below $180
   const grandTotalAfterPromo = Math.max(0, effectiveTotal - promoDiscount);
@@ -1317,7 +1318,7 @@ export default function EstimateWizard() {
                         <div data-testid="notice-relocation-90min" className="mt-3 flex items-start gap-2 bg-blue-50 border border-blue-200 rounded px-3 py-2.5">
                           <span className="text-blue-500 text-base leading-none mt-0.5">⏱</span>
                           <div className="text-xs text-blue-800 leading-relaxed">
-                            <span className="font-black">90-minute job cap.</span> Relocation pricing covers up to 90 minutes of crew time. Jobs that run longer will incur additional charges — our team will advise on-site.
+                            <span className="font-black">2-hour job cap.</span> Relocation pricing covers up to 120 minutes of crew time. Jobs that run longer incur +$30 per 30-min block (max $200) — our team will advise on-site.
                           </div>
                         </div>
                       )}
@@ -1581,7 +1582,7 @@ export default function EstimateWizard() {
                         <div data-testid="notice-relocation-90min-review" className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded px-3 py-2 mt-1">
                           <span className="text-blue-500 text-sm leading-none mt-0.5">⏱</span>
                           <p className="text-xs text-blue-800 leading-relaxed">
-                            <span className="font-black">90-minute job cap.</span> Relocation pricing covers up to 90 minutes of crew time. Jobs that run longer will incur additional charges — our team will advise on-site.
+                            <span className="font-black">2-hour job cap.</span> Relocation pricing covers up to 120 minutes of crew time. Jobs that run longer incur +$30 per 30-min block (max $200) — our team will advise on-site.
                           </p>
                         </div>
                       )}
@@ -1733,7 +1734,7 @@ export default function EstimateWizard() {
               <ul className="list-disc pl-5 space-y-1">
                 <li>The estimate provided is based on the items and services described at the time of booking. Any additional items or services discovered on-site will be quoted separately and must be agreed upon before work commences.</li>
                 <li>Additional charges may apply for <strong>stairs access</strong> (if no lift is available), <strong>difficult access</strong>, or <strong>disposal of old furniture</strong> (if requested).</li>
-                <li><strong>Relocation jobs</strong> include up to <strong>90 minutes</strong> of crew time. Jobs that exceed 90 minutes will incur additional charges — our team will advise you on-site before proceeding.</li>
+                <li><strong>Relocation jobs</strong> include up to <strong>120 minutes (2 hours)</strong> of crew time. Jobs that exceed 120 minutes incur +$30 per 30-minute block, capped at $200 — our team will advise you on-site.</li>
                 <li>Waiting time exceeding <strong>30 minutes</strong> beyond the scheduled window due to customer delays may incur a waiting fee of $20 per 30 minutes.</li>
               </ul>
             </section>
