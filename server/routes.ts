@@ -1095,7 +1095,7 @@ SERVICES:
 - mixed: multiple service types in one job
 
 STRICT COLLECTION ORDER — follow this exactly, skip any step whose field is already non-null in state:
-STEP 1 → service_scope: "What type of service do you need? (Installation / Dismantling / Relocation / Disposal / Dismantle+Dispose)" — if already clear from context, capture it and skip asking.
+STEP 1 → service_scope: If NOT already set, ask or extract from what they said. If customer mentions relocation/moving, set service_scope="relocate" and is_relocation=true. If their message makes the service clear, capture it silently.
 STEP 2 → customer_name: Ask their full name for the quote.
 STEP 3 → from_address: Job address (origin for relocations). "What's the address? Include block/unit."
 STEP 4 → to_address: ONLY if is_relocation=true — ask destination address. Otherwise skip.
@@ -1104,6 +1104,11 @@ STEP 6 → floor_from + lift_from + access_difficulty: Ask "Which floor is the u
 STEP 7 → preferred_date + preferred_time_window: "When would you prefer? We have morning (9am–12pm) or afternoon (1pm–5pm) slots." If "flexible"/"anytime" → preferred_date="Flexible", preferred_date_iso=null, preferred_time_window=null.
 STEP 8 → special_remarks: Always ask: "Any special notes for our team? E.g. wall mounting needed, drilling, fragile items, parking notes. Reply 'none' to skip." If customer says 'none', 'no', 'skip', or 'nothing' → set special_remarks=null. Otherwise store verbatim. NEVER skip asking this step.
 STEP 9 → customer_email: "Your email address for the quote confirmation? (Reply 'skip' if you prefer not to.)" If "skip" → null.
+
+CONTEXT HANDLING:
+- If the conversation history shows a greeting/FAQ/pricing exchange just happened and the customer is now saying what they need (e.g. "I need relocation", "Yes I want a quote"), extract any details from their message and move to the NEXT missing step — do NOT re-greet.
+- If this is effectively the very start (no history or just a greeting), warmly acknowledge then ask the first missing field.
+- The customer's message may contain answers to multiple steps — capture ALL of them and jump to the first gap.
 
 STRICT RULES:
 - Ask ONLY ONE question per reply — the next unfilled step
@@ -4582,13 +4587,15 @@ Extract any details they provided. Return JSON:
 - address: full Singapore pickup/from/job address (pickup/from/collection address for relocations). Null if not stated. Accept postal codes (S123456).
 - toAddress: delivery/destination/drop-off address for relocations only. Null if not stated.
 - isRelocation: true if customer mentions moving, relocation, shifting, pick up and deliver, or from+to address.
-- items: ALWAYS try to extract furniture items mentioned. Format as a bullet list — one • per line, include quantity (default 1) and service type in brackets.
+- items: Extract ONLY specific named furniture items (e.g. bed frame, wardrobe, sofa, dining table, TV console, mattress, bookshelf). Format as a bullet list — one • per line, include quantity (default 1) and service type in brackets.
   Service type mapping: move/relocate/shift = relocate; dismantle/take apart/remove = dismantle; dispose/throw/haul away/get rid of = dispose; install/assemble/set up/put up = install.
   Examples:
     "I need to move king size bed and wardrobe" → "• 1 king size bed (relocate)\n• 1 wardrobe (relocate)"
-    "also dispose away old bed frame and mattress" → "• 1 bed frame (dispose)\n• 1 mattress (dispose)"
+    "dispose old bed frame and mattress" → "• 1 bed frame (dispose)\n• 1 mattress (dispose)"
     "install 2 PAX wardrobes and dismantle the old one" → "• 2 PAX wardrobe (install)\n• 1 wardrobe (dismantle)"
-  Return null ONLY if absolutely no furniture items are mentioned anywhere in the message.
+  Return null if NO specific furniture items are named. Generic words like "furniture", "stuff", "items", "things" are NOT items — return null.
+  "I need relocation" → items: null (no specific items named)
+  "I need help moving my furniture" → items: null (generic, no specific item)
 
 Message: "${text.slice(0, 800)}"`
               }]
@@ -4602,16 +4609,9 @@ Message: "${text.slice(0, 800)}"`
           } catch {}
         }
 
-        // Determine where to start based on what we extracted.
-        // If customer gives name + address (power user), skip the pricing check — they're ready to book.
-        // Otherwise show pricing first so they can confirm before we collect their details.
-        const startState = extractedAddress && extractedName && extractedItems
-          ? "awaiting_items_verify"
-          : extractedAddress && extractedName
-            ? "awaiting_items"
-            : extractedAddress
-              ? "awaiting_name"  // unusual but possible
-              : "pricing_shown"; // simple greeting or name-only → show pricing first
+        // Always go to collecting state — no pricing gate.
+        // GPT orchestration handles all states from here.
+        const startState = "collecting";
 
         await storage.upsertWhatsAppSession(from, {
           state: startState,
@@ -4642,37 +4642,36 @@ Message: "${text.slice(0, 800)}"`
           `Happy with our pricing? Reply *Yes* and I'll prepare a personalised quote in 2 minutes 😊`;
 
         if (extractedName && extractedAddress && extractedItems) {
-          await sendBotMessage(from,
-            `👋 Hi *${extractedName}*! Got it — let me confirm what you've told me:\n\n` +
+          const r = `👋 Hi *${extractedName}*! Got it — let me confirm what you've told me:\n\n` +
             `📍 *Address:* ${extractedAddress}\n` +
             `🛋️ *Items:*\n${extractedItems}\n\n` +
-            `Does this look right?\n• Reply *YES* to proceed\n• Tell me what to correct\n• Send a photo to add more items`
-          );
+            `Does this look right?\n• Reply *YES* to proceed\n• Tell me what to correct\n• Send a photo to add more items`;
+          await sendBotMessage(from, r);
+          saveHistory(from, [], text, r);
         } else if (extractedAddress && extractedName) {
-          await sendBotMessage(from,
-            `👋 Hi *${extractedName}*! I've noted your address: *${extractedAddress}*.\n\n` +
+          const r = `👋 Hi *${extractedName}*! I've noted your address: *${extractedAddress}*.\n\n` +
             `What furniture do you need help with?\n\n📸 *Send a photo* and I'll identify everything, or *type the list* below.\n\n` +
-            `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
-          );
+            `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
+          await sendBotMessage(from, r);
+          saveHistory(from, [], text, r);
         } else if (extractedAddress && extractedItems) {
-          // Have address + items but no name — acknowledge everything and ask for name
           const addrLine = extractedToAddress
             ? `📍 *From:* ${extractedAddress}\n📍 *To:* ${extractedToAddress}\n`
             : `📍 *Address:* ${extractedAddress}\n`;
-          await sendBotMessage(from,
-            `👋 Hi! Got it — here's what I've noted:\n\n` +
+          const r = `👋 Hi! Got it — here's what I've noted:\n\n` +
             addrLine +
             `🛋️ *Items:*\n${extractedItems}\n\n` +
             `Before I lock it in, could I get your *full name*? 😊\n\n` +
-            `_e.g. "John", "Mary Tan", "Ahmad"_`
-          );
+            `_e.g. "John", "Mary Tan", "Ahmad"_`;
+          await sendBotMessage(from, r);
+          saveHistory(from, [], text, r);
         } else if (extractedName) {
-          // Got name but no address — show pricing first addressed to them
-          await sendBotMessage(from,
-            `👋 Hi *${extractedName}*! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
-            `We handle furniture installation, dismantling, relocation & disposal all across Singapore.\n\n` +
-            PRICING_OVERVIEW
-          );
+          // Got name but no address — ask for job address directly (no pricing dump)
+          const r = `👋 Hi *${extractedName}*! Thanks for reaching out to *TMG Install* 🏠\n\n` +
+            `What service do you need and where is the job located? 📍\n\n` +
+            `_e.g. "Installation at Blk 261 Serangoon Central #05-01" or "Relocation from Tampines to Bedok"_`;
+          await sendBotMessage(from, r);
+          saveHistory(from, [], text, r);
         } else if (extractedItems) {
           // Items were detected in the first message but no name/address yet.
           // If the customer also asked about price, show them an actual estimate
@@ -4698,11 +4697,13 @@ Message: "${text.slice(0, 800)}"`
           }
 
           // Items detected — start collecting directly, no "Reply YES" gate
-          const initState = { ...DEFAULT_STRUCTURED_STATE, items: extractedItems };
+          const detectedServiceScope = extractedIsRelocation ? "relocate" : null;
+          const initState = { ...DEFAULT_STRUCTURED_STATE, items: extractedItems, service_scope: detectedServiceScope, is_relocation: extractedIsRelocation };
           await storage.upsertWhatsAppSession(from, {
             state: "collecting",
             structuredState: JSON.stringify(initState),
             collectedItems: extractedItems,
+            isRelocation: extractedIsRelocation,
           });
           const intro2 = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n`;
           const itemsAck = `Got it — here's what I've noted:\n${extractedItems}\n\n`;
@@ -4711,8 +4712,9 @@ Message: "${text.slice(0, 800)}"`
           saveHistory(from, [], text, `${intro2}${itemsAck}${nextQ}`);
 
         } else {
-          // Classify the first message intent before deciding what to show
-          // Pure greetings get a welcome; questions get answered directly; pricing requests get the table
+          // ── Classify the first message to pick the right opening response ────
+          // All paths set state="collecting" with service_scope pre-filled when detected.
+          // History is saved in every path so the next turn has full context.
           let firstMsgReply: string | null = null;
           let firstMsgShowPricing = false;
           let firstMsgItem: string | null = null;
@@ -4722,22 +4724,24 @@ Message: "${text.slice(0, 800)}"`
           try {
             const firstClassRes = await openai.chat.completions.create({
               model: "gpt-4o",
-              max_tokens: 60,
+              max_tokens: 80,
               response_format: { type: "json_object" },
               messages: [{
                 role: "system",
-                content: `A customer just messaged TMG Install (Singapore furniture installation).
-Classify their VERY FIRST message. Return JSON:
+                content: `Classify this first WhatsApp message to TMG Install (Singapore furniture installation & relocation).
+Return JSON:
 {
   "intent": "greeting" | "question" | "pricing_general" | "pricing_specific" | "ready_to_book",
-  "itemQuery": "furniture item if pricing_specific, else null",
+  "itemQuery": "furniture item name if pricing_specific, else null",
   "serviceScope": "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose" | null
 }
-- greeting: just saying hi/hello with no specific ask
-- question: asking about services, availability, process, warranty, coverage area, etc.
-- pricing_general: asking how much things cost in general
-- pricing_specific: asking about price for a NAMED item (e.g. "how much to install a wardrobe")
-- ready_to_book: explicitly says they want a quote or want to book right away`
+INTENT DEFINITIONS (apply strictly in this order):
+- pricing_specific: asking the price of a NAMED furniture item (e.g. "how much to install a wardrobe?", "cost for king bed relocation")
+- ready_to_book: customer says they NEED a service, want to arrange a job, or want a quote. INCLUDE: "I need relocation/installation/etc", "I need help with...", "help me move furniture", "looking for movers/installer", "want to relocate my wardrobe", "need someone to assemble my bed". When ANY service need is expressed, choose ready_to_book even if no items are named.
+- pricing_general: asking general pricing with NO specific item and NO service need expressed
+- question: asking about availability, process, coverage area, warranty — NOT expressing a need to arrange anything
+- greeting: ONLY simple hi/hello/hey with NO service need, NO question, NO pricing ask
+When in doubt between ready_to_book and any other intent, choose ready_to_book.`
               }, { role: "user", content: text }],
             });
             const fc = JSON.parse(firstClassRes.choices[0]?.message?.content || "{}");
@@ -4748,54 +4752,52 @@ Classify their VERY FIRST message. Return JSON:
             } else if (fc.intent === "pricing_general") {
               firstMsgShowPricing = true;
             } else if (fc.intent === "ready_to_book") {
-              // Customer has clear intent to book — acknowledge their specific request and start the flow
               firstMsgIsReadyToBook = true;
               const readyReply = await openai.chat.completions.create({
                 model: "gpt-4o",
-                max_tokens: 200,
-                messages: [
-                  {
-                    role: "system",
-                    content:
-                      `You are the WhatsApp coordinator for TMG Install (Singapore furniture services in Singapore).\n\n` +
-                      `A customer just sent their FIRST message expressing clear intent to book or arrange a service.\n` +
-                      `Acknowledge the SPECIFIC details they mentioned (service type, items, date, time, urgency — whatever they said).\n` +
-                      `Then ask for their name to get started.\n` +
-                      `Keep it warm, concise, and human. 2–3 sentences max. Use *bold* for key words.\n` +
-                      `Example: "Got it — *moving tomorrow at 2pm*! Let me get that sorted for you. Could I start with your *name*? 😊"\n` +
-                      `Do NOT repeat pricing. Do NOT send a generic welcome. Acknowledge exactly what they said.`,
-                  },
-                  { role: "user", content: text },
-                ],
+                max_tokens: 150,
+                messages: [{
+                  role: "system",
+                  content:
+                    `You are the WhatsApp coordinator for TMG Install (Singapore furniture services).\n` +
+                    `A customer just sent their FIRST message expressing a need for a service.\n` +
+                    `Acknowledge SPECIFICALLY what they said (service type, items, urgency — whatever they mentioned).\n` +
+                    `Then ask for their full name to get started.\n` +
+                    `2 sentences max. Use *bold* for key words. Do NOT repeat pricing. Do NOT use a generic welcome.\n` +
+                    `Example: "Got it — *furniture relocation*! Let me get that sorted. Could I start with your *full name*? 😊"`,
+                }, { role: "user", content: text }],
               });
               firstMsgReply = readyReply.choices[0]?.message?.content?.trim() || null;
             } else if (fc.intent === "question") {
-              // Answer the question directly with company knowledge — no pricing template
               const answerRes = await openai.chat.completions.create({
                 model: "gpt-4o",
                 max_tokens: 250,
-                messages: [
-                  {
-                    role: "system",
-                    content:
-                      `You are the WhatsApp coordinator for TMG Install (Singapore furniture services).\n\n` +
-                      DYNAMIC_FAQ +
-                      `\n\n${DYNAMIC_HOURS}\n\n${DYNAMIC_POLICY}\n\n` +
-                      `Answer the customer's question warmly and concisely (2–4 sentences). ` +
-                      `End with a friendly open invitation like "Anything else I can help you with? Or would you like a quote?" — ` +
-                      `but do NOT push them to book if they haven't asked about pricing yet.`,
-                  },
-                  { role: "user", content: text },
-                ],
+                messages: [{
+                  role: "system",
+                  content:
+                    `You are the WhatsApp coordinator for TMG Install (Singapore furniture services).\n\n` +
+                    DYNAMIC_FAQ +
+                    `\n\n${DYNAMIC_HOURS}\n\n${DYNAMIC_POLICY}\n\n` +
+                    `Answer the customer's question warmly and concisely (2–3 sentences). ` +
+                    `End with "Is there anything I can help you arrange today? 😊"`,
+                }, { role: "user", content: text }],
               });
               firstMsgReply = answerRes.choices[0]?.message?.content?.trim() || null;
             }
-          } catch { /* fall through to default */ }
+          } catch { /* fall through to default welcome */ }
 
+          // Update session with detected service scope so next orchestration turn has context
+          if (firstMsgServiceScope) {
+            const scopedState = { ...DEFAULT_STRUCTURED_STATE, service_scope: firstMsgServiceScope, is_relocation: firstMsgServiceScope === "relocate" };
+            await storage.upsertWhatsAppSession(from, {
+              structuredState: JSON.stringify(scopedState),
+              isRelocation: firstMsgServiceScope === "relocate",
+            });
+          }
+
+          // Send the appropriate first reply — history saved in ALL paths so next turn has context
           if (firstMsgItem) {
-            // Specific item pricing inquiry — try to show actual estimate from the item(s)
             const intro = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n`;
-            // Build a fake session using the detected item query so we get real catalog prices
             const fakeItemSession = {
               collectedItems: firstMsgItem,
               floorLevel: null as number | null,
@@ -4805,71 +4807,37 @@ Classify their VERY FIRST message. Return JSON:
               distanceKm: null as string | null,
             };
             const estimateMsg = await buildJobEstimateMessage(fakeItemSession as any);
-            const outro = `\n\nWould you like a full personalised quote? Just say *Yes* and I'll get the job details from you. 😊\n\n_Floor surcharges & transport confirmed once we know your address & floor._`;
-            await sendBotMessage(from, intro + (estimateMsg
+            const outro = `\n\nWould you like a full personalised quote? Just say *Yes* and I'll get the job details from you. 😊\n\n_Floor surcharges & transport confirmed once we know your address._`;
+            const itemReply = intro + (estimateMsg
               ? `${estimateMsg}${outro}`
-              : `We'd be happy to quote for *${firstMsgItem}*. Our team will confirm the exact price once we know more about your job.\n\nWould you like a quote? 😊`
-            ));
+              : `We'd be happy to quote for *${firstMsgItem}*.\n\nWould you like a personalised quote? 😊`
+            );
+            await sendBotMessage(from, itemReply);
+            saveHistory(from, [], text, itemReply);
           } else if (firstMsgReply && firstMsgIsReadyToBook) {
-            // Ready to book — acknowledge their specific request, move to collection flow
-            // Reset floor/lift so stale data from previous conversations never carries over
-            const initStructured = { ...DEFAULT_STRUCTURED_STATE, service_scope: firstMsgServiceScope, is_relocation: firstMsgServiceScope === "relocate" };
-            const firstMsgSessionFields: Record<string, unknown> = {
-              state: "collecting",
-              floorLevel: null, hasLift: null,
-              isRelocation: firstMsgServiceScope === "relocate",
-              structuredState: JSON.stringify(initStructured),
-            };
-
-            // Extract any date/time preference the customer already mentioned
-            try {
-              const today = new Date();
-              const fdRes = await openai.chat.completions.create({
-                model: "gpt-4o", max_tokens: 120, response_format: { type: "json_object" },
-                messages: [{ role: "system", content: `Today is ${today.toISOString().slice(0, 10)} (${today.toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}).
-Extract any date/time preference from the customer's first message. Return JSON:
-{ "isoDate": "yyyy-MM-dd or null", "timeWindow": "09:00-12:00 or 13:00-17:00 or null", "display": "friendly readable label or null", "hasDate": boolean }
-- "tomorrow afternoon 2pm" → isoDate=tomorrow's date, timeWindow="13:00-17:00"
-- "morning" = 09:00-12:00; "afternoon" = 13:00-17:00
-- weekday name → resolve to upcoming occurrence in yyyy-MM-dd
-- "anytime"/"flexible"/"whenever" → hasDate:false
-Customer message: "${text.slice(0, 300)}"` }]
-              });
-              const fdp = JSON.parse(fdRes.choices[0]?.message?.content || "{}");
-              if (fdp.hasDate && fdp.isoDate && /^\d{4}-\d{2}-\d{2}$/.test(fdp.isoDate)) {
-                const twOk = !fdp.timeWindow || ["09:00-12:00", "13:00-17:00"].includes(fdp.timeWindow);
-                if (twOk) {
-                  const slotFree = fdp.timeWindow ? await storage.isSlotAvailable(fdp.isoDate, fdp.timeWindow) : true;
-                  if (slotFree) {
-                    firstMsgSessionFields.preferredDateIso = fdp.isoDate;
-                    firstMsgSessionFields.preferredDate = fdp.display || fdp.isoDate;
-                    if (fdp.timeWindow) firstMsgSessionFields.preferredTimeWindow = fdp.timeWindow;
-                  }
-                }
-              }
-            } catch {}
-
-            await storage.upsertWhatsAppSession(from, firstMsgSessionFields);
             await sendBotMessage(from, firstMsgReply);
             saveHistory(from, [], text, firstMsgReply);
           } else if (firstMsgReply) {
-            // Direct question — answer it, no pricing dump
-            await sendBotMessage(from, `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n${firstMsgReply}`);
+            // Question answered — wrap with a greeting
+            const qReply = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n${firstMsgReply}`;
+            await sendBotMessage(from, qReply);
+            saveHistory(from, [], text, qReply);
           } else if (firstMsgShowPricing) {
-            // They specifically asked about pricing — show the overview
-            await sendBotMessage(from,
+            const pReply =
               `👋 Hi there! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
               `We handle:\n• 🔧 Furniture *installation* & assembly\n• 🔨 *Dismantling* & removal\n• 🚚 *Relocation* (home or office)\n• 🗑️ *Disposal*\n\n` +
               `All across Singapore — no calls needed, upfront pricing.\n\n` +
-              PRICING_OVERVIEW
-            );
+              PRICING_OVERVIEW;
+            await sendBotMessage(from, pReply);
+            saveHistory(from, [], text, pReply);
           } else {
-            // Plain greeting — friendly welcome, invite them to ask or tell us what they need
-            await sendBotMessage(from,
+            // Plain greeting — brief welcome, open invitation
+            const gReply =
               `👋 Hi there! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
               `We help with furniture *installation*, *dismantling*, *relocation*, and *disposal* all across Singapore.\n\n` +
-              `What can I help you with today? Feel free to ask about pricing, availability, or just tell me what you need! 😊`
-            );
+              `What can I help you with today? 😊`;
+            await sendBotMessage(from, gReply);
+            saveHistory(from, [], text, gReply);
           }
         }
         return;
