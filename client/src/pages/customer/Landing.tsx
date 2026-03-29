@@ -441,6 +441,7 @@ export default function Landing() {
 
       {/* ── Warm amber dismantle wash — glows in as scroll increases, page reacts to 3D state ── */}
       <div
+        data-testid="amber-overlay"
         className="fixed inset-0 pointer-events-none"
         style={{
           background: "radial-gradient(ellipse 130% 90% at 50% 30%, rgba(245, 158, 11, 0.20) 0%, rgba(251, 146, 60, 0.08) 48%, transparent 80%)",
