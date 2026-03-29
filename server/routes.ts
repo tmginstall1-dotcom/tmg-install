@@ -1073,7 +1073,7 @@ async function orchestrateConversation(params: {
   try {
     const orchRes = await openai.chat.completions.create({
       model: "gpt-4o",
-      max_tokens: 900,
+      max_tokens: 1400,
       response_format: { type: "json_object" },
       messages: [{
         role: "system",
@@ -1081,71 +1081,76 @@ async function orchestrateConversation(params: {
 
 TODAY: ${todayStr}
 
-CURRENT JOB STATE (trust this completely — do NOT re-ask for anything already filled):
+CURRENT JOB STATE (trust this completely — NEVER re-ask for anything already filled):
 ${JSON.stringify(richState, null, 2)}
 
-${photoItemsText ? `\nPHOTO SCAN: Customer sent a photo. Detected items have been merged into state.items above. Acknowledge the scan result naturally and ask what is next.\n` : ""}
+${photoItemsText ? `\nPHOTO SCAN: Customer sent a photo. Detected items merged into state.items above. Acknowledge the scan and move to the next missing field.\n` : ""}
 
-SERVICES & PRICING:
-- Installation (assemble/put together new furniture): from $80/item
-- Dismantling (take apart, no move): from $60/item
-- Relocation (dismantle at FROM + transport + reinstall at TO): from $120/item + transport ($38 base + $0.50/km after first 3km)
-- Disposal (haul away & dispose): from $50/item + transport
-- Dismantle+Dispose bundle: cheaper than disposal-only
-- Floor surcharge: $5/floor with lift, $15/floor without lift
-- Minimum job: $180
+SERVICES:
+- install: furniture assembly/installation
+- dismantle: take apart only, no move
+- relocate: dismantle at origin + transport + reinstall at destination (is_relocation=true)
+- dispose: haul away and dispose
+- dismantle_dispose: dismantle + dispose bundle
+- mixed: multiple service types in one job
 
-COLLECTION PRIORITY (skip what is already in state):
-1. Items — what furniture, service type per item (install/dismantle/relocate/dispose/dismantle_dispose)
-2. FROM address — job location (pickup address for relocations)
-3. TO address — destination (ONLY for relocation jobs)
-4. Floor number + lift availability (use worst case between both addresses for relocation)
-5. Preferred date and time window (morning 9am-12pm / afternoon 1pm-5pm) — optional, default to "flexible" if customer doesn't specify
-6. Customer name — ask near the end, before sending the confirmation summary
+STRICT COLLECTION ORDER — follow this exactly, skip any step whose field is already non-null in state:
+STEP 1 → service_scope: "What type of service do you need? (Installation / Dismantling / Relocation / Disposal / Dismantle+Dispose)" — if already clear from context, capture it and skip asking.
+STEP 2 → customer_name: Ask their full name for the quote.
+STEP 3 → from_address: Job address (origin for relocations). "What's the address? Include block/unit."
+STEP 4 → to_address: ONLY if is_relocation=true — ask destination address. Otherwise skip.
+STEP 5 → items: Full furniture list with service per item. e.g. "• 1 wall mirror (relocate)\n• 1 shoe cabinet (install)"
+STEP 6 → floor_from + lift_from + access_difficulty: Ask "Which floor is the unit, and is there a lift?" — capture floor number and yes/no lift. Then ask access: "How easy is access? Easy / Moderate / Difficult?"
+STEP 7 → preferred_date + preferred_time_window: "When would you prefer? We have morning (9am–12pm) or afternoon (1pm–5pm) slots." If "flexible"/"anytime" → preferred_date="Flexible", preferred_date_iso=null, preferred_time_window=null.
+STEP 8 → special_remarks: Always ask: "Any special notes for our team? E.g. wall mounting needed, drilling, fragile items, parking notes. Reply 'none' to skip." If customer says 'none', 'no', 'skip', or 'nothing' → set special_remarks=null. Otherwise store verbatim. NEVER skip asking this step.
+STEP 9 → customer_email: "Your email address for the quote confirmation? (Reply 'skip' if you prefer not to.)" If "skip" → null.
 
-RULES:
-- Ask ONLY ONE question per reply (the single most important missing piece)
+STRICT RULES:
+- Ask ONLY ONE question per reply — the next unfilled step
 - NEVER re-ask for anything already in state — trust the state completely
-- Handle corrections in-place: "remove the wardrobe" = update items, keep everything else
-- For relocation: track from_address and to_address separately, never mix them up
-- If any item says "relocate" or customer mentions moving, set is_relocation: true
-- When customer corrects something, update state and acknowledge warmly
-- No "Reply YES to continue" gatekeeping — just ask the next question naturally
-- Keep replies warm, concise, and conversational
-- CONFIRMATION TRIGGER: When items + from_address + floor_from + lift_from + customer_name are all filled (and to_address if is_relocation), set transition_to_confirmation: true in the JSON root. This causes the summary message to be shown and quote to be submitted.
+- NEVER overwrite a field with null unless customer explicitly removes it
+- If a customer answers multiple steps in one message, capture ALL of them and skip to the next gap
+- Relocation: from_address and to_address are DIFFERENT addresses — never confuse them
+- If customer mentions moving / relocation, set is_relocation=true and service_scope="relocate"
+- When correcting: update only the changed field, preserve all others
+- Keep tone warm, concise, conversational — 1–3 sentences per reply
+
+CONFIRMATION TRIGGER:
+When service_scope + customer_name + from_address + items + floor_from + lift_from are ALL non-null (PLUS to_address if is_relocation=true) AND special_remarks has been asked (may be null if customer replied 'none'), set transition_to_confirmation=true.
+preferred_date defaults to "Flexible" if never answered. customer_email may be null.
 
 CONVERSATION HISTORY:
 ${historyContext || "(first exchange)"}
 
-NEW MESSAGE: "${photoItemsText ? `[Photo sent — ${photoItemsText.split("\n").length} items detected]` : text}"
+NEW MESSAGE: "${photoItemsText ? `[Photo — ${photoItemsText.split("\n").length} item(s) detected]` : text}"
 
 Return ONLY valid JSON:
 {
   "updatedState": {
-    "items": "• item (service)\\n...",
+    "service_scope": "install"/"dismantle"/"relocate"/"dispose"/"dismantle_dispose"/"mixed" or null,
+    "customer_name": "string or null",
     "from_address": "string or null",
     "to_address": "string or null",
+    "items": "• item (service)\\n• item (service)\\n...",
     "floor_from": number or null,
     "lift_from": true/false or null,
     "floor_to": number or null,
     "lift_to": true/false or null,
     "access_difficulty": "easy"/"medium"/"hard" or null,
-    "preferred_date": "friendly display string or null",
+    "preferred_date": "e.g. 'Friday 4 Apr' or 'Flexible' or null",
     "preferred_date_iso": "YYYY-MM-DD or null",
-    "preferred_time_window": "09:00-12:00" or "13:00-17:00" or null,
-    "customer_name": "string or null",
-    "customer_email": "string or null",
-    "special_remarks": "string or null",
-    "service_scope": "install"/"dismantle"/"relocate"/"dispose"/"dismantle_dispose"/"mixed" or null,
+    "preferred_time_window": "09:00-12:00"/"13:00-17:00" or null,
+    "special_remarks": "verbatim customer text or null",
+    "customer_email": "email string or null",
     "is_relocation": true/false,
     "distance_km": number or null
   },
-  "reply": "your next message to the customer",
+  "reply": "your message to the customer",
   "transition_to_confirmation": false
 }
 
-When transition_to_confirmation is true, "reply" MUST be the COMPLETE summary ending with:
-"Shall I send this to our team? Reply *YES* to submit.\\n\\n_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, or *change access*._"`,
+WHEN transition_to_confirmation=true, "reply" MUST be this FULL SUMMARY (substitute real values):
+"Here's a summary of your request:\n\n🔧 *Service:* [e.g. Relocation / Installation / Dismantling]\n👤 *Name:* [customer_name]\n📍 *From:* [from_address]\n📍 *To:* [to_address — include ONLY if is_relocation]\n🛋️ *Items:*\n[items bullet list]\n🏢 *Floor:* [floor_from] ([lift_from ? 'with lift' : 'no lift'])\n🚪 *Access:* [Easy / Moderate / Difficult]\n📅 *Requested slot:* [preferred_date or 'Flexible'][' — Morning (9am–12pm)' or ' — Afternoon (1pm–5pm)' if time_window set]\n📝 *Notes:* [special_remarks or 'None']\n📧 *Email:* [customer_email or 'Not provided']\n\nShall I send this to our team? Reply *YES* to submit.\n\n_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, *change access*, *change remarks*, or *change email*._"`,
       }],
     });
     orchResult = JSON.parse(orchRes.choices[0]?.message?.content || "{}");
@@ -4712,6 +4717,7 @@ Message: "${text.slice(0, 800)}"`
           let firstMsgShowPricing = false;
           let firstMsgItem: string | null = null;
           let firstMsgIsReadyToBook = false;
+          let firstMsgServiceScope: string | null = null;
 
           try {
             const firstClassRes = await openai.chat.completions.create({
@@ -4724,7 +4730,8 @@ Message: "${text.slice(0, 800)}"`
 Classify their VERY FIRST message. Return JSON:
 {
   "intent": "greeting" | "question" | "pricing_general" | "pricing_specific" | "ready_to_book",
-  "itemQuery": "furniture item if pricing_specific, else null"
+  "itemQuery": "furniture item if pricing_specific, else null",
+  "serviceScope": "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose" | null
 }
 - greeting: just saying hi/hello with no specific ask
 - question: asking about services, availability, process, warranty, coverage area, etc.
@@ -4734,6 +4741,7 @@ Classify their VERY FIRST message. Return JSON:
               }, { role: "user", content: text }],
             });
             const fc = JSON.parse(firstClassRes.choices[0]?.message?.content || "{}");
+            firstMsgServiceScope = fc.serviceScope || null;
 
             if (fc.intent === "pricing_specific" && fc.itemQuery) {
               firstMsgItem = fc.itemQuery;
@@ -4803,9 +4811,15 @@ Classify their VERY FIRST message. Return JSON:
               : `We'd be happy to quote for *${firstMsgItem}*. Our team will confirm the exact price once we know more about your job.\n\nWould you like a quote? 😊`
             ));
           } else if (firstMsgReply && firstMsgIsReadyToBook) {
-            // Ready to book — acknowledge their specific request, move to name collection
+            // Ready to book — acknowledge their specific request, move to collection flow
             // Reset floor/lift so stale data from previous conversations never carries over
-            const firstMsgSessionFields: Record<string, unknown> = { state: "awaiting_name", floorLevel: null, hasLift: null };
+            const initStructured = { ...DEFAULT_STRUCTURED_STATE, service_scope: firstMsgServiceScope, is_relocation: firstMsgServiceScope === "relocate" };
+            const firstMsgSessionFields: Record<string, unknown> = {
+              state: "collecting",
+              floorLevel: null, hasLift: null,
+              isRelocation: firstMsgServiceScope === "relocate",
+              structuredState: JSON.stringify(initStructured),
+            };
 
             // Extract any date/time preference the customer already mentioned
             try {
@@ -4942,6 +4956,7 @@ COMMAND RULES:
 - none: a direct answer to the current question — DO NOT override a direct reply
 
 CRITICAL — Do NOT classify as command if customer is directly answering the current question:
+- state=collecting → floor/lift answers, addresses, item lists, dates, "none", "skip", emails, or any factual reply → none (the active collection flow handles all of these)
 - state=awaiting_floor → floor numbers, lift/no-lift answers → none
 - state=awaiting_access → 1/2/3, easy/moderate/hard → none
 - state=awaiting_date → dates, times, "anytime", "flexible" → none
@@ -4987,6 +5002,18 @@ If the case is unusual or complex, say the team will review and follow up.`
             } else if (gc.command === "change_access" && !["awaiting_access"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_access" });
               await sendBotMessage(from, `Got it! How easy is access to the unit?\n\n1️⃣ *Easy* — clear hallways, no obstacles\n2️⃣ *Moderate* — some tight corners or minor obstacles\n3️⃣ *Difficult* — very narrow, many obstacles or stairs without lift\n\nReply *1*, *2*, or *3*`);
+              return;
+            } else if (gc.command === "change_remarks") {
+              const richSessR = parseStructuredState(session);
+              richSessR.special_remarks = null;
+              await storage.upsertWhatsAppSession(from, { state: "collecting", structuredState: JSON.stringify(richSessR), specialRemarks: null });
+              await sendBotMessage(from, `Sure! What are the special notes or requirements for our team? 📝\n\n_e.g. wall mounting needed, drilling, fragile items, parking info. Reply *none* to skip._`);
+              return;
+            } else if (gc.command === "change_email") {
+              const richSessEm = parseStructuredState(session);
+              richSessEm.customer_email = null;
+              await storage.upsertWhatsAppSession(from, { state: "collecting", structuredState: JSON.stringify(richSessEm), collectedEmail: null });
+              await sendBotMessage(from, `No problem! What's the correct email address for the quote confirmation? 📧\n\n_Reply *skip* if you'd prefer not to provide one._`);
               return;
             } else if (gc.command === "help") {
               const hasAddress = !!session?.collectedAddress;
@@ -5254,9 +5281,12 @@ If the case is unusual or complex, say the team will review and follow up.`
           // Don't cancel — show correction options
           await sendBotMessage(from,
             `No problem! What would you like to change? 😊\n\n` +
-            `• Type *change name* — update your name\n` +
-            `• Type *change address* — fix the job address\n` +
-            `• Type *change items* — update the furniture list\n` +
+            `• Type *change name*\n` +
+            `• Type *change address*\n` +
+            `• Type *change items*\n` +
+            `• Type *change date*\n` +
+            `• Type *change remarks*\n` +
+            `• Type *change email*\n` +
             `• Type *cancel* — to cancel this request`
           );
           return;
@@ -5285,7 +5315,7 @@ Customer said: "${text}"
 
 Classify their intent and return JSON:
 {
-  "action": "submit" | "edit_items" | "change_name" | "change_address" | "change_date" | "redo_items" | "set_relocation" | "question" | "cancel" | "unclear",
+  "action": "submit" | "edit_items" | "change_name" | "change_address" | "change_date" | "change_remarks" | "change_email" | "redo_items" | "set_relocation" | "question" | "cancel" | "unclear",
   "reply": "friendly 1-sentence acknowledgment of what you changed/understood",
   "updatedItems": "the FULL updated bullet list (all items, one per line) — REQUIRED for edit_items, empty string otherwise"
 }
@@ -5296,6 +5326,8 @@ ACTION RULES (follow strictly):
 - change_name: they say their name is wrong or want to change it
 - change_address: they want to change the job address
 - change_date: they want to change the date or time slot
+- change_remarks: they want to add, change, or remove special notes/remarks
+- change_email: they want to provide or change their email address
 - redo_items: ONLY use this if the customer explicitly wants to RESTART the ENTIRE items list from scratch (e.g. "redo my items", "start the list over", "completely different items", "clear everything"). NOT for removing one specific item.
 - set_relocation: they reveal this is a relocation/moving job
 - question: they ask about pricing, timing, or how the service works
@@ -5336,18 +5368,25 @@ CRITICAL for edit_items:
               const floorLineE = `🏢 *Floor:* ${floorLvlE === 1 ? "Ground / 1st floor" : `Floor ${floorLvlE}`} (${liftAvailE ? "lift available" : "no lift"})`;
               const accessLineE = `🚪 *Access:* ${{ easy: "Easy", medium: "Moderate", hard: "Difficult" }[accessLvlE] || "Easy"}`;
 
+              const structuredStateE = session.structuredState ? (() => { try { return JSON.parse(session.structuredState); } catch { return null; } })() : null;
+              const serviceScopeE = structuredStateE?.service_scope || (isRelocationE ? "relocate" : null);
+              const serviceLabelE: Record<string, string> = { install: "Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal", dismantle_dispose: "Dismantle + Dispose", mixed: "Mixed" };
+              const serviceLineE = serviceScopeE ? `🔧 *Service:* ${serviceLabelE[serviceScopeE] || serviceScopeE}\n` : "";
+              const remarksE = session.specialRemarks || structuredStateE?.special_remarks || null;
+              const emailE = session.collectedEmail || structuredStateE?.customer_email || null;
               await sendBotMessage(from,
                 `${ci.reply || "Done! ✅"} Here's your updated summary:\n\n` +
+                serviceLineE +
                 `👤 *Name:* ${session.collectedName}\n` +
-                (session.collectedEmail ? `📧 *Email:* ${session.collectedEmail}\n` : ``) +
                 `${addressBlockE}\n` +
                 `🛋️ *Items:*\n${updatedItems}\n` +
                 `${floorLineE}\n` +
                 `${accessLineE}\n` +
-                `📅 *Preferred date:* ${session.preferredDate || "Flexible"}${twLabelE}\n` +
-                (session.specialRemarks ? `📝 *Notes:* ${session.specialRemarks}\n` : ``) +
+                `📅 *Requested slot:* ${session.preferredDate || "Flexible"}${twLabelE}\n` +
+                `📝 *Notes:* ${remarksE || "None"}\n` +
+                (emailE ? `📧 *Email:* ${emailE}\n` : ``) +
                 `\nShall I send this to our team? Reply *YES* to submit.\n\n` +
-                `_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, *change access*, or *change remarks*._`
+                `_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, *change access*, *change remarks*, or *change email*._`
               );
               return;
             } else if (ci.action === "change_name") {
@@ -5362,6 +5401,18 @@ CRITICAL for edit_items:
               await storage.upsertWhatsAppSession(from, { state: "awaiting_date" });
               const { message: dateMenu } = await buildDateMenuMessage();
               await sendBotMessage(from, `${ci.reply || "Sure!"} Let me pull up available slots for you.\n\n${dateMenu}`);
+              return;
+            } else if (ci.action === "change_remarks") {
+              const richSessRConf = parseStructuredState(session);
+              richSessRConf.special_remarks = null;
+              await storage.upsertWhatsAppSession(from, { state: "collecting", structuredState: JSON.stringify(richSessRConf), specialRemarks: null });
+              await sendBotMessage(from, `${ci.reply || "Sure!"} What are the special notes or requirements for our team? 📝\n\n_e.g. wall mounting needed, drilling, fragile items. Reply *none* to skip._`);
+              return;
+            } else if (ci.action === "change_email") {
+              const richSessEmConf = parseStructuredState(session);
+              richSessEmConf.customer_email = null;
+              await storage.upsertWhatsAppSession(from, { state: "collecting", structuredState: JSON.stringify(richSessEmConf), collectedEmail: null });
+              await sendBotMessage(from, `${ci.reply || "No problem!"} What email address should we send the quote to? 📧\n\n_Reply *skip* if you prefer not to._`);
               return;
             } else if (ci.action === "redo_items") {
               // Complete redo — keep existing list in previousItems so user can reference it

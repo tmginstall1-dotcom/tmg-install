@@ -1,0 +1,88 @@
+Fix the WhatsApp chatbot quote intake flow with STRICT scope. Do not redesign unrelated logic. Do not change payment, admin, database schema, or website UI. Only fix the WhatsApp conversational flow and field mapping.
+
+GOAL
+Make the chatbot reliably collect and preserve all quote fields in the correct order for TMG Install.
+
+REQUIRED FLOW
+1. Greeting shown once only
+2. Ask service type
+3. Ask customer name
+4. Ask from address
+5. Ask to address (for relocation only)
+6. Ask item list
+7. Ask floor / lift / access details
+8. Ask preferred date/time
+9. Ask remarks / special notes
+10. Ask email
+11. Show full summary
+12. Allow edit commands
+13. Submit only after YES
+
+STRICT FIXES REQUIRED
+- Prevent duplicate greeting after restart/start/hi
+- After user selects service like “Relocation”, go directly into structured intake flow
+- Do NOT show generic instant price breakdown before the intake flow
+- Preserve service type exactly as selected
+- Preserve both from_address and to_address separately
+- Preserve remarks separately
+- Preserve access separately
+- Preserve preferred date separately
+- Preserve email separately
+- Never overwrite relocation into install-only unless user explicitly says install
+- Final summary must include:
+  - service type
+  - customer name
+  - from address
+  - to address (if relocation)
+  - items
+  - floor/lift details
+  - access
+  - preferred date
+  - remarks
+  - email
+- Edit commands must support:
+  - change name
+  - change address
+  - change items
+  - change date
+  - change floor
+  - change access
+  - change remarks
+  - change email
+- “Flexible” must be stored and displayed as:
+  Requested slot: Flexible
+  not just “Date: Flexible”
+- Final quote must use the correct service context
+- If service = relocation, do not convert all items into install-only wording unless explicitly specified
+- Keep conversation state stable across each reply
+- Do not lose previously collected fields when user sends the next answer
+- Handle normal free-text user replies robustly without requiring exact formatting
+
+TEST CASE THAT MUST PASS
+Service: Relocation
+Name: Daniel Tan
+From address: 109C Depot Road
+To address: Parc Esta condo
+Items: 1 wall mirror, curtain rods, 1 shoe cabinet assembly, 1 baby cot from Taobao
+Floor/lift: Floor 12, no lift
+Access: Easy
+Preferred date: Flexible
+Remarks: The wall mirror need wall mounting. Curtain rods also need drilling. Shoe cabinet just normal assembly. Baby cot is from Taobao not sure instruction complete.
+Email: cherdejian@outlook.com
+
+EXPECTED RESULT
+- no duplicate greeting
+- no generic price breakdown before intake
+- all fields preserved
+- summary shows both addresses
+- summary shows remarks
+- summary supports change remarks
+- service remains correct
+- “Flexible” displayed as requested slot, not vague date
+- submission works cleanly
+- final quote/lead record uses correct mapped fields
+
+IMPORTANT
+Return full-file replacements only for files changed.
+Do not provide partial snippets.
+Do not change unrelated features.
