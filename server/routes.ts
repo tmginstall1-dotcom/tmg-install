@@ -3376,6 +3376,23 @@ ${systemPrompt}` });
     }
   });
 
+  // Admin: Save additional post-job charges (overtime, access issues, extra items)
+  app.patch("/api/quotes/:id/additional-charges", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { additionalCharge, additionalChargeNote } = z.object({
+        additionalCharge: z.string(),
+        additionalChargeNote: z.string().optional().default(""),
+      }).parse(req.body);
+      const quote = await storage.updateAdditionalCharge(id, additionalCharge, additionalChargeNote);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      res.json(quote);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   // Admin: Request final payment (email for real emails, WhatsApp for chatbot customers)
   app.post("/api/quotes/:id/request-final-payment", async (req, res) => {
     try {

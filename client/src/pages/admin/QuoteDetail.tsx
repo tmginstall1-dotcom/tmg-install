@@ -8,11 +8,12 @@ import {
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
   ClipboardList, Banknote, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
-  Printer,
+  Printer, Timer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { calcOvertimeCharge, PricingConfig } from "@shared/pricing";
 
 const TERMINAL_STATUSES_UI = ['closed', 'cancelled'];
 
@@ -45,6 +46,9 @@ export default function AdminQuoteDetail() {
   const [waPhoneOverride, setWaPhoneOverride] = useState(""); // for web quotes with no stored WA phone
   const [waSentAt, setWaSentAt] = useState<Date | null>(null); // tracks last WA send
   const [emailSentAt, setEmailSentAt] = useState<Date | null>(null); // tracks last email send
+  const [jobMinutes, setJobMinutes] = useState(""); // actual job duration in minutes (for overtime calc)
+  const [addChargeNote, setAddChargeNote] = useState(""); // additional charge note
+  const [addChargeCustom, setAddChargeCustom] = useState(""); // override amount for non-overtime charges
 
   const deleteQuoteMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/admin/quotes/${id}`),
@@ -54,6 +58,18 @@ export default function AdminQuoteDetail() {
     },
     onError: (err: any) => {
       toast({ title: "Delete Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const saveAdditionalCharge = useMutation({
+    mutationFn: (body: { additionalCharge: string; additionalChargeNote: string }) =>
+      apiRequest("PATCH", `/api/quotes/${id}/additional-charges`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", id] });
+      toast({ title: "Saved", description: "Additional charge updated." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -1050,8 +1066,124 @@ export default function AdminQuoteDetail() {
                     {formatMoney(quote.finalAmount)}
                   </span>
                 </div>
+
+                {Number(quote.additionalCharge || 0) > 0 && (
+                  <div className="flex items-center justify-between p-3 rounded-lg border bg-amber-50 border-amber-200">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold bg-amber-400 text-white">!</div>
+                      <div>
+                        <span className="text-sm font-medium text-amber-800">Additional Charge</span>
+                        {quote.additionalChargeNote && <p className="text-xs text-amber-700 mt-0.5">{quote.additionalChargeNote}</p>}
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold tabular-nums text-amber-900" data-testid="text-additional-charge">
+                      {formatMoney(quote.additionalCharge)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Overtime / Additional Charges Calculator */}
+            {['in_progress', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status) && (
+              <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-5 py-4 border-b border-zinc-100 flex items-center gap-2">
+                  <Timer className="w-4 h-4 text-amber-500" />
+                  <h3 className="text-sm font-semibold text-zinc-900">Overtime / Additional Charges</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <p className="text-xs text-zinc-500">Standard job includes <strong>{PricingConfig.overtime.capMinutes} min</strong> crew time. Overtime is charged at <strong>${PricingConfig.overtime.blockRate}/30 min</strong> block (max ${PricingConfig.overtime.maxCharge}).</p>
+
+                  {/* Overtime calculator */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-zinc-600">Actual job duration (minutes)</label>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="number"
+                        min="0"
+                        step="5"
+                        placeholder="e.g. 120"
+                        value={jobMinutes}
+                        onChange={e => setJobMinutes(e.target.value)}
+                        data-testid="input-job-minutes"
+                        className="flex-1 h-9 px-3 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      {jobMinutes && Number(jobMinutes) > 0 && (
+                        <div className="text-sm font-semibold text-amber-700 tabular-nums whitespace-nowrap">
+                          {(() => {
+                            const { blocks, charge } = calcOvertimeCharge(Number(jobMinutes));
+                            return charge > 0
+                              ? `${blocks} block${blocks !== 1 ? 's' : ''} × $${PricingConfig.overtime.blockRate} = $${charge.toFixed(2)}`
+                              : 'No overtime';
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                    {jobMinutes && Number(jobMinutes) > 0 && calcOvertimeCharge(Number(jobMinutes)).charge > 0 && (
+                      <button
+                        data-testid="button-use-overtime"
+                        onClick={() => {
+                          const { blocks, charge } = calcOvertimeCharge(Number(jobMinutes));
+                          setAddChargeCustom(charge.toFixed(2));
+                          setAddChargeNote(`Overtime: ${blocks} block${blocks !== 1 ? 's' : ''} × $${PricingConfig.overtime.blockRate} (job was ${jobMinutes} min)`);
+                        }}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        → Use this amount
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="border-t border-zinc-100 pt-4 space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-zinc-600">Charge amount ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={addChargeCustom}
+                        onChange={e => setAddChargeCustom(e.target.value)}
+                        data-testid="input-additional-charge-amount"
+                        className="w-full h-9 px-3 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-zinc-600">Note (optional)</label>
+                      <input
+                        type="text"
+                        placeholder="Reason for charge…"
+                        value={addChargeNote}
+                        onChange={e => setAddChargeNote(e.target.value)}
+                        data-testid="input-additional-charge-note"
+                        className="w-full h-9 px-3 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <button
+                      data-testid="button-save-additional-charge"
+                      disabled={saveAdditionalCharge.isPending}
+                      onClick={() => saveAdditionalCharge.mutate({
+                        additionalCharge: addChargeCustom || '0',
+                        additionalChargeNote: addChargeNote,
+                      })}
+                      className="w-full h-9 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {saveAdditionalCharge.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      Save Additional Charge
+                    </button>
+                    {Number(quote.additionalCharge || 0) > 0 && (
+                      <button
+                        data-testid="button-clear-additional-charge"
+                        onClick={() => { saveAdditionalCharge.mutate({ additionalCharge: '0', additionalChargeNote: '' }); setAddChargeCustom(''); setAddChargeNote(''); }}
+                        className="w-full text-xs text-zinc-400 hover:text-zinc-600 underline"
+                      >
+                        Clear additional charge
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
           </div>
         </div>

@@ -29,14 +29,20 @@ export const PricingConfig = {
     hardPct: 0.20,   // +20% of labor-after-discount
   },
   transport: {
-    minFee: 80,
-    baseFee: 80,
-    includedKm: 5,
-    tiers: [
-      { upTo: 10, ratePerKm: 5 },        // 0–10 extra km: $5/km
-      { upTo: 20, ratePerKm: 4 },        // 10–20 extra km: $4/km
-      { upTo: Infinity, ratePerKm: 3 },  // 20km+ extra: $3/km
-    ] as { upTo: number; ratePerKm: number }[],
+    // Lalamove Singapore 2.4m Van (Toyota Hiace) pricing — 2025
+    vanBase: 38,        // Base fare for 2.4m Van (includes first 3 km)
+    helperFee: 30,      // Driver + 1 helper surcharge (standard for furniture jobs)
+    includedKm: 3,      // First 3 km included in van base fare
+    ratePerKm: 0.50,    // Per km after first 3 km
+    cbdSurcharge: 5,    // CBD area surcharge (Mon–Sat 6:30am–8:30pm)
+    get minFee() { return this.vanBase + this.helperFee; }, // $68 minimum
+  },
+  overtime: {
+    // Relocation-only jobs: base price covers 90 minutes of crew time
+    capMinutes: 90,     // Included minutes before overtime kicks in
+    blockMinutes: 30,   // Charge in 30-minute blocks after the cap
+    blockRate: 30,      // SGD per 30-min block (2 crew × $5/person/10 min = $10/10 min)
+    maxCharge: 200,     // Maximum overtime charge per job
   },
   hiace: {
     capacityM3: 6.0,  // Toyota Hiace usable cargo volume per trip (cubic metres)
@@ -122,24 +128,25 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/** Lalamove 2.4m Van (Toyota Hiace) pricing for Singapore — 2025
+ *  Base $38 (first 3 km) + $0.50/km after + $30 helper = $68 minimum
+ */
 export function calcTransportFee(distanceKm: number): number {
   const cfg = PricingConfig.transport;
-  const billableKm = Math.max(0, distanceKm - cfg.includedKm);
-
-  let tierCost = 0;
-  let remaining = billableKm;
-  let prevUpTo = 0;
-
-  for (const tier of cfg.tiers) {
-    if (remaining <= 0) break;
-    const bucketSize = tier.upTo === Infinity ? remaining : Math.min(remaining, tier.upTo - prevUpTo);
-    tierCost += bucketSize * tier.ratePerKm;
-    remaining -= bucketSize;
-    if (tier.upTo !== Infinity) prevUpTo = tier.upTo;
-  }
-
-  const rawFee = cfg.baseFee + tierCost;
+  const extraKm = Math.max(0, distanceKm - cfg.includedKm);
+  const rawFee = cfg.vanBase + cfg.helperFee + extraKm * cfg.ratePerKm;
   return round2(Math.max(cfg.minFee, rawFee));
+}
+
+/** Calculate overtime charge for relocation jobs that exceed the 90-min cap.
+ *  Returns { blocks, charge } where charge = blocks × $30, capped at $200.
+ */
+export function calcOvertimeCharge(actualMinutes: number): { blocks: number; charge: number } {
+  const cfg = PricingConfig.overtime;
+  if (actualMinutes <= cfg.capMinutes) return { blocks: 0, charge: 0 };
+  const blocks = Math.ceil((actualMinutes - cfg.capMinutes) / cfg.blockMinutes);
+  const charge = Math.min(blocks * cfg.blockRate, cfg.maxCharge);
+  return { blocks, charge };
 }
 
 /** Look up a catalog install price for an item name (for fallback multipliers). */

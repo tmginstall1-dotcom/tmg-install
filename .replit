@@ -53,3 +53,7 @@ integrations = ["javascript_openai_ai_integrations:2.0.0", "javascript_database:
 FROM_EMAIL = "noreply@tmginstall.com"
 APP_URL = "https://tmginstall.com"
 BUILD_WEBHOOK_TOKEN = "71b6a589b4d46338fa149e8371ddaa9878f71a07ad831cada2864bd3231178b1"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 60000

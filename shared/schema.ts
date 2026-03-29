@@ -281,6 +281,10 @@ export const quotes = pgTable("quotes", {
   promoCode: text("promo_code"),            // applied promo code (e.g. "TMG50")
   promoDiscount: numeric("promo_discount").default("0"), // SGD discount from promo
 
+  // Post-job additional charges (overtime, access issues, extra items discovered on-site)
+  additionalCharge: numeric("additional_charge").default("0"),
+  additionalChargeNote: text("additional_charge_note"), // e.g. "Overtime: 2 × 30-min blocks"
+
   notes: text("notes"), // admin internal notes
   detectionPhotoUrl: text("detection_photo_url"), // thumbnail from AI photo scan at submission
 

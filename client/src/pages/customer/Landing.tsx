@@ -1084,9 +1084,17 @@ export default function Landing() {
               ))}
             </div>
             {pricingTab === "relocate" && (
-              <p className="text-[10px] text-black/40 font-body mt-2 px-1">
-                Relocation includes dismantling at origin + reinstallation at destination.
-              </p>
+              <div className="mt-2 px-1 space-y-1">
+                <p className="text-[10px] text-black/40 font-body">
+                  Relocation includes dismantling at origin + reinstallation at destination.
+                </p>
+                <p className="text-[10px] text-black/40 font-body">
+                  Transport (2.4m van): from $68 flat. Includes 1 helper + first 3 km. +$0.50/km after.
+                </p>
+                <p className="text-[10px] text-black/40 font-body">
+                  Crew time: 90 min included. Overtime $30/30-min block, capped at $200.
+                </p>
+              </div>
             )}
           </div>
 
@@ -1128,7 +1136,7 @@ export default function Landing() {
             ))}
             <div className="px-6 py-4 border-t border-black/8 bg-black/[0.02] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <p className="font-body text-xs text-black/40">
-                Sample prices per item (SGD). Transport surcharge, floor level, and access fees quoted separately. 250+ items in the full catalog — get an exact quote below.
+                Sample prices per item (SGD). Transport, floor, and access fees quoted separately. Relocation transport: 2.4m van from $68 (3 km) + $0.50/km after · 90 min crew included · Overtime $30/30 min.
               </p>
               <Link
                 href="/estimate"
@@ -1155,7 +1163,7 @@ export default function Landing() {
             ))}
             <div className="px-4 py-4 border-t border-black/8 bg-black/[0.02]">
               <p className="font-body text-xs text-black/40 mb-3">
-                Sample prices per item (SGD). Transport surcharge added separately.
+                Sample prices per item (SGD). Transport, floor &amp; access fees extra. Relocation transport from $68 · 90 min crew included · Overtime $30/30 min.
               </p>
               <Link
                 href="/estimate"

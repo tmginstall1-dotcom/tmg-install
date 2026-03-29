@@ -94,6 +94,7 @@ export interface IStorage {
     quoteUpdates?: Partial<typeof quotes.$inferInsert>;
     items?: Omit<InsertQuoteItem, 'quoteId'>[];
   }): Promise<QuoteResponse | undefined>;
+  updateAdditionalCharge(id: number, additionalCharge: string, additionalChargeNote: string): Promise<QuoteResponse | undefined>;
   addJobUpdate(update: InsertJobUpdate): Promise<void>;
   deleteQuote(id: number): Promise<void>;
 
@@ -787,6 +788,17 @@ export class DatabaseStorage implements IStorage {
       note: 'Quote edited by admin'
     });
 
+    return await this.fetchQuoteDetails(id);
+  }
+
+  async updateAdditionalCharge(id: number, additionalCharge: string, additionalChargeNote: string) {
+    await db.update(quotes).set({ additionalCharge, additionalChargeNote }).where(eq(quotes.id, id));
+    await db.insert(jobUpdates).values({
+      quoteId: id,
+      statusChange: 'edited',
+      actorType: 'admin',
+      note: `Additional charge updated: $${additionalCharge}${additionalChargeNote ? ` — ${additionalChargeNote}` : ''}`,
+    });
     return await this.fetchQuoteDetails(id);
   }
 
