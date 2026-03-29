@@ -253,42 +253,42 @@ function TrustStripAnimated() {
   const c7 = useCountUp(7, 900);
 
   return (
-    <section className="border-b border-white/8 px-4 sm:px-6 lg:px-8 py-10">
+    <section className="border-b border-white/8 px-4 sm:px-6 lg:px-8 py-12 relative">
+      {/* Subtle amber shimmer rule at top */}
+      <div className="absolute top-0 left-8 right-8 amber-shimmer-line opacity-40" />
       <div className="max-w-6xl mx-auto">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-white/10">
-          <div className="sm:px-8 first:pl-0 flex items-start sm:items-center gap-3">
-            <Package className="w-4 h-4 text-amber-400 mt-0.5 sm:mt-0 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-white">
-                <span ref={c250.ref} className="text-amber-400">{c250.count}</span>+ Items in Catalog
-              </p>
-              <p className="text-xs text-white/40 font-body mt-0.5">Every item fixed-priced upfront</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 sm:gap-0 sm:divide-x sm:divide-white/10">
+          <div className="sm:px-8 first:pl-0 flex flex-col gap-1">
+            <div className="flex items-baseline gap-1">
+              <span ref={c250.ref} className="font-heading font-bold text-4xl leading-none text-amber-400">{c250.count}</span>
+              <span className="font-heading font-bold text-2xl leading-none text-amber-400/70">+</span>
             </div>
+            <p className="text-xs font-semibold text-white mt-1">Items in Catalog</p>
+            <p className="text-[11px] text-white/35 font-body">Every item fixed-priced upfront</p>
           </div>
-          <div className="sm:px-8 flex items-start sm:items-center gap-3">
-            <Zap className="w-4 h-4 text-amber-400 mt-0.5 sm:mt-0 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-white">
-                <span ref={c60.ref} className="text-amber-400">{c60.count}</span>-Second Quote
-              </p>
-              <p className="text-xs text-white/40 font-body mt-0.5">No calls, no waiting, no forms</p>
+          <div className="sm:px-8 flex flex-col gap-1">
+            <div className="flex items-baseline gap-1">
+              <span ref={c60.ref} className="font-heading font-bold text-4xl leading-none text-amber-400">{c60.count}</span>
+              <span className="font-heading font-bold text-lg leading-none text-amber-400/70">s</span>
             </div>
+            <p className="text-xs font-semibold text-white mt-1">Quote Turnaround</p>
+            <p className="text-[11px] text-white/35 font-body">No calls, no waiting, no forms</p>
           </div>
-          <div className="sm:px-8 flex items-start sm:items-center gap-3">
-            <Clock className="w-4 h-4 text-amber-400 mt-0.5 sm:mt-0 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-white">
-                <span ref={c7.ref} className="text-amber-400">{c7.count}</span> Days a Week
-              </p>
-              <p className="text-xs text-white/40 font-body mt-0.5">Weekends & public holidays included</p>
+          <div className="sm:px-8 flex flex-col gap-1">
+            <div className="flex items-baseline gap-1">
+              <span ref={c7.ref} className="font-heading font-bold text-4xl leading-none text-amber-400">{c7.count}</span>
+              <span className="font-heading font-bold text-lg leading-none text-amber-400/70">×/wk</span>
             </div>
+            <p className="text-xs font-semibold text-white mt-1">Days a Week</p>
+            <p className="text-[11px] text-white/35 font-body">Weekends &amp; public holidays included</p>
           </div>
-          <div className="sm:px-8 last:pr-0 flex items-start sm:items-center gap-3">
-            <Shield className="w-4 h-4 text-amber-400 mt-0.5 sm:mt-0 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-white">ACRA Registered</p>
-              <p className="text-xs text-white/40 font-body mt-0.5">The Moving Guy Pte Ltd · UEN 202424156H</p>
+          <div className="sm:px-8 last:pr-0 flex flex-col gap-1">
+            <div className="flex items-baseline gap-1">
+              <span className="font-heading font-bold text-4xl leading-none text-amber-400">5</span>
+              <span className="font-heading font-bold text-2xl leading-none text-amber-400/70">★</span>
             </div>
+            <p className="text-xs font-semibold text-white mt-1">ACRA Registered</p>
+            <p className="text-[11px] text-white/35 font-body">The Moving Guy Pte Ltd · UEN 202424156H</p>
           </div>
         </div>
       </div>
@@ -299,20 +299,20 @@ function TrustStripAnimated() {
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-white/10">
+    <div className={`border-b border-white/10 transition-colors duration-300 ${open ? "border-amber-400/15" : ""}`}>
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between py-5 text-left group"
       >
-        <span className="text-sm font-semibold text-white pr-6 leading-snug group-hover:text-white/70 transition-colors">
+        <span className={`text-sm font-semibold pr-6 leading-snug transition-colors duration-200 ${open ? "text-white" : "text-white/80 group-hover:text-white"}`}>
           {q}
         </span>
-        <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
-          {open ? <Minus className="w-4 h-4 text-white/40" /> : <Plus className="w-4 h-4 text-white/40" />}
+        <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center border transition-all duration-200 ${open ? "border-amber-400/40 bg-amber-400/10" : "border-white/15 group-hover:border-white/30"}`}>
+          {open ? <Minus className="w-3 h-3 text-amber-400" /> : <Plus className="w-3 h-3 text-white/50" />}
         </span>
       </button>
       {open && (
-        <div className="pb-5 pr-8">
+        <div className="pb-6 pr-10">
           <p className="font-body text-sm text-white/55 leading-relaxed">{a}</p>
         </div>
       )}
@@ -490,7 +490,7 @@ export default function Landing() {
                 <div className="w-3 h-[3px] bg-amber-400/40" />
               </div>
 
-              <h1 className="hero-title text-white mb-7">
+              <h1 className="hero-title text-gradient-warm mb-7">
                 Installation,<br />Dismantling &amp;<br />Relocation.
               </h1>
 
@@ -505,7 +505,7 @@ export default function Landing() {
                   href="/estimate"
                   data-testid="hero-cta-guided"
                   onClick={() => trackEvent("cta_click", "/", "hero_get_estimate")}
-                  className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 transition-colors"
+                  className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
                 >
                   GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </Link>
@@ -599,7 +599,9 @@ export default function Landing() {
               className="hidden lg:flex flex-col gap-4"
             >
               {/* Main glass card */}
-              <div className="relative border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden p-8 shadow-[0_0_80px_rgba(255,180,0,0.06)]">
+              <div className="relative border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden p-8 shadow-[0_0_80px_rgba(251,191,36,0.10),0_0_140px_rgba(251,191,36,0.04)]">
+                {/* Amber shimmer sweep across top */}
+                <div className="absolute top-0 left-0 right-0 amber-shimmer-line" />
                 {/* Amber corner accents */}
                 <div className="absolute top-0 left-0 w-20 h-[2px] bg-amber-400/60" />
                 <div className="absolute top-0 left-0 w-[2px] h-20 bg-amber-400/60" />
@@ -730,10 +732,10 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="flex items-end justify-between gap-4 mb-8 flex-wrap">
             <div>
-              <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-2" style={{ letterSpacing: "0.2em" }}>
+              <p className="section-eyebrow mb-2">
                 Our Work
               </p>
-              <h2 className="section-title text-white">Real jobs. Real results.</h2>
+              <h2 className="section-title text-gradient-warm">Real jobs. Real results.</h2>
             </div>
             <Link
               href="/estimate"
@@ -855,11 +857,11 @@ export default function Landing() {
       <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-white/8">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-12">
-            <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+            <p className="section-eyebrow mb-3">
               Our Catalog
             </p>
             <div className="flex items-end justify-between gap-4 flex-wrap">
-              <h2 className="section-title text-white">What we handle.</h2>
+              <h2 className="section-title text-gradient-warm">What we handle.</h2>
               <Link
                 href="/estimate"
                 className="group inline-flex items-center gap-1.5 text-sm font-semibold text-white border-b border-white/25 pb-0.5 hover:border-white transition-colors whitespace-nowrap"
@@ -877,8 +879,10 @@ export default function Landing() {
                 onClick={() => trackEvent("cta_click", "/", `service_card_${label.toLowerCase().replace(/\s+/g, "_")}`)}
               >
                 <motion.div {...(i % 2 === 0 ? fadeFromLeft(i * 0.05) : fadeFromRight(i * 0.05))}>
-                  <TiltCard className="glass-card-light p-7 group hover:bg-white/20 transition-all duration-300 cursor-pointer h-full" intensity={13}>
-                    <Icon className="w-5 h-5 text-amber-400/70 group-hover:text-amber-300 mb-5 transition-colors" />
+                  <TiltCard className="glass-card-light glass-card-amber-hover p-7 group hover:bg-white/12 transition-all duration-300 cursor-pointer h-full" intensity={13}>
+                    <div className="icon-box-amber mb-5">
+                      <Icon className="w-4 h-4 text-amber-400/75 group-hover:text-amber-300 transition-colors" />
+                    </div>
                     <p className="text-sm font-semibold text-white leading-snug mb-1">
                       {label}
                     </p>
@@ -903,11 +907,11 @@ export default function Landing() {
 
           {/* Header */}
           <motion.div {...fadeUpDelayed(0)} className="mb-16">
-            <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+            <p className="section-eyebrow mb-3">
               The Full Booking Flow
             </p>
             <div className="flex items-end justify-between gap-4 flex-wrap">
-              <h2 className="section-title text-white">From enquiry to job done.</h2>
+              <h2 className="section-title text-gradient-warm">From enquiry to job done.</h2>
               <Link
                 href="/estimate"
                 className="group inline-flex items-center gap-1.5 text-sm font-semibold text-white border-b border-white/25 pb-0.5 hover:border-white transition-colors whitespace-nowrap"
@@ -1104,7 +1108,7 @@ export default function Landing() {
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "booking_flow_estimate")}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
               >
                 Get Estimate <ArrowRight className="w-3.5 h-3.5" />
               </Link>
@@ -1126,10 +1130,10 @@ export default function Landing() {
       <section className="glass-dark px-4 sm:px-6 lg:px-8 py-28">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-16">
-            <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+            <p className="section-eyebrow mb-3">
               Why Choose Us
             </p>
-            <h2 className="section-title text-white">Built for every job.</h2>
+            <h2 className="section-title text-gradient-warm">Built for every job.</h2>
           </motion.div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/8">
@@ -1156,9 +1160,9 @@ export default function Landing() {
               },
             ].map(({ icon: Icon, title, body }, i) => (
               <motion.div key={title} {...fadeUpDelayed(i * 0.08)}>
-                <TiltCard className="glass-card-light p-8 hover:bg-white/18 transition-all duration-300 group h-full" intensity={5}>
-                  <div className="w-8 h-8 border border-amber-400/25 flex items-center justify-center mb-7 group-hover:border-amber-400/50 transition-colors">
-                    <Icon className="w-3.5 h-3.5 text-amber-400/60 group-hover:text-amber-400/90 transition-colors" />
+                <TiltCard className="glass-card-light glass-card-amber-hover p-8 hover:bg-white/12 transition-all duration-300 group h-full" intensity={5}>
+                  <div className="icon-box-amber mb-7">
+                    <Icon className="w-4 h-4 text-amber-400/65 group-hover:text-amber-400/95 transition-colors" />
                   </div>
                   <h3 className="card-title text-white mb-3">{title}</h3>
                   <p className="font-body text-sm text-white/45 leading-relaxed">{body}</p>
@@ -1176,10 +1180,10 @@ export default function Landing() {
             {/* Header row */}
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-12">
               <div>
-                <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+                <p className="section-eyebrow mb-3">
                   Customer Reviews
                 </p>
-                <h2 className="section-title text-white">What our clients say.</h2>
+                <h2 className="section-title text-gradient-warm">What our clients say.</h2>
               </div>
               {/* Google rating badge */}
               <div className="flex items-center gap-3 shrink-0">
@@ -1214,13 +1218,15 @@ export default function Landing() {
                   <motion.div
                     key={i}
                     {...fadeUpDelayed(i * 0.08)}
-                    className="glass-card-light p-6 flex flex-col hover:bg-white/15 transition-colors"
+                    className="glass-card-light glass-card-amber-hover p-6 flex flex-col hover:bg-white/12 transition-colors relative overflow-hidden"
                     data-testid={`review-card-${i}`}
                   >
+                    {/* Amber top line */}
+                    <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-amber-400/40 to-transparent" />
                     {/* Stars */}
                     <div className="flex gap-0.5 mb-4">
                       {[...Array(r.stars)].map((_, j) => (
-                        <Star key={j} className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                        <Star key={j} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                       ))}
                     </div>
                     {/* Text */}
@@ -1255,7 +1261,7 @@ export default function Landing() {
                 rel="noopener noreferrer"
                 onClick={() => trackEvent("cta_click", "/", "google_reviews_view")}
                 data-testid="btn-read-reviews"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
               >
                 <Star className="w-3.5 h-3.5" /> Read on Google
               </a>
@@ -1278,11 +1284,11 @@ export default function Landing() {
       <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-white/8">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-10">
-            <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+            <p className="section-eyebrow mb-3">
               Transparent Pricing
             </p>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <h2 className="section-title text-white">
+              <h2 className="section-title text-gradient-warm">
                 Install, dismantle<br className="hidden sm:block" /> or relocate — all priced upfront.
               </h2>
               <p className="font-body text-sm text-white/50 max-w-sm leading-relaxed">
@@ -1365,7 +1371,7 @@ export default function Landing() {
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "pricing_table_estimate")}
-                className="group flex-shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-400 text-black text-[10px] font-black uppercase tracking-[0.12em] hover:bg-amber-300 transition-colors"
+                className="group flex-shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-400 text-black text-[10px] font-black uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
               >
                 Get Full Quote <ArrowRight className="w-3 h-3 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
@@ -1409,7 +1415,7 @@ export default function Landing() {
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "pricing_table_mobile_estimate")}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-400 text-black text-[10px] font-black uppercase tracking-[0.12em] hover:bg-amber-300 transition-colors"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-400 text-black text-[10px] font-black uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
               >
                 Get Full Quote <ArrowRight className="w-3 h-3" />
               </Link>
@@ -1492,7 +1498,7 @@ export default function Landing() {
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "pricing_relocation_estimate")}
-                className="group flex-shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-400 text-black text-[10px] font-black uppercase tracking-[0.12em] hover:bg-amber-300 transition-colors"
+                className="group flex-shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-400 text-black text-[10px] font-black uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
               >
                 Get Relocation Quote <ArrowRight className="w-3 h-3 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
@@ -1506,10 +1512,10 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-[1fr_2fr] gap-16">
             <motion.div {...fadeUpDelayed(0)}>
-              <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+              <p className="section-eyebrow mb-3">
                 FAQ
               </p>
-              <h2 className="section-title text-white mb-4">Common questions.</h2>
+              <h2 className="section-title text-gradient-warm mb-4">Common questions.</h2>
               <p className="font-body text-sm text-white/50 leading-relaxed">
                 Can't find your answer? WhatsApp us — we reply fast.
               </p>
@@ -1533,13 +1539,22 @@ export default function Landing() {
       </section>
 
       {/* ═════════════════════ BOTTOM CTA BAND ═════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-28">
-        <div className="max-w-6xl mx-auto">
+      <section className="px-4 sm:px-6 lg:px-8 py-28 relative overflow-hidden">
+        {/* Ambient amber glow blob */}
+        <div
+          className="absolute pointer-events-none select-none"
+          style={{
+            left: "-10%", top: "50%", transform: "translateY(-50%)",
+            width: "600px", height: "500px",
+            background: "radial-gradient(ellipse at 30% 50%, rgba(251,191,36,0.10) 0%, transparent 70%)",
+          }}
+        />
+        <div className="max-w-6xl mx-auto relative">
           <motion.div {...fadeUpDelayed(0)} className="max-w-2xl">
-            <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-4" style={{ letterSpacing: "0.2em" }}>
+            <p className="section-eyebrow mb-4">
               Ready to start?
             </p>
-            <h2 className="section-title text-white mb-6">
+            <h2 className="section-title text-gradient-warm mb-6">
               Get your quote<br />in under 60 seconds.
             </h2>
             <p className="font-body text-base text-white/50 mb-10 max-w-md leading-relaxed">
@@ -1550,7 +1565,7 @@ export default function Landing() {
                 href="/estimate"
                 data-testid="bottom-cta-estimate"
                 onClick={() => trackEvent("cta_click", "/", "bottom_get_estimate")}
-                className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 transition-colors"
+                className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
               >
                 GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
