@@ -37,6 +37,7 @@ import { useQuery } from "@tanstack/react-query";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 import FurnitureScene from "@/components/ui/furniture-scene";
+import PageBgScene from "@/components/ui/page-bg-scene";
 
 const WHATSAPP = "https://wa.me/6580880757?text=Hi%2C+I%27d+like+a+furniture+installation+quote";
 
@@ -231,7 +232,7 @@ function TrustStripAnimated() {
   const c7 = useCountUp(7, 900);
 
   return (
-    <section className="border-b border-black/8 bg-black/[0.018] px-4 sm:px-6 lg:px-8 py-10">
+    <section className="border-b border-black/8 bg-white px-4 sm:px-6 lg:px-8 py-10">
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-black/8">
           <div className="sm:px-8 first:pl-0 flex items-start sm:items-center gap-3">
@@ -304,14 +305,18 @@ export default function Landing() {
   const [pricingTab, setPricingTab] = useState<"install" | "dismantle" | "relocate">("install");
   const [scrolled, setScrolled] = useState(false);
   const [scrollY, setScrollY] = useState(0);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const [mouseX, setMouseX] = useState(0);
   const [mouseY, setMouseY] = useState(0);
   const heroRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => {
-      setScrolled(window.scrollY > 320);
-      setScrollY(window.scrollY);
+      const sy = window.scrollY;
+      setScrolled(sy > 320);
+      setScrollY(sy);
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      setScrollProgress(max > 0 ? sy / max : 0);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -380,7 +385,10 @@ export default function Landing() {
   });
 
   return (
-    <div className={`min-h-screen bg-white text-black ${promoVisible ? "pt-24" : "pt-14"}`}>
+    <div className={`min-h-screen bg-transparent text-white ${promoVisible ? "pt-24" : "pt-14"}`}>
+
+      {/* ══════ FULL-PAGE 3D BACKGROUND ══════ */}
+      <PageBgScene scrollProgress={scrollProgress} mouseX={mouseX} mouseY={mouseY} />
 
       {/* ═══════════════════════════ HERO ═══════════════════════════ */}
       <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-24 pb-32 lg:pt-36 lg:pb-52">
@@ -394,18 +402,18 @@ export default function Landing() {
 
             {/* ── LEFT: Copy ── */}
             <motion.div {...fadeUp}>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-black/15 bg-black/[0.03] mb-8">
-                <Zap className="w-3.5 h-3.5 text-black" />
-                <span className="text-[10px] font-black tracking-[0.18em] text-black uppercase">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-white/20 bg-white/[0.06] mb-8">
+                <Zap className="w-3.5 h-3.5 text-white/70" />
+                <span className="text-[10px] font-black tracking-[0.18em] text-white/70 uppercase">
                   Singapore's Furniture Installation Specialists
                 </span>
               </div>
 
-              <h1 className="hero-title text-black mb-6">
+              <h1 className="hero-title text-white mb-6">
                 Installation,<br />Dismantling &amp;<br />Relocation.
               </h1>
 
-              <p className="font-body text-base sm:text-lg text-gray-500 mb-10 leading-relaxed max-w-md">
+              <p className="font-body text-base sm:text-lg text-white/55 mb-10 leading-relaxed max-w-md">
                 From a single wardrobe to a full office fit-out — TMG Install
                 handles every job across Singapore with transparent, upfront pricing.
                 Get your quote in under 60 seconds, no calls required.
@@ -426,7 +434,7 @@ export default function Landing() {
                   rel="noopener noreferrer"
                   data-testid="hero-cta-whatsapp"
                   onClick={() => trackEvent("cta_click", "/", "hero_whatsapp")}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border border-black/20 text-black font-black text-xs uppercase tracking-[0.12em] hover:border-black/60 hover:bg-gray-50 transition-all"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 border border-white/25 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-white/60 hover:bg-white/15 transition-all backdrop-blur-sm"
                 >
                   <MessageCircle className="w-4 h-4" /> WHATSAPP US
                 </a>
@@ -439,19 +447,19 @@ export default function Landing() {
                   "Instant itemised quote",
                   "Upfront pricing — no hidden fees",
                 ].map(t => (
-                  <span key={t} className="flex items-center gap-1.5 text-xs text-black/40 font-body">
-                    <CheckCircle2 className="w-3 h-3 text-black/30 flex-shrink-0" />
+                  <span key={t} className="flex items-center gap-1.5 text-xs text-white/40 font-body">
+                    <CheckCircle2 className="w-3 h-3 text-white/30 flex-shrink-0" />
                     {t}
                   </span>
                 ))}
               </div>
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-8">
-                <span className="flex items-center gap-1.5 text-xs text-black/35 font-body">
-                  <Shield className="w-3 h-3 text-black/25 flex-shrink-0" />
+                <span className="flex items-center gap-1.5 text-xs text-white/35 font-body">
+                  <Shield className="w-3 h-3 text-white/25 flex-shrink-0" />
                   ACRA Registered · UEN 202424156H
                 </span>
-                <span className="flex items-center gap-1.5 text-xs text-black/35 font-body">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                <span className="flex items-center gap-1.5 text-xs text-white/35 font-body">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
                   Online now · Typically replies in ~5 min
                 </span>
               </div>
@@ -463,8 +471,8 @@ export default function Landing() {
                   { icon: MapPin, label: "All Singapore Districts" },
                   { icon: Clock, label: "Flexible Same-Week Scheduling" },
                 ].map(({ icon: Icon, label }) => (
-                  <div key={label} className="flex items-center gap-2 text-sm text-gray-500">
-                    <div className="w-1.5 h-1.5 bg-black/40 flex-shrink-0" />
+                  <div key={label} className="flex items-center gap-2 text-sm text-white/45">
+                    <div className="w-1.5 h-1.5 bg-white/30 flex-shrink-0" />
                     <span>{label}</span>
                   </div>
                 ))}
@@ -477,9 +485,9 @@ export default function Landing() {
                   { val: "60s",  label: "Quote" },
                   { val: "SG",   label: "Island-wide" },
                 ].map(({ val, label }) => (
-                  <div key={label} className="border border-black/10 p-3 text-center">
-                    <div className="font-heading font-bold text-2xl leading-none text-black mb-1">{val}</div>
-                    <div className="text-[10px] font-semibold text-black/40 uppercase tracking-wider">{label}</div>
+                  <div key={label} className="border border-white/15 bg-white/5 p-3 text-center backdrop-blur-sm">
+                    <div className="font-heading font-bold text-2xl leading-none text-white mb-1">{val}</div>
+                    <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">{label}</div>
                   </div>
                 ))}
               </div>
@@ -502,71 +510,67 @@ export default function Landing() {
               </div>
             </motion.div>
 
-            {/* ── RIGHT: 3D Furniture Scene (desktop only) ── */}
+            {/* ── RIGHT: Glass stats card (desktop only, floats over 3D bg) ── */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
-              className="hidden lg:block relative"
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.25 }}
+              className="hidden lg:flex flex-col gap-4"
             >
-              {/* Dark panel background */}
-              <div className="relative bg-neutral-950 border border-black/20 overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.18)]" style={{ height: 560 }}>
-                {/* Subtle corner accent lines */}
-                <div className="absolute top-0 left-0 w-16 h-px bg-white/10" />
-                <div className="absolute top-0 left-0 w-px h-16 bg-white/10" />
-                <div className="absolute bottom-0 right-0 w-16 h-px bg-white/10" />
-                <div className="absolute bottom-0 right-0 w-px h-16 bg-white/10" />
+              {/* Main glass card */}
+              <div className="relative border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden p-8 shadow-[0_0_80px_rgba(255,255,255,0.04)]">
+                <div className="absolute top-0 left-0 w-20 h-px bg-white/20" />
+                <div className="absolute top-0 left-0 w-px h-20 bg-white/20" />
+                <div className="absolute bottom-0 right-0 w-20 h-px bg-white/20" />
+                <div className="absolute bottom-0 right-0 w-px h-20 bg-white/20" />
 
-                {/* 3D Canvas */}
-                <FurnitureScene scrollY={scrollY} mouseX={mouseX} mouseY={mouseY} height={560} />
+                <div className="flex items-center gap-2 mb-8">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                  <span className="text-[9px] font-black text-white/35 tracking-[0.2em] uppercase">Live Pricing Engine</span>
+                </div>
 
-                {/* Floating stat chips */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1.0, duration: 0.6 }}
-                  className="absolute top-6 left-6 flex flex-col gap-2"
-                >
+                <div className="grid grid-cols-2 gap-px bg-white/8 mb-6">
                   {[
-                    { label: "250+", sub: "Items Catalogued" },
-                    { label: "60s",  sub: "Quote Generation" },
-                  ].map(chip => (
-                    <div key={chip.label} className="flex items-center gap-2.5 px-3 py-2 bg-white/[0.07] backdrop-blur-md border border-white/10">
-                      <span className="font-heading font-bold text-white text-base leading-none">{chip.label}</span>
-                      <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">{chip.sub}</span>
+                    { val: "250+", label: "Items in catalog", icon: Package },
+                    { val: "60s",  label: "Quote turnaround", icon: Zap },
+                    { val: "7×",   label: "Days a week",      icon: Clock },
+                    { val: "5★",   label: "Customer rating",  icon: Star },
+                  ].map(({ val, label, icon: Icon }) => (
+                    <div key={val} className="bg-white/[0.03] p-5 group">
+                      <Icon className="w-3.5 h-3.5 text-white/20 mb-3" />
+                      <p className="font-heading font-bold text-2xl text-white leading-none mb-1">{val}</p>
+                      <p className="text-[10px] text-white/30 font-semibold uppercase tracking-wider">{label}</p>
                     </div>
                   ))}
-                </motion.div>
+                </div>
 
-                {/* Bottom label */}
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1.2, duration: 0.6 }}
-                  className="absolute bottom-6 left-6 right-6 flex items-center justify-between"
-                >
-                  <div>
-                    <p className="text-[9px] font-black tracking-[0.22em] uppercase text-white/25 mb-0.5">Crafted for</p>
-                    <p className="text-xs font-bold text-white/60">Singapore Homes &amp; Offices</p>
-                  </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 border border-white/10 bg-white/[0.05]">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                    <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">Available Now</span>
-                  </div>
-                </motion.div>
-
-                {/* Star rating chip (top right) */}
-                <motion.div
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 1.1, duration: 0.6 }}
-                  className="absolute top-6 right-6 flex items-center gap-1.5 px-2.5 py-1.5 bg-white/[0.07] backdrop-blur-md border border-white/10"
-                >
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                <div className="space-y-2">
+                  {[
+                    "IKEA / flat-pack assembly",
+                    "Wardrobe & bed frame installation",
+                    "Office & commercial fit-outs",
+                    "Full relocation D&R service",
+                  ].map(item => (
+                    <div key={item} className="flex items-center gap-2.5 text-xs text-white/40 font-body">
+                      <CheckCircle2 className="w-3 h-3 text-white/25 flex-shrink-0" />
+                      {item}
+                    </div>
                   ))}
-                </motion.div>
+                </div>
               </div>
+
+              {/* Sub card — CTA */}
+              <Link
+                href="/estimate"
+                onClick={() => trackEvent("cta_click", "/", "hero_glass_cta")}
+                className="group border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300"
+              >
+                <div>
+                  <p className="text-[9px] font-black text-white/30 tracking-[0.18em] uppercase mb-0.5">Ready to start?</p>
+                  <p className="text-sm font-bold text-white">Build your quote now →</p>
+                </div>
+                <ArrowRight className="w-5 h-5 text-white/30 group-hover:text-white/60 group-hover:translate-x-1 transition-all duration-300" />
+              </Link>
             </motion.div>
           </div>
         </div>
@@ -590,7 +594,7 @@ export default function Landing() {
       <TrustStripAnimated />
 
       {/* ════════════════════ WORK GALLERY ════════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-16 border-b border-black/8">
+      <section className="bg-white px-4 sm:px-6 lg:px-8 py-16 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="flex items-end justify-between gap-4 mb-8 flex-wrap">
             <div>
@@ -716,7 +720,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════ WHAT WE HANDLE ══════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+      <section className="bg-white px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-12">
             <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
@@ -1034,7 +1038,7 @@ export default function Landing() {
       </section>
 
       {/* ═══════════════════════ SOCIAL PROOF ══════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+      <section className="bg-white px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)}>
             {/* Header row */}
@@ -1139,7 +1143,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════ PRICING GUIDE ════════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+      <section className="bg-white px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-10">
             <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
@@ -1366,7 +1370,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════════ FAQ ═══════════════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
+      <section className="bg-white px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-[1fr_2fr] gap-16">
             <motion.div {...fadeUpDelayed(0)}>
@@ -1397,7 +1401,7 @@ export default function Landing() {
       </section>
 
       {/* ═════════════════════ BOTTOM CTA BAND ═════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-28">
+      <section className="bg-white px-4 sm:px-6 lg:px-8 py-28">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="max-w-2xl">
             <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-4" style={{ letterSpacing: "0.2em" }}>
