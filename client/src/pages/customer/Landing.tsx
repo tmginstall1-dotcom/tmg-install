@@ -1323,7 +1323,7 @@ export default function Landing() {
                 </p>
                 <div className="flex gap-3 pt-1">
                   <a
-                    href="https://www.facebook.com/tmginstall"
+                    href="https://www.facebook.com/profile.php?id=61578445941712"
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="TMG Install on Facebook"
@@ -1332,7 +1332,7 @@ export default function Landing() {
                     <SiFacebook className="w-3.5 h-3.5" />
                   </a>
                   <a
-                    href="https://www.instagram.com/tmginstall"
+                    href="https://www.instagram.com/tmginstall.sg/"
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="TMG Install on Instagram"
