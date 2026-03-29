@@ -6,6 +6,12 @@ import videoSrc from "@assets/kling_20260329_VIDEO_i_need_you_6037_0_17747987335
  * scrollProgress (0–1) maps directly to the video's playback position,
  * so scrolling down "plays" the wardrobe dismantle and scrolling back up reverses it.
  * Mouse parallax adds a subtle depth effect.
+ *
+ * Mobile / iOS fix:
+ *  iOS Safari blocks video.play() unless called from a direct user gesture.
+ *  We listen for the first touchstart/pointerdown to unlock (prime) the video,
+ *  then immediately seek to the current scroll position so mobile users see the
+ *  correct frame as soon as they touch the screen.
  */
 export default function PageBgScene({
   scrollProgress,
@@ -16,37 +22,81 @@ export default function PageBgScene({
   mouseX: number;
   mouseY: number;
 }) {
-  const videoRef  = useRef<HTMLVideoElement>(null);
-  const durRef    = useRef(0);
+  const videoRef         = useRef<HTMLVideoElement>(null);
+  const durRef           = useRef(0);
+  const unlockedRef      = useRef(false);
+  const scrollProgressRef= useRef(scrollProgress);
+  const rafRef           = useRef<number | null>(null);
 
-  /* Capture duration and prime seeking once metadata is ready.
-   * Without play()+pause() some browsers refuse to seek a never-played video. */
+  // Keep a live ref to scrollProgress so the unlock callback can seek immediately
+  useEffect(() => {
+    scrollProgressRef.current = scrollProgress;
+  }, [scrollProgress]);
+
+  /* ── Prime / unlock ─────────────────────────────────────────────
+   * Two paths to unlock the video:
+   *  1. loadedmetadata fires (works on desktop + Android)
+   *  2. First touchstart/pointerdown (required for iOS Safari)
+   * ─────────────────────────────────────────────────────────────── */
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
-    const prime = () => {
-      durRef.current = vid.duration;
-      // Prime the decoder so currentTime seeks work immediately
-      vid.play().then(() => vid.pause()).catch(() => {});
+
+    const doUnlock = () => {
+      if (unlockedRef.current) return;
+      if (!durRef.current && vid.duration) durRef.current = vid.duration;
+      if (!durRef.current) return;
+      unlockedRef.current = true;
+      vid.play()
+        .then(() => {
+          vid.pause();
+          // Seek immediately to the current scroll position
+          const target = scrollProgressRef.current * durRef.current;
+          vid.currentTime = target;
+        })
+        .catch(() => {
+          // Even if play() is blocked, try a direct seek — works on some Android browsers
+          try { vid.currentTime = scrollProgressRef.current * durRef.current; } catch (_) {}
+        });
     };
-    vid.addEventListener("loadedmetadata", prime);
-    if (vid.readyState >= 1) prime();
-    return () => vid.removeEventListener("loadedmetadata", prime);
+
+    const onMetadata = () => {
+      durRef.current = vid.duration;
+      doUnlock();
+    };
+
+    // Unlock on first touch / pointer (iOS requires a gesture)
+    const onFirstInteraction = () => {
+      if (!durRef.current && vid.readyState >= 1) durRef.current = vid.duration;
+      doUnlock();
+      document.removeEventListener("touchstart",  onFirstInteraction);
+      document.removeEventListener("pointerdown", onFirstInteraction);
+    };
+
+    vid.addEventListener("loadedmetadata", onMetadata);
+    if (vid.readyState >= 1) onMetadata();
+
+    document.addEventListener("touchstart",  onFirstInteraction, { passive: true });
+    document.addEventListener("pointerdown", onFirstInteraction, { passive: true });
+
+    return () => {
+      vid.removeEventListener("loadedmetadata", onMetadata);
+      document.removeEventListener("touchstart",  onFirstInteraction);
+      document.removeEventListener("pointerdown", onFirstInteraction);
+    };
   }, []);
 
-  /* Drive currentTime by scroll.
-   * Uses a short debounce so rapid scroll events coalesce into one seek. */
-  const rafRef = useRef<number | null>(null);
-
+  /* ── Scroll-driven seeking ───────────────────────────────────── */
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || !durRef.current) return;
     const target = scrollProgress * durRef.current;
-    // Skip seeks smaller than ~1 frame (30 fps ≈ 0.033s)
-    if (Math.abs(vid.currentTime - target) < 0.033) return;
+    if (Math.abs(vid.currentTime - target) < 0.033) return; // < 1 frame at 30fps
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
-      if (videoRef.current) videoRef.current.currentTime = target;
+      if (!videoRef.current) return;
+      // On iOS, currentTime assignment fails if video was never played — handled above
+      try { videoRef.current.currentTime = target; } catch (_) {}
     });
   }, [scrollProgress]);
 
@@ -58,7 +108,6 @@ export default function PageBgScene({
         zIndex: -1,
         pointerEvents: "none",
         overflow: "hidden",
-        /* Fallback shown while video loads */
         background: "radial-gradient(ellipse at 50% 0%, #12122a 0%, #030308 55%, #000000 100%)",
       }}
     >
