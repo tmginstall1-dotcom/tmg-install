@@ -248,8 +248,8 @@ export async function seedDatabase() {
       { name: "L-Shaped Executive Desk", sku: "L-DESK-DISMANTLE", category: "Office", serviceType: "dismantle", basePrice: "80.00" },
       { name: "L-Shaped Executive Desk", sku: "L-DESK-RELOCATE", category: "Office", serviceType: "relocate", basePrice: "160.00" },
 
-      { name: "Height-Adjustable Sit-Stand Desk", sku: "STND-INSTALL", category: "Office", serviceType: "install", basePrice: "130.00" },
-      { name: "Height-Adjustable Sit-Stand Desk", sku: "STND-DISMANTLE", category: "Office", serviceType: "dismantle", basePrice: "100.00" },
+      { name: "Height-Adjustable Sit-Stand Desk", sku: "STND-INSTALL", category: "Office", serviceType: "install", basePrice: "100.00" },
+      { name: "Height-Adjustable Sit-Stand Desk", sku: "STND-DISMANTLE", category: "Office", serviceType: "dismantle", basePrice: "60.00" },
 
       { name: "Office Panel / Partition", sku: "PANEL-INSTALL", category: "Office", serviceType: "install", basePrice: "60.00" },
       { name: "Office Panel / Partition", sku: "PANEL-DISMANTLE", category: "Office", serviceType: "dismantle", basePrice: "45.00" },
@@ -553,9 +553,9 @@ export async function seedDatabase() {
     await db.update(catalogItems).set({ basePrice: "250.00" }).where(eq(catalogItems.sku, "CUST-WRD-INSTALL"));
     await db.update(catalogItems).set({ basePrice: "180.00" }).where(eq(catalogItems.sku, "CUST-WRD-DISMANTLE"));
 
-    // Height-Adjustable Sit-Stand Desk — motorised units need more care, $160 install
-    await db.update(catalogItems).set({ basePrice: "160.00" }).where(eq(catalogItems.sku, "STND-INSTALL"));
-    await db.update(catalogItems).set({ basePrice: "120.00" }).where(eq(catalogItems.sku, "STND-DISMANTLE"));
+    // Height-Adjustable Sit-Stand Desk — $100 install, $60 dismantle (60% rule)
+    await db.update(catalogItems).set({ basePrice: "100.00" }).where(eq(catalogItems.sku, "STND-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "60.00" }).where(eq(catalogItems.sku, "STND-DISMANTLE"));
 
     // IKEA PAX Wardrobe — standard rate in SG is $160–200 for large unit
     await db.update(catalogItems).set({ basePrice: "160.00" }).where(eq(catalogItems.sku, "PAX-01"));
