@@ -32,10 +32,11 @@ import {
   Users,
   Receipt,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { SiFacebook, SiInstagram } from "react-icons/si";
+import FurnitureScene from "@/components/ui/furniture-scene";
 
 const WHATSAPP = "https://wa.me/6580880757?text=Hi%2C+I%27d+like+a+furniture+installation+quote";
 
@@ -153,6 +154,126 @@ const STATIC_TESTIMONIALS = [
   },
 ];
 
+function useCountUp(target: number, duration = 1800) {
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !started.current) {
+          started.current = true;
+          const start = performance.now();
+          const tick = (now: number) => {
+            const elapsed = now - start;
+            const progress = Math.min(elapsed / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setCount(Math.round(eased * target));
+            if (progress < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }
+      },
+      { threshold: 0.5 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [target, duration]);
+
+  return { count, ref };
+}
+
+function TiltCard({
+  children,
+  className = "",
+  intensity = 8,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  intensity?: number;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    card.style.transform = `perspective(600px) rotateX(${-y * intensity}deg) rotateY(${x * intensity}deg) scale3d(1.02,1.02,1.02)`;
+  }, [intensity]);
+
+  const onMouseLeave = useCallback(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    card.style.transform = "perspective(600px) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)";
+  }, []);
+
+  return (
+    <div
+      ref={cardRef}
+      className={className}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+      style={{ transition: "transform 0.15s ease", transformStyle: "preserve-3d" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function TrustStripAnimated() {
+  const c250 = useCountUp(250, 1800);
+  const c60 = useCountUp(60, 1400);
+  const c7 = useCountUp(7, 900);
+
+  return (
+    <section className="border-b border-black/8 bg-black/[0.018] px-4 sm:px-6 lg:px-8 py-10">
+      <div className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-black/8">
+          <div className="sm:px-8 first:pl-0 flex items-start sm:items-center gap-3">
+            <Package className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-black">
+                <span ref={c250.ref}>{c250.count}</span>+ Items in Catalog
+              </p>
+              <p className="text-xs text-black/40 font-body mt-0.5">Every item fixed-priced upfront</p>
+            </div>
+          </div>
+          <div className="sm:px-8 flex items-start sm:items-center gap-3">
+            <Zap className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-black">
+                <span ref={c60.ref}>{c60.count}</span>-Second Quote
+              </p>
+              <p className="text-xs text-black/40 font-body mt-0.5">No calls, no waiting, no forms</p>
+            </div>
+          </div>
+          <div className="sm:px-8 flex items-start sm:items-center gap-3">
+            <Clock className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-black">
+                <span ref={c7.ref}>{c7.count}</span> Days a Week
+              </p>
+              <p className="text-xs text-black/40 font-body mt-0.5">Weekends & public holidays included</p>
+            </div>
+          </div>
+          <div className="sm:px-8 last:pr-0 flex items-start sm:items-center gap-3">
+            <Shield className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-black">ACRA Registered</p>
+              <p className="text-xs text-black/40 font-body mt-0.5">The Moving Guy Pte Ltd · UEN 202424156H</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -182,11 +303,27 @@ export default function Landing() {
   const { visible: promoVisible } = usePromoBar();
   const [pricingTab, setPricingTab] = useState<"install" | "dismantle" | "relocate">("install");
   const [scrolled, setScrolled] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
+  const [mouseX, setMouseX] = useState(0);
+  const [mouseY, setMouseY] = useState(0);
+  const heroRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 320);
+    const onScroll = () => {
+      setScrolled(window.scrollY > 320);
+      setScrollY(window.scrollY);
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      setMouseX((e.clientX / window.innerWidth - 0.5) * 2);
+      setMouseY((e.clientY / window.innerHeight - 0.5) * 2);
+    };
+    window.addEventListener("mousemove", onMouseMove, { passive: true });
+    return () => window.removeEventListener("mousemove", onMouseMove);
   }, []);
 
   const { data: reviewConfig } = useQuery<{ writeUrl: string; viewUrl: string }>({
@@ -365,101 +502,70 @@ export default function Landing() {
               </div>
             </motion.div>
 
-            {/* ── RIGHT: Visual Quote Card (desktop only) ── */}
+            {/* ── RIGHT: 3D Furniture Scene (desktop only) ── */}
             <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
-              className="hidden lg:block"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+              className="hidden lg:block relative"
             >
-              <div className="relative">
-                <div className="absolute inset-0 translate-x-3 translate-y-3 border border-black/8 bg-black/[0.02]" />
-                <div className="relative bg-white border border-black/12 shadow-[0_8px_48px_rgba(0,0,0,0.08)]">
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-black/8">
-                    <div>
-                      <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase" style={{ letterSpacing: "0.15em" }}>
-                        Estimate
-                      </p>
-                      <p className="font-heading font-bold text-black text-lg leading-tight">TMG-INSTANT</p>
+              {/* Dark panel background */}
+              <div className="relative bg-neutral-950 border border-black/20 overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.18)]" style={{ height: 560 }}>
+                {/* Subtle corner accent lines */}
+                <div className="absolute top-0 left-0 w-16 h-px bg-white/10" />
+                <div className="absolute top-0 left-0 w-px h-16 bg-white/10" />
+                <div className="absolute bottom-0 right-0 w-16 h-px bg-white/10" />
+                <div className="absolute bottom-0 right-0 w-px h-16 bg-white/10" />
+
+                {/* 3D Canvas */}
+                <FurnitureScene scrollY={scrollY} mouseX={mouseX} mouseY={mouseY} height={560} />
+
+                {/* Floating stat chips */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.0, duration: 0.6 }}
+                  className="absolute top-6 left-6 flex flex-col gap-2"
+                >
+                  {[
+                    { label: "250+", sub: "Items Catalogued" },
+                    { label: "60s",  sub: "Quote Generation" },
+                  ].map(chip => (
+                    <div key={chip.label} className="flex items-center gap-2.5 px-3 py-2 bg-white/[0.07] backdrop-blur-md border border-white/10">
+                      <span className="font-heading font-bold text-white text-base leading-none">{chip.label}</span>
+                      <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">{chip.sub}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 border border-black/12 bg-black/[0.02]">
-                      <div className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
-                      <span className="text-[10px] font-semibold text-black tracking-widest uppercase" style={{ letterSpacing: "0.1em" }}>AI Generated</span>
-                    </div>
+                  ))}
+                </motion.div>
+
+                {/* Bottom label */}
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.2, duration: 0.6 }}
+                  className="absolute bottom-6 left-6 right-6 flex items-center justify-between"
+                >
+                  <div>
+                    <p className="text-[9px] font-black tracking-[0.22em] uppercase text-white/25 mb-0.5">Crafted for</p>
+                    <p className="text-xs font-bold text-white/60">Singapore Homes &amp; Offices</p>
                   </div>
-
-                  <div className="p-6 space-y-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] text-black/35 font-semibold uppercase mb-1" style={{ letterSpacing: "0.12em" }}>Service Type</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {["Installation", "Dismantling", "Relocation"].map(s => (
-                            <span key={s} className={`text-[10px] px-2 py-0.5 border font-semibold tracking-wide ${s === "Installation" ? "border-black/20 bg-black text-white" : "border-black/12 text-black/45"}`}>
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-black/[0.025] border border-black/6">
-                      <div className="flex items-start gap-2">
-                        <MapPin className="w-3.5 h-3.5 text-black/40 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-[10px] text-black/35 font-semibold uppercase mb-0.5" style={{ letterSpacing: "0.1em" }}>Location</p>
-                          <p className="text-xs text-black font-medium">22 Tampines Industrial Ave 4, #04-01</p>
-                          <p className="text-xs text-black/40">Singapore 528763</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] text-black/35 font-semibold uppercase" style={{ letterSpacing: "0.12em" }}>Items <span className="text-black/25">— 3 selected</span></p>
-                        <Package className="w-3.5 h-3.5 text-black/20" />
-                      </div>
-                      <div className="space-y-1.5">
-                        {[
-                          { name: "3-Door Wardrobe", qty: 2, price: "$110" },
-                          { name: "Queen Bed Frame", qty: 1, price: "$80" },
-                          { name: "L-Shaped Desk",   qty: 1, price: "$65" },
-                        ].map(item => (
-                          <div key={item.name} className="flex items-center justify-between py-2 border-b border-black/5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-black/25 font-mono w-4">×{item.qty}</span>
-                              <span className="text-xs text-black font-medium">{item.name}</span>
-                            </div>
-                            <span className="text-xs font-semibold text-black">{item.price}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="border border-black/8 p-4 space-y-2">
-                      {[
-                        { label: "Subtotal",  val: "$255.00" },
-                        { label: "Transport", val: "$120.00" },
-                      ].map(r => (
-                        <div key={r.label} className="flex justify-between text-xs text-black/50">
-                          <span>{r.label}</span><span>{r.val}</span>
-                        </div>
-                      ))}
-                      <div className="pt-2 border-t border-black/8 flex justify-between">
-                        <span className="text-xs font-bold text-black uppercase tracking-wide">Total Estimate</span>
-                        <span className="text-sm font-bold text-black">$375.00</span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <div className="flex-1 py-3 bg-black text-center text-xs font-semibold text-white tracking-widest uppercase cursor-default select-none" style={{ letterSpacing: "0.12em" }}>
-                        Pay Deposit
-                      </div>
-                      <div className="px-4 py-3 border border-black/15 text-center flex items-center justify-center cursor-default select-none">
-                        <MessageCircle className="w-3.5 h-3.5 text-black/40" />
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 border border-white/10 bg-white/[0.05]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                    <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">Available Now</span>
                   </div>
-                </div>
+                </motion.div>
+
+                {/* Star rating chip (top right) */}
+                <motion.div
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 1.1, duration: 0.6 }}
+                  className="absolute top-6 right-6 flex items-center gap-1.5 px-2.5 py-1.5 bg-white/[0.07] backdrop-blur-md border border-white/10"
+                >
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                  ))}
+                </motion.div>
               </div>
             </motion.div>
           </div>
@@ -481,26 +587,7 @@ export default function Landing() {
       </div>
 
       {/* ═══════════════════════ TRUST STRIP ═══════════════════════ */}
-      <section className="border-b border-black/8 bg-black/[0.018] px-4 sm:px-6 lg:px-8 py-10">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-black/8">
-            {[
-              { icon: Package,   label: "250+ Items in Catalog",    sub: "Every item fixed-priced upfront" },
-              { icon: Zap,       label: "60-Second Quote",          sub: "No calls, no waiting, no forms" },
-              { icon: Clock,     label: "7 Days a Week",            sub: "Weekends & public holidays included" },
-              { icon: Shield,    label: "ACRA Registered",          sub: "The Moving Guy Pte Ltd · UEN 202424156H" },
-            ].map(({ icon: Icon, label, sub }) => (
-              <div key={label} className="sm:px-8 first:pl-0 last:pr-0 flex items-start sm:items-center gap-3">
-                <Icon className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-black">{label}</p>
-                  <p className="text-xs text-black/40 font-body mt-0.5">{sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <TrustStripAnimated />
 
       {/* ════════════════════ WORK GALLERY ════════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-8 py-16 border-b border-black/8">
@@ -653,20 +740,19 @@ export default function Landing() {
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", `service_card_${label.toLowerCase().replace(/\s+/g, "_")}`)}
               >
-                <motion.div
-                  {...fadeUpDelayed(i * 0.06)}
-                  className="bg-white p-7 group hover:bg-black hover:text-white transition-colors duration-300 cursor-pointer"
-                >
-                  <Icon className="w-5 h-5 text-black/30 group-hover:text-white/40 mb-5 transition-colors" />
-                  <p className="text-sm font-semibold text-black group-hover:text-white transition-colors leading-snug mb-1">
-                    {label}
-                  </p>
-                  <p className="text-[11px] text-black/30 group-hover:text-white/30 transition-colors font-mono">
-                    {count} items
-                  </p>
-                  <p className="text-[10px] font-semibold text-black/25 group-hover:text-white/25 mt-3 uppercase tracking-wide transition-colors flex items-center gap-1">
-                    Get quote <ArrowRight className="w-2.5 h-2.5" />
-                  </p>
+                <motion.div {...fadeUpDelayed(i * 0.06)}>
+                  <TiltCard className="bg-white p-7 group hover:bg-black hover:text-white transition-colors duration-300 cursor-pointer h-full" intensity={6}>
+                    <Icon className="w-5 h-5 text-black/30 group-hover:text-white/40 mb-5 transition-colors" />
+                    <p className="text-sm font-semibold text-black group-hover:text-white transition-colors leading-snug mb-1">
+                      {label}
+                    </p>
+                    <p className="text-[11px] text-black/30 group-hover:text-white/30 transition-colors font-mono">
+                      {count} items
+                    </p>
+                    <p className="text-[10px] font-semibold text-black/25 group-hover:text-white/25 mt-3 uppercase tracking-wide transition-colors flex items-center gap-1">
+                      Get quote <ArrowRight className="w-2.5 h-2.5" />
+                    </p>
+                  </TiltCard>
                 </motion.div>
               </Link>
             ))}
@@ -933,16 +1019,14 @@ export default function Landing() {
                 body: "WhatsApp updates straight from your assigned crew. No call centres, no chasing — just real communication.",
               },
             ].map(({ icon: Icon, title, body }, i) => (
-              <motion.div
-                key={title}
-                {...fadeUpDelayed(i * 0.08)}
-                className="bg-black p-8 border border-white/8 hover:border-white/18 transition-colors duration-300 group"
-              >
-                <div className="w-8 h-8 border border-white/15 flex items-center justify-center mb-7 group-hover:border-white/30 transition-colors">
-                  <Icon className="w-3.5 h-3.5 text-white/50" />
-                </div>
-                <h3 className="card-title text-white mb-3">{title}</h3>
-                <p className="font-body text-sm text-white/40 leading-relaxed">{body}</p>
+              <motion.div key={title} {...fadeUpDelayed(i * 0.08)}>
+                <TiltCard className="bg-black p-8 border border-white/8 hover:border-white/25 transition-colors duration-300 group h-full" intensity={5}>
+                  <div className="w-8 h-8 border border-white/15 flex items-center justify-center mb-7 group-hover:border-white/35 transition-colors">
+                    <Icon className="w-3.5 h-3.5 text-white/50 group-hover:text-white/70 transition-colors" />
+                  </div>
+                  <h3 className="card-title text-white mb-3">{title}</h3>
+                  <p className="font-body text-sm text-white/40 leading-relaxed">{body}</p>
+                </TiltCard>
               </motion.div>
             ))}
           </div>
