@@ -299,6 +299,57 @@ export async function sendWhatsAppImageMessage(
   return true;
 }
 
+// ── Send document/file via WhatsApp ───────────────────────────────────────────
+export async function sendWhatsAppDocumentMessage(
+  to: string,
+  fileBuffer: Buffer,
+  mimeType: string,
+  filename: string,
+  caption?: string,
+  opts?: { logAsSentBy?: string }
+): Promise<boolean> {
+  const ACCESS_TOKEN = await getAccessToken();
+  if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) throw new Error("WhatsApp credentials not configured");
+
+  const formData = new FormData();
+  formData.append("messaging_product", "whatsapp");
+  formData.append("type", mimeType);
+  formData.append("file", new Blob([fileBuffer], { type: mimeType }), filename);
+
+  const uploadRes = await fetch(`${WA_API_BASE}/${PHONE_NUMBER_ID}/media`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+    body: formData,
+  });
+  const uploadData = await uploadRes.json() as any;
+  if (!uploadRes.ok || !uploadData.id) {
+    throw new Error(`WhatsApp media upload failed: ${uploadData?.error?.message || JSON.stringify(uploadData)}`);
+  }
+  const mediaId = uploadData.id as string;
+
+  const msgBody: any = {
+    messaging_product: "whatsapp",
+    to,
+    type: "document",
+    document: { id: mediaId, filename, ...(caption ? { caption } : {}) },
+  };
+  const sendRes = await fetch(`${WA_API_BASE}/${PHONE_NUMBER_ID}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(msgBody),
+  });
+  const sendData = await sendRes.json() as any;
+  if (!sendRes.ok) throw new Error(`WhatsApp send document failed: ${sendData?.error?.message || JSON.stringify(sendData)}`);
+
+  console.log(`[WhatsApp] Document sent to ${to} (mediaId=${mediaId}, filename=${filename})`);
+  const sentBy = opts?.logAsSentBy || "admin";
+  storage.logWhatsAppMessage({
+    phone: to, direction: "outbound",
+    body: `[Document: ${filename}]`, mediaType: mimeType, mediaUrl: mediaId, sentBy,
+  }).catch(() => {});
+  return true;
+}
+
 // ── Send deposit payment link via WhatsApp ────────────────────────────────────
 export async function sendWhatsAppPaymentLink(
   to: string,

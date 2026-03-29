@@ -24,7 +24,7 @@ import {
   newEstimateAdminAlert,
   ADMIN_EMAIL
 } from "./email";
-import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN, sendWhatsAppImageMessage } from "./whatsapp";
+import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN, sendWhatsAppImageMessage, sendWhatsAppDocumentMessage } from "./whatsapp";
 import multer from "multer";
 import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
@@ -8298,7 +8298,7 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
-  // ── Admin: send image/file to customer via WhatsApp ──────────────────────────
+  // ── Admin: send image/file/document to customer via WhatsApp ─────────────────
   app.post("/api/admin/whatsapp/conversations/:phone/send-media", upload.single("file"), async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
     const user = await storage.getUserById(req.session.userId);
@@ -8306,17 +8306,94 @@ Respond directly — no JSON, just the message text.`,
     const phone = req.params.phone;
     const file = (req as any).file as Express.Multer.File | undefined;
     if (!file) return res.status(400).json({ message: "No file attached" });
-    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
-    if (!allowed.includes(file.mimetype)) return res.status(400).json({ message: "Only JPEG, PNG, WebP and GIF images are supported" });
+    const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+    const docTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ];
+    const isImage = imageTypes.includes(file.mimetype);
+    const isDoc = docTypes.includes(file.mimetype);
+    if (!isImage && !isDoc) return res.status(400).json({ message: "Unsupported file type. Allowed: JPEG, PNG, WebP, GIF, PDF, Word, Excel." });
     const caption = (req.body as any)?.caption?.trim() || undefined;
     try {
-      await sendWhatsAppImageMessage(phone, file.buffer, file.mimetype, caption, { logAsSentBy: `admin:${user.name || user.email}` });
+      if (isImage) {
+        await sendWhatsAppImageMessage(phone, file.buffer, file.mimetype, caption, { logAsSentBy: `admin:${user.name || user.email}` });
+      } else {
+        await sendWhatsAppDocumentMessage(phone, file.buffer, file.mimetype, file.originalname || "document", caption, { logAsSentBy: `admin:${user.name || user.email}` });
+      }
       await storage.upsertWhatsAppSession(phone, { botPaused: true, botPausedAt: new Date() });
       res.json({ ok: true });
     } catch (err: any) {
       console.error("[Admin] send-media failed:", err?.message);
-      res.status(500).json({ message: err?.message || "Failed to send image" });
+      res.status(500).json({ message: err?.message || "Failed to send file" });
     }
+  });
+
+  // ── Admin: start a new chat with any SG phone number ─────────────────────────
+  app.post("/api/admin/whatsapp/conversations/new", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    let { phone, message } = req.body as { phone: string; message: string };
+    if (!phone?.trim()) return res.status(400).json({ message: "Phone number is required" });
+    if (!message?.trim()) return res.status(400).json({ message: "Message is required" });
+    // Normalise: strip spaces/dashes/+, ensure starts with 65 for SG
+    phone = phone.replace(/[\s\-\+\(\)]/g, "");
+    if (/^[89]\d{7}$/.test(phone)) phone = `65${phone}`; // SG mobile without country code
+    if (!/^\d{10,15}$/.test(phone)) return res.status(400).json({ message: "Invalid phone number format" });
+    try {
+      await sendWhatsAppMessage(phone, message.trim(), { logAsSentBy: `admin:${user.name || user.email}` });
+      await storage.upsertWhatsAppSession(phone, { botPaused: true, botPausedAt: new Date() });
+      res.json({ ok: true, phone });
+    } catch (err: any) {
+      console.error("[Admin] new-chat send failed:", err?.message);
+      res.status(500).json({ message: err?.message || "Failed to send message" });
+    }
+  });
+
+  // ── Admin: add internal note (not sent to customer) ───────────────────────────
+  app.post("/api/admin/whatsapp/conversations/:phone/note", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const phone = req.params.phone;
+    const { note } = req.body as { note: string };
+    if (!note?.trim()) return res.status(400).json({ message: "Note text is required" });
+    await storage.logWhatsAppMessage({
+      phone, direction: "outbound",
+      body: note.trim(), mediaType: null, mediaUrl: null,
+      sentBy: `note:${user.name || user.email}`,
+    });
+    res.json({ ok: true });
+  });
+
+  // ── Admin: reset (clear) a conversation session ────────────────────────────────
+  app.delete("/api/admin/whatsapp/conversations/:phone/session", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const phone = req.params.phone;
+    await storage.upsertWhatsAppSession(phone, {
+      state: "pricing_shown", botPaused: false, botPausedAt: null,
+      collectedName: null, collectedAddress: null, collectedToAddress: null,
+      collectedItems: null, isRelocation: false, floorLevel: null, hasLift: null,
+      accessDifficulty: null, preferredDate: null, preferredDateIso: null, preferredTimeWindow: null,
+      remarks: null, previousItems: null,
+    });
+    res.json({ ok: true });
+  });
+
+  // ── Admin: mark all messages in a thread as read ──────────────────────────────
+  app.post("/api/admin/whatsapp/conversations/:phone/mark-read", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const phone = req.params.phone;
+    await storage.markWhatsAppMessagesRead(phone);
+    res.json({ ok: true });
   });
 
   // ── Admin takeover: pause bot for a conversation ──────────────────────────

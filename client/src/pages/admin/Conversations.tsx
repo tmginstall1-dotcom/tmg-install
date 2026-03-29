@@ -4,8 +4,8 @@ import {
   MessageCircle, Send, Phone, RefreshCw, User, Bot, Search, X,
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
   CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
-  TriangleAlert, AlertCircle, ChevronDown, Paperclip, Smile, XCircle,
-  Download, Music, Video, File,
+  TriangleAlert, AlertCircle, ChevronDown, Paperclip, Smile,
+  Download, Music, File, StickyNote, Plus, RotateCcw,
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
@@ -299,11 +299,16 @@ function MessageBubble({
     : msg.mediaType?.includes("word") || msg.mediaType?.includes("document") ? <File className="w-5 h-5 flex-shrink-0" />
     : <File className="w-5 h-5 flex-shrink-0" />;
 
-  const bubbleStyle = isOut
-    ? isAdm
-      ? "bg-indigo-600 text-white"
-      : "bg-[#25D366] text-white"
-    : "bg-white text-gray-800 border border-gray-200 shadow-sm";
+  const isNote = !!msg.sentBy?.startsWith("note:");
+  const noteAuthor = isNote ? msg.sentBy!.replace("note:", "") : null;
+
+  const bubbleStyle = isNote
+    ? "bg-amber-50 text-amber-900 border border-amber-200 shadow-sm"
+    : isOut
+      ? isAdm
+        ? "bg-indigo-600 text-white"
+        : "bg-[#25D366] text-white"
+      : "bg-white text-gray-800 border border-gray-200 shadow-sm";
 
   const radius = isOut
     ? `rounded-2xl ${samePrev ? "rounded-tr-md" : ""} ${sameNext ? "rounded-br-md" : "rounded-br-sm"}`
@@ -332,7 +337,13 @@ function MessageBubble({
 
         {/* Bubble */}
         <div className="max-w-[72%] sm:max-w-[60%] lg:max-w-[55%]">
-          {isAdm && !samePrev && (
+          {isNote && !samePrev && (
+            <div className="flex items-center justify-end gap-1 mb-1 mr-1">
+              <StickyNote className="w-3 h-3 text-amber-500" />
+              <p className="text-[10px] text-amber-600 font-semibold">Internal Note · {noteAuthor || "Admin"}</p>
+            </div>
+          )}
+          {isAdm && !isNote && !samePrev && (
             <p className="text-[10px] text-indigo-500 text-right mb-1 mr-1 font-semibold">
               {adminLabel || "Admin"}
             </p>
@@ -436,8 +447,9 @@ function MessageBubble({
           {!sameNext && (
             <div className={`flex items-center gap-1 mt-1 ${isOut ? "justify-end pr-1" : "pl-1"}`}>
               <span className="text-[10px] text-gray-400 tabular-nums">{formatTime(msg.createdAt)}</span>
+              {isNote && <StickyNote className="w-3 h-3 text-amber-400" />}
               {isBot && <Bot className="w-3 h-3 text-[#25D366]/70" />}
-              {isAdm && <CheckCheck className="w-3 h-3 text-indigo-400" />}
+              {isAdm && !isNote && <CheckCheck className="w-3 h-3 text-indigo-400" />}
             </div>
           )}
         </div>
@@ -461,9 +473,9 @@ function MessageBubble({
   );
 }
 
-// ── Chat Modal ─────────────────────────────────────────────────────────────────
+// ── Chat Panel ─────────────────────────────────────────────────────────────────
 
-function ChatModal({
+function ChatPanel({
   selectedPhone,
   selectedConvo,
   onClose,
@@ -473,12 +485,14 @@ function ChatModal({
   onClose: () => void;
 }) {
   const [replyText, setReplyText] = useState("");
+  const [noteMode, setNoteMode] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
   const [generatedQuote, setGeneratedQuote] = useState<{ quoteId: number; referenceNo: string } | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [attachFile, setAttachFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const [hasNewMessages, setHasNewMessages] = useState(false);
@@ -549,7 +563,17 @@ function ChatModal({
     onError: (err: any) => toast({ title: "Could not generate quote", description: err?.message || "Check that address has been collected", variant: "destructive" }),
   });
 
-  const sendImageMutation = useMutation({
+  const noteMutation = useMutation({
+    mutationFn: async (note: string) => apiRequest("POST", `/api/admin/whatsapp/conversations/${selectedPhone}/note`, { note }),
+    onSuccess: () => {
+      setReplyText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations", selectedPhone] });
+      toast({ title: "Note added" });
+    },
+    onError: (err: any) => toast({ title: "Failed to add note", description: err?.message, variant: "destructive" }),
+  });
+
+  const sendFileMutation = useMutation({
     mutationFn: async ({ file, caption }: { file: File; caption?: string }) => {
       const formData = new FormData();
       formData.append("file", file);
@@ -561,19 +585,35 @@ function ChatModal({
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).message || "Failed to send image");
+        throw new Error((err as any).message || "Failed to send file");
       }
       return res.json();
     },
     onSuccess: () => {
       setReplyText("");
-      clearImage();
+      clearAttach();
       setShowQuickReplies(false);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations", selectedPhone] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
-      toast({ title: "Image sent — Bot paused" });
+      toast({ title: "File sent — Bot paused" });
     },
-    onError: (err: any) => toast({ title: "Failed to send image", description: err?.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Failed to send file", description: err?.message, variant: "destructive" }),
+  });
+
+  const resetSessionMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/admin/whatsapp/conversations/${selectedPhone}/session`),
+    onSuccess: () => {
+      setShowResetConfirm(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations", selectedPhone] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
+      toast({ title: "Session cleared", description: "The bot will restart from the beginning on the next message." });
+    },
+    onError: () => toast({ title: "Failed to reset session", variant: "destructive" }),
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/admin/whatsapp/conversations/${selectedPhone}/mark-read`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] }),
   });
 
   const isNearBottom = () => {
@@ -588,16 +628,18 @@ function ChatModal({
   };
 
   useEffect(() => {
-    if (isNearBottom()) {
-      scrollToBottom(true);
-    } else {
-      setHasNewMessages(true);
-    }
+    if (isNearBottom()) scrollToBottom(true);
+    else setHasNewMessages(true);
   }, [thread?.messages?.length]);
 
   useEffect(() => {
     setTimeout(() => scrollToBottom(false), 80);
-  }, []);
+  }, [selectedPhone]);
+
+  // Auto-mark messages as read when opening a conversation
+  useEffect(() => {
+    if (thread?.messages?.length) markReadMutation.mutate();
+  }, [selectedPhone, thread?.messages?.length]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -605,47 +647,66 @@ function ChatModal({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  // Close emoji picker on outside click
   useEffect(() => {
     if (!showEmojiPicker) return;
     const handler = (e: MouseEvent) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
-        setShowEmojiPicker(false);
-      }
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) setShowEmojiPicker(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showEmojiPicker]);
 
-  function clearImage() {
-    setImageFile(null);
-    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
-    setImagePreviewUrl(null);
+  // Reset state when switching conversations
+  useEffect(() => {
+    setNoteMode(false);
+    setReplyText("");
+    clearAttach();
+    setGeneratedQuote(null);
+    setShowResetConfirm(false);
+  }, [selectedPhone]);
+
+  function clearAttach() {
+    setAttachFile(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
-    if (!allowed.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Only JPEG, PNG, WebP and GIF are supported", variant: "destructive" });
+    const allowedImages = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+    const allowedDocs = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ];
+    if (![...allowedImages, ...allowedDocs].includes(file.type)) {
+      toast({ title: "Invalid file type", description: "Supported: JPEG, PNG, WebP, GIF, PDF, Word, Excel", variant: "destructive" });
       return;
     }
     if (file.size > 16 * 1024 * 1024) {
       toast({ title: "File too large", description: "Maximum file size is 16 MB", variant: "destructive" });
       return;
     }
-    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
-    setImageFile(file);
-    setImagePreviewUrl(URL.createObjectURL(file));
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setAttachFile(file);
+    if (allowedImages.includes(file.type)) setPreviewUrl(URL.createObjectURL(file));
+    else setPreviewUrl(null);
     setShowEmojiPicker(false);
     setShowQuickReplies(false);
   }
 
   function handleSend() {
-    if (imageFile) {
-      sendImageMutation.mutate({ file: imageFile, caption: replyText.trim() || undefined });
+    if (noteMode) {
+      if (!replyText.trim() || noteMutation.isPending) return;
+      noteMutation.mutate(replyText.trim());
+      return;
+    }
+    if (attachFile) {
+      sendFileMutation.mutate({ file: attachFile, caption: replyText.trim() || undefined });
       return;
     }
     if (!replyText.trim() || sendMutation.isPending) return;
@@ -671,10 +732,10 @@ function ChatModal({
 
   const session = thread?.session;
   const botPaused: boolean = session?.botPaused ?? false;
-  // Show Generate Quote if session has an address (mid-flow conversations)
   const canGenerateQuote = !!session?.collectedAddress && !generatedQuote;
-  // Show Take Over button whenever the thread has loaded (session may be null for completed convos)
   const threadLoaded = !loadingThread && thread !== undefined;
+  const isImageFile = attachFile?.type.startsWith("image/") ?? false;
+  const isSending = sendMutation.isPending || sendFileMutation.isPending || noteMutation.isPending;
 
   const grouped: { date: string; messages: WaMessage[] }[] = [];
   if (thread?.messages) {
@@ -687,12 +748,7 @@ function ChatModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-stretch justify-stretch" data-testid="chat-modal">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Modal container */}
-      <div className="relative z-10 flex w-full h-full md:m-4 lg:m-6 md:rounded-2xl overflow-hidden shadow-2xl">
+    <div className="flex flex-1 overflow-hidden" data-testid="chat-panel">
 
         {/* ═══ LEFT: Info Panel ═══════════════════════════════════════════════ */}
         {showInfo && session && (
@@ -743,6 +799,36 @@ function ChatModal({
                 )}
                 {session.preferredDate && <InfoRow icon={<Calendar className="w-3 h-3" />} label="Preferred Date" value={session.preferredDate} />}
               </div>
+
+              {/* Reset Session */}
+              <div className="mt-5 pt-4 border-t border-gray-100">
+                {showResetConfirm ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-red-600 font-semibold text-center">Clear this session?</p>
+                    <p className="text-[10px] text-gray-400 text-center leading-relaxed">Bot will restart from scratch on the next message.</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowResetConfirm(false)}
+                        className="flex-1 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
+                      >Cancel</button>
+                      <button
+                        onClick={() => resetSessionMutation.mutate()}
+                        disabled={resetSessionMutation.isPending}
+                        data-testid="confirm-reset-session"
+                        className="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 disabled:opacity-60"
+                      >{resetSessionMutation.isPending ? "Clearing…" : "Yes, clear"}</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowResetConfirm(true)}
+                    data-testid="reset-session-btn"
+                    className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-500 hover:border-red-200 hover:text-red-600 hover:bg-red-50 transition-all"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Reset Bot Session
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -753,10 +839,11 @@ function ChatModal({
           {/* Header */}
           <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
             <div className="flex items-center gap-2 px-3 sm:px-4 py-3">
+              {/* Back button — mobile only */}
               <button
                 onClick={onClose}
-                data-testid="close-chat-modal"
-                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-blue-600 transition-all -ml-1"
+                data-testid="back-to-list"
+                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-blue-600 transition-all -ml-1 lg:hidden"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -831,13 +918,6 @@ function ChatModal({
                     Info
                   </button>
                 )}
-                <button
-                  onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-all"
-                  data-testid="close-modal-x"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
             </div>
 
@@ -899,7 +979,7 @@ function ChatModal({
                   {group.messages.map((msg, idx) => {
                     const isOut = msg.direction === "outbound";
                     const isAdm = !!msg.sentBy?.startsWith("admin:");
-                    const isBot = isOut && !isAdm;
+                    const isBot = isOut && !isAdm && !msg.sentBy?.startsWith("note:");
                     const adminLabel = isAdm ? msg.sentBy!.replace("admin:", "") : null;
                     const prev = idx > 0 ? group.messages[idx - 1] : null;
                     const next = idx < group.messages.length - 1 ? group.messages[idx + 1] : null;
@@ -1002,39 +1082,46 @@ function ChatModal({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,application/pdf,application/msword,.docx,.xlsx"
               className="hidden"
               onChange={handleFileSelect}
-              data-testid="file-input-image"
+              data-testid="file-input"
             />
 
-            {/* Image preview panel */}
-            {imagePreviewUrl && imageFile && (
+            {/* File/image preview panel */}
+            {attachFile && (
               <div className="px-4 pt-3 pb-2 border-b border-gray-100 bg-gray-50">
                 <div className="flex items-start gap-3">
                   <div className="relative flex-shrink-0">
-                    <img
-                      src={imagePreviewUrl}
-                      alt="Preview"
-                      className="w-20 h-20 object-cover rounded-xl border border-gray-200 shadow-sm"
-                    />
+                    {isImageFile && previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt="Preview"
+                        className="w-20 h-20 object-cover rounded-xl border border-gray-200 shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-xl border border-gray-200 shadow-sm bg-blue-50 flex flex-col items-center justify-center gap-1">
+                        <FileText className="w-7 h-7 text-blue-400" />
+                        <span className="text-[9px] font-bold text-blue-400 uppercase">{attachFile.name.split(".").pop()}</span>
+                      </div>
+                    )}
                     <button
-                      onClick={clearImage}
+                      onClick={clearAttach}
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-800 text-white flex items-center justify-center hover:bg-red-600 transition-all"
                     >
                       <X className="w-3 h-3" />
                     </button>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-700 truncate">{imageFile.name}</p>
-                    <p className="text-[10px] text-gray-400 mb-1.5">{(imageFile.size / 1024).toFixed(0)} KB · {imageFile.type.split("/")[1]?.toUpperCase()}</p>
+                    <p className="text-xs font-semibold text-gray-700 truncate">{attachFile.name}</p>
+                    <p className="text-[10px] text-gray-400 mb-1.5">{(attachFile.size / 1024).toFixed(0)} KB · {attachFile.type.split("/")[1]?.split(";")[0]?.toUpperCase()}</p>
                     <input
                       type="text"
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
                       placeholder="Add a caption (optional)…"
                       className="w-full h-8 px-2.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-400 placeholder:text-gray-400"
-                      data-testid="image-caption-input"
+                      data-testid="file-caption-input"
                     />
                   </div>
                 </div>
@@ -1059,21 +1146,45 @@ function ChatModal({
               </div>
             )}
 
-            <div className="px-3 py-3">
+            {/* Mode toggle: Message / Internal Note */}
+            <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1">
+              <button
+                onClick={() => { setNoteMode(false); setShowQuickReplies(false); }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border ${
+                  !noteMode ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
+                }`}
+                data-testid="mode-message"
+              >
+                <Send className="w-3 h-3" /> Message
+              </button>
+              <button
+                onClick={() => { setNoteMode(true); setShowQuickReplies(false); clearAttach(); }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border ${
+                  noteMode ? "bg-amber-500 text-white border-amber-500" : "bg-white text-gray-400 border-gray-200 hover:border-amber-300 hover:text-amber-600"
+                }`}
+                data-testid="mode-note"
+              >
+                <StickyNote className="w-3 h-3" /> Internal Note
+              </button>
+            </div>
+
+            <div className="px-3 pb-3">
               <div className="flex items-end gap-1.5">
-                {/* Canned replies */}
-                <button
-                  onClick={() => { setShowQuickReplies(v => !v); setShowEmojiPicker(false); }}
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
-                    showQuickReplies
-                      ? "bg-indigo-600 text-white border-indigo-600"
-                      : "bg-gray-50 text-gray-400 hover:text-gray-700 hover:bg-gray-100 border-gray-200"
-                  }`}
-                  title="Quick replies"
-                  data-testid="btn-quick-replies"
-                >
-                  <Zap className="w-4 h-4" />
-                </button>
+                {/* Canned replies (message mode only) */}
+                {!noteMode && (
+                  <button
+                    onClick={() => { setShowQuickReplies(v => !v); setShowEmojiPicker(false); }}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
+                      showQuickReplies
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-gray-50 text-gray-400 hover:text-gray-700 hover:bg-gray-100 border-gray-200"
+                    }`}
+                    title="Quick replies"
+                    data-testid="btn-quick-replies"
+                  >
+                    <Zap className="w-4 h-4" />
+                  </button>
+                )}
 
                 {/* Emoji picker toggle */}
                 <button
@@ -1089,71 +1200,72 @@ function ChatModal({
                   <Smile className="w-4 h-4" />
                 </button>
 
-                {/* Image attach */}
-                <button
-                  onClick={() => { fileInputRef.current?.click(); setShowEmojiPicker(false); }}
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
-                    imageFile
-                      ? "bg-emerald-500 text-white border-emerald-500"
-                      : "bg-gray-50 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 border-gray-200"
-                  }`}
-                  title="Attach image"
-                  data-testid="btn-attach-image"
-                >
-                  <Paperclip className="w-4 h-4" />
-                </button>
+                {/* File attach (message mode only) */}
+                {!noteMode && (
+                  <button
+                    onClick={() => { fileInputRef.current?.click(); setShowEmojiPicker(false); }}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
+                      attachFile
+                        ? "bg-emerald-500 text-white border-emerald-500"
+                        : "bg-gray-50 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 border-gray-200"
+                    }`}
+                    title="Attach image or document (PDF, Word, Excel)"
+                    data-testid="btn-attach-file"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                )}
 
-                {/* Text input (hidden when image preview is shown) */}
-                {!imageFile && (
+                {/* Text input (hidden when file preview is shown) */}
+                {!attachFile && (
                   <div className="flex-1">
                     <Textarea
                       ref={textareaRef}
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Type a message… (Enter to send)"
-                      className="resize-none bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 text-sm min-h-[42px] max-h-[120px] py-2.5 px-3.5 rounded-xl focus:border-blue-400 focus:bg-white transition-all leading-relaxed"
+                      placeholder={noteMode ? "Add an internal note (not sent to customer)…" : "Type a message… (Enter to send)"}
+                      className={`resize-none text-gray-900 placeholder:text-gray-400 text-sm min-h-[42px] max-h-[120px] py-2.5 px-3.5 rounded-xl focus:bg-white transition-all leading-relaxed ${
+                        noteMode ? "bg-amber-50 border-amber-200 focus:border-amber-400" : "bg-gray-50 border-gray-200 focus:border-blue-400"
+                      }`}
                       rows={1}
                       data-testid="reply-input"
                     />
                   </div>
                 )}
-                {imageFile && <div className="flex-1" />}
+                {attachFile && <div className="flex-1" />}
 
                 <Button
                   onClick={handleSend}
-                  disabled={
-                    (imageFile ? sendImageMutation.isPending : (!replyText.trim() || sendMutation.isPending))
-                  }
-                  className="w-9 h-9 rounded-xl bg-[#25D366] hover:bg-[#1db954] text-white flex-shrink-0 p-0 flex items-center justify-center mb-0.5 disabled:opacity-40 transition-all shadow-sm"
+                  disabled={attachFile ? isSending : (!replyText.trim() || isSending)}
+                  className={`w-9 h-9 rounded-xl text-white flex-shrink-0 p-0 flex items-center justify-center mb-0.5 disabled:opacity-40 transition-all shadow-sm ${
+                    noteMode ? "bg-amber-500 hover:bg-amber-600" : "bg-[#25D366] hover:bg-[#1db954]"
+                  }`}
                   data-testid="send-reply"
                 >
-                  {(sendMutation.isPending || sendImageMutation.isPending)
+                  {isSending
                     ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                    : <Send className="w-3.5 h-3.5" />
+                    : noteMode ? <StickyNote className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />
                   }
                 </Button>
               </div>
 
               <div className="flex items-center justify-between mt-1 px-0.5">
                 <p className="text-[10px] text-gray-400">
-                  Sending as <span className="text-indigo-600 font-semibold">Admin</span> · delivered to customer's WhatsApp
+                  {noteMode
+                    ? <span className="text-amber-600 font-semibold">Internal note — visible to admins only, not sent to customer</span>
+                    : <>Sending as <span className="text-indigo-600 font-semibold">Admin</span> · delivered to customer's WhatsApp</>
+                  }
                 </p>
-                {!imageFile && replyText.length > 100 && (
+                {!attachFile && replyText.length > 100 && !noteMode && (
                   <span className={`text-[10px] tabular-nums font-medium ${replyText.length > 900 ? "text-red-500" : "text-gray-400"}`}>
                     {replyText.length}/1024
                   </span>
-                )}
-                {imageFile && (
-                  <button onClick={clearImage} className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-600">
-                    <XCircle className="w-3 h-3" /> Remove image
-                  </button>
                 )}
               </div>
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }
@@ -1164,7 +1276,11 @@ export default function AdminConversations() {
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "active" | "submitted" | "escalation">("all");
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState("");
+  const [newChatMessage, setNewChatMessage] = useState("");
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: convos = [], isLoading: loadingConvos } = useQuery<Conversation[]>({
     queryKey: ["/api/admin/whatsapp/conversations"],
@@ -1188,6 +1304,26 @@ export default function AdminConversations() {
     return matchSearch && matchFilter;
   });
 
+  const newChatMutation = useMutation({
+    mutationFn: async ({ phone, message }: { phone: string; message: string }) => {
+      const res = await apiRequest("POST", "/api/admin/whatsapp/conversations/new", { phone, message });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setShowNewChat(false);
+      setNewChatPhone("");
+      setNewChatMessage("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
+      if (data?.phone) setSelectedPhone(data.phone);
+      toast({ title: "Message sent", description: "Conversation started. Bot is paused — you're in admin mode." });
+    },
+    onError: (err: any) => {
+      let reason = err?.message || "Failed to send message";
+      try { reason = JSON.parse(reason.replace(/^\d+:\s*/, "")).message || reason; } catch {}
+      toast({ title: "Failed to start chat", description: reason, variant: "destructive" });
+    },
+  });
+
   function openConvo(phone: string) {
     setSelectedPhone(phone);
     queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
@@ -1196,17 +1332,70 @@ export default function AdminConversations() {
   return (
     <div className="flex mt-14 h-[calc(100dvh-56px)] bg-[#F5F5F7] overflow-hidden lg:pl-56" data-testid="admin-conversations">
 
-      {/* Chat Modal */}
-      {selectedPhone && (
-        <ChatModal
-          selectedPhone={selectedPhone}
-          selectedConvo={selectedConvo}
-          onClose={() => setSelectedPhone(null)}
-        />
+      {/* ═══ New Chat Dialog ════════════════════════════════════════════════ */}
+      {showNewChat && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowNewChat(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">New Chat</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Start a conversation with any number</p>
+              </div>
+              <button onClick={() => setShowNewChat(false)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Phone Number (SG)</label>
+                <input
+                  type="tel"
+                  value={newChatPhone}
+                  onChange={e => setNewChatPhone(e.target.value)}
+                  placeholder="e.g. 91234567 or 6591234567"
+                  className="w-full h-10 px-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400 bg-gray-50 placeholder:text-gray-400"
+                  data-testid="new-chat-phone"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">First Message</label>
+                <textarea
+                  value={newChatMessage}
+                  onChange={e => setNewChatMessage(e.target.value)}
+                  placeholder="Hi! I'm reaching out from TMG Install regarding your enquiry…"
+                  rows={3}
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400 bg-gray-50 placeholder:text-gray-400 resize-none"
+                  data-testid="new-chat-message"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setShowNewChat(false)} className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (!newChatPhone.trim() || !newChatMessage.trim()) return;
+                    newChatMutation.mutate({ phone: newChatPhone.trim(), message: newChatMessage.trim() });
+                  }}
+                  disabled={!newChatPhone.trim() || !newChatMessage.trim() || newChatMutation.isPending}
+                  data-testid="new-chat-send"
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-[#25D366] text-white hover:bg-[#1db954] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                >
+                  {newChatMutation.isPending
+                    ? <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                    : <Send className="w-3.5 h-3.5" />
+                  }
+                  Send Message
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* ═══ Conversation List (always visible) ════════════════════════════ */}
-      <div className="flex flex-col w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 border-r border-gray-200 bg-white">
+      {/* ═══ Conversation List — full width on mobile when no chat, fixed width on desktop ═══ */}
+      <div className={`flex flex-col flex-shrink-0 border-r border-gray-200 bg-white w-full lg:w-[340px] xl:w-[380px] ${selectedPhone ? "hidden lg:flex" : "flex"}`}>
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b border-zinc-200">
           <div className="flex items-center justify-between mb-3">
@@ -1221,13 +1410,22 @@ export default function AdminConversations() {
                 </span>
               )}
             </div>
-            <button
-              onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] })}
-              className="w-7 h-7 rounded-lg hover:bg-zinc-100 flex items-center justify-center text-zinc-400 hover:text-zinc-700 transition-all"
-              data-testid="refresh-conversations"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setShowNewChat(true)}
+                data-testid="new-chat-btn"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#25D366] text-white text-xs font-semibold hover:bg-[#1db954] transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" /> New Chat
+              </button>
+              <button
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] })}
+                className="w-7 h-7 rounded-lg hover:bg-zinc-100 flex items-center justify-center text-zinc-400 hover:text-zinc-700 transition-all"
+                data-testid="refresh-conversations"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Search */}
@@ -1363,16 +1561,31 @@ export default function AdminConversations() {
         </div>
       </div>
 
-      {/* Desktop: right side placeholder when no modal open */}
-      <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4 bg-[#F5F5F7]">
-        <div className="w-16 h-16 rounded-2xl bg-white border border-zinc-200 shadow-sm flex items-center justify-center">
-          <MessageCircle className="w-8 h-8 text-zinc-300" />
+      {/* Right side: ChatPanel or empty state */}
+      {selectedPhone ? (
+        <ChatPanel
+          selectedPhone={selectedPhone}
+          selectedConvo={selectedConvo}
+          onClose={() => setSelectedPhone(null)}
+        />
+      ) : (
+        <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4 bg-[#F5F5F7]">
+          <div className="w-16 h-16 rounded-2xl bg-white border border-zinc-200 shadow-sm flex items-center justify-center">
+            <MessageCircle className="w-8 h-8 text-zinc-300" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-zinc-400">Select a conversation</p>
+            <p className="text-xs text-zinc-300 mt-1">Click any chat to open it · or start a new one</p>
+          </div>
+          <button
+            onClick={() => setShowNewChat(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#25D366] text-white text-sm font-semibold hover:bg-[#1db954] transition-all shadow-sm"
+            data-testid="empty-state-new-chat"
+          >
+            <Plus className="w-4 h-4" /> New Chat
+          </button>
         </div>
-        <div className="text-center">
-          <p className="text-sm font-semibold text-zinc-400">Select a conversation</p>
-          <p className="text-xs text-zinc-300 mt-1">Click any chat to open it</p>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
