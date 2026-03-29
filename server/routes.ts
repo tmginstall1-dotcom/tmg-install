@@ -2162,9 +2162,9 @@ Category rules:
   app.get(api.catalog.list.path, async (req, res) => {
     const search = req.query.search as string | undefined;
     const items = await storage.getCatalogItems(search);
-    // Catalog data is static — cache aggressively in browser and CDN
+    // Short cache — prices can be updated by admin at any time
     if (!search) {
-      res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
+      res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=10");
     }
     res.json(items);
   });
