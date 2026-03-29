@@ -18,37 +18,37 @@ export default function PageBgScene({
 }) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const durRef    = useRef(0);
-  const seeking   = useRef(false);
 
-  /* Capture duration once metadata is ready */
+  /* Capture duration and prime seeking once metadata is ready.
+   * Without play()+pause() some browsers refuse to seek a never-played video. */
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
-    const onMeta = () => { durRef.current = vid.duration; };
-    vid.addEventListener("loadedmetadata", onMeta);
-    if (vid.readyState >= 1) durRef.current = vid.duration;
-    return () => vid.removeEventListener("loadedmetadata", onMeta);
+    const prime = () => {
+      durRef.current = vid.duration;
+      // Prime the decoder so currentTime seeks work immediately
+      vid.play().then(() => vid.pause()).catch(() => {});
+    };
+    vid.addEventListener("loadedmetadata", prime);
+    if (vid.readyState >= 1) prime();
+    return () => vid.removeEventListener("loadedmetadata", prime);
   }, []);
 
-  /* Drive currentTime by scroll — skip tiny deltas to avoid stutter */
+  /* Drive currentTime by scroll.
+   * Uses a short debounce so rapid scroll events coalesce into one seek. */
+  const rafRef = useRef<number | null>(null);
+
   useEffect(() => {
     const vid = videoRef.current;
-    if (!vid || !durRef.current || seeking.current) return;
+    if (!vid || !durRef.current) return;
     const target = scrollProgress * durRef.current;
-    if (Math.abs(vid.currentTime - target) > 0.025) {
-      seeking.current = true;
-      vid.currentTime = target;
-    }
+    // Skip seeks smaller than ~1 frame (30 fps ≈ 0.033s)
+    if (Math.abs(vid.currentTime - target) < 0.033) return;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      if (videoRef.current) videoRef.current.currentTime = target;
+    });
   }, [scrollProgress]);
-
-  /* Release seeking lock after each seek completes */
-  useEffect(() => {
-    const vid = videoRef.current;
-    if (!vid) return;
-    const onSeeked = () => { seeking.current = false; };
-    vid.addEventListener("seeked", onSeeked);
-    return () => vid.removeEventListener("seeked", onSeeked);
-  }, []);
 
   return (
     <div
