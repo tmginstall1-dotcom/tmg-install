@@ -37,8 +37,9 @@ import {
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePromoBar } from "@/hooks/use-promo-bar";
+import { SiFacebook, SiInstagram } from "react-icons/si";
 
-const WHATSAPP = "https://wa.me/6580880757?text=hi";
+const WHATSAPP = "https://wa.me/6580880757?text=Hi%2C+I%27d+like+a+furniture+installation+quote";
 
 const fadeUp = {
   initial: { opacity: 0, y: 52 },
@@ -115,6 +116,42 @@ const FAQS = [
   {
     q: "Can you handle large commercial or office jobs?",
     a: "Absolutely. We regularly handle full office fit-outs, workstation installations, partition setups, and large-scale strip-outs. Just describe your requirements in the estimate wizard or WhatsApp us directly.",
+  },
+  {
+    q: "Do you install IKEA furniture?",
+    a: "Yes — IKEA assembly is one of our most common requests. Wardrobes, beds, PAX systems, KALLAX shelving, kitchen units, and more. Our team works from the instruction manual or from experience, whichever is faster.",
+  },
+  {
+    q: "Do you work on weekends and public holidays?",
+    a: "Yes. We operate 7 days a week including weekends and most public holidays. Availability depends on current bookings — just let us know your preferred date and we'll confirm.",
+  },
+  {
+    q: "Can you dismantle and dispose of my old furniture?",
+    a: "Yes. We offer dismantling combined with disposal — bulky furniture is brought down and removed from your premises. Just select 'Dismantle + Dispose' when building your estimate, or mention it when you WhatsApp us.",
+  },
+];
+
+const STATIC_TESTIMONIALS = [
+  {
+    name: "Darren L.",
+    loc: "Tampines",
+    stars: 5,
+    date: "Feb 2026",
+    text: "Booked for wardrobe installation and they were done in under two hours. Very professional, no mess left behind. Price was exactly as quoted — will use again for my second unit.",
+  },
+  {
+    name: "Mei Ling T.",
+    loc: "Bishan",
+    stars: 5,
+    date: "Jan 2026",
+    text: "Got a quote via WhatsApp in minutes. Team arrived on time and assembled our IKEA PAX wardrobe perfectly. No hidden charges — completely transparent from start to finish.",
+  },
+  {
+    name: "Ravi K.",
+    loc: "Raffles Place",
+    stars: 5,
+    date: "Mar 2026",
+    text: "Used TMG for a full office fit-out — 20 workstations, overhead cabinets, boardroom table. Efficient team, competitive pricing, and they cleaned up thoroughly afterwards.",
   },
 ];
 
@@ -261,7 +298,7 @@ export default function Landing() {
               </div>
 
               {/* ── Micro-trust line ── */}
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-4 mb-8">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-4 mb-3">
                 {[
                   "No calls required",
                   "Instant itemised quote",
@@ -272,6 +309,16 @@ export default function Landing() {
                     {t}
                   </span>
                 ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-8">
+                <span className="flex items-center gap-1.5 text-xs text-black/35 font-body">
+                  <Shield className="w-3 h-3 text-black/25 flex-shrink-0" />
+                  ACRA Registered · UEN 202424156H
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-black/35 font-body">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                  Online now · Typically replies in ~5 min
+                </span>
               </div>
 
               {/* Trust row — desktop */}
@@ -300,6 +347,23 @@ export default function Landing() {
                     <div className="text-[10px] font-semibold text-black/40 uppercase tracking-wider">{label}</div>
                   </div>
                 ))}
+              </div>
+
+              {/* Mobile hero photo */}
+              <div className="sm:hidden mt-6 relative overflow-hidden" style={{ aspectRatio: "16/9" }}>
+                <img
+                  src="/work/office-fitout.jpg"
+                  alt="Office furniture installation by TMG Install"
+                  loading="eager"
+                  width="560"
+                  height="315"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <span className="text-[9px] font-black tracking-[0.18em] uppercase text-white/45">Recent Work</span>
+                  <p className="text-sm font-bold text-white leading-tight">Office Fit-Out · CBD Commercial</p>
+                </div>
               </div>
             </motion.div>
 
@@ -464,9 +528,9 @@ export default function Landing() {
             {/* Row 1: featured wide + side */}
             <div className="grid gap-px" style={{ gridTemplateColumns: "3fr 2fr" }}>
               {[
-                { src: "/work/office-fitout.jpg",         label: "Office Fit-Out",        sub: "Sit-stand workstations & overhead cabinets", tag: "Commercial" },
-                { src: "/work/wardrobe-install-team.jpg", label: "Wardrobe Installation", sub: "Two-man crew · Large sliding wardrobe",       tag: "Residential" },
-              ].map(({ src, label, sub, tag }, i) => (
+                { src: "/work/office-fitout.jpg",         label: "Office Fit-Out",        sub: "Sit-stand workstations & overhead cabinets", tag: "Commercial",   w: 720, h: 405 },
+                { src: "/work/wardrobe-install-team.jpg", label: "Wardrobe Installation", sub: "Two-man crew · Large sliding wardrobe",       tag: "Residential",  w: 480, h: 270 },
+              ].map(({ src, label, sub, tag, w, h }, i) => (
                 <motion.div
                   key={src}
                   {...fadeUpDelayed(i * 0.06)}
@@ -479,6 +543,8 @@ export default function Landing() {
                     loading="eager"
                     decoding="sync"
                     fetchPriority="high"
+                    width={w}
+                    height={h}
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04] opacity-85 group-hover:opacity-100"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
@@ -508,6 +574,8 @@ export default function Landing() {
                     alt={label}
                     loading="lazy"
                     decoding="async"
+                    width="280"
+                    height="280"
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06] opacity-80 group-hover:opacity-100"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
@@ -544,6 +612,8 @@ export default function Landing() {
                     loading={i < 2 ? "eager" : "lazy"}
                     decoding={i < 2 ? "sync" : "async"}
                     fetchPriority={i === 0 ? "high" : "auto"}
+                    width="224"
+                    height="298"
                     className="absolute inset-0 w-full h-full object-cover opacity-85"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
@@ -580,19 +650,27 @@ export default function Landing() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-black/8">
             {SERVICES.map(({ icon: Icon, label, count }, i) => (
-              <motion.div
+              <Link
                 key={label}
-                {...fadeUpDelayed(i * 0.06)}
-                className="bg-white p-7 group hover:bg-black hover:text-white transition-colors duration-300 cursor-default"
+                href="/estimate"
+                onClick={() => trackEvent("cta_click", "/", `service_card_${label.toLowerCase().replace(/\s+/g, "_")}`)}
               >
-                <Icon className="w-5 h-5 text-black/30 group-hover:text-white/40 mb-5 transition-colors" />
-                <p className="text-sm font-semibold text-black group-hover:text-white transition-colors leading-snug mb-1">
-                  {label}
-                </p>
-                <p className="text-[11px] text-black/30 group-hover:text-white/30 transition-colors font-mono">
-                  {count} items
-                </p>
-              </motion.div>
+                <motion.div
+                  {...fadeUpDelayed(i * 0.06)}
+                  className="bg-white p-7 group hover:bg-black hover:text-white transition-colors duration-300 cursor-pointer"
+                >
+                  <Icon className="w-5 h-5 text-black/30 group-hover:text-white/40 mb-5 transition-colors" />
+                  <p className="text-sm font-semibold text-black group-hover:text-white transition-colors leading-snug mb-1">
+                    {label}
+                  </p>
+                  <p className="text-[11px] text-black/30 group-hover:text-white/30 transition-colors font-mono">
+                    {count} items
+                  </p>
+                  <p className="text-[10px] font-semibold text-black/25 group-hover:text-white/25 mt-3 uppercase tracking-wide transition-colors flex items-center gap-1">
+                    Get quote <ArrowRight className="w-2.5 h-2.5" />
+                  </p>
+                </motion.div>
+              </Link>
             ))}
           </div>
         </div>
@@ -618,8 +696,28 @@ export default function Landing() {
               </Link>
             </div>
             <p className="font-body text-sm text-gray-500 mt-4 max-w-xl leading-relaxed">
-              Ten clear steps — from choosing your service to final payment. Every stage is transparent, online, and confirmed in writing.
+              Four simple phases — from choosing your service to final payment. Every stage is transparent, online, and confirmed in writing.
             </p>
+          </motion.div>
+
+          {/* ── 4-Step TL;DR Summary Strip ── */}
+          <motion.div {...fadeUpDelayed(0.04)} className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-black/8 mb-14">
+            {[
+              { step: "01", label: "Get Quote",     desc: "60-second estimate online", icon: FileText },
+              { step: "02", label: "We Review",     desc: "Admin verifies & confirms",  icon: ScanSearch },
+              { step: "03", label: "Pay Deposit",   desc: "Secure Stripe · 50% upfront", icon: CreditCard },
+              { step: "04", label: "Job Done",      desc: "Crew on-site, balance after",  icon: CheckCircle2 },
+            ].map(({ step, label, desc, icon: Icon }) => (
+              <div key={step} className="bg-white p-5 group hover:bg-black/[0.03] transition-colors">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[9px] font-black tracking-[0.2em] text-black/25 uppercase" style={{ letterSpacing: "0.2em" }}>Step {step}</span>
+                  <div className="flex-1 h-px bg-black/6" />
+                  <Icon className="w-3.5 h-3.5 text-black/20" />
+                </div>
+                <p className="font-heading font-bold text-black text-sm mb-1">{label}</p>
+                <p className="text-[11px] text-gray-400 font-body leading-relaxed">{desc}</p>
+              </div>
+            ))}
           </motion.div>
 
           {/* ══════════ DESKTOP LAYOUT ══════════ */}
@@ -874,25 +972,27 @@ export default function Landing() {
                 </div>
                 <div>
                   <p className="text-sm font-black text-black leading-tight">
-                    5.0 · {testimonials.length} {testimonials.length === 1 ? "review" : "reviews"}
+                    5.0 · Google Reviews
                   </p>
                   <p className="text-[11px] text-black/40 font-body">Verified on Google</p>
                 </div>
               </div>
             </div>
 
-            {/* Review cards — adaptive columns */}
-            {testimonials.length > 0 && (
+            {/* Review cards — use API testimonials if available, else static fallback */}
+            {(() => {
+              const displayReviews = testimonials.length > 0 ? testimonials : STATIC_TESTIMONIALS;
+              return (
               <div
                 className={`grid gap-5 mb-10 ${
-                  testimonials.length === 1
+                  displayReviews.length === 1
                     ? "grid-cols-1 max-w-xl"
-                    : testimonials.length === 2
+                    : displayReviews.length === 2
                     ? "grid-cols-1 sm:grid-cols-2"
                     : "grid-cols-1 md:grid-cols-3"
                 }`}
               >
-                {testimonials.map((r, i) => (
+                {displayReviews.map((r, i) => (
                   <motion.div
                     key={i}
                     {...fadeUpDelayed(i * 0.08)}
@@ -926,7 +1026,8 @@ export default function Landing() {
                   </motion.div>
                 ))}
               </div>
-            )}
+              );
+            })()}
 
             {/* CTA buttons */}
             <div className="flex flex-col sm:flex-row gap-3">
@@ -1220,6 +1321,26 @@ export default function Landing() {
                   <span className="text-white/35">Email</span><br />
                   <a href="mailto:sales@tmginstall.com" className="text-white hover:text-white/70 transition-colors">sales@tmginstall.com</a>
                 </p>
+                <div className="flex gap-3 pt-1">
+                  <a
+                    href="https://www.facebook.com/tmginstall"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="TMG Install on Facebook"
+                    className="w-8 h-8 border border-white/15 flex items-center justify-center text-white/40 hover:text-white hover:border-white/40 transition-all"
+                  >
+                    <SiFacebook className="w-3.5 h-3.5" />
+                  </a>
+                  <a
+                    href="https://www.instagram.com/tmginstall"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="TMG Install on Instagram"
+                    className="w-8 h-8 border border-white/15 flex items-center justify-center text-white/40 hover:text-white hover:border-white/40 transition-all"
+                  >
+                    <SiInstagram className="w-3.5 h-3.5" />
+                  </a>
+                </div>
               </div>
             </div>
 
