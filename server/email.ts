@@ -1,3 +1,5 @@
+import { PricingConfig } from "@shared/pricing";
+
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@tmginstall.com";
 const WHATSAPP_NUMBER = "+65 8088 0757";
@@ -563,19 +565,44 @@ export function rescheduleConfirmationEmail(quote: any): string {
 export function finalPaymentEmail(quote: any, paymentLink: string): string {
   const c = quote.customer;
 
+  const hasOvertime = Number(quote.additionalCharge || 0) > 0;
+  const baseBalance = Number(quote.finalAmount || 0);
+  const overtimeAmt = Number(quote.additionalCharge || 0);
+  const totalDueNow = baseBalance + overtimeAmt;
+
   return shell("Final Payment Due", `
-    ${greeting(c?.name, `Our team has completed all the work on your job. Please settle the remaining 50% balance below to officially close your case. A payment confirmation will be sent to you automatically.`)}
+    ${greeting(c?.name, `Our team has completed all the work on your job. Please settle the remaining balance below to officially close your case. A payment confirmation will be sent to you automatically.`)}
 
     ${refBlock(quote.referenceNo)}
 
     ${section("Work Completed", itemsTable(quote.items))}
 
-    ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount))}
+    ${section("Payment Breakdown", `
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
+        <tbody>
+          ${totRow('#444444', 'Labour', `$${Number(quote.subtotal || 0).toFixed(2)}`)}
+          ${Number(quote.transportFee || 0) > 0 ? totRow('#444444', 'Transport &amp; logistics', `$${Number(quote.transportFee || 0).toFixed(2)}`) : ''}
+          ${quote.promoCode && Number(quote.promoDiscount || 0) > 0 ? totRow('#15803d', `Promo code (${quote.promoCode})`, `-$${Number(quote.promoDiscount || 0).toFixed(2)}`) : ''}
+          ${totRow('#444444', 'Original total', `$${Number(quote.total || 0).toFixed(2)}`)}
+          ${totRow('#15803d', 'Deposit paid (50%)', `-$${Number(quote.depositAmount || 0).toFixed(2)}`)}
+          ${totRow('#444444', 'Balance (50%)', `$${baseBalance.toFixed(2)}`)}
+          ${hasOvertime ? totRow('#b45309', `${quote.additionalChargeNote || 'Overtime charges'}`, `+$${overtimeAmt.toFixed(2)}`) : ''}
+          ${totRow('#111111', 'Total due now', `$${totalDueNow.toFixed(2)}`, true)}
+        </tbody>
+      </table>
+    `)}
+
+    ${hasOvertime ? notice("warn",
+      `<strong>Overtime charge applied automatically.</strong><br>` +
+      `${quote.additionalChargeNote || `Overtime charges: $${overtimeAmt.toFixed(2)}`}<br><br>` +
+      `Charges are billed at <strong>$${PricingConfig.overtime.blockRate} per 30-minute block</strong> beyond the included 120-minute allowance, capped at $200. ` +
+      `If you have any questions about this charge, please contact us on WhatsApp before completing payment.`
+    ) : ''}
 
     ${ctaBlock(
-      "Final balance due — 50%",
-      `$${Number(quote.finalAmount || 0).toFixed(2)}`,
-      "Pay Final Balance &rarr;",
+      hasOvertime ? "Balance + overtime due now" : "Final balance due — 50%",
+      `$${totalDueNow.toFixed(2)}`,
+      "Pay Now &rarr;",
       paymentLink,
       "Secure payment via Stripe &nbsp;&middot;&nbsp; Your case closes automatically on payment confirmation.",
       "#15803d",

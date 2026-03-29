@@ -30,7 +30,7 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-import { calcTransportFee, PricingConfig } from "@shared/pricing";
+import { calcTransportFee, calcOvertimeCharge, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable } from "@shared/schema";
 import { eq, and, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
@@ -3321,7 +3321,52 @@ ${systemPrompt}` });
       });
 
       if (!quote) return res.status(404).json({ message: "Quote not found" });
-      res.json(quote);
+
+      // ── Auto overtime calculation for relocation jobs ─────────────────────────
+      // If this is a relocation job, look up the arrival time and calculate overtime
+      try {
+        const raw = quote as any;
+        const svc: string[] = Array.isArray(raw.selectedServices)
+          ? raw.selectedServices
+          : (raw.selectedServices ? (() => { try { return JSON.parse(raw.selectedServices); } catch { return []; } })() : []);
+        const isRelocation = svc.includes('relocate') || (!!raw.pickupAddress && !!raw.dropoffAddress);
+
+        if (isRelocation) {
+          // Find the most recent in_progress update (arrival time)
+          const [arrivalUpdate] = await db
+            .select()
+            .from(jobUpdatesTable)
+            .where(and(
+              eq(jobUpdatesTable.quoteId, id),
+              eq(jobUpdatesTable.statusChange, 'in_progress')
+            ))
+            .orderBy(desc(jobUpdatesTable.createdAt))
+            .limit(1);
+
+          if (arrivalUpdate?.createdAt) {
+            const durationMinutes = Math.floor(
+              (Date.now() - new Date(arrivalUpdate.createdAt).getTime()) / 60000
+            );
+            const { blocks, charge } = calcOvertimeCharge(durationMinutes);
+
+            if (charge > 0) {
+              const overtimeNote = `Overtime: ${blocks} block${blocks !== 1 ? 's' : ''} × $${PricingConfig.overtime.blockRate} — job ran ${durationMinutes} min (${durationMinutes - PricingConfig.overtime.capMinutes} min over ${PricingConfig.overtime.capMinutes}-min allowance)`;
+              await storage.updateAdditionalCharge(id, charge.toFixed(2), overtimeNote);
+              console.log(`[Overtime] Quote #${id}: ${durationMinutes} min → $${charge.toFixed(2)} auto-applied`);
+            } else {
+              console.log(`[Overtime] Quote #${id}: ${durationMinutes} min — within ${PricingConfig.overtime.capMinutes}-min allowance, no charge`);
+            }
+          }
+        }
+      } catch (overtimeErr) {
+        // Non-fatal: log but don't fail the checkout
+        console.error(`[Overtime] Auto-calc error for quote #${id}:`, overtimeErr);
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
+      // Re-fetch quote to include any overtime charge just applied
+      const finalQuote = await storage.getQuote(id);
+      res.json(finalQuote || quote);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       res.status(500).json({ message: "Internal error" });
@@ -3403,7 +3448,9 @@ ${systemPrompt}` });
         return res.status(404).json({ message: "Quote not found" });
       }
 
-      const finalAmount = parseFloat(quote.finalAmount || "0") || parseFloat(quote.total);
+      const baseBalance = parseFloat(quote.finalAmount || "0") || parseFloat(quote.total);
+      const overtimeCharge = parseFloat((quote as any).additionalCharge || "0");
+      const finalAmount = baseBalance + overtimeCharge;
       const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
       const stripeUrl = await createStripePaymentLink(
         `Final Payment for ${quote.referenceNo} — TMG Install`,
@@ -3444,8 +3491,10 @@ ${systemPrompt}` });
         if (waPhone) {
           const waMsg =
             `💳 *Final Payment Due — ${quote.referenceNo}*\n\n` +
-            `Hi ${quote.customer.name || "there"}! Your installation job is complete.\n\n` +
-            `Please pay the *outstanding balance of $${finalAmount.toFixed(2)}* to close your case:\n\n` +
+            `Hi ${quote.customer.name || "there"}! Your job is complete.\n\n` +
+            (overtimeCharge > 0
+              ? `Your final balance is *$${finalAmount.toFixed(2)}*, which includes the 50% balance ($${baseBalance.toFixed(2)}) plus an overtime charge ($${overtimeCharge.toFixed(2)}) for exceeding the 2-hour allowance.\n\n`
+              : `Please pay the *outstanding balance of $${finalAmount.toFixed(2)}* to close your case.\n\n`) +
             `${paymentLink}\n\n` +
             `_Thank you for choosing TMG Install!_ 🙏`;
           const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
