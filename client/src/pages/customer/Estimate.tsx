@@ -1210,25 +1210,43 @@ export default function EstimateWizard() {
                               {serviceBadge(item.serviceType)}
                               {item.category && <span className="text-xs text-black/35">{item.category}</span>}
                             </div>
-                            {/* Relocate sub-mode toggle */}
-                            {item.serviceType === 'relocate' && item.relocateMode !== undefined && (
+                            {/* Relocate sub-mode toggle — shown for all relocate items */}
+                            {item.serviceType === 'relocate' && (
                               <div className="mt-2 inline-flex border border-black/15 overflow-hidden text-[10px] font-black uppercase tracking-[0.06em]">
                                 <button
                                   data-testid={`button-full-relocate-${item.id}`}
-                                  onClick={() => setItems(prev => prev.map(i => i.id === item.id
-                                    ? { ...i, relocateMode: 'full', unitPrice: i.fullPrice ?? i.unitPrice }
-                                    : i
-                                  ))}
+                                  onClick={() => setItems(prev => prev.map(i => {
+                                    if (i.id !== item.id) return i;
+                                    // Re-derive prices from catalog in case item was added before toggle feature
+                                    const grp = catalogGroups.find(g => g.entries.some(e => e.id === i.catalogItemId));
+                                    const rel = grp?.entries.find(e => e.serviceType === 'relocate');
+                                    const inst = grp?.entries.find(e => e.serviceType === 'install');
+                                    const dis = grp?.entries.find(e => e.serviceType === 'dismantle');
+                                    const carry = rel ? parseFloat(rel.basePrice) : (i.carryPrice ?? i.unitPrice);
+                                    const full = (inst && dis)
+                                      ? parseFloat(inst.basePrice) + parseFloat(dis.basePrice)
+                                      : (i.fullPrice ?? carry * 1.5);
+                                    return { ...i, relocateMode: 'full', carryPrice: carry, fullPrice: full, unitPrice: full };
+                                  }))}
                                   className={`px-2.5 py-1.5 transition-colors ${item.relocateMode === 'full' ? 'bg-black text-white' : 'bg-white text-black/40 hover:text-black/70'}`}
                                 >
                                   Dismantle &amp; Reinstall
                                 </button>
                                 <button
                                   data-testid={`button-carry-only-${item.id}`}
-                                  onClick={() => setItems(prev => prev.map(i => i.id === item.id
-                                    ? { ...i, relocateMode: 'carry', unitPrice: i.carryPrice ?? i.unitPrice }
-                                    : i
-                                  ))}
+                                  onClick={() => setItems(prev => prev.map(i => {
+                                    if (i.id !== item.id) return i;
+                                    // Re-derive prices from catalog in case item was added before toggle feature
+                                    const grp = catalogGroups.find(g => g.entries.some(e => e.id === i.catalogItemId));
+                                    const rel = grp?.entries.find(e => e.serviceType === 'relocate');
+                                    const inst = grp?.entries.find(e => e.serviceType === 'install');
+                                    const dis = grp?.entries.find(e => e.serviceType === 'dismantle');
+                                    const carry = rel ? parseFloat(rel.basePrice) : (i.carryPrice ?? i.unitPrice);
+                                    const full = (inst && dis)
+                                      ? parseFloat(inst.basePrice) + parseFloat(dis.basePrice)
+                                      : (i.fullPrice ?? carry * 1.5);
+                                    return { ...i, relocateMode: 'carry', carryPrice: carry, fullPrice: full, unitPrice: carry };
+                                  }))}
                                   className={`px-2.5 py-1.5 border-l border-black/15 transition-colors ${item.relocateMode === 'carry' ? 'bg-black text-white' : 'bg-white text-black/40 hover:text-black/70'}`}
                                 >
                                   Carry Only
