@@ -38,8 +38,8 @@ export const PricingConfig = {
     get minFee() { return this.vanBase + this.helperFee; }, // $68 minimum
   },
   overtime: {
-    // Relocation-only jobs: base price covers 90 minutes of crew time
-    capMinutes: 90,     // Included minutes before overtime kicks in
+    // Relocation-only jobs: base price covers 120 minutes of crew time (matches Lalamove 2-hour window)
+    capMinutes: 120,    // Included minutes before overtime kicks in
     blockMinutes: 30,   // Charge in 30-minute blocks after the cap
     blockRate: 30,      // SGD per 30-min block (2 crew × $5/person/10 min = $10/10 min)
     maxCharge: 200,     // Maximum overtime charge per job
@@ -139,7 +139,7 @@ export function calcTransportFee(distanceKm: number): number {
   return round2(Math.max(cfg.minFee, rawFee));
 }
 
-/** Calculate overtime charge for relocation jobs that exceed the 90-min cap.
+/** Calculate overtime charge for relocation jobs that exceed the 120-min cap.
  *  Returns { blocks, charge } where charge = blocks × $30, capped at $200.
  */
 export function calcOvertimeCharge(actualMinutes: number): { blocks: number; charge: number } {

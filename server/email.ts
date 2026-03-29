@@ -151,6 +151,25 @@ function addressRows(quote: any): Array<[string, string]> {
   return [['Service address', quote.serviceAddress || '—']];
 }
 
+function isRelocationJob(quote: any): boolean {
+  const svc = Array.isArray(quote.selectedServices)
+    ? quote.selectedServices
+    : (quote.selectedServices ? (() => { try { return JSON.parse(quote.selectedServices as string); } catch { return []; } })() : []);
+  return svc.includes('relocate') || (!!quote.pickupAddress && !!quote.dropoffAddress);
+}
+
+function relocationOvertimeNotice(): string {
+  return notice("warn",
+    `<strong>Relocation — Additional Charges Notice</strong><br>` +
+    `Your quoted price includes up to <strong>2 hours (120 minutes)</strong> of crew and vehicle time. ` +
+    `If the job runs longer than 120 minutes, the following additional charges apply:<br><br>` +
+    `<strong>+$30 per 30-minute block</strong> &nbsp;&middot;&nbsp; Maximum cap: <strong>$200</strong><br><br>` +
+    `These charges are based on Lalamove's standard overtime rates (2 crew × $5 per person per 10 min). ` +
+    `To keep things running on time, please ensure all items are ready for collection and the route is clear before the crew arrives. ` +
+    `If you expect a longer job, please let us know in advance via WhatsApp.`
+  );
+}
+
 function dateBox(dateStr: string, timeWindow: string): string {
   return `
     <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#111111" style="margin-top:2px;">
@@ -328,6 +347,8 @@ export function estimateSubmittedEmail(quote: any): string {
 
     ${notice("info", `<strong>What happens next?</strong><br>Our team will review your estimate, confirm the pricing, and send you a deposit invoice. Once the 50% deposit is paid, your appointment slot is locked in.`)}
 
+    ${isRelocationJob(quote) ? relocationOvertimeNotice() : ''}
+
     ${divider()}
     ${contactStrip()}
 
@@ -370,6 +391,8 @@ export function depositRequestEmail(quote: any, paymentLink: string): string {
       "Secure payment via Stripe &nbsp;&middot;&nbsp; Card details are never stored.",
     )}
 
+    ${isRelocationJob(quote) ? relocationOvertimeNotice() : ''}
+
     ${notice("warn", `<strong>Cancellation Policy</strong><br>Cancellation more than 48 hours before your appointment: deposit refunded minus a $30 admin fee.<br>Cancellation less than 48 hours before your appointment: deposit is forfeited in full.<br>Please review the full policy at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`)}
 
     ${contactStrip()}
@@ -411,6 +434,8 @@ export function depositReceivedEmail(quote: any): string {
       "Remove fragile or personal items from the immediate work area beforehand",
       "Note any special access instructions (carpark, loading bay, lift access) and send them to us via WhatsApp",
     ]))}
+
+    ${isRelocationJob(quote) ? relocationOvertimeNotice() : ''}
 
     ${notice("info", `<strong>Next step:</strong> Our team will assign a technician and send you a formal appointment confirmation with the date, time, and technician details.`)}
 
@@ -503,6 +528,8 @@ export function bookingConfirmationEmail(quote: any): string {
       "Have assembly manuals or reference materials ready for the technician",
       `The remaining balance of <strong>$${Number(quote.finalAmount || 0).toFixed(2)}</strong> is due once all work is completed`,
     ]))}
+
+    ${isRelocationJob(quote) ? relocationOvertimeNotice() : ''}
 
     ${notice("warn", `<strong>Reschedule Policy:</strong> If you need to change your appointment, please contact us on WhatsApp at least <strong>48 hours</strong> before the scheduled time. Late changes may incur a rescheduling fee. Full details at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`)}
 
