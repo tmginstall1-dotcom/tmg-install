@@ -54,6 +54,27 @@ const fadeUpDelayed = (delay: number) => ({
   transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1], delay },
 });
 
+const fadeFromLeft = (delay: number) => ({
+  initial: { opacity: 0, x: -60, y: 12 },
+  whileInView: { opacity: 1, x: 0, y: 0 },
+  viewport: { once: true, margin: "-6% 0px" },
+  transition: { duration: 0.75, ease: [0.16, 1, 0.3, 1], delay },
+});
+
+const fadeFromRight = (delay: number) => ({
+  initial: { opacity: 0, x: 60, y: 12 },
+  whileInView: { opacity: 1, x: 0, y: 0 },
+  viewport: { once: true, margin: "-6% 0px" },
+  transition: { duration: 0.75, ease: [0.16, 1, 0.3, 1], delay },
+});
+
+const scaleIn = (delay: number) => ({
+  initial: { opacity: 0, scale: 0.86 },
+  whileInView: { opacity: 1, scale: 1 },
+  viewport: { once: true, margin: "-6% 0px" },
+  transition: { duration: 0.7, ease: [0.34, 1.56, 0.64, 1], delay },
+});
+
 const MARQUEE_ITEMS = [
   "Wardrobe Installation",
   "Bed Frame Assembly",
@@ -384,8 +405,27 @@ export default function Landing() {
     ],
   });
 
+  const dismantlePct = Math.round(Math.min(100, (scrollProgress / 0.75) * 100));
+
   return (
     <div className={`min-h-screen bg-transparent text-white ${promoVisible ? "pt-24" : "pt-14"}`}>
+
+      {/* ═══ SCROLL PROGRESS BAR ═══ */}
+      <div
+        data-testid="scroll-progress-track"
+        className="fixed left-0 right-0 z-[48] pointer-events-none"
+        style={{ top: promoVisible ? "80px" : "56px" }}
+      >
+        <div
+          data-testid="scroll-progress-bar"
+          className="h-[2px] transition-all duration-100"
+          style={{
+            width: `${scrollProgress * 100}%`,
+            background: "linear-gradient(to right, #4455ff, #8866ff, #aa88ff)",
+            boxShadow: "0 0 8px rgba(100, 80, 255, 0.7)",
+          }}
+        />
+      </div>
 
       {/* ══════ FULL-PAGE 3D BACKGROUND ══════ */}
       <PageBgScene scrollProgress={scrollProgress} mouseX={mouseX} mouseY={mouseY} />
@@ -583,6 +623,35 @@ export default function Landing() {
             </motion.div>
           </div>
         </div>
+
+        {/* ── Scroll to dismantle hint ── */}
+        <motion.div
+          className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none select-none"
+          animate={{ opacity: dismantlePct > 12 ? 0 : 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <span className="text-[9px] font-black tracking-[0.22em] uppercase text-white/35">scroll to dismantle</span>
+          <motion.div
+            className="w-px h-8 bg-gradient-to-b from-white/40 to-transparent"
+            animate={{ scaleY: [1, 0.4, 1] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </motion.div>
+
+        {/* ── Live dismantle status badge ── */}
+        {dismantlePct > 2 && (
+          <motion.div
+            data-testid="dismantle-badge"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute top-6 right-6 flex items-center gap-2 px-3 py-1.5 border border-white/15 bg-black/40 backdrop-blur-md pointer-events-none select-none"
+          >
+            <div className="animate-pulse w-1.5 h-1.5 rounded-full bg-white/60" />
+            <span className="text-[10px] font-black tracking-[0.15em] text-white/50 uppercase">
+              {dismantlePct >= 100 ? "dismantled" : `dismantling ${dismantlePct}%`}
+            </span>
+          </motion.div>
+        )}
       </section>
 
       {/* ═══════════════════════ MARQUEE TICKER ════════════════════════ */}
@@ -631,7 +700,7 @@ export default function Landing() {
               ].map(({ src, label, sub, tag, w, h }, i) => (
                 <motion.div
                   key={src}
-                  {...fadeUpDelayed(i * 0.06)}
+                  {...(i === 0 ? fadeFromLeft(0) : fadeFromRight(0.06))}
                   className="relative overflow-hidden bg-neutral-900 group"
                   style={{ aspectRatio: "16/9" }}
                 >
@@ -753,8 +822,8 @@ export default function Landing() {
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", `service_card_${label.toLowerCase().replace(/\s+/g, "_")}`)}
               >
-                <motion.div {...fadeUpDelayed(i * 0.06)}>
-                  <TiltCard className="bg-white p-7 group hover:bg-black hover:text-white transition-colors duration-300 cursor-pointer h-full" intensity={6}>
+                <motion.div {...(i % 2 === 0 ? fadeFromLeft(i * 0.05) : fadeFromRight(i * 0.05))}>
+                  <TiltCard className="bg-white p-7 group hover:bg-black hover:text-white transition-colors duration-300 cursor-pointer h-full" intensity={13}>
                     <Icon className="w-5 h-5 text-black/30 group-hover:text-white/40 mb-5 transition-colors" />
                     <p className="text-sm font-semibold text-black group-hover:text-white transition-colors leading-snug mb-1">
                       {label}
