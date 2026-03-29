@@ -895,6 +895,292 @@ async function craftReply(
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// UNIFIED CONVERSATION ORCHESTRATION
+// Replaces the rigid per-state machine with a single GPT-driven engine that
+// reads/writes rich structured state across every turn.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const DEFAULT_STRUCTURED_STATE = {
+  items: null as string | null,
+  from_address: null as string | null,
+  to_address: null as string | null,
+  floor_from: null as number | null,
+  lift_from: null as boolean | null,
+  floor_to: null as number | null,
+  lift_to: null as boolean | null,
+  access_difficulty: null as string | null,
+  preferred_date: null as string | null,
+  preferred_date_iso: null as string | null,
+  preferred_time_window: null as string | null,
+  customer_name: null as string | null,
+  customer_email: null as string | null,
+  special_remarks: null as string | null,
+  service_scope: null as string | null,
+  is_relocation: false,
+  distance_km: null as number | null,
+};
+
+function parseStructuredState(session: any): typeof DEFAULT_STRUCTURED_STATE {
+  if (!session) return { ...DEFAULT_STRUCTURED_STATE };
+  if (session.structuredState) {
+    try {
+      return { ...DEFAULT_STRUCTURED_STATE, ...JSON.parse(session.structuredState) };
+    } catch {}
+  }
+  return {
+    ...DEFAULT_STRUCTURED_STATE,
+    items: (session.collectedItems && session.collectedItems !== "__scanning__") ? session.collectedItems : null,
+    from_address: session.collectedAddress || null,
+    to_address: session.collectedToAddress || null,
+    floor_from: (session.floorLevel && session.floorLevel > 0) ? session.floorLevel : null,
+    lift_from: session.hasLift != null ? session.hasLift : null,
+    access_difficulty: session.accessDifficulty || null,
+    preferred_date: session.preferredDate || null,
+    preferred_date_iso: session.preferredDateIso || null,
+    preferred_time_window: session.preferredTimeWindow || null,
+    customer_name: session.collectedName || null,
+    customer_email: session.collectedEmail || null,
+    special_remarks: session.specialRemarks || null,
+    is_relocation: !!session.isRelocation,
+    distance_km: session.distanceKm ? parseFloat(String(session.distanceKm)) : null,
+    service_scope: session.isRelocation ? "relocate" : null,
+  };
+}
+
+function syncStateToFlatFields(st: typeof DEFAULT_STRUCTURED_STATE): Record<string, unknown> {
+  const f: Record<string, unknown> = {};
+  if (st.items) f.collectedItems = st.items;
+  if (st.from_address) f.collectedAddress = st.from_address;
+  if (st.to_address) f.collectedToAddress = st.to_address;
+  if (st.floor_from != null) f.floorLevel = st.floor_from;
+  if (st.lift_from != null) f.hasLift = st.lift_from;
+  if (st.access_difficulty) f.accessDifficulty = st.access_difficulty;
+  if (st.preferred_date) f.preferredDate = st.preferred_date;
+  if (st.preferred_date_iso) f.preferredDateIso = st.preferred_date_iso;
+  if (st.preferred_time_window) f.preferredTimeWindow = st.preferred_time_window;
+  if (st.customer_name) f.collectedName = st.customer_name;
+  if (st.customer_email) f.collectedEmail = st.customer_email;
+  if (st.special_remarks) f.specialRemarks = st.special_remarks;
+  f.isRelocation = st.is_relocation;
+  if (st.distance_km != null) f.distanceKm = String(st.distance_km);
+  return f;
+}
+
+async function orchestrateConversation(params: {
+  from: string;
+  session: any;
+  text: string;
+  msgType: string;
+  msg: Record<string, any>;
+  conversationHistory: HistoryEntry[];
+  preloadedPhotoItems?: string | null;
+}): Promise<void> {
+  const { from, session, text, msgType, msg, conversationHistory } = params;
+  let photoItemsText = params.preloadedPhotoItems ?? null;
+  let richState = parseStructuredState(session);
+
+  // ── PHOTO HANDLING ───────────────────────────────────────────────────────────
+  if (msgType === "image" && msg.image?.id && !photoItemsText) {
+    const currentItems = (await storage.getWhatsAppSession(from))?.collectedItems ?? "";
+    if (currentItems.startsWith("__scanning__")) {
+      await storage.appendPhotoToScanQueue(from, msg.image.id);
+      return;
+    }
+    const isPrimaryScanner = await storage.claimPhotoScan(from, msg.image.id);
+    if (!isPrimaryScanner) {
+      await storage.appendPhotoToScanQueue(from, msg.image.id);
+      return;
+    }
+
+    await sendBotMessage(from, `Got it! Give me a moment to scan your photo(s)... 🔍`);
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    const latestSess = await storage.getWhatsAppSession(from);
+    const queueStr = latestSess?.collectedItems ?? `__scanning__:${msg.image.id}`;
+    const allIds = queueStr.startsWith("__scanning__:")
+      ? [...new Set(queueStr.slice("__scanning__:".length).split(",").filter(Boolean))]
+      : [msg.image.id];
+
+    const scanResults = await Promise.all(allIds.map(async (id: string) => {
+      const media = await downloadWhatsAppMedia(id);
+      if (!media) return null;
+      try {
+        const vRes = await openai.chat.completions.create({
+          model: "gpt-4o", max_tokens: 800,
+          messages: [
+            { role: "system", content: `You are an expert furniture identification assistant for TMG Install (Singapore). Identify ALL furniture items visible that need professional installation, assembly, dismantling, or relocation. COUNT each piece. Identify brand/model if visible (IKEA PAX, IKEA MALM, etc.). DO NOT include TVs, electronics, or small accessories. Format: one bullet per line "• 1 queen bed frame". If no installable furniture visible: respond only with NO_FURNITURE.\n\n${FURNITURE_VISION_GUIDE}` },
+            { role: "user", content: [{ type: "text", text: "Identify all furniture items needing professional service." }, { type: "image_url", image_url: { url: `data:${media.mimeType};base64,${media.base64}`, detail: "high" } }] as any },
+          ],
+        });
+        const raw = (vRes.choices[0]?.message?.content || "").trim();
+        return (!raw || raw.includes("NO_FURNITURE")) ? null : raw;
+      } catch { return null; }
+    }));
+
+    const validResults = scanResults.filter((r): r is string => !!r);
+    if (validResults.length === 0) {
+      await storage.upsertWhatsAppSession(from, { collectedItems: richState.items || null, structuredState: JSON.stringify(richState) });
+      await sendBotMessage(from, `Hmm, I couldn't spot any furniture in ${allIds.length > 1 ? "those photos" : "that photo"}. No worries — just *type out the items* you need help with, like:\n• 1 king bed frame\n• 3-door wardrobe\n• Dining table + 4 chairs`);
+      return;
+    }
+
+    let allDetected: string;
+    if (validResults.length === 1) {
+      allDetected = validResults[0].split("\n").map((l: string) => l.trim()).filter(Boolean).map((l: string) => l.startsWith("•") ? l : `• ${l}`).join("\n");
+    } else {
+      const mergeRes = await openai.chat.completions.create({
+        model: "gpt-4o", max_tokens: 600,
+        messages: [{ role: "system", content: `Merge ${validResults.length} furniture lists from different photos into ONE complete list without losing items. Deduplicate only when the SAME item clearly appears in MULTIPLE photos of the SAME room. Format: one bullet per line "•".\n\n${validResults.map((r, i) => `[Photo ${i + 1}]\n${r}`).join("\n\n")}` }],
+      });
+      allDetected = (mergeRes.choices[0]?.message?.content || "").trim().split("\n").map((l: string) => l.trim()).filter(Boolean).map((l: string) => l.startsWith("•") ? l : `• ${l}`).join("\n");
+    }
+    photoItemsText = allDetected;
+
+    if (richState.items) {
+      const existingLines = richState.items.split("\n").filter(Boolean);
+      const newLines = allDetected.split("\n").filter(Boolean);
+      const mergedLines = [...existingLines];
+      for (const line of newLines) {
+        const key = line.toLowerCase().replace(/[•\-*]\s*/, "").trim();
+        if (!existingLines.some(el => { const ek = el.toLowerCase().replace(/[•\-*]\s*/, "").trim(); return ek === key || ek.includes(key) || key.includes(ek); })) {
+          mergedLines.push(line);
+        }
+      }
+      richState = { ...richState, items: mergedLines.join("\n") };
+    } else {
+      richState = { ...richState, items: allDetected };
+    }
+
+    const freshSess = await storage.getWhatsAppSession(from);
+    if (freshSess) {
+      richState = {
+        ...richState,
+        from_address: richState.from_address || freshSess.collectedAddress || null,
+        to_address: richState.to_address || freshSess.collectedToAddress || null,
+        customer_name: richState.customer_name || freshSess.collectedName || null,
+      };
+    }
+  }
+
+  // ── GPT ORCHESTRATION ────────────────────────────────────────────────────────
+  const historyContext = conversationHistory.slice(-6).map((h: HistoryEntry) =>
+    `${h.role === "user" ? "Customer" : "Bot"}: ${h.content}`).join("\n");
+  const today = new Date();
+  const todayStr = today.toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+  let orchResult: { updatedState: any; reply: string; transition_to_confirmation: boolean };
+  try {
+    const orchRes = await openai.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 900,
+      response_format: { type: "json_object" },
+      messages: [{
+        role: "system",
+        content: `You are the WhatsApp coordinator for TMG Install — a professional furniture installation company in Singapore. Collect all details needed for a furniture job quote.
+
+TODAY: ${todayStr}
+
+CURRENT JOB STATE (trust this completely — do NOT re-ask for anything already filled):
+${JSON.stringify(richState, null, 2)}
+
+${photoItemsText ? `\nPHOTO SCAN: Customer sent a photo. Detected items have been merged into state.items above. Acknowledge the scan result naturally and ask what is next.\n` : ""}
+
+SERVICES & PRICING:
+- Installation (assemble/put together new furniture): from $80/item
+- Dismantling (take apart, no move): from $60/item
+- Relocation (dismantle at FROM + transport + reinstall at TO): from $120/item + transport ($38 base + $0.50/km after first 3km)
+- Disposal (haul away & dispose): from $50/item + transport
+- Dismantle+Dispose bundle: cheaper than disposal-only
+- Floor surcharge: $5/floor with lift, $15/floor without lift
+- Minimum job: $180
+
+COLLECTION PRIORITY (skip what is already in state):
+1. Items — what furniture, service type per item (install/dismantle/relocate/dispose/dismantle_dispose)
+2. FROM address — job location (pickup address for relocations)
+3. TO address — destination (ONLY for relocation jobs)
+4. Floor number + lift availability (use worst case between both addresses for relocation)
+5. Preferred date and time window (morning 9am-12pm / afternoon 1pm-5pm) — optional, default to "flexible" if customer doesn't specify
+6. Customer name — ask near the end, before sending the confirmation summary
+
+RULES:
+- Ask ONLY ONE question per reply (the single most important missing piece)
+- NEVER re-ask for anything already in state — trust the state completely
+- Handle corrections in-place: "remove the wardrobe" = update items, keep everything else
+- For relocation: track from_address and to_address separately, never mix them up
+- If any item says "relocate" or customer mentions moving, set is_relocation: true
+- When customer corrects something, update state and acknowledge warmly
+- No "Reply YES to continue" gatekeeping — just ask the next question naturally
+- Keep replies warm, concise, and conversational
+- CONFIRMATION TRIGGER: When items + from_address + floor_from + lift_from + customer_name are all filled (and to_address if is_relocation), set transition_to_confirmation: true in the JSON root. This causes the summary message to be shown and quote to be submitted.
+
+CONVERSATION HISTORY:
+${historyContext || "(first exchange)"}
+
+NEW MESSAGE: "${photoItemsText ? `[Photo sent — ${photoItemsText.split("\n").length} items detected]` : text}"
+
+Return ONLY valid JSON:
+{
+  "updatedState": {
+    "items": "• item (service)\\n...",
+    "from_address": "string or null",
+    "to_address": "string or null",
+    "floor_from": number or null,
+    "lift_from": true/false or null,
+    "floor_to": number or null,
+    "lift_to": true/false or null,
+    "access_difficulty": "easy"/"medium"/"hard" or null,
+    "preferred_date": "friendly display string or null",
+    "preferred_date_iso": "YYYY-MM-DD or null",
+    "preferred_time_window": "09:00-12:00" or "13:00-17:00" or null,
+    "customer_name": "string or null",
+    "customer_email": "string or null",
+    "special_remarks": "string or null",
+    "service_scope": "install"/"dismantle"/"relocate"/"dispose"/"dismantle_dispose"/"mixed" or null,
+    "is_relocation": true/false,
+    "distance_km": number or null
+  },
+  "reply": "your next message to the customer",
+  "transition_to_confirmation": false
+}
+
+When transition_to_confirmation is true, "reply" MUST be the COMPLETE summary ending with:
+"Shall I send this to our team? Reply *YES* to submit.\\n\\n_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, or *change access*._"`,
+      }],
+    });
+    orchResult = JSON.parse(orchRes.choices[0]?.message?.content || "{}");
+  } catch (err) {
+    console.error("[WhatsApp] Orchestration GPT error:", err);
+    const fallback = photoItemsText
+      ? `Here's what I detected from your photo:\n\n${photoItemsText}\n\nDoes this look right? Reply *YES* to confirm or tell me what to add or change.`
+      : `Got it! What furniture items do you need help with? 😊\n\n📸 Send a photo and I'll detect them — or type the list:\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`;
+    await sendBotMessage(from, fallback);
+    return;
+  }
+
+  if (!orchResult?.updatedState || !orchResult?.reply) {
+    await sendBotMessage(from, `Got it! What furniture do you need help with? 😊`);
+    return;
+  }
+
+  const newState = { ...richState, ...orchResult.updatedState };
+  const flatFields = syncStateToFlatFields(newState);
+  const nextWaState = orchResult.transition_to_confirmation ? "awaiting_confirmation" : "collecting";
+
+  await storage.upsertWhatsAppSession(from, {
+    ...flatFields,
+    state: nextWaState,
+    structuredState: JSON.stringify(newState),
+    collectedItems: newState.items && !newState.items.startsWith("__scanning__") ? newState.items : (richState.items || null),
+  });
+
+  const reply = orchResult.reply;
+  await sendBotMessage(from, reply);
+  saveHistory(from, conversationHistory,
+    photoItemsText ? `[Photo: ${photoItemsText.split("\n").length} items detected]` : text,
+    reply);
+}
+
 /** Extract any service type already mentioned in conversation history */
 function extractServiceFromHistory(history: HistoryEntry[]): string | null {
   const histText = history.map(h => h.content).join(" ").toLowerCase();
@@ -4406,13 +4692,18 @@ Message: "${text.slice(0, 800)}"`
             }
           }
 
-          // Items detected but no price question (or estimate couldn't be built) →
-          // acknowledge the items and invite them to start a full quote
+          // Items detected — start collecting directly, no "Reply YES" gate
+          const initState = { ...DEFAULT_STRUCTURED_STATE, items: extractedItems };
+          await storage.upsertWhatsAppSession(from, {
+            state: "collecting",
+            structuredState: JSON.stringify(initState),
+            collectedItems: extractedItems,
+          });
           const intro2 = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n`;
-          const itemsAck = `Got it — I can see you need help with:\n${extractedItems}\n\n`;
-          const cta = `Would you like me to prepare a personalised quote? Just reply *Yes* and I'll walk you through it! 😊`;
-          await sendBotMessage(from, `${intro2}${itemsAck}${cta}`);
-          saveHistory(from, [], text, `${intro2}${itemsAck}${cta}`);
+          const itemsAck = `Got it — here's what I've noted:\n${extractedItems}\n\n`;
+          const nextQ = `📍 What's the *job address*? Include block/unit number if possible.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
+          await sendBotMessage(from, `${intro2}${itemsAck}${nextQ}`);
+          saveHistory(from, [], text, `${intro2}${itemsAck}${nextQ}`);
 
         } else {
           // Classify the first message intent before deciding what to show
@@ -4940,2231 +5231,13 @@ If the case is unusual or complex, say the team will review and follow up.`
         return;
       }
 
-      // ── pricing_shown: customer reviewing pricing before starting booking flow ──
-      if (state === "pricing_shown") {
-        const nameAlready = session?.collectedName;
-
-        // If they sent a photo — scan it and show specific pricing
-        if (msgType === "image" && msg.image?.id) {
-          // Detect service type from caption — use internal catalog types (relocate/dismantle/dispose/install)
-          const captionLower = text.toLowerCase();
-          let captionService: string | null = null;       // internal catalog type
-          let captionServiceLabel: string | null = null;  // human-readable display label
-          if (/dismantle.{0,20}reloc|reloc.{0,20}dismantle|move.*dismantle|shift.*dismantle/.test(captionLower)) {
-            captionService = "relocate"; captionServiceLabel = "relocation (dismantle + move)";
-          } else if (/relocat|move|shift|transfer/.test(captionLower)) {
-            captionService = "relocate"; captionServiceLabel = "relocation";
-          } else if (/dismantle|dismant|take apart|remove/.test(captionLower)) {
-            captionService = "dismantle"; captionServiceLabel = "dismantling";
-          } else if (/dispos|haul|throw|throw away/.test(captionLower)) {
-            captionService = "dispose"; captionServiceLabel = "disposal";
-          } else if (/install|assembly|assemble|set up|put up/.test(captionLower)) {
-            captionService = "install"; captionServiceLabel = "installation";
-          }
-
-          let scannedItems: ScannedFurnitureItem[] = [];
-          try {
-            const pMedia = await downloadWhatsAppMedia(msg.image.id);
-            if (pMedia) {
-              const result = await scanFurnitureInPhoto(pMedia.mimeType, pMedia.base64);
-              if (result) scannedItems = result;
-            }
-          } catch { /* fall through */ }
-
-          const photoScanItem = scannedItems.length > 0 ? scannedItems[0].name : null;
-
-          if (photoScanItem && captionService) {
-            // We know BOTH the items (from photo, with counts) AND the service (from caption).
-            const isPriceQuestion = /how much|what.*cost|what.*price|price|cost|rate|charges?|fees?|cheap|expensive/i.test(captionLower);
-
-            const serviceActionMap: Record<string, string> = {
-              relocate: "relocate",
-              dismantle: "dismantle",
-              dispose: "dispose of",
-              install: "install",
-            };
-            const serviceAction = serviceActionMap[captionService] || captionService;
-            const displayLabel = buildScanDisplayLabel(scannedItems);
-            const prefilledItems = buildPrefilledItems(scannedItems, captionService);
-
-            if (isPriceQuestion) {
-              // Customer asked about price — show detailed estimate with correct quantities
-              const isReloc = captionService.includes("reloc");
-              const photoEstimateText = buildEstimateText(scannedItems, captionService);
-              const fakePhotoSession = {
-                collectedItems: photoEstimateText,
-                floorLevel: null as number | null,
-                hasLift: null as boolean | null,
-                accessDifficulty: null as string | null,
-                isRelocation: isReloc,
-                distanceKm: null as string | null,
-              };
-              const photoEstimate = await buildJobEstimateMessage(fakePhotoSession as any);
-              await storage.upsertWhatsAppSession(from, {
-                collectedItems: prefilledItems,
-                previousItems: "photo_detected",
-                isRelocation: isReloc,
-              });
-              const quoteOffer = nameAlready
-                ? `\n\nWould you like me to put together a personalised quote for you, *${nameAlready}*? Just say the word 😊`
-                : `\n\nWould you like me to put together a personalised quote? Just let me know 😊`;
-              const floorNote = `\n\n_Floor surcharges & transport may apply depending on your address._`;
-              await sendBotMessage(from,
-                `📸 I can see *${displayLabel}* in your photo!\n\n` +
-                (photoEstimate
-                  ? `${photoEstimate}${floorNote}${quoteOffer}`
-                  : `We'd be happy to *${serviceAction}* that for you. Our team will confirm the exact price once we have your job details.${quoteOffer}`)
-              );
-              return;
-            }
-
-            if (nameAlready) {
-              await storage.upsertWhatsAppSession(from, {
-                state: "awaiting_address",
-                collectedItems: prefilledItems,
-                previousItems: "photo_detected",
-                isRelocation: captionService.includes("reloc"),
-              });
-              await sendBotMessage(from,
-                `📸 I can see *${displayLabel}* in your photo — noted for *${captionServiceLabel || captionService}*.\n\n` +
-                `To give you an accurate quote, I just need a few more details.\n\n` +
-                `📍 What's the *full job address*?\n\n` +
-                `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
-              );
-            } else {
-              await storage.upsertWhatsAppSession(from, {
-                state: "awaiting_name",
-                collectedItems: prefilledItems,
-                previousItems: "photo_detected",
-                isRelocation: captionService.includes("reloc"),
-              });
-              await sendBotMessage(from,
-                `📸 I can see *${displayLabel}* in your photo — we can *${captionServiceLabel || serviceAction}* that for you.\n\n` +
-                `To prepare an accurate quote, may I start with your *full name*? 😊`
-              );
-            }
-            return;
-          }
-
-          if (photoScanItem) {
-            // Item detected but no service type in caption — show detailed install estimate
-            const estimateText = buildEstimateText(scannedItems, "installation");
-            const fakePhotoOnlySession = {
-              collectedItems: estimateText,
-              floorLevel: null as number | null,
-              hasLift: null as boolean | null,
-              accessDifficulty: null as string | null,
-              isRelocation: false,
-              distanceKm: null as string | null,
-            };
-            const photoOnlyEstimate = await buildJobEstimateMessage(fakePhotoOnlySession as any);
-            const displayLabel = buildScanDisplayLabel(scannedItems);
-            const followUp = nameAlready
-              ? `\n\nReady to book, *${nameAlready}*? Reply *Yes* to start your personalised quote 😊`
-              : `\n\nWould you like a personalised quote? Reply *Yes* to get started 😊`;
-            const floorNote = `\n\n_Floor surcharges & transport may apply depending on your address._`;
-            await sendBotMessage(from,
-              `📸 I can see *${displayLabel}* in your photo!\n\n` +
-              (photoOnlyEstimate
-                ? `${photoOnlyEstimate}${floorNote}${followUp}`
-                : `Our team will confirm the exact price for the *${displayLabel}*.${followUp}`)
-            );
-            return;
-          }
-
-          // Photo scan failed or no item detected — use caption context if available
-          if (captionService) {
-            await sendBotMessage(from,
-              `Got it — *${captionServiceLabel || captionService}*. 👍\n\nCould you describe the item(s) in the photo? This helps me give you an accurate price.\n\n` +
-              `_e.g. IKEA PAX wardrobe, queen bed frame, 3-seater sofa, office cubicle workstations, reception counter_`
-            );
-          } else {
-            await sendBotMessage(from,
-              `📸 Got your photo! I'll scan it for items once we start your quote.\n\n` +
-              `Happy with our pricing? Reply *Yes* to get started 😊`
-            );
-          }
-          return;
-        }
-
-        // Smart single-pass classification: classify + generate reply in one call
-        // IMPORTANT: only trigger the booking flow on EXPLICIT booking intent,
-        // not on casual "yes" responses or general positive reactions.
-        try {
-          const smartClassRes = await openai.chat.completions.create({
-            model: "gpt-4o",
-            max_tokens: 350,
-            response_format: { type: "json_object" },
-            messages: [
-              {
-                role: "system",
-                content:
-`You are the WhatsApp coordinator for TMG Install (Singapore furniture services).
-The customer is in a pre-quote conversation — they may have seen our pricing or just be chatting.
-
-${DYNAMIC_FAQ}
-
-${DYNAMIC_HOURS}
-
-${DYNAMIC_POLICY}
-
-Classify the customer's message AND write a warm, natural reply. Return JSON:
-{
-  "intent": "book_now" | "specific_price" | "general_price" | "question" | "decline" | "casual" | "provide_name",
-  "reply": "your WhatsApp reply to the customer (use *bold* for key words)",
-  "itemQuery": "furniture item name if intent=specific_price, else null",
-  "name": "customer personal name if intent=provide_name, else null"
-}
-
-INTENT RULES (read carefully):
-- book_now: Customer has expressed clear intent to proceed with a quote or booking. Includes:
-  • EXPLICIT language at any time: "I want to book", "please give me a quote", "let's proceed", "book for me", "I'd like to get a quote", "can you prepare a quote", "let's go ahead"
-  • "yes", "ok", "sure", "yep" ONLY when the bot's LAST message offered/asked about making a quote (e.g. "Would you like a quote?", "Want me to prepare a personalised quote?", "Ready to get started?") — in that context, "yes" IS a booking confirmation
-  • NOT: "yes", "ok", "sounds good", "great", "affordable" said in response to pricing info or general chat — those are casual
-- specific_price: asks about price for a named item or service (e.g. "how much to install a wardrobe", "what's the cost for a queen bed frame")
-- general_price: asks what prices are in general, or "how much do you charge"
-- decline: explicitly says too expensive, not interested, nevermind, cancel
-- provide_name: provides their personal name when bot asked for it (1–4 word reply that looks like a human name, not a furniture item)
-- question: any other question about services, availability, process, coverage, payment, timeline, etc.
-- casual: acknowledgment, greeting, or conversational reply that is NOT a booking confirmation
-
-REPLY RULES:
-- For "question" and "casual": answer helpfully and warmly. Do NOT end with "Happy with our pricing? Reply Yes". Just answer and leave it open — the customer will ask when they're ready.
-- For "specific_price": reply that you'll look up the price (don't invent numbers here — set reply to an acknowledgment, the price will be fetched separately).
-- For "general_price": reply that you'll share the full price list.
-- For "book_now": reply enthusiastically and say you'll get started — ask for their name if not known, or address if name is already known.
-- For "decline": reply graciously, no pressure, leave door open.
-- For "provide_name": reply warmly using their name and ask for the job address.
-
-CRITICAL: If conversation history shows the bot asked "which item is this for?" and customer replies with a furniture item name → classify as specific_price.
-CRITICAL: If bot's last message asked for their name, a 1–4 word personal-name reply is provide_name — never casual or book_now.`,
-              },
-              ...historyMessages(conversationHistory, 6),
-              { role: "user", content: text },
-            ],
-          });
-          const sc = JSON.parse(smartClassRes.choices[0]?.message?.content || "{}");
-
-          if (sc.intent === "book_now") {
-            // Extract all job details from the message BEFORE transitioning — critical for multi-field messages
-            let bookItems: string | null = null;
-            let bookPickupAddr: string | null = null;
-            let bookDeliveryAddr: string | null = null;
-            let bookIsRelocation = false;
-            if (text.length > 20) {
-              try {
-                const bookExtract = await openai.chat.completions.create({
-                  model: "gpt-4o",
-                  max_tokens: 400,
-                  response_format: { type: "json_object" },
-                  messages: [{
-                    role: "system",
-                    content: `Extract job details from this WhatsApp message to TMG Install (Singapore furniture services).
-Return JSON:
-{
-  "items": "bullet list of furniture items with service type in brackets, one • per line. Null if none mentioned.",
-  "pickupAddress": "the FROM/pickup/collection/job address. Null if not mentioned.",
-  "deliveryAddress": "the TO/delivery/destination address (for relocations, movings). Null if not mentioned.",
-  "isRelocation": true or false
-}
-Rules:
-- isRelocation: true if customer mentions relocation, moving, shifting, transporting, pick up and deliver
-- For relocations: pickupAddress = the address they are moving FROM, deliveryAddress = the address they are moving TO
-- items: include service type e.g. "• 1 king size bed (relocate)", "• 1 old bed frame (dispose)"
-- Use exact addresses from the message (block number, street, postal code, unit)
-Message: "${text.slice(0, 600)}"`,
-                  }],
-                });
-                const be = JSON.parse(bookExtract.choices[0]?.message?.content || "{}");
-                bookItems = be.items || null;
-                bookPickupAddr = be.pickupAddress || null;
-                bookDeliveryAddr = be.deliveryAddress || null;
-                bookIsRelocation = !!be.isRelocation;
-              } catch { /* non-critical */ }
-            }
-
-            // Build the session update — save everything we found
-            const bookUpdates: Record<string, unknown> = {};
-            if (bookItems) bookUpdates.collectedItems = bookItems;
-            if (bookPickupAddr) bookUpdates.collectedAddress = bookPickupAddr;
-            if (bookDeliveryAddr) bookUpdates.collectedToAddress = bookDeliveryAddr;
-            if (bookIsRelocation) bookUpdates.isRelocation = true;
-
-            // Determine best next state given what was extracted
-            const hasAddr = !!(bookPickupAddr || session?.collectedAddress);
-            const hasItems = !!(bookItems || (session?.collectedItems && session.collectedItems !== "__scanning__"));
-            if (nameAlready) {
-              bookUpdates.state = hasAddr && hasItems ? "awaiting_floor" : hasAddr ? "awaiting_items" : "awaiting_address";
-            } else {
-              bookUpdates.state = "awaiting_name";
-            }
-
-            await storage.upsertWhatsAppSession(from, bookUpdates);
-            await sendBotMessage(from, sc.reply || (nameAlready
-              ? `Great, *${nameAlready}*! 😊\n\n📍 Where is the job? Drop the *full address* below — block/unit number helps too.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
-              : `What's your *full name*? 😊`
-            ));
-            return;
-          }
-
-          if (sc.intent === "specific_price" && sc.itemQuery) {
-            // Build a detailed estimate using the real pricing engine (same as submission flow)
-            // Detect service type from the query so the breakdown shows the right services
-            const specificSvcType =
-              /dismantle.{0,20}reloc|reloc.{0,20}dismantle/i.test(sc.itemQuery) ? "relocate" :
-              /dismantle|dismant|remove|removal/i.test(sc.itemQuery) ? "dismantle" :
-              /reloc|move|moving|shift/i.test(sc.itemQuery) ? "relocate" :
-              /dispos|junk|clear/i.test(sc.itemQuery) ? "dispose" : "install";
-            const specificItemText = sc.itemQuery + (specificSvcType !== "install" ? ` (${specificSvcType})` : "");
-            const fakeSpecificSession = {
-              collectedItems: specificItemText,
-              floorLevel: null as number | null,
-              hasLift: null as boolean | null,
-              accessDifficulty: null as string | null,
-              isRelocation: specificSvcType === "relocate",
-              distanceKm: null as string | null,
-            };
-            const detailedEstimate = await buildJobEstimateMessage(fakeSpecificSession as any);
-            const quoteOffer = nameAlready
-              ? `\n\nWant me to prepare a full quote with your address and floor details, *${nameAlready}*? Just say the word 😊`
-              : `\n\nWould you like a personalised quote with your exact details? Just say *Yes* and I'll walk you through it! 😊`;
-            const floorNote = `\n\n_Floor surcharges & transport may apply depending on your address._`;
-            if (detailedEstimate) {
-              await sendBotMessage(from, `${detailedEstimate}${floorNote}${quoteOffer}`);
-            } else {
-              const priceMsg = await smartPricingLookup(sc.itemQuery);
-              await sendBotMessage(from, priceMsg
-                ? `${priceMsg}${quoteOffer}`
-                : `Our team will confirm the exact price for *${sc.itemQuery}* when they review your job.${quoteOffer}`
-              );
-            }
-            return;
-          }
-
-          if (sc.intent === "general_price") {
-            await sendBotMessage(from, PRICING_OVERVIEW);
-            return;
-          }
-
-          if (sc.intent === "decline") {
-            await sendBotMessage(from,
-              sc.reply ||
-              `No worries at all! 😊 Prices are negotiable for larger jobs or repeat customers.\n\n` +
-              `Feel free to message us anytime — we're happy to help when you're ready. 👍`
-            );
-            return;
-          }
-
-          if (sc.intent === "provide_name" && sc.name) {
-            const pnHasAddr = !!session?.collectedAddress;
-            const pnHasItems = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
-            const pnIsReloc = !!session?.isRelocation;
-            const pnHasToAddr = !!session?.collectedToAddress;
-            let pnNextState: string;
-            let pnReply: string;
-            if (pnHasAddr && pnHasItems) {
-              pnNextState = "awaiting_floor";
-              const pnAddrLine = pnIsReloc && pnHasToAddr
-                ? `📍 *From:* ${session!.collectedAddress}\n📍 *To:* ${session!.collectedToAddress}\n`
-                : `📍 *Address:* ${session!.collectedAddress}\n`;
-              pnReply = sc.reply ||
-                `Thanks, *${sc.name}*! 😊 Here's what I have so far:\n\n` +
-                `👤 *Name:* ${sc.name}\n` + pnAddrLine +
-                `🛋️ *Items:*\n${session!.collectedItems}\n\n` +
-                `Which *floor* is the unit on?\n\nReply with a number (e.g. *1*, *5*) and whether there's a *lift* (yes / no)`;
-            } else if (pnHasAddr) {
-              pnNextState = "awaiting_items";
-              pnReply = sc.reply || `Nice to meet you, *${sc.name}*! 😊\n\nWhat furniture do you need help with?\n\n📸 *Send a photo* or *type the list* below.\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
-            } else {
-              pnNextState = "awaiting_address";
-              pnReply = sc.reply || `Nice to meet you, *${sc.name}*! 😊\n\n📍 What's the *full job address*?\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
-            }
-            await storage.upsertWhatsAppSession(from, { state: pnNextState, collectedName: sc.name });
-            await sendBotMessage(from, pnReply);
-            return;
-          }
-
-          // question or casual — use the GPT-generated reply directly, no forced CTA
-          if (sc.reply) {
-            await sendBotMessage(from, sc.reply);
-            return;
-          }
-        } catch { /* fall through to hard fallback */ }
-
-        // Hard fallback — only if GPT call completely failed
-        await sendBotMessage(from,
-          `Thanks for your message! Feel free to ask about our pricing, services, or anything else — or just let me know when you'd like a quote 😊`
-        );
-        return;
-      }
-
-      if (state === "awaiting_name") {
-        // If they send a photo with no (or very short) caption, proactively scan it for pricing
-        if (msgType === "image" && text.length < 5) {
-          let nameStateScanned: ScannedFurnitureItem[] = [];
-          try {
-            if (msg.image?.id) {
-              const scanMedia = await downloadWhatsAppMedia(msg.image.id);
-              if (scanMedia) {
-                const result = await scanFurnitureInPhoto(scanMedia.mimeType, scanMedia.base64);
-                if (result) nameStateScanned = result;
-              }
-            }
-          } catch { /* ignore */ }
-
-          if (nameStateScanned.length > 0) {
-            const displayLabel = buildScanDisplayLabel(nameStateScanned);
-            const estimateText = buildEstimateText(nameStateScanned, "installation");
-            const fakeSession = {
-              collectedItems: estimateText,
-              floorLevel: null as number | null,
-              hasLift: null as boolean | null,
-              accessDifficulty: null as string | null,
-              isRelocation: false,
-              distanceKm: null as string | null,
-            };
-            const priceMsg = await buildJobEstimateMessage(fakeSession as any);
-            if (priceMsg) {
-              const reply = `📸 I can see *${displayLabel}* in your photo!\n\n${priceMsg}\n\n_Floor surcharges & transport may apply._\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
-              await sendBotMessage(from, reply);
-              saveHistory(from, conversationHistory, `[photo: ${displayLabel}]`, reply);
-              return;
-            }
-            // Item detected but not in standard catalog
-            const customReply0 =
-              `📸 I can see *${displayLabel}* in your photo!\n\n` +
-              `This looks like a custom or commercial job. Our team will prepare a tailored quote for you. 😊\n\n` +
-              `To get started, what's your *full name*?`;
-            await sendBotMessage(from, customReply0);
-            saveHistory(from, conversationHistory, "[photo]", customReply0);
-            return;
-          }
-          // No installable furniture detected — ask them to name it (context-aware)
-          const knownSvc = extractServiceFromHistory(conversationHistory);
-          let askItem: string;
-          if (isBotLooping(conversationHistory, "which item") || isBotLooping(conversationHistory, "what item is it")) {
-            askItem = knownSvc
-              ? `Please just type the *item name* — e.g. *wardrobe*, *bed frame*, *sofa* — and I'll get you the ${knownSvc} price right away! 😊`
-              : `Please type the *item name and service* — e.g. *wardrobe installation* or *bed frame dismantling*. I'll get the price for you!`;
-          } else if (knownSvc) {
-            askItem = `I can see your photo! To look up the *${knownSvc}* price, I just need to know which item it is.\n\n_e.g. wardrobe, queen bed frame, sofa, dining table_`;
-          } else {
-            askItem = `Spotted a photo! 📸 What item is it, and what service do you need?\n\n_e.g. "3-door wardrobe — installation" or "queen bed frame — dismantling"_`;
-          }
-          await sendBotMessage(from, askItem);
-          saveHistory(from, conversationHistory, "[photo]", askItem);
-          return;
-        }
-
-        if (text.length < 2) {
-          await sendBotMessage(from, `What's your *full name*? I just need something to address you by. 😊`);
-          return;
-        }
-
-        // ── Fast-path heuristic: catch obvious names without GPT ────────────────
-        // If the message is 1–4 words, all letters (+ common name chars), and NOT a
-        // furniture item / service type / greeting → treat it as a name immediately.
-        const NAME_BLOCKLIST = new Set([
-          'yes','no','ok','okay','sure','hi','hello','hey','thanks','please','nope',
-          'install','installation','dismantle','dismantling','relocate','relocation',
-          'dispose','disposal','wardrobe','sofa','bed','table','chair','cabinet',
-          'drawer','shelf','bookshelf','mattress','desk','couch','closet','cupboard',
-          'fridge','refrigerator','washing','machine','tv','television',
-          // Singapore malls, estates, landmarks, MRT areas (to prevent treating addresses as names)
-          'nex','jurong','tampines','bedok','clementi','woodlands','yishun','sembawang',
-          'choa','punggol','sengkang','hougang','serangoon','bishan','toa','payoh',
-          'ang','kio','bukit','timah','batok','panjang','gombak','novena','orchard',
-          'raffles','marina','harbourfront','dhoby','ghaut','boon','keng','kallang',
-          'pasir','ris','changi','airport','expo','tanah','merah','geylang','aljunied',
-          'paya','lebar','macpherson','tai','seng','bartley','kovan','lorong','chuan',
-          'centrepoint','plaza','mall','centre','city','square','exchange','hub',
-          'heartland','compass','northpoint','causeway','junction','westgate','jem',
-          'imm','parkway','parade','vivocity','harbourfront','bugis','dhoby','somerset',
-          'central','east','west','north','south','island','singapore','sg',
-        ]);
-        const fastPathWords = text.trim().split(/\s+/);
-        const looksLikeName =
-          fastPathWords.length >= 1 &&
-          fastPathWords.length <= 4 &&
-          !text.includes('?') &&
-          !text.includes('@') &&
-          !/\d/.test(text) &&
-          /^[a-zA-Z\s'\-\.]+$/.test(text) &&
-          !NAME_BLOCKLIST.has(text.toLowerCase()) &&
-          // Reject if ANY word is a Singapore location/place/landmark keyword
-          !fastPathWords.some(w => NAME_BLOCKLIST.has(w.toLowerCase()));
-
-        // Use GPT to extract name AND detect if the message is really a pricing question
-        let extractedName: string | null = null;
-        let nameExtractedAddress: string | null = null;
-        let nameIsPricing = false;
-        let nameMentionedItem: string | null = null;
-        let nameMentionedService: string | null = null;
-
-        if (looksLikeName) {
-          // Capitalise each word and use directly — no GPT needed
-          extractedName = fastPathWords
-            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-            .join(' ');
-        } else {
-          try {
-            const nameRes = await openai.chat.completions.create({
-              model: "gpt-4o",
-              max_tokens: 100,
-              response_format: { type: "json_object" },
-              messages: [
-                {
-                  role: "system",
-                  content: `You are a WhatsApp assistant for TMG Install (Singapore furniture installation). The customer was asked for their full name. Analyse their message.
-Return JSON:
-{
-  "name": string or null,
-  "address": string or null,
-  "isPricingQuestion": boolean,
-  "mentionedItem": string or null,
-  "mentionedService": "installation"|"dismantling"|"relocation"|"disposal"|null
-}
-Rules:
-- name: Extract a PERSONAL name only. ACCEPT single first names ("Kayden", "John", "Ahmad", "Wei Ling"). REJECT: yes/no/ok/sure, pricing questions, furniture items, service types (installation/dismantling/relocation/disposal), AND any Singapore location — mall names (NEX, Northpoint, Causeway Point, IMM, Westgate, JEM, Vivocity, Bugis, Junction 8, Centrepoint), estate names (Serangoon, Tampines, Bedok, Jurong, Woodlands, Yishun, Clementi, Bishan, Novena, Raffles, Marina, Orchard, Changi, Geylang, Hougang, Sengkang, Punggol, Bukit Batok, Bukit Panjang, Ang Mo Kio, Toa Payoh, Kallang, Pasir Ris), and generic location words (Central, East, West, North, South, MRT, Block, Blk, Road, Street, Avenue, Drive, Lane, Crescent).
-- address: Singapore address ONLY if it appears in the customer's CURRENT message. NEVER extract an address from previous conversation turns. If the current message is just a name with no address, return null.
-- isPricingQuestion: true if they asked about cost/price/"how much" OR if the conversation history shows we asked for an item/service and they replied with a furniture item or service type
-- mentionedItem: specific furniture item name if pricing-related — even without explicit "how much" (e.g. "wardrobe", "PAX wardrobe", "3-door wardrobe", "queen bed frame", "dining table", "sofa"). Set when message is a furniture item name.
-- mentionedService: the service type if they specified one (installation/dismantling/relocation/disposal). Common patterns: "installation"→installation, "dismantle"→dismantling, "relocate"→relocation, "dispose"→disposal.
-
-Key examples:
-- Customer says "Kayden" → name="Kayden" (single first name is valid!)
-- Customer says "John Tan" → name="John Tan"
-- History: bot asked "what item would you like a price for?" → customer says "wardrobe" → mentionedItem="wardrobe", isPricingQuestion=true
-- History: bot asked "Spotted a photo! What item is it and what service?" → customer says "Installation" → mentionedService="installation", isPricingQuestion=true, mentionedItem=null
-- Customer says "wardrobe installation" → mentionedItem="wardrobe", mentionedService="installation", isPricingQuestion=true`,
-                },
-                ...historyMessages(conversationHistory, 4),
-                { role: "user", content: text },
-              ],
-            });
-            const parsed = JSON.parse(nameRes.choices[0]?.message?.content || "{}");
-            extractedName = parsed.name || null;
-            nameExtractedAddress = parsed.address || null;
-            nameIsPricing = !!parsed.isPricingQuestion;
-            nameMentionedItem = parsed.mentionedItem || null;
-            nameMentionedService = parsed.mentionedService || null;
-          } catch {}
-        }
-
-        // ── Not a name: handle pricing question or re-ask ──────────────────
-        if (!extractedName) {
-          // Service-only reply (e.g. "Installation" or photo + "how much for this installation")
-          // Try to get the item(s) from the photo first, THEN ask if still missing
-          if (nameIsPricing && nameMentionedService && !nameMentionedItem) {
-            let itemFromPhoto: string | null = null;
-            let detectedItemLabel: string | null = null;
-            if (msgType === "image" && msg.image?.id) {
-              try {
-                const svcMedia = await downloadWhatsAppMedia(msg.image.id);
-                if (svcMedia) {
-                  const result = await scanFurnitureInPhoto(svcMedia.mimeType, svcMedia.base64);
-                  if (result && result.length > 0) {
-                    itemFromPhoto = result[0].name;
-                    detectedItemLabel = buildScanDisplayLabel(result);
-                    // Store full items in itemFromPhoto as an estimate-ready string
-                    itemFromPhoto = buildEstimateText(result, nameMentionedService);
-                  }
-                }
-              } catch { /* token expired or network error */ }
-            }
-            if (itemFromPhoto) {
-              // We have items (with counts) and service — build a proper estimate
-              const fakeItemSvcSession = {
-                collectedItems: itemFromPhoto,
-                floorLevel: null as number | null,
-                hasLift: null as boolean | null,
-                accessDifficulty: null as string | null,
-                isRelocation: nameMentionedService.includes("reloc"),
-                distanceKm: null as string | null,
-              };
-              const priceMsg = await buildJobEstimateMessage(fakeItemSvcSession as any);
-              if (priceMsg) {
-                const reply = `📸 I can see *${detectedItemLabel}* in your photo!\n\n${priceMsg}\n\n_Floor surcharges & transport may apply._\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
-                await sendBotMessage(from, reply);
-                saveHistory(from, conversationHistory, text, reply);
-                return;
-              }
-              await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-              const customReply =
-                `📸 I can see *${detectedItemLabel}* in your photo — ${nameMentionedService} noted!\n\n` +
-                `This looks like a custom or commercial job. Our team will prepare a tailored quote for you. 😊\n\n` +
-                `To get started, what's your *full name*?`;
-              await sendBotMessage(from, customReply);
-              saveHistory(from, conversationHistory, text, customReply);
-              return;
-            }
-            // No item detected in photo — ask for it, with loop detection
-            const svcLabel: Record<string, string> = {
-              installation: "installed", dismantling: "dismantled",
-              relocation: "relocated", disposal: "disposed of",
-            };
-            const verb = svcLabel[nameMentionedService!] || nameMentionedService;
-            let askForItem: string;
-            if (isBotLooping(conversationHistory, "which item") || isBotLooping(conversationHistory, "what item")) {
-              askForItem = `Just type the *item name* and I'll get the ${nameMentionedService} price instantly!\n\ne.g. *wardrobe*, *bed frame*, *sofa*, *dining table*`;
-            } else {
-              askForItem =
-                `Got it — *${nameMentionedService}*! 🛠️\n\n` +
-                `Which *item* would you like ${verb}?\n\n` +
-                `_e.g. wardrobe, queen bed frame, dining table, sofa_`;
-            }
-            await sendBotMessage(from, askForItem);
-            saveHistory(from, conversationHistory, text, askForItem);
-            return;
-          }
-
-          if (nameIsPricing) {
-            // If caption had no item name but a photo was sent, scan the photo
-            let pricingScanned: ScannedFurnitureItem[] = [];
-            let itemForLookup = nameMentionedItem;
-            let detectedItemLabel2: string | null = null;
-            if (!itemForLookup && msgType === "image" && msg.image?.id) {
-              try {
-                const pricingMedia2 = await downloadWhatsAppMedia(msg.image.id);
-                if (pricingMedia2) {
-                  const result2 = await scanFurnitureInPhoto(pricingMedia2.mimeType, pricingMedia2.base64);
-                  if (result2 && result2.length > 0) {
-                    pricingScanned = result2;
-                    detectedItemLabel2 = buildScanDisplayLabel(result2);
-                    const knownSvcForEstimate = extractServiceFromHistory(conversationHistory) || nameMentionedService || "installation";
-                    itemForLookup = buildEstimateText(result2, knownSvcForEstimate);
-                  }
-                }
-              } catch { /* ignore */ }
-            }
-            if (itemForLookup) {
-              const fakeP2Session = {
-                collectedItems: itemForLookup,
-                floorLevel: null as number | null,
-                hasLift: null as boolean | null,
-                accessDifficulty: null as string | null,
-                isRelocation: (nameMentionedService || "").includes("reloc"),
-                distanceKm: null as string | null,
-              };
-              const priceMsg = pricingScanned.length > 0
-                ? await buildJobEstimateMessage(fakeP2Session as any)
-                : await smartPricingLookup(itemForLookup);
-              if (priceMsg) {
-                const replyPrice = pricingScanned.length > 0
-                  ? `📸 I can see *${detectedItemLabel2}* in your photo!\n\n${priceMsg}\n\n_Floor surcharges & transport may apply._\n\nWould you like a full personalised quote? To get started, what's your *full name*? 😊`
-                  : `${priceMsg}\n\nWould you like a full personalised quote? To get started, what's your *full name*? 😊`;
-                await sendBotMessage(from, replyPrice);
-                saveHistory(from, conversationHistory, text, replyPrice);
-                return;
-              }
-              // Item detected but not in standard catalog — start custom quote flow
-              const customLabel = detectedItemLabel2 || nameMentionedItem || itemForLookup;
-              const knownSvc2 = extractServiceFromHistory(conversationHistory);
-              const svcNote2 = knownSvc2 ? ` — *${knownSvc2}* noted` : "";
-              await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-              const customReply2 =
-                `📸 I can see *${customLabel}* in your photo${svcNote2}!\n\n` +
-                `This looks like a custom or commercial job. Our team will prepare a tailored quote for you. 😊\n\n` +
-                `To get started, what's your *full name*?`;
-              await sendBotMessage(from, customReply2);
-              saveHistory(from, conversationHistory, text, customReply2);
-              return;
-            }
-            // No item found — ask them to specify (context-aware to avoid repetition)
-            const knownSvcPricing = extractServiceFromHistory(conversationHistory);
-            let askItemMsg: string;
-            if (isBotLooping(conversationHistory, "what item") || isBotLooping(conversationHistory, "which item") || isBotLooping(conversationHistory, "price for")) {
-              askItemMsg = knownSvcPricing
-                ? `Just type the *item name* — e.g. *wardrobe*, *bed frame*, *sofa* — and I'll get you that ${knownSvcPricing} price! 😊`
-                : `Just type the *item name and service* — e.g. *wardrobe installation* or *bed frame dismantling* — and I'll get the price for you!`;
-            } else if (knownSvcPricing) {
-              askItemMsg = `Sure! Which *item* would you like a ${knownSvcPricing} price for?\n\n_e.g. wardrobe, queen bed frame, sofa, dining table_`;
-            } else {
-              askItemMsg =
-                `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
-                `_e.g. "IKEA PAX wardrobe — installation" or "queen bed frame — dismantling"_`;
-            }
-            await sendBotMessage(from, askItemMsg);
-            saveHistory(from, conversationHistory, text, askItemMsg);
-            return;
-          }
-          // Could not extract a name — check if they sent a complex job info message
-          const looksLikeSingaporeAddress = /\d/.test(text) && text.length > 8 &&
-            /\b(blk|block|ave|avenue|st |street|road|rd|central|crescent|drive|place|close|lane|way|link|circle|park|hill|view|garden|grove|rise|terrace|walk|height|toa payoh|ang mo kio|bedok|tampines|jurong|yishun|woodlands|bishan|bukit|serangoon|hougang|punggol|sengkang|pasir|clementi|queenstown|redhill|tiong bahru|orchard|novena|toa|kallang|geylang|aljunied|paya lebar|choa chu kang|boon lay|pioneer|lakeside)\b/i.test(text);
-          if (looksLikeSingaporeAddress || text.length > 60) {
-            // Comprehensive extraction — pull address + toAddress + items + isRelocation
-            let nameStateFromAddr: string | null = null;
-            let nameStateToAddr: string | null = null;
-            let nameStateItems: string | null = null;
-            let nameStateIsReloc = false;
-            // Declare saveFields before try so lift/floor extraction can populate it
-            const saveFields: Record<string, unknown> = { state: "awaiting_name" };
-            try {
-              const fullRes = await openai.chat.completions.create({
-                model: "gpt-4o",
-                max_tokens: 700,
-                response_format: { type: "json_object" },
-                messages: [{
-                  role: "system",
-                  content: `Extract all furniture job details from this Singapore customer message. Return JSON:
-{
-  "fromAddress": string or null,
-  "toAddress": string or null,
-  "isRelocation": boolean,
-  "items": string or null,
-  "liftFrom": boolean or null,
-  "liftTo": boolean or null,
-  "floorFrom": number or null,
-  "floorTo": number or null
-}
-- fromAddress: pickup/collection/from address. Null if not present.
-- toAddress: delivery/drop-off/to address for relocations only. Null if not stated.
-- isRelocation: true if moving furniture between two locations.
-- items: ALWAYS extract if mentioned. Bullet list, one • per line, quantity + name + service type in brackets.
-  Service: move/relocate/shift=relocate; dismantle/remove/take apart=dismantle; dispose/throw/haul away/get rid of=dispose; install/assemble/set up=install.
-  Examples: "• 1 king size bed (relocate)\\n• 1 wardrobe (relocate)\\n• 1 bed frame (dispose)\\n• 1 mattress (dispose)"
-  Return null for items ONLY if absolutely no furniture is mentioned.
-- liftFrom: true/false if customer mentions lift at FROM/pickup address. Null if not stated.
-- liftTo: true/false if customer mentions lift at TO/delivery address. Null if not stated.
-- floorFrom: floor number of FROM address if stated or inferable from unit# (e.g. #09-xxxx → 9). Null if unknown.
-- floorTo: floor number of TO address if stated or inferable from unit# (e.g. #03-xxxx → 3). Null if unknown.
-
-Message: "${text.slice(0, 800)}"`
-                }]
-              });
-              const fe = JSON.parse(fullRes.choices[0]?.message?.content || "{}");
-              nameStateFromAddr = fe.fromAddress || null;
-              nameStateToAddr = fe.toAddress || null;
-              nameStateItems = fe.items || null;
-              nameStateIsReloc = !!fe.isRelocation;
-              // Lift: worst case — if EITHER address has no lift, hasLift=false
-              if (fe.liftFrom === false || fe.liftTo === false) (saveFields as any).hasLift = false;
-              else if (fe.liftFrom === true && fe.liftTo !== false) (saveFields as any).hasLift = true;
-              else if (fe.liftFrom === true || fe.liftTo === true) (saveFields as any).hasLift = true;
-              // Floor: use higher floor (more work = more relevant for pricing)
-              const floorVals = [fe.floorFrom, fe.floorTo].filter((v): v is number => typeof v === "number" && v > 0);
-              if (floorVals.length > 0) (saveFields as any).floorLevel = Math.max(...floorVals);
-            } catch {}
-
-            // Save everything we found — only ask for the missing name
-            if (nameStateFromAddr) saveFields.collectedAddress = nameStateFromAddr;
-            if (nameStateToAddr) saveFields.collectedToAddress = nameStateToAddr;
-            if (nameStateItems) saveFields.collectedItems = nameStateItems;
-            if (nameStateIsReloc) saveFields.isRelocation = true;
-            await storage.upsertWhatsAppSession(from, saveFields);
-
-            const addrSummary = nameStateIsReloc && nameStateToAddr
-              ? `📍 *From:* ${nameStateFromAddr || "noted"}\n📍 *To:* ${nameStateToAddr}\n`
-              : nameStateFromAddr ? `📍 *Address:* ${nameStateFromAddr}\n` : "";
-            const itemsSummary = nameStateItems ? `🛋️ *Items:*\n${nameStateItems}\n\n` : "";
-            const gotSomething = addrSummary || itemsSummary;
-            await sendBotMessage(from,
-              gotSomething
-                ? `Got it! Here's what I've noted:\n\n${addrSummary}${itemsSummary}` +
-                  `Before I lock it in, could I get your *full name*? 😊\n\n_e.g. "John", "Mary Tan", "Ahmad"_`
-                : `📍 Got it — I've noted that address!\n\nBefore I lock it in, could I get your *name*? 😊\n\n_e.g. "John", "Mary Tan", "Ahmad"_`
-            );
-            return;
-          }
-          // Generic re-ask for name
-          await sendBotMessage(from,
-            `Just your name to get started! 😊\n\n_e.g. "John", "Mary Tan", "Ahmad"_`
-          );
-          return;
-        }
-
-        // ── Valid name — proceed through the quote flow ────────────────────
-        if (nameExtractedAddress) {
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedName: extractedName, collectedAddress: nameExtractedAddress });
-          const replyNameAddr =
-            `✅ Thanks, *${extractedName}*! Address noted: *${nameExtractedAddress}*\n\n` +
-            `What furniture do you need help with?\n\n` +
-            `📸 *Send a photo* and I'll detect the items — or *type the list* below.\n\n` +
-            `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
-          await sendBotMessage(from, replyNameAddr);
-          saveHistory(from, conversationHistory, text, replyNameAddr);
-          return;
-        }
-
-        const alreadyHasAddress = !!session?.collectedAddress;
-        const alreadyHasItemsToo = !!(session?.collectedItems && session.collectedItems !== "__scanning__");
-        const alreadyIsRelocation = !!session?.isRelocation;
-        const alreadyHasToAddress = !!session?.collectedToAddress;
-        await storage.upsertWhatsAppSession(from, { collectedName: extractedName });
-
-        let replyName: string;
-        if (alreadyHasItemsToo && alreadyHasAddress) {
-          // Both address + items present — check if floor/lift were already extracted
-          const floorAlreadyKnown = session?.floorLevel != null && session.floorLevel > 0;
-          const liftAlreadyKnown = session?.hasLift != null;
-          const addrLine = alreadyIsRelocation && alreadyHasToAddress
-            ? `📍 *From:* ${session!.collectedAddress}\n📍 *To:* ${session!.collectedToAddress}\n`
-            : `📍 *Address:* ${session!.collectedAddress}\n`;
-          const summaryHeader =
-            `Thanks, *${extractedName}*! 😊 Here's what I have:\n\n` +
-            `👤 *Name:* ${extractedName}\n` +
-            addrLine +
-            `🛋️ *Items:*\n${session!.collectedItems}\n\n`;
-
-          if (floorAlreadyKnown && liftAlreadyKnown) {
-            // Floor and lift already captured from earlier message — skip straight to access
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_access" });
-            const liftTag = session!.hasLift ? "lift ✅" : "no lift";
-            replyName =
-              summaryHeader +
-              `Floor *${session!.floorLevel}*, *${liftTag}* — already noted! ✅\n\n` +
-              `Almost there! How easy is access to the unit?\n\n` +
-              `1️⃣ *Easy* — clear corridors, no obstacles\n` +
-              `2️⃣ *Moderate* — some tight corners or obstacles\n` +
-              `3️⃣ *Difficult* — very narrow, many steps\n\n` +
-              `Reply *1*, *2*, or *3*`;
-          } else {
-            // Need floor/lift info
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_floor" });
-            replyName =
-              summaryHeader +
-              `Just a couple more details — which *floor* is the unit on?\n\n` +
-              `Reply with a number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
-              `And is there a *lift* available? (yes / no)`;
-          }
-        } else if (alreadyHasItemsToo && !alreadyHasAddress) {
-          // Have items but no address — must collect address before confirming
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-          replyName =
-            `Thanks, *${extractedName}*! 😊\n\n` +
-            `📍 Where is the job? Drop the *full address* — block/unit number helps too.\n\n` +
-            `_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
-        } else if (alreadyHasAddress) {
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_items" });
-          replyName =
-            `Thanks, *${extractedName}*! 😊\n\n` +
-            `What furniture do you need help with?\n\n` +
-            `📸 *Send a photo* and I'll detect the items — or *type the list* below.\n\n` +
-            `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
-        } else {
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-          replyName =
-            `Thanks, *${extractedName}*! 😊\n\n` +
-            `📍 Where is the job? Drop the *full address* below — block/unit number helps too.\n\n` +
-            `_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
-        }
-        await sendBotMessage(from, replyName);
-        saveHistory(from, conversationHistory, text, replyName);
-        return;
-      }
-
-      if (state === "awaiting_address") {
-        // ── Guard: photo sent instead of address ───────────────────────────────
-        // Customer sometimes re-sends a furniture photo (e.g. "Installation") when
-        // they're still being asked for their address. Catch this early so we don't
-        // try to parse "Installation" / "Dismantle" etc. as a Singapore address.
-        const SERVICE_TYPE_PATTERN = /^(install(ation)?|dismantle?|dismantling|relocat(e|ion)|dispos(e|al)|dismantle\s*\+?\s*dispos(e|al))$/i;
-        if (msgType === "image" && msg.image?.id && (text.length === 0 || SERVICE_TYPE_PATTERN.test(text.trim()))) {
-          await sendBotMessage(from,
-            `📸 Got your photo — I'll scan it for the furniture list once I have the address!\n\n` +
-            `📍 Could you drop the *job address* first?\n\n` +
-            `_e.g. Blk 261 Serangoon Central #05-01, S550261_`
-          );
-          return;
-        }
-        if (text.length < 4) {
-          await sendBotMessage(from, `Could you give me the *full address*? Include the block/unit number if applicable. 📍`);
-          return;
-        }
-        // Use GPT to extract and clean the Singapore address
-        let extractedAddress = text;
-        try {
-          const addrRes = await openai.chat.completions.create({
-            model: "gpt-4o",
-            max_tokens: 100,
-            response_format: { type: "json_object" },
-            messages: [
-              {
-                role: "system",
-                content: `You are a WhatsApp assistant for TMG Install (Singapore). The customer was asked for their job address. Extract and clean it.
-Return JSON: { "address": string or null, "valid": boolean }
-
-Rules:
-- address: cleaned, properly capitalised Singapore address
-- valid: true for ANY recognisable Singapore location — this includes:
-  • Block/street addresses: "Blk 261 Serangoon Central #05-01"
-  • Postal codes: "S550261"
-  • Named buildings: "The Seletar Mall", "NEX Serangoon", "Vivocity", "Ion Orchard", "Tampines Mall", "Bedok Mall", "Jurong Point", "Causeway Point", "Northpoint City", "Waterway Point", "Paya Lebar Quarter", "Marina Square", any HDB estate name, condo name, building name
-  • Area names with context: "Tampines Ave 1", "Bishan St 22", "Yishun Ring Road"
-  • Hotels, hospitals, schools, offices, industrial buildings
-- valid: false ONLY for genuinely unidentifiable input — e.g. just "Singapore", "here", "my house", or random non-location text
-- When in doubt, set valid: true and preserve the address as given — it's better to accept than to reject`,
-              },
-              ...historyMessages(conversationHistory, 4),
-              { role: "user", content: text },
-            ],
-          });
-          const parsed = JSON.parse(addrRes.choices[0]?.message?.content || "{}");
-          if (parsed.address) extractedAddress = parsed.address;
-          if (parsed.valid === false) {
-            await sendBotMessage(from,
-              `I need a bit more detail — could you include the *block number, street*, or *postal code*? 📍\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`
-            );
-            return;
-          }
-        } catch {}
-
-        // If the message is long and contains furniture keywords, try to extract items + toAddress too
-        // (customer often sends address AND items together in one message)
-        let extractedItemsInAddr: string | null = null;
-        let extractedToAddrInAddr: string | null = null;
-        let detectedIsRelocationInAddr = session?.isRelocation ?? false;
-        const hasComplexContent = text.length > 40 &&
-          /\b(wardrobe|bed|sofa|table|chair|cabinet|mattress|desk|fridge|washing|king|queen|move|relocate|dismantle|dispose|deliver|delivery|pick.?up|pickup|frame|couch|shelf|bookshelf|rack)\b/i.test(text);
-        if (hasComplexContent) {
-          try {
-            const compRes = await openai.chat.completions.create({
-              model: "gpt-4o",
-              max_tokens: 600,
-              response_format: { type: "json_object" },
-              messages: [{
-                role: "system",
-                content: `Extract all furniture job details from this Singapore customer message. Return JSON:
-{
-  "fromAddress": string or null,
-  "toAddress": string or null,
-  "isRelocation": boolean,
-  "items": string or null
-}
-- fromAddress: main/pickup/from address. Null if not present.
-- toAddress: delivery/destination address for relocations only. Null if not stated.
-- isRelocation: true if customer is moving furniture between two locations.
-- items: ALWAYS extract furniture items if mentioned. Bullet list — one • per line, quantity + name + service in brackets.
-  Service: move/relocate/shift=relocate; dismantle/remove/take apart=dismantle; dispose/throw/haul away/get rid of=dispose; install/assemble/set up=install.
-  Examples: "• 1 king size bed (relocate)" "• 1 old bed frame (dispose)" "• 1 wardrobe (install)"
-  Return null for items ONLY if no furniture is mentioned at all.
-
-Message: "${text.slice(0, 800)}"`
-              }]
-            });
-            const comp = JSON.parse(compRes.choices[0]?.message?.content || "{}");
-            extractedItemsInAddr = comp.items || null;
-            extractedToAddrInAddr = comp.toAddress || null;
-            if (comp.isRelocation) detectedIsRelocationInAddr = true;
-            if (comp.fromAddress) extractedAddress = comp.fromAddress; // use cleaner from-address if extracted
-          } catch {}
-        }
-
-        const effectiveItems = extractedItemsInAddr ||
-          (session?.collectedItems && session.collectedItems !== "__scanning__" ? session.collectedItems : null);
-        const isPhotoDetectedItems = session?.previousItems === "photo_detected";
-
-        // Save address + any newly-extracted items/toAddress/relocation flag
-        const addrUpdates: Record<string, unknown> = { collectedAddress: extractedAddress };
-        if (extractedItemsInAddr) addrUpdates.collectedItems = extractedItemsInAddr;
-        if (extractedToAddrInAddr) addrUpdates.collectedToAddress = extractedToAddrInAddr;
-        if (detectedIsRelocationInAddr) addrUpdates.isRelocation = true;
-
-        let replyAddr: string;
-        if (effectiveItems && !isPhotoDetectedItems) {
-          // Items already known or just extracted — skip straight to floor/lift collection
-          await storage.upsertWhatsAppSession(from, {
-            ...addrUpdates,
-            state: "awaiting_floor",
-            floorLevel: null,
-            hasLift: null,
-          });
-          const addrDisplay = detectedIsRelocationInAddr && extractedToAddrInAddr
-            ? `📍 *From:* ${extractedAddress}\n📍 *To:* ${extractedToAddrInAddr}\n`
-            : `📍 *${extractedAddress}* — noted!\n`;
-          replyAddr =
-            addrDisplay + `\n` +
-            (extractedItemsInAddr ? `🛋️ *Items noted:*\n${extractedItemsInAddr}\n\n` : "") +
-            `Almost there! Just a couple of quick questions to finalise your quote. 😊\n\n` +
-            `*Which floor is the unit on?*\n\n` +
-            `Reply with the floor number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
-            `And is there a *lift* available? (yes / no)`;
-        } else if (effectiveItems && isPhotoDetectedItems) {
-          // Items were detected from a photo — confirm them before moving to floor/access
-          await storage.upsertWhatsAppSession(from, {
-            ...addrUpdates,
-            state: "awaiting_items_verify",
-            previousItems: null, // clear the flag
-          });
-          replyAddr =
-            `📍 *${extractedAddress}* — noted!\n\n` +
-            `Here's what I've got so far:\n\n` +
-            `🛋️ *Items:*\n${effectiveItems}\n\n` +
-            `Does this look right? Reply *YES* to confirm, or tell me what to change.`;
-        } else {
-          await storage.upsertWhatsAppSession(from, { ...addrUpdates, state: "awaiting_items" });
-          const nextPromptItems =
-            `📍 *${extractedAddress}* — noted!\n\n` +
-            `What furniture do you need help with?\n\n` +
-            `📸 *Send a photo* and I'll detect the items automatically — or *type the list* below.\n\n` +
-            `Mention the service too if you know it (install, dismantle, relocate, dispose).\n\n` +
-            `_e.g._\n• 1 king bed frame (install)\n• 3-door PAX wardrobe (dismantle+dispose)\n• L-shaped sofa (disposal only)`;
-          replyAddr = nextPromptItems;
-        }
-        await sendBotMessage(from, replyAddr);
-        saveHistory(from, conversationHistory, text, replyAddr);
-        return;
-      }
-
-      if (state === "awaiting_items") {
-        const name = session.collectedName!;
-        const address = session.collectedAddress!;
-
-        // ── Image sent: analyze with OpenAI Vision ────────────────────────
-        if (msgType === "image" && msg.image?.id) {
-          // ── Step 1: Atomic claim — only the FIRST webhook handler wins ────────
-          // All 4 photos in an album arrive simultaneously. claimPhotoScan does a
-          // single-row UPDATE WHERE state='awaiting_items'. PostgreSQL guarantees
-          // only one concurrent caller can succeed. Losers call appendPhotoToScanQueue
-          // (raw SQL concat — no read-then-write) and return silently.
-          const isPrimaryScanner = await storage.claimPhotoScan(from, msg.image.id);
-          if (!isPrimaryScanner) {
-            // Not first — atomically append our ID to the queue and exit
-            await storage.appendPhotoToScanQueue(from, msg.image.id);
-            return;
-          }
-
-          // Send ONE acknowledgment — no matter how many photos follow
-          await sendBotMessage(from, `Got it! Give me a moment to scan your photo(s)... 🔍`);
-
-          // ── Step 2: Wait 5 s so all concurrently-sent photos can append ───────
-          await new Promise(resolve => setTimeout(resolve, 5000));
-
-          // ── Step 3: Re-read session to collect ALL photo IDs ─────────────────
-          const latestSession = await storage.getWhatsAppSession(from);
-          const queueStr = latestSession?.collectedItems ?? `__scanning__:${msg.image.id}`;
-          const allIds = queueStr.startsWith("__scanning__:")
-            ? [...new Set(queueStr.slice("__scanning__:".length).split(",").filter(Boolean))]
-            : [msg.image.id];
-
-          // ── Helper: scan one media ID ─────────────────────────────────────────
-          async function scanPhoto(mediaId: string): Promise<string | null> {
-            const media = await downloadWhatsAppMedia(mediaId);
-            if (!media) return null;
-            const visionRes = await openai.chat.completions.create({
-              model: "gpt-4o",
-              max_tokens: 800,
-              messages: [
-                {
-                  role: "system",
-                  content: `You are an expert furniture identification assistant for TMG Install, a professional furniture installation company in Singapore.
-
-Your task: Carefully examine the photo and list ALL furniture items that require professional installation, assembly, dismantling, or relocation.
-
-Rules:
-- COUNT each piece individually (e.g. if you see 4 chairs, write "4 dining chairs")
-- Identify BRAND/MODEL if visible (IKEA PAX, IKEA MALM, IKEA HEMNES, etc.)
-- Include ALL visible furniture — don't skip anything
-- DO NOT include TVs, electronics, decorative items, or small accessories
-- Format: one bullet per line starting with quantity then item name, e.g. "• 1 queen bed frame"
-
-If no installable furniture is visible, respond only with: NO_FURNITURE
-
-${FURNITURE_VISION_GUIDE}`,
-                },
-                {
-                  role: "user",
-                  content: [
-                    { type: "text", text: "Identify all furniture items in this photo that need professional installation, assembly, dismantling, or relocation." },
-                    { type: "image_url", image_url: { url: `data:${media.mimeType};base64,${media.base64}`, detail: "high" } },
-                  ] as any,
-                },
-              ],
-            });
-            const raw = (visionRes.choices[0]?.message?.content || "").trim();
-            return (!raw || raw.includes("NO_FURNITURE")) ? null : raw;
-          }
-
-          // ── Step 4: Scan ALL queued photos in parallel ────────────────────────
-          try {
-            const results = await Promise.all(allIds.map(id => scanPhoto(id).catch(() => null)));
-            const validResults = results.filter((r): r is string => !!r);
-
-            if (validResults.length === 0) {
-              await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
-              await sendBotMessage(from,
-                `Hmm, I couldn't spot any furniture in ${allIds.length > 1 ? "those photos" : "that photo"}. No worries — just *type out the items* you need help with, like:\n• 1 king bed frame\n• 3-door wardrobe\n• Dining table + 4 chairs`
-              );
-              return;
-            }
-
-            // Merge all results using GPT to intelligently combine without losing items
-            // Simple string dedup loses items when the same item is worded differently across photos
-            let allDetected: string;
-            if (validResults.length === 1) {
-              // Only one photo — just format the result directly
-              allDetected = validResults[0].split("\n")
-                .map(l => l.trim()).filter(Boolean)
-                .map(l => l.startsWith("•") ? l : `• ${l}`)
-                .join("\n");
-            } else {
-              // Multiple photos — use GPT to intelligently merge
-              const mergeRes = await openai.chat.completions.create({
-                model: "gpt-4o",
-                max_tokens: 600,
-                messages: [{
-                  role: "system",
-                  content: `You received furniture lists from ${validResults.length} different photos of a home or office.
-Your job: merge them into ONE complete, accurate list without losing any items.
-
-Rules:
-- KEEP every unique item — do NOT drop items that are real but described differently
-- DEDUPLICATE only when the SAME item clearly appears in MULTIPLE photos of the SAME room
-  (e.g. "4 dining chairs" in photo 1 AND "4 wooden dining chairs" in photo 2 of same dining room = 1 entry)
-- NEVER merge items that are clearly in DIFFERENT rooms or different photos of different areas
-- If uncertain whether two mentions are the same item, KEEP BOTH
-- Count quantities correctly — if photo 1 has "2 wardrobes" and photo 2 has "1 different wardrobe" in another room = 3 wardrobes total
-- Format: one bullet per line starting with "•", e.g. "• 4 dining chairs"
-
-Return ONLY the merged bullet list, nothing else.
-
-Raw lists from each photo:
-${validResults.map((r, i) => `[Photo ${i + 1}]\n${r}`).join("\n\n")}`
-                }]
-              });
-              const merged = (mergeRes.choices[0]?.message?.content || "").trim();
-              allDetected = merged.split("\n")
-                .map(l => l.trim()).filter(Boolean)
-                .map(l => l.startsWith("•") ? l : `• ${l}`)
-                .join("\n");
-            }
-
-            // ── Step 5: Save and send ONE combined summary ────────────────────
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: allDetected });
-            await sendBotMessage(from,
-              `Here's what I found in your photo${allIds.length > 1 ? "s" : ""}:\n\n${allDetected}\n\n` +
-              `Does this look right?\n` +
-              `• Reply *YES* to proceed\n` +
-              `• *Type a correction or addition* if anything's off\n` +
-              `• Send *another photo* to add more items\n` +
-              `• Reply *NO* to redo the list`
-            );
-            return;
-          } catch (err) {
-            console.error("[WhatsApp] Image analysis error:", err);
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_items", collectedItems: null });
-            await sendBotMessage(from,
-              `Sorry, had a bit of trouble with that photo. Could you *type out the furniture items* instead? 🙏`
-            );
-            return;
-          }
-        }
-
-        // ── Text input: use GPT to parse and format the item list ─────────
-        if (text.length < 3) {
-          await sendBotMessage(from,
-            `What furniture do you need help with? 😊\n\n📸 *Send a photo* and I'll detect the items — or just *type the list* below.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
-          );
-          return;
-        }
-
-        // ── Pre-check: customer is referring to a previously-sent photo ──────
-        const photoRefPattern = /\b(share[d]?|sent?|show[n]?|upload[ed]?|gave|given|forward[ed]?|already)\b.{0,30}\b(photo|picture|pic|image)\b|\b(photo|picture|pic|image)\b.{0,30}\b(already|earlier|before|just now|sent?|share[d]?)\b/i;
-        if (photoRefPattern.test(text)) {
-          await sendBotMessage(from,
-            `I see you mentioned sharing a photo earlier! 📸\n\n` +
-            `Please *re-send the photo* and I'll automatically detect the furniture for you — ` +
-            `or just *type the item names* below and I'll proceed from there.\n\n` +
-            `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
-          );
-          return;
-        }
-
-        // ── Pre-check: customer is frustrated / saying they already shared info ─
-        const alreadySharedPattern = /\b(already\s+(shared|told|gave|given|sent|provided|said|mentioned|informed)|i\s+just\s+(told|shared|said|gave|mentioned)|just\s+now|not\s+(reading|listening)|read\s+my\s+message|check\s+(my|the)\s+message|you\s+(didn.?t|don.?t|have.?n.?t)\s+(read|see|check|receive|got)|above|scroll\s+up|refer\s+to)\b/i;
-        if (alreadySharedPattern.test(text)) {
-          // Bot missed some info — re-check what we already have and recover
-          const knownItems = session?.collectedItems && session.collectedItems !== "__scanning__"
-            ? session.collectedItems : null;
-          if (knownItems) {
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify" });
-            await sendBotMessage(from,
-              `Apologies for the confusion! 🙏 Here's what I have:\n\n` +
-              `🛋️ *Items:*\n${knownItems}\n\n` +
-              `Does this look right?\n• Reply *YES* to proceed\n• *Type any corrections* if needed`
-            );
-          } else {
-            await sendBotMessage(from,
-              `So sorry about that! 🙏 I may have missed some details.\n\n` +
-              `Could you please *re-type the furniture items* you need help with? I'll make sure to capture everything correctly this time.\n\n` +
-              `_e.g. 1 king size bed (relocate), 1 wardrobe (dispose)_`
-            );
-          }
-          return;
-        }
-
-        let formattedItems = text;
-        try {
-          const itemsRes = await openai.chat.completions.create({
-            model: "gpt-4o",
-            max_tokens: 300,
-            response_format: { type: "json_object" },
-            messages: [{
-              role: "system",
-              content: `You are a quoting assistant for TMG Install, a furniture installation company in Singapore.
-The customer is being asked what furniture items they need help with.
-
-FIRST check: is this a general acknowledgment/done signal with NO actual furniture mentioned?
-Examples of done signals: "ok that's all", "nothing else", "done", "that's it", "all good", "ok", "sure", "yeah", "yes", "no more", "nothing more"
-If yes → return { "done": true, "items": null, "needsServiceType": false, "serviceOnly": false, "detectedService": null }
-
-SECOND check: Did the customer describe ONLY a service type without naming any specific furniture items?
-Examples: "I want to install", "I need dismantling", "dismantle and relocation of the items", "relocation service", "for moving", "want to relocate my stuff", "i want dismantle", "for installation", "disposal service"
-If yes → return { "done": false, "items": null, "needsServiceType": false, "serviceOnly": true, "detectedService": "install"|"dismantle"|"relocate"|"dispose"|"dismantle_dispose"|null }
-Note: "dismantle and relocate/relocation" → detectedService: "relocate"
-
-OTHERWISE, parse the furniture description and return JSON:
-{ "done": false, "items": string, "needsServiceType": boolean, "serviceOnly": false, "detectedService": null }
-- items: formatted bullet list (one • per line). Each line: "• [quantity] [item name] ([service type])"
-  - Service type brackets MUST use ONLY one of these exact values: install, dismantle, relocate, dispose, dismantle_dispose
-  - NEVER use any other description in brackets (e.g. "requires leg assembly", "needs disassembly", "flat pack" MUST be normalised — see mapping below)
-  - Service type mapping:
-    • "assembly", "assemble", "requires assembly", "requires leg assembly", "flat pack", "flat-pack", "put together", "set up" → install
-    • "dismantle only", "take apart", "disassemble", "unassemble", "pack" (no moving) → dismantle
-    • "relocate", "move", "shift", "transfer", "transport", "dismantle and relocate", "dismantle and move" → relocate (relocation includes dismantling at origin AND reinstall at destination)
-    • "dispose", "haul away", "throw away", "get rid of" → dispose
-    • "dismantle and dispose", "dismantle then haul" → dismantle_dispose
-  - If service type is mentioned in this message OR in the recent conversation context below, include it in brackets
-  - Service type context (from prior messages): ${
-    (() => {
-      const histText = conversationHistory.map((h: HistoryEntry) => h.content).join(" ").toLowerCase();
-      if (/reloc|moving|move/.test(histText)) return '"relocate" was mentioned earlier';
-      if (/dismantle|disassemble|take apart/.test(histText)) return '"dismantle" was mentioned earlier';
-      if (/install|assembly|assemble/.test(histText)) return '"install" was mentioned earlier';
-      if (/dispos|haul|throw/.test(histText)) return '"dispose" was mentioned earlier';
-      return 'none detected yet';
-    })()
-  }
-  - If no service type can be determined from this message or context, leave out the brackets (needsServiceType: true)
-  - Quantity if mentioned, otherwise just the item name
-  - IMPORTANT: "dismantle AND relocate/relocation" for the SAME item → use (relocate) only, NOT two separate lines
-- needsServiceType: true if NO service type was mentioned at all (neither in this message nor in context)
-
-Customer message: "${text}"`
-            }]
-          });
-          const parsed = JSON.parse(itemsRes.choices[0]?.message?.content || "{}");
-
-          if (parsed.done) {
-            await sendBotMessage(from,
-              `What furniture items do you need help with? 😊\n\n` +
-              `📸 *Send a photo* and I'll detect the items — or type the list below.\n\n` +
-              `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`
-            );
-            return;
-          }
-
-          if (parsed.serviceOnly) {
-            const svcVerbMap: Record<string, string> = {
-              install: "installed",
-              dismantle: "dismantled",
-              relocate: "relocated",
-              dispose: "disposed of",
-              dismantle_dispose: "dismantled and disposed of",
-            };
-            const verb = parsed.detectedService ? svcVerbMap[parsed.detectedService] || "helped with" : "helped with";
-            await sendBotMessage(from,
-              `Got it — ${parsed.detectedService ? `*${parsed.detectedService}* ` : ""}service noted! 👍\n\n` +
-              `Which specific *furniture items* would you like ${verb}?\n\n` +
-              `_e.g. wardrobe, queen bed frame, dining table, sofa, L-shaped sofa_\n\n` +
-              `📸 Or *send a photo* and I'll detect everything automatically!`
-            );
-            return;
-          }
-
-          if (parsed.items) formattedItems = parsed.items;
-
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: formattedItems });
-          await sendBotMessage(from,
-            `Got it! Here's what I have:\n\n${formattedItems}\n\n` +
-            (parsed.needsServiceType
-              ? `Is this for *installation, dismantling, relocation, or disposal*? (disposal only = higher price; dismantle+dispose bundle = cheaper) — or just reply *YES* if you're not sure and our team will confirm.\n\n`
-              : ``) +
-            `Does this look right?\n• Reply *YES* to proceed\n• *Type any corrections* if needed\n• Send a *photo* to add more items`
-          );
-        } catch {
-          // Fallback
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_items_verify", collectedItems: formattedItems });
-          await sendBotMessage(from,
-            `Got it! Here's what I have:\n\n${formattedItems}\n\nDoes this look right?\n• Reply *YES* to proceed\n• *Type any corrections* if needed`
-          );
-        }
-        return;
-      }
-
-      // ── Customer rechecks AI-detected items (from photo) ────────────────────
-      if (state === "awaiting_items_verify") {
-        const name = session.collectedName!;
-        const address = session.collectedAddress!;
-        const existingItems = session.collectedItems || "";
-
-        // ── Additional photo sent: merge detections ───────────────────────
-        if (msgType === "image" && msg.image?.id) {
-          // ── Still scanning first batch: silently append to queue ─────────────
-          // The primary scanner (3-second wait loop) will pick this up automatically
-          if (existingItems.startsWith("__scanning__")) {
-            // Use atomic SQL append — avoids the read-then-write race condition
-            // that drops IDs when multiple photos arrive in the same millisecond
-            await storage.appendPhotoToScanQueue(from, msg.image.id);
-            // No message — the primary scanner will send ONE combined result
-            return;
-          }
-
-          // ── Scanning complete: user sent an additional photo to add more ─────
-          try {
-            const media = await downloadWhatsAppMedia(msg.image.id);
-            if (!media) throw new Error("Could not download image");
-
-            await sendBotMessage(from, `Got your extra photo — scanning it now... 🔍`);
-
-            const visionRes = await openai.chat.completions.create({
-              model: "gpt-4o",
-              max_tokens: 800,
-              messages: [
-                {
-                  role: "system",
-                  content: `You are an expert furniture identification assistant for TMG Install, a professional furniture installation company in Singapore.
-Identify ALL furniture items visible that need professional installation, assembly, dismantling, or relocation.
-Rules:
-- COUNT each piece individually
-- Identify BRAND/MODEL if visible (IKEA PAX, IKEA HEMNES, etc.)
-- DO NOT include TVs, electronics, decorative items
-- Format: one bullet per line, e.g. "• 1 queen bed frame"
-If no installable furniture visible, respond only with: NO_FURNITURE
-
-${FURNITURE_VISION_GUIDE}`,
-                },
-                {
-                  role: "user",
-                  content: [
-                    { type: "text", text: "Identify all furniture items in this photo." },
-                    { type: "image_url", image_url: { url: `data:${media.mimeType};base64,${media.base64}`, detail: "high" } },
-                  ] as any,
-                },
-              ],
-            });
-
-            const newDetected = (visionRes.choices[0]?.message?.content || "").trim();
-
-            if (!newDetected || newDetected.includes("NO_FURNITURE")) {
-              await sendBotMessage(from,
-                `Hmm, couldn't spot any furniture in that one. Here's what I have so far:\n\n${existingItems}\n\n• Reply *YES* to confirm\n• *Type corrections or additions* if needed\n• Send *another photo* to add more\n• Reply *NO* to redo the list`
-              );
-              return;
-            }
-
-            // Merge new results into existing list, deduplicate
-            const seenLines = new Set<string>();
-            const mergedLines: string[] = [];
-            for (const line of [...existingItems.split("\n"), ...newDetected.split("\n")]) {
-              const cleaned = line.trim();
-              if (!cleaned) continue;
-              const key = cleaned.toLowerCase().replace(/[•\-\*]\s*/, "").trim();
-              if (!seenLines.has(key)) {
-                seenLines.add(key);
-                mergedLines.push(cleaned.startsWith("•") ? cleaned : `• ${cleaned}`);
-              }
-            }
-            const mergedItems = mergedLines.join("\n");
-
-            await storage.upsertWhatsAppSession(from, { collectedItems: mergedItems });
-            await sendBotMessage(from,
-              `Here's the updated list from all your photos:\n\n${mergedItems}\n\n` +
-              `• Reply *YES* if this is complete\n` +
-              `• *Type any corrections or additions*\n` +
-              `• Send *another photo* to add more\n` +
-              `• Reply *NO* to redo the list`
-            );
-            return;
-          } catch (err) {
-            console.error("[WhatsApp] Image merge error:", err);
-            await sendBotMessage(from,
-              `Oops, had trouble with that photo. Here's what I have so far:\n\n${existingItems}\n\nReply *YES* to confirm, or type any corrections.`
-            );
-            return;
-          }
-        }
-
-        const detectedItems = existingItems && existingItems !== "__scanning__" ? existingItems : "";
-        const previousItems = session.previousItems || "";
-
-        // ── Quick exact-match shortcuts ───────────────────────────────────────
-        if (textLower === "yes" || textLower === "ok" || textLower === "correct" || textLower === "looks good" || textLower === "confirm") {
-          // Check if items have any service type labels — if not, we MUST ask before proceeding
-          const hasServiceType = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(detectedItems);
-          if (!hasServiceType && detectedItems) {
-            await storage.upsertWhatsAppSession(from, { state: "awaiting_service_type", collectedItems: detectedItems });
-            await sendBotMessage(from,
-              `Got it, the list is confirmed! ✅\n\nOne more thing — what *service type* do you need?\n\n` +
-              `• *Installation* — assemble new furniture\n` +
-              `• *Dismantling* — take apart & remove existing furniture\n` +
-              `• *Relocation* — dismantle + move + reinstall at new location _(all-in-one)_\n` +
-              `• *Disposal* — haul away and dispose\n` +
-              `• *Dismantle + Dispose* — dismantle first, then dispose (cheaper bundle)\n\n` +
-              `Reply with the service type (e.g. *installation*, *relocation*, *disposal*)`
-            );
-            return;
-          }
-          await storage.upsertWhatsAppSession(from, { state: "awaiting_floor", collectedItems: detectedItems, floorLevel: null, hasLift: null });
-          const nextPromptFloor =
-            `Almost there — just a couple of quick logistics questions to finalise your quote!\n\n` +
-            `*Which floor is the unit on?*\n\n` +
-            `Reply with the floor number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
-            `And is there a *lift* available? (yes / no)`;
-          const replyVerifyYes = await craftReply(text, nextPromptFloor, { name: session.collectedName, history: conversationHistory });
-          await sendBotMessage(from, replyVerifyYes);
-          saveHistory(from, conversationHistory, text, replyVerifyYes);
-          return;
-        }
-
-        if (text.length < 2) {
-          await sendBotMessage(from,
-            `Reply *YES* to confirm, or tell me what to fix. 😊`
-          );
-          return;
-        }
-
-        // ── AI-powered intent understanding ───────────────────────────────────
-        // Use GPT to understand ANY natural language response from the user
-        try {
-          const intentRes = await openai.chat.completions.create({
-            model: "gpt-4o",
-            max_tokens: 600,
-            response_format: { type: "json_object" },
-            messages: [
-              {
-                role: "system",
-                content: `You are a WhatsApp assistant for TMG Install, a furniture installation company in Singapore.
-
-The bot has just shown the customer a detected furniture list and asked them to confirm it.
-
-Current detected list:
-${detectedItems || "(empty)"}
-
-${previousItems ? `Previous list (before customer said No/redo):\n${previousItems}` : ""}
-
-The customer replied: "${text}"
-
-Your job: understand what the customer wants and return a JSON response.
-
-Return ONLY valid JSON with these fields:
-{
-  "action": "confirm" | "add" | "update" | "redo" | "unclear",
-  "updatedList": "the complete updated bullet list as a string (• item per line), or empty string if action is redo/unclear",
-  "reply": "your natural human reply in English (1-2 sentences max, friendly tone)",
-  "isRelocation": true | false,
-  "serviceType": "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose" | null
-}
-
-Rules:
-- "confirm": customer is happy, wants to proceed (yes, ok, correct, looks right, good, etc.) — even if they ALSO mention service type
-- "add": customer wants to ADD items to the current list. Merge current + new items into updatedList
-- "update": customer wants to CORRECT, REPLACE, or REMOVE specific items. Provide the corrected updatedList
-- "redo": customer wants to completely start fresh without specifying what (just "no", "redo", "wrong", etc.)
-- "unclear": you genuinely cannot understand what they want
-- isRelocation: true if customer mentions this is a relocation, moving, shifting, or transport job
-- serviceType: set if customer mentions a service type for ALL items:
-  - "install" → assembly, installation, put together, set up, assemble
-  - "dismantle" → dismantle only, take apart only, disassemble (no moving)
-  - "relocate" → relocate, move, shift, transfer, transport, dismantle and relocate, dismantle and move, pick up and deliver — "dismantle and relocation" maps here
-  - "dispose" → dispose, throw away, haul away, get rid of, junk
-  - "dismantle_dispose" → dismantle and dispose, take apart and throw away, dismantle then haul
-  - null if no service type mentioned or items already have mixed service types
-- If serviceType is not null AND items list has no service type labels, update the updatedList to append "(serviceType)" to each item
-
-Smart parsing:
-- "this one", "that one", "yes this", "this is correct", "this is it", "yeah this" → action: confirm (customer is confirming the currently shown list)
-- "remove X" / "delete X" / "take off X" / "no X" / "without X" → remove X from current list (action: update)
-- "just remove the X, the rest is fine" → remove only X from current list, keep everything else (action: update)
-- "short of X" or "missing X" or "also need X" → add X to current list (action: add)
-- "the first list is correct" or "the original was right" → use previousItems as base + any new items mentioned
-- "wrong" / "not X" / "should be Y instead" → correct that item (action: update)
-- "just X" or "only X" → replace the whole list with just X (action: update)
-- If they reference "the first list" and previousItems exists, use previousItems as the starting point
-- IMPORTANT: "remove" means DELETE the item from the list — do NOT add it with "(remove)" tag, just omit it entirely
-- IMPORTANT: Never set updatedList to a vague pronoun like "this one", "that one", "it" — these always mean the customer is confirming the current list
-
-For updatedList: always format as bullet points starting with "•", one item per line.
-For reply: be natural and friendly, confirm what you did.`,
-              },
-            ],
-          });
-
-          const intent = JSON.parse(intentRes.choices[0]?.message?.content || "{}");
-          const action = intent.action as string;
-          const updatedList = (intent.updatedList as string || "").trim();
-          const aiReply = (intent.reply as string || "").trim();
-          const intentIsRelocation = !!intent.isRelocation || (intent.serviceType === "relocate");
-          const intentServiceType = intent.serviceType as string | null;
-
-          if (action === "confirm") {
-            // Use updatedList if GPT added service type labels, otherwise keep detectedItems
-            let finalItems = updatedList || detectedItems;
-
-            // Also check the raw customer message for "dismantle and reloc" pattern
-            const rawIsReloc = /dismantle.{0,20}reloc|reloc.{0,20}dismantle/i.test(text);
-            const resolvedIsRelocation = intentIsRelocation || rawIsReloc || session.isRelocation || false;
-            const resolvedServiceType = intentServiceType || (rawIsReloc ? "relocate" : null) || (resolvedIsRelocation ? "relocate" : null);
-
-            // If a service type is known but items lack labels, stamp all items now
-            const hasServiceTypeFinal = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(finalItems);
-            if (!hasServiceTypeFinal && resolvedServiceType) {
-              finalItems = finalItems.split("\n").map(line => {
-                if (!line.trim()) return line;
-                // Strip any existing non-standard bracket, then add correct service type
-                return `${line.replace(/\s*\(.*?\)\s*$/, "").trim()} (${resolvedServiceType})`;
-              }).join("\n");
-            }
-
-            // If service type is STILL missing after all checks, ask for it
-            const hasServiceTypeFinalCheck = /\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(finalItems);
-            if (!hasServiceTypeFinalCheck && !resolvedServiceType && !resolvedIsRelocation) {
-              await storage.upsertWhatsAppSession(from, { state: "awaiting_service_type", collectedItems: finalItems });
-              await sendBotMessage(from,
-                `${aiReply ? aiReply + "\n\n" : ""}One more thing — what *service type* do you need?\n\n` +
-                `• *Installation* — assemble new furniture\n` +
-                `• *Dismantling* — take apart & remove existing furniture\n` +
-                `• *Relocation* — dismantle + move + reinstall at new location _(all-in-one)_\n` +
-                `• *Disposal* — haul away and dispose\n` +
-                `• *Dismantle + Dispose* — dismantle first, then dispose (cheaper bundle)\n\n` +
-                `Reply with the service type (e.g. *installation*, *relocation*, *disposal*)`
-              );
-              return;
-            }
-
-            // Proceed to floor/access questions — skip if floor+lift already extracted from earlier message
-            const verifyFloorKnown = session?.floorLevel != null && session.floorLevel > 0;
-            const verifyLiftKnown = session?.hasLift != null;
-            if (verifyFloorKnown && verifyLiftKnown) {
-              // Floor and lift were already captured — skip straight to access
-              await storage.upsertWhatsAppSession(from, {
-                state: "awaiting_access",
-                collectedItems: finalItems,
-                isRelocation: resolvedIsRelocation,
-              });
-              const liftLabel = session!.hasLift ? "lift available ✅" : "no lift";
-              await sendBotMessage(from,
-                `${aiReply ? aiReply + "\n\n" : ""}Almost there! 😊\n\n` +
-                `Floor *${session!.floorLevel}*, *${liftLabel}* — already noted!\n\n` +
-                `How easy is access to the unit?\n\n` +
-                `1️⃣ *Easy* — clear corridors, no obstacles\n` +
-                `2️⃣ *Moderate* — some tight corners or obstacles\n` +
-                `3️⃣ *Difficult* — very narrow, many steps\n\n` +
-                `Reply *1*, *2*, or *3*`
-              );
-            } else {
-              await storage.upsertWhatsAppSession(from, {
-                state: "awaiting_floor",
-                collectedItems: finalItems,
-                isRelocation: resolvedIsRelocation,
-                floorLevel: null,
-                hasLift: null,
-              });
-              await sendBotMessage(from,
-                `${aiReply ? aiReply + "\n\n" : ""}Just a couple more quick questions to complete your quote. 😊\n\n` +
-                `*Which floor is the unit on?*\n\n` +
-                `Reply with the floor number (e.g. *1* for ground/first floor, *5* for fifth floor)\n` +
-                `And is there a *lift* available? (yes / no)`
-              );
-            }
-            return;
-          }
-
-          if ((action === "add" || action === "update") && updatedList) {
-            await storage.upsertWhatsAppSession(from, { collectedItems: updatedList });
-            await sendBotMessage(from,
-              `${aiReply} Here's the updated list:\n\n${updatedList}\n\n` +
-              `• Reply *YES* to confirm\n` +
-              `• Tell me if anything else needs changing\n` +
-              `• Send a *photo* to add more items\n` +
-              `• Reply *NO* to start fresh`
-            );
-            return;
-          }
-
-          if (action === "redo") {
-            // Save current items as previousItems before clearing
-            await storage.upsertWhatsAppSession(from, {
-              state: "awaiting_items",
-              collectedItems: null,
-              previousItems: detectedItems || previousItems || null,
-            });
-            await sendBotMessage(from,
-              `${aiReply || "No problem!"} Let's redo the list. *Type it out* or *send a new photo* 📸\n\n_e.g._\n• 1 king bed frame (install)\n• 3-door wardrobe (dismantle)`
-            );
-            return;
-          }
-
-          // unclear or parse error — give helpful nudge
-          await sendBotMessage(from,
-            `${aiReply || "Hmm, I'm not quite sure what you'd like to change!"} 😊\n\n` +
-            `Here's the current list:\n\n${detectedItems}\n\n` +
-            `• Reply *YES* to confirm this\n` +
-            `• Tell me what to add or fix\n` +
-            `• Reply *NO* to start fresh`
-          );
-          return;
-
-        } catch (err) {
-          console.error("[WhatsApp] Intent parse error:", err);
-          // Fallback: treat as addition
-          const fallback = detectedItems ? `${detectedItems}\n• ${text.replace(/^[•\-\*]\s*/, "")}` : text;
-          await storage.upsertWhatsAppSession(from, { collectedItems: fallback });
-          await sendBotMessage(from,
-            `Got it! Here's the updated list:\n\n${fallback}\n\n• Reply *YES* to confirm\n• Tell me what else to change\n• Reply *NO* to start fresh`
-          );
-          return;
-        }
-      }
-
-      // ─────────────────────────────────────────────────────────────────────────
-      // State: awaiting_service_type — dedicated state to capture service type
-      // Global command handler is bypassed for this state to prevent FAQ interception
-      // ─────────────────────────────────────────────────────────────────────────
-      if (state === "awaiting_service_type") {
-        const items = session.collectedItems || "";
-
-        // Use GPT to extract service type from the customer's natural language reply
-        let detectedServiceType: string | null = null;
-        let isRelocationSvc = false;
-
-        // ── Pre-check: "dismantle AND relocation" variants → always "relocate" ──
-        // Customers don't know relocation already includes dismantling, so they say both.
-        if (/dismantle.{0,20}reloc|reloc.{0,20}dismantle/i.test(text)) {
-          detectedServiceType = "relocate";
-          isRelocationSvc = true;
-        } else {
-          try {
-            const svcRes = await openai.chat.completions.create({
-              model: "gpt-4o",
-              max_tokens: 100,
-              response_format: { type: "json_object" },
-              messages: [{
-                role: "system",
-                content: `The customer is answering the question: "What service type do you need?"
-Customer said: "${text}"
-
-Map their reply to one of these service types:
-- "install" → assembly, installation, put together, set up, assemble, install
-- "dismantle" → dismantle only, take apart only, disassemble (no moving or reinstall)
-- "relocate" → relocate, relocation, move, shift, transfer, moving, transport, dismantle and move, dismantle and relocate, move and reinstall
-- "dispose" → dispose, disposal, throw away, haul away, get rid of, junk (no reinstall)
-- "dismantle_dispose" → dismantle and dispose, take apart and throw away, dismantle then haul
-
-CRITICAL: If the customer mentions BOTH "dismantle" AND "relocate/relocation/move" → always return "relocate" (relocation already includes dismantling at origin + reinstall at destination).
-
-Return JSON: { "serviceType": "install"|"dismantle"|"relocate"|"dispose"|"dismantle_dispose"|null, "confidence": "high"|"low" }`
-              }],
-            });
-            const svcJson = JSON.parse(svcRes.choices[0]?.message?.content || "{}");
-            detectedServiceType = svcJson.serviceType || null;
-          } catch { /* ignore — keyword fallback below */ }
-
-          // ── Keyword fallback: runs when GPT throws OR returns null ──────────
-          if (!detectedServiceType) {
-            if (/reloc|moving|move|shift/i.test(text)) { detectedServiceType = "relocate"; }
-            else if (/dismantle.*dispos|bundle/i.test(text)) { detectedServiceType = "dismantle_dispose"; }
-            else if (/dispos|haul|throw/i.test(text)) { detectedServiceType = "dispose"; }
-            else if (/dismantle|take apart|pack/i.test(text)) { detectedServiceType = "dismantle"; }
-            else if (/install|assem|set up/i.test(text)) { detectedServiceType = "install"; }
-          }
-        }
-
-        if (detectedServiceType === "relocate") isRelocationSvc = true;
-
-        if (!detectedServiceType) {
-          // Check if the customer is asking a clarifying question rather than choosing a service type
-          // e.g. "What's the difference?", "can you explain?", "what does relocation mean?"
-          const looksLikeQuestion = /\?|what|which|how|why|difference|explain|mean|tell me|clarif|help|understand|between/i.test(text);
-          if (looksLikeQuestion) {
-            try {
-              const answerRes = await openai.chat.completions.create({
-                model: "gpt-4o",
-                max_tokens: 220,
-                messages: [{
-                  role: "system",
-                  content: `You are a helpful WhatsApp assistant for TMG Install, a furniture installation company in Singapore.
-The customer just asked a clarifying question about our service types while we were waiting for them to choose one.
-
-Our service types:
-• Installation — assemble new furniture (flat-pack, IKEA, local brands, etc.)
-• Dismantling — take apart & remove existing furniture (no moving, no disposal)
-• Relocation — dismantle at origin + move + reinstall at new address (all-in-one — most popular for moving house)
-• Disposal — haul away and dispose of unwanted furniture (we handle everything)
-• Dismantle + Dispose — take apart AND haul away, cheaper bundle (no move, no reinstall)
-
-Answer their question clearly and concisely (2–4 sentences max). End with:
-"Which service do you need? Reply with *Installation*, *Dismantling*, *Relocation*, *Disposal*, or *Dismantle + Dispose*."
-Write in the same language the customer used.`,
-                }, {
-                  role: "user",
-                  content: text,
-                }],
-              });
-              const clarifyAnswer = answerRes.choices[0]?.message?.content?.trim();
-              if (clarifyAnswer) {
-                await sendBotMessage(from, clarifyAnswer);
-                saveHistory(from, conversationHistory, text, clarifyAnswer);
-                return;
-              }
-            } catch { /* fall through to re-prompt below */ }
-          }
-
-          // Still can't understand — re-ask with a friendly tone
-          await sendBotMessage(from,
-            `I want to make sure I get this right for you! 😊 Please choose one of:\n\n` +
-            `• *Installation* — assemble new furniture\n` +
-            `• *Dismantling* — take apart & remove existing furniture\n` +
-            `• *Relocation* — dismantle + move + reinstall at new location _(all-in-one)_\n` +
-            `• *Disposal* — haul away and dispose\n` +
-            `• *Dismantle + Dispose* — cheaper bundle\n\n` +
-            `Reply with a service type (e.g. *installation* or *relocation*)`
-          );
-          return;
-        }
-
-        // Label every item in the list with the service type
-        const labelledItems = items.split("\n").map(line => {
-          if (!line.trim()) return line;
-          // Skip if already has a label
-          if (/\((install|dismantle|relocate|dispose|dismantle.?dispose|relocation|moving)\)/i.test(line)) return line;
-          return `${line.replace(/\s*\(.*?\)\s*$/, "").trim()} (${detectedServiceType})`;
-        }).join("\n");
-
-        const svcLabel: Record<string, string> = {
-          install: "Installation",
-          dismantle: "Dismantling",
-          relocate: "Relocation",
-          dispose: "Disposal",
-          dismantle_dispose: "Dismantle + Dispose",
-        };
-
-        await storage.upsertWhatsAppSession(from, {
-          state: "awaiting_floor",
-          collectedItems: labelledItems,
-          isRelocation: isRelocationSvc || session.isRelocation || false,
-          floorLevel: null,
-          hasLift: null,
-        });
-
-        const nextPromptFloorSvc =
-          `*${svcLabel[detectedServiceType] || detectedServiceType}* — perfect! ✅\n\n` +
-          `Just a couple more quick questions to finalise your quote:\n\n` +
-          `*Which floor is the unit on?*\n\n` +
-          `Reply with the floor number (e.g. *1* for ground floor, *5* for fifth floor)\n` +
-          `And is there a *lift* available? (yes / no)`;
-        const replySvcType = await craftReply(text, nextPromptFloorSvc, { name: session.collectedName, history: conversationHistory });
-        await sendBotMessage(from, replySvcType);
-        saveHistory(from, conversationHistory, text, replySvcType);
-        return;
-      }
-
-      // ─────────────────────────────────────────────────────────────────────────
-      // State: awaiting_floor — collect floor level and lift availability
-      // ─────────────────────────────────────────────────────────────────────────
-      if (state === "awaiting_floor") {
-        // ── If floor was already captured last turn, just waiting for lift answer ──
-        if (session.floorLevel != null && session.floorLevel > 0) {
-          const tl = textLower.trim();
-          let liftKnown: boolean | null = null;
-          if (["yes", "yeah", "yep", "yup", "got lift", "have lift", "with lift", "there is", "there's a lift"].some(k => tl.includes(k))) {
-            liftKnown = true;
-          } else if (["no", "nope", "no lift", "don't have", "dont have", "none", "without lift", "no elevator"].some(k => tl.includes(k))) {
-            liftKnown = false;
-          } else {
-            // GPT fallback for ambiguous lift answer
-            try {
-              const liftRes = await openai.chat.completions.create({
-                model: "gpt-4o", max_tokens: 80, response_format: { type: "json_object" },
-                messages: [{ role: "system", content: `Is the customer saying YES or NO to having a lift/elevator? Return JSON: {"hasLift": boolean | null}. null if unclear. Customer said: "${text}"` }]
-              });
-              const lp = JSON.parse(liftRes.choices[0]?.message?.content || "{}");
-              liftKnown = lp.hasLift != null ? !!lp.hasLift : null;
-            } catch { liftKnown = null; }
-          }
-          if (liftKnown === null) {
-            await sendBotMessage(from, `Just to confirm — is there a *lift* available at ${session.collectedAddress || "the unit"}? Reply *yes* or *no* 😊`);
-            return;
-          }
-          await storage.upsertWhatsAppSession(from, { hasLift: liftKnown, state: "awaiting_access" });
-          const floorLabel = session.floorLevel === 1 ? "Ground / 1st floor" : `Floor ${session.floorLevel}`;
-          const nextPromptAccessPartial =
-            `${floorLabel}, ${liftKnown ? "lift available ✅" : "no lift"} — got it!\n\n` +
-            `One last thing — how easy is access to the unit?\n\n` +
-            `1️⃣ *Easy* — clear hallways, no obstacles\n` +
-            `2️⃣ *Moderate* — some tight corners or minor obstacles\n` +
-            `3️⃣ *Difficult* — very narrow, many obstacles\n\n` +
-            `Reply *1*, *2*, or *3*`;
-          const replyLiftPartial = await craftReply(text, nextPromptAccessPartial, { name: session.collectedName, history: conversationHistory });
-          await sendBotMessage(from, replyLiftPartial);
-          saveHistory(from, conversationHistory, text, replyLiftPartial);
-          return;
-        }
-
-        // ── Parse floor number and lift from natural language using GPT ──
-        try {
-          const floorRes = await openai.chat.completions.create({
-            model: "gpt-4o",
-            max_tokens: 150,
-            response_format: { type: "json_object" },
-            messages: [
-              {
-                role: "system",
-                content: `You are a quoting assistant for TMG Install (Singapore furniture installation). The customer was asked which floor their unit is on and whether there is a lift.
-
-Return JSON:
-{
-  "floorLevel": number | null,
-  "hasLift": boolean | null,
-  "understood": boolean,
-  "reply": "brief friendly 1-sentence confirmation"
-}
-
-Rules:
-- "ground floor" / "1st" / "ground" → floorLevel: 1
-- "2nd" / "second" / "level 2" / "storey 2" → floorLevel: 2 (and so on)
-- "yes" alone with no floor → floorLevel: null, understood: false
-- "yes lift" / "with lift" / "got lift" → hasLift: true
-- "no lift" / "no" in lift context → hasLift: false
-- Only floor given, no lift mentioned → hasLift: null
-- Cannot determine floor at all → understood: false`,
-              },
-              ...historyMessages(conversationHistory, 4),
-              { role: "user", content: text },
-            ],
-          });
-          const fp = JSON.parse(floorRes.choices[0]?.message?.content || "{}");
-
-          if (!fp.understood || fp.floorLevel == null) {
-            await sendBotMessage(from,
-              `Which floor is the unit on? 😊\n\nReply with a number (e.g. *1* for ground floor, *3* for third floor)\nAnd is there a *lift*? (yes / no)`
-            );
-            return;
-          }
-
-          const floorLevel = Math.max(1, Math.round(Number(fp.floorLevel) || 1));
-
-          if (fp.hasLift == null) {
-            // Floor captured but lift not mentioned — save floor and ask about lift
-            await storage.upsertWhatsAppSession(from, { floorLevel });
-            await sendBotMessage(from,
-              `Got it — *Floor ${floorLevel}*! 😊 Is there a *lift* available?\n\nReply *yes* or *no*`
-            );
-            return;
-          }
-
-          const hasLift = !!fp.hasLift;
-          // Both floor and lift captured — move to access difficulty
-          await storage.upsertWhatsAppSession(from, { floorLevel, hasLift, state: "awaiting_access" });
-          const nextPromptAccess =
-            `Floor ${floorLevel}, ${hasLift ? "lift available ✅" : "no lift"} — noted!\n\n` +
-            `One last thing — how easy is access to the unit?\n\n` +
-            `1️⃣ *Easy* — clear corridors, no obstacles\n` +
-            `2️⃣ *Moderate* — some tight corners or obstacles\n` +
-            `3️⃣ *Difficult* — very narrow, many steps, or no lift access\n\n` +
-            `Reply *1*, *2*, or *3*`;
-          const replyFloor = await craftReply(text, nextPromptAccess, { name: session.collectedName, history: conversationHistory });
-          await sendBotMessage(from, replyFloor);
-          saveHistory(from, conversationHistory, text, replyFloor);
-        } catch (err) {
-          console.error("[WhatsApp] Floor parse error:", err);
-          await sendBotMessage(from,
-            `Which floor is the unit on? (e.g. *1* for ground floor, *3* for third floor)\nAnd is there a lift? (yes / no)`
-          );
-        }
-        return;
-      }
-
-      // ─────────────────────────────────────────────────────────────────────────
-      // State: awaiting_access — collect access difficulty
-      // ─────────────────────────────────────────────────────────────────────────
-      if (state === "awaiting_access") {
-        const floorLevel = session.floorLevel ?? 1;
-        const hasLift = session.hasLift ?? true;
-
-        // Handle "yes/no" for lift if floor was captured but lift was pending
-        const liftAnswerLower = textLower.trim();
-        if (liftAnswerLower === "yes" || liftAnswerLower === "no" || liftAnswerLower === "yeah" || liftAnswerLower === "nope") {
-          const liftAvail = liftAnswerLower === "yes" || liftAnswerLower === "yeah";
-          await storage.upsertWhatsAppSession(from, { hasLift: liftAvail });
-          await sendBotMessage(from,
-            `Got it — ${liftAvail ? "lift available" : "no lift"}. 👍\n\n` +
-            `How easy is access to the unit?\n\n` +
-            `1️⃣ *Easy* — clear hallways, no obstacles\n` +
-            `2️⃣ *Moderate* — some tight corners or minor obstacles\n` +
-            `3️⃣ *Difficult* — very narrow, many obstacles\n\n` +
-            `Reply *1*, *2*, or *3*`
-          );
-          return;
-        }
-
-        let accessDifficulty: "easy" | "medium" | "hard" = "easy";
-        if (textLower === "1" || textLower.includes("easy") || textLower.includes("clear")) {
-          accessDifficulty = "easy";
-        } else if (textLower === "2" || textLower.includes("moderate") || textLower.includes("medium") || textLower.includes("tight")) {
-          accessDifficulty = "medium";
-        } else if (textLower === "3" || textLower.includes("difficult") || textLower.includes("hard") || textLower.includes("narrow")) {
-          accessDifficulty = "hard";
-        } else {
-          // Try GPT to parse
-          try {
-            const accessRes = await openai.chat.completions.create({
-              model: "gpt-4o",
-              max_tokens: 100,
-              response_format: { type: "json_object" },
-              messages: [{
-                role: "system",
-                content: `Parse the customer's response to "how easy is access?" and return JSON:
-{ "difficulty": "easy" | "medium" | "hard" | null }
-- easy: clear access, no issues
-- medium: some obstacles, tight corners
-- hard: very narrow, many obstacles, difficult stairs
-Customer said: "${text}"
-If unclear → null`
-              }]
-            });
-            const ap = JSON.parse(accessRes.choices[0]?.message?.content || "{}");
-            if (!ap.difficulty) {
-              await sendBotMessage(from,
-                `How easy is access to the unit?\n\n1️⃣ *Easy* — clear hallways\n2️⃣ *Moderate* — some obstacles\n3️⃣ *Difficult* — very narrow or many obstacles\n\nReply *1*, *2*, or *3*`
-              );
-              return;
-            }
-            accessDifficulty = ap.difficulty as "easy" | "medium" | "hard";
-          } catch {
-            accessDifficulty = "easy"; // default to easy on parse error
-          }
-        }
-
-        const accessLabel = { easy: "Easy access ✅", medium: "Moderate access ⚠️", hard: "Difficult access ⛔" }[accessDifficulty];
-
-        // Decide next state: if relocation and no to-address yet → awaiting_to_address, else → awaiting_date
-        if (session.isRelocation && !session.collectedToAddress) {
-          await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_to_address" });
-          const nextPromptToAddr =
-            `${accessLabel}\n\n` +
-            `Since this is a *relocation*, we need the destination address too 📍\n\n` +
-            `What's the address you'd like the furniture moved *to*?\n_e.g. 123 Tampines Ave 3, #05-12_`;
-          const replyAccess = await craftReply(text, nextPromptToAddr, { name: session.collectedName, history: conversationHistory });
-          await sendBotMessage(from, replyAccess);
-          saveHistory(from, conversationHistory, text, replyAccess);
-        } else if (session.preferredDateIso) {
-          // Date was already captured from the first message — skip the date picker
-          const slotStillFree = session.preferredTimeWindow
-            ? await storage.isSlotAvailable(session.preferredDateIso, session.preferredTimeWindow)
-            : true;
-          if (slotStillFree) {
-            // Confirm and move straight to remarks
-            await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_remarks" });
-            const twLabel = session.preferredTimeWindow === "09:00-12:00"
-              ? " — Morning (9am–12pm)"
-              : session.preferredTimeWindow === "13:00-17:00"
-                ? " — Afternoon (1pm–5pm)"
-                : "";
-            const dateConfirmMsg =
-              `${accessLabel}\n\n✅ Date confirmed: *${session.preferredDate}${twLabel}*\n\n` +
-              `Almost done! Any special notes or requests? (e.g. fragile items, parking, entry instructions)\n\nOr reply *skip* if none.`;
-            const replyDateConfirm = await craftReply(text, dateConfirmMsg, { name: session.collectedName, history: conversationHistory });
-            await sendBotMessage(from, replyDateConfirm);
-            saveHistory(from, conversationHistory, text, replyDateConfirm);
-          } else {
-            // That slot is taken — show fresh date menu
-            await storage.upsertWhatsAppSession(from, {
-              accessDifficulty, state: "awaiting_date",
-              preferredDate: null, preferredDateIso: null, preferredTimeWindow: null,
-            });
-            const { message: dateMenu } = await buildDateMenuMessage();
-            const nextPromptDate =
-              `${accessLabel}\n\n⚠️ The slot you mentioned is no longer available. Here are our current openings:\n\n${dateMenu}`;
-            const replyAccess = await craftReply(text, nextPromptDate, { name: session.collectedName, history: conversationHistory });
-            await sendBotMessage(from, replyAccess);
-            saveHistory(from, conversationHistory, text, replyAccess);
-          }
-        } else {
-          await storage.upsertWhatsAppSession(from, { accessDifficulty, state: "awaiting_date" });
-          const { message: dateMenu } = await buildDateMenuMessage();
-          const nextPromptDate = `${accessLabel}\n\nAlmost there! When would you like this done?\n\n${dateMenu}`;
-          const replyAccess = await craftReply(text, nextPromptDate, { name: session.collectedName, history: conversationHistory });
-          await sendBotMessage(from, replyAccess);
-          saveHistory(from, conversationHistory, text, replyAccess);
-        }
-        return;
-      }
-
-      // ─────────────────────────────────────────────────────────────────────────
-      // State: awaiting_to_address — collect destination address for relocation
-      // ─────────────────────────────────────────────────────────────────────────
-      if (state === "awaiting_to_address") {
-        if (text.length < 2) {
-          await sendBotMessage(from, `Please provide the *destination address* where the furniture should be moved to. 📍`);
-          return;
-        }
-
-        // Use GPT to extract and normalise Singapore address/landmark
-        let toAddress = text.trim();
-        try {
-          const addrRes = await openai.chat.completions.create({
-            model: "gpt-4o", max_tokens: 150, response_format: { type: "json_object" },
-            messages: [{ role: "system", content: `You are helping extract a Singapore destination address from a WhatsApp message.
-
-Extract the address/location from: "${text}"
-
-Singapore address formats include:
-- HDB blocks: "Blk 261 Serangoon Central #05-01"
-- Landmarks/malls: "Ion Orchard", "313 Somerset", "Vivocity", "Jewel Changi", etc.
-- Street addresses: "10 Orchard Road"
-- Area names: "Tampines", "Jurong East", "Buona Vista"
-- Postal codes: "S550261"
-
-Return JSON: { "address": "normalised address string or null if not an address", "isAddress": boolean }
-- isAddress: false only if the message is clearly NOT any kind of address (e.g. "I don't know", "not sure")
-- For landmarks/malls/area names, accept them as valid addresses — normalise capitalisation
-- "Ion orchard" → "Ion Orchard"` }]
-          });
-          const ap = JSON.parse(addrRes.choices[0]?.message?.content || "{}");
-          if (!ap.isAddress) {
-            await sendBotMessage(from, `What's the *destination address* for the move? 📍\n\n_e.g. Blk 123 Tampines Ave 3, or Ion Orchard, or 10 Orchard Road_`);
-            return;
-          }
-          if (ap.address) toAddress = ap.address;
-        } catch {
-          // Keep raw text if GPT fails
-        }
-
-        // Compute route distance using OneMap geocode + OSRM
-        let distanceKm: string | null = null;
-        let distanceDisplay = "";
-        try {
-          const fromAddr = session.collectedAddress!;
-          async function geocodeAddr(addr: string): Promise<{ lat: number; lng: number } | null> {
-            const url = `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(addr)}&returnGeom=Y&getAddrDetails=N&pageNum=1`;
-            const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
-            const data = await r.json();
-            const first = data?.results?.[0];
-            if (!first) return null;
-            return { lat: parseFloat(first.LATITUDE), lng: parseFloat(first.LONGITUDE) };
-          }
-          const [fromCoord, toCoord] = await Promise.all([geocodeAddr(fromAddr), geocodeAddr(toAddress)]);
-          if (fromCoord && toCoord) {
-            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${fromCoord.lng},${fromCoord.lat};${toCoord.lng},${toCoord.lat}?overview=false`;
-            const osrmRes = await fetch(osrmUrl, { signal: AbortSignal.timeout(8000) });
-            const osrmData = await osrmRes.json();
-            const metres = osrmData?.routes?.[0]?.distance;
-            if (metres) {
-              const km = Math.round(metres / 100) / 10; // round to 1 decimal
-              distanceKm = km.toFixed(1);
-              distanceDisplay = `\n📏 *Route distance:* ~${distanceKm} km`;
-            }
-          }
-        } catch (e) {
-          console.warn("[WhatsApp] Distance calculation failed:", e);
-        }
-
-        await storage.upsertWhatsAppSession(from, {
-          state: "awaiting_date",
-          collectedToAddress: toAddress,
-          distanceKm: distanceKm,
-        });
-
-        const { message: dateMenu } = await buildDateMenuMessage();
-        const nextPromptDate2 =
-          `Moving *from:* ${session.collectedAddress}\n*To:* ${toAddress}${distanceDisplay}\n\n` +
-          `Now let's sort the date. 📅\n\n${dateMenu}`;
-        const replyToAddr = await craftReply(text, nextPromptDate2, { name: session.collectedName, history: conversationHistory });
-        await sendBotMessage(from, replyToAddr);
-        saveHistory(from, conversationHistory, text, replyToAddr);
-        return;
-      }
-
-      // ─────────────────────────────────────────────────────────────────────────
-      // State: awaiting_date — collect preferred service date after items verified
-      // ─────────────────────────────────────────────────────────────────────────
-      if (state === "awaiting_date") {
-        const name = session.collectedName!;
-        const address = session.collectedAddress!;
-        const items = session.collectedItems!;
-
-        // Fetch the same slot list that was shown to the customer.
-        // We re-compute it fresh — slots are deterministic based on current bookings.
-        const { slots: availableSlots } = await buildDateMenuMessage();
-        const slotListForGpt = availableSlots.length > 0
-          ? availableSlots.map((s, i) => `${i + 1}. ${s.display} (${s.date} ${s.timeWindow})`).join("\n")
-          : "No specific slots listed — customer may type any date.";
-
-        // Pre-process: "Can Friday?", "Is Saturday ok?", "Friday?" → strip question wrapper → "Friday"
-        // Prevents GPT from misreading polite day requests as "flexible/anytime"
-        const WEEKDAY_NAMES = "monday|tuesday|wednesday|thursday|friday|saturday|sunday";
-        const WEEKDAY_NORMALIZE_RE = new RegExp(
-          `^(?:(?:can(?:\\s+i(?:\\s+(?:do|book|get))?)?|is|how about|what about)\\s+)?(?:this\\s+|next\\s+)?(${WEEKDAY_NAMES})(?:\\s+(?:ok(?:ay)?|good|please|works?))?[?!.\\s]*$`,
-          "i"
-        );
-        const weekdayNorm = text.trim().match(WEEKDAY_NORMALIZE_RE);
-        const dateInputText = weekdayNorm ? weekdayNorm[1] : text; // "Can Friday?" → "friday"
-
-        let preferredDateDisplay = dateInputText.trim();
-        let preferredDateIso: string | null = null;
-        let preferredTimeWindow: string | null = null;
-        let isFlexible = false;
-
-        try {
-          const today = new Date();
-          const dateRes = await openai.chat.completions.create({
-            model: "gpt-4o",
-            max_tokens: 200,
-            response_format: { type: "json_object" },
-            messages: [{
-              role: "system",
-              content: `Today is ${today.toISOString().slice(0, 10)} (${today.toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}).
-
-The customer was shown this numbered list of available slots and asked to choose:
-${slotListForGpt}
-
-They replied: "${dateInputText}"
-
-Interpret their reply and return JSON:
-{
-  "slotIndex": null or 1-based number matching a slot in the list,
-  "isoDate": "yyyy-MM-dd or null",
-  "timeWindow": "09:00-12:00 or 13:00-17:00 or null",
-  "display": "friendly human-readable summary e.g. Saturday, 22 March 2026 — Morning (9am–12pm)",
-  "flexible": boolean
-}
-Rules:
-- If they say "1", "option 1", "first one", "the morning one on Saturday" etc → set slotIndex to the matching number; copy isoDate and timeWindow from that slot.
-- If they say "morning" without a day → find the first morning slot in the list.
-- If they type a specific date not in the list → set isoDate to that date in yyyy-MM-dd; timeWindow based on AM/PM if mentioned, else null.
-- Relative dates ("this Saturday", "next Monday", or just "Friday") → resolve to the nearest upcoming occurrence in yyyy-MM-dd. NEVER treat a weekday name as flexible.
-- "anytime", "flexible", "whenever", "no preference", "not sure" → flexible=true, isoDate=null, timeWindow=null. Only set flexible=true for these exact phrases — a weekday name is NEVER flexible.
-- display: always write a friendly readable summary of what was chosen.`
-            }]
-          });
-          const dp = JSON.parse(dateRes.choices[0]?.message?.content || "{}");
-
-          // If they picked a numbered slot, use that slot's exact data
-          if (dp.slotIndex && availableSlots[dp.slotIndex - 1]) {
-            const chosen = availableSlots[dp.slotIndex - 1];
-            preferredDateIso = chosen.date;
-            preferredTimeWindow = chosen.timeWindow;
-            preferredDateDisplay = dp.display || chosen.display;
-          } else {
-            if (dp.isoDate && /^\d{4}-\d{2}-\d{2}$/.test(dp.isoDate)) preferredDateIso = dp.isoDate;
-            if (dp.timeWindow && ["09:00-12:00", "13:00-17:00"].includes(dp.timeWindow)) preferredTimeWindow = dp.timeWindow;
-            if (dp.display) preferredDateDisplay = dp.display;
-          }
-          isFlexible = !!dp.flexible;
-        } catch {}
-
-        // Validate the chosen slot is actually available (if a specific slot was picked)
-        if (preferredDateIso && preferredTimeWindow) {
-          const stillAvailable = await storage.isSlotAvailable(preferredDateIso, preferredTimeWindow);
-          if (!stillAvailable) {
-            // That slot just got taken — show updated menu
-            const { message: freshMenu } = await buildDateMenuMessage();
-            await sendBotMessage(from,
-              `Sorry, that slot was just taken! Here are our current available slots:\n\n${freshMenu}`
-            );
-            return;
-          }
-        }
-
-        // Store display text in session (for WhatsApp messages) + ISO date + time window separately
-        // Move to awaiting_remarks to collect any special notes before showing final summary
-        await storage.upsertWhatsAppSession(from, {
-          state: "awaiting_remarks",
-          preferredDate: preferredDateDisplay,
-          preferredDateIso: preferredDateIso,
-          preferredTimeWindow: preferredTimeWindow,
-        });
-
-        const twLabelDate = preferredTimeWindow === "09:00-12:00"
-          ? " (Morning, 9am–12pm)"
-          : preferredTimeWindow === "13:00-17:00"
-            ? " (Afternoon, 1pm–5pm)"
-            : "";
-
-        const dateAck = isFlexible ? "Flexible timing — perfect! 😊" : `*${preferredDateDisplay}${twLabelDate}* — noted! ✅`;
-        const remarksPrompt =
-          `${dateAck}\n\n` +
-          `Last thing before I show you the full summary — any *special notes* for the team? 📝\n\n` +
-          `_(e.g. condo move-in rules, parking restrictions, fragile items, narrow lift)_\n\n` +
-          `Got an *email* for the quote receipt? Drop it here too if you'd like.\n\n` +
-          `Reply *none* to skip and go straight to your summary.`;
-        await sendBotMessage(from, remarksPrompt);
-        saveHistory(from, conversationHistory, text, remarksPrompt);
-        return;
-      }
-
-      // ─────────────────────────────────────────────────────────────────────────
-      // State: awaiting_remarks — optional special notes + email before summary
-      // ─────────────────────────────────────────────────────────────────────────
-      if (state === "awaiting_remarks") {
-        const isSkipRemark = /^(none|no|nope|nothing|skip|n\/a|na|nah|all good|ok|okay|no notes|no remarks|not? (needed|required)|nothing (to add|special))$/i.test(textLower.trim());
-
-        // Extract email if present
-        const emailInRemark = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
-        const extractedEmailRemark = emailInRemark ? emailInRemark[0].toLowerCase() : null;
-
-        // Extract remarks (strip the email from the text, keep the rest as notes)
-        let remarksText: string | null = null;
-        if (!isSkipRemark) {
-          const withoutEmail = text.replace(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, "").trim().replace(/\s+/g, " ");
-          // Only save as remarks if there's meaningful text left after stripping email
-          if (withoutEmail.length > 3 && !/^(none|no|nope|nothing|skip|n\/a|na|nah|all good|ok|okay)$/i.test(withoutEmail)) {
-            remarksText = withoutEmail;
-          }
-        }
-
-        await storage.upsertWhatsAppSession(from, {
-          state: "awaiting_confirmation",
-          ...(extractedEmailRemark ? { collectedEmail: extractedEmailRemark } : {}),
-          ...(remarksText ? { specialRemarks: remarksText } : {}),
-        });
-
-        // Reload session with fresh data for building the summary
-        const updatedSession = await storage.getWhatsAppSession(from);
-        const summName = updatedSession?.collectedName || session.collectedName || "";
-        const summAddress = updatedSession?.collectedAddress || session.collectedAddress || "";
-        const summItems = updatedSession?.collectedItems || session.collectedItems || "";
-        const summEmail = updatedSession?.collectedEmail || null;
-        const summRemarks = updatedSession?.specialRemarks || null;
-        const summFloorLvl = updatedSession?.floorLevel ?? session.floorLevel ?? 1;
-        const summHasLift = updatedSession?.hasLift ?? session.hasLift ?? true;
-        const summAccessLvl = updatedSession?.accessDifficulty ?? session.accessDifficulty ?? "easy";
-        const summDate = updatedSession?.preferredDate || session.preferredDate || "Flexible";
-        const summTimeWindow = updatedSession?.preferredTimeWindow || session.preferredTimeWindow || null;
-        const summIsRelocation = !!(updatedSession?.isRelocation || session.isRelocation);
-        const summToAddr = updatedSession?.collectedToAddress || session.collectedToAddress || null;
-        const summDistKm = updatedSession?.distanceKm || session.distanceKm || null;
-
-        const summTwLabel = summTimeWindow === "09:00-12:00"
-          ? " (Morning, 9am–12pm)"
-          : summTimeWindow === "13:00-17:00"
-            ? " (Afternoon, 1pm–5pm)"
-            : "";
-        const summAddressBlock = summIsRelocation && summToAddr
-          ? `📦 *Type:* Relocation\n📍 *From:* ${summAddress}\n📍 *To:* ${summToAddr}${summDistKm ? `\n📏 *Distance:* ~${summDistKm} km` : ""}`
-          : `📍 *Address:* ${summAddress}`;
-        const summFloorLine = `🏢 *Floor:* ${summFloorLvl === 1 ? "Ground / 1st floor" : `Floor ${summFloorLvl}`} (${summHasLift ? "lift available" : "no lift"})`;
-        const summAccessLine = `🚪 *Access:* ${{ easy: "Easy", medium: "Moderate", hard: "Difficult" }[summAccessLvl] || "Easy"}`;
-
-        let summaryMsg =
-          `${remarksText || extractedEmailRemark ? "Got it! ✅\n\n" : "No worries! ✅\n\n"}` +
-          `Here's your full quote summary:\n\n` +
-          `👤 *Name:* ${summName}\n` +
-          (summEmail ? `📧 *Email:* ${summEmail}\n` : ``) +
-          `${summAddressBlock}\n` +
-          `🛋️ *Items:*\n${summItems}\n` +
-          `${summFloorLine}\n` +
-          `${summAccessLine}\n` +
-          `📅 *Preferred date:* ${summDate}${summTwLabel}\n` +
-          (summRemarks ? `📝 *Notes:* ${summRemarks}\n` : ``);
-
-        summaryMsg +=
-          `\nShall I send this to our team? Reply *YES* to submit.\n\n` +
-          `_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, *change access*, or *change remarks*._`;
-
-        await sendBotMessage(from, summaryMsg);
-        saveHistory(from, conversationHistory, text, summaryMsg);
+      // ── Unified orchestration for all active-quote collection states ──────────
+      // Handles: pricing_shown, awaiting_name, awaiting_address, awaiting_items,
+      // awaiting_items_verify, awaiting_service_type, awaiting_floor, awaiting_access,
+      // awaiting_to_address, awaiting_date, awaiting_remarks, collecting
+      // awaiting_confirmation is handled separately below (it creates the actual quote)
+      if (state !== "awaiting_confirmation") {
+        await orchestrateConversation({ from, session, text, msgType, msg, conversationHistory });
         return;
       }
 

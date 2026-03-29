@@ -219,6 +219,11 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   // Special notes from customer (condo rules, parking, fragile items, etc.)
   specialRemarks: text("special_remarks"),
 
+  // Rich structured state JSON — used by the unified orchestration engine
+  // Tracks items (grouped), from/to addresses, floor/lift per address, schedule,
+  // customer info, and corrections — persists across every turn of the conversation.
+  structuredState: text("structured_state"),
+
   // Admin takeover — when true, bot will not respond; admin handles the chat manually
   botPaused: boolean("bot_paused").default(false),
   botPausedAt: timestamp("bot_paused_at"),

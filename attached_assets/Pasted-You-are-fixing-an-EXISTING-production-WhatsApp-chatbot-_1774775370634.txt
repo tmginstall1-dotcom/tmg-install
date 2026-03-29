@@ -1,0 +1,613 @@
+You are fixing an EXISTING production WhatsApp chatbot for TMGInstall.
+
+IMPORTANT
+This is a repair task, not a redesign task.
+
+STRICT SCOPE
+Only improve the WhatsApp chatbot conversation engine and anything directly required for it to correctly collect quote information across multi-turn chats.
+
+DO NOT:
+- redesign the website
+- change payment flow
+- change admin dashboard
+- change quote approval flow
+- change email flow
+- change unrelated UI
+- change unrelated database tables
+- create duplicate handlers
+- create duplicate chatbot routes
+- create a second chatbot system beside the current one
+- remove working integrations
+- use pseudo-code
+- leave TODO comments
+- give partial patches
+
+DELIVERY RULE
+Return FULL FILE REPLACEMENTS ONLY for every changed file.
+
+BUSINESS
+TMGInstall handles:
+- furniture installation
+- dismantling
+- relocation
+- mixed jobs where some items are moved from old place to new place and some items are install-only at the new place
+
+PRIMARY GOAL
+Make the WhatsApp chatbot behave like a strong human coordinator who can handle real-world complex moving and installation quote requests naturally, accurately, and without losing memory.
+
+CURRENT BOT FAILURES THAT MUST BE FIXED
+The current bot is not production ready for multi-turn complex jobs.
+
+Observed failures:
+1. It asks unnecessary friction questions like:
+   - “Would you like me to prepare a personalised quote?”
+   - “Reply YES to continue”
+   This is wrong when the customer already started a quote request.
+
+2. It asks for customer name too early before collecting critical job logistics.
+
+3. It does not properly separate:
+   - items moving from old place to new place
+   - new items for installation only at new place
+   - optional items
+   - tentative items
+   - excluded items
+
+4. It ignores important details already provided by the customer.
+
+5. It compresses item details too aggressively and loses critical information, for example:
+   - king bed with storage becomes king bed
+   - IKEA PAX wardrobe loses type/size/door details
+   - dining table 1.8m with 6 chairs becomes dining set
+   - L-shape sofa becomes sofa
+
+6. It fails to capture and retain access logistics, including:
+   - old floor
+   - no lift
+   - internal staircase
+   - upstairs/downstairs item mapping
+   - new place floor
+   - lift available
+   - condo lift booking requirement
+   - protective cover requirement
+   - loading bay time limit
+   - difficult staircase / tight turning point
+
+7. It mixes up old-place and new-place details and has incorrectly generated summaries like:
+   - “Floor 12, no lift”
+   even though no-lift was from the old place and level 12 with lift was at the new place.
+
+8. It resets the conversation and behaves like each message is a new chat.
+   Examples:
+   - asking for item list again after items were already collected
+   - asking for photos again after photos were already offered
+   - downgrading a mixed-scope job into relocation-only
+   - forgetting addresses, dates, corrections, and grouped items
+
+9. It does not handle corrections properly.
+   Example:
+   - wardrobe originally 200cm sliding door
+   - customer corrected it to 250cm, 4 swing doors
+   The bot must REPLACE the old details, not keep both or forget the correction.
+
+10. It fails to handle “leave it out”, “not confirmed yet”, “maybe cancel”, and optional add-ons correctly.
+
+11. It asks generic questions even when the customer already gave the answer.
+   Example:
+   - customer says loading bay 2 hours and protective cover required
+   - bot replies with “What special notes should our team know?”
+   Instead of confirming and storing those notes.
+
+12. It generates unsafe final summaries that are factually wrong and incomplete.
+
+CRITICAL FINAL SUMMARY FAILURE OBSERVED
+The bot produced a summary like:
+- type = relocation only
+- no item list
+- floor 12 no lift
+- access easy
+- preferred date flexible
+
+This was wrong and unsafe because the actual chat included:
+- dismantle + relocation + installation + install-only items
+- full grouped item list
+- old place level 3 no lift with internal staircase
+- new place level 12 with lift, lift booking, protective cover, loading limit
+- 14 April morning / 9am–1pm
+- difficult access risk
+- corrections to wardrobe details
+- excluded TV console
+- photos received
+
+The final summary generator must NEVER rely on shallow latest-message inference.
+It must build the summary from reconciled structured conversation state.
+
+YOUR TASK
+Repair the current chatbot so it correctly:
+- keeps conversation memory across turns
+- extracts and updates structured quote details
+- asks the best next question without repeating answered questions
+- handles corrections cleanly
+- handles mixed-scope jobs
+- produces accurate structured summaries
+- only submits when there is enough information
+
+REQUIRED BEHAVIOR
+
+1) NO UNNECESSARY CONFIRMATION GATE
+If the user has already started a quote request, do not ask:
+- would you like a quote
+- reply yes to continue
+- confirm before I start
+Proceed directly with intelligent collection.
+
+2) INTELLIGENT SERVICE DETECTION
+Detect from natural language:
+- install only
+- dismantle only
+- relocate only
+- dismantle + relocate + install
+- mixed-scope jobs
+Handle phrases like:
+- moving house
+- dismantle first
+- bring to new place
+- install again
+- a few new items are only installation
+
+3) STRUCTURED ITEM GROUPING
+Maintain separate state groups:
+- relocation_items
+- install_only_items
+- optional_items
+- tentative_items
+- excluded_items
+
+4) ITEM DETAIL PRESERVATION
+Keep detailed attributes when present:
+- quantity
+- item type
+- brand/model clues
+- dimensions
+- door type
+- storage
+- chair count
+- mounting/drilling notes
+Examples:
+- IKEA PAX wardrobe
+- 250cm
+- 4 swing doors
+- king bed with storage
+- dining table 1.8m with 6 chairs
+- front load washing machine 70kg
+Do not flatten these into vague labels.
+
+5) ADDRESS AND ACCESS STATE
+For relocation and mixed jobs, maintain separate structured objects for old place and new place.
+
+Must support:
+old_place:
+- address
+- block if any
+- level
+- lift yes/no
+- stairs yes/no
+- internal staircase
+- upstairs items
+- downstairs items
+- difficult access notes
+
+new_place:
+- address
+- block
+- level
+- unit
+- lift yes/no
+- lift booking required
+- loading bay limit
+- protective cover requirement
+- condo restrictions
+- parking or move-in notes
+
+Never merge old-place and new-place fields.
+
+6) CORRECTION RECONCILIATION
+Handle phrases like:
+- actually
+- sorry correction
+- I forgot
+- not 2, only 1
+- leave it out first
+- not confirmed yet
+- maybe cancel
+- change address
+- change date
+When a correction is received, update the structured state and remove outdated conflicting values.
+
+7) QUESTION PRIORITY ENGINE
+After every user message, ask the SINGLE best next question based on missing critical fields.
+Do not ask repeated questions.
+Do not ask for name too early in a complex job.
+Use a missing-field priority order like:
+A. service scope
+B. grouped item list
+C. old/new addresses and floor/lift
+D. access complexity and restrictions
+E. date/time
+F. name/contact
+G. photos/product links/special mounting details
+H. final summary
+
+8) SPECIAL COMPLEXITY DETECTION
+Detect and store:
+- wall mounting
+- drilling
+- Taobao/incomplete manual risk
+- appliance relocation
+- move only / no plumbing
+- disposal inquiry
+- narrow staircase
+- tight turning point
+- sofa extraction risk
+These should generate relevant follow-up only when still needed.
+
+9) PHOTO HANDLING
+If customer says they can send photos or sends photos:
+- acknowledge photos
+- do not ask for item list again if already captured
+- keep the flow going
+- use photos_received state flag
+
+10) NATURAL TONE
+Tone must be:
+- human
+- efficient
+- polite
+- operationally useful
+Avoid robotic wording and forced forms.
+Avoid generic examples once enough job context already exists.
+
+11) FINAL SUMMARY ENGINE
+Build a structured final summary from stored state.
+Include:
+- service scope
+- old place details
+- new place details
+- relocation items
+- install-only items
+- optional items
+- tentative items
+- excluded items
+- date/time
+- customer name
+- contact number
+- photos received
+- pending fields
+
+If something non-critical is pending, say it clearly instead of blocking or inventing values.
+Do not mark ready for submission if critical information is missing.
+Do not output wrong defaults like:
+- access easy
+- date flexible
+- relocation only
+unless explicitly supported by conversation state.
+
+12) STATE PERSISTENCE
+The chatbot must reliably load current session state before generating every reply.
+It must not behave as if each new user message is a new conversation.
+If the current architecture uses LLM plus parser plus database/session memory, make sure the generation step always reads the latest reconciled state.
+
+RECOMMENDED INTERNAL STATE SHAPE
+Use or map to a structure like this if needed, but keep changes minimal and compatible with current architecture:
+
+conversation_state = {
+  service_scope: {
+    install: boolean,
+    dismantle: boolean,
+    relocate: boolean,
+    mixed_scope: boolean
+  },
+  relocation_items: [],
+  install_only_items: [],
+  optional_items: [],
+  tentative_items: [],
+  excluded_items: [],
+  old_place: {
+    address: "",
+    block: "",
+    level: "",
+    unit: "",
+    has_lift: null,
+    stairs: null,
+    internal_staircase: null,
+    upstairs_items: [],
+    downstairs_items: [],
+    access_notes: []
+  },
+  new_place: {
+    address: "",
+    block: "",
+    level: "",
+    unit: "",
+    has_lift: null,
+    lift_booking_required: null,
+    loading_bay_limit: "",
+    protective_cover_required: null,
+    condo_rules: [],
+    access_notes: []
+  },
+  schedule: {
+    preferred_date: "",
+    preferred_time_window: ""
+  },
+  customer: {
+    name: "",
+    phone: ""
+  },
+  attachments: {
+    photos_received: false,
+    links_received: false
+  },
+  special_requirements: {
+    drilling: [],
+    wall_mounting: [],
+    taobao_risk_items: [],
+    appliance_move_only: [],
+    disposal_inquiries: []
+  },
+  pending_questions: [],
+  submission_ready: false
+}
+
+IMPLEMENTATION REQUIREMENTS
+Make the fix production safe and tightly scoped.
+
+Required logic improvements:
+- stronger extraction layer for quantities, item names, variants, dimensions, and service intent
+- state reconciliation layer that merges new info into existing session state
+- correction handler that replaces outdated values
+- grouped item memory
+- old/new address separation
+- missing-field prioritization
+- summary generator based on state
+- protection against fallback prompt resetting the flow
+
+If the current bot uses an LLM:
+- improve system prompt / orchestration prompt
+- but do not rely on the LLM alone
+- add deterministic rule-based reconciliation for critical fields
+- ensure generation reads structured state first
+
+ROOT CAUSE YOU MUST ADDRESS
+The current bot appears to suffer from one or more of the following:
+- no reliable conversation state persistence
+- state not loaded before reply generation
+- parser output not merged into existing state
+- correction messages overwrite or discard prior state incorrectly
+- fallback prompt resets to first-step lead collection
+- summary generator uses latest utterance instead of full reconciled state
+
+TESTS THE FIX MUST PASS
+
+TEST 1
+User:
+Hi, need help for moving house. Some items need dismantle first at old place, bring to new place, then install again. But a few new items are only installation at the new place.
+Expected:
+- detect mixed scope
+- do not ask “reply yes”
+- ask for grouped item list immediately
+
+TEST 2
+User:
+Old place to new place:
+1 king bed with storage
+2 bedside table
+1 ikea pax wardrobe 200cm, sliding door
+1 L-shape sofa
+1 dining table 1.8m with 6 chairs
+1 study desk 140cm
+2 office chair
+1 tall bookshelf
+
+New items install only at new place:
+1 baby cot
+1 shoe cabinet
+2 curtain rod
+1 wall mirror
+
+Might also have 1 TV console but not confirmed yet.
+Expected:
+- preserve grouped items
+- preserve detailed item attributes
+- mark TV console tentative
+- ask for old/new address next
+
+TEST 3
+User:
+Old place is 109C Depot Road, level 3, no lift because maisonette internal staircase also need to bring down from upper floor.
+
+New place is Parc Esta condo, block not sure yet, around level 12, got lift but management says must book lift first.
+Expected:
+- capture both locations correctly
+- keep no-lift/internal staircase only on old place
+- keep level 12 with lift on new place
+- store lift booking requirement
+- ask best next question
+
+TEST 4
+User:
+Prefer 14 April morning. The king bed, bedside tables and wardrobe are upstairs. Sofa and dining set downstairs.
+Expected:
+- capture 14 April morning
+- store upstairs/downstairs mapping
+- do not ask for items again
+
+TEST 5
+User:
+Name is Daniel Tan. I can send some photos.
+Expected:
+- store name
+- ask for photos naturally
+- do not restart flow
+
+TEST 6
+User:
+Sending now. Also I forgot, the wardrobe is actually 250cm not 200cm, and not sliding door, it is 4 swing doors.
+Expected:
+- photos acknowledged
+- wardrobe corrected in place
+- old 200cm sliding door removed
+
+TEST 7
+User:
+New address is Parc Esta, Block 956, level 12. Unit number I share later.
+Expected:
+- update new place block and level
+- keep unit pending
+- continue without resetting
+
+TEST 8
+User:
+Morning around 9 to 1 can?
+Expected:
+- update preferred time window to 9am–1pm
+- do not ask for items again
+
+TEST 9
+User:
+Can. For condo loading bay got 2 hours only. Need protective cover in lift. TV console maybe don’t need, leave it out first.
+Expected:
+- loading bay limit stored
+- protective cover stored
+- TV console moved out of tentative into excluded or leave-out-for-now state
+- ask relevant next question
+
+TEST 10
+User:
+The wall mirror need wall mounting. Curtain rods also need drilling. Shoe cabinet just normal assembly. Baby cot is from Taobao not sure instruction complete.
+Expected:
+- wall mounting stored
+- drilling stored
+- Taobao incomplete-manual risk stored
+- no generic restart
+
+TEST 11
+User:
+Also maybe add one washing machine relocation from old place to new place, but not sure if your team does it.
+Expected:
+- optional item tracked
+- ask whether move-only or plumbing needed
+
+TEST 12
+User:
+Just move only, no plumbing work. Front load washer around 70kg.
+Expected:
+- optional appliance detail stored
+- move-only/no plumbing tracked
+
+TEST 13
+User:
+Actually I need to ask, can your team dispose of one old mattress also?
+Expected:
+- disposal inquiry handled naturally
+- quote flow retained
+
+TEST 14
+User:
+My contact number is 91234567.
+Expected:
+- phone stored
+
+TEST 15
+User:
+One more thing, old place stair is narrow and turning point quite tight. Sofa maybe hard to bring out.
+Expected:
+- difficult access risk stored
+- ask for staircase/sofa photo only if still useful
+
+TEST 16
+User:
+I sent the sofa and staircase photos already.
+Expected:
+- photos acknowledged
+- do not ask for same photos again
+
+TEST 17
+User:
+Anything else you need from me?
+Expected:
+- if enough info, produce a correct structured summary
+- do not invent wrong defaults
+- do not lose mixed scope
+- do not mix old/new access
+- do not forget corrected wardrobe details
+
+EXPECTED FINAL SUMMARY CONTENT
+A correct final summary should contain at minimum:
+
+Service scope:
+- dismantling at old place
+- relocation to new place
+- installation at new place
+- new-item installation at new place
+
+Old place:
+- 109C Depot Road
+- level 3
+- no lift
+- maisonette internal staircase
+- upstairs items: king bed with storage, 2 bedside tables, IKEA PAX wardrobe 250cm 4 swing doors
+- narrow stair / tight turning point
+- sofa extraction difficult
+
+New place:
+- Parc Esta, Block 956, level 12
+- lift available
+- lift booking required
+- protective cover required
+- loading bay limit 2 hours
+- unit pending
+
+Relocation items:
+- 1 king bed with storage
+- 2 bedside tables
+- 1 IKEA PAX wardrobe 250cm, 4 swing doors
+- 1 L-shape sofa
+- 1 dining table with 6 chairs
+- 1 study desk 140cm
+- 2 office chairs
+- 1 tall bookshelf
+
+Install-only items:
+- 1 baby cot, Taobao, instructions may be incomplete
+- 1 shoe cabinet
+- 2 curtain rods, drilling required
+- 1 wall mirror, wall mounting required
+
+Optional / excluded / pending:
+- washing machine relocation only, front load, 70kg, no plumbing
+- TV console excluded for now
+- disposal inquiry for old mattress
+
+Customer:
+- Daniel Tan
+- 91234567
+- preferred slot 14 April, 9am–1pm
+- photos received
+
+OUTPUT FORMAT REQUIRED
+Return in this exact order:
+1. root cause analysis
+2. exact file list to change
+3. full file replacements only
+4. migration only if absolutely required
+5. concise explanation of how the repaired logic works
+6. test checklist showing how each required behavior is handled
+
+IMPORTANT
+- full file replacements only
+- no pseudo-code
+- no partial snippets
+- no scope creep
+- preserve working integrations
+- keep the repair tightly limited to WhatsApp chatbot logic and immediate support code
