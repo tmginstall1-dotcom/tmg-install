@@ -257,34 +257,34 @@ function TrustStripAnimated() {
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-black/8">
           <div className="sm:px-8 first:pl-0 flex items-start sm:items-center gap-3">
-            <Package className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
+            <Package className="w-4 h-4 text-amber-500 mt-0.5 sm:mt-0 flex-shrink-0" />
             <div>
               <p className="text-sm font-semibold text-black">
-                <span ref={c250.ref}>{c250.count}</span>+ Items in Catalog
+                <span ref={c250.ref} className="text-amber-600">{c250.count}</span>+ Items in Catalog
               </p>
               <p className="text-xs text-black/40 font-body mt-0.5">Every item fixed-priced upfront</p>
             </div>
           </div>
           <div className="sm:px-8 flex items-start sm:items-center gap-3">
-            <Zap className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
+            <Zap className="w-4 h-4 text-amber-500 mt-0.5 sm:mt-0 flex-shrink-0" />
             <div>
               <p className="text-sm font-semibold text-black">
-                <span ref={c60.ref}>{c60.count}</span>-Second Quote
+                <span ref={c60.ref} className="text-amber-600">{c60.count}</span>-Second Quote
               </p>
               <p className="text-xs text-black/40 font-body mt-0.5">No calls, no waiting, no forms</p>
             </div>
           </div>
           <div className="sm:px-8 flex items-start sm:items-center gap-3">
-            <Clock className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
+            <Clock className="w-4 h-4 text-amber-500 mt-0.5 sm:mt-0 flex-shrink-0" />
             <div>
               <p className="text-sm font-semibold text-black">
-                <span ref={c7.ref}>{c7.count}</span> Days a Week
+                <span ref={c7.ref} className="text-amber-600">{c7.count}</span> Days a Week
               </p>
               <p className="text-xs text-black/40 font-body mt-0.5">Weekends & public holidays included</p>
             </div>
           </div>
           <div className="sm:px-8 last:pr-0 flex items-start sm:items-center gap-3">
-            <Shield className="w-4 h-4 text-black/40 mt-0.5 sm:mt-0 flex-shrink-0" />
+            <Shield className="w-4 h-4 text-amber-500 mt-0.5 sm:mt-0 flex-shrink-0" />
             <div>
               <p className="text-sm font-semibold text-black">ACRA Registered</p>
               <p className="text-xs text-black/40 font-body mt-0.5">The Moving Guy Pte Ltd · UEN 202424156H</p>
@@ -451,14 +451,21 @@ export default function Landing() {
 
             {/* ── LEFT: Copy ── */}
             <motion.div {...fadeUp}>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-white/20 bg-white/[0.06] mb-8">
-                <Zap className="w-3.5 h-3.5 text-white/70" />
-                <span className="text-[10px] font-black tracking-[0.18em] text-white/70 uppercase">
+              {/* Amber brand badge */}
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-400 mb-6">
+                <Zap className="w-3 h-3 text-black flex-shrink-0" />
+                <span className="text-[10px] font-black tracking-[0.16em] text-black uppercase">
                   Singapore's Furniture Installation Specialists
                 </span>
               </div>
 
-              <h1 className="hero-title text-white mb-6">
+              {/* Amber accent line */}
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-[3px] bg-amber-400" />
+                <div className="w-3 h-[3px] bg-amber-400/40" />
+              </div>
+
+              <h1 className="hero-title text-white mb-7">
                 Installation,<br />Dismantling &amp;<br />Relocation.
               </h1>
 
@@ -473,7 +480,7 @@ export default function Landing() {
                   href="/estimate"
                   data-testid="hero-cta-guided"
                   onClick={() => trackEvent("cta_click", "/", "hero_get_estimate")}
-                  className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white font-black text-xs uppercase tracking-[0.12em] hover:bg-neutral-800 transition-colors"
+                  className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 transition-colors"
                 >
                   GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </Link>
@@ -483,7 +490,7 @@ export default function Landing() {
                   rel="noopener noreferrer"
                   data-testid="hero-cta-whatsapp"
                   onClick={() => trackEvent("cta_click", "/", "hero_whatsapp")}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 border border-white/25 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-white/60 hover:bg-white/15 transition-all backdrop-blur-sm"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/[0.06] border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/50 hover:bg-white/10 transition-all backdrop-blur-sm"
                 >
                   <MessageCircle className="w-4 h-4" /> WHATSAPP US
                 </a>
@@ -521,7 +528,7 @@ export default function Landing() {
                   { icon: Clock, label: "Flexible Same-Week Scheduling" },
                 ].map(({ icon: Icon, label }) => (
                   <div key={label} className="flex items-center gap-2 text-sm text-white/45">
-                    <div className="w-1.5 h-1.5 bg-white/30 flex-shrink-0" />
+                    <div className="w-1.5 h-1.5 bg-amber-400/70 flex-shrink-0" />
                     <span>{label}</span>
                   </div>
                 ))}
@@ -567,15 +574,16 @@ export default function Landing() {
               className="hidden lg:flex flex-col gap-4"
             >
               {/* Main glass card */}
-              <div className="relative border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden p-8 shadow-[0_0_80px_rgba(255,255,255,0.04)]">
-                <div className="absolute top-0 left-0 w-20 h-px bg-white/20" />
-                <div className="absolute top-0 left-0 w-px h-20 bg-white/20" />
-                <div className="absolute bottom-0 right-0 w-20 h-px bg-white/20" />
-                <div className="absolute bottom-0 right-0 w-px h-20 bg-white/20" />
+              <div className="relative border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden p-8 shadow-[0_0_80px_rgba(255,180,0,0.06)]">
+                {/* Amber corner accents */}
+                <div className="absolute top-0 left-0 w-20 h-[2px] bg-amber-400/60" />
+                <div className="absolute top-0 left-0 w-[2px] h-20 bg-amber-400/60" />
+                <div className="absolute bottom-0 right-0 w-20 h-[2px] bg-amber-400/20" />
+                <div className="absolute bottom-0 right-0 w-[2px] h-20 bg-amber-400/20" />
 
                 <div className="flex items-center gap-2 mb-8">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                  <span className="text-[9px] font-black text-white/35 tracking-[0.2em] uppercase">Live Pricing Engine</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-[9px] font-black text-amber-400/70 tracking-[0.2em] uppercase">Live Pricing Engine</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-px bg-white/8 mb-6">
@@ -586,8 +594,8 @@ export default function Landing() {
                     { val: "5★",   label: "Customer rating",  icon: Star },
                   ].map(({ val, label, icon: Icon }) => (
                     <div key={val} className="bg-white/[0.03] p-5 group">
-                      <Icon className="w-3.5 h-3.5 text-white/20 mb-3" />
-                      <p className="font-heading font-bold text-2xl text-white leading-none mb-1">{val}</p>
+                      <Icon className="w-3.5 h-3.5 text-amber-400/50 mb-3" />
+                      <p className="font-heading font-bold text-2xl text-amber-400 leading-none mb-1">{val}</p>
                       <p className="text-[10px] text-white/30 font-semibold uppercase tracking-wider">{label}</p>
                     </div>
                   ))}
@@ -601,7 +609,7 @@ export default function Landing() {
                     "Full relocation D&R service",
                   ].map(item => (
                     <div key={item} className="flex items-center gap-2.5 text-xs text-white/40 font-body">
-                      <CheckCircle2 className="w-3 h-3 text-white/25 flex-shrink-0" />
+                      <CheckCircle2 className="w-3 h-3 text-amber-400/40 flex-shrink-0" />
                       {item}
                     </div>
                   ))}
@@ -676,7 +684,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="flex items-end justify-between gap-4 mb-8 flex-wrap">
             <div>
-              <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-2" style={{ letterSpacing: "0.2em" }}>
+              <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-2" style={{ letterSpacing: "0.2em" }}>
                 Our Work
               </p>
               <h2 className="section-title text-black">Real jobs. Real results.</h2>
@@ -801,7 +809,7 @@ export default function Landing() {
       <section className="bg-white px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-12">
-            <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+            <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
               Our Catalog
             </p>
             <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -831,7 +839,7 @@ export default function Landing() {
                     <p className="text-[11px] text-black/30 group-hover:text-white/30 transition-colors font-mono">
                       {count} items
                     </p>
-                    <p className="text-[10px] font-semibold text-black/25 group-hover:text-white/25 mt-3 uppercase tracking-wide transition-colors flex items-center gap-1">
+                    <p className="text-[10px] font-semibold text-black/25 group-hover:text-amber-400 mt-3 uppercase tracking-wide transition-colors flex items-center gap-1">
                       Get quote <ArrowRight className="w-2.5 h-2.5" />
                     </p>
                   </TiltCard>
@@ -849,7 +857,7 @@ export default function Landing() {
 
           {/* Header */}
           <motion.div {...fadeUpDelayed(0)} className="mb-16">
-            <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+            <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
               The Full Booking Flow
             </p>
             <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -1072,7 +1080,7 @@ export default function Landing() {
       <section className="bg-black px-4 sm:px-6 lg:px-8 py-28">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-16">
-            <p className="text-[10px] font-semibold tracking-widest text-white/30 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+            <p className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
               Why Choose Us
             </p>
             <h2 className="section-title text-white">Built for every job.</h2>
@@ -1122,7 +1130,7 @@ export default function Landing() {
             {/* Header row */}
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-12">
               <div>
-                <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+                <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
                   Customer Reviews
                 </p>
                 <h2 className="section-title text-black">What our clients say.</h2>
@@ -1224,7 +1232,7 @@ export default function Landing() {
       <section className="bg-white px-4 sm:px-6 lg:px-8 py-24 border-b border-black/8">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-10">
-            <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+            <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
               Transparent Pricing
             </p>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -1255,13 +1263,13 @@ export default function Landing() {
                 <div className="border border-black/10 bg-white p-3 space-y-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.1em] text-black">Carry Only — Transport &amp; Stairs</p>
                   <p className="text-[10px] text-black/50 font-body">No per-item labor. You pay transport fee only.</p>
-                  <p className="text-[11px] font-semibold text-black">From $68 <span className="text-black/40 font-normal">(≤3 km, 1 helper incl.)</span></p>
+                  <p className="text-[11px] font-semibold text-black">From <span className="text-amber-600">$68</span> <span className="text-black/40 font-normal">(≤3 km, 1 helper incl.)</span></p>
                   <p className="text-[10px] text-black/45">+$0.50/km · Stairs: +$5/level (lift), +$15/level (no lift)</p>
                 </div>
                 <div className="border border-black bg-black p-3 space-y-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white">Dismantle &amp; Reinstall — Full Service</p>
                   <p className="text-[10px] text-white/55 font-body">Transport + dismantle at origin + reassemble at destination.</p>
-                  <p className="text-[11px] font-semibold text-white">From $68 <span className="text-white/50 font-normal">+ D&amp;R labor per item below</span></p>
+                  <p className="text-[11px] font-semibold text-white">From <span className="text-amber-400">$68</span> <span className="text-white/50 font-normal">+ D&amp;R labor per item below</span></p>
                   <p className="text-[10px] text-white/45">+$0.50/km · 90 min crew · Overtime $30/30-min block</p>
                 </div>
               </div>
@@ -1272,7 +1280,7 @@ export default function Landing() {
           <motion.div {...fadeUpDelayed(0.08)} className="hidden lg:block border border-black/10 bg-white overflow-hidden">
             <div className="grid grid-cols-[2fr_1fr_1fr_1fr] border-b border-black/10 bg-black/[0.025]">
               <div className="px-6 py-4">
-                <span className="text-[10px] font-semibold tracking-widest text-black/35 uppercase" style={{ letterSpacing: "0.15em" }}>Furniture Item</span>
+                <span className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase" style={{ letterSpacing: "0.15em" }}>Furniture Item</span>
               </div>
               {[
                 { label: "Installation",  sub: "Assemble & fix in place" },
@@ -1395,7 +1403,7 @@ export default function Landing() {
                 </div>
                 <div className="bg-black/[0.04] px-4 py-3">
                   <p className="text-[10px] text-black/40 font-body mb-1">Example: 10 km, ground floor both ends</p>
-                  <p className="text-xl font-black text-black">$71.50 <span className="text-sm font-normal text-black/40">total</span></p>
+                  <p className="text-xl font-black text-amber-600">$71.50 <span className="text-sm font-normal text-black/40">total</span></p>
                   <p className="text-[10px] text-black/35">$68 base + 7km × $0.50</p>
                 </div>
               </div>
@@ -1426,7 +1434,7 @@ export default function Landing() {
                 </div>
                 <div className="bg-white/10 px-4 py-3">
                   <p className="text-[10px] text-white/40 font-body mb-1">Example: 10 km, 1 × Queen Bed Frame, ground floor</p>
-                  <p className="text-xl font-black text-white">$155.50 <span className="text-sm font-normal text-white/40">total</span></p>
+                  <p className="text-xl font-black text-amber-400">$155.50 <span className="text-sm font-normal text-white/40">total</span></p>
                   <p className="text-[10px] text-white/35">$68 base + 7km × $0.50 + $84 D&R labor (40% bundle discount)</p>
                 </div>
               </div>
@@ -1452,7 +1460,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-[1fr_2fr] gap-16">
             <motion.div {...fadeUpDelayed(0)}>
-              <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
+              <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-3" style={{ letterSpacing: "0.2em" }}>
                 FAQ
               </p>
               <h2 className="section-title text-black mb-4">Common questions.</h2>
@@ -1482,7 +1490,7 @@ export default function Landing() {
       <section className="bg-white px-4 sm:px-6 lg:px-8 py-28">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="max-w-2xl">
-            <p className="text-[10px] font-semibold tracking-widest text-black/35 uppercase mb-4" style={{ letterSpacing: "0.2em" }}>
+            <p className="text-[10px] font-semibold tracking-widest text-amber-600 uppercase mb-4" style={{ letterSpacing: "0.2em" }}>
               Ready to start?
             </p>
             <h2 className="section-title text-black mb-6">
