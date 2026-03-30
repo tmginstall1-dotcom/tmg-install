@@ -512,6 +512,17 @@ function ChatPanel({
     ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
   }, [replyText]);
 
+  /* Scroll to bottom when keyboard opens (viewport shrinks on mobile) */
+  useEffect(() => {
+    const onVpResize = () => {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    };
+    window.visualViewport?.addEventListener("resize", onVpResize);
+    return () => window.visualViewport?.removeEventListener("resize", onVpResize);
+  }, []);
+
   const { data: thread, isLoading: loadingThread } = useQuery<ThreadData>({
     queryKey: ["/api/admin/whatsapp/conversations", selectedPhone],
     queryFn: async () => {
@@ -985,18 +996,20 @@ function ChatPanel({
               </div>
             </div>
 
-            {/* Admin Mode banner */}
+            {/* Admin Mode banner — compact single-line strip */}
             {botPaused && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-t border-amber-200">
-                <TriangleAlert className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                <span className="text-xs font-semibold text-amber-700">Admin Mode — Bot is paused. The customer's messages will not receive an automatic reply.</span>
+              <div className="flex items-center justify-between px-3 py-1 bg-amber-500 flex-shrink-0">
+                <div className="flex items-center gap-1.5 text-white text-[11px] font-semibold min-w-0">
+                  <TriangleAlert className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate">Admin Mode — Bot paused. No auto-reply.</span>
+                </div>
                 <button
                   onClick={() => resumeBotMutation.mutate()}
                   disabled={resumeBotMutation.isPending}
-                  className="ml-auto text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2 flex-shrink-0"
+                  className="ml-3 text-[11px] font-bold text-white/90 hover:text-white underline underline-offset-2 flex-shrink-0 disabled:opacity-60"
                   data-testid="resume-bot-inline"
                 >
-                  Resume Bot
+                  Resume
                 </button>
               </div>
             )}
@@ -1175,50 +1188,46 @@ function ChatPanel({
             </div>
           )}
 
-          {/* Quick Templates — fast-access chips */}
-          {showTemplates && !noteMode && (
-            <div className="flex-shrink-0 border-t border-gray-100 bg-white px-3 py-2.5">
+          {/* Combined Quick Templates + Canned Replies panel */}
+          {(showTemplates || showQuickReplies) && !noteMode && (
+            <div className="flex-shrink-0 border-t border-gray-100 bg-white px-3 pt-2.5 pb-1 max-h-56 overflow-y-auto">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Quick Templates</p>
-                <button onClick={() => setShowTemplates(false)} className="text-gray-300 hover:text-gray-500"><X className="w-3.5 h-3.5" /></button>
+                <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Quick Replies</p>
+                <button onClick={() => { setShowTemplates(false); setShowQuickReplies(false); }} className="text-gray-300 hover:text-gray-500"><X className="w-3.5 h-3.5" /></button>
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              {/* Quick chips */}
+              <div className="flex flex-wrap gap-1.5 mb-2">
                 {QUICK_TEMPLATES.map(t => (
                   <button
                     key={t.label}
-                    onClick={() => { setReplyText(t.text); setShowTemplates(false); setTimeout(() => textareaRef.current?.focus(), 0); }}
+                    onClick={() => { setReplyText(t.text); setShowTemplates(false); setShowQuickReplies(false); setTimeout(() => textareaRef.current?.focus(), 0); }}
                     className="px-2.5 py-1 rounded-full border border-gray-200 bg-gray-50 text-xs font-medium text-gray-600 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-all"
                   >
                     {t.label}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Canned Replies (saved shortcuts) */}
-          {showQuickReplies && (
-            <div className="flex-shrink-0 border-t border-gray-100 bg-white px-4 py-3">
-              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Canned Replies</p>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {dbCannedReplies.filter(r => r.active).length === 0 ? (
-                  <p className="text-xs text-gray-400 px-2 py-1 italic">No canned replies configured. Add them in FAQ Manager → Canned Replies.</p>
-                ) : (
-                  dbCannedReplies.filter(r => r.active).map(r => (
-                    <button
-                      key={r.id}
-                      onClick={() => { setReplyText(r.body.replace(/\\n/g, "\n")); setShowQuickReplies(false); textareaRef.current?.focus(); }}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-50 transition-all border border-transparent hover:border-gray-200"
-                    >
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <code className="text-[10px] font-mono bg-zinc-100 text-zinc-600 px-1 rounded">{r.shortcut}</code>
-                        <span className="text-xs font-semibold text-gray-700">{r.title}</span>
-                      </div>
-                      <p className="text-xs text-gray-400 truncate">{r.body}</p>
-                    </button>
-                  ))
-                )}
-              </div>
+              {/* Saved canned replies */}
+              {dbCannedReplies.filter(r => r.active).length > 0 && (
+                <div className="border-t border-gray-100 pt-2">
+                  <p className="text-[10px] text-gray-300 font-semibold uppercase tracking-wider mb-1.5">Saved Replies</p>
+                  <div className="space-y-1">
+                    {dbCannedReplies.filter(r => r.active).map(r => (
+                      <button
+                        key={r.id}
+                        onClick={() => { setReplyText(r.body.replace(/\\n/g, "\n")); setShowTemplates(false); setShowQuickReplies(false); textareaRef.current?.focus(); }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-50 transition-all border border-transparent hover:border-gray-200"
+                      >
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <code className="text-[10px] font-mono bg-zinc-100 text-zinc-600 px-1 rounded">{r.shortcut}</code>
+                          <span className="text-xs font-semibold text-gray-700">{r.title}</span>
+                        </div>
+                        <p className="text-xs text-gray-400 truncate">{r.body}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1236,6 +1245,23 @@ function ChatPanel({
               onChange={handleFileSelect}
               data-testid="file-input"
             />
+
+            {/* Note mode indicator strip — thin, replaces the full tab row */}
+            {noteMode && (
+              <div className="flex items-center justify-between px-3 py-1 bg-amber-50 border-b border-amber-200">
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                  <StickyNote className="w-3 h-3" />
+                  <span>Internal Note — not sent to customer</span>
+                </div>
+                <button
+                  onClick={() => { setNoteMode(false); clearAttach(); }}
+                  className="text-[11px] text-amber-600 hover:text-amber-800 font-semibold underline"
+                  data-testid="cancel-note-mode"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
 
             {/* File/image preview panel */}
             {attachFile && (
@@ -1295,138 +1321,122 @@ function ChatPanel({
               </div>
             )}
 
-            {/* Mode toggle: Message / Internal Note */}
-            <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1">
-              <button
-                onClick={() => { setNoteMode(false); setShowQuickReplies(false); }}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border ${
-                  !noteMode ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
-                }`}
-                data-testid="mode-message"
-              >
-                <Send className="w-3 h-3" /> Message
-              </button>
-              <button
-                onClick={() => { setNoteMode(true); setShowQuickReplies(false); clearAttach(); }}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border ${
-                  noteMode ? "bg-amber-500 text-white border-amber-500" : "bg-white text-gray-400 border-gray-200 hover:border-amber-300 hover:text-amber-600"
-                }`}
-                data-testid="mode-note"
-              >
-                <StickyNote className="w-3 h-3" /> Internal Note
-              </button>
-            </div>
+            <div className="px-2 pb-2 pt-1.5">
+              <div className="flex items-end gap-1">
+                {/* Left icon group — attach + note toggle */}
+                <div className="flex flex-col items-center gap-1 pb-0.5">
+                  {/* Attach (message mode only) */}
+                  {!noteMode ? (
+                    <button
+                      onClick={() => { fileInputRef.current?.click(); setShowEmojiPicker(false); }}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                        attachFile ? "bg-emerald-500 text-white" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                      }`}
+                      title="Attach image or document"
+                      data-testid="btn-attach-file"
+                    >
+                      <Paperclip className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <div className="w-8 h-8" />
+                  )}
+                </div>
 
-            <div className="px-3 pb-3">
-              <div className="flex items-end gap-1.5">
-                {/* Quick templates (message mode only) */}
-                {!noteMode && (
-                  <button
-                    onClick={() => { setShowTemplates(v => !v); setShowQuickReplies(false); setShowEmojiPicker(false); }}
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
-                      showTemplates
-                        ? "bg-violet-600 text-white border-violet-600"
-                        : "bg-gray-50 text-gray-400 hover:text-violet-600 hover:bg-violet-50 border-gray-200"
-                    }`}
-                    title="Quick templates"
-                    data-testid="btn-templates"
-                  >
-                    <ListChecks className="w-4 h-4" />
-                  </button>
-                )}
-
-                {/* Canned replies (message mode only) */}
-                {!noteMode && (
-                  <button
-                    onClick={() => { setShowQuickReplies(v => !v); setShowTemplates(false); setShowEmojiPicker(false); }}
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
-                      showQuickReplies
-                        ? "bg-indigo-600 text-white border-indigo-600"
-                        : "bg-gray-50 text-gray-400 hover:text-gray-700 hover:bg-gray-100 border-gray-200"
-                    }`}
-                    title="Canned replies"
-                    data-testid="btn-quick-replies"
-                  >
-                    <Zap className="w-4 h-4" />
-                  </button>
-                )}
-
-                {/* Emoji picker toggle */}
-                <button
-                  onClick={() => { setShowEmojiPicker(v => !v); setShowQuickReplies(false); setShowTemplates(false); }}
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
-                    showEmojiPicker
-                      ? "bg-yellow-400 text-white border-yellow-400"
-                      : "bg-gray-50 text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 border-gray-200"
-                  }`}
-                  title="Emoji picker"
-                  data-testid="btn-emoji-picker"
-                >
-                  <Smile className="w-4 h-4" />
-                </button>
-
-                {/* File attach (message mode only) */}
-                {!noteMode && (
-                  <button
-                    onClick={() => { fileInputRef.current?.click(); setShowEmojiPicker(false); }}
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
-                      attachFile
-                        ? "bg-emerald-500 text-white border-emerald-500"
-                        : "bg-gray-50 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 border-gray-200"
-                    }`}
-                    title="Attach image or document (PDF, Word, Excel)"
-                    data-testid="btn-attach-file"
-                  >
-                    <Paperclip className="w-4 h-4" />
-                  </button>
-                )}
-
-                {/* Text input — auto-resizes via useEffect (hidden when file preview is shown) */}
-                {!attachFile && (
-                  <div className="flex-1">
+                {/* Textarea wrapper */}
+                <div className="flex-1 relative">
+                  {/* Text input — auto-resizes via useEffect */}
+                  {!attachFile && (
                     <Textarea
                       ref={textareaRef}
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={noteMode ? "Add an internal note (not sent to customer)…" : "Type a message… (Enter to send, Shift+Enter for newline)"}
-                      className={`resize-none overflow-hidden text-gray-900 placeholder:text-gray-400 text-sm min-h-[44px] py-2.5 px-3.5 rounded-xl focus:bg-white transition-colors leading-relaxed ${
-                        noteMode ? "bg-amber-50 border-amber-200 focus:border-amber-400" : "bg-gray-50 border-gray-200 focus:border-blue-400"
+                      placeholder={noteMode ? "Internal note (not sent to customer)…" : "Message"}
+                      className={`resize-none overflow-hidden text-[15px] text-gray-900 placeholder:text-gray-400 min-h-[40px] py-2 px-3 rounded-2xl border transition-colors leading-relaxed focus-visible:ring-0 ${
+                        noteMode
+                          ? "bg-amber-50 border-amber-200 focus:border-amber-400"
+                          : "bg-[#F0F0F0] border-transparent focus:border-gray-300 focus:bg-white"
                       }`}
                       rows={1}
                       data-testid="reply-input"
                     />
-                  </div>
-                )}
-                {attachFile && <div className="flex-1" />}
+                  )}
+                  {attachFile && <div className="flex-1 h-10" />}
+                </div>
 
-                <Button
-                  onClick={handleSend}
-                  disabled={attachFile ? isSending : (!replyText.trim() || isSending)}
-                  className={`w-9 h-9 rounded-xl text-white flex-shrink-0 p-0 flex items-center justify-center mb-0.5 disabled:opacity-40 transition-all shadow-sm ${
-                    noteMode ? "bg-amber-500 hover:bg-amber-600" : "bg-[#25D366] hover:bg-[#1db954]"
-                  }`}
-                  data-testid="send-reply"
-                >
-                  {isSending
-                    ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                    : noteMode ? <StickyNote className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />
-                  }
-                </Button>
-              </div>
+                {/* Right icon group — emoji, note toggle, templates/canned, send */}
+                <div className="flex items-center gap-0.5 pb-0.5">
+                  {/* Emoji */}
+                  <button
+                    onClick={() => { setShowEmojiPicker(v => !v); setShowQuickReplies(false); setShowTemplates(false); }}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                      showEmojiPicker ? "text-yellow-500 bg-yellow-50" : "text-gray-400 hover:text-yellow-500 hover:bg-gray-100"
+                    }`}
+                    title="Emoji"
+                    data-testid="btn-emoji-picker"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
 
-              <div className="flex items-center justify-between mt-1 px-0.5">
-                <p className="text-[10px] text-gray-400">
-                  {noteMode
-                    ? <span className="text-amber-600 font-semibold">Internal note — visible to admins only, not sent to customer</span>
-                    : <>Sending as <span className="text-indigo-600 font-semibold">Admin</span> · delivered to customer's WhatsApp</>
-                  }
-                </p>
-                {!attachFile && replyText.length > 100 && !noteMode && (
-                  <span className={`text-[10px] tabular-nums font-medium ${replyText.length > 900 ? "text-red-500" : "text-gray-400"}`}>
-                    {replyText.length}/1024
-                  </span>
-                )}
+                  {/* Internal Note toggle */}
+                  <button
+                    onClick={() => {
+                      if (noteMode) { setNoteMode(false); }
+                      else { setNoteMode(true); setShowQuickReplies(false); setShowTemplates(false); clearAttach(); }
+                    }}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                      noteMode ? "text-amber-600 bg-amber-100" : "text-gray-400 hover:text-amber-500 hover:bg-gray-100"
+                    }`}
+                    title={noteMode ? "Cancel note mode" : "Write internal note (not sent to customer)"}
+                    data-testid="mode-note"
+                  >
+                    <StickyNote className="w-4.5 h-4.5 w-[18px] h-[18px]" />
+                  </button>
+
+                  {/* Templates + Canned — shown only in message mode */}
+                  {!noteMode && (
+                    <button
+                      onClick={() => {
+                        if (showTemplates || showQuickReplies) { setShowTemplates(false); setShowQuickReplies(false); }
+                        else { setShowTemplates(true); setShowEmojiPicker(false); }
+                      }}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                        showTemplates || showQuickReplies ? "text-violet-600 bg-violet-50" : "text-gray-400 hover:text-violet-600 hover:bg-gray-100"
+                      }`}
+                      title="Quick templates and canned replies"
+                      data-testid="btn-templates"
+                    >
+                      <ListChecks className="w-[18px] h-[18px]" />
+                    </button>
+                  )}
+
+                  {/* Send / record button — WhatsApp style: mic when empty, send when text */}
+                  {(replyText.trim() || attachFile) ? (
+                    <Button
+                      onClick={handleSend}
+                      disabled={attachFile ? isSending : (!replyText.trim() || isSending)}
+                      className={`w-9 h-9 rounded-full text-white flex-shrink-0 p-0 flex items-center justify-center disabled:opacity-40 transition-all shadow-sm ml-0.5 ${
+                        noteMode ? "bg-amber-500 hover:bg-amber-600" : "bg-[#25D366] hover:bg-[#1db954]"
+                      }`}
+                      data-testid="send-reply"
+                    >
+                      {isSending
+                        ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                        : noteMode ? <StickyNote className="w-4 h-4" /> : <Send className="w-4 h-4" />
+                      }
+                    </Button>
+                  ) : (
+                    <button
+                      className="w-9 h-9 rounded-full bg-[#25D366] text-white flex-shrink-0 flex items-center justify-center shadow-sm ml-0.5"
+                      title="Hold to record voice (coming soon)"
+                      data-testid="btn-voice"
+                      onClick={() => textareaRef.current?.focus()}
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M12 15c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 15.2 14.47 17 12 17s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V21c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
+                    </button>
+                  )}
+                </div>
+
               </div>
             </div>
           </div>
