@@ -1,235 +1,331 @@
 import { useRef, useEffect } from "react";
 
 /*
- * Premium scroll-driven 3D perspective background — pure canvas, zero dependencies.
+ * Scroll-driven 3D armchair dismantle / reassemble — pure canvas, zero deps.
  *
- * Technique: perspective projection (no WebGL / no Three.js).
- *   - 3D points projected to 2D via: sx = cx + (x-cx)*f/(z+f), sy = cy + (y-cy)*f/(z+f)
- *   - Scroll drives camera Y (floor-to-ceiling tilt)
- *   - Mouse adds gentle X/Y tilt (parallax)
- *   - All transforms are lerped → elastic, lag-free feel
- *   - RAF runs at 60 fps; canvas draw is CPU-trivial (line strokes only)
+ * Architecture:
+ *  - 12 chair pieces defined in world-space Y-up coordinates
+ *  - Each piece has: scatter translation, spin axes, stagger delay
+ *  - Per-frame: scatter → spin (3D) → camera rotate → perspective project
+ *  - Painter's algorithm Z-sort across all edges before drawing
+ *  - Scroll progress drives dismantle; scrolling back re-assembles
+ *  - Camera yaw drifts +0.3 rad as chair dismantles (cinematic orbit)
+ *  - Mouse adds ±3° parallax tilt
  */
 
-const AMBER  = (a: number) => `rgba(251,191,36,${a})`;
-const WHITE  = (a: number) => `rgba(255,255,255,${a})`;
+type V3   = [number, number, number];
+type Edge = [number, number];
 
-/* ── 3D → 2D perspective projection ───────────────────────────────────── */
-function project(
-  x: number, y: number, z: number,
-  cx: number, cy: number, focal: number
-): [number, number, number] {
-  const dz = z + focal;
-  if (dz <= 0) return [cx, cy, 0];
-  const scale = focal / dz;
-  return [cx + (x - cx) * scale, cy + (y - cy) * scale, scale];
-}
+const AMB = (a: number) => `rgba(251,191,36,${a.toFixed(3)})`;
 
-/* ── Furniture wireframe definitions (room-space coords) ──────────────── */
-/* Each piece is a list of edges: [[x1,y1,z1],[x2,y2,z2]] in world-units.
-   The room is roughly -400…+400 wide, -200…+200 tall, 50…900 deep. */
-function buildScene() {
-  const edges: [number[], number[]][] = [];
+/* ── Cubic ease in-out ─────────────────────────────────────── */
+const ease = (t: number): number =>
+  t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 
-  const box = (
-    x: number, y: number, z: number,
-    w: number, h: number, d: number
-  ) => {
-    const x0 = x, x1 = x + w;
-    const y0 = y, y1 = y + h;
-    const z0 = z, z1 = z + d;
-    // 12 edges of a cuboid
-    const verts: [number,number,number][] = [
-      [x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],
-      [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],
-    ];
-    const idx = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],
-                 [0,4],[1,5],[2,6],[3,7]];
-    idx.forEach(([a,b]) => edges.push([verts[a],verts[b]]));
+/* ── Cuboid: 8 verts + 12 edges ────────────────────────────── */
+function box(
+  cx: number, cy: number, cz: number,
+  w: number,  h: number,  d: number
+): { v: V3[]; e: Edge[] } {
+  const [x0, x1] = [cx - w / 2, cx + w / 2];
+  const [y0, y1] = [cy, cy + h];
+  const [z0, z1] = [cz - d / 2, cz + d / 2];
+  return {
+    v: [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],
+        [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]] as V3[],
+    e: [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],
+        [0,4],[1,5],[2,6],[3,7]] as Edge[],
   };
-
-  // Wardrobe left
-  box(-380, -200, 200, 110, 230, 70);
-  // Wardrobe inner shelf detail
-  edges.push([[-380,-40,200],[-270,-40,200]]);
-  edges.push([[-380,-40,270],[-270,-40,270]]);
-
-  // Wardrobe right
-  box(270, -200, 180, 110, 230, 70);
-  edges.push([[270,-40,180],[380,-40,180]]);
-  edges.push([[270,-40,250],[380,-40,250]]);
-
-  // Low table centre-front
-  box(-100, 60, 120, 200, 18, 120);
-  // Table legs
-  [[-90,78,130],[-90,78,228],[90,78,130],[90,78,228]].forEach(([lx,,lz]) =>
-    edges.push([[lx,78,lz],[lx,200,lz]])
-  );
-
-  // Armchair hint (simplified silhouette)
-  box(-60, -60, 500, 120, 120, 100);  // seat
-  box(-60,-140,500, 120, 80, 20);    // backrest
-
-  // Ceiling grid lines (overhead structure)
-  for (let i = -3; i <= 3; i++) {
-    edges.push([[i*130, -200, 100],[i*130, -200, 900]]);
-  }
-  for (let j = 2; j <= 8; j++) {
-    edges.push([[-400,-200,j*100],[400,-200,j*100]]);
-  }
-
-  // Floor edge at horizon
-  edges.push([[-500,200,900],[500,200,900]]);
-
-  return edges;
 }
 
-const SCENE_EDGES = buildScene();
+/* ── Perspective projection (Y-up, looking along +Z) ───────── */
+function project(
+  p: V3, ox: number, oy: number, focal: number
+): [number, number, number] {
+  const dz = p[2] + focal;
+  if (dz < 1) return [0, 0, 0];
+  const s = focal / dz;
+  return [ox + p[0] * s, oy - p[1] * s, s]; // -y: canvas Y inverted
+}
 
+/* ── Camera rotation: yaw then pitch ───────────────────────── */
+function camRot(p: V3, yaw: number, pitch: number): V3 {
+  const [x, y, z] = p;
+  const cy = Math.cos(yaw),   sy = Math.sin(yaw);
+  const x2 = x * cy + z * sy, z2 = -x * sy + z * cy;
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  return [x2, y * cp - z2 * sp, y * sp + z2 * cp];
+}
+
+/* ── Spin vertices around a 3D centre point ────────────────── */
+function spinVerts(
+  verts: V3[], cx: number, cy: number, cz: number,
+  ax: number, ay: number, az: number
+): V3[] {
+  return verts.map(([x, y, z]) => {
+    let dx = x - cx, dy = y - cy, dz = z - cz;
+    if (ax !== 0) {
+      const c = Math.cos(ax), s = Math.sin(ax);
+      [dy, dz] = [dy * c - dz * s, dy * s + dz * c];
+    }
+    if (ay !== 0) {
+      const c = Math.cos(ay), s = Math.sin(ay);
+      [dx, dz] = [dx * c + dz * s, -dx * s + dz * c];
+    }
+    if (az !== 0) {
+      const c = Math.cos(az), s = Math.sin(az);
+      [dx, dy] = [dx * c - dy * s, dx * s + dy * c];
+    }
+    return [dx + cx, dy + cy, dz + cz] as V3;
+  });
+}
+
+/* ── Chair piece definition ─────────────────────────────────── */
+interface Piece {
+  v: V3[];                       // assembled vertices (world space, Y-up)
+  e: Edge[];
+  cx: number; cy: number; cz: number;  // piece centre (for spin)
+  scatter: V3;                   // world-space displacement at t=1
+  spin: [number, number, number]; // [ax, ay, az] total angle at t=1
+  delay: number;                 // scroll progress at which scatter begins
+  alpha: number;                 // base opacity at full assembly
+}
+
+/* ── Armchair geometry ──────────────────────────────────────── */
+function buildChair(): Piece[] {
+  const pieces: Piece[] = [];
+
+  function add(
+    bx: number, by: number, bz: number,
+    w: number, h: number, d: number,
+    scatter: V3, spin: [number, number, number],
+    delay: number, alpha: number
+  ) {
+    const g = box(bx, by, bz, w, h, d);
+    pieces.push({
+      v: g.v, e: g.e,
+      cx: bx, cy: by + h / 2, cz: bz,
+      scatter, spin, delay, alpha,
+    });
+  }
+
+  /* The chair sits on the floor (Y=0 = ground, Y-up).
+     Legs: y=-75 to y=4 (80 tall).  Seat: y=4 to y=56.
+     Arms: y=4 to y=105.  Backrest: y=56 to y=255. */
+
+  // ── Seat cushion (top soft layer)
+  add(  0,  38,   0, 186, 20, 170,
+        [0, -260, 0],        [ 0.55,  0,    0.22], 0.22, 1.00);
+
+  // ── Seat frame (structural undercarriage)
+  add(  0,   5,   0, 200, 35, 184,
+        [0, -315, 55],       [ 0.40,  0,   -0.20], 0.28, 0.86);
+
+  // ── Backrest cushion
+  add(  0,  58, -85, 168, 160, 18,
+        [0,  295, -370],     [-1.05,  0.12, 0   ], 0.04, 1.00);
+
+  // ── Backrest frame
+  add(  0,  53, -96, 198, 190, 28,
+        [0,  215, -415],     [-0.80,  0,    0.10], 0.07, 0.84);
+
+  // ── Left arm body
+  add(-96,  12,   0,  22,  82, 186,
+        [-365, 85, 0],       [ 0,    -1.20, 0   ], 0.13, 0.90);
+
+  // ── Left arm top rail
+  add(-96,  92,   8,  22,  14, 168,
+        [-390, 128, -50],    [ 0,    -1.40, -0.40], 0.18, 0.92);
+
+  // ── Right arm body
+  add( 96,  12,   0,  22,  82, 186,
+        [ 365, 85, 0],       [ 0,     1.20, 0   ], 0.13, 0.90);
+
+  // ── Right arm top rail
+  add( 96,  92,   8,  22,  14, 168,
+        [ 390, 128, -50],    [ 0,     1.40,  0.40], 0.18, 0.92);
+
+  // ── Front-right leg
+  add( 74, -75,  74,  14,  80,  14,
+        [ 210, -280, 215],   [ 0.40, -0.90, -0.60], 0.30, 0.82);
+
+  // ── Front-left leg
+  add(-74, -75,  74,  14,  80,  14,
+        [-210, -280, 215],   [ 0.40,  0.90,  0.60], 0.30, 0.82);
+
+  // ── Back-right leg
+  add( 74, -75, -74,  14,  80,  14,
+        [ 210, -280, -265],  [-0.40, -0.90, -0.60], 0.37, 0.82);
+
+  // ── Back-left leg
+  add(-74, -75, -74,  14,  80,  14,
+        [-210, -280, -265],  [-0.40,  0.90,  0.60], 0.37, 0.82);
+
+  return pieces;
+}
+
+const CHAIR_PIECES = buildChair();
+
+/* ── Floor grid (world space, Y = -75 = ground level) ───────── */
+const FLOOR_GRID: [V3, V3][] = [];
+for (let i = -5; i <= 5; i++) {
+  FLOOR_GRID.push([[i * 100, -75, -200], [i * 100, -75, 450]]);
+}
+for (let j = 0; j <= 8; j++) {
+  FLOOR_GRID.push([[-530, -75, j * 80 - 200], [530, -75, j * 80 - 200]]);
+}
+
+/* ── React component ────────────────────────────────────────── */
 export default function PageBgScene() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cvs = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = cvs.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
 
     let W = 0, H = 0;
-    let scrollP = 0;          // 0-1 page scroll progress
-    let mouseX = 0, mouseY = 0;
+    let scrollP  = 0;
+    let mouseX   = 0, mouseY = 0;
+    let camX     = 0, camY   = 0;   // smoothed mouse offset
+    let rafId: number;
 
-    /* smoothed camera state */
-    let camTiltX = 0;  // current horizontal lean (driven by mouse)
-    let camTiltY = 0;  // current vertical tilt (driven by scroll + mouse)
-
-    /* Resize */
     const resize = () => {
       W = canvas.width  = window.innerWidth;
       H = canvas.height = window.innerHeight;
     };
     resize();
-    window.addEventListener("resize", resize, { passive: true });
 
-    /* Scroll */
     const onScroll = () => {
       const max = document.documentElement.scrollHeight - window.innerHeight;
       scrollP = max > 0 ? Math.min(1, window.scrollY / max) : 0;
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
-
-    /* Mouse */
     const onMouse = (e: MouseEvent) => {
-      mouseX = (e.clientX / window.innerWidth  - 0.5);
-      mouseY = (e.clientY / window.innerHeight - 0.5);
+      mouseX = e.clientX / window.innerWidth  - 0.5;
+      mouseY = e.clientY / window.innerHeight - 0.5;
     };
-    window.addEventListener("mousemove", onMouse, { passive: true });
 
-    let rafId: number;
+    window.addEventListener("resize",    resize,   { passive: true });
+    window.addEventListener("scroll",    onScroll, { passive: true });
+    window.addEventListener("mousemove", onMouse,  { passive: true });
+
+    const BASE_YAW   = 0.50; // ~29° — shows front-right corner of chair
+    const BASE_PITCH = 0.32; // ~18° — slight bird's-eye view
+    const DEPTH      = 480;  // chair Z-depth from camera
 
     const tick = () => {
       rafId = requestAnimationFrame(tick);
 
-      /* ── Smooth camera ──────────────────────────────────────────── */
-      const targetTiltX = mouseX * 60;
-      const targetTiltY = mouseY * 30 - scrollP * 140;
-      camTiltX += (targetTiltX - camTiltX) * 0.06;
-      camTiltY += (targetTiltY - camTiltY) * 0.06;
+      camX += (mouseX * 52 - camX) * 0.05;
+      camY += (mouseY * 26 - camY) * 0.05;
 
-      /* ── Clear ─────────────────────────────────────────────────── */
+      /* Camera slowly orbits as chair dismantles */
+      const yaw   = BASE_YAW + scrollP * 0.30;
+      const pitch = BASE_PITCH;
+
+      /* Focal length scales with screen to keep chair proportional */
+      const focal = Math.max(400, Math.min(1100, W * 0.82));
+
+      const ox = W * 0.5 + camX;
+      const oy = H * 0.5 + 55 + camY; // +55 offsets chair centre to mid-screen
+
       ctx.clearRect(0, 0, W, H);
 
-      /* ── Camera parameters ─────────────────────────────────────── */
-      const focal = Math.max(W, H) * 0.65;
-      const cx = W * 0.5 + camTiltX;           // horizon centre X
-      const cy = H * 0.42 + camTiltY;          // horizon centre Y
-
-      /* ── Horizon glow ──────────────────────────────────────────── */
-      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, H * 0.55);
-      glow.addColorStop(0, AMBER(0.07));
-      glow.addColorStop(0.5, AMBER(0.02));
-      glow.addColorStop(1, "transparent");
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, W, H);
-
-      /* ── Perspective floor grid ────────────────────────────────── */
-      ctx.save();
-      ctx.strokeStyle = AMBER(0.10);
-      ctx.lineWidth   = 0.8;
-
-      /* vertical lines converging to VP */
-      const cols = 12;
-      for (let i = 0; i <= cols; i++) {
-        const t   = i / cols;
-        const bx  = t * W;
-        const [px, py] = project(bx - W / 2, 200, 600, 0, 0, focal);
-        ctx.beginPath();
-        ctx.moveTo(cx + (bx - W * 0.5), H);      // bottom of screen
-        ctx.lineTo(cx + px, cy + py);
-        ctx.stroke();
+      /* ── Amber glow (fades as chair dismantles) ─────────── */
+      const glowStrength = Math.max(0, 1 - scrollP * 2.2);
+      if (glowStrength > 0.01) {
+        const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, Math.min(W, H) * 0.44);
+        g.addColorStop(0,    AMB(0.13 * glowStrength));
+        g.addColorStop(0.5,  AMB(0.04 * glowStrength));
+        g.addColorStop(1,   "transparent");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
       }
 
-      /* horizontal lines (depth bands) */
-      const rows = 10;
-      for (let r = 1; r <= rows; r++) {
-        const t   = r / rows;
-        const z   = 100 + t * 700;
-        const [, py, scale] = project(0, 200, z, 0, 0, focal);
-        const hy  = cy + py;
-        if (hy < 0 || hy > H) continue;
-        const hw  = W * scale * 2.5;
+      /* ── Floor grid ─────────────────────────────────────── */
+      ctx.lineWidth   = 0.65;
+      ctx.strokeStyle = AMB(0.07);
+      FLOOR_GRID.forEach(([a, b]) => {
+        const ra = camRot(a, yaw, pitch);
+        const rb = camRot(b, yaw, pitch);
+        const [ax, ay, as_] = project([ra[0], ra[1], ra[2] + DEPTH], ox, oy, focal);
+        const [bx, by, bs_] = project([rb[0], rb[1], rb[2] + DEPTH], ox, oy, focal);
+        if (as_ <= 0 || bs_ <= 0) return;
         ctx.beginPath();
-        ctx.moveTo(cx - hw, hy);
-        ctx.lineTo(cx + hw, hy);
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
         ctx.stroke();
-      }
-      ctx.restore();
-
-      /* ── Scene objects ─────────────────────────────────────────── */
-      /* Sort edges by average Z (painter's algorithm) so far objects
-         don't overdraw near objects in the depth glow fade. */
-      const projected = SCENE_EDGES.map(([a, b]) => {
-        const [ax, ay, az] = a;
-        const [bx, by, bz] = b;
-        const avgZ = (az + bz) / 2;
-        const [sax, say, saScale] = project(ax, ay, az, 0, 0, focal);
-        const [sbx, sby]          = project(bx, by, bz, 0, 0, focal);
-        return { sax, say, sbx, sby, avgZ, saScale };
-      }).filter(e => e.saScale > 0)
-        .sort((a, b) => b.avgZ - a.avgZ);  // far → near
-
-      projected.forEach(({ sax, say, sbx, sby, avgZ, saScale }) => {
-        /* fade-by-depth: far = dim, near = brighter */
-        const depthAlpha = Math.max(0.04, Math.min(0.55, saScale * 1.8));
-
-        ctx.save();
-        ctx.strokeStyle = AMBER(depthAlpha);
-        ctx.lineWidth   = Math.max(0.5, saScale * 2);
-        ctx.beginPath();
-        ctx.moveTo(cx + sax, cy + say);
-        ctx.lineTo(cx + sbx, cy + sby);
-        ctx.stroke();
-        ctx.restore();
       });
 
-      /* ── Architectural corner marks ────────────────────────────── */
-      const m = 28, l = 18;
-      ctx.save();
-      ctx.strokeStyle = AMBER(0.18);
-      ctx.lineWidth   = 1;
-      [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]].forEach(
-        ([x, y, sx, sy]) => {
-          ctx.beginPath();
-          ctx.moveTo(x + sx * l, y); ctx.lineTo(x, y); ctx.lineTo(x, y + sy * l);
-          ctx.stroke();
-        }
-      );
-      ctx.restore();
+      /* ── Chair pieces ───────────────────────────────────── */
+      type DrawEdge = {
+        x1: number; y1: number; x2: number; y2: number;
+        avgZ: number; a: number; lw: number;
+      };
+      const drawList: DrawEdge[] = [];
 
-      /* ── Subtle vignette ───────────────────────────────────────── */
-      const vig = ctx.createRadialGradient(W/2, H/2, H * 0.2, W/2, H/2, H * 0.9);
+      CHAIR_PIECES.forEach(piece => {
+        const rawT = piece.delay < 1
+          ? Math.max(0, (scrollP - piece.delay) / (1 - piece.delay))
+          : scrollP;
+        const t = ease(Math.min(1, rawT));
+
+        /* Apply scatter translation */
+        const [sx, sy_, sz] = piece.scatter;
+        const tv: V3[] = piece.v.map(
+          ([x, y, z]) => [x + t * sx, y + t * sy_, z + t * sz]
+        );
+
+        /* Spin around translated centre */
+        const mc: V3 = [
+          piece.cx + t * sx,
+          piece.cy + t * sy_,
+          piece.cz + t * sz,
+        ];
+        const sv = spinVerts(tv, mc[0], mc[1], mc[2],
+          t * piece.spin[0], t * piece.spin[1], t * piece.spin[2]);
+
+        /* Camera rotate */
+        const rv = sv.map(v => camRot(v, yaw, pitch));
+
+        /* Project to 2D */
+        const pv = rv.map(v => project([v[0], v[1], v[2] + DEPTH], ox, oy, focal));
+
+        piece.e.forEach(([ia, ib]) => {
+          const [ax2, ay2, as2] = pv[ia];
+          const [bx2, by2, bs2] = pv[ib];
+          if (as2 <= 0 || bs2 <= 0) return;
+
+          const avgZ    = (rv[ia][2] + rv[ib][2]) / 2 + DEPTH;
+          const depthA  = Math.max(0.06, Math.min(0.95, (focal / avgZ) * 1.35));
+          const fadeOut = 1 - t * 0.32; // pieces dim slightly as they scatter
+
+          drawList.push({
+            x1: ax2, y1: ay2, x2: bx2, y2: by2,
+            avgZ,
+            a:  piece.alpha * depthA * fadeOut,
+            lw: Math.max(0.55, depthA * 1.6 * (1 - t * 0.42)),
+          });
+        });
+      });
+
+      /* Painter's algorithm: draw far → near */
+      drawList.sort((a, b) => b.avgZ - a.avgZ);
+
+      drawList.forEach(({ x1, y1, x2, y2, a, lw }) => {
+        ctx.strokeStyle = AMB(a);
+        ctx.lineWidth   = lw;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      });
+
+      /* ── Edge vignette ──────────────────────────────────── */
+      const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.18, W / 2, H / 2, H * 0.88);
       vig.addColorStop(0, "transparent");
-      vig.addColorStop(1, "rgba(0,0,0,0.55)");
+      vig.addColorStop(1, "rgba(0,0,0,0.65)");
       ctx.fillStyle = vig;
       ctx.fillRect(0, 0, W, H);
     };
@@ -253,17 +349,12 @@ export default function PageBgScene() {
         pointerEvents: "none",
         overflow: "hidden",
         background:
-          "radial-gradient(ellipse at 50% 20%, #16122e 0%, #08060f 45%, #000000 100%)",
+          "radial-gradient(ellipse at 50% 28%, #1c1235 0%, #080612 40%, #000000 100%)",
       }}
     >
       <canvas
-        ref={canvasRef}
-        style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-        }}
+        ref={cvs}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
       />
     </div>
   );
