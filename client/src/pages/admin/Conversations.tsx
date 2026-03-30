@@ -1100,7 +1100,7 @@ function ChatPanel({
           )}
 
           {/* Messages */}
-          <div className="relative flex-1 overflow-hidden">
+          <div className="relative flex-1 overflow-hidden flex flex-col" style={{ background: "#e5ddd5", backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8b9a8' fill-opacity='0.25'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E\")" }}>
           {hasNewMessages && (
             <button
               onClick={() => scrollToBottom(true)}
@@ -1109,7 +1109,7 @@ function ChatPanel({
               <ChevronDown className="w-3.5 h-3.5" /> New messages
             </button>
           )}
-          <div ref={chatScrollRef} className="h-full overflow-y-auto overscroll-contain px-3 sm:px-5 py-4" style={{ background: "#e5ddd5", backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8b9a8' fill-opacity='0.25'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"}  }>
+          <div ref={chatScrollRef} className="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-5 py-4" style={{ background: "#e5ddd5", backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8b9a8' fill-opacity='0.25'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E\")"}  }>
             {loadingThread && (
               <div className="space-y-4 py-2 animate-pulse">
                 {[false, true, false, true, false].map((r, i) => (
@@ -1476,6 +1476,13 @@ export default function AdminConversations() {
   const [newChatMessage, setNewChatMessage] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  /* Override the dark landing-page gradient on <html> so any layout gaps are white */
+  useEffect(() => {
+    const prev = document.documentElement.style.background;
+    document.documentElement.style.background = "white";
+    return () => { document.documentElement.style.background = prev; };
+  }, []);
 
   /* iOS keyboard fix — visual viewport shrinks when keyboard opens; keep chat visible */
   useEffect(() => {
