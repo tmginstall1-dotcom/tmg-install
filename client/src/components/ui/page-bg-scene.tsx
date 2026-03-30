@@ -2,68 +2,89 @@ import { useRef, useEffect } from "react";
 import videoSrc from "@assets/kling_20260329_VIDEO_i_need_you_6037_0_1774798733578.mp4";
 
 /*
- * Scroll-driven video background — fully self-contained, zero React re-renders.
+ * Scroll-driven video background — rendered onto a <canvas> element.
+ *
+ * Why canvas instead of <video>?
+ * iOS Safari renders a native "tap to play" overlay on any paused <video>,
+ * regardless of CSS pseudo-element rules or pointer-events settings.
+ * Drawing to a <canvas> produces zero browser-native media UI — no play button,
+ * no controls, no overlays — ever.
  *
  * Architecture:
- *  - No props.  Owns its own passive scroll + mousemove listeners.
- *  - Single RAF loop runs at 60 fps:
- *      1. Lerp displayProgress → scrollProgress (spring-smooth scrubbing)
- *      2. Seek video to lerped time (skipped when delta < 1 frame)
- *      3. Update video.style.transform for mouse parallax
- *  - iOS Safari unlock: autoPlay activates decoder; onPlay immediately calls
- *    pause() + seeks to current scroll position.
+ *  - Hidden <video> handles loading/decoding; never displayed.
+ *  - Visible <canvas> receives drawImage() calls from the RAF loop.
+ *  - RAF loop: lerp scrollProgress, seek video, draw frame to canvas.
+ *  - Mouse parallax applied as CSS transform on the canvas (GPU composited).
+ *  - Cover-fit scaling computed manually (canvas has no object-fit).
  */
 export default function PageBgScene() {
-  const videoRef     = useRef<HTMLVideoElement>(null);
-  const durRef       = useRef(0);
-  const activatedRef = useRef(false);
-  const rafRef       = useRef<number | null>(null);
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const videoRef   = useRef<HTMLVideoElement>(null);
+  const durRef     = useRef(0);
+  const rafRef     = useRef<number | null>(null);
 
-  /* raw scroll progress (0-1) written by the passive listener */
   const scrollTargetRef  = useRef(0);
-  /* smoothed display progress (lerped in RAF) */
   const scrollDisplayRef = useRef(0);
-  /* mouse positions written by the passive listener */
   const mouseXRef = useRef(0);
   const mouseYRef = useRef(0);
-  /* dirty flags so RAF skips no-op frames */
   const scrollDirtyRef = useRef(true);
   const mouseDirtyRef  = useRef(false);
 
   useEffect(() => {
-    const vid = videoRef.current;
-    if (!vid) return;
+    const vid    = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!vid || !canvas) return;
 
-    /* ── Video activation ─────────────────────────────────────────── */
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) return;
+
+    /* ── Canvas size + cover-fit helper ───────────────────────────── */
+    const resizeCanvas = () => {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+      scrollDirtyRef.current = true;
+    };
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas, { passive: true });
+
+    const drawFrame = () => {
+      if (!vid.videoWidth || !vid.videoHeight) return;
+      const cw = canvas.width;
+      const ch = canvas.height;
+      /* object-fit: cover */
+      const scale = Math.max(cw / vid.videoWidth, ch / vid.videoHeight);
+      const dw = vid.videoWidth  * scale;
+      const dh = vid.videoHeight * scale;
+      const dx = (cw - dw) / 2;
+      const dy = (ch - dh) / 2;
+      ctx.drawImage(vid, dx, dy, dw, dh);
+    };
+
+    /* ── Video activation (seek-to-scroll position, then paused) ─── */
+    let activated = false;
     const activate = () => {
-      if (activatedRef.current) return;
+      if (activated) return;
       if (!durRef.current) return;
-      activatedRef.current = true;
+      activated = true;
       vid.pause();
       try { vid.currentTime = scrollTargetRef.current * durRef.current; } catch (_) {}
+      scrollDirtyRef.current = true;
     };
 
-    const onLoadedMetadata = () => {
-      durRef.current = vid.duration;
-      activate();
-    };
-    const onPlay = () => {
-      if (vid.duration) durRef.current = vid.duration;
-      activate();
-    };
-    const onCanPlay = () => {
-      if (vid.duration) durRef.current = vid.duration;
-      activate();
-    };
+    const onMeta     = () => { durRef.current = vid.duration; activate(); };
+    const onPlay     = () => { if (vid.duration) durRef.current = vid.duration; activate(); };
+    const onCanPlay  = () => { if (vid.duration) durRef.current = vid.duration; activate(); };
+    const onSeeked   = () => { scrollDirtyRef.current = true; };
 
-    vid.addEventListener("loadedmetadata", onLoadedMetadata);
-    vid.addEventListener("play", onPlay);
-    vid.addEventListener("canplay", onCanPlay);
+    vid.addEventListener("loadedmetadata", onMeta);
+    vid.addEventListener("play",           onPlay);
+    vid.addEventListener("canplay",        onCanPlay);
+    vid.addEventListener("seeked",         onSeeked);
 
-    /* ── Gesture unlock (iOS autoplay-blocked fallback) ───────────── */
+    /* ── Gesture unlock for iOS autoplay policy ───────────────────── */
     const onFirstGesture = () => {
       if (!durRef.current && vid.readyState >= 1) durRef.current = vid.duration;
-      if (!activatedRef.current) vid.play().catch(() => {});
+      if (!activated) vid.play().catch(() => {});
     };
     document.addEventListener("touchstart",  onFirstGesture, { once: true, passive: true });
     document.addEventListener("pointerdown", onFirstGesture, { once: true, passive: true });
@@ -78,8 +99,8 @@ export default function PageBgScene() {
 
     /* ── Mouse parallax listener ──────────────────────────────────── */
     const onMouseMove = (e: MouseEvent) => {
-      mouseXRef.current  = (e.clientX / window.innerWidth  - 0.5) * 2;
-      mouseYRef.current  = (e.clientY / window.innerHeight - 0.5) * 2;
+      mouseXRef.current = (e.clientX / window.innerWidth  - 0.5) * 2;
+      mouseYRef.current = (e.clientY / window.innerHeight - 0.5) * 2;
       mouseDirtyRef.current = true;
     };
     window.addEventListener("mousemove", onMouseMove, { passive: true });
@@ -88,45 +109,44 @@ export default function PageBgScene() {
     const tick = () => {
       rafRef.current = requestAnimationFrame(tick);
 
-      const durSecs = durRef.current;
-      const v = videoRef.current;
-      if (!v) return;
-
-      /* lerp display progress toward scroll target every frame */
-      const prev    = scrollDisplayRef.current;
-      const target  = scrollTargetRef.current;
-      const lerped  = prev + (target - prev) * 0.10;
-      const changed = Math.abs(lerped - prev) > 0.0001;
-      if (changed) {
+      /* lerp scroll display toward target */
+      const prev   = scrollDisplayRef.current;
+      const target = scrollTargetRef.current;
+      const lerped = prev + (target - prev) * 0.10;
+      if (Math.abs(lerped - prev) > 0.0001) {
         scrollDisplayRef.current = lerped;
         scrollDirtyRef.current   = true;
       }
 
-      if (scrollDirtyRef.current && durSecs > 0) {
+      /* seek video and draw frame */
+      if (scrollDirtyRef.current && durRef.current > 0) {
         scrollDirtyRef.current = false;
-        const seekTo = scrollDisplayRef.current * durSecs;
-        /* only seek when delta > half a frame at 24 fps */
-        if (Math.abs(v.currentTime - seekTo) > 0.021) {
-          try { v.currentTime = seekTo; } catch (_) {}
+        const seekTo = scrollDisplayRef.current * durRef.current;
+        if (Math.abs(vid.currentTime - seekTo) > 0.021) {
+          try { vid.currentTime = seekTo; } catch (_) {}
         }
+        drawFrame();
       }
 
+      /* mouse parallax via CSS transform on canvas */
       if (mouseDirtyRef.current) {
         mouseDirtyRef.current = false;
         const mx = mouseXRef.current;
         const my = mouseYRef.current;
-        v.style.transform = `translate(${mx * -10}px,${my * -6}px) scale(1.07)`;
+        canvas.style.transform = `translate(${mx * -10}px,${my * -6}px) scale(1.07)`;
       }
     };
     rafRef.current = requestAnimationFrame(tick);
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize",    resizeCanvas);
       window.removeEventListener("scroll",    onScroll);
       window.removeEventListener("mousemove", onMouseMove);
-      vid.removeEventListener("loadedmetadata", onLoadedMetadata);
+      vid.removeEventListener("loadedmetadata", onMeta);
       vid.removeEventListener("play",           onPlay);
       vid.removeEventListener("canplay",        onCanPlay);
+      vid.removeEventListener("seeked",         onSeeked);
       document.removeEventListener("touchstart",  onFirstGesture);
       document.removeEventListener("pointerdown", onFirstGesture);
     };
@@ -155,12 +175,9 @@ export default function PageBgScene() {
         }}
       />
 
-      {/*
-       * autoPlay — required on iOS Safari to activate the video decoder.
-       * muted + playsInline — required for iOS muted autoplay.
-       * pause() is called immediately inside the "play" event handler.
-       * will-change: transform — promotes to GPU compositing layer.
-       */}
+      {/* Hidden video — only handles decode/seeking. Never shown directly.
+          playsInline + muted + autoPlay activates the iOS decoder without showing
+          a play button because the element is never visible to the user. */}
       <video
         ref={videoRef}
         autoPlay
@@ -170,23 +187,24 @@ export default function PageBgScene() {
         preload="auto"
         src={videoSrc}
         disablePictureInPicture
+        style={{ display: "none" }}
+      />
+
+      {/* Canvas — displays video frames. No browser media UI ever appears on canvas. */}
+      <canvas
+        ref={canvasRef}
         style={{
           position: "absolute",
           inset: 0,
           width: "100%",
           height: "100%",
-          objectFit: "cover",
           opacity: 0.92,
           willChange: "transform",
           transform: "translate(0px,0px) scale(1.07)",
           transition: "none",
+          zIndex: 0,
         }}
       />
-      {/* Transparent cover — sits above the video in the same container, blocking
-          any browser-rendered play-button overlay from receiving touch events.
-          pointer-events is still none on the parent so the landing page content
-          behind receives all interaction normally. */}
-      <div style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }} />
     </div>
   );
 }
