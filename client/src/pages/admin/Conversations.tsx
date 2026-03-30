@@ -803,8 +803,11 @@ function ChatPanel({
     }
   }
 
+  // On mobile: fixed inset-0 full-screen overlay (interactive-widget=resizes-content
+  // makes the layout viewport shrink with keyboard, so inset-0 ends above the keyboard).
+  // On desktop (lg+): static flex-1 inside the parent flex layout as before.
   return (
-    <div className="flex flex-1 overflow-hidden" data-testid="chat-panel">
+    <div className="fixed inset-0 z-[9999] flex overflow-hidden lg:static lg:flex-1 lg:z-auto" data-testid="chat-panel">
 
         {/* ═══ LEFT: Info Panel ═══════════════════════════════════════════════ */}
         {showInfo && session && (
