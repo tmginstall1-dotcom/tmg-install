@@ -1212,8 +1212,11 @@ function ChatPanel({
                contains the templates panel, note indicator, emoji picker, and input row. */}
           <div
             ref={replyBarRef}
-            className="border-t border-gray-200 bg-white fixed bottom-0 inset-x-0 z-[200] shadow-[0_-2px_10px_rgba(0,0,0,0.07)] lg:relative lg:z-auto lg:shadow-none lg:flex-shrink-0"
-            style={{ paddingBottom: "max(0px, env(safe-area-inset-bottom))" }}
+            className="border-t border-gray-200 bg-white fixed inset-x-0 z-[200] shadow-[0_-2px_10px_rgba(0,0,0,0.07)] lg:relative lg:z-auto lg:shadow-none lg:flex-shrink-0"
+            style={{
+              bottom: "var(--keyboard-h, 0px)",
+              paddingBottom: "max(0px, env(safe-area-inset-bottom))"
+            }}
           >
 
             {/* Combined Quick Templates + Canned Replies panel (inside fixed unit) */}
@@ -1484,11 +1487,17 @@ export default function AdminConversations() {
     return () => { document.documentElement.style.background = prev; };
   }, []);
 
-  /* iOS keyboard fix — visual viewport shrinks when keyboard opens; keep chat visible */
+  /* iOS keyboard fix — track both container height AND keyboard offset.
+     --conv-h   = height of the visible area above the keyboard (for container sizing)
+     --keyboard-h = keyboard height (used to push the fixed reply bar above the keyboard)
+     On iOS, position:fixed bottom:0 uses window.innerHeight (layout viewport),
+     not visualViewport.height — so we must offset by the keyboard height manually. */
   useEffect(() => {
     const update = () => {
-      const h = window.visualViewport?.height ?? window.innerHeight;
-      document.documentElement.style.setProperty("--conv-h", `${h - 56}px`);
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      const kh = Math.max(0, window.innerHeight - vh);
+      document.documentElement.style.setProperty("--conv-h", `${vh - 56}px`);
+      document.documentElement.style.setProperty("--keyboard-h", `${kh}px`);
     };
     update();
     window.visualViewport?.addEventListener("resize", update);
@@ -1496,6 +1505,7 @@ export default function AdminConversations() {
     return () => {
       window.visualViewport?.removeEventListener("resize", update);
       window.removeEventListener("resize", update);
+      document.documentElement.style.removeProperty("--keyboard-h");
     };
   }, []);
 
