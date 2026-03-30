@@ -276,7 +276,8 @@ function MagneticButton({
   return (
     <motion.div
       ref={ref}
-      className={`inline-flex ${className}`}
+      /* flex on mobile → fills full width in flex-col; inline-flex on sm+ */
+      className={`flex sm:inline-flex ${className}`}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       animate={{ x: offset.x, y: offset.y }}
@@ -563,9 +564,9 @@ export default function Landing() {
                     href="/estimate"
                     data-testid="hero-cta-guided"
                     onClick={() => trackEvent("cta_click", "/", "hero_get_estimate")}
-                    className="group inline-flex items-center justify-center gap-2.5 px-9 py-4.5 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn glow-pulse-amber"
+                    className="group flex w-full sm:inline-flex items-center justify-center gap-2.5 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn"
                   >
-                    GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1.5 group-hover:scale-110" />
+                    GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Link>
                 </MagneticButton>
                 <MagneticButton>
@@ -575,7 +576,7 @@ export default function Landing() {
                     rel="noopener noreferrer"
                     data-testid="hero-cta-whatsapp"
                     onClick={() => trackEvent("cta_click", "/", "hero_whatsapp")}
-                    className="inline-flex items-center justify-center gap-2 px-8 py-4 glass-card-light border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/50 hover:bg-white/12 transition-all"
+                    className="flex w-full sm:inline-flex items-center justify-center gap-2 px-8 py-4 border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/50 hover:bg-white/10 transition-all backdrop-blur-sm"
                   >
                     <MessageCircle className="w-4 h-4" /> WHATSAPP US
                   </a>
@@ -1653,9 +1654,9 @@ export default function Landing() {
                   href="/estimate"
                   data-testid="bottom-cta-estimate"
                   onClick={() => trackEvent("cta_click", "/", "bottom_get_estimate")}
-                  className="group inline-flex items-center justify-center gap-2.5 px-9 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn glow-pulse-amber"
+                  className="group flex w-full sm:inline-flex items-center justify-center gap-2.5 px-9 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn"
                 >
-                  GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1.5 group-hover:scale-110" />
+                  GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </Link>
               </MagneticButton>
               <MagneticButton>
@@ -1665,7 +1666,7 @@ export default function Landing() {
                   rel="noopener noreferrer"
                   data-testid="bottom-cta-whatsapp"
                   onClick={() => trackEvent("cta_click", "/", "bottom_whatsapp")}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 glass-card-light border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/40 hover:bg-white/12 transition-all"
+                  className="flex w-full sm:inline-flex items-center justify-center gap-2 px-8 py-4 border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/40 hover:bg-white/10 transition-all"
                 >
                   <MessageCircle className="w-4 h-4" /> WHATSAPP US
                 </a>

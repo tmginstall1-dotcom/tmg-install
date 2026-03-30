@@ -566,11 +566,13 @@ body {
 .hero-badge-pill {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 6px 14px 6px 8px;
   background: rgba(251,191,36,0.10);
   border: 1px solid rgba(251,191,36,0.30);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* ── Horizontal rule amber fade ── */
