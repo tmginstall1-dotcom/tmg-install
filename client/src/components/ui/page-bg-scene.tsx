@@ -175,9 +175,10 @@ export default function PageBgScene() {
         }}
       />
 
-      {/* Hidden video — only handles decode/seeking. Never shown directly.
-          playsInline + muted + autoPlay activates the iOS decoder without showing
-          a play button because the element is never visible to the user. */}
+      {/* Off-screen video — handles decode/seeking only. Positioned outside the
+          viewport so iOS never renders a play-button overlay (which only appears
+          on visible, in-viewport video elements). display:none prevents iOS from
+          loading and autoplaying, so we use position+clip instead. */}
       <video
         ref={videoRef}
         autoPlay
@@ -187,7 +188,15 @@ export default function PageBgScene() {
         preload="auto"
         src={videoSrc}
         disablePictureInPicture
-        style={{ display: "none" }}
+        style={{
+          position: "absolute",
+          top: "-9999px",
+          left: "-9999px",
+          width: "1px",
+          height: "1px",
+          opacity: 0,
+          pointerEvents: "none",
+        }}
       />
 
       {/* Canvas — displays video frames. No browser media UI ever appears on canvas. */}
