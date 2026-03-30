@@ -169,6 +169,7 @@ export default function PageBgScene() {
         loop={false}
         preload="auto"
         src={videoSrc}
+        disablePictureInPicture
         style={{
           position: "absolute",
           inset: 0,
@@ -181,6 +182,11 @@ export default function PageBgScene() {
           transition: "none",
         }}
       />
+      {/* Transparent cover — sits above the video in the same container, blocking
+          any browser-rendered play-button overlay from receiving touch events.
+          pointer-events is still none on the parent so the landing page content
+          behind receives all interaction normally. */}
+      <div style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }} />
     </div>
   );
 }

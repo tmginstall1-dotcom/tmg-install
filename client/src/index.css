@@ -20,6 +20,21 @@
   font-display: swap;
 }
 
+/* Suppress the native browser play-button overlay on ALL video elements.
+   The scroll-driven background video is always paused (scrubbed via currentTime).
+   Without this, iOS Safari and some Android browsers render a tap-to-play overlay
+   on any paused video, which appears as an unwanted play button on the hero background. */
+video::-webkit-media-controls,
+video::-webkit-media-controls-panel,
+video::-webkit-media-controls-play-button,
+video::-webkit-media-controls-start-playback-button,
+video::-webkit-media-controls-overlay-play-button,
+video::-webkit-media-controls-overlay-enclosure {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* 3D background scene support — dark canvas visible through transparent sections */
 html {
   background: radial-gradient(ellipse at 50% 0%, #12122a 0%, #030308 55%, #000000 100%);
