@@ -36,7 +36,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { SiFacebook, SiInstagram } from "react-icons/si";
-import FurnitureScene from "@/components/ui/furniture-scene";
 import PageBgScene from "@/components/ui/page-bg-scene";
 
 const WHATSAPP = "https://wa.me/6580880757?text=Hi%2C+I%27d+like+a+furniture+installation+quote";
@@ -382,40 +381,79 @@ export default function Landing() {
   const { visible: promoVisible } = usePromoBar();
   const [pricingTab, setPricingTab] = useState<"install" | "dismantle" | "relocate">("install");
   const [scrolled, setScrolled] = useState(false);
-  const [scrollY, setScrollY] = useState(0);
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [mouseX, setMouseX] = useState(0);
-  const [mouseY, setMouseY] = useState(0);
-  const heroRef = useRef<HTMLDivElement>(null);
+
+  /* DOM refs for scroll-driven elements — updated via RAF, no React re-renders */
+  const scrollBarRef        = useRef<HTMLDivElement>(null);
+  const amberOverlayRef     = useRef<HTMLDivElement>(null);
+  const scrollHintRef       = useRef<HTMLDivElement>(null);
+  const dismantleBadgeRef   = useRef<HTMLDivElement>(null);
+  const dismantleBadgeTextRef = useRef<HTMLSpanElement>(null);
+  /* threshold ref so setScrolled only fires twice */
+  const scrolledRef         = useRef(false);
 
   useEffect(() => {
-    const onScroll = () => {
-      const sy = window.scrollY;
-      setScrolled(sy > 320);
-      setScrollY(sy);
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      setScrollProgress(max > 0 ? sy / max : 0);
-    };
+    const rafRef = { current: 0 };
+    let dirty = true;
+    const onScroll = () => { dirty = true; };
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      setMouseX((e.clientX / window.innerWidth - 0.5) * 2);
-      setMouseY((e.clientY / window.innerHeight - 0.5) * 2);
+    const tick = () => {
+      rafRef.current = requestAnimationFrame(tick);
+      if (!dirty) return;
+      dirty = false;
+
+      const sy  = window.scrollY;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const sp  = max > 0 ? Math.min(1, sy / max) : 0;
+
+      /* scrolled threshold — only triggers a React re-render when crossing 320px */
+      const nowScrolled = sy > 320;
+      if (nowScrolled !== scrolledRef.current) {
+        scrolledRef.current = nowScrolled;
+        setScrolled(nowScrolled);
+      }
+
+      /* scroll progress bar */
+      if (scrollBarRef.current) {
+        scrollBarRef.current.style.width = `${sp * 100}%`;
+      }
+
+      /* amber overlay */
+      const dismantleP = Math.min(1, sp / 0.80);
+      const overlayAlpha = Math.max(0, Math.min(1, dismantleP * 1.6 - 0.22));
+      if (amberOverlayRef.current) {
+        amberOverlayRef.current.style.opacity = String(overlayAlpha);
+      }
+
+      /* CSS custom properties for glass section transparency */
+      document.documentElement.style.setProperty("--section-alpha",  Math.max(0.74, 0.88 - dismantleP * 0.14).toFixed(3));
+      document.documentElement.style.setProperty("--dark-alpha",     Math.max(0.70, 0.85 - dismantleP * 0.15).toFixed(3));
+      document.documentElement.style.setProperty("--marquee-alpha",  Math.max(0.58, 0.75 - dismantleP * 0.17).toFixed(3));
+
+      /* dismantle percentage (0-100) */
+      const pct = Math.round(Math.min(100, (sp / 0.75) * 100));
+
+      /* scroll hint — fade out once scroll begins */
+      if (scrollHintRef.current) {
+        scrollHintRef.current.style.opacity = pct > 12 ? "0" : "1";
+      }
+
+      /* dismantle badge */
+      if (dismantleBadgeRef.current) {
+        dismantleBadgeRef.current.style.display = pct > 2 ? "flex" : "none";
+        if (dismantleBadgeTextRef.current) {
+          dismantleBadgeTextRef.current.textContent =
+            pct >= 100 ? "dismantled" : `dismantling ${pct}%`;
+        }
+      }
     };
-    window.addEventListener("mousemove", onMouseMove, { passive: true });
-    return () => window.removeEventListener("mousemove", onMouseMove);
-  }, []);
 
-  /* ── Drive glass-section transparency via CSS custom properties ── */
-  useEffect(() => {
-    const dp = Math.min(1, scrollProgress / 0.80);
-    document.documentElement.style.setProperty("--section-alpha", Math.max(0.74, 0.88 - dp * 0.14).toFixed(3));
-    document.documentElement.style.setProperty("--dark-alpha", Math.max(0.70, 0.85 - dp * 0.15).toFixed(3));
-    document.documentElement.style.setProperty("--marquee-alpha", Math.max(0.58, 0.75 - dp * 0.17).toFixed(3));
-  }, [scrollProgress]);
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
 
   const { data: reviewConfig } = useQuery<{ writeUrl: string; viewUrl: string }>({
     queryKey: ["/api/public/google-review"],
@@ -475,9 +513,6 @@ export default function Landing() {
     ],
   });
 
-  const dismantlePct = Math.round(Math.min(100, (scrollProgress / 0.75) * 100));
-  const dismantleP   = Math.min(1, scrollProgress / 0.80);
-
   return (
     <div className={`min-h-screen bg-transparent text-white ${promoVisible ? "pt-24" : "pt-14"}`}>
 
@@ -488,10 +523,11 @@ export default function Landing() {
         style={{ top: promoVisible ? "80px" : "56px" }}
       >
         <div
+          ref={scrollBarRef}
           data-testid="scroll-progress-bar"
-          className="h-[2px] transition-all duration-100"
+          className="h-[2px]"
           style={{
-            width: `${scrollProgress * 100}%`,
+            width: "0%",
             background: "linear-gradient(to right, #f59e0b, #f97316, #fbbf24)",
             boxShadow: "0 0 10px rgba(245, 158, 11, 0.8)",
           }}
@@ -499,15 +535,16 @@ export default function Landing() {
       </div>
 
       {/* ══════ FULL-PAGE 3D BACKGROUND ══════ */}
-      <PageBgScene scrollProgress={scrollProgress} mouseX={mouseX} mouseY={mouseY} />
+      <PageBgScene />
 
-      {/* ── Warm amber dismantle wash — glows in as scroll increases, page reacts to 3D state ── */}
+      {/* ── Warm amber dismantle wash — fades in as scroll deepens ── */}
       <div
+        ref={amberOverlayRef}
         data-testid="amber-overlay"
         className="fixed inset-0 pointer-events-none"
         style={{
           background: "radial-gradient(ellipse 130% 90% at 50% 30%, rgba(245, 158, 11, 0.20) 0%, rgba(251, 146, 60, 0.08) 48%, transparent 80%)",
-          opacity: Math.max(0, Math.min(1, dismantleP * 1.6 - 0.22)),
+          opacity: 0,
           zIndex: 2,
         }}
       />
@@ -726,10 +763,10 @@ export default function Landing() {
         </div>
 
         {/* ── Scroll to dismantle hint ── */}
-        <motion.div
+        <div
+          ref={scrollHintRef}
           className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none select-none"
-          animate={{ opacity: dismantlePct > 12 ? 0 : 1 }}
-          transition={{ duration: 0.5 }}
+          style={{ opacity: 1, transition: "opacity 0.5s ease" }}
         >
           <span className="text-[9px] font-black tracking-[0.22em] uppercase text-amber-400/60">scroll to dismantle</span>
           <motion.div
@@ -737,22 +774,23 @@ export default function Landing() {
             animate={{ scaleY: [1, 0.4, 1] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
           />
-        </motion.div>
+        </div>
 
-        {/* ── Live dismantle status badge ── */}
-        {dismantlePct > 2 && (
-          <motion.div
-            data-testid="dismantle-badge"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute top-6 right-6 flex items-center gap-2 px-3 py-1.5 border border-amber-400/30 bg-black/50 backdrop-blur-md pointer-events-none select-none"
+        {/* ── Live dismantle status badge (always rendered; shown/hidden via RAF) ── */}
+        <div
+          ref={dismantleBadgeRef}
+          data-testid="dismantle-badge"
+          className="absolute top-6 right-6 items-center gap-2 px-3 py-1.5 border border-amber-400/30 bg-black/50 backdrop-blur-md pointer-events-none select-none"
+          style={{ display: "none" }}
+        >
+          <div className="animate-pulse w-1.5 h-1.5 rounded-full bg-amber-400" />
+          <span
+            ref={dismantleBadgeTextRef}
+            className="text-[10px] font-black tracking-[0.15em] text-amber-400/80 uppercase"
           >
-            <div className="animate-pulse w-1.5 h-1.5 rounded-full bg-amber-400" />
-            <span className="text-[10px] font-black tracking-[0.15em] text-amber-400/80 uppercase">
-              {dismantlePct >= 100 ? "dismantled" : `dismantling ${dismantlePct}%`}
-            </span>
-          </motion.div>
-        )}
+            dismantling 0%
+          </span>
+        </div>
       </section>
 
       {/* ═══════════════════════ MARQUEE TICKER ════════════════════════ */}

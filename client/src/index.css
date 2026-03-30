@@ -582,3 +582,44 @@ body {
   border: none;
   margin: 0;
 }
+
+/* ── Performance: GPU-compositing hints for elements that animate every frame ── */
+
+/* Scroll progress bar — width changes every RAF tick */
+[data-testid="scroll-progress-bar"] {
+  will-change: width;
+}
+
+/* Amber overlay — opacity changes on scroll */
+[data-testid="amber-overlay"] {
+  will-change: opacity;
+}
+
+/* Marquee — constant transform animation */
+.marquee-track {
+  will-change: transform;
+}
+
+/* Glass cards — promote to own layer for blur compositing */
+.glass-card-premium,
+.glass-card-light {
+  transform: translateZ(0);
+}
+
+/* Off-screen content: defer render until near viewport.
+   Avoids painting entire page on initial load.
+   containIntrinsicSize gives a height estimate so scroll position is preserved. */
+.below-fold-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 600px;
+}
+
+/* ── Accessibility: respect reduced-motion preference ── */
+@media (prefers-reduced-motion: reduce) {
+  .float-anim {
+    animation: none !important;
+  }
+  .marquee-track {
+    animation-play-state: paused !important;
+  }
+}
