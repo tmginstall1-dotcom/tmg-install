@@ -501,6 +501,7 @@ function ChatPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const replyBarRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -512,12 +513,31 @@ function ChatPanel({
     ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
   }, [replyText]);
 
-  /* Scroll to bottom when keyboard opens (viewport shrinks on mobile) */
+  /* Track reply bar height → drive padding-bottom on the scroll container so
+     messages are never hidden behind the fixed mobile input bar. */
+  useEffect(() => {
+    const bar = replyBarRef.current;
+    const scroll = chatScrollRef.current;
+    if (!bar || !scroll) return;
+    const obs = new ResizeObserver(() => {
+      const h = bar.getBoundingClientRect().height;
+      scroll.style.paddingBottom = `${h + 8}px`;
+    });
+    obs.observe(bar);
+    // trigger once immediately
+    const h = bar.getBoundingClientRect().height;
+    scroll.style.paddingBottom = `${h + 8}px`;
+    return () => obs.disconnect();
+  }, []);
+
+  /* When keyboard opens on mobile (viewport shrinks), scroll to bottom */
   useEffect(() => {
     const onVpResize = () => {
+      const scroll = chatScrollRef.current;
+      if (!scroll) return;
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+        scroll.scrollTop = scroll.scrollHeight;
+      }, 120);
     };
     window.visualViewport?.addEventListener("resize", onVpResize);
     return () => window.visualViewport?.removeEventListener("resize", onVpResize);
@@ -1188,54 +1208,54 @@ function ChatPanel({
             </div>
           )}
 
-          {/* Combined Quick Templates + Canned Replies panel */}
-          {(showTemplates || showQuickReplies) && !noteMode && (
-            <div className="flex-shrink-0 border-t border-gray-100 bg-white px-3 pt-2.5 pb-1 max-h-56 overflow-y-auto">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Quick Replies</p>
-                <button onClick={() => { setShowTemplates(false); setShowQuickReplies(false); }} className="text-gray-300 hover:text-gray-500"><X className="w-3.5 h-3.5" /></button>
-              </div>
-              {/* Quick chips */}
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {QUICK_TEMPLATES.map(t => (
-                  <button
-                    key={t.label}
-                    onClick={() => { setReplyText(t.text); setShowTemplates(false); setShowQuickReplies(false); setTimeout(() => textareaRef.current?.focus(), 0); }}
-                    className="px-2.5 py-1 rounded-full border border-gray-200 bg-gray-50 text-xs font-medium text-gray-600 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-all"
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              {/* Saved canned replies */}
-              {dbCannedReplies.filter(r => r.active).length > 0 && (
-                <div className="border-t border-gray-100 pt-2">
-                  <p className="text-[10px] text-gray-300 font-semibold uppercase tracking-wider mb-1.5">Saved Replies</p>
-                  <div className="space-y-1">
-                    {dbCannedReplies.filter(r => r.active).map(r => (
-                      <button
-                        key={r.id}
-                        onClick={() => { setReplyText(r.body.replace(/\\n/g, "\n")); setShowTemplates(false); setShowQuickReplies(false); textareaRef.current?.focus(); }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-50 transition-all border border-transparent hover:border-gray-200"
-                      >
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <code className="text-[10px] font-mono bg-zinc-100 text-zinc-600 px-1 rounded">{r.shortcut}</code>
-                          <span className="text-xs font-semibold text-gray-700">{r.title}</span>
-                        </div>
-                        <p className="text-xs text-gray-400 truncate">{r.body}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Reply Box */}
+          {/* Reply Box — fixed on mobile so it always floats above keyboard/toolbar;
+               contains the templates panel, note indicator, emoji picker, and input row. */}
           <div
-            className="flex-shrink-0 border-t border-gray-200 bg-white relative"
+            ref={replyBarRef}
+            className="border-t border-gray-200 bg-white fixed bottom-0 inset-x-0 z-[200] shadow-[0_-2px_10px_rgba(0,0,0,0.07)] lg:relative lg:z-auto lg:shadow-none lg:flex-shrink-0"
             style={{ paddingBottom: "max(0px, env(safe-area-inset-bottom))" }}
           >
+
+            {/* Combined Quick Templates + Canned Replies panel (inside fixed unit) */}
+            {(showTemplates || showQuickReplies) && !noteMode && (
+              <div className="border-b border-gray-100 bg-white px-3 pt-2.5 pb-1 max-h-52 overflow-y-auto">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Quick Replies</p>
+                  <button onClick={() => { setShowTemplates(false); setShowQuickReplies(false); }} className="text-gray-300 hover:text-gray-500"><X className="w-3.5 h-3.5" /></button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {QUICK_TEMPLATES.map(t => (
+                    <button
+                      key={t.label}
+                      onClick={() => { setReplyText(t.text); setShowTemplates(false); setShowQuickReplies(false); setTimeout(() => textareaRef.current?.focus(), 0); }}
+                      className="px-2.5 py-1 rounded-full border border-gray-200 bg-gray-50 text-xs font-medium text-gray-600 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-all"
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {dbCannedReplies.filter(r => r.active).length > 0 && (
+                  <div className="border-t border-gray-100 pt-2">
+                    <p className="text-[10px] text-gray-300 font-semibold uppercase tracking-wider mb-1.5">Saved Replies</p>
+                    <div className="space-y-1">
+                      {dbCannedReplies.filter(r => r.active).map(r => (
+                        <button
+                          key={r.id}
+                          onClick={() => { setReplyText(r.body.replace(/\\n/g, "\n")); setShowTemplates(false); setShowQuickReplies(false); textareaRef.current?.focus(); }}
+                          className="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-50 transition-all border border-transparent hover:border-gray-200"
+                        >
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <code className="text-[10px] font-mono bg-zinc-100 text-zinc-600 px-1 rounded">{r.shortcut}</code>
+                            <span className="text-xs font-semibold text-gray-700">{r.title}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 truncate">{r.body}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
