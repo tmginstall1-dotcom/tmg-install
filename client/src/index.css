@@ -263,16 +263,30 @@ body {
 
 /* Glass card — reusable glassmorphism card token */
 .glass-card-light {
-  background: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: linear-gradient(145deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), 0 8px 32px rgba(0,0,0,0.22);
 }
 .glass-card-dark {
-  background: rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(145deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.38) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.32);
+}
+/* Premium card — max depth */
+.glass-card-premium {
+  background: linear-gradient(145deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -1px 0 rgba(0,0,0,0.12),
+    0 24px 48px rgba(0,0,0,0.30),
+    0 0 80px rgba(251,191,36,0.05);
 }
 
 /* ── Marquee animation ── */
@@ -397,4 +411,172 @@ body {
 }
 .pulse-ring-red {
   animation: pulseRingRed 2s ease-out infinite;
+}
+
+/* ══════════════════════════════════════════════════
+   PRO DESIGN TOKENS — interactive, depth, movement
+══════════════════════════════════════════════════ */
+
+/* ── Rich amber gradient text (yellow → orange) ── */
+.text-amber-gradient {
+  background: linear-gradient(135deg, #fde68a 0%, #f59e0b 45%, #ea580c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Floating / levitating animation ── */
+@keyframes float {
+  0%,100% { transform: translateY(0px); }
+  50%      { transform: translateY(-14px); }
+}
+.float-anim {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* ── Amber glow pulse ── */
+@keyframes glowPulse {
+  0%,100% { box-shadow: 0 0 20px rgba(251,191,36,0.15), 0 0 60px rgba(251,191,36,0.06); }
+  50%     { box-shadow: 0 0 40px rgba(251,191,36,0.40), 0 0 100px rgba(251,191,36,0.12); }
+}
+.glow-pulse-amber {
+  animation: glowPulse 3.5s ease-in-out infinite;
+}
+
+/* ── Gradient border via pseudo-element mask ── */
+.gradient-border-card {
+  position: relative;
+}
+.gradient-border-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  background: linear-gradient(
+    140deg,
+    rgba(251,191,36,0.40) 0%,
+    rgba(255,255,255,0.10) 45%,
+    rgba(251,191,36,0.15) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask:         linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.gradient-border-card:hover::before {
+  opacity: 1;
+}
+
+/* ── Service card ghost number ── */
+.service-num {
+  font-family: var(--font-heading);
+  font-size: clamp(72px, 10vw, 96px);
+  line-height: 1;
+  font-weight: 700;
+  color: rgba(255,255,255,0.04);
+  letter-spacing: -0.04em;
+  position: absolute;
+  bottom: -4px;
+  right: 14px;
+  pointer-events: none;
+  user-select: none;
+  transition: color 0.5s ease;
+}
+.group:hover .service-num {
+  color: rgba(251,191,36,0.10);
+}
+
+/* ── Decorative quotation mark for review cards ── */
+.quote-mark-deco {
+  font-size: 110px;
+  line-height: 1;
+  color: rgba(251,191,36,0.14);
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  font-family: Georgia, 'Times New Roman', serif;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Ambient orb (reusable blur blob) ── */
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(80px);
+}
+
+/* ── Grid dot texture overlay ── */
+.dot-grid-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.10) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+}
+
+/* ── Text reveal shimmer ── */
+@keyframes textShimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+.text-shimmer-anim {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.65) 0%,
+    #ffffff 35%,
+    rgba(251,191,36,0.92) 60%,
+    rgba(255,255,255,0.65) 100%
+  );
+  background-size: 250% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: textShimmer 5s linear infinite;
+}
+
+/* ── Stat card highlight border ── */
+.stat-card-highlight {
+  background: linear-gradient(135deg, rgba(251,191,36,0.08) 0%, rgba(255,255,255,0.03) 100%);
+  border: 1px solid rgba(251,191,36,0.20);
+  box-shadow: 0 0 40px rgba(251,191,36,0.06), inset 0 1px 0 rgba(251,191,36,0.10);
+}
+
+/* ── Review star row ── */
+.star-row {
+  display: flex;
+  gap: 3px;
+  color: #f59e0b;
+}
+
+/* ── Magnetic button wrapper ── */
+.magnetic-wrap {
+  display: inline-flex;
+  position: relative;
+}
+
+/* ── Hero badge pill ── */
+.hero-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 8px;
+  background: rgba(251,191,36,0.10);
+  border: 1px solid rgba(251,191,36,0.30);
+  backdrop-filter: blur(12px);
+}
+
+/* ── Horizontal rule amber fade ── */
+.amber-rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(251,191,36,0.35) 30%, rgba(251,191,36,0.35) 70%, transparent 100%);
+  border: none;
+  margin: 0;
 }

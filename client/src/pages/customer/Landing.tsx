@@ -225,13 +225,15 @@ function TiltCard({
     const rect = card.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;
-    card.style.transform = `perspective(600px) rotateX(${-y * intensity}deg) rotateY(${x * intensity}deg) scale3d(1.02,1.02,1.02)`;
+    card.style.transform = `perspective(700px) rotateX(${-y * intensity}deg) rotateY(${x * intensity}deg) scale3d(1.025,1.025,1.025)`;
+    card.style.boxShadow = `${x * -8}px ${y * -8}px 30px rgba(0,0,0,0.15)`;
   }, [intensity]);
 
   const onMouseLeave = useCallback(() => {
     const card = cardRef.current;
     if (!card) return;
-    card.style.transform = "perspective(600px) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)";
+    card.style.transform = "perspective(700px) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)";
+    card.style.boxShadow = "";
   }, []);
 
   return (
@@ -240,10 +242,48 @@ function TiltCard({
       className={className}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
-      style={{ transition: "transform 0.15s ease", transformStyle: "preserve-3d" }}
+      style={{ transition: "transform 0.18s ease, box-shadow 0.18s ease", transformStyle: "preserve-3d" }}
     >
       {children}
     </div>
+  );
+}
+
+function MagneticButton({
+  children,
+  className = "",
+  strength = 0.30,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  strength?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+
+  const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setOffset({
+      x: (e.clientX - rect.left - rect.width  / 2) * strength,
+      y: (e.clientY - rect.top  - rect.height / 2) * strength,
+    });
+  }, [strength]);
+
+  const onMouseLeave = useCallback(() => setOffset({ x: 0, y: 0 }), []);
+
+  return (
+    <motion.div
+      ref={ref}
+      className={`inline-flex ${className}`}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+      animate={{ x: offset.x, y: offset.y }}
+      transition={{ type: "spring", stiffness: 260, damping: 18 }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -253,42 +293,48 @@ function TrustStripAnimated() {
   const c7 = useCountUp(7, 900);
 
   return (
-    <section className="border-b border-white/8 px-4 sm:px-6 lg:px-8 py-12 relative">
+    <section className="border-b border-white/8 px-4 sm:px-6 lg:px-8 py-14 relative overflow-hidden">
       {/* Subtle amber shimmer rule at top */}
-      <div className="absolute top-0 left-8 right-8 amber-shimmer-line opacity-40" />
-      <div className="max-w-6xl mx-auto">
+      <div className="absolute top-0 left-8 right-8 amber-shimmer-line opacity-50" />
+      {/* Subtle amber orb centre */}
+      <div className="ambient-orb" style={{ left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: "600px", height: "200px", background: "radial-gradient(ellipse at 50% 50%, rgba(251,191,36,0.06) 0%, transparent 70%)" }} />
+      <div className="max-w-6xl mx-auto relative">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 sm:gap-0 sm:divide-x sm:divide-white/10">
-          <div className="sm:px-8 first:pl-0 flex flex-col gap-1">
+          {/* 250+ */}
+          <div className="sm:px-8 first:pl-0 flex flex-col gap-1.5">
             <div className="flex items-baseline gap-1">
-              <span ref={c250.ref} className="font-heading font-bold text-4xl leading-none text-amber-400">{c250.count}</span>
-              <span className="font-heading font-bold text-2xl leading-none text-amber-400/70">+</span>
+              <span ref={c250.ref} className="stat-display text-amber-gradient">{c250.count}</span>
+              <span className="font-heading font-bold text-2xl leading-none text-amber-400/60">+</span>
             </div>
-            <p className="text-xs font-semibold text-white mt-1">Items in Catalog</p>
-            <p className="text-[11px] text-white/35 font-body">Every item fixed-priced upfront</p>
+            <p className="text-xs font-bold text-white tracking-wide uppercase" style={{ letterSpacing: "0.06em" }}>Items in Catalog</p>
+            <p className="text-[11px] text-white/35 font-body">Fixed price, zero surprises</p>
           </div>
-          <div className="sm:px-8 flex flex-col gap-1">
+          {/* 60s */}
+          <div className="sm:px-8 flex flex-col gap-1.5">
             <div className="flex items-baseline gap-1">
-              <span ref={c60.ref} className="font-heading font-bold text-4xl leading-none text-amber-400">{c60.count}</span>
-              <span className="font-heading font-bold text-lg leading-none text-amber-400/70">s</span>
+              <span ref={c60.ref} className="stat-display text-amber-gradient">{c60.count}</span>
+              <span className="font-heading font-bold text-xl leading-none text-amber-400/60">s</span>
             </div>
-            <p className="text-xs font-semibold text-white mt-1">Quote Turnaround</p>
-            <p className="text-[11px] text-white/35 font-body">No calls, no waiting, no forms</p>
+            <p className="text-xs font-bold text-white tracking-wide uppercase" style={{ letterSpacing: "0.06em" }}>Quote Time</p>
+            <p className="text-[11px] text-white/35 font-body">No calls, no waiting</p>
           </div>
-          <div className="sm:px-8 flex flex-col gap-1">
+          {/* 7× */}
+          <div className="sm:px-8 flex flex-col gap-1.5">
             <div className="flex items-baseline gap-1">
-              <span ref={c7.ref} className="font-heading font-bold text-4xl leading-none text-amber-400">{c7.count}</span>
-              <span className="font-heading font-bold text-lg leading-none text-amber-400/70">×/wk</span>
+              <span ref={c7.ref} className="stat-display text-amber-gradient">{c7.count}</span>
+              <span className="font-heading font-bold text-xl leading-none text-amber-400/60">×/wk</span>
             </div>
-            <p className="text-xs font-semibold text-white mt-1">Days a Week</p>
-            <p className="text-[11px] text-white/35 font-body">Weekends &amp; public holidays included</p>
+            <p className="text-xs font-bold text-white tracking-wide uppercase" style={{ letterSpacing: "0.06em" }}>Days Available</p>
+            <p className="text-[11px] text-white/35 font-body">Weekends &amp; public holidays</p>
           </div>
-          <div className="sm:px-8 last:pr-0 flex flex-col gap-1">
+          {/* 5★ */}
+          <div className="sm:px-8 last:pr-0 flex flex-col gap-1.5">
             <div className="flex items-baseline gap-1">
-              <span className="font-heading font-bold text-4xl leading-none text-amber-400">5</span>
-              <span className="font-heading font-bold text-2xl leading-none text-amber-400/70">★</span>
+              <span className="stat-display text-amber-gradient">5</span>
+              <span className="font-heading font-bold text-2xl leading-none text-amber-400/60">★</span>
             </div>
-            <p className="text-xs font-semibold text-white mt-1">ACRA Registered</p>
-            <p className="text-[11px] text-white/35 font-body">The Moving Guy Pte Ltd · UEN 202424156H</p>
+            <p className="text-xs font-bold text-white tracking-wide uppercase" style={{ letterSpacing: "0.06em" }}>Google Rating</p>
+            <p className="text-[11px] text-white/35 font-body">ACRA Reg · UEN 202424156H</p>
           </div>
         </div>
       </div>
@@ -299,23 +345,33 @@ function TrustStripAnimated() {
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className={`border-b border-white/10 transition-colors duration-300 ${open ? "border-amber-400/15" : ""}`}>
+    <div className={`border-b transition-colors duration-300 ${open ? "border-amber-400/20" : "border-white/10"}`}>
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between py-5 text-left group"
+        data-testid={`faq-toggle-${q.slice(0, 20).toLowerCase().replace(/\s+/g, "-")}`}
       >
-        <span className={`text-sm font-semibold pr-6 leading-snug transition-colors duration-200 ${open ? "text-white" : "text-white/80 group-hover:text-white"}`}>
+        <span className={`text-sm font-semibold pr-6 leading-snug transition-colors duration-200 ${open ? "text-white" : "text-white/75 group-hover:text-white"}`}>
           {q}
         </span>
-        <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center border transition-all duration-200 ${open ? "border-amber-400/40 bg-amber-400/10" : "border-white/15 group-hover:border-white/30"}`}>
-          {open ? <Minus className="w-3 h-3 text-amber-400" /> : <Plus className="w-3 h-3 text-white/50" />}
-        </span>
+        <motion.span
+          className={`flex-shrink-0 w-7 h-7 flex items-center justify-center border transition-all duration-300 ${open ? "border-amber-400/50 bg-amber-400/12 rotate-0" : "border-white/15 group-hover:border-white/35"}`}
+          animate={{ rotate: open ? 45 : 0 }}
+          transition={{ duration: 0.2, ease: "easeInOut" }}
+        >
+          {open ? <Minus className="w-3 h-3 text-amber-400" /> : <Plus className="w-3 h-3 text-white/55" />}
+        </motion.span>
       </button>
-      {open && (
+      <motion.div
+        initial={false}
+        animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+        style={{ overflow: "hidden" }}
+      >
         <div className="pb-6 pr-10">
-          <p className="font-body text-sm text-white/55 leading-relaxed">{a}</p>
+          <p className="font-body text-sm text-white/60 leading-relaxed">{a}</p>
         </div>
-      )}
+      </motion.div>
     </div>
   );
 }
@@ -476,10 +532,11 @@ export default function Landing() {
 
             {/* ── LEFT: Copy ── */}
             <motion.div {...fadeUp}>
-              {/* Amber brand badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-400 mb-6">
-                <Zap className="w-3 h-3 text-black flex-shrink-0" />
-                <span className="text-[10px] font-black tracking-[0.16em] text-black uppercase">
+              {/* Premium badge pill */}
+              <div className="hero-badge-pill mb-6">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                <Zap className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                <span className="text-[10px] font-black tracking-[0.16em] text-amber-300 uppercase">
                   Singapore's Furniture Installation Specialists
                 </span>
               </div>
@@ -501,24 +558,28 @@ export default function Landing() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <Link
-                  href="/estimate"
-                  data-testid="hero-cta-guided"
-                  onClick={() => trackEvent("cta_click", "/", "hero_get_estimate")}
-                  className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
-                >
-                  GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </Link>
-                <a
-                  href={WHATSAPP}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-testid="hero-cta-whatsapp"
-                  onClick={() => trackEvent("cta_click", "/", "hero_whatsapp")}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/[0.06] border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/50 hover:bg-white/10 transition-all backdrop-blur-sm"
-                >
-                  <MessageCircle className="w-4 h-4" /> WHATSAPP US
-                </a>
+                <MagneticButton>
+                  <Link
+                    href="/estimate"
+                    data-testid="hero-cta-guided"
+                    onClick={() => trackEvent("cta_click", "/", "hero_get_estimate")}
+                    className="group inline-flex items-center justify-center gap-2.5 px-9 py-4.5 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn glow-pulse-amber"
+                  >
+                    GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1.5 group-hover:scale-110" />
+                  </Link>
+                </MagneticButton>
+                <MagneticButton>
+                  <a
+                    href={WHATSAPP}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="hero-cta-whatsapp"
+                    onClick={() => trackEvent("cta_click", "/", "hero_whatsapp")}
+                    className="inline-flex items-center justify-center gap-2 px-8 py-4 glass-card-light border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/50 hover:bg-white/12 transition-all"
+                  >
+                    <MessageCircle className="w-4 h-4" /> WHATSAPP US
+                  </a>
+                </MagneticButton>
               </div>
 
               {/* ── Micro-trust line ── */}
@@ -593,24 +654,26 @@ export default function Landing() {
 
             {/* ── RIGHT: Glass stats card (desktop only, floats over 3D bg) ── */}
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.25 }}
-              className="hidden lg:flex flex-col gap-4"
+              transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.3 }}
+              className="hidden lg:flex flex-col gap-4 float-anim"
             >
               {/* Main glass card */}
-              <div className="relative border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden p-8 shadow-[0_0_80px_rgba(251,191,36,0.10),0_0_140px_rgba(251,191,36,0.04)]">
+              <div className="glass-card-premium relative overflow-hidden p-8">
                 {/* Amber shimmer sweep across top */}
                 <div className="absolute top-0 left-0 right-0 amber-shimmer-line" />
                 {/* Amber corner accents */}
-                <div className="absolute top-0 left-0 w-20 h-[2px] bg-amber-400/60" />
-                <div className="absolute top-0 left-0 w-[2px] h-20 bg-amber-400/60" />
-                <div className="absolute bottom-0 right-0 w-20 h-[2px] bg-amber-400/20" />
-                <div className="absolute bottom-0 right-0 w-[2px] h-20 bg-amber-400/20" />
+                <div className="absolute top-0 left-0 w-24 h-[2px] bg-amber-400/70" />
+                <div className="absolute top-0 left-0 w-[2px] h-24 bg-amber-400/70" />
+                <div className="absolute bottom-0 right-0 w-24 h-[2px] bg-amber-400/25" />
+                <div className="absolute bottom-0 right-0 w-[2px] h-24 bg-amber-400/25" />
+                {/* Ambient amber orb inside card */}
+                <div className="absolute top-0 right-0 w-48 h-48 pointer-events-none" style={{ background: "radial-gradient(circle at 70% 20%, rgba(251,191,36,0.10) 0%, transparent 65%)" }} />
 
                 <div className="flex items-center gap-2 mb-8">
                   <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="text-[9px] font-black text-amber-400/70 tracking-[0.2em] uppercase">Live Pricing Engine</span>
+                  <span className="text-[9px] font-black text-amber-400/80 tracking-[0.2em] uppercase">Live Pricing Engine</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-px bg-white/8 mb-6">
@@ -620,23 +683,25 @@ export default function Landing() {
                     { val: "7×",   label: "Days a week",      icon: Clock },
                     { val: "5★",   label: "Customer rating",  icon: Star },
                   ].map(({ val, label, icon: Icon }) => (
-                    <div key={val} className="bg-white/[0.03] p-5 group">
-                      <Icon className="w-3.5 h-3.5 text-amber-400/50 mb-3" />
-                      <p className="font-heading font-bold text-2xl text-amber-400 leading-none mb-1">{val}</p>
-                      <p className="text-[10px] text-white/30 font-semibold uppercase tracking-wider">{label}</p>
+                    <div key={val} className="stat-card-highlight p-5 group hover:bg-amber-400/[0.12] transition-colors">
+                      <Icon className="w-3.5 h-3.5 text-amber-400/60 mb-3" />
+                      <p className="font-heading font-bold text-3xl text-amber-gradient leading-none mb-1">{val}</p>
+                      <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">{label}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="space-y-2">
+                <hr className="amber-rule mb-5" />
+
+                <div className="space-y-2.5">
                   {[
                     "IKEA / flat-pack assembly",
                     "Wardrobe & bed frame installation",
                     "Office & commercial fit-outs",
                     "Full relocation D&R service",
                   ].map(item => (
-                    <div key={item} className="flex items-center gap-2.5 text-xs text-white/40 font-body">
-                      <CheckCircle2 className="w-3 h-3 text-amber-400/40 flex-shrink-0" />
+                    <div key={item} className="flex items-center gap-2.5 text-xs text-white/50 font-body">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400/55 flex-shrink-0" />
                       {item}
                     </div>
                   ))}
@@ -647,13 +712,13 @@ export default function Landing() {
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "hero_glass_cta")}
-                className="group border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300"
+                className="group glass-card-premium gradient-border-card p-5 flex items-center justify-between hover:bg-white/[0.12] transition-all duration-300"
               >
                 <div>
-                  <p className="text-[9px] font-black text-white/30 tracking-[0.18em] uppercase mb-0.5">Ready to start?</p>
+                  <p className="text-[9px] font-black text-white/35 tracking-[0.18em] uppercase mb-0.5">Ready to start?</p>
                   <p className="text-sm font-bold text-white">Build your quote now →</p>
                 </div>
-                <ArrowRight className="w-5 h-5 text-white/30 group-hover:text-white/60 group-hover:translate-x-1 transition-all duration-300" />
+                <ArrowRight className="w-5 h-5 text-white/30 group-hover:text-amber-400 group-hover:translate-x-1.5 transition-all duration-300" />
               </Link>
             </motion.div>
           </div>
@@ -712,11 +777,12 @@ export default function Landing() {
             )}
             <div className={`marquee-track ${isLive ? "pl-24" : ""}`}>
               {repeated.map((item, i) => (
-                <span key={i} className="flex items-center gap-4 px-6">
-                  <span className={`text-[10px] font-black tracking-[0.18em] ${isLive ? "normal-case" : "uppercase"} text-white/60 whitespace-nowrap`}>
+                <span key={i} className="flex items-center gap-3 px-5">
+                  <span className={`text-[10px] font-black tracking-[0.18em] ${isLive ? "normal-case" : "uppercase"} text-white/65 whitespace-nowrap`}>
                     {item}
                   </span>
-                  <span className="w-1 h-1 bg-white/20 flex-shrink-0" />
+                  {/* Diamond amber separator */}
+                  <span className="w-1 h-1 bg-amber-400/35 flex-shrink-0 rotate-45" />
                 </span>
               ))}
             </div>
@@ -878,19 +944,21 @@ export default function Landing() {
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", `service_card_${label.toLowerCase().replace(/\s+/g, "_")}`)}
               >
-                <motion.div {...(i % 2 === 0 ? fadeFromLeft(i * 0.05) : fadeFromRight(i * 0.05))}>
-                  <TiltCard className="glass-card-light glass-card-amber-hover p-7 group hover:bg-white/12 transition-all duration-300 cursor-pointer h-full" intensity={13}>
-                    <div className="icon-box-amber mb-5">
-                      <Icon className="w-4 h-4 text-amber-400/75 group-hover:text-amber-300 transition-colors" />
+                <motion.div {...(i % 2 === 0 ? fadeFromLeft(i * 0.05) : fadeFromRight(i * 0.05))} className="h-full">
+                  <TiltCard className="glass-card-light glass-card-amber-hover gradient-border-card p-7 group hover:bg-white/14 transition-all duration-300 cursor-pointer h-full relative overflow-hidden" intensity={13}>
+                    {/* Ghost number background */}
+                    <span className="service-num">{String(i + 1).padStart(2, "0")}</span>
+                    <div className="icon-box-amber mb-5 relative">
+                      <Icon className="w-4 h-4 text-amber-400/80 group-hover:text-amber-300 transition-colors" />
                     </div>
-                    <p className="text-sm font-semibold text-white leading-snug mb-1">
+                    <p className="text-sm font-semibold text-white leading-snug mb-1.5 relative">
                       {label}
                     </p>
-                    <p className="text-[11px] text-white/35 font-mono">
+                    <p className="text-[11px] text-white/40 font-mono relative">
                       {count} items
                     </p>
-                    <p className="text-[10px] font-semibold text-white/30 group-hover:text-amber-400 mt-3 uppercase tracking-wide transition-colors flex items-center gap-1">
-                      Get quote <ArrowRight className="w-2.5 h-2.5" />
+                    <p className="text-[10px] font-semibold text-white/30 group-hover:text-amber-400 mt-4 uppercase tracking-wide transition-colors flex items-center gap-1 relative">
+                      Get quote <ArrowRight className="w-2.5 h-2.5 transition-transform group-hover:translate-x-0.5" />
                     </p>
                   </TiltCard>
                 </motion.div>
@@ -1159,13 +1227,20 @@ export default function Landing() {
                 body: "WhatsApp updates straight from your assigned crew. No call centres, no chasing — just real communication.",
               },
             ].map(({ icon: Icon, title, body }, i) => (
-              <motion.div key={title} {...fadeUpDelayed(i * 0.08)}>
-                <TiltCard className="glass-card-light glass-card-amber-hover p-8 hover:bg-white/12 transition-all duration-300 group h-full" intensity={5}>
-                  <div className="icon-box-amber mb-7">
-                    <Icon className="w-4 h-4 text-amber-400/65 group-hover:text-amber-400/95 transition-colors" />
+              <motion.div key={title} {...fadeUpDelayed(i * 0.08)} className="h-full">
+                <TiltCard className="glass-card-light glass-card-amber-hover gradient-border-card p-8 hover:bg-white/14 transition-all duration-300 group h-full relative overflow-hidden" intensity={5}>
+                  {/* Ghost index number */}
+                  <span
+                    className="absolute -bottom-3 -right-1 font-heading font-bold leading-none pointer-events-none select-none transition-colors duration-500 group-hover:text-amber-400/[0.09] text-white/[0.04]"
+                    style={{ fontSize: "clamp(76px,9vw,96px)", letterSpacing: "-0.04em" }}
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div className="icon-box-amber mb-7 relative">
+                    <Icon className="w-4 h-4 text-amber-400/70 group-hover:text-amber-400 transition-colors" />
                   </div>
-                  <h3 className="card-title text-white mb-3">{title}</h3>
-                  <p className="font-body text-sm text-white/45 leading-relaxed">{body}</p>
+                  <h3 className="card-title text-white mb-3 relative">{title}</h3>
+                  <p className="font-body text-sm text-white/50 leading-relaxed relative">{body}</p>
                 </TiltCard>
               </motion.div>
             ))}
@@ -1218,34 +1293,38 @@ export default function Landing() {
                   <motion.div
                     key={i}
                     {...fadeUpDelayed(i * 0.08)}
-                    className="glass-card-light glass-card-amber-hover p-6 flex flex-col hover:bg-white/12 transition-colors relative overflow-hidden"
+                    className="glass-card-premium glass-card-amber-hover gradient-border-card flex flex-col hover:bg-white/[0.13] transition-all duration-300 relative overflow-hidden group"
                     data-testid={`review-card-${i}`}
                   >
-                    {/* Amber top line */}
-                    <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-amber-400/40 to-transparent" />
-                    {/* Stars */}
-                    <div className="flex gap-0.5 mb-4">
-                      {[...Array(r.stars)].map((_, j) => (
-                        <Star key={j} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                      ))}
-                    </div>
-                    {/* Text */}
-                    <p className="font-body text-sm text-white/65 leading-relaxed flex-1 mb-5">
-                      &ldquo;{r.text}&rdquo;
-                    </p>
-                    {/* Footer */}
-                    <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                      <div>
-                        <p className="text-xs font-semibold text-white">{r.name}</p>
-                        <p className="text-[11px] text-white/35 font-body">{r.loc} · {r.date}</p>
+                    {/* Amber shimmer top */}
+                    <div className="absolute top-0 left-0 right-0 amber-shimmer-line" />
+                    {/* Large decorative quotation mark */}
+                    <span className="quote-mark-deco">&ldquo;</span>
+                    <div className="p-7 pt-8 flex flex-col flex-1 relative z-10">
+                      {/* Stars */}
+                      <div className="flex gap-0.5 mb-5">
+                        {[...Array(r.stars)].map((_, j) => (
+                          <Star key={j} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                        ))}
                       </div>
-                      {/* Google G colour mark */}
-                      <svg width="18" height="18" viewBox="0 0 24 24" aria-label="Google" className="flex-shrink-0">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                      </svg>
+                      {/* Text */}
+                      <p className="font-body text-sm text-white/70 leading-relaxed flex-1 mb-6">
+                        &ldquo;{r.text}&rdquo;
+                      </p>
+                      {/* Footer */}
+                      <div className="flex items-center justify-between pt-4 border-t border-white/12">
+                        <div>
+                          <p className="text-xs font-bold text-white">{r.name}</p>
+                          <p className="text-[11px] text-white/40 font-body">{r.loc} · {r.date}</p>
+                        </div>
+                        {/* Google G */}
+                        <svg width="20" height="20" viewBox="0 0 24 24" aria-label="Google" className="flex-shrink-0 opacity-80">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                      </div>
                     </div>
                   </motion.div>
                 ))}
@@ -1539,46 +1618,67 @@ export default function Landing() {
       </section>
 
       {/* ═════════════════════ BOTTOM CTA BAND ═════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-28 relative overflow-hidden">
-        {/* Ambient amber glow blob */}
+      <section className="px-4 sm:px-6 lg:px-8 py-36 relative overflow-hidden dot-grid-bg">
+        {/* Ambient orbs */}
+        <div className="ambient-orb" style={{ left: "-5%", top: "50%", transform: "translateY(-50%)", width: "700px", height: "580px", background: "radial-gradient(ellipse at 40% 50%, rgba(251,191,36,0.16) 0%, transparent 62%)" }} />
+        <div className="ambient-orb" style={{ right: "-10%", top: "15%", width: "520px", height: "420px", background: "radial-gradient(ellipse at 60% 40%, rgba(99,102,241,0.07) 0%, transparent 65%)" }} />
+        <div className="ambient-orb" style={{ right: "5%", bottom: "-10%", width: "380px", height: "320px", background: "radial-gradient(ellipse at 50% 60%, rgba(251,191,36,0.06) 0%, transparent 65%)" }} />
+
+        {/* Large ghost "60" — decorative type element */}
         <div
-          className="absolute pointer-events-none select-none"
-          style={{
-            left: "-10%", top: "50%", transform: "translateY(-50%)",
-            width: "600px", height: "500px",
-            background: "radial-gradient(ellipse at 30% 50%, rgba(251,191,36,0.10) 0%, transparent 70%)",
-          }}
-        />
+          className="absolute right-8 top-1/2 -translate-y-1/2 font-heading font-bold leading-none text-white pointer-events-none select-none hidden lg:block"
+          style={{ fontSize: "clamp(180px,22vw,280px)", letterSpacing: "-0.05em", opacity: 0.025 }}
+        >
+          60<span style={{ color: "rgba(251,191,36,0.9)" }}>s</span>
+        </div>
+
         <div className="max-w-6xl mx-auto relative">
           <motion.div {...fadeUpDelayed(0)} className="max-w-2xl">
-            <p className="section-eyebrow mb-4">
+            <p className="section-eyebrow mb-5">
               Ready to start?
             </p>
-            <h2 className="section-title text-gradient-warm mb-6">
+            <h2 className="section-title text-gradient-warm mb-7">
               Get your quote<br />in under 60 seconds.
             </h2>
-            <p className="font-body text-base text-white/50 mb-10 max-w-md leading-relaxed">
+            <p className="font-body text-base text-white/55 mb-12 max-w-md leading-relaxed">
               No account needed. No phone calls. Select your items, confirm your address, and receive a full itemised quote with transport included.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Link
-                href="/estimate"
-                data-testid="bottom-cta-estimate"
-                onClick={() => trackEvent("cta_click", "/", "bottom_get_estimate")}
-                className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
-              >
-                GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
-              </Link>
-              <a
-                href={WHATSAPP}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="bottom-cta-whatsapp"
-                onClick={() => trackEvent("cta_click", "/", "bottom_whatsapp")}
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-white/50 hover:bg-white/5 transition-all"
-              >
-                <MessageCircle className="w-4 h-4" /> WHATSAPP US
-              </a>
+
+            {/* Amber rule above buttons */}
+            <hr className="amber-rule mb-10 max-w-xs" />
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <MagneticButton>
+                <Link
+                  href="/estimate"
+                  data-testid="bottom-cta-estimate"
+                  onClick={() => trackEvent("cta_click", "/", "bottom_get_estimate")}
+                  className="group inline-flex items-center justify-center gap-2.5 px-9 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn glow-pulse-amber"
+                >
+                  GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1.5 group-hover:scale-110" />
+                </Link>
+              </MagneticButton>
+              <MagneticButton>
+                <a
+                  href={WHATSAPP}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="bottom-cta-whatsapp"
+                  onClick={() => trackEvent("cta_click", "/", "bottom_whatsapp")}
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 glass-card-light border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/40 hover:bg-white/12 transition-all"
+                >
+                  <MessageCircle className="w-4 h-4" /> WHATSAPP US
+                </a>
+              </MagneticButton>
+            </div>
+
+            {/* Trust micro-row */}
+            <div className="flex flex-wrap gap-x-6 gap-y-2 mt-8">
+              {["No account needed", "Itemised quote", "Same-day reply"].map(t => (
+                <span key={t} className="flex items-center gap-1.5 text-xs text-white/35 font-body">
+                  <CheckCircle2 className="w-3 h-3 text-white/25" /> {t}
+                </span>
+              ))}
             </div>
           </motion.div>
         </div>
