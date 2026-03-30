@@ -501,7 +501,6 @@ function ChatPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
-  const replyBarRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -513,22 +512,10 @@ function ChatPanel({
     ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
   }, [replyText]);
 
-  /* Track reply bar height → drive padding-bottom on the scroll container so
-     messages are never hidden behind the fixed mobile input bar. */
-  useEffect(() => {
-    const bar = replyBarRef.current;
-    const scroll = chatScrollRef.current;
-    if (!bar || !scroll) return;
-    const obs = new ResizeObserver(() => {
-      const h = bar.getBoundingClientRect().height;
-      scroll.style.paddingBottom = `${h + 8}px`;
-    });
-    obs.observe(bar);
-    // trigger once immediately
-    const h = bar.getBoundingClientRect().height;
-    scroll.style.paddingBottom = `${h + 8}px`;
-    return () => obs.disconnect();
-  }, []);
+  /* Reply bar is in-flow (flex-shrink-0 at bottom of right panel flex column).
+     No fixed positioning needed: interactive-widget=resizes-content in index.html
+     causes the layout viewport to shrink with the keyboard, so in-flow elements
+     at the container bottom are always visible above the keyboard. */
 
   /* When keyboard opens on mobile (viewport shrinks), scroll to bottom */
   useEffect(() => {
@@ -1210,15 +1197,13 @@ function ChatPanel({
             </div>
           )}
 
-          {/* Reply Box — fixed on mobile so it always floats above keyboard/toolbar;
-               contains the templates panel, note indicator, emoji picker, and input row. */}
+          {/* Reply Box — in the flex flow at the bottom of the right panel column.
+               interactive-widget=resizes-content (index.html) causes the layout
+               viewport to shrink when keyboard is open, so flex-shrink-0 here is
+               always visible above the keyboard without any fixed positioning. */}
           <div
-            ref={replyBarRef}
-            className="border-t border-gray-200 bg-white fixed inset-x-0 z-[200] shadow-[0_-2px_10px_rgba(0,0,0,0.07)] lg:relative lg:z-auto lg:shadow-none lg:flex-shrink-0"
-            style={{
-              bottom: "var(--keyboard-h, 0px)",
-              paddingBottom: "max(0px, env(safe-area-inset-bottom))"
-            }}
+            className="flex-shrink-0 border-t border-gray-200 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.07)]"
+            style={{ paddingBottom: "max(0px, env(safe-area-inset-bottom))" }}
           >
 
             {/* Combined Quick Templates + Canned Replies panel (inside fixed unit) */}
@@ -1489,17 +1474,16 @@ export default function AdminConversations() {
     return () => { document.documentElement.style.background = prev; };
   }, []);
 
-  /* iOS keyboard fix — track both container height AND keyboard offset.
-     --conv-h   = height of the visible area above the keyboard (for container sizing)
-     --keyboard-h = keyboard height (used to push the fixed reply bar above the keyboard)
-     On iOS, position:fixed bottom:0 uses window.innerHeight (layout viewport),
-     not visualViewport.height — so we must offset by the keyboard height manually. */
+  /* Container height: visual viewport minus the fixed 56px admin header.
+     visualViewport.height already excludes the keyboard (when open) and the
+     Safari bottom toolbar, so the container stays in the visible area naturally.
+     interactive-widget=resizes-content (set in index.html) makes the layout
+     viewport also resize with the keyboard on iOS 16+, which means in-flow
+     elements at the bottom of a 100dvh container are never behind the keyboard. */
   useEffect(() => {
     const update = () => {
       const vh = window.visualViewport?.height ?? window.innerHeight;
-      const kh = Math.max(0, window.innerHeight - vh);
       document.documentElement.style.setProperty("--conv-h", `${vh - 56}px`);
-      document.documentElement.style.setProperty("--keyboard-h", `${kh}px`);
     };
     update();
     window.visualViewport?.addEventListener("resize", update);
@@ -1507,7 +1491,6 @@ export default function AdminConversations() {
     return () => {
       window.visualViewport?.removeEventListener("resize", update);
       window.removeEventListener("resize", update);
-      document.documentElement.style.removeProperty("--keyboard-h");
     };
   }, []);
 
