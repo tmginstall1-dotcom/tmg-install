@@ -1,16 +1,17 @@
 import { useRef, useEffect } from "react";
 
 /*
- * Scroll-driven 3D armchair dismantle / reassemble — pure canvas, zero deps.
+ * Pro scroll-driven 3D armchair — dismantle → pause → reassemble.
  *
- * Architecture:
- *  - 12 chair pieces defined in world-space Y-up coordinates
- *  - Each piece has: scatter translation, spin axes, stagger delay
- *  - Per-frame: scatter → spin (3D) → camera rotate → perspective project
- *  - Painter's algorithm Z-sort across all edges before drawing
- *  - Scroll progress drives dismantle; scrolling back re-assembles
- *  - Camera yaw drifts +0.3 rad as chair dismantles (cinematic orbit)
- *  - Mouse adds ±3° parallax tilt
+ * Scroll phases:
+ *   0.00 – 0.12  Assembled idle  (chair floats, camera drifts)
+ *   0.12 – 0.62  Dismantle       (pieces scatter with Y-arc, scan line sweeps)
+ *   0.62 – 0.74  Scattered pause (camera continues orbiting)
+ *   0.74 – 1.00  Reassemble      (pieces snap back with spring overshoot)
+ *
+ * Per-piece stagger delays create the "click-click-click" assembly feel.
+ * Camera yaw drifts continuously (slow ambient orbit) + scroll-driven orbit.
+ * Painter's-algorithm Z-sort for correct depth overlap every frame.
  */
 
 type V3   = [number, number, number];
@@ -18,37 +19,53 @@ type Edge = [number, number];
 
 const AMB = (a: number) => `rgba(251,191,36,${a.toFixed(3)})`;
 
-/* ── Cubic ease in-out ─────────────────────────────────────── */
-const ease = (t: number): number =>
-  t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+/* ── Easing ───────────────────────────────────────────────────────── */
+const easeIO = (t: number): number =>
+  t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
 
-/* ── Cuboid: 8 verts + 12 edges ────────────────────────────── */
-function box(
+/* Spring ease-out: settles just past 1, bounces back — for snappy reassembly */
+const easeSpring = (t: number): number => {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  const c1 = 1.40, c3 = c1 + 1;
+  return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
+};
+
+/* ── Cuboid + optional extra geometry ────────────────────────────── */
+function mkBox(
   cx: number, cy: number, cz: number,
-  w: number,  h: number,  d: number
+  w:  number, h:  number, d:  number,
+  xv?: V3[], xe?: Edge[]
 ): { v: V3[]; e: Edge[] } {
-  const [x0, x1] = [cx - w / 2, cx + w / 2];
-  const [y0, y1] = [cy, cy + h];
-  const [z0, z1] = [cz - d / 2, cz + d / 2];
-  return {
-    v: [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],
-        [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]] as V3[],
-    e: [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],
-        [0,4],[1,5],[2,6],[3,7]] as Edge[],
-  };
+  const x0 = cx - w / 2, x1 = cx + w / 2;
+  const y0 = cy,         y1 = cy + h;
+  const z0 = cz - d / 2, z1 = cz + d / 2;
+  const v: V3[] = [
+    [x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],
+    [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],
+  ];
+  const e: Edge[] = [
+    [0,1],[1,2],[2,3],[3,0],
+    [4,5],[5,6],[6,7],[7,4],
+    [0,4],[1,5],[2,6],[3,7],
+  ];
+  if (xv && xe) {
+    const off = v.length;
+    v.push(...xv);
+    e.push(...xe.map(([a, b]) => [a + off, b + off] as Edge));
+  }
+  return { v, e };
 }
 
-/* ── Perspective projection (Y-up, looking along +Z) ───────── */
-function project(
-  p: V3, ox: number, oy: number, focal: number
-): [number, number, number] {
-  const dz = p[2] + focal;
-  if (dz < 1) return [0, 0, 0];
-  const s = focal / dz;
-  return [ox + p[0] * s, oy - p[1] * s, s]; // -y: canvas Y inverted
+/* ── Cushion tuft grid on a face ─────────────────────────────────── */
+function tufts(y: number, x0: number, x1: number, z0: number, z1: number) {
+  const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+  const v: V3[] = [[mx,y,z0],[mx,y,z1],[x0,y,mz],[x1,y,mz]];
+  const e: Edge[] = [[0,1],[2,3]];
+  return { v, e };
 }
 
-/* ── Camera rotation: yaw then pitch ───────────────────────── */
+/* ── Camera yaw + pitch rotation ─────────────────────────────────── */
 function camRot(p: V3, yaw: number, pitch: number): V3 {
   const [x, y, z] = p;
   const cy = Math.cos(yaw),   sy = Math.sin(yaw);
@@ -57,127 +74,175 @@ function camRot(p: V3, yaw: number, pitch: number): V3 {
   return [x2, y * cp - z2 * sp, y * sp + z2 * cp];
 }
 
-/* ── Spin vertices around a 3D centre point ────────────────── */
-function spinVerts(
+/* ── Perspective project ─────────────────────────────────────────── */
+function proj(p: V3, ox: number, oy: number, f: number): [number, number, number] {
+  const dz = p[2] + f;
+  if (dz < 1) return [0, 0, 0];
+  const s = f / dz;
+  return [ox + p[0] * s, oy - p[1] * s, s];   // -y: canvas Y inverted
+}
+
+/* ── Spin vertices around a moving 3D centre ─────────────────────── */
+function spinV(
   verts: V3[], cx: number, cy: number, cz: number,
   ax: number, ay: number, az: number
 ): V3[] {
   return verts.map(([x, y, z]) => {
-    let dx = x - cx, dy = y - cy, dz = z - cz;
-    if (ax !== 0) {
-      const c = Math.cos(ax), s = Math.sin(ax);
-      [dy, dz] = [dy * c - dz * s, dy * s + dz * c];
-    }
-    if (ay !== 0) {
-      const c = Math.cos(ay), s = Math.sin(ay);
-      [dx, dz] = [dx * c + dz * s, -dx * s + dz * c];
-    }
-    if (az !== 0) {
-      const c = Math.cos(az), s = Math.sin(az);
-      [dx, dy] = [dx * c - dy * s, dx * s + dy * c];
-    }
-    return [dx + cx, dy + cy, dz + cz] as V3;
+    x -= cx; y -= cy; z -= cz;
+    if (ax) { const c = Math.cos(ax), s = Math.sin(ax); [y, z] = [y*c - z*s, y*s + z*c]; }
+    if (ay) { const c = Math.cos(ay), s = Math.sin(ay); [x, z] = [x*c + z*s, -x*s + z*c]; }
+    if (az) { const c = Math.cos(az), s = Math.sin(az); [x, y] = [x*c - y*s, x*s + y*c]; }
+    return [x + cx, y + cy, z + cz] as V3;
   });
 }
 
-/* ── Chair piece definition ─────────────────────────────────── */
-interface Piece {
-  v: V3[];                       // assembled vertices (world space, Y-up)
-  e: Edge[];
-  cx: number; cy: number; cz: number;  // piece centre (for spin)
-  scatter: V3;                   // world-space displacement at t=1
-  spin: [number, number, number]; // [ax, ay, az] total angle at t=1
-  delay: number;                 // scroll progress at which scatter begins
-  alpha: number;                 // base opacity at full assembly
+/* ── Scroll phase mapping ────────────────────────────────────────── */
+const PH_IDLE_END    = 0.12;
+const PH_SCATTER_END = 0.62;
+const PH_PAUSE_END   = 0.74;
+
+/**
+ * Returns scatter amount t ∈ [-0.04, 1]:
+ *   0  = piece at assembled position
+ *   1  = piece at fully scattered position
+ *  <0  = overshoot past assembled (spring snap)
+ */
+function scatterT(sp: number, sDel: number, aDel: number): number {
+  // Phase 1: idle — fully assembled
+  if (sp <= PH_IDLE_END) return 0;
+
+  // Phase 2: dismantle — scatter out with stagger
+  if (sp <= PH_SCATTER_END) {
+    const p  = (sp - PH_IDLE_END) / (PH_SCATTER_END - PH_IDLE_END);
+    const pp = Math.max(0, (p - sDel) / (1 - Math.min(sDel, 0.95)));
+    return easeIO(Math.min(1, pp));
+  }
+
+  // Phase 3: scattered pause — all fully scattered
+  if (sp <= PH_PAUSE_END) return 1;
+
+  // Phase 4: reassemble — snap back in with stagger (reverse order)
+  const p  = (sp - PH_PAUSE_END) / (1 - PH_PAUSE_END);
+  const pp = Math.max(0, (p - aDel) / (1 - Math.min(aDel, 0.95)));
+  // Allow slight negative for spring overshoot
+  return Math.max(-0.06, 1 - easeSpring(Math.min(1, pp)));
 }
 
-/* ── Armchair geometry ──────────────────────────────────────── */
+/* ── Piece data ──────────────────────────────────────────────────── */
+interface Piece {
+  v: V3[]; e: Edge[];
+  cx: number; cy: number; cz: number; // assembled centre
+  scatter: V3;                         // world displacement at t=1
+  arcY: number;                        // extra Y lift at arc peak (t≈0.5)
+  spin: [number, number, number];      // [ax,ay,az] at t=1
+  sDel: number;                        // dismantle stagger delay (0–0.5)
+  aDel: number;                        // reassemble stagger delay (0–0.5, legs=0)
+  alpha: number;                       // base opacity
+}
+
+/* ── Armchair geometry ───────────────────────────────────────────── */
 function buildChair(): Piece[] {
-  const pieces: Piece[] = [];
+  const P: Piece[] = [];
 
   function add(
     bx: number, by: number, bz: number,
-    w: number, h: number, d: number,
-    scatter: V3, spin: [number, number, number],
-    delay: number, alpha: number
+    w:  number, h:  number, d:  number,
+    sc: V3, arcY: number,
+    spn: [number, number, number],
+    sDel: number, aDel: number, alpha: number,
+    xv?: V3[], xe?: Edge[]
   ) {
-    const g = box(bx, by, bz, w, h, d);
-    pieces.push({
+    const g = mkBox(bx, by, bz, w, h, d, xv, xe);
+    P.push({
       v: g.v, e: g.e,
       cx: bx, cy: by + h / 2, cz: bz,
-      scatter, spin, delay, alpha,
+      scatter: sc, arcY, spin: spn,
+      sDel, aDel, alpha,
     });
   }
 
-  /* The chair sits on the floor (Y=0 = ground, Y-up).
-     Legs: y=-75 to y=4 (80 tall).  Seat: y=4 to y=56.
-     Arms: y=4 to y=105.  Backrest: y=56 to y=255. */
+  /* Chair Y-up: ground = −75, seat top = 58, backrest top = 218 */
 
-  // ── Seat cushion (top soft layer)
-  add(  0,  38,   0, 186, 20, 170,
-        [0, -260, 0],        [ 0.55,  0,    0.22], 0.22, 1.00);
+  // Seat cushion (with tuft cross lines on top face y=58)
+  const st = tufts(58, -93, 93, -85, 85);
+  add(  0,  38,   0,  186,  20, 170,
+        [0, -272, 0],          42,
+        [ 0.50,  0,    0.20], 0.22, 0.46, 1.00,
+        st.v, st.e);
 
-  // ── Seat frame (structural undercarriage)
-  add(  0,   5,   0, 200, 35, 184,
-        [0, -315, 55],       [ 0.40,  0,   -0.20], 0.28, 0.86);
+  // Seat frame (structural under-carriage)
+  add(  0,   5,   0,  200,  35, 184,
+        [0, -318, 58],          0,
+        [ 0.38,  0,   -0.18], 0.28, 0.36, 0.86);
 
-  // ── Backrest cushion
-  add(  0,  58, -85, 168, 160, 18,
-        [0,  295, -370],     [-1.05,  0.12, 0   ], 0.04, 1.00);
+  // Backrest cushion (with tuft lines on front z-face)
+  const bt = tufts(218, -84, 84, -93, -75);
+  add(  0,  58, -84,  168, 160,  18,
+        [0, 308, -382],         88,
+        [-1.05,  0.12,  0   ], 0.04, 0.70, 1.00,
+        bt.v, bt.e);
 
-  // ── Backrest frame
-  add(  0,  53, -96, 198, 190, 28,
-        [0,  215, -415],     [-0.80,  0,    0.10], 0.07, 0.84);
+  // Backrest frame
+  add(  0,  53, -95,  198, 190,  28,
+        [0, 228, -422],         68,
+        [-0.82,  0,    0.10], 0.08, 0.62, 0.84);
 
-  // ── Left arm body
-  add(-96,  12,   0,  22,  82, 186,
-        [-365, 85, 0],       [ 0,    -1.20, 0   ], 0.13, 0.90);
+  // Left arm body
+  add(-96,  12,   0,   22,  82, 186,
+        [-365, 88,   0],         52,
+        [ 0,  -1.22, 0   ], 0.13, 0.52, 0.90);
 
-  // ── Left arm top rail
-  add(-96,  92,   8,  22,  14, 168,
-        [-390, 128, -50],    [ 0,    -1.40, -0.40], 0.18, 0.92);
+  // Left arm top rail
+  add(-96,  92,   8,   22,  14, 168,
+        [-392, 132, -52],        32,
+        [ 0,  -1.42,-0.42], 0.18, 0.56, 0.92);
 
-  // ── Right arm body
-  add( 96,  12,   0,  22,  82, 186,
-        [ 365, 85, 0],       [ 0,     1.20, 0   ], 0.13, 0.90);
+  // Right arm body
+  add( 96,  12,   0,   22,  82, 186,
+        [ 365, 88,   0],         52,
+        [ 0,   1.22, 0   ], 0.13, 0.52, 0.90);
 
-  // ── Right arm top rail
-  add( 96,  92,   8,  22,  14, 168,
-        [ 390, 128, -50],    [ 0,     1.40,  0.40], 0.18, 0.92);
+  // Right arm top rail
+  add( 96,  92,   8,   22,  14, 168,
+        [ 392, 132, -52],        32,
+        [ 0,   1.42, 0.42], 0.18, 0.56, 0.92);
 
-  // ── Front-right leg
-  add( 74, -75,  74,  14,  80,  14,
-        [ 210, -280, 215],   [ 0.40, -0.90, -0.60], 0.30, 0.82);
+  // Front-right leg
+  add( 74, -75,  74,   14,  80,  14,
+        [ 218, -285, 218],        0,
+        [ 0.42,-0.92,-0.62], 0.30, 0.20, 0.82);
 
-  // ── Front-left leg
-  add(-74, -75,  74,  14,  80,  14,
-        [-210, -280, 215],   [ 0.40,  0.90,  0.60], 0.30, 0.82);
+  // Front-left leg
+  add(-74, -75,  74,   14,  80,  14,
+        [-218, -285, 218],        0,
+        [ 0.42, 0.92, 0.62], 0.30, 0.20, 0.82);
 
-  // ── Back-right leg
-  add( 74, -75, -74,  14,  80,  14,
-        [ 210, -280, -265],  [-0.40, -0.90, -0.60], 0.37, 0.82);
+  // Back-right leg
+  add( 74, -75, -74,   14,  80,  14,
+        [ 218, -285,-268],        0,
+        [-0.42,-0.92,-0.62], 0.37, 0.08, 0.82);
 
-  // ── Back-left leg
-  add(-74, -75, -74,  14,  80,  14,
-        [-210, -280, -265],  [-0.40,  0.90,  0.60], 0.37, 0.82);
+  // Back-left leg
+  add(-74, -75, -74,   14,  80,  14,
+        [-218, -285,-268],        0,
+        [-0.42, 0.92, 0.62], 0.37, 0.08, 0.82);
 
-  return pieces;
+  return P;
 }
 
-const CHAIR_PIECES = buildChair();
+const CHAIR = buildChair();
 
-/* ── Floor grid (world space, Y = -75 = ground level) ───────── */
-const FLOOR_GRID: [V3, V3][] = [];
-for (let i = -5; i <= 5; i++) {
-  FLOOR_GRID.push([[i * 100, -75, -200], [i * 100, -75, 450]]);
-}
-for (let j = 0; j <= 8; j++) {
-  FLOOR_GRID.push([[-530, -75, j * 80 - 200], [530, -75, j * 80 - 200]]);
-}
+/* ── Floor grid (world space, Y = ground level −75) ─────────────── */
+const FLOOR: [V3, V3][] = [];
+for (let i = -5; i <= 5; i++)
+  FLOOR.push([[i * 100, -75, -200], [i * 100, -75, 450]]);
+for (let j = 0; j <= 8; j++)
+  FLOOR.push([[-530, -75, j * 80 - 200], [530, -75, j * 80 - 200]]);
 
-/* ── React component ────────────────────────────────────────── */
+/* ── Component ───────────────────────────────────────────────────── */
 export default function PageBgScene() {
   const cvs = useRef<HTMLCanvasElement>(null);
+  const t0  = useRef(Date.now());
 
   useEffect(() => {
     const canvas = cvs.current;
@@ -186,134 +251,137 @@ export default function PageBgScene() {
     if (!ctx) return;
 
     let W = 0, H = 0;
-    let scrollP  = 0;
-    let mouseX   = 0, mouseY = 0;
-    let camX     = 0, camY   = 0;   // smoothed mouse offset
+    let scrollP = 0;
+    let mouseX  = 0, mouseY = 0;
+    let camX    = 0, camY   = 0;
     let rafId: number;
 
-    const resize = () => {
-      W = canvas.width  = window.innerWidth;
-      H = canvas.height = window.innerHeight;
-    };
+    const resize   = () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; };
+    const onScroll = () => { const mx = document.documentElement.scrollHeight - window.innerHeight; scrollP = mx > 0 ? Math.min(1, window.scrollY / mx) : 0; };
+    const onMouse  = (e: MouseEvent) => { mouseX = e.clientX / window.innerWidth - 0.5; mouseY = e.clientY / window.innerHeight - 0.5; };
+
     resize();
-
-    const onScroll = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      scrollP = max > 0 ? Math.min(1, window.scrollY / max) : 0;
-    };
-    const onMouse = (e: MouseEvent) => {
-      mouseX = e.clientX / window.innerWidth  - 0.5;
-      mouseY = e.clientY / window.innerHeight - 0.5;
-    };
-
     window.addEventListener("resize",    resize,   { passive: true });
     window.addEventListener("scroll",    onScroll, { passive: true });
     window.addEventListener("mousemove", onMouse,  { passive: true });
 
-    const BASE_YAW   = 0.50; // ~29° — shows front-right corner of chair
-    const BASE_PITCH = 0.32; // ~18° — slight bird's-eye view
-    const DEPTH      = 480;  // chair Z-depth from camera
+    const BASE_YAW   = 0.48;   // ~27° — show front-right corner
+    const BASE_PITCH = 0.30;   // ~17° — mild overhead view
+    const DEPTH      = 480;    // chair Z from camera
 
     const tick = () => {
       rafId = requestAnimationFrame(tick);
 
-      camX += (mouseX * 52 - camX) * 0.05;
-      camY += (mouseY * 26 - camY) * 0.05;
+      /* Smooth mouse parallax */
+      camX += (mouseX * 50 - camX) * 0.05;
+      camY += (mouseY * 24 - camY) * 0.05;
 
-      /* Camera slowly orbits as chair dismantles */
-      const yaw   = BASE_YAW + scrollP * 0.30;
-      const pitch = BASE_PITCH;
+      /* Camera orbit:
+           slow continuous drift (ambient life)
+         + scroll-driven orbit (matches dismantle direction)             */
+      const elapsed    = (Date.now() - t0.current) * 0.001; // seconds
+      const ambOrbit   = elapsed * 0.038;                    // ~1 rev / 2.7 min
+      const scrOrbit   = scrollP * 0.48;
+      const yaw        = BASE_YAW + ambOrbit + scrOrbit;
+      const pitch      = BASE_PITCH;
 
-      /* Focal length scales with screen to keep chair proportional */
-      const focal = Math.max(400, Math.min(1100, W * 0.82));
+      /* Focal length: scales with viewport for consistent chair size */
+      const focal = Math.max(380, Math.min(W * 0.62, 920));
+
+      /* Idle float when assembled */
+      const floatY = scrollP <= PH_IDLE_END
+        ? Math.sin(elapsed * 1.05) * 5.5 * (1 - scrollP / PH_IDLE_END * 0.5)
+        : 0;
 
       const ox = W * 0.5 + camX;
-      const oy = H * 0.5 + 55 + camY; // +55 offsets chair centre to mid-screen
+      const oy = H * 0.5 + 58 + camY + floatY;
 
       ctx.clearRect(0, 0, W, H);
 
-      /* ── Amber glow (fades as chair dismantles) ─────────── */
-      const glowStrength = Math.max(0, 1 - scrollP * 2.2);
-      if (glowStrength > 0.01) {
-        const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, Math.min(W, H) * 0.44);
-        g.addColorStop(0,    AMB(0.13 * glowStrength));
-        g.addColorStop(0.5,  AMB(0.04 * glowStrength));
-        g.addColorStop(1,   "transparent");
+      /* ── Phase-aware ambient glow ──────────────────────────── */
+      let glow = 0;
+      if      (scrollP <= PH_IDLE_END)    glow = 1;
+      else if (scrollP <= PH_SCATTER_END) glow = 1 - (scrollP - PH_IDLE_END) / (PH_SCATTER_END - PH_IDLE_END) * 0.82;
+      else if (scrollP <= PH_PAUSE_END)   glow = 0.18;
+      else                                glow = 0.18 + (scrollP - PH_PAUSE_END) / (1 - PH_PAUSE_END) * 0.82;
+
+      if (glow > 0.02) {
+        const r = Math.min(W, H) * 0.44;
+        const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, r);
+        g.addColorStop(0,   AMB(0.14 * glow));
+        g.addColorStop(0.5, AMB(0.04 * glow));
+        g.addColorStop(1,  "transparent");
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, W, H);
       }
 
-      /* ── Floor grid ─────────────────────────────────────── */
+      /* ── Floor grid (expands slightly while chair is scattered) ── */
+      const overallT =
+        scrollP <= PH_IDLE_END    ? 0 :
+        scrollP <= PH_SCATTER_END ? (scrollP - PH_IDLE_END) / (PH_SCATTER_END - PH_IDLE_END) :
+        scrollP <= PH_PAUSE_END   ? 1 :
+        1 - (scrollP - PH_PAUSE_END) / (1 - PH_PAUSE_END);
+      const gs = 1 + overallT * 0.18;  // grid scale at scatter peak = 1.18×
+
       ctx.lineWidth   = 0.65;
       ctx.strokeStyle = AMB(0.07);
-      FLOOR_GRID.forEach(([a, b]) => {
-        const ra = camRot(a, yaw, pitch);
-        const rb = camRot(b, yaw, pitch);
-        const [ax, ay, as_] = project([ra[0], ra[1], ra[2] + DEPTH], ox, oy, focal);
-        const [bx, by, bs_] = project([rb[0], rb[1], rb[2] + DEPTH], ox, oy, focal);
+      FLOOR.forEach(([a, b]) => {
+        const ra = camRot([a[0] * gs, a[1], a[2]], yaw, pitch);
+        const rb = camRot([b[0] * gs, b[1], b[2]], yaw, pitch);
+        const [ax, ay, as_] = proj([ra[0], ra[1], ra[2] + DEPTH], ox, oy, focal);
+        const [bx, by, bs_] = proj([rb[0], rb[1], rb[2] + DEPTH], ox, oy, focal);
         if (as_ <= 0 || bs_ <= 0) return;
-        ctx.beginPath();
-        ctx.moveTo(ax, ay);
-        ctx.lineTo(bx, by);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
       });
 
-      /* ── Chair pieces ───────────────────────────────────── */
-      type DrawEdge = {
-        x1: number; y1: number; x2: number; y2: number;
-        avgZ: number; a: number; lw: number;
-      };
-      const drawList: DrawEdge[] = [];
+      /* ── Chair pieces ──────────────────────────────────────── */
+      type DrawEdge = { x1: number; y1: number; x2: number; y2: number; avgZ: number; a: number; lw: number };
+      const dlist: DrawEdge[] = [];
 
-      CHAIR_PIECES.forEach(piece => {
-        const rawT = piece.delay < 1
-          ? Math.max(0, (scrollP - piece.delay) / (1 - piece.delay))
-          : scrollP;
-        const t = ease(Math.min(1, rawT));
+      CHAIR.forEach(piece => {
+        const t = scatterT(scrollP, piece.sDel, piece.aDel);
 
-        /* Apply scatter translation */
         const [sx, sy_, sz] = piece.scatter;
+        const arcBoost = piece.arcY * Math.sin(Math.PI * Math.max(0, Math.min(1, t)));
+
+        /* Translate vertices (scatter + parabolic arc) */
         const tv: V3[] = piece.v.map(
-          ([x, y, z]) => [x + t * sx, y + t * sy_, z + t * sz]
+          ([x, y, z]) => [x + t * sx, y + t * sy_ + arcBoost, z + t * sz]
         );
 
         /* Spin around translated centre */
-        const mc: V3 = [
-          piece.cx + t * sx,
-          piece.cy + t * sy_,
-          piece.cz + t * sz,
-        ];
-        const sv = spinVerts(tv, mc[0], mc[1], mc[2],
+        const mcx = piece.cx + t * sx;
+        const mcy = piece.cy + t * sy_ + arcBoost;
+        const mcz = piece.cz + t * sz;
+        const sv = spinV(tv, mcx, mcy, mcz,
           t * piece.spin[0], t * piece.spin[1], t * piece.spin[2]);
 
-        /* Camera rotate */
+        /* Camera rotate → project */
         const rv = sv.map(v => camRot(v, yaw, pitch));
-
-        /* Project to 2D */
-        const pv = rv.map(v => project([v[0], v[1], v[2] + DEPTH], ox, oy, focal));
+        const pv = rv.map(v => proj([v[0], v[1], v[2] + DEPTH], ox, oy, focal));
 
         piece.e.forEach(([ia, ib]) => {
-          const [ax2, ay2, as2] = pv[ia];
-          const [bx2, by2, bs2] = pv[ib];
-          if (as2 <= 0 || bs2 <= 0) return;
+          const [ax, ay, as_] = pv[ia];
+          const [bx, by, bs_] = pv[ib];
+          if (as_ <= 0 || bs_ <= 0) return;
 
           const avgZ    = (rv[ia][2] + rv[ib][2]) / 2 + DEPTH;
-          const depthA  = Math.max(0.06, Math.min(0.95, (focal / avgZ) * 1.35));
-          const fadeOut = 1 - t * 0.32; // pieces dim slightly as they scatter
+          const depthA  = Math.max(0.06, Math.min(0.95, focal / avgZ * 1.38));
+          const tClamped = Math.max(0, Math.min(1, t));
+          const fadeOut  = 1 - tClamped * 0.28;
 
-          drawList.push({
-            x1: ax2, y1: ay2, x2: bx2, y2: by2,
+          dlist.push({
+            x1: ax, y1: ay, x2: bx, y2: by,
             avgZ,
             a:  piece.alpha * depthA * fadeOut,
-            lw: Math.max(0.55, depthA * 1.6 * (1 - t * 0.42)),
+            lw: Math.max(0.5, depthA * 1.65 * (1 - tClamped * 0.42)),
           });
         });
       });
 
-      /* Painter's algorithm: draw far → near */
-      drawList.sort((a, b) => b.avgZ - a.avgZ);
-
-      drawList.forEach(({ x1, y1, x2, y2, a, lw }) => {
+      /* Painter's algorithm: far → near */
+      dlist.sort((a, b) => b.avgZ - a.avgZ);
+      dlist.forEach(({ x1, y1, x2, y2, a, lw }) => {
         ctx.strokeStyle = AMB(a);
         ctx.lineWidth   = lw;
         ctx.beginPath();
@@ -322,10 +390,38 @@ export default function PageBgScene() {
         ctx.stroke();
       });
 
-      /* ── Edge vignette ──────────────────────────────────── */
-      const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.18, W / 2, H / 2, H * 0.88);
+      /* ── Scan line sweeps top → bottom during dismantle ─────── */
+      if (scrollP > PH_IDLE_END && scrollP <= PH_SCATTER_END) {
+        const scanP  = (scrollP - PH_IDLE_END) / (PH_SCATTER_END - PH_IDLE_END);
+        const scanY  = (oy - H * 0.44) + scanP * H * 0.72;
+        const sw     = Math.min(W * 0.88, 680);
+
+        /* Line */
+        const lg = ctx.createLinearGradient(ox - sw / 2, 0, ox + sw / 2, 0);
+        lg.addColorStop(0,   "transparent");
+        lg.addColorStop(0.15, AMB(0.55));
+        lg.addColorStop(0.85, AMB(0.55));
+        lg.addColorStop(1,   "transparent");
+        ctx.strokeStyle = lg;
+        ctx.lineWidth   = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(ox - sw / 2, scanY);
+        ctx.lineTo(ox + sw / 2, scanY);
+        ctx.stroke();
+
+        /* Soft glow band around scan line */
+        const band = ctx.createLinearGradient(ox, scanY - 22, ox, scanY + 22);
+        band.addColorStop(0,   "transparent");
+        band.addColorStop(0.5, AMB(0.07));
+        band.addColorStop(1,   "transparent");
+        ctx.fillStyle = band;
+        ctx.fillRect(ox - sw / 2, scanY - 22, sw, 44);
+      }
+
+      /* ── Edge vignette ─────────────────────────────────────── */
+      const vig = ctx.createRadialGradient(W/2, H/2, H * 0.16, W/2, H/2, H * 0.90);
       vig.addColorStop(0, "transparent");
-      vig.addColorStop(1, "rgba(0,0,0,0.65)");
+      vig.addColorStop(1, "rgba(0,0,0,0.68)");
       ctx.fillStyle = vig;
       ctx.fillRect(0, 0, W, H);
     };
@@ -349,7 +445,7 @@ export default function PageBgScene() {
         pointerEvents: "none",
         overflow: "hidden",
         background:
-          "radial-gradient(ellipse at 50% 28%, #1c1235 0%, #080612 40%, #000000 100%)",
+          "radial-gradient(ellipse at 50% 30%, #1e1440 0%, #08060e 42%, #000000 100%)",
       }}
     >
       <canvas
