@@ -5,7 +5,7 @@ import {
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
   CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
   TriangleAlert, AlertCircle, ChevronDown, Paperclip, Smile,
-  Download, Music, File, StickyNote, Plus, RotateCcw,
+  Download, Music, File, StickyNote, Plus, RotateCcw, ListChecks,
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
@@ -489,10 +489,12 @@ function ChatPanel({
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
+  const [showMobileInfo, setShowMobileInfo] = useState(false);
   const [generatedQuote, setGeneratedQuote] = useState<{ quoteId: number; referenceNo: string } | null>(null);
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const [hasNewMessages, setHasNewMessages] = useState(false);
@@ -501,6 +503,14 @@ function ChatPanel({
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  /* Auto-resize textarea as content grows */
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
+  }, [replyText]);
 
   const { data: thread, isLoading: loadingThread } = useQuery<ThreadData>({
     queryKey: ["/api/admin/whatsapp/conversations", selectedPhone],
@@ -616,6 +626,20 @@ function ChatPanel({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] }),
   });
 
+  /* Mark conversation as done — resumes bot and marks all as read */
+  const markDoneMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/admin/whatsapp/conversations/${selectedPhone}/resume-bot`);
+      await apiRequest("POST", `/api/admin/whatsapp/conversations/${selectedPhone}/mark-read`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations", selectedPhone] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
+      toast({ title: "Conversation marked as done", description: "Bot resumed, all messages marked read." });
+    },
+    onError: () => toast({ title: "Failed to mark done", variant: "destructive" }),
+  });
+
   const isNearBottom = () => {
     const el = chatScrollRef.current;
     if (!el) return true;
@@ -663,6 +687,10 @@ function ChatPanel({
     clearAttach();
     setGeneratedQuote(null);
     setShowResetConfirm(false);
+    setShowMobileInfo(false);
+    setShowTemplates(false);
+    setShowQuickReplies(false);
+    setShowEmojiPicker(false);
   }, [selectedPhone]);
 
   function clearAttach() {
@@ -731,11 +759,21 @@ function ChatPanel({
   }
 
   const session = thread?.session;
-  const botPaused: boolean = session?.botPaused ?? false;
+  const botPaused: boolean = session?.botPaused ?? selectedConvo?.botPaused ?? false;
   const canGenerateQuote = !!session?.collectedAddress && !generatedQuote;
   const threadLoaded = !loadingThread && thread !== undefined;
   const isImageFile = attachFile?.type.startsWith("image/") ?? false;
   const isSending = sendMutation.isPending || sendFileMutation.isPending || noteMutation.isPending;
+
+  /* Quick-reply templates shown in message mode */
+  const QUICK_TEMPLATES = [
+    { label: "Greeting", text: "Hi there! Thank you for contacting TMG Install. How can we help you today? 😊" },
+    { label: "On our way", text: "Our team is on the way and will arrive shortly. Please ensure the area is accessible. Thank you!" },
+    { label: "Quote ready", text: "Your quote is ready! Please check the link we've sent and let us know if you have any questions." },
+    { label: "Confirm appt", text: "Just confirming your appointment is scheduled. Our team will arrive at the agreed time. See you soon!" },
+    { label: "Follow up", text: "Hi, just following up on your recent enquiry. Have you had a chance to review the quote? Let us know if you'd like to proceed. 😊" },
+    { label: "Thank you", text: "Thank you for choosing TMG Install! It was a pleasure working with you. Feel free to reach out anytime. 🙏" },
+  ];
 
   const grouped: { date: string; messages: WaMessage[] }[] = [];
   if (thread?.messages) {
@@ -868,27 +906,28 @@ function ChatPanel({
                 </p>
               </div>
 
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {/* WhatsApp open link */}
                 <a
                   href={`https://wa.me/${selectedPhone}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/20 transition-all sm:w-auto sm:px-3 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/20 transition-all sm:w-auto sm:px-2.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
                   data-testid="open-whatsapp"
                 >
                   <Phone className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">WhatsApp</span>
+                  <span className="hidden sm:inline">WA</span>
                 </a>
 
-                {/* Bot pause / resume toggle — show for any loaded conversation, session or not */}
+                {/* Bot pause / resume toggle */}
                 {threadLoaded && (
                   botPaused ? (
                     <button
                       onClick={() => resumeBotMutation.mutate()}
                       disabled={resumeBotMutation.isPending}
                       data-testid="resume-bot-btn"
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-amber-500 text-white border border-amber-500 hover:bg-amber-600 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
-                      title="Resume bot — AI will start responding again"
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-amber-500 text-white border border-amber-500 hover:bg-amber-600 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
+                      title="Resume bot"
                     >
                       <Bot className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">Resume Bot</span>
@@ -898,8 +937,8 @@ function ChatPanel({
                       onClick={() => pauseBotMutation.mutate()}
                       disabled={pauseBotMutation.isPending}
                       data-testid="pause-bot-btn"
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
-                      title="Pause bot — take over and reply manually"
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
+                      title="Take over from bot"
                     >
                       <BotOff className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">Take Over</span>
@@ -907,10 +946,35 @@ function ChatPanel({
                   )
                 )}
 
+                {/* Mark Done — visible when bot is paused (admin mode) */}
+                {threadLoaded && botPaused && (
+                  <button
+                    onClick={() => markDoneMutation.mutate()}
+                    disabled={markDoneMutation.isPending}
+                    data-testid="mark-done-btn"
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
+                    title="Mark done — resume bot and mark read"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Done</span>
+                  </button>
+                )}
+
+                {/* Mobile: show customer info drawer */}
+                <button
+                  onClick={() => setShowMobileInfo(v => !v)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 border border-gray-200 text-gray-500 hover:bg-gray-100 transition-all lg:hidden"
+                  title="Customer info"
+                  data-testid="mobile-info-btn"
+                >
+                  <User className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Desktop: Info panel toggle */}
                 {threadLoaded && (
                   <button
                     onClick={() => setShowInfo(v => !v)}
-                    className={`hidden lg:flex px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                    className={`hidden lg:flex px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                       showInfo ? "bg-gray-900 text-white border-gray-900" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
                     }`}
                     data-testid="toggle-info"
@@ -937,6 +1001,70 @@ function ChatPanel({
               </div>
             )}
           </div>
+
+          {/* Mobile info drawer — slides down when info btn tapped */}
+          {showMobileInfo && session && (
+            <div className="lg:hidden flex-shrink-0 border-b border-gray-200 bg-white shadow-sm animate-in slide-in-from-top-2 duration-200 z-10">
+              <div className="px-4 py-3 max-h-64 overflow-y-auto">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.18em]">Customer Info</p>
+                  <button onClick={() => setShowMobileInfo(false)} className="w-6 h-6 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-100">
+                  <Avatar name={selectedConvo?.name ?? null} phone={selectedPhone} size="md" />
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{selectedConvo?.name || "Unknown"}</p>
+                    <p className="text-xs text-gray-400 font-mono">{formatPhone(selectedPhone)}</p>
+                    {selectedConvo?.state && (
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border mt-1 inline-block ${getState(selectedConvo.state).color} ${getState(selectedConvo.state).bg}`}>
+                        {getState(selectedConvo.state).label}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {session.collectedAddress && <InfoRow icon={<MapPin className="w-3 h-3" />} label="Address" value={session.collectedAddress} />}
+                  {session.collectedItems && session.collectedItems !== "__scanning__" && (
+                    <InfoRow icon={<Package className="w-3 h-3" />} label="Items" value={session.collectedItems} multiline />
+                  )}
+                  {session.floorLevel && (
+                    <InfoRow icon={<Building2 className="w-3 h-3" />} label="Floor" value={`Level ${session.floorLevel} · ${session.hasLift ? "Lift" : "No lift"}`} />
+                  )}
+                  {session.preferredDate && <InfoRow icon={<Calendar className="w-3 h-3" />} label="Date" value={session.preferredDate} />}
+                </div>
+                <div className="flex gap-2 mt-3 pt-2 border-t border-gray-100">
+                  <a
+                    href={`https://wa.me/${selectedPhone}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-lg bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition-all"
+                  >
+                    <Phone className="w-3 h-3" /> Open in WA
+                  </a>
+                  {canGenerateQuote && (
+                    <button
+                      onClick={() => { generateQuoteMutation.mutate(); setShowMobileInfo(false); }}
+                      disabled={generateQuoteMutation.isPending}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-all disabled:opacity-60"
+                    >
+                      <FileText className="w-3 h-3" /> Gen Quote
+                    </button>
+                  )}
+                  {botPaused && (
+                    <button
+                      onClick={() => { markDoneMutation.mutate(); setShowMobileInfo(false); }}
+                      disabled={markDoneMutation.isPending}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 transition-all disabled:opacity-60"
+                    >
+                      <CheckCheck className="w-3 h-3" /> Done
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Messages */}
           <div className="relative flex-1 overflow-hidden">
@@ -1047,11 +1175,32 @@ function ChatPanel({
             </div>
           )}
 
-          {/* Quick Replies */}
+          {/* Quick Templates — fast-access chips */}
+          {showTemplates && !noteMode && (
+            <div className="flex-shrink-0 border-t border-gray-100 bg-white px-3 py-2.5">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Quick Templates</p>
+                <button onClick={() => setShowTemplates(false)} className="text-gray-300 hover:text-gray-500"><X className="w-3.5 h-3.5" /></button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_TEMPLATES.map(t => (
+                  <button
+                    key={t.label}
+                    onClick={() => { setReplyText(t.text); setShowTemplates(false); setTimeout(() => textareaRef.current?.focus(), 0); }}
+                    className="px-2.5 py-1 rounded-full border border-gray-200 bg-gray-50 text-xs font-medium text-gray-600 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-all"
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Canned Replies (saved shortcuts) */}
           {showQuickReplies && (
             <div className="flex-shrink-0 border-t border-gray-100 bg-white px-4 py-3">
               <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Canned Replies</p>
-              <div className="space-y-1 max-h-48 overflow-y-auto">
+              <div className="space-y-1 max-h-40 overflow-y-auto">
                 {dbCannedReplies.filter(r => r.active).length === 0 ? (
                   <p className="text-xs text-gray-400 px-2 py-1 italic">No canned replies configured. Add them in FAQ Manager → Canned Replies.</p>
                 ) : (
@@ -1170,16 +1319,32 @@ function ChatPanel({
 
             <div className="px-3 pb-3">
               <div className="flex items-end gap-1.5">
+                {/* Quick templates (message mode only) */}
+                {!noteMode && (
+                  <button
+                    onClick={() => { setShowTemplates(v => !v); setShowQuickReplies(false); setShowEmojiPicker(false); }}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
+                      showTemplates
+                        ? "bg-violet-600 text-white border-violet-600"
+                        : "bg-gray-50 text-gray-400 hover:text-violet-600 hover:bg-violet-50 border-gray-200"
+                    }`}
+                    title="Quick templates"
+                    data-testid="btn-templates"
+                  >
+                    <ListChecks className="w-4 h-4" />
+                  </button>
+                )}
+
                 {/* Canned replies (message mode only) */}
                 {!noteMode && (
                   <button
-                    onClick={() => { setShowQuickReplies(v => !v); setShowEmojiPicker(false); }}
+                    onClick={() => { setShowQuickReplies(v => !v); setShowTemplates(false); setShowEmojiPicker(false); }}
                     className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
                       showQuickReplies
                         ? "bg-indigo-600 text-white border-indigo-600"
                         : "bg-gray-50 text-gray-400 hover:text-gray-700 hover:bg-gray-100 border-gray-200"
                     }`}
-                    title="Quick replies"
+                    title="Canned replies"
                     data-testid="btn-quick-replies"
                   >
                     <Zap className="w-4 h-4" />
@@ -1188,7 +1353,7 @@ function ChatPanel({
 
                 {/* Emoji picker toggle */}
                 <button
-                  onClick={() => { setShowEmojiPicker(v => !v); setShowQuickReplies(false); }}
+                  onClick={() => { setShowEmojiPicker(v => !v); setShowQuickReplies(false); setShowTemplates(false); }}
                   className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all border ${
                     showEmojiPicker
                       ? "bg-yellow-400 text-white border-yellow-400"
@@ -1216,7 +1381,7 @@ function ChatPanel({
                   </button>
                 )}
 
-                {/* Text input (hidden when file preview is shown) */}
+                {/* Text input — auto-resizes via useEffect (hidden when file preview is shown) */}
                 {!attachFile && (
                   <div className="flex-1">
                     <Textarea
@@ -1224,8 +1389,8 @@ function ChatPanel({
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={noteMode ? "Add an internal note (not sent to customer)…" : "Type a message… (Enter to send)"}
-                      className={`resize-none text-gray-900 placeholder:text-gray-400 text-sm min-h-[42px] max-h-[120px] py-2.5 px-3.5 rounded-xl focus:bg-white transition-all leading-relaxed ${
+                      placeholder={noteMode ? "Add an internal note (not sent to customer)…" : "Type a message… (Enter to send, Shift+Enter for newline)"}
+                      className={`resize-none overflow-hidden text-gray-900 placeholder:text-gray-400 text-sm min-h-[44px] py-2.5 px-3.5 rounded-xl focus:bg-white transition-colors leading-relaxed ${
                         noteMode ? "bg-amber-50 border-amber-200 focus:border-amber-400" : "bg-gray-50 border-gray-200 focus:border-blue-400"
                       }`}
                       rows={1}
@@ -1282,6 +1447,21 @@ export default function AdminConversations() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  /* iOS keyboard fix — visual viewport shrinks when keyboard opens; keep chat visible */
+  useEffect(() => {
+    const update = () => {
+      const h = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty("--conv-h", `${h - 56}px`);
+    };
+    update();
+    window.visualViewport?.addEventListener("resize", update);
+    window.addEventListener("resize", update);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
   const { data: convos = [], isLoading: loadingConvos } = useQuery<Conversation[]>({
     queryKey: ["/api/admin/whatsapp/conversations"],
     refetchInterval: 6_000,
@@ -1330,7 +1510,11 @@ export default function AdminConversations() {
   }
 
   return (
-    <div className="flex mt-14 h-[calc(100dvh-56px)] bg-[#F5F5F7] overflow-hidden lg:pl-56" data-testid="admin-conversations">
+    <div
+      className="flex bg-[#F5F5F7] overflow-hidden lg:pl-56"
+      style={{ marginTop: 56, height: "var(--conv-h, calc(100dvh - 56px))" }}
+      data-testid="admin-conversations"
+    >
 
       {/* ═══ New Chat Dialog ════════════════════════════════════════════════ */}
       {showNewChat && (
