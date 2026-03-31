@@ -2540,14 +2540,16 @@ function GpsTrackingTab() {
             <p className="text-sm font-semibold text-zinc-900">
               Route Map — {selectedStaff?.name ?? "—"} · {selectedDate}
             </p>
-            <div className="flex items-center gap-3 text-xs text-zinc-500 font-medium">
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />Start</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-1 bg-blue-500 inline-block" />Route</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-amber-400 inline-block" />Stop</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-zinc-400 inline-block" />Last seen</span>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500 font-medium">
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block" />Start</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded bg-slate-400 inline-block" />Stopped</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded bg-amber-400 inline-block" />Slow</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded bg-blue-500 inline-block" />Normal</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded bg-emerald-500 inline-block" />Fast</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-amber-400 inline-block rounded-sm" />Stop</span>
             </div>
           </div>
-          <GpsMap points={rawPoints} height={420} />
+          <GpsMap points={rawPoints} height={480} isLive={!!isLive} />
         </div>
       )}
 
