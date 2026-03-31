@@ -2468,7 +2468,7 @@ function GpsTrackingTab() {
       return r.json();
     },
     enabled: !!staffId,
-    refetchInterval: 30000,
+    refetchInterval: isToday ? 12000 : 60000,  // 12s when live, 60s for historical
   });
 
   const selectedStaff = allStaff.find((s: any) => s.id === staffId);
