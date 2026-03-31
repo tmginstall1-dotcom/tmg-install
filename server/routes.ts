@@ -219,6 +219,8 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
 
     // Match catalog + compute per-item subtotals
     let totalEstimate = 0;
+    let dismantleSubtotal = 0;
+    let installSubtotal = 0;
     const itemLines: string[] = [];
     const adjustmentLines: string[] = [];
     const surchargeLines: string[] = [];
@@ -260,6 +262,8 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
       const qty = item.quantity || 1;
       const subtotal = unitPrice * qty;
       totalEstimate += subtotal;
+      if (item.serviceType === 'dismantle') dismantleSubtotal += subtotal;
+      if (item.serviceType === 'install')   installSubtotal   += subtotal;
       const emo = svcEmoji[item.serviceType] || "🔧";
       const svc = svcLabel[item.serviceType] || item.serviceType;
       if (unitPrice > 0) {
@@ -272,6 +276,16 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
         hasTBCItems = true;
         itemLines.push(`${emo} *${item.detectedName}* _(${svc})_\n   _price to be confirmed_`);
       }
+    }
+
+    // D&R bundle discount: 40% off dismantle when quote has BOTH dismantle AND install items
+    const drPct = PricingConfig.fallback.relocateDRDiscount;
+    const drDiscountAmt = (dismantleSubtotal > 0 && installSubtotal > 0)
+      ? Math.round(dismantleSubtotal * drPct * 100) / 100
+      : 0;
+    if (drDiscountAmt > 0) {
+      totalEstimate -= drDiscountAmt;
+      adjustmentLines.push(`🔗 D&R bundle saving (${Math.round(drPct * 100)}% off dismantling): *-$${drDiscountAmt.toFixed(0)}*`);
     }
 
     // Bulk discount
@@ -5541,6 +5555,26 @@ Return ONLY valid JSON.`,
 
         const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
 
+        // ── D&R bundle discount: 40% off dismantle when same quote has both dismantle AND install ──
+        const drPctWA = PricingConfig.fallback.relocateDRDiscount;
+        const dismantleSubtotalWA = quoteItems.filter(qi => qi.serviceType === 'dismantle').reduce((s, qi) => s + Number(qi.subtotal), 0);
+        const installSubtotalWA   = quoteItems.filter(qi => qi.serviceType === 'install').reduce((s, qi) => s + Number(qi.subtotal), 0);
+        const drDiscountAmtWA = (dismantleSubtotalWA > 0 && installSubtotalWA > 0)
+          ? Math.round(dismantleSubtotalWA * drPctWA * 100) / 100
+          : 0;
+        if (drDiscountAmtWA > 0) {
+          totalEstimate -= drDiscountAmtWA;
+          quoteItems.push({
+            originalDescription: `D&R Bundle Saving (${Math.round(drPctWA * 100)}% off dismantling)`,
+            detectedName: `D&R Bundle Saving (${Math.round(drPctWA * 100)}% off)`,
+            serviceType: "discount",
+            quantity: 1,
+            unitPrice: (-drDiscountAmtWA).toFixed(2),
+            subtotal: (-drDiscountAmtWA).toFixed(2),
+            catalogItemId: undefined,
+          });
+        }
+
         // ── Bulk discount (same tiers as web / Estimate page) ─────────────────
         const totalQty = aiParsedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
         const discountTier = PricingConfig.bulkDiscount.find(t => totalQty >= t.minQty);
@@ -6783,6 +6817,18 @@ Respond directly — no JSON, just the message text.`,
         catalogItemId: matchedCatalogItem?.id,
       };
     });
+
+    // ── D&R bundle discount: 40% off dismantle when same quote has both dismantle AND install ──
+    const drPctAdmin = PricingConfig.fallback.relocateDRDiscount;
+    const dismantleSubtotalAdmin = quoteItems.filter(qi => qi.serviceType === 'dismantle').reduce((s, qi) => s + Number(qi.subtotal), 0);
+    const installSubtotalAdmin   = quoteItems.filter(qi => qi.serviceType === 'install').reduce((s, qi) => s + Number(qi.subtotal), 0);
+    const drDiscountAmtAdmin = (dismantleSubtotalAdmin > 0 && installSubtotalAdmin > 0)
+      ? Math.round(dismantleSubtotalAdmin * drPctAdmin * 100) / 100
+      : 0;
+    if (drDiscountAmtAdmin > 0) {
+      totalEstimate -= drDiscountAmtAdmin;
+      quoteItems.push({ originalDescription: `D&R Bundle Saving (${Math.round(drPctAdmin * 100)}% off dismantling)`, detectedName: `D&R Bundle Saving (${Math.round(drPctAdmin * 100)}% off)`, serviceType: "discount", quantity: 1, unitPrice: (-drDiscountAmtAdmin).toFixed(2), subtotal: (-drDiscountAmtAdmin).toFixed(2), catalogItemId: undefined });
+    }
 
     // ── Bulk discount (same tiers as web / Estimate page) ─────────────────────
     const totalQtyB = aiParsedItems.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
