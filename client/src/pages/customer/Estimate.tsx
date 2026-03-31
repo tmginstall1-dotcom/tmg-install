@@ -218,6 +218,7 @@ export default function EstimateWizard() {
   const [items, setItems] = useState<LineItem[]>([]);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogFocused, setCatalogFocused] = useState(false);
+  const [activeCategory, setActiveCategory] = useState("All");
   const [pasteText, setPasteText] = useState("");
   const [showPaste, setShowPaste] = useState(false);
   const [photoDetecting, setPhotoDetecting] = useState(false);
@@ -307,14 +308,34 @@ export default function EstimateWizard() {
 
   const catalogGroups = useMemo(() => groupCatalog(catalogRaw || []), [catalogRaw]);
 
+  // Category tab groups (maps display label → category keywords)
+  const CATEGORY_TABS = [
+    { label: "All",      match: null },
+    { label: "Beds",     match: ["beds", "ikea beds"] },
+    { label: "Wardrobes",match: ["ikea wardrobes", "wardrobes", "bedroom"] },
+    { label: "Sofas",    match: ["sofas", "living room", "ikea living room"] },
+    { label: "Dining",   match: ["dining"] },
+    { label: "Office",   match: ["office", "meeting pods & phone booths"] },
+    { label: "IKEA",     match: ["ikea beds", "ikea wardrobes", "ikea living room", "ikea shelving", "ikea storage", "ikea study", "ikea bedroom"] },
+    { label: "Storage",  match: ["storage", "ikea shelving", "ikea storage"] },
+  ];
+
   const filteredGroups = useMemo(() => {
-    if (!catalogSearch.trim()) return catalogGroups.slice(0, 10);
+    let groups = catalogGroups;
+    // Category filter (ignored when searching)
+    if (!catalogSearch.trim() && activeCategory !== "All") {
+      const tab = CATEGORY_TABS.find(t => t.label === activeCategory);
+      if (tab?.match) {
+        groups = groups.filter(g => tab.match!.some(kw => g.category.toLowerCase().includes(kw)));
+      }
+    }
+    if (!catalogSearch.trim()) return groups.slice(0, 16);
     const q = catalogSearch.toLowerCase();
-    return catalogGroups.filter(g =>
+    return groups.filter(g =>
       g.name.toLowerCase().includes(q) || g.category.toLowerCase().includes(q) ||
       g.entries.some(e => e.sku.toLowerCase().includes(q))
     );
-  }, [catalogSearch, catalogGroups]);
+  }, [catalogSearch, catalogGroups, activeCategory]);
 
   const showCatalogResults = catalogFocused || catalogSearch.trim().length > 0;
 
@@ -715,12 +736,19 @@ export default function EstimateWizard() {
           <div className="flex items-center justify-between gap-2">
             {STEPS.map((s, i) => (
               <div key={s.num} className="flex items-center gap-2 flex-1">
-                <div className={`w-7 h-7 flex items-center justify-center text-xs font-black shrink-0 transition-all ${
-                  step > s.num ? "bg-black text-white" :
-                  step === s.num ? "bg-black text-white" :
-                  "bg-black/[0.05] text-black/25"
-                }`}>
-                  {step > s.num ? <Check className="w-3.5 h-3.5" /> : s.num}
+                <div className="relative shrink-0">
+                  <div className={`w-7 h-7 flex items-center justify-center text-xs font-black transition-all ${
+                    step > s.num ? "bg-black text-white" :
+                    step === s.num ? "bg-black text-white" :
+                    "bg-black/[0.05] text-black/25"
+                  }`}>
+                    {step > s.num ? <Check className="w-3.5 h-3.5" /> : s.num}
+                  </div>
+                  {s.num === 3 && items.length > 0 && step <= 3 && (
+                    <div data-testid="badge-items-count" className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-black text-white text-[9px] font-black flex items-center justify-center rounded-full" aria-label={`${items.length} items added`}>
+                      {items.length}
+                    </div>
+                  )}
                 </div>
                 <span className={`text-[10px] font-black uppercase tracking-[0.12em] hidden sm:block transition-colors ${step === s.num ? "text-black" : "text-black/30"}`}>{s.label}</span>
                 {i < STEPS.length - 1 && <div className={`flex-1 h-px transition-colors ${step > s.num ? "bg-black/30" : "bg-black/[0.08]"}`} />}
@@ -749,20 +777,23 @@ export default function EstimateWizard() {
                       icon: <Wrench className="w-6 h-6" />,
                       label: "Installation",
                       desc: "Assemble and install furniture at your location",
+                      priceHint: "from $80/item",
                     },
                     {
                       type: "dismantle" as ServiceType,
                       icon: <Scissors className="w-6 h-6" />,
                       label: "Dismantling",
                       desc: "Carefully take apart and pack existing furniture",
+                      priceHint: "from $60/item",
                     },
                     {
                       type: "relocate" as ServiceType,
                       icon: <Truck className="w-6 h-6" />,
                       label: "Relocation / Move",
                       desc: "Dismantle at origin, transport & reinstall at the new location",
+                      priceHint: "from $120/item",
                     },
-                  ]).map(({ type, icon, label, desc }) => {
+                  ]).map(({ type, icon, label, desc, priceHint }) => {
                     const active = services.includes(type);
                     return (
                       <button
@@ -780,7 +811,10 @@ export default function EstimateWizard() {
                             {icon}
                           </div>
                           <div className="flex-1">
-                            <p className="font-black text-base uppercase tracking-[0.04em]">{label}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-black text-base uppercase tracking-[0.04em]">{label}</p>
+                              <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.04em] bg-black/[0.05] text-black/40">{priceHint}</span>
+                            </div>
                             <p className="text-sm text-black/45 mt-0.5">{desc}</p>
                           </div>
                           <div className={`w-5 h-5 border flex items-center justify-center shrink-0 mt-1 transition-all ${
@@ -990,14 +1024,32 @@ export default function EstimateWizard() {
                   <p className="text-sm text-black/45">Search our catalog, paste a list, or upload a photo.</p>
                 </div>
 
-                {/* Catalog Search */}
-                <div className="bg-white border border-black/10 p-5">
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-3 flex items-center gap-2"><Search className="w-3.5 h-3.5" /> Search Catalog</p>
+                {/* Catalog Browse */}
+                <div className="space-y-3">
+                  {/* Category tabs */}
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    {CATEGORY_TABS.map(tab => (
+                      <button
+                        key={tab.label}
+                        data-testid={`category-tab-${tab.label.toLowerCase()}`}
+                        onClick={() => { setActiveCategory(tab.label); setCatalogSearch(""); }}
+                        className={`shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] border transition-all ${
+                          activeCategory === tab.label
+                            ? "bg-black text-white border-black"
+                            : "bg-white text-black/50 border-black/15 hover:border-black/40 hover:text-black"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Search input */}
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/25 pointer-events-none" />
                     <input
                       value={catalogSearch}
-                      onChange={e => setCatalogSearch(e.target.value)}
+                      onChange={e => { setCatalogSearch(e.target.value); if (e.target.value) setActiveCategory("All"); }}
                       onFocus={() => setCatalogFocused(true)}
                       onBlur={() => { setTimeout(() => setCatalogFocused(false), 150); }}
                       placeholder="Search items e.g. wardrobe, bed, sofa…"
@@ -1012,61 +1064,116 @@ export default function EstimateWizard() {
                     )}
                   </div>
 
-                  {showCatalogResults && (
-                    <div className="mt-2 border border-black/10 overflow-hidden">
+                  {/* Search results dropdown (when searching) */}
+                  {showCatalogResults && catalogSearch.trim() && (
+                    <div className="border border-black/10 overflow-hidden bg-white">
                       {filteredGroups.length === 0 ? (
                         <div className="px-4 py-6 text-center text-sm text-black/40">
                           No items found for <strong>"{catalogSearch}"</strong>
                         </div>
                       ) : (
-                        <>
-                          {!catalogSearch.trim() && (
-                            <div className="px-4 py-2 bg-black/[0.02] border-b border-black/8">
-                              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-black/35">Popular items — tap to add</p>
+                        filteredGroups.map(group => (
+                          <button
+                            key={group.name}
+                            onClick={() => { addCatalogGroup(group, 1); setCatalogSearch(""); setCatalogFocused(false); }}
+                            data-testid={`catalog-item-${group.name.toLowerCase().replace(/\s+/g, "-")}`}
+                            className="w-full text-left px-4 py-3 hover:bg-slate-50 active:bg-slate-100 border-b border-black/6 last:border-0 transition-colors flex items-center justify-between gap-3"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm truncate">{group.name}</p>
+                              <p className="text-xs text-black/35">{group.category}</p>
                             </div>
-                          )}
-                          {filteredGroups.map(group => (
-                            <button
-                              key={group.name}
-                              onClick={() => { addCatalogGroup(group, 1); setCatalogSearch(""); setCatalogFocused(false); }}
-                              data-testid={`catalog-item-${group.name.toLowerCase().replace(/\s+/g, "-")}`}
-                              className="w-full text-left px-4 py-3 hover:bg-slate-50 active:bg-slate-100 border-b border-black/6 last:border-0 transition-colors flex items-center justify-between gap-3"
-                            >
-                              <div className="min-w-0">
-                                <p className="font-semibold text-sm truncate">{group.name}</p>
-                                <p className="text-xs text-black/35">{group.category}</p>
-                              </div>
-                              <div className="text-right shrink-0 space-y-0.5">
-                                {(() => {
-                                  // For pure relocation, show combined full-relocation price
-                                  if (services.length === 1 && services[0] === 'relocate') {
-                                    const rel = group.entries.find(e => e.serviceType === 'relocate');
-                                    if (rel) {
-                                      const inst = group.entries.find(e => e.serviceType === 'install');
-                                      const dis = group.entries.find(e => e.serviceType === 'dismantle');
-                                      const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
-                                      const fullPrice = (inst && dis)
-                                        ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
-                                        : parseFloat(rel.basePrice) * 1.5 * drDiscount;
-                                      return (
-                                        <div className="flex items-center gap-2 justify-end">
-                                          {serviceBadge('relocate')}
-                                          <span className="text-xs font-bold">${fullPrice.toFixed(0)}</span>
-                                        </div>
-                                      );
-                                    }
+                            <div className="text-right shrink-0 space-y-0.5">
+                              {(() => {
+                                if (services.length === 1 && services[0] === 'relocate') {
+                                  const rel = group.entries.find(e => e.serviceType === 'relocate');
+                                  if (rel) {
+                                    const inst = group.entries.find(e => e.serviceType === 'install');
+                                    const dis = group.entries.find(e => e.serviceType === 'dismantle');
+                                    const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
+                                    const fullPrice = (inst && dis)
+                                      ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
+                                      : parseFloat(rel.basePrice) * 1.5 * drDiscount;
+                                    return (
+                                      <div className="flex items-center gap-2 justify-end">
+                                        {serviceBadge('relocate')}
+                                        <span className="text-xs font-bold">${fullPrice.toFixed(0)}</span>
+                                      </div>
+                                    );
                                   }
-                                  return group.entries.filter(e => services.includes(e.serviceType)).map(e => (
-                                    <div key={e.id} className="flex items-center gap-2 justify-end">
-                                      {serviceBadge(e.serviceType)}
-                                      <span className="text-xs font-bold">${e.basePrice}</span>
-                                    </div>
-                                  ));
-                                })()}
-                              </div>
-                            </button>
-                          ))}
-                        </>
+                                }
+                                return group.entries.filter(e => services.includes(e.serviceType)).map(e => (
+                                  <div key={e.id} className="flex items-center gap-2 justify-end">
+                                    {serviceBadge(e.serviceType)}
+                                    <span className="text-xs font-bold">${e.basePrice}</span>
+                                  </div>
+                                ));
+                              })()}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* Browse grid (when not searching — show popular items as cards) */}
+                  {!catalogSearch.trim() && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/35 mb-2">
+                        {activeCategory === "All" ? "Popular items — tap to add" : `${activeCategory} — tap to add`}
+                      </p>
+                      {filteredGroups.length === 0 ? (
+                        <p className="text-sm text-black/35 py-4 text-center">No items in this category</p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          {filteredGroups.map(group => {
+                            const alreadyAdded = items.some(i => i.name === group.name);
+                            const priceDisplay = (() => {
+                              if (services.length === 1 && services[0] === 'relocate') {
+                                const rel = group.entries.find(e => e.serviceType === 'relocate');
+                                if (rel) {
+                                  const inst = group.entries.find(e => e.serviceType === 'install');
+                                  const dis = group.entries.find(e => e.serviceType === 'dismantle');
+                                  const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
+                                  const fullPrice = (inst && dis)
+                                    ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
+                                    : parseFloat(rel.basePrice) * 1.5 * drDiscount;
+                                  return `$${fullPrice.toFixed(0)}`;
+                                }
+                              }
+                              const relevant = group.entries.filter(e => services.includes(e.serviceType));
+                              if (relevant.length === 0) return null;
+                              if (relevant.length === 1) return `$${relevant[0].basePrice}`;
+                              const total = relevant.reduce((s, e) => s + parseFloat(e.basePrice), 0);
+                              return `$${total.toFixed(0)}`;
+                            })();
+                            return (
+                              <button
+                                key={group.name}
+                                data-testid={`catalog-item-${group.name.toLowerCase().replace(/\s+/g, "-")}`}
+                                data-added={alreadyAdded ? "true" : undefined}
+                                aria-pressed={alreadyAdded}
+                                onClick={() => addCatalogGroup(group, 1)}
+                                className={`relative text-left p-3 border transition-all active:scale-[0.98] ${
+                                  alreadyAdded
+                                    ? "border-black bg-black/[0.03]"
+                                    : "border-black/10 bg-white hover:border-black/40 hover:bg-slate-50"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-1">
+                                  <p className="font-semibold text-sm leading-tight line-clamp-2 flex-1">{group.name}</p>
+                                  <div className={`shrink-0 w-5 h-5 flex items-center justify-center border transition-all ${alreadyAdded ? "bg-black border-black" : "border-black/20 hover:border-black"}`}>
+                                    {alreadyAdded ? <Check className="w-3 h-3 text-white" /> : <Plus className="w-3 h-3 text-black/40" />}
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between mt-2">
+                                  <p className="text-[10px] text-black/35 truncate">{group.category}</p>
+                                  {priceDisplay && <p className="text-xs font-black text-black shrink-0">{priceDisplay}</p>}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   )}
@@ -1666,6 +1773,27 @@ export default function EstimateWizard() {
           </div>
         )}
 
+        {/* Live price bar — visible from step 3 onwards when items exist */}
+        {items.length > 0 && step >= 3 && step < 5 && (
+          <div className="mt-6 border border-black/10 bg-black/[0.02] px-4 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Package className="w-4 h-4 text-black/40 shrink-0" />
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.1em] text-black/40">Estimated total</p>
+                <p className="font-black text-lg leading-none tabular-nums">
+                  ${(belowMinimum ? MIN_JOB : total).toFixed(2)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-right">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.1em] text-black/40">{items.length} item{items.length !== 1 ? "s" : ""}</p>
+                <p className="text-xs text-black/40">50% deposit ${effectiveDeposit.toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Navigation */}
         <div className="flex items-center justify-between mt-4 gap-4">
           {step > 1 ? (
@@ -1678,7 +1806,8 @@ export default function EstimateWizard() {
           {step < 5 ? (
             <button onClick={next} disabled={!canNext()} data-testid="button-next"
               className="bg-black text-white flex items-center gap-2 px-8 py-3 font-black text-xs uppercase tracking-[0.1em] hover:bg-neutral-800 disabled:opacity-35 disabled:cursor-not-allowed transition-colors">
-              Next <ChevronRight className="w-4 h-4" />
+              {step === 1 ? "Next: Address" : step === 2 ? "Next: Add Items" : step === 3 ? `Continue (${items.length} item${items.length !== 1 ? "s" : ""})` : "Next: Review"}
+              <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
             <button
