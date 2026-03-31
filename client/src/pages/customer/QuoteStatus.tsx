@@ -564,15 +564,39 @@ export default function QuoteStatus() {
 
               {/* Pay Deposit */}
               {quote.status === "deposit_requested" && (
-                <div className="px-6 pb-6 border-t border-white/10 pt-5">
-                  <p className="text-xs text-white/50 mb-1">Deposit Required</p>
-                  <p className="text-2xl font-black mb-4 tabular-nums">{formatMoney(quote.depositAmount)}</p>
-                  <button onClick={() => handleStripeCheckout("deposit")} disabled={checkoutLoading} data-testid="button-pay-deposit"
-                    className="w-full bg-white text-black font-bold py-3.5 text-sm uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-60 hover:bg-white/90 transition-colors"
-                    style={{ letterSpacing: "0.12em" }}>
-                    {checkoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                    {checkoutLoading ? "Opening Checkout…" : "Pay Deposit Now"}
-                  </button>
+                <div className="px-6 pb-6 border-t border-white/10 pt-5 space-y-4">
+                  <div>
+                    <p className="text-xs text-white/50 mb-1">Deposit Required</p>
+                    <p className="text-2xl font-black mb-4 tabular-nums">{formatMoney(quote.depositAmount)}</p>
+                    <button onClick={() => handleStripeCheckout("deposit")} disabled={checkoutLoading} data-testid="button-pay-deposit"
+                      className="w-full bg-white text-black font-bold py-3.5 text-sm uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-60 hover:bg-white/90 transition-colors"
+                      style={{ letterSpacing: "0.12em" }}>
+                      {checkoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                      {checkoutLoading ? "Opening Checkout…" : "Pay Deposit Now"}
+                    </button>
+                  </div>
+                  {/* PayNow QR alternative */}
+                  <div className="border-t border-white/10 pt-4">
+                    <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-3" style={{ letterSpacing: "0.15em" }}>
+                      Or Pay via PayNow
+                    </p>
+                    <div className="flex flex-col items-center gap-3 bg-white/5 border border-white/10 p-4">
+                      <img
+                        src="/paynow-qr.png"
+                        alt="PayNow QR Code"
+                        data-testid="img-paynow-qr"
+                        className="w-36 h-36 object-contain bg-white p-2"
+                      />
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-white/80">Scan with any banking app</p>
+                        <p className="text-[10px] text-white/40 mt-1">UEN: 202412345A · TMG Install Pte Ltd</p>
+                        <p className="text-[10px] text-white/40 mt-0.5">Add your ref no. <span className="font-semibold text-white/60">{quote.referenceNo}</span> in remarks</p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-white/30 text-center mt-2">
+                      After PayNow transfer, WhatsApp us at {WHATSAPP_DISPLAY} with your receipt.
+                    </p>
+                  </div>
                 </div>
               )}
 

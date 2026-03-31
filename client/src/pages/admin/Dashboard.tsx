@@ -3,8 +3,9 @@ import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { format, isToday, isTomorrow, startOfDay, endOfDay } from "date-fns";
+import { format, isToday, isTomorrow, startOfWeek, subWeeks } from "date-fns";
 import { useState, useMemo } from "react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
   ClipboardList, DollarSign, CalendarCheck, Zap, AlertCircle, Trash2,
   ChevronRight, Search, X, Loader2, TrendingUp, BellRing,
@@ -180,6 +181,26 @@ export default function AdminDashboard() {
     .filter((q: any) => !["closed", "cancelled", "final_paid"].includes(q.status))
     .reduce((sum: number, q: any) => sum + Number(q.total || 0), 0);
 
+  // Build 12-week revenue trend from closed/final_paid quotes
+  const revenueChartData = useMemo(() => {
+    const weeks: { week: string; revenue: number; jobs: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const weekStart = startOfWeek(subWeeks(new Date(), i), { weekStartsOn: 1 });
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
+      const weekQuotes = (quotes as any[]).filter(q => {
+        if (!["closed", "final_paid"].includes(q.status)) return false;
+        const d = new Date(q.createdAt);
+        return d >= weekStart && d < weekEnd;
+      });
+      weeks.push({
+        week: format(weekStart, "d MMM"),
+        revenue: weekQuotes.reduce((s, q) => s + Number(q.total || 0), 0),
+        jobs: weekQuotes.length,
+      });
+    }
+    return weeks;
+  }, [quotes]);
+
   const urgentCount = newQuotes.length + awaitingPayment.length;
 
   const searchResults = useMemo(() => {
@@ -274,6 +295,44 @@ export default function AdminDashboard() {
               </div>
             );
           })}
+        </div>
+
+        {/* Revenue trend chart */}
+        <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-500" />
+              <h2 className="text-sm font-semibold text-zinc-900">Revenue — Last 12 Weeks</h2>
+            </div>
+            <span className="text-xs font-bold text-emerald-600">{formatMoney(totalRevenue)} collected</span>
+          </div>
+          <div className="px-2 pt-3 pb-1">
+            {revenueChartData.every(d => d.revenue === 0) ? (
+              <div className="h-24 flex items-center justify-center text-xs text-zinc-400">No completed jobs yet</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={90}>
+                <AreaChart data={revenueChartData} margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.18}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis dataKey="week" tick={{ fontSize: 9, fill: "#9ca3af" }} tickLine={false} axisLine={false} interval={1} />
+                  <YAxis hide />
+                  <Tooltip
+                    contentStyle={{ fontSize: 11, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8 }}
+                    formatter={(v: any, name: string) => [
+                      name === "revenue" ? `$${Number(v).toLocaleString()}` : v,
+                      name === "revenue" ? "Revenue" : "Jobs",
+                    ]}
+                  />
+                  <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} fill="url(#revGrad)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
 
         {/* Search */}

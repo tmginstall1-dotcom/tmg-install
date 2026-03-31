@@ -31,6 +31,7 @@ import {
   ListChecks,
   Users,
   Receipt,
+  Globe,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -376,11 +377,41 @@ function FAQItem({ q, a }: { q: string; a: string }) {
   );
 }
 
+const CN = {
+  badge:    "新加坡家具安装专家",
+  h1a:      "专业家具",
+  h1b:      "安装服务",
+  h1c:      "让您的新家更完美",
+  sub:      "一站式家具安装 · 拆除 · 搬运服务。超过250种固定报价，即时透明，无隐藏费用。",
+  cta1:     "立即获取报价",
+  cta2:     "WhatsApp咨询",
+  portalLink: "查看我的订单",
+};
+const EN = {
+  badge:    "Singapore's Furniture Installation Specialists",
+  h1a:      "Professional",
+  h1b:      "Installation",
+  h1c:      "For Your Home",
+  sub:      "Full-service furniture installation, dismantling & relocation. 250+ fixed catalog prices — instant, transparent, no hidden fees.",
+  cta1:     "Get Your Estimate",
+  cta2:     "WhatsApp Us",
+  portalLink: "My Orders",
+};
+
 export default function Landing() {
   usePageTracker("/");
   const { visible: promoVisible } = usePromoBar();
   const [pricingTab, setPricingTab] = useState<"install" | "dismantle" | "relocate">("install");
   const [scrolled, setScrolled] = useState(false);
+  const [lang, setLang] = useState<"en" | "cn">(() => {
+    try { return (localStorage.getItem("tmg_lang") as "en" | "cn") || "en"; } catch { return "en"; }
+  });
+  const t = lang === "cn" ? CN : EN;
+  const switchLang = () => setLang(l => {
+    const next = l === "en" ? "cn" : "en";
+    try { localStorage.setItem("tmg_lang", next); } catch {}
+    return next;
+  });
 
   /* DOM refs for scroll-driven elements — updated via RAF, no React re-renders */
   const scrollBarRef        = useRef<HTMLDivElement>(null);
@@ -570,13 +601,24 @@ export default function Landing() {
 
             {/* ── LEFT: Copy ── */}
             <motion.div {...fadeUp}>
-              {/* Premium badge pill */}
-              <div className="hero-badge-pill mb-6">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                <Zap className="w-3 h-3 text-amber-400 flex-shrink-0" />
-                <span className="text-[10px] font-black tracking-[0.16em] text-amber-300 uppercase">
-                  Singapore's Furniture Installation Specialists
-                </span>
+              {/* Language toggle + Premium badge pill */}
+              <div className="flex items-center gap-3 mb-6 flex-wrap">
+                <div className="hero-badge-pill">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                  <Zap className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                  <span className="text-[10px] font-black tracking-[0.16em] text-amber-300 uppercase">
+                    {t.badge}
+                  </span>
+                </div>
+                <button
+                  onClick={switchLang}
+                  data-testid="button-lang-toggle"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/20 bg-white/10 hover:bg-white/20 transition-colors text-[11px] font-bold text-white/80 hover:text-white backdrop-blur-sm"
+                  title={lang === "en" ? "切换到中文" : "Switch to English"}
+                >
+                  <Globe className="w-3 h-3" />
+                  {lang === "en" ? "中文" : "EN"}
+                </button>
               </div>
 
               {/* Amber accent line */}
@@ -586,13 +628,13 @@ export default function Landing() {
               </div>
 
               <h1 className="hero-title text-gradient-warm mb-7">
-                Installation,<br />Dismantling &amp;<br />Relocation.
+                {lang === "cn"
+                  ? <>{t.h1a}<br />{t.h1b}<br />{t.h1c}</>
+                  : <>Installation,<br />Dismantling &amp;<br />Relocation.</>}
               </h1>
 
               <p className="font-body text-base sm:text-lg text-white/55 mb-10 leading-relaxed max-w-md">
-                From a single wardrobe to a full office fit-out — TMG Install
-                handles every job across Singapore with transparent, upfront pricing.
-                Get your quote in under 60 seconds, no calls required.
+                {t.sub}
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -603,7 +645,7 @@ export default function Landing() {
                     onClick={() => trackEvent("cta_click", "/", "hero_get_estimate")}
                     className="group flex w-full sm:inline-flex items-center justify-center gap-2.5 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn"
                   >
-                    GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+                    {t.cta1} <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Link>
                 </MagneticButton>
                 <MagneticButton>
@@ -615,9 +657,16 @@ export default function Landing() {
                     onClick={() => trackEvent("cta_click", "/", "hero_whatsapp")}
                     className="flex w-full sm:inline-flex items-center justify-center gap-2 px-8 py-4 border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/50 hover:bg-white/10 transition-all backdrop-blur-sm"
                   >
-                    <MessageCircle className="w-4 h-4" /> WHATSAPP US
+                    <MessageCircle className="w-4 h-4" /> {t.cta2}
                   </a>
                 </MagneticButton>
+                <Link
+                  href="/portal"
+                  data-testid="link-customer-portal"
+                  className="flex w-full sm:inline-flex items-center justify-center gap-1.5 px-4 py-4 text-white/50 hover:text-white/80 text-xs font-semibold transition-colors"
+                >
+                  <Receipt className="w-3.5 h-3.5" /> {t.portalLink}
+                </Link>
               </div>
 
               {/* ── Micro-trust line ── */}

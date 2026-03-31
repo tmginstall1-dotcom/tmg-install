@@ -32,7 +32,7 @@ const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 import { calcTransportFee, calcOvertimeCharge, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
-import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable } from "@shared/schema";
+import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable } from "@shared/schema";
 import { eq, and, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
@@ -3181,6 +3181,15 @@ ${systemPrompt}` });
         else console.error(`[email] admin alert FAILED for ${quote.referenceNo}`);
       } catch (alertErr) {
         console.error("[email] admin alert error:", alertErr);
+      }
+
+      // ── Apply loyalty discount for returning customers ─────────────────────
+      try {
+        if (input.customer?.email) {
+          await applyLoyaltyDiscount(quote.id, input.customer.email);
+        }
+      } catch (loyaltyErr) {
+        console.error("[loyalty] error applying discount:", loyaltyErr);
       }
 
       res.status(201).json(quote);
@@ -6956,6 +6965,302 @@ Respond directly — no JSON, just the message text.`,
     }
 
     res.json({ ok: true, quoteId: quote.id, referenceNo: quote.referenceNo });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ── JOB COMPLETION CHECKLIST ─────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const DEFAULT_CHECKLIST_ITEMS = [
+    "Items fully unpacked & inspected for damage",
+    "All pieces assembled correctly",
+    "Fixings / screws tight — nothing loose",
+    "Level check passed (shelves, wardrobes, beds)",
+    "Packaging & rubbish cleared from site",
+    "Customer walked through & satisfied",
+    "Before & after photos uploaded",
+  ];
+
+  // GET /api/jobs/:id/checklist — auto-creates default items on first access
+  app.get("/api/jobs/:id/checklist", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const quoteId = parseInt(req.params.id);
+    if (isNaN(quoteId)) return res.status(400).json({ error: "Invalid id" });
+    try {
+      let items = await db.select().from(jobChecklistsTable).where(eq(jobChecklistsTable.quoteId, quoteId));
+      if (items.length === 0) {
+        // Seed default items
+        const inserted = await db.insert(jobChecklistsTable).values(
+          DEFAULT_CHECKLIST_ITEMS.map(item => ({ quoteId, item, done: false }))
+        ).returning();
+        items = inserted;
+      }
+      res.json(items);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // PATCH /api/jobs/:id/checklist/:itemId — toggle done
+  app.patch("/api/jobs/:id/checklist/:itemId", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const quoteId = parseInt(req.params.id);
+    const itemId = parseInt(req.params.itemId);
+    const { done } = req.body;
+    if (isNaN(quoteId) || isNaN(itemId)) return res.status(400).json({ error: "Invalid id" });
+    try {
+      const [updated] = await db.update(jobChecklistsTable)
+        .set({ done: !!done, doneAt: done ? new Date() : null, doneByUserId: req.session.userId })
+        .where(and(eq(jobChecklistsTable.id, itemId), eq(jobChecklistsTable.quoteId, quoteId)))
+        .returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ── CUSTOMER PORTAL — email-based OTP login ───────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/portal/request-otp
+  app.post("/api/portal/request-otp", async (req, res) => {
+    const { email } = req.body;
+    if (!email || typeof email !== "string") return res.status(400).json({ error: "Email required" });
+    const emailLower = email.toLowerCase().trim();
+    try {
+      const token = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      await db.insert(customerTokensTable).values({ email: emailLower, token, expiresAt });
+      // Send OTP via email
+      try {
+        await sendEmail({
+          to: emailLower,
+          subject: "Your TMG Install portal access code",
+          html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+            <h2 style="margin:0 0 8px;font-size:22px;color:#0f172a">Your access code</h2>
+            <p style="margin:0 0 24px;color:#64748b;font-size:14px">Enter this code in the TMG Install customer portal. It expires in 15 minutes.</p>
+            <div style="font-size:40px;font-weight:900;letter-spacing:12px;color:#0f172a;text-align:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 32px;margin:0 0 24px">${token}</div>
+            <p style="margin:0;color:#94a3b8;font-size:12px">If you didn't request this, you can safely ignore this email.</p>
+          </div>`,
+        });
+      } catch (emailErr) {
+        console.error("[Portal] OTP email failed:", emailErr);
+      }
+      res.json({ ok: true, message: "Code sent to your email" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // POST /api/portal/verify-otp
+  app.post("/api/portal/verify-otp", async (req, res) => {
+    const { email, token } = req.body;
+    if (!email || !token) return res.status(400).json({ error: "Email and token required" });
+    const emailLower = email.toLowerCase().trim();
+    try {
+      const [row] = await db.select().from(customerTokensTable)
+        .where(and(eq(customerTokensTable.email, emailLower), eq(customerTokensTable.token, String(token))))
+        .orderBy(desc(customerTokensTable.createdAt)).limit(1);
+      if (!row) return res.status(401).json({ error: "Invalid code" });
+      if (row.usedAt) return res.status(401).json({ error: "Code already used" });
+      if (new Date() > row.expiresAt) return res.status(401).json({ error: "Code expired — please request a new one" });
+      // Mark token as used
+      await db.update(customerTokensTable).set({ usedAt: new Date() }).where(eq(customerTokensTable.id, row.id));
+      // Store verified email in session
+      (req.session as any).portalEmail = emailLower;
+      res.json({ ok: true, email: emailLower });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // GET /api/portal/my-quotes — returns quotes matching the verified portal session email
+  app.get("/api/portal/my-quotes", async (req, res) => {
+    const portalEmail = (req.session as any)?.portalEmail;
+    if (!portalEmail) return res.status(401).json({ error: "Not authenticated — please log in" });
+    try {
+      // Find customer by email
+      const [customer] = await db.select().from(customers).where(eq(customers.email, portalEmail)).limit(1);
+      if (!customer) return res.json([]);
+      const qs = await db.select().from(quotesTable)
+        .where(eq(quotesTable.customerId, customer.id))
+        .orderBy(desc(quotesTable.createdAt))
+        .limit(50);
+      res.json(qs.map(q => ({ ...q, customer })));
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // POST /api/portal/logout
+  app.post("/api/portal/logout", (req, res) => {
+    (req.session as any).portalEmail = null;
+    res.json({ ok: true });
+  });
+
+  // GET /api/portal/me — check current portal session
+  app.get("/api/portal/me", (req, res) => {
+    const email = (req.session as any)?.portalEmail;
+    if (!email) return res.status(401).json({ error: "Not authenticated" });
+    res.json({ email });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ── LOYALTY / REPEAT-CUSTOMER DISCOUNT ────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Helper to read an app setting
+  async function getSetting(key: string): Promise<string | null> {
+    const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key)).limit(1);
+    return row?.value ?? null;
+  }
+  async function setSetting(key: string, value: string): Promise<void> {
+    await db.insert(appSettings).values({ key, value })
+      .onConflictDoUpdate({ target: appSettings.key, set: { value } });
+  }
+
+  // Utility: detect repeat customer and apply loyalty discount if applicable
+  async function applyLoyaltyDiscount(quoteId: number, customerEmail: string): Promise<void> {
+    try {
+      const enabled = await getSetting("loyalty_discount_enabled");
+      if (enabled !== "true") return;
+      const amount = parseFloat((await getSetting("loyalty_discount_amount")) || "20");
+
+      // Find if this customer has any previously completed/paid jobs
+      const [customer] = await db.select().from(customers).where(eq(customers.email, customerEmail.toLowerCase())).limit(1);
+      if (!customer) return;
+      const prevCompleted = await db.select({ id: quotesTable.id }).from(quotesTable)
+        .where(and(eq(quotesTable.customerId, customer.id), inArray(quotesTable.status, ["completed","closed","final_paid"])))
+        .limit(1);
+      if (prevCompleted.length === 0) return; // first-time customer
+
+      await db.update(quotesTable)
+        .set({ loyaltyDiscount: String(amount) })
+        .where(eq(quotesTable.id, quoteId));
+      console.log(`[Loyalty] Applied $${amount} loyalty discount to quote ${quoteId} (returning customer ${customerEmail})`);
+    } catch (e) {
+      console.error("[Loyalty] Error applying loyalty discount:", e);
+    }
+  }
+
+  // POST /api/admin/settings/loyalty — toggle loyalty discount
+  app.post("/api/admin/settings/loyalty", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const { enabled, amount } = req.body;
+    try {
+      await setSetting("loyalty_discount_enabled", enabled ? "true" : "false");
+      if (amount != null) await setSetting("loyalty_discount_amount", String(parseFloat(amount) || 20));
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // GET /api/admin/settings/loyalty
+  app.get("/api/admin/settings/loyalty", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const [enabled, amount] = await Promise.all([
+        getSetting("loyalty_discount_enabled"),
+        getSetting("loyalty_discount_amount"),
+      ]);
+      res.json({ enabled: enabled === "true", amount: parseFloat(amount || "20") });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ── AUTOMATED DAY-BEFORE WHATSAPP REMINDERS ───────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async function runDayBeforeReminders() {
+    try {
+      const reminderEnabled = await getSetting("wa_reminders_enabled");
+      if (reminderEnabled !== "true") return;
+
+      const now = new Date();
+      const tomorrowStart = new Date(now); tomorrowStart.setDate(tomorrowStart.getDate() + 1); tomorrowStart.setHours(0, 0, 0, 0);
+      const tomorrowEnd   = new Date(now); tomorrowEnd.setDate(tomorrowEnd.getDate() + 1); tomorrowEnd.setHours(23, 59, 59, 999);
+
+      const tomorrowJobs = await db.select({
+        id: quotesTable.id,
+        referenceNo: quotesTable.referenceNo,
+        serviceAddress: quotesTable.serviceAddress,
+        scheduledAt: quotesTable.scheduledAt,
+        timeWindow: quotesTable.timeWindow,
+        dayBeforeReminderAt: quotesTable.dayBeforeReminderAt,
+        customerWhatsappPhone: quotesTable.customerWhatsappPhone,
+        customerId: quotesTable.customerId,
+        status: quotesTable.status,
+      }).from(quotesTable)
+        .where(and(
+          inArray(quotesTable.status, ["booked", "assigned"]),
+          isNull(quotesTable.dayBeforeReminderAt),
+          gte(quotesTable.scheduledAt, tomorrowStart),
+          lte(quotesTable.scheduledAt, tomorrowEnd),
+        ));
+
+      for (const job of tomorrowJobs) {
+        const phone = job.customerWhatsappPhone;
+        if (!phone) continue;
+
+        let customerName = "there";
+        if (job.customerId) {
+          try {
+            const [c] = await db.select({ name: customers.name }).from(customers).where(eq(customers.id, job.customerId)).limit(1);
+            if (c) customerName = c.name.split(" ")[0];
+          } catch {}
+        }
+        const dateStr = job.scheduledAt ? new Date(job.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "long" }) : "tomorrow";
+        const timeStr = job.timeWindow ? ` from *${job.timeWindow}*` : "";
+
+        try {
+          await sendBotMessage(phone,
+            `👋 Hi *${customerName}*! This is a reminder from *TMG Install*.\n\n` +
+            `Your furniture installation is scheduled for *${dateStr}*${timeStr}.\n\n` +
+            `📍 *Address:* ${job.serviceAddress}\n` +
+            `🔖 *Reference:* ${job.referenceNo}\n\n` +
+            `Our team will arrive on time. Please ensure the area is accessible.\n\n` +
+            `Questions? Just reply here. See you tomorrow! 🙌`
+          );
+          await db.update(quotesTable).set({ dayBeforeReminderAt: new Date() }).where(eq(quotesTable.id, job.id));
+          console.log(`[Reminders] Sent day-before reminder for job ${job.referenceNo} to ${phone}`);
+        } catch (e) {
+          console.error(`[Reminders] Failed for job ${job.id}:`, e);
+        }
+      }
+    } catch (e) {
+      console.error("[Reminders] runDayBeforeReminders error:", e);
+    }
+  }
+
+  // Run reminder check every hour
+  setInterval(runDayBeforeReminders, 60 * 60 * 1000);
+  // Also run once at startup (after 30s delay so server is fully ready)
+  setTimeout(runDayBeforeReminders, 30_000);
+
+  // Admin toggle for reminders
+  app.post("/api/admin/settings/wa-reminders", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const { enabled } = req.body;
+    try {
+      await setSetting("wa_reminders_enabled", enabled ? "true" : "false");
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/settings/wa-reminders", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const val = await getSetting("wa_reminders_enabled");
+      res.json({ enabled: val === "true" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   return httpServer;

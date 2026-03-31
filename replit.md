@@ -5,9 +5,13 @@
 TMG Install is a full-stack platform designed for **The Moving Guy Pte Ltd** (Singapore) to manage furniture installation quoting and operations. It supports the entire workflow from customer quote submission to job completion.
 
 Key capabilities include:
-- **Customer Portal**: A 5-step estimate wizard, quote status tracking, deposit and final payment processing, and appointment confirmation.
-- **Admin Dashboard**: Tools for reviewing and approving quotes, managing bookings, scheduling staff, and handling payments.
-- **Staff Mobile App**: Features for viewing assigned jobs, GPS-based check-in/check-out with photo evidence for job progress tracking.
+- **Customer Portal**: A 5-step estimate wizard, quote status tracking, deposit and final payment processing, appointment confirmation, and OTP-based customer login portal at `/portal`.
+- **Admin Dashboard**: Tools for reviewing and approving quotes, managing bookings, scheduling staff, handling payments, and a live 12-week revenue trend area chart.
+- **Staff Mobile App**: Viewing assigned jobs, GPS check-in/check-out with photo evidence, and a 7-item job completion checklist for in-progress jobs.
+- **Automation**: Day-before WhatsApp reminder scheduler (hourly), loyalty discount for returning customers (5%), both toggleable from Admin Settings.
+- **PayNow QR**: Customer-facing PayNow QR code shown alongside Stripe button when deposit is due.
+- **Language Toggle**: EN/CN switch on the landing page (hero text, CTA labels, persistent to localStorage).
+- **PWA**: Service worker at `/sw.js` for offline caching.
 
 The application is built as a monorepo utilizing a React frontend, an Express backend, and a PostgreSQL database managed with Drizzle ORM. Email functionalities are handled via Resend, and AI features are integrated using OpenAI through Replit AI Integrations. A custom-designed email system with 8 templates covers all workflow stages, providing clear communication and status updates to customers.
 

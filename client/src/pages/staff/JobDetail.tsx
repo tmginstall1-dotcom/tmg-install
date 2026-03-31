@@ -3,13 +3,27 @@ import { useQuote, useStaffArrived, useStaffCompleted } from "@/hooks/use-quotes
 import { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft, CheckCircle2, X, Loader2, Clock, Package, User, CalendarDays,
-  Upload, AlertTriangle, ZoomIn, ImagePlus, Navigation2, MapPin, Radio,
+  Upload, AlertTriangle, ZoomIn, ImagePlus, Navigation2, MapPin, Radio, ListChecks, Square, SquareCheck,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useBackgroundLocation } from "@/hooks/use-background-location";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
+
+const DEFAULT_CHECKLIST = [
+  "Verify customer name & job reference",
+  "Confirm items list with customer",
+  "Unbox and inspect all items for damage",
+  "Complete installation / assembly",
+  "Clean up packaging & work area",
+  "Walk-through completed with customer",
+  "Customer confirms satisfaction",
+];
 
 async function captureGPS(): Promise<{ lat: number; lng: number }> {
   return new Promise((resolve, reject) => {
@@ -69,6 +83,26 @@ export default function JobDetail() {
   const [actionType, setActionType] = useState<'arrived' | 'completed' | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Job checklist
+  const { data: checklistData } = useQuery<{ checkItems: string[] }>({
+    queryKey: [`/api/staff/jobs/${id}/checklist`],
+    enabled: !!id,
+  });
+  const checkedItems: string[] = checklistData?.checkItems ?? [];
+
+  const updateChecklist = useMutation({
+    mutationFn: (items: string[]) =>
+      apiRequest("PATCH", `/api/staff/jobs/${id}/checklist`, { checkItems: items }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/staff/jobs/${id}/checklist`] }),
+  });
+
+  const toggleCheckItem = (label: string) => {
+    const next = checkedItems.includes(label)
+      ? checkedItems.filter(l => l !== label)
+      : [...checkedItems, label];
+    updateChecklist.mutate(next);
+  };
 
   // Auto-capture GPS silently as soon as modal opens
   useEffect(() => {
@@ -304,6 +338,50 @@ export default function JobDetail() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Job Completion Checklist — shown when in progress */}
+        {["in_progress", "completed"].includes(job.status) && (
+          <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-5 py-3 border-b bg-secondary/30 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ListChecks className="w-4 h-4 text-muted-foreground" />
+                <p className="font-black text-sm">Job Checklist</p>
+              </div>
+              <span className="text-xs text-muted-foreground font-semibold">
+                {checkedItems.length}/{DEFAULT_CHECKLIST.length} done
+              </span>
+            </div>
+            <div className="divide-y">
+              {DEFAULT_CHECKLIST.map((item, i) => {
+                const checked = checkedItems.includes(item);
+                return (
+                  <button
+                    key={i}
+                    onClick={() => toggleCheckItem(item)}
+                    disabled={job.status === "completed" || updateChecklist.isPending}
+                    data-testid={`checklist-item-${i}`}
+                    className={`w-full px-5 py-3 flex items-center gap-3 text-left transition-colors ${
+                      checked ? "bg-emerald-50/50 dark:bg-emerald-950/20" : "hover:bg-secondary/30"
+                    } disabled:opacity-60`}
+                  >
+                    {checked
+                      ? <SquareCheck className="w-5 h-5 text-emerald-500 shrink-0" />
+                      : <Square className="w-5 h-5 text-muted-foreground shrink-0" />}
+                    <span className={`text-sm font-semibold leading-snug ${checked ? "line-through text-muted-foreground" : ""}`}>
+                      {item}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {checkedItems.length === DEFAULT_CHECKLIST.length && (
+              <div className="px-5 py-3 bg-emerald-50 dark:bg-emerald-950/30 border-t border-emerald-200 dark:border-emerald-800 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">All items completed — ready to submit!</p>
+              </div>
+            )}
           </div>
         )}
 

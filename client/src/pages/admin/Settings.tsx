@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw, Clock, Bot, Globe, Star } from "lucide-react";
+import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw, Clock, Bot, Globe, Star, Bell, BadgePercent } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
 const DAYS = [
@@ -156,6 +156,28 @@ export default function AdminSettings() {
       setEditingPromo(null);
       toast({ title: "Promo code saved" });
     },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  // ── Loyalty discount toggle ────────────────────────────────────────────────
+  const { data: loyaltyData } = useQuery<{ enabled: boolean }>({
+    queryKey: ["/api/admin/settings/loyalty-discount"],
+  });
+  const loyaltyEnabled = loyaltyData?.enabled ?? false;
+  const toggleLoyalty = useMutation({
+    mutationFn: (enabled: boolean) => apiRequest("POST", "/api/admin/settings/loyalty-discount", { enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/settings/loyalty-discount"] }),
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  // ── WA day-before reminders toggle ─────────────────────────────────────────
+  const { data: waReminderData } = useQuery<{ enabled: boolean }>({
+    queryKey: ["/api/admin/settings/wa-reminders"],
+  });
+  const waRemindersEnabled = waReminderData?.enabled ?? false;
+  const toggleWaReminders = useMutation({
+    mutationFn: (enabled: boolean) => apiRequest("POST", "/api/admin/settings/wa-reminders", { enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/settings/wa-reminders"] }),
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
@@ -844,6 +866,67 @@ export default function AdminSettings() {
           >
             {saveBusinessSettings.isPending ? "Saving..." : "Save Chatbot Settings"}
           </Button>
+        </div>
+      </div>
+
+
+      {/* ── Automation: WA Day-Before Reminders ────────────────────────────── */}
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+            <Bell className="h-4 w-4 text-violet-600" />
+            Automated Appointment Reminders
+          </h2>
+          <p className="text-xs text-zinc-500 mt-1">Send a WhatsApp reminder to customers the day before their scheduled appointment.</p>
+        </div>
+        <div className="p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-zinc-800">Day-before WhatsApp reminder</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Sent automatically between 9 AM – 6 PM, once per job.</p>
+          </div>
+          <button
+            data-testid="toggle-wa-reminders"
+            onClick={() => toggleWaReminders.mutate(!waRemindersEnabled)}
+            disabled={toggleWaReminders.isPending}
+            className="flex items-center gap-1.5 text-sm font-semibold"
+          >
+            {waRemindersEnabled
+              ? <ToggleRight className="w-6 h-6 text-violet-600" />
+              : <ToggleLeft className="w-6 h-6 text-zinc-400" />}
+            <span className={waRemindersEnabled ? "text-violet-700" : "text-zinc-500"}>
+              {waRemindersEnabled ? "ON" : "OFF"}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Loyalty Discount ───────────────────────────────────────────────── */}
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+            <BadgePercent className="h-4 w-4 text-amber-600" />
+            Repeat Customer Loyalty Discount
+          </h2>
+          <p className="text-xs text-zinc-500 mt-1">Automatically apply a 5% discount for customers who have had a previous completed job.</p>
+        </div>
+        <div className="p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-zinc-800">5% loyalty discount for returning customers</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Applied at quote submission if the customer's phone number has a prior completed job.</p>
+          </div>
+          <button
+            data-testid="toggle-loyalty-discount"
+            onClick={() => toggleLoyalty.mutate(!loyaltyEnabled)}
+            disabled={toggleLoyalty.isPending}
+            className="flex items-center gap-1.5 text-sm font-semibold"
+          >
+            {loyaltyEnabled
+              ? <ToggleRight className="w-6 h-6 text-amber-500" />
+              : <ToggleLeft className="w-6 h-6 text-zinc-400" />}
+            <span className={loyaltyEnabled ? "text-amber-700" : "text-zinc-500"}>
+              {loyaltyEnabled ? "ON" : "OFF"}
+            </span>
+          </button>
         </div>
       </div>
 

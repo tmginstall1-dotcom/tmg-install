@@ -293,6 +293,12 @@ export const quotes = pgTable("quotes", {
   notes: text("notes"), // admin internal notes
   detectionPhotoUrl: text("detection_photo_url"), // thumbnail from AI photo scan at submission
 
+  // Loyalty / repeat-customer discount
+  loyaltyDiscount: numeric("loyalty_discount").default("0"), // SGD flat discount for returning customers
+
+  // Automated reminders
+  dayBeforeReminderAt: timestamp("day_before_reminder_at"), // null = not yet sent
+
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
   quotesStatusIdx: index("quotes_status_idx").on(t.status),
@@ -502,6 +508,33 @@ export const insertPayslipSchema = createInsertSchema(payslips).omit({ id: true,
 export type Payslip = typeof payslips.$inferSelect;
 export type InsertPayslip = z.infer<typeof insertPayslipSchema>;
 export type PayslipWithUser = Payslip & { user?: User };
+
+// Job Completion Checklist — per-quote checklist items ticked off by staff on-site
+export const jobChecklists = pgTable("job_checklists", {
+  id: serial("id").primaryKey(),
+  quoteId: integer("quote_id").references(() => quotes.id).notNull(),
+  item: text("item").notNull(),           // label, e.g. "Items unpacked & checked"
+  done: boolean("done").notNull().default(false),
+  doneAt: timestamp("done_at"),
+  doneByUserId: integer("done_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  checklistQuoteIdx: index("job_checklists_quote_id_idx").on(t.quoteId),
+}));
+export type JobChecklist = typeof jobChecklists.$inferSelect;
+
+// Customer Portal Tokens — phone-number based OTP for customer self-service portal
+export const customerTokens = pgTable("customer_tokens", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),          // customer email (lookup key)
+  token: text("token").notNull(),           // 6-digit OTP code
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  customerTokensEmailIdx: index("customer_tokens_email_idx").on(t.email),
+}));
+export type CustomerToken = typeof customerTokens.$inferSelect;
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });

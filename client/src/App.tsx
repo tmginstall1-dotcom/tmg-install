@@ -21,6 +21,7 @@ const JobTracker = lazy(() => import("@/pages/customer/JobTracker"));
 const EstimateWizard = lazy(() => import("@/pages/customer/Estimate"));
 const Terms = lazy(() => import("@/pages/customer/Terms"));
 const Privacy = lazy(() => import("@/pages/customer/Privacy"));
+const CustomerPortal = lazy(() => import("@/pages/customer/Portal"));
 const Login = lazy(() => import("@/pages/admin/Login"));
 const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
 const AdminQuoteDetail = lazy(() => import("@/pages/admin/QuoteDetail"));
@@ -125,6 +126,7 @@ function Router() {
           <Route path="/track/:referenceNo" component={JobTracker} />
           <Route path="/terms" component={Terms} />
           <Route path="/privacy" component={Privacy} />
+          <Route path="/portal" component={CustomerPortal} />
 
           <Route path="/admin/login" component={Login} />
           <Route path="/staff/login" component={Login} />
