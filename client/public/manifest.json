@@ -1,14 +1,14 @@
 {
-  "name": "TMG Install — Staff",
-  "short_name": "TMG Staff",
-  "description": "Staff portal for TMG Install. Clock in/out, view jobs, manage HR.",
-  "start_url": "/staff/login",
+  "name": "TMG Install",
+  "short_name": "TMG Install",
+  "description": "Professional furniture installation, dismantling and relocation in Singapore. Get an instant quote.",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
   "orientation": "portrait-primary",
-  "categories": ["business", "productivity"],
+  "categories": ["business", "lifestyle"],
   "icons": [
     {
       "src": "/favicon.png",
@@ -35,9 +35,9 @@
   ],
   "shortcuts": [
     {
-      "name": "Dashboard",
-      "url": "/staff",
-      "description": "Staff dashboard — clock in/out and today's jobs"
+      "name": "Get a Quote",
+      "url": "/#quote",
+      "description": "Get an instant furniture installation quote"
     }
   ]
 }
