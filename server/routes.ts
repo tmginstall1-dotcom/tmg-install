@@ -5966,6 +5966,54 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── Admin: Mark PayNow / manual deposit as received ───────────────────────
+  app.post("/api/admin/quotes/:id/mark-paynow-paid", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    try {
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      if (quote.depositPaidAt) return res.status(409).json({ message: "Deposit already marked as paid" });
+
+      const depositAmt = (parseFloat(quote.depositAmount || "0") || parseFloat(quote.total || "0") * 0.5).toFixed(2);
+      const { note } = z.object({ note: z.string().optional() }).parse(req.body);
+
+      // Reuse the same updateQuotePayment logic (sets depositPaidAt, status → deposit_paid)
+      const updated = await storage.updateQuotePayment(id, "deposit", depositAmt);
+      if (!updated || !updated.customer) return res.json({ ok: true });
+
+      // Log the manual payment note
+      await storage.updateQuoteStatus(
+        id, updated.status,
+        { actorType: "admin", note: `PayNow deposit received${note ? ` — ${note}` : ""}` },
+      );
+
+      // Same post-payment notifications as Stripe flow
+      try {
+        await sendEmail({
+          to: updated.customer.email,
+          subject: `[${updated.referenceNo}] Deposit Received — Slot Confirmed!`,
+          html: depositReceivedEmail(updated),
+        });
+      } catch (emailErr) {
+        console.error("[PayNow] Email failed:", emailErr);
+      }
+
+      const trackPhone = updated.customerWhatsappPhone?.replace(/\D/g, "");
+      if (trackPhone) {
+        const msg = `✅ *Deposit received via PayNow — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${updated.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
+        await sendWhatsAppMessage(trackPhone, msg).catch(() => {});
+      }
+
+      console.log(`[PayNow] Deposit manually confirmed for ${updated.referenceNo} by admin`);
+      res.json({ ok: true, quote: updated });
+    } catch (err: any) {
+      console.error("[PayNow] mark-paynow-paid error:", err);
+      res.status(500).json({ message: err?.message || "Failed to mark PayNow paid" });
+    }
+  });
+
   // ── Admin: App Settings (GET all + bulk save) ─────────────────────────────
   app.get("/api/admin/app-settings", async (_req, res) => {
     try {
