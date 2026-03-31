@@ -240,16 +240,22 @@ function buildColorSegments(points: TrackPoint[]): ColoredSegment[] {
 }
 
 // ── Map helper components ─────────────────────────────────────────────────────
+
+// Only fits the map to bounds ONCE on initial load — does NOT re-run on re-renders
+// so that manual zoom/pan by the user is preserved.
 function FitBounds({ positions }: { positions: [number, number][] }) {
   const map = useMap();
+  const fitted = useRef(false);
   useEffect(() => {
-    if (positions.length === 0) return;
+    if (fitted.current || positions.length === 0) return;
+    fitted.current = true;
     if (positions.length === 1) {
       map.setView(positions[0], 17);
     } else {
       map.fitBounds(L.latLngBounds(positions), { padding: [48, 48] });
     }
-  }, [positions, map]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — run once on mount only
   return null;
 }
 
