@@ -856,8 +856,8 @@ export default function Landing() {
             {/* Row 1: featured wide + side */}
             <div className="grid gap-px" style={{ gridTemplateColumns: "3fr 2fr" }}>
               {[
-                { src: "/work/office-fitout.jpg",         label: "Office Fit-Out",        sub: "Sit-stand workstations & overhead cabinets", tag: "Commercial",   w: 720, h: 405 },
-                { src: "/work/wardrobe-install-team.jpg", label: "Wardrobe Installation", sub: "Two-man crew · Large sliding wardrobe",       tag: "Residential",  w: 480, h: 270 },
+                { src: "/work/office-fitout.jpg",          label: "Office Fit-Out",       sub: "Sit-stand workstations & overhead cabinets", tag: "Commercial",  w: 720, h: 405 },
+                { src: "/work/phone-booth-completed.jpg",  label: "Duo Phone Booth",      sub: "2-person acoustic pod · CBD office",          tag: "Completed",   w: 480, h: 270 },
               ].map(({ src, label, sub, tag, w, h }, i) => (
                 <motion.div
                   key={src}
@@ -887,10 +887,10 @@ export default function Landing() {
             {/* Row 2: four equal thumbnails */}
             <div className="grid grid-cols-4 gap-px">
               {[
-                { src: "/work/shelving-assembly.jpg", label: "IKEA Assembly",       sub: "Kallax shelving · HDB",          tag: "Residential" },
-                { src: "/work/office-pod.jpg",         label: "Office Phone Booth",  sub: "CBD commercial fit-out",         tag: "Commercial"  },
-                { src: "/work/wardrobe-oak.jpg",       label: "Wardrobe Install",    sub: "2-door with drawers · Oak",     tag: "Completed"   },
-                { src: "/work/conference-table.jpg",   label: "Conference Table",    sub: "Boardroom · Cable management",   tag: "Commercial"  },
+                { src: "/work/phone-booth-install.jpg", label: "Phone Booth Setup",    sub: "Framery install in progress · Tech fit-out", tag: "Commercial"  },
+                { src: "/work/bed-completed.jpg",       label: "Bed Frame Assembly",   sub: "IKEA bed with storage drawers · HDB condo",  tag: "Completed"   },
+                { src: "/work/bed-assembly.jpg",        label: "Bed Frame Assembly",   sub: "King bed frame · Precision craftsmanship",   tag: "Residential" },
+                { src: "/work/shelving-assembly.jpg",   label: "IKEA Assembly",        sub: "Kallax shelving · HDB",                      tag: "Residential" },
               ].map(({ src, label, sub, tag }, i) => (
                 <motion.div
                   key={src}
@@ -921,14 +921,16 @@ export default function Landing() {
           <div className="sm:hidden -mx-4 px-4">
             <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-none">
               {[
-                { src: "/work/office-fitout.jpg",         label: "Office Fit-Out",        sub: "Workstations & overhead cabinets", tag: "Commercial" },
-                { src: "/work/shelving-assembly.jpg",     label: "IKEA Assembly",         sub: "New HDB home · Two-man crew",     tag: "Residential" },
-                { src: "/work/office-pod.jpg",            label: "Office Phone Booth",    sub: "CBD commercial fit-out",           tag: "Commercial" },
-                { src: "/work/wardrobe-install-team.jpg", label: "Wardrobe Installation", sub: "Large sliding wardrobe",           tag: "Residential" },
-                { src: "/work/wardrobe-oak.jpg",          label: "Wardrobe Installation", sub: "2-door with drawers · Oak",       tag: "Completed" },
-                { src: "/work/conference-table.jpg",      label: "Conference Table",      sub: "Cable management included",        tag: "Commercial" },
-                { src: "/work/wardrobe-white.jpg",        label: "Wardrobe Installation", sub: "2-door with drawers · White",     tag: "Completed" },
-                { src: "/work/delivery-truck.jpg",        label: "On-Site Delivery",      sub: "Tools brought every job",          tag: "Every Job" },
+                { src: "/work/office-fitout.jpg",          label: "Office Fit-Out",       sub: "Workstations & overhead cabinets",            tag: "Commercial" },
+                { src: "/work/phone-booth-completed.jpg",  label: "Duo Phone Booth",      sub: "2-person acoustic pod · CBD office",          tag: "Completed"  },
+                { src: "/work/phone-booth-install.jpg",    label: "Phone Booth Setup",    sub: "Framery install in progress · Tech fit-out",  tag: "Commercial" },
+                { src: "/work/bed-completed.jpg",          label: "Bed Frame Assembly",   sub: "IKEA bed with storage drawers · HDB condo",  tag: "Completed"  },
+                { src: "/work/bed-assembly.jpg",           label: "Bed Frame Assembly",   sub: "King bed frame · Precision craftsmanship",   tag: "Residential"},
+                { src: "/work/shelving-assembly.jpg",      label: "IKEA Assembly",        sub: "New HDB home · Two-man crew",                tag: "Residential"},
+                { src: "/work/wardrobe-oak.jpg",           label: "Wardrobe Install",     sub: "2-door with drawers · Oak",                  tag: "Completed"  },
+                { src: "/work/conference-table.jpg",       label: "Conference Table",     sub: "Boardroom · Cable management",               tag: "Commercial" },
+                { src: "/work/wardrobe-white.jpg",         label: "Wardrobe Install",     sub: "2-door with drawers · White",                tag: "Completed"  },
+                { src: "/work/delivery-truck.jpg",         label: "On-Site Delivery",     sub: "Tools brought every job",                    tag: "Every Job"  },
               ].map(({ src, label, sub, tag }, i) => (
                 <div
                   key={src}
