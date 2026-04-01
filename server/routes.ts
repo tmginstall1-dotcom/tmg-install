@@ -6014,61 +6014,7 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
-  // ── Admin: Collect deposit on an already-active manual job ────────────────
-  // (Does NOT change quote status — only records depositPaidAt)
-  app.post("/api/admin/quotes/:id/collect-deposit", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-    try {
-      const quote = await storage.getQuote(id);
-      if (!quote) return res.status(404).json({ message: "Quote not found" });
-      if (quote.depositPaidAt) return res.status(409).json({ message: "Deposit already collected" });
-
-      const { note } = z.object({ note: z.string().optional() }).parse(req.body);
-      const depositAmt = (parseFloat(quote.depositAmount || "0") || parseFloat(quote.total || "0") * 0.5).toFixed(2);
-
-      // Only set depositPaidAt — do NOT change status (job is already active)
-      await db.update(quotes).set({
-        depositPaidAt: new Date(),
-        paymentStatus: "deposit_paid",
-        depositAmount: depositAmt,
-      }).where(eq(quotes.id, id));
-
-      await db.insert(jobUpdates).values({
-        quoteId: id,
-        statusChange: quote.status as any,
-        actorType: "admin",
-        note: `Deposit collected $${depositAmt}${note ? ` — ${note}` : ""}`,
-      });
-
-      const updated = await storage.getQuote(id);
-      if (!updated || !updated.customer) return res.json({ ok: true });
-
-      // Notify customer
-      try {
-        await sendEmail({
-          to: updated.customer.email,
-          subject: `[${updated.referenceNo}] Deposit Received — Slot Confirmed!`,
-          html: depositReceivedEmail(updated),
-        });
-      } catch {}
-
-      const trackPhone = updated.customerWhatsappPhone?.replace(/\D/g, "");
-      if (trackPhone) {
-        const msg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation: ${APP_URL}/track/${updated.referenceNo}\n\n_We'll be in touch shortly._ 👷`;
-        await sendWhatsAppMessage(trackPhone, msg).catch(() => {});
-      }
-
-      console.log(`[CollectDeposit] $${depositAmt} collected for ${updated.referenceNo}`);
-      res.json({ ok: true, quote: updated });
-    } catch (err: any) {
-      console.error("[CollectDeposit] error:", err);
-      res.status(500).json({ message: err?.message || "Failed to collect deposit" });
-    }
-  });
-
-  // ── Admin: Mark final payment received (manual / PayNow / cash) ────────────
+  // ── Admin: Mark final payment received via PayNow (closes case + sends WA invoice) ──
   app.post("/api/admin/quotes/:id/collect-final-payment", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
     const id = parseInt(req.params.id);

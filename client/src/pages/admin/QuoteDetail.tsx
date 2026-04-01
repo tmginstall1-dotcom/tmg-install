@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { 
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
-  ClipboardList, Banknote, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
+  ClipboardList, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
   Printer, Timer, QrCode,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -1366,77 +1366,13 @@ export default function AdminQuoteDetail() {
         </div>
       )}
 
-      {/* Collect Deposit Modal (for already-active manual jobs) */}
-      {showCollectDepositConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" data-testid="modal-collect-deposit">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 py-4 border-b border-zinc-100 flex items-center gap-3 bg-amber-50">
-              <QrCode className="w-5 h-5 text-amber-600" />
-              <h2 className="text-base font-semibold text-amber-800">Collect Deposit Payment</h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-3 space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Reference</span>
-                  <span className="font-bold font-mono text-zinc-900">{quote?.referenceNo}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Customer</span>
-                  <span className="font-semibold text-zinc-900">{quote?.customer?.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Deposit (50%)</span>
-                  <span className="font-bold text-amber-700">
-                    {formatMoney(quote?.depositAmount || String(parseFloat(quote?.total || "0") * 0.5))}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
-                  Payment Note <span className="text-zinc-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={collectDepositNote}
-                  onChange={e => setCollectDepositNote(e.target.value)}
-                  placeholder="e.g. Cash received, PayNow ref #12345"
-                  data-testid="input-collect-deposit-note"
-                  className="w-full h-9 px-3 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-400 transition-colors"
-                />
-              </div>
-              <p className="text-xs text-zinc-500 leading-relaxed">
-                This records the deposit payment received on this job. The job status will not change. Customer will be notified.
-              </p>
-            </div>
-            <div className="px-6 pb-6 flex gap-3">
-              <button
-                onClick={() => { setShowCollectDepositConfirm(false); setCollectDepositNote(""); }}
-                className="flex-1 h-10 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => collectDeposit.mutate()}
-                disabled={collectDeposit.isPending}
-                data-testid="button-confirm-collect-deposit"
-                className="flex-1 h-10 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
-              >
-                {collectDeposit.isPending
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Recording…</>
-                  : <><CheckCircle2 className="w-4 h-4" /> Confirm Received</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Collect Final Payment Modal */}
+      {/* Mark PayNow Final Payment Received Modal */}
       {showFinalPayConfirm && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" data-testid="modal-collect-final">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-zinc-100 flex items-center gap-3 bg-emerald-50">
-              <Banknote className="w-5 h-5 text-emerald-600" />
-              <h2 className="text-base font-semibold text-emerald-800">Collect Final Payment</h2>
+              <QrCode className="w-5 h-5 text-emerald-600" />
+              <h2 className="text-base font-semibold text-emerald-800">Mark PayNow Payment Received</h2>
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-3 space-y-1 text-sm">
@@ -1461,20 +1397,20 @@ export default function AdminQuoteDetail() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
-                  Payment Note <span className="text-zinc-400 font-normal">(optional)</span>
+                  PayNow Reference <span className="text-zinc-400 font-normal">(optional)</span>
                 </label>
                 <input
                   type="text"
                   value={finalPayNote}
                   onChange={e => setFinalPayNote(e.target.value)}
-                  placeholder="e.g. Cash $300, PayNow ref #98765"
+                  placeholder="e.g. PayNow ref #98765, received 2:15pm"
                   data-testid="input-final-pay-note"
                   className="w-full h-9 px-3 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-400 transition-colors"
                 />
               </div>
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 leading-relaxed">
-                <strong>This will:</strong> close the case, send the customer a full invoice via WhatsApp, and mark payment as complete.
-              </div>
+              <p className="text-xs text-zinc-500 leading-relaxed">
+                Confirm that the customer's PayNow transfer has been received. This will close the case and send them a full invoice via WhatsApp.
+              </p>
             </div>
             <div className="px-6 pb-6 flex gap-3">
               <button
