@@ -6303,9 +6303,12 @@ Respond directly — no JSON, just the message text.`,
       }
       const daysLeft = Math.round((expiresAt - nowSec) / 86400);
       if (daysLeft <= 0) {
-        return res.json({ status: "expired", message: `Token expired ${Math.abs(daysLeft)} day(s) ago — update now!` });
+        return res.json({ status: "expired", message: `Token expired ${Math.abs(daysLeft)} day(s) ago — update now!`, daysLeft });
       }
-      return res.json({ status: "ok", message: `Token valid — ${daysLeft} days remaining` });
+      if (daysLeft <= 7) {
+        return res.json({ status: "expiring_soon", message: `Token expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"} — renew soon!`, daysLeft });
+      }
+      return res.json({ status: "ok", message: `Token valid — ${daysLeft} days remaining`, daysLeft });
     } catch (err) {
       return res.json({ status: "error", message: "Could not check token" });
     }
@@ -7108,6 +7111,60 @@ Respond directly — no JSON, just the message text.`,
     "Customer walked through & satisfied",
     "Before & after photos uploaded",
   ];
+
+  // ── Staff checklist routes (simplified API for the staff mobile app) ──────
+  // GET /api/staff/jobs/:id/checklist → { checkItems: string[] } (labels of ticked items)
+  app.get("/api/staff/jobs/:id/checklist", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const quoteId = parseInt(req.params.id);
+    if (isNaN(quoteId)) return res.status(400).json({ error: "Invalid id" });
+    try {
+      // Verify the quote exists first
+      const quote = await storage.getQuote(quoteId);
+      if (!quote) return res.status(404).json({ error: "Job not found" });
+      let rows = await db.select().from(jobChecklistsTable).where(eq(jobChecklistsTable.quoteId, quoteId));
+      if (rows.length === 0) {
+        rows = await db.insert(jobChecklistsTable).values(
+          DEFAULT_CHECKLIST_ITEMS.map(item => ({ quoteId, item, done: false }))
+        ).returning();
+      }
+      const checkItems = rows.filter(r => r.done).map(r => r.item);
+      res.json({ checkItems });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // PATCH /api/staff/jobs/:id/checklist → body: { checkItems: string[] } (full list of ticked labels)
+  app.patch("/api/staff/jobs/:id/checklist", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const quoteId = parseInt(req.params.id);
+    if (isNaN(quoteId)) return res.status(400).json({ error: "Invalid id" });
+    const { checkItems } = req.body as { checkItems: string[] };
+    if (!Array.isArray(checkItems)) return res.status(400).json({ error: "checkItems must be an array" });
+    try {
+      const quote = await storage.getQuote(quoteId);
+      if (!quote) return res.status(404).json({ error: "Job not found" });
+      let rows = await db.select().from(jobChecklistsTable).where(eq(jobChecklistsTable.quoteId, quoteId));
+      if (rows.length === 0) {
+        rows = await db.insert(jobChecklistsTable).values(
+          DEFAULT_CHECKLIST_ITEMS.map(item => ({ quoteId, item, done: false }))
+        ).returning();
+      }
+      // Update done status for each item based on the provided list
+      for (const row of rows) {
+        const isDone = checkItems.includes(row.item);
+        if (row.done !== isDone) {
+          await db.update(jobChecklistsTable)
+            .set({ done: isDone, doneAt: isDone ? new Date() : null, doneByUserId: isDone ? req.session!.userId : null })
+            .where(eq(jobChecklistsTable.id, row.id));
+        }
+      }
+      res.json({ ok: true, checkItems });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 
   // GET /api/jobs/:id/checklist — auto-creates default items on first access
   app.get("/api/jobs/:id/checklist", async (req, res) => {

@@ -255,26 +255,41 @@ export default function AdminSettings() {
               className={`text-[11px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
                 tokenStatus.status === "ok"
                   ? "bg-emerald-100 text-emerald-700"
+                  : tokenStatus.status === "expiring_soon"
+                  ? "bg-amber-100 text-amber-700"
                   : "bg-red-100 text-red-700"
               }`}
             >
               {tokenStatus.status === "ok"
                 ? <CheckCircle className="w-3 h-3" />
+                : tokenStatus.status === "expiring_soon"
+                ? <Clock className="w-3 h-3" />
                 : <XCircle className="w-3 h-3" />}
-              {tokenStatus.status === "ok" ? "Token OK" : "Token Invalid"}
+              {tokenStatus.status === "ok" ? "Token OK" : tokenStatus.status === "expiring_soon" ? "Expiring Soon" : "Token Invalid"}
             </span>
           )}
         </div>
         <div className="p-5 space-y-4">
           <p className="text-sm text-zinc-500 mb-2">
-            {tokenStatus && tokenStatus.status !== "ok" ? (
+            {tokenStatus && (tokenStatus.status === "expired" || tokenStatus.status === "invalid" || tokenStatus.status === "error") ? (
               <span className="text-red-600 font-medium">{tokenStatus.message}</span>
+            ) : tokenStatus?.status === "expiring_soon" ? (
+              <span className="text-amber-700 font-medium">{tokenStatus.message}</span>
             ) : tokenStatus ? (
               <span className="text-emerald-700 font-medium">{tokenStatus.message}</span>
             ) : (
               "Checking token status…"
             )}
           </p>
+
+          {tokenStatus?.status === "expiring_soon" && (
+            <div data-testid="alert-token-expiring" className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+              <Bell className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+              <div>
+                <strong className="font-semibold">Token expiring soon.</strong> Your WhatsApp token will expire in {(tokenStatus as any).daysLeft} day{(tokenStatus as any).daysLeft === 1 ? "" : "s"}. Renew it now to avoid service interruption — the bot will go offline when it expires.
+              </div>
+            </div>
+          )}
 
           {(tokenStatus?.status === "expired" || tokenStatus?.status === "invalid") && (
             <div data-testid="alert-token-expired" className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">

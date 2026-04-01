@@ -925,6 +925,24 @@ export default function AdminQuoteDetail() {
                       <p className="font-semibold text-orange-800">Awaiting Deposit</p>
                       <p className="text-orange-700 mt-0.5">{formatMoney(quote.depositAmount)}</p>
                     </div>
+                    {/* PayNow QR reference for admin */}
+                    <div className="border border-zinc-200 rounded-lg p-3 space-y-2 bg-zinc-50">
+                      <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide text-center">Customer PayNow Details</p>
+                      <div className="flex items-center gap-3">
+                        <img
+                          src="/paynow-qr.png"
+                          alt="PayNow QR"
+                          data-testid="img-admin-paynow-qr"
+                          className="w-16 h-16 rounded object-cover border border-zinc-200 shrink-0"
+                        />
+                        <div className="text-xs text-zinc-600 space-y-0.5">
+                          <p><span className="font-semibold">UEN:</span> 202412345A</p>
+                          <p><span className="font-semibold">Name:</span> TMG Install Pte Ltd</p>
+                          <p className="text-emerald-700 font-semibold">Amount: {formatMoney(quote.depositAmount)}</p>
+                          <p className="text-zinc-400 mt-1 leading-tight">Customer should WhatsApp receipt screenshot after transfer</p>
+                        </div>
+                      </div>
+                    </div>
                     <button
                       onClick={() => setShowPayNowConfirm(true)}
                       data-testid="button-mark-paynow-paid"

@@ -371,9 +371,42 @@ export function estimateSubmittedEmail(quote: any): string {
   `);
 }
 
-export function depositRequestEmail(quote: any, paymentLink: string): string {
+export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl?: string): string {
   const c = quote.customer;
   const slotDate = quote.preferredDate ? fmtDate(quote.preferredDate) : null;
+  const depositAmt = `$${Number(quote.depositAmount || 0).toFixed(2)}`;
+  const PAYNOW_UEN = "202412345A";
+  const PAYNOW_NAME = "TMG Install Pte Ltd";
+
+  const payNowSection = `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+      <tr>
+        <td align="center" style="padding:4px 0 20px;">
+          <p style="${FONT}font-size:12px;color:#888888;margin:0;letter-spacing:1px;text-transform:uppercase;">— or pay via PayNow —</p>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:24px 20px;">
+          ${payNowQrUrl ? `<img src="${payNowQrUrl}" width="160" height="160" alt="PayNow QR" style="display:block;margin:0 auto 16px;border-radius:8px;" />` : ''}
+          <p style="${FONT}font-size:15px;font-weight:700;color:#111111;margin:0 0 4px;">PayNow Transfer</p>
+          <p style="${FONT}font-size:13px;color:#444444;margin:0 0 2px;">UEN: <strong>${PAYNOW_UEN}</strong></p>
+          <p style="${FONT}font-size:13px;color:#444444;margin:0 0 16px;">${PAYNOW_NAME}</p>
+          <table style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 20px;margin:0 auto 16px;">
+            <tr>
+              <td style="${FONT}font-size:13px;color:#166534;text-align:center;">
+                Amount to transfer: <strong style="font-size:18px;">${depositAmt}</strong>
+              </td>
+            </tr>
+          </table>
+          <p style="${FONT}font-size:12px;color:#555555;margin:0;line-height:1.7;">
+            After transferring, please <strong>WhatsApp us at ${WHATSAPP_NUMBER}</strong><br>
+            with a <strong>screenshot of your payment receipt</strong>.<br>
+            <span style="color:#888888;">Our team will confirm your booking once payment is verified.</span>
+          </p>
+        </td>
+      </tr>
+    </table>
+  `;
 
   return shell("Deposit Invoice", `
     ${greeting(c?.name, `Your estimate has been reviewed and approved. Please pay the 50% deposit below to confirm your appointment. Your slot will be held for <strong>48 hours</strong> from the time of this email.`)}
@@ -395,13 +428,16 @@ export function depositRequestEmail(quote: any, paymentLink: string): string {
 
     ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount))}
 
-    ${ctaBlock(
-      "Deposit due now — 50%",
-      `$${Number(quote.depositAmount || 0).toFixed(2)}`,
-      "Pay Now &rarr;",
-      paymentLink,
-      "Secure payment via Stripe &nbsp;&middot;&nbsp; Card details are never stored.",
-    )}
+    ${section("Pay Deposit — 2 Ways", `
+      ${ctaBlock(
+        "Option 1 — Pay by Card (Stripe)",
+        depositAmt,
+        "Pay Securely &rarr;",
+        paymentLink,
+        "Secure payment via Stripe &nbsp;&middot;&nbsp; Card details are never stored.",
+      )}
+      ${payNowSection}
+    `)}
 
     ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
 
