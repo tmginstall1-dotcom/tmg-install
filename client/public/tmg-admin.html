@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TMG Admin</title>
+  <link rel="manifest" href="/manifest-admin.json" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v2.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="TMG Admin" />
+  <meta name="theme-color" content="#020617" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #020617;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #fff;
+    }
+    .logo {
+      width: 80px;
+      height: 80px;
+      background: #111;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .logo span {
+      font-size: 42px;
+      font-weight: 900;
+      color: #fff;
+      line-height: 1;
+    }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    p { font-size: 14px; color: #64748b; }
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid #334155;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-top: 32px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="logo"><span>T</span></div>
+  <h1>TMG Admin</h1>
+  <p>Loading admin panel…</p>
+  <div class="spinner"></div>
+  <script>
+    // Redirect to the admin panel immediately.
+    // If already installed as PWA (standalone), the manifest start_url
+    // handles the routing. This redirect covers first-load in browser.
+    window.location.replace('/admin');
+  </script>
+</body>
+</html>
