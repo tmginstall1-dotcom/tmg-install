@@ -405,14 +405,10 @@ export default function EstimateWizard() {
   const deposit = pricingResult.depositAmount;
   const finalAmt = pricingResult.finalAmount;
 
-  const MIN_JOB = 180;
-  const isRelocationJob = services.length > 0 && services.every(s => s === 'relocate');
   // D&R mode = at least one relocate item with full dismantle+reinstall — NO time cap applies
   const hasDRMode = isRelocation && items.some(i => i.serviceType === 'relocate' && i.relocateMode === 'full');
-  const belowMinimum = items.length > 0 && total < MIN_JOB && !isRelocationJob;
-  const effectiveTotal = belowMinimum ? MIN_JOB : total;
-  // Promo discount is applied AFTER the $180 minimum — it can bring total below $180
-  const grandTotalAfterPromo = Math.max(0, effectiveTotal - promoDiscount);
+  // Promo discount applied to the grand total (which already includes the $60 callout fee)
+  const grandTotalAfterPromo = Math.max(0, total - promoDiscount);
   const effectiveDeposit = Math.round(grandTotalAfterPromo * 0.5 * 100) / 100;
   const effectiveFinal = Math.round((grandTotalAfterPromo - effectiveDeposit) * 100) / 100;
 
@@ -1425,7 +1421,7 @@ export default function EstimateWizard() {
                       )}
                       <div className="flex justify-between font-black text-base pt-1.5 border-t border-black/10 mt-2">
                         <span className="uppercase tracking-[0.06em] text-sm">Estimated Total</span>
-                        <span>${effectiveTotal.toFixed(2)}</span>
+                        <span>${total.toFixed(2)}</span>
                       </div>
                       {isRelocation && hasDRMode && (
                         <div data-testid="notice-relocation-dr" className="mt-3 flex items-start gap-2 bg-green-50 border border-green-200 rounded px-3 py-2.5">
@@ -1440,14 +1436,6 @@ export default function EstimateWizard() {
                           <span className="text-blue-500 text-base leading-none mt-0.5">⏱</span>
                           <div className="text-xs text-blue-800 leading-relaxed">
                             <span className="font-black">2-hour job cap (Carry Only).</span> Carry Only pricing covers up to 120 minutes of crew and vehicle time. If the job runs longer: +$30 per 30-min block, capped at $200.
-                          </div>
-                        </div>
-                      )}
-                      {belowMinimum && (
-                        <div data-testid="notice-minimum-charge" className="mt-3 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded px-3 py-2.5">
-                          <span className="text-amber-500 text-base leading-none mt-0.5">💡</span>
-                          <div className="text-xs text-amber-800 leading-relaxed">
-                            <span className="font-black">Minimum job price: $180.</span> Your items total ${total.toFixed(2)}, so a minimum charge of <strong>${(MIN_JOB - total).toFixed(2)}</strong> will be added — bringing your total to <strong>$180.00</strong>. This is our standard minimum for any job regardless of size.
                           </div>
                         </div>
                       )}
@@ -1715,14 +1703,6 @@ export default function EstimateWizard() {
                           </p>
                         </div>
                       )}
-                      {belowMinimum && (
-                        <div data-testid="notice-minimum-charge-review" className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-1">
-                          <span className="text-amber-500 text-sm leading-none mt-0.5">💡</span>
-                          <p className="text-xs text-amber-800 leading-relaxed">
-                            <span className="font-black">Minimum job charge applied.</span> Your items total ${total.toFixed(2)} — a <strong>${(MIN_JOB - total).toFixed(2)} minimum charge</strong> has been added. All jobs start from $180.
-                          </p>
-                        </div>
-                      )}
                       <div className="flex justify-between text-black/45"><span>Deposit due now (50%)</span><span className="font-black">${effectiveDeposit.toFixed(2)}</span></div>
                       <div className="flex justify-between text-black/45"><span>Balance on completion (50%)</span><span>${effectiveFinal.toFixed(2)}</span></div>
                       {pricingResult.requiresAdminReview && (
@@ -1781,7 +1761,7 @@ export default function EstimateWizard() {
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.1em] text-black/40">Estimated total</p>
                 <p className="font-black text-lg leading-none tabular-nums">
-                  ${(belowMinimum ? MIN_JOB : total).toFixed(2)}
+                  ${total.toFixed(2)}
                 </p>
               </div>
             </div>

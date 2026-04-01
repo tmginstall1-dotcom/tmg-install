@@ -7,6 +7,9 @@
 // Configuration
 // --------------------------------------------------------------------------
 export const PricingConfig = {
+  callout: {
+    fee: 60,   // SGD — applied to every non-relocation job (replaces the old $180 minimum)
+  },
   fallback: {
     dismantleMultiplier: 0.6,        // dismantle       = install * 0.6 when no catalog entry
     relocateMultiplier: 1.5,         // relocate        = install * 1.5 when no catalog entry
@@ -255,6 +258,12 @@ export function computePricing(input: PricingInput): PricingResult {
   // ── E) Fee lines ────────────────────────────────────────────────────────
 
   const feeLines: FeeLine[] = [];
+
+  // Callout / site visit fee (non-relocation jobs only)
+  // Replaces the old $180 minimum — transparent $60 base fee instead.
+  if (!input.needsRelocation) {
+    feeLines.push({ label: 'Callout / Site Visit', amount: cfg.callout.fee });
+  }
 
   // Transport fee (relocation only) — multiplied by number of trips
   if (input.needsRelocation) {

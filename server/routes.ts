@@ -181,8 +181,8 @@ Return JSON:
       : `Here's our pricing for *${itemLabel}* in Singapore:\n\n`;
 
     const footnote = isApproximate
-      ? `\n\n_Estimated based on similar items. Final price confirmed after our team reviews your job. Min. job $180._`
-      : `\n\n_Per item. Excludes floor surcharge & transport. Min. job $180._`;
+      ? `\n\n_Estimated based on similar items. Final price confirmed after our team reviews your job. +$60 callout fee applies._`
+      : `\n\n_Per item. +$60 callout fee applies. Floor surcharge & transport extra._`;
 
     return intro + lines.join("\n") + footnote;
   } catch {
@@ -334,23 +334,15 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     const accessSurcharge = Math.round(laborTotal * accessPct * 100) / 100;
     if (accessSurcharge > 0) surchargeLines.push(`🚪 Access surcharge (${access === "medium" ? "Moderate" : "Difficult"}): *+$${accessSurcharge.toFixed(0)}*`);
 
-    // Transport fee (relocation)
+    // Transport fee (relocation only) OR callout fee (non-relocation)
     const distKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
     const transportFee = session.isRelocation ? calcTransportFee(distKm) : 0;
     if (transportFee > 0) surchargeLines.push(`🚛 Transport fee: *+$${transportFee.toFixed(0)}*`);
 
-    // Minimum charge — checked against the FULL combined total (labor + transport + all surcharges)
-    // Only activates if the grand total is under $180. Transport counts toward the $180.
-    const MIN_CHARGE = 180;
-    const combinedTotal = laborTotal + floorSurcharge + accessSurcharge + transportFee;
-    let minAdj = 0;
-    let minimumLine = "";
-    if (combinedTotal > 0 && combinedTotal < MIN_CHARGE) {
-      minAdj = MIN_CHARGE - combinedTotal;
-      minimumLine = `📌 *Minimum job charge: +$${minAdj.toFixed(0)}* _(all jobs min. $${MIN_CHARGE})_`;
-    }
+    const calloutFee = session.isRelocation ? 0 : PricingConfig.callout.fee;
+    if (calloutFee > 0) surchargeLines.push(`🚗 Callout / site visit: *+$${calloutFee.toFixed(0)}*`);
 
-    const grandTotal = combinedTotal + minAdj;
+    const grandTotal = laborTotal + floorSurcharge + accessSurcharge + transportFee + calloutFee;
     const deposit = grandTotal * 0.5;
 
     if (grandTotal === 0) return null;
@@ -366,10 +358,6 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     // Surcharges (floor, access, transport)
     if (surchargeLines.length > 0) {
       msg += surchargeLines.join("\n") + "\n";
-    }
-    // Minimum charge shown just before the total (after transport)
-    if (minimumLine) {
-      msg += `${minimumLine}\n`;
     }
     msg += `💰 *Total: SGD $${grandTotal.toFixed(0)}*\n`;
     msg += `🔒 *50% deposit to confirm: SGD $${deposit.toFixed(0)}*\n`;
@@ -432,7 +420,7 @@ Typical item pricing (approximate, per item, SGD):
 - Office desk / workstation: $80–150
 - Chest of drawers / dresser: $80–100
 - Mattress disposal: $80–100
-- All prices per item; min. job $180; floor surcharge & transport fee may apply; no GST
+- All prices per item; $60 callout fee applies to all non-relocation jobs; floor surcharge & transport fee may apply; no GST
 
 Process / how it works:
 1. Customer tells us what they need → we prepare a quote
@@ -465,7 +453,7 @@ const FAQ_KNOWLEDGE = `TMG Install (The Moving Guy Pte Ltd) — Singapore furnit
 
 Services: installation/assembly, dismantling, relocation (all-in-one), disposal/haul-away.
 Coverage: all of Singapore — HDB, condo, landed, commercial & office.
-Pricing: from $80/item install, $60/item dismantle, $80/item disposal, from $180 relocation. Min. job $180. No GST.
+Pricing: from $80/item install, $60/item dismantle, $80/item disposal, from $200 relocation. $60 callout fee on all non-relocation jobs. No GST.
 Common prices: bed frame install $80–150, wardrobe install $120–300, sofa dismantle $80–100, dining set $80–120.
 Payment: 50% deposit (PayNow / bank transfer / card) to confirm booking; 50% on completion.
 Availability: weekdays & weekends (subject to slots). Min. 48h notice. Morning (9am–12pm) or afternoon (1pm–5pm).
@@ -3155,20 +3143,20 @@ ${systemPrompt}` });
 
       const referenceNo = `TMG-${randomBytes(4).toString('hex').toUpperCase()}`;
 
-      // ── Minimum charge: SGD 180 ──────────────────────────────────────────────
-      const MIN_CHARGE_LEGACY = 180;
-      const minAdj = totalEstimate < MIN_CHARGE_LEGACY ? MIN_CHARGE_LEGACY - totalEstimate : 0;
-      const grandTotalLegacy = totalEstimate + minAdj;
-      if (minAdj > 0) {
+      // ── Callout fee (non-relocation jobs) ────────────────────────────────────
+      const hasRelocation = aiParsedItems.some(i => i.serviceType === "relocate");
+      const calloutFeeAdj = hasRelocation ? 0 : PricingConfig.callout.fee;
+      if (calloutFeeAdj > 0) {
         aiParsedItems.push({
-          originalDescription: "Minimum Charge Adjustment",
-          detectedName: "Minimum Charge Adjustment",
-          serviceType: "adjustment",
+          originalDescription: "Callout / Site Visit",
+          detectedName: "Callout / Site Visit",
+          serviceType: "surcharge",
           quantity: 1,
-          unitPrice: minAdj.toFixed(2),
-          subtotal: minAdj.toFixed(2),
+          unitPrice: calloutFeeAdj.toFixed(2),
+          subtotal: calloutFeeAdj.toFixed(2),
         });
       }
+      const grandTotalLegacy = totalEstimate + calloutFeeAdj;
       // ────────────────────────────────────────────────────────────────────────
 
       const depositAmount = (grandTotalLegacy * 0.50).toFixed(2);
@@ -4191,15 +4179,10 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const logisticsFee = input.logisticsFee || 0;
       const promoDiscountAmt = input.promoDiscount || 0;
 
-      // Minimum charge is based on labor+transport WITHOUT promo discount
+      // rawTotal includes logisticsFee which already contains the $60 callout fee (via computePricing)
       const rawTotal = laborSubtotal - discount + logisticsFee;
-
-      // ── Minimum charge: SGD 180 ──────────────────────────────────────────────
-      const MIN_CHARGE = 180;
-      const minAdjustment = rawTotal < MIN_CHARGE ? MIN_CHARGE - rawTotal : 0;
-      // Promo code can override the $180 minimum — applied AFTER minimum is enforced
-      const grandTotal = Math.max(0, rawTotal + minAdjustment - promoDiscountAmt);
-      // ────────────────────────────────────────────────────────────────────────
+      // Promo code applied to total (callout fee already included in logisticsFee)
+      const grandTotal = Math.max(0, rawTotal - promoDiscountAmt);
 
       const depositAmount = (grandTotal * 0.50).toFixed(2);
       const finalAmount = (grandTotal * 0.50).toFixed(2);
@@ -4227,16 +4210,6 @@ Respond with ONLY a JSON array (no prose, no markdown):
           unitPrice: "0",
           subtotal: "0",
         })),
-        // Minimum charge adjustment — only added when job total is below SGD 180
-        ...(minAdjustment > 0 ? [{
-          catalogItemId: undefined as number | undefined,
-          originalDescription: "Minimum Charge Adjustment",
-          detectedName: "Minimum Charge Adjustment",
-          serviceType: "adjustment",
-          quantity: 1,
-          unitPrice: minAdjustment.toFixed(2),
-          subtotal: minAdjustment.toFixed(2),
-        }] : []),
       ];
 
       const quote = await storage.createQuote(
@@ -5663,25 +5636,22 @@ Return ONLY valid JSON.`,
         const sessionDistKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
         const transportFee = session.isRelocation ? calcTransportFee(sessionDistKm) : 0;
 
-        // ── Minimum charge: SGD 180 — checked AFTER all fees including transport ─
-        // Only activates if the combined total (labor + floor + access + transport) < $180
-        const MIN_CHARGE = 180;
-        const combinedBeforeMin = laborSubtotalWA + floorSurcharge + accessSurcharge + transportFee;
-        const minAdjustment = combinedBeforeMin < MIN_CHARGE ? MIN_CHARGE - combinedBeforeMin : 0;
-        if (minAdjustment > 0) {
+        // ── Callout fee (non-relocation jobs) ─────────────────────────────────
+        const calloutFeeWA = session.isRelocation ? 0 : PricingConfig.callout.fee;
+        if (calloutFeeWA > 0) {
           quoteItems.push({
-            originalDescription: "Minimum Charge Adjustment",
-            detectedName: "Minimum Charge Adjustment",
-            serviceType: "adjustment",
+            originalDescription: "Callout / Site Visit",
+            detectedName: "Callout / Site Visit",
+            serviceType: "surcharge",
             quantity: 1,
-            unitPrice: minAdjustment.toFixed(2),
-            subtotal: minAdjustment.toFixed(2),
+            unitPrice: calloutFeeWA.toFixed(2),
+            subtotal: calloutFeeWA.toFixed(2),
             catalogItemId: undefined,
           });
         }
 
         const laborTotalWithSurcharges = laborSubtotalWA + floorSurcharge + accessSurcharge;
-        const grandTotal = combinedBeforeMin + minAdjustment;
+        const grandTotal = laborSubtotalWA + floorSurcharge + accessSurcharge + transportFee + calloutFeeWA;
         // ─────────────────────────────────────────────────────────────────────
 
         const depositAmount = (grandTotal * 0.50).toFixed(2);
@@ -5799,7 +5769,7 @@ Return ONLY valid JSON.`,
 
 COMPANY INFO:
 - Services: furniture installation, dismantling, and relocation across all of Singapore
-- Pricing: from SGD 80/item, minimum order SGD 180; relocation adds transport fee
+- Pricing: from SGD 80/item; $60 callout fee on all non-relocation jobs; relocation adds transport fee
 - Coverage: HDB flats, condos, landed property, commercial/offices — all of Singapore
 - Payment: 50% deposit (PayNow/bank transfer/card), 50% balance on job completion
 - Typical turnaround: quote within 1 business day, job booked after deposit confirmed
@@ -7038,16 +7008,14 @@ Respond directly — no JSON, just the message text.`,
     const sessionDistKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
     const transportFee = session.isRelocation ? calcTransportFee(sessionDistKm) : 0;
 
-    // ── Minimum charge: SGD 180 — checked AFTER all fees including transport ──
-    const MIN_CHARGE = 180;
-    const combinedBeforeMinAdmin = laborSubtotalAdmin + floorSurcharge + accessSurcharge + transportFee;
-    const minAdjustment = combinedBeforeMinAdmin < MIN_CHARGE ? MIN_CHARGE - combinedBeforeMinAdmin : 0;
-    if (minAdjustment > 0) {
-      quoteItems.push({ originalDescription: "Minimum Charge Adjustment", detectedName: "Minimum Charge Adjustment", serviceType: "adjustment", quantity: 1, unitPrice: minAdjustment.toFixed(2), subtotal: minAdjustment.toFixed(2), catalogItemId: undefined });
+    // ── Callout fee (non-relocation jobs) ────────────────────────────────────
+    const calloutFeeAdmin = session.isRelocation ? 0 : PricingConfig.callout.fee;
+    if (calloutFeeAdmin > 0) {
+      quoteItems.push({ originalDescription: "Callout / Site Visit", detectedName: "Callout / Site Visit", serviceType: "surcharge", quantity: 1, unitPrice: calloutFeeAdmin.toFixed(2), subtotal: calloutFeeAdmin.toFixed(2), catalogItemId: undefined });
     }
 
     const laborTotalWithSurcharges = laborSubtotalAdmin + floorSurcharge + accessSurcharge;
-    const grandTotal = combinedBeforeMinAdmin + minAdjustment;
+    const grandTotal = laborSubtotalAdmin + floorSurcharge + accessSurcharge + transportFee + calloutFeeAdmin;
 
     const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
     const quote = await storage.createQuote(
