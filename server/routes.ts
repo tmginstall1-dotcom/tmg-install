@@ -1350,11 +1350,10 @@ async function createStripePaymentLink(
       success_url: successWithSession,
       cancel_url: successUrl,
       metadata,
-      expires_at: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 days
     });
     return session.url;
-  } catch (err) {
-    console.error("Stripe payment link error:", err);
+  } catch (err: any) {
+    console.error("[Stripe] Payment link creation FAILED:", err?.message || err);
     return null;
   }
 }
