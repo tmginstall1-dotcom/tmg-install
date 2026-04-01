@@ -370,11 +370,14 @@ export async function sendWhatsAppPaymentLink(
     `💰 *Deposit Required: S$${depositAmount}*\n` +
     `${slotLine}` +
     `Your slot is held — but only until the deposit is received.\n\n` +
-    `👉 *Pay your deposit here:*\n` +
+    `Choose your preferred payment method:\n\n` +
+    `💳 *Option 1 — Pay by Card (Stripe):*\n` +
     `${paymentLink}\n\n` +
+    `🏦 *Option 2 — PayNow Transfer:*\n` +
+    `UEN: *202412345A* (TMG Install Pte Ltd)\n` +
+    `Amount: *S$${depositAmount}*\n\n` +
+    `After PayNow transfer, please *reply here with a screenshot* of your payment receipt. Our team will confirm your booking once verified.\n\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
-    `📧 *Can't find our email?*\n` +
-    `Check your *Junk / Spam / Promotions* folder for an email from TMG Install — payment emails sometimes land there.\n\n` +
     `_Need help? Reply to this message or call us. Min. notice 48h for rescheduling._`;
 
   await sendWhatsAppMessage(to, msg);

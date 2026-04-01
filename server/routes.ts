@@ -37,6 +37,26 @@ import { eq, and, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "dri
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
+// Normalize Singapore phone numbers to full international format (no '+')
+// e.g. "93826826" → "6593826826", "6593826826" → "6593826826"
+function normalizeSGPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (/^[689]\d{7}$/.test(digits)) return `65${digits}`; // 8-digit SG number
+  return digits;
+}
+
+// Build the PayNow block for WhatsApp deposit messages
+function waPayNowBlock(depositAmt: number): string {
+  return (
+    `\n\n💳 *Option 1 — Pay by Card (Stripe):*\n` +
+    `(link above)\n\n` +
+    `🏦 *Option 2 — PayNow Transfer:*\n` +
+    `UEN: *202412345A* (TMG Install Pte Ltd)\n` +
+    `Amount: *$${depositAmt.toFixed(2)}*\n\n` +
+    `After PayNow transfer, please *reply here with a screenshot* of your payment receipt. Our team will confirm your booking once verified. ✅`
+  );
+}
+
 // ── Smart catalog pricing lookup (used by WhatsApp bot) ──────────────────────
 // Given a natural-language furniture query, ALWAYS finds the closest catalog
 // match and returns a formatted WhatsApp price message.
@@ -3291,14 +3311,15 @@ ${systemPrompt}` });
         }
 
         // Always send WhatsApp for WhatsApp-originated customers, or as fallback if email failed
-        const waPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+        const waPhone = quote.customerWhatsappPhone ? normalizeSGPhone(quote.customerWhatsappPhone) : null;
         if (waPhone && (!hasRealEmail)) {
           const waMsg =
             `💰 *Deposit Invoice — ${quote.referenceNo}*\n\n` +
             `Hi ${quote.customer.name || "there"}! Your quote has been approved.\n\n` +
-            `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* to confirm your slot:\n\n` +
-            `${paymentLink}\n\n` +
-            `_Your slot is held for 48 hours. Once deposit is received, your booking is confirmed._ ✅`;
+            `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* via one of the options below to confirm your slot:\n\n` +
+            `🔗 *Stripe (Card):*\n${paymentLink}` +
+            waPayNowBlock(depositAmt) +
+            `\n\n_Your slot is held for 48 hours._`;
           const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
           if (waSent) {
             console.log(`[Deposit] WhatsApp payment link sent to ${waPhone} for ${quote.referenceNo}`);
@@ -5845,8 +5866,8 @@ Respond directly — no JSON, just the message text.`,
       const rawPhone = phoneOverride?.trim() || (quote as any).customerWhatsappPhone;
       if (!rawPhone) return res.status(400).json({ message: "No WhatsApp number — please provide one." });
 
-      // Normalise: strip leading '+', spaces, dashes
-      const phone = rawPhone.replace(/^\+/, "").replace(/[\s\-]/g, "");
+      // Normalise: strip non-digits, add SG country code if bare 8-digit local number
+      const phone = normalizeSGPhone(rawPhone);
 
       const depositAmount = String(quote.depositAmount || "0");
 
@@ -5934,16 +5955,18 @@ Respond directly — no JSON, just the message text.`,
         console.log(`[Deposit] Resent email to ${channelTarget} for ${quote.referenceNo}`);
       } else {
         // No real email — send via WhatsApp
-        const waPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
-        if (!waPhone) {
+        const rawPhone = quote.customerWhatsappPhone;
+        if (!rawPhone) {
           return res.status(400).json({ message: "No real email and no WhatsApp number found for this customer." });
         }
+        const waPhone = normalizeSGPhone(rawPhone);
         const waMsg =
           `💰 *Deposit Invoice — ${quote.referenceNo}*\n\n` +
           `Hi ${quote.customer?.name || "there"}! Your quote has been approved.\n\n` +
-          `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* to confirm your slot:\n\n` +
-          `${paymentLink}\n\n` +
-          `_Your slot is held for 48 hours. Once deposit is received, your booking is confirmed._ ✅`;
+          `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* via one of the options below to confirm your slot:\n\n` +
+          `🔗 *Stripe (Card):*\n${paymentLink}` +
+          waPayNowBlock(depositAmt) +
+          `\n\n_Your slot is held for 48 hours._`;
         const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
         if (!waSent) {
           return res.status(500).json({ message: `WhatsApp send failed to +${waPhone}. Check that the WhatsApp token is valid.` });
