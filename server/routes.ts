@@ -6014,6 +6014,140 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── Admin: Collect deposit on an already-active manual job ────────────────
+  // (Does NOT change quote status — only records depositPaidAt)
+  app.post("/api/admin/quotes/:id/collect-deposit", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    try {
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      if (quote.depositPaidAt) return res.status(409).json({ message: "Deposit already collected" });
+
+      const { note } = z.object({ note: z.string().optional() }).parse(req.body);
+      const depositAmt = (parseFloat(quote.depositAmount || "0") || parseFloat(quote.total || "0") * 0.5).toFixed(2);
+
+      // Only set depositPaidAt — do NOT change status (job is already active)
+      await db.update(quotes).set({
+        depositPaidAt: new Date(),
+        paymentStatus: "deposit_paid",
+        depositAmount: depositAmt,
+      }).where(eq(quotes.id, id));
+
+      await db.insert(jobUpdates).values({
+        quoteId: id,
+        statusChange: quote.status as any,
+        actorType: "admin",
+        note: `Deposit collected $${depositAmt}${note ? ` — ${note}` : ""}`,
+      });
+
+      const updated = await storage.getQuote(id);
+      if (!updated || !updated.customer) return res.json({ ok: true });
+
+      // Notify customer
+      try {
+        await sendEmail({
+          to: updated.customer.email,
+          subject: `[${updated.referenceNo}] Deposit Received — Slot Confirmed!`,
+          html: depositReceivedEmail(updated),
+        });
+      } catch {}
+
+      const trackPhone = updated.customerWhatsappPhone?.replace(/\D/g, "");
+      if (trackPhone) {
+        const msg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation: ${APP_URL}/track/${updated.referenceNo}\n\n_We'll be in touch shortly._ 👷`;
+        await sendWhatsAppMessage(trackPhone, msg).catch(() => {});
+      }
+
+      console.log(`[CollectDeposit] $${depositAmt} collected for ${updated.referenceNo}`);
+      res.json({ ok: true, quote: updated });
+    } catch (err: any) {
+      console.error("[CollectDeposit] error:", err);
+      res.status(500).json({ message: err?.message || "Failed to collect deposit" });
+    }
+  });
+
+  // ── Admin: Mark final payment received (manual / PayNow / cash) ────────────
+  app.post("/api/admin/quotes/:id/collect-final-payment", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    try {
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      if (quote.finalPaidAt) return res.status(409).json({ message: "Final payment already collected" });
+
+      const { note } = z.object({ note: z.string().optional() }).parse(req.body);
+      const overtimeCharge = parseFloat((quote as any).additionalCharge || "0");
+      const baseBalance = parseFloat(quote.finalAmount || "0") || parseFloat(quote.total || "0");
+      const finalAmt = (baseBalance + overtimeCharge).toFixed(2);
+
+      // Mark final paid → auto-closes quote
+      const updated = await storage.updateQuotePayment(id, "final", finalAmt);
+      if (!updated || !updated.customer) return res.json({ ok: true });
+
+      if (note) {
+        await db.insert(jobUpdates).values({
+          quoteId: id,
+          statusChange: "closed" as any,
+          actorType: "admin",
+          note: `Final payment collected — ${note}`,
+        });
+      }
+
+      // ── Build detailed WhatsApp invoice ───────────────────────────────────
+      const items = (updated as any).items || [];
+      const ref   = updated.referenceNo;
+      const name  = updated.customer.name || "there";
+      const subtotal   = parseFloat(updated.subtotal || updated.total || "0");
+      const transport  = parseFloat((updated as any).transportFee || "0");
+      const deposit    = parseFloat(updated.depositAmount || "0");
+      const totalAmt   = parseFloat(updated.total || "0");
+
+      let itemLines = "";
+      if (items.length > 0) {
+        itemLines = items.map((it: any) => {
+          const desc = it.detectedName || it.originalDescription || "Service";
+          const qty  = it.quantity || 1;
+          const price = parseFloat(it.subtotal || it.unitPrice || "0").toFixed(2);
+          return `  • ${desc} × ${qty} — $${price}`;
+        }).join("\n");
+      }
+
+      const invoiceLines = [
+        `🧾 *INVOICE — ${ref}*`,
+        `Hi ${name}! Thank you for your payment.`,
+        ``,
+        ...(itemLines ? [`*Items:*`, itemLines, ``] : []),
+        `Subtotal: $${subtotal.toFixed(2)}`,
+        ...(transport > 0 ? [`Transport: $${transport.toFixed(2)}`] : []),
+        ...(overtimeCharge > 0 ? [`Overtime: $${overtimeCharge.toFixed(2)}`] : []),
+        `─────────────────`,
+        `*Total: $${totalAmt.toFixed(2)}*`,
+        ...(deposit > 0 ? [`Deposit paid: $${deposit.toFixed(2)}`, `Balance paid: $${(totalAmt - deposit).toFixed(2)}`] : []),
+        ``,
+        `✅ *FULLY PAID — CASE CLOSED*`,
+        `Thank you for choosing *TMG Install*! 🙏`,
+      ].join("\n");
+
+      const waPhone = updated.customerWhatsappPhone?.replace(/\D/g, "");
+      if (waPhone) {
+        await sendWhatsAppMessage(waPhone, invoiceLines).catch(() => {});
+        console.log(`[FinalPayment] WA invoice sent to +${waPhone} for ${ref}`);
+      }
+
+      // Also send case-closed email if real email exists
+      await sendCaseClosedNotifications(updated);
+
+      console.log(`[FinalPayment] Manual final collected $${finalAmt} for ${ref}`);
+      res.json({ ok: true, quote: updated });
+    } catch (err: any) {
+      console.error("[FinalPayment] collect-final-payment error:", err);
+      res.status(500).json({ message: err?.message || "Failed to collect final payment" });
+    }
+  });
+
   // ── Admin: App Settings (GET all + bulk save) ─────────────────────────────
   app.get("/api/admin/app-settings", async (_req, res) => {
     try {
