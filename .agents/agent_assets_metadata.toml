@@ -1,5 +1,22 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "LgNFhoWilnNN32MuUqb3l"
+uri = "file://client/public/icon-512.png"
+type = "image"
+title = "tmg T icon clean"
+
+[[generated]]
+id = "wXDtTTNSXw42C_kPEsoDm"
+uri = "file://client/public/icon-192.png"
+type = "image"
+title = "tmg T icon 192"
+
+[[generated]]
+id = "aL-RlBgBLubnLmyvLTTta"
+uri = "file://client/public/apple-touch-icon.png"
+type = "image"
+title = "tmg apple icon clean"
 
 [[outputs]]
 id = "z9UFy2TtkCJgeQIoNx0Xi"

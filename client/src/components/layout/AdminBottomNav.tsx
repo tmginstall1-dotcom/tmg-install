@@ -3,8 +3,11 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Calendar, MessageCircle, Users, MoreHorizontal,
   Receipt, BarChart2, FileDown, Settings, HelpCircle, X,
+  Smartphone, Share, Download,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useInstallPrompt } from "@/hooks/use-install-prompt";
+import { useAdminManifest } from "@/hooks/use-admin-pwa";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
@@ -20,7 +23,10 @@ const PRIMARY_SECONDARY = new Set([
 export function AdminBottomNav() {
   const [location] = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showIOSSteps, setShowIOSSteps] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
+  useAdminManifest();
+  const { install, showIOSGuide, canNativeInstall, installed } = useInstallPrompt();
 
   const { data: allQuotes = [] } = useQuery<any[]>({ queryKey: ["/api/quotes"] });
   const { data: pendingAmendments = [] } = useQuery<any[]>({
@@ -113,6 +119,53 @@ export function AdminBottomNav() {
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* Add to Home Screen prompt */}
+          {!installed && (canNativeInstall || showIOSGuide) && (
+            <div className="px-4 py-3 border-b border-zinc-100 bg-slate-950">
+              {canNativeInstall && (
+                <button
+                  onClick={async () => { await install(); setDrawerOpen(false); }}
+                  data-testid="admin-install-app"
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-white text-slate-950 font-bold rounded-xl text-sm hover:bg-zinc-100 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Add TMG Admin to Home Screen
+                </button>
+              )}
+              {showIOSGuide && (
+                <div>
+                  <button
+                    onClick={() => setShowIOSSteps(v => !v)}
+                    data-testid="admin-ios-install-guide"
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-white text-slate-950 font-bold rounded-xl text-sm hover:bg-zinc-100 transition-colors"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    Add TMG Admin to Home Screen
+                  </button>
+                  {showIOSSteps && (
+                    <div className="mt-2.5 rounded-xl bg-white/10 p-3.5 space-y-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">3 quick steps</p>
+                      {[
+                        { icon: Share, step: "1", text: "Tap the Share icon at the bottom of Safari" },
+                        { icon: null, step: "2", text: 'Scroll down and tap "Add to Home Screen"' },
+                        { icon: null, step: "3", text: 'Tap "Add" — TMG Admin appears on your home screen' },
+                      ].map(({ icon: Icon, step, text }) => (
+                        <div key={step} className="flex items-start gap-2.5">
+                          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 text-white">{step}</span>
+                          <div className="flex items-start gap-1.5 flex-1">
+                            {Icon && <Icon className="w-3.5 h-3.5 text-zinc-400 mt-0.5 shrink-0" />}
+                            <p className="text-xs text-zinc-300 leading-relaxed">{text}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-0 divide-x divide-y divide-zinc-100">
             {secondaryItems.map(({ href, icon: Icon, label, badge, urgent }) => {
               const active = isActive(href, location);
