@@ -39,8 +39,10 @@ const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
 // Normalize Singapore phone numbers to full international format (no '+')
 // e.g. "93826826" → "6593826826", "6593826826" → "6593826826"
-function normalizeSGPhone(raw: string): string {
+function normalizeSGPhone(raw: string | null | undefined): string {
+  if (!raw) return "";
   const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
   if (/^[689]\d{7}$/.test(digits)) return `65${digits}`; // 8-digit SG number
   return digits;
 }
@@ -555,7 +557,7 @@ async function sendCaseClosedNotifications(quote: any): Promise<void> {
     else               console.error(`[Closed] Receipt email FAILED for ${ref}`);
   }
 
-  const waPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+  const waPhone = normalizeSGPhone(quote.customerWhatsappPhone);
   if (!closedViaMail && waPhone) {
     const total    = Number(quote.total || 0).toFixed(2);
     const closeMsg =
@@ -1412,7 +1414,7 @@ export async function registerRoutes(
           });
           console.log(`Stripe webhook: deposit paid for ${quote.referenceNo} (SGD ${amountPaid})`);
           // Send tracker link via WhatsApp
-          const trackPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+          const trackPhone = normalizeSGPhone(quote.customerWhatsappPhone);
           if (trackPhone) {
             const trackMsg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
             await sendWhatsAppMessage(trackPhone, trackMsg).catch(() => {});
@@ -3335,7 +3337,7 @@ ${systemPrompt}` });
         if (reviewUrl) {
           const alreadySent = (quote.updates ?? []).some(u => u.statusChange === "review_requested");
           if (!alreadySent) {
-            const phone = quote.customerWhatsappPhone.replace(/\D/g, "");
+            const phone = normalizeSGPhone(quote.customerWhatsappPhone);
             const msg = `Hi! 👋 Thank you for choosing *TMG Install* — we hope the installation went smoothly!\n\nIf you're happy with the service, we'd truly appreciate a quick Google review — it helps us a lot:\n\n${reviewUrl}\n\n_Thank you for your support!_ 🙏`;
             await sendWhatsAppMessage(phone, msg).catch(() => {});
             await storage.addJobUpdate({
@@ -3371,7 +3373,7 @@ ${systemPrompt}` });
           subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
           html: emailHtml,
         });
-        const trackPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+        const trackPhone = normalizeSGPhone(quote.customerWhatsappPhone);
         if (trackPhone) {
           const trackMsg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
           await sendWhatsAppMessage(trackPhone, trackMsg).catch(() => {});
@@ -3836,7 +3838,7 @@ ${systemPrompt}` });
 
       // WhatsApp fallback for chatbot customers (or if email failed)
       if (!sendOk) {
-        const waPhone = quote.customerWhatsappPhone?.replace(/\D/g, "");
+        const waPhone = normalizeSGPhone(quote.customerWhatsappPhone);
         if (waPhone) {
           const waMsg =
             `💳 *Final Payment Due — ${quote.referenceNo}*\n\n` +
@@ -6021,7 +6023,7 @@ Respond directly — no JSON, just the message text.`,
         console.error("[PayNow] Email failed:", emailErr);
       }
 
-      const trackPhone = updated.customerWhatsappPhone?.replace(/\D/g, "");
+      const trackPhone = normalizeSGPhone(updated.customerWhatsappPhone);
       if (trackPhone) {
         const msg = `✅ *Deposit received via PayNow — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${updated.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
         await sendWhatsAppMessage(trackPhone, msg).catch(() => {});
@@ -6098,7 +6100,7 @@ Respond directly — no JSON, just the message text.`,
         `Thank you for choosing *TMG Install*! 🙏`,
       ].join("\n");
 
-      const waPhone = updated.customerWhatsappPhone?.replace(/\D/g, "");
+      const waPhone = normalizeSGPhone(updated.customerWhatsappPhone);
       if (waPhone) {
         await sendWhatsAppMessage(waPhone, invoiceLines).catch(() => {});
         console.log(`[FinalPayment] WA invoice sent to +${waPhone} for ${ref}`);
