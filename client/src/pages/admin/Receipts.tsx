@@ -785,13 +785,13 @@ export default function AdminReceipts() {
             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Pending</p>
             <p className="text-2xl font-bold text-amber-600 leading-none tabular-nums">{pendingCount}</p>
           </div>
-          <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm">
+          <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm overflow-hidden">
             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Submitted</p>
-            <p className="text-2xl font-bold text-zinc-900 leading-none tabular-nums">S${totalAmount.toFixed(2)}</p>
+            <p className="text-sm font-extrabold text-zinc-900 leading-tight tabular-nums break-all">S${totalAmount.toFixed(2)}</p>
           </div>
-          <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm">
+          <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm overflow-hidden">
             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Approved</p>
-            <p className="text-2xl font-bold text-emerald-600 leading-none tabular-nums">S${approvedAmount.toFixed(2)}</p>
+            <p className="text-sm font-extrabold text-emerald-600 leading-tight tabular-nums break-all">S${approvedAmount.toFixed(2)}</p>
           </div>
         </div>
 
