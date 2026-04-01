@@ -322,18 +322,19 @@ function MessageBubble({
   const noteAuthor = isNote ? msg.sentBy!.replace("note:", "") : null;
 
   const bubbleStyle = isNote
-    ? "bg-amber-50 text-amber-900 border border-amber-200 shadow-sm"
+    ? "bg-[#fffbd5] text-amber-900 border border-amber-200 shadow-sm"
     : isOut
       ? isAdm
-        ? "bg-indigo-600 text-white"
-        : "bg-[#25D366] text-white"
-      : "bg-white text-gray-800 border border-gray-200 shadow-sm";
+        ? "bg-[#d9fdd3] text-gray-900"
+        : "bg-[#d9fdd3] text-gray-900"
+      : "bg-white text-gray-800 shadow-sm";
 
+  // WhatsApp-style: first message in group gets a "tail", grouped ones are slightly smaller radius
   const radius = isOut
-    ? `rounded-2xl ${samePrev ? "rounded-tr-md" : ""} ${sameNext ? "rounded-br-md" : "rounded-br-sm"}`
-    : `rounded-2xl ${samePrev ? "rounded-tl-md" : ""} ${sameNext ? "rounded-bl-md" : "rounded-bl-sm"}`;
+    ? `rounded-[12px] ${samePrev ? "rounded-tr-[4px]" : ""} ${sameNext ? "rounded-br-[4px]" : ""}`
+    : `rounded-[12px] ${samePrev ? "rounded-tl-[4px]" : ""} ${sameNext ? "rounded-bl-[4px]" : ""}`;
 
-  const topGap = samePrev ? "mt-0.5" : "mt-4";
+  const topGap = samePrev ? "mt-[2px]" : "mt-4";
 
   return (
     <>
@@ -373,7 +374,7 @@ function MessageBubble({
             </div>
           )}
           {isAdm && !isNote && !samePrev && (
-            <p className="text-[10px] text-indigo-500 text-right mb-1 mr-1 font-semibold">
+            <p className="text-[10px] text-gray-400 text-right mb-0.5 mr-1 font-semibold">
               {adminLabel || "Admin"}
             </p>
           )}
@@ -474,15 +475,15 @@ function MessageBubble({
           )}
 
           {(!sameNext || showTime) && (
-            <div className={`flex items-center gap-1 mt-1 ${isOut ? "justify-end pr-1" : "pl-1"}`}>
-              <span className="text-[10px] text-gray-400 tabular-nums">
+            <div className={`flex items-center gap-1 mt-0.5 ${isOut ? "justify-end pr-1" : "pl-1"}`}>
+              <span className="text-[10px] text-gray-400/80 tabular-nums">
                 {showTime
                   ? new Date(msg.createdAt).toLocaleString("en-SG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
                   : formatTime(msg.createdAt)}
               </span>
               {isNote && <StickyNote className="w-3 h-3 text-amber-400" />}
-              {isBot && <Bot className="w-3 h-3 text-[#25D366]/70" />}
-              {isAdm && !isNote && <CheckCheck className="w-3 h-3 text-indigo-400" />}
+              {isBot && <Bot className="w-3 h-3 text-gray-400" />}
+              {isAdm && !isNote && <CheckCheck className="w-3 h-3 text-[#53bdeb]" />}
             </div>
           )}
         </div>
@@ -936,14 +937,14 @@ function ChatPanel({
         {/* ═══ RIGHT: Chat Panel ═══════════════════════════════════════════════ */}
         <div className="flex-1 flex flex-col min-w-0 bg-white">
 
-          {/* Header */}
-          <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
-            <div className="flex items-center gap-2 px-3 sm:px-4 py-3">
+          {/* Header — WhatsApp-style dark green */}
+          <div className="flex-shrink-0" style={{ background: "#1f2c34" }}>
+            <div className="flex items-center gap-2.5 px-3 sm:px-4 py-3">
               {/* Back button — mobile only */}
               <button
                 onClick={onClose}
                 data-testid="back-to-list"
-                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-blue-600 transition-all -ml-1 lg:hidden"
+                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/20 text-white transition-all -ml-1 lg:hidden"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -953,18 +954,14 @@ function ChatPanel({
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-bold text-gray-900 truncate">
-                    {selectedConvo?.name || formatPhone(selectedPhone)}
-                  </p>
-                  {selectedConvo?.state && (
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border flex-shrink-0 ${getState(selectedConvo.state).color} ${getState(selectedConvo.state).bg}`}>
-                      {getState(selectedConvo.state).label}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-gray-400 font-mono mt-0.5 truncate">
+                <p className="text-sm font-semibold text-white truncate leading-tight">
+                  {selectedConvo?.name || formatPhone(selectedPhone)}
+                </p>
+                <p className="text-[11px] text-white/60 mt-0.5 truncate leading-tight">
                   {selectedConvo?.name ? formatPhone(selectedPhone) : "WhatsApp"}
+                  {selectedConvo?.state && (
+                    <span className="ml-2 opacity-80">· {getState(selectedConvo.state).label}</span>
+                  )}
                 </p>
               </div>
 
@@ -974,11 +971,11 @@ function ChatPanel({
                   href={`https://wa.me/${selectedPhone}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/20 transition-all sm:w-auto sm:px-2.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
+                  className="w-8 h-8 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white transition-all"
                   data-testid="open-whatsapp"
+                  title="Open in WhatsApp"
                 >
-                  <Phone className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">WA</span>
+                  <Phone className="w-4 h-4" />
                 </a>
 
                 {/* Bot pause / resume toggle */}
@@ -988,7 +985,7 @@ function ChatPanel({
                       onClick={() => resumeBotMutation.mutate()}
                       disabled={resumeBotMutation.isPending}
                       data-testid="resume-bot-btn"
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-amber-500 text-white border border-amber-500 hover:bg-amber-600 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-amber-500 text-white hover:bg-amber-400 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
                       title="Resume bot"
                     >
                       <Bot className="w-3.5 h-3.5" />
@@ -999,11 +996,11 @@ function ChatPanel({
                       onClick={() => pauseBotMutation.mutate()}
                       disabled={pauseBotMutation.isPending}
                       data-testid="pause-bot-btn"
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
+                      className="w-8 h-8 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
                       title="Take over from bot"
                     >
                       <BotOff className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Take Over</span>
+                      <span className="hidden sm:inline text-white/70">Take Over</span>
                     </button>
                   )
                 )}
@@ -1014,7 +1011,7 @@ function ChatPanel({
                     onClick={() => markDoneMutation.mutate()}
                     disabled={markDoneMutation.isPending}
                     data-testid="mark-done-btn"
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-[#25D366] text-white hover:bg-[#1db954] transition-all disabled:opacity-60 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 sm:rounded-xl sm:gap-1.5 sm:text-xs sm:font-semibold"
                     title="Mark done — resume bot and mark read"
                   >
                     <CheckCheck className="w-3.5 h-3.5" />
@@ -1025,7 +1022,7 @@ function ChatPanel({
                 {/* Mobile: show customer info drawer */}
                 <button
                   onClick={() => setShowMobileInfo(v => !v)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 border border-gray-200 text-gray-500 hover:bg-gray-100 transition-all lg:hidden"
+                  className="w-8 h-8 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white transition-all lg:hidden"
                   title="Customer info"
                   data-testid="mobile-info-btn"
                 >
@@ -1035,8 +1032,8 @@ function ChatPanel({
                 {/* Search in thread */}
                 <button
                   onClick={() => { setShowSearch(v => !v); setSearchQuery(""); setTimeout(() => searchInputRef.current?.focus(), 80); }}
-                  className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all ${
-                    showSearch ? "bg-violet-600 text-white border-violet-600" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${
+                    showSearch ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
                   }`}
                   title="Search in conversation"
                   data-testid="btn-search-thread"
@@ -1048,8 +1045,8 @@ function ChatPanel({
                 {threadLoaded && (
                   <button
                     onClick={() => setShowInfo(v => !v)}
-                    className={`hidden lg:flex px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                      showInfo ? "bg-gray-900 text-white border-gray-900" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                    className={`hidden lg:flex px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                      showInfo ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
                     }`}
                     data-testid="toggle-info"
                   >
@@ -1059,27 +1056,27 @@ function ChatPanel({
               </div>
             </div>
 
-            {/* Search bar */}
+            {/* Search bar — dark themed to match header */}
             {showSearch && (
-              <div className="flex items-center gap-2 px-3 pb-2.5 pt-1">
-                <div className="flex-1 flex items-center gap-2 rounded-xl bg-gray-100 px-3 py-2">
-                  <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              <div className="flex items-center gap-2 px-3 pb-3 pt-1" style={{ background: "#1f2c34" }}>
+                <div className="flex-1 flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "#2a3942" }}>
+                  <Search className="w-3.5 h-3.5 text-white/40 flex-shrink-0" />
                   <input
                     ref={searchInputRef}
                     type="text"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder="Search messages…"
-                    className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
+                    className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 outline-none"
                     data-testid="search-thread-input"
                   />
                   {searchQuery && (
-                    <button onClick={() => setSearchQuery("")} className="text-gray-400 hover:text-gray-600">
+                    <button onClick={() => setSearchQuery("")} className="text-white/40 hover:text-white/80">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
-                <button onClick={() => { setShowSearch(false); setSearchQuery(""); }} className="text-xs font-semibold text-violet-600">
+                <button onClick={() => { setShowSearch(false); setSearchQuery(""); }} className="text-xs font-semibold text-[#25D366]">
                   Cancel
                 </button>
               </div>
@@ -1547,6 +1544,9 @@ function ChatPanel({
 }
 
 // ── SwipeableConvoRow ──────────────────────────────────────────────────────────
+// Uses native addEventListener with { passive: false } so we can call
+// e.preventDefault() on horizontal swipes — this stops iOS scroll from
+// stealing the gesture, which is the root cause of the swipe not sticking.
 
 function SwipeableConvoRow({
   phone,
@@ -1564,104 +1564,123 @@ function SwipeableConvoRow({
   children: React.ReactNode;
 }) {
   const DELETE_W = 80;
-  const [offset, setOffset] = useState(0);
-  const [isOpen, setIsOpen] = useState(false);
-  const [animated, setAnimated] = useState(false);
-  const startXRef = useRef(0);
-  const movedRef = useRef(false);
-  const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
+  const slideRef = useRef<HTMLDivElement>(null);
+  // Use a single mutable ref for all gesture state to avoid stale-closure issues
+  const g = useRef({ startX: 0, startY: 0, open: false, offset: 0, moved: false, dirLocked: false });
+  const [renderOffset, setRenderOffset] = useState(0);
+  const [animated, setAnimated] = useState(false);
+  const isOpenRef = useRef(false);
 
-  const clearAutoClose = () => {
-    if (autoCloseRef.current) { clearTimeout(autoCloseRef.current); autoCloseRef.current = null; }
-  };
-
-  const close = () => { setAnimated(true); setOffset(0); setIsOpen(false); clearAutoClose(); };
-
-  const snapTo = (x: number) => {
+  const animateTo = (x: number) => {
     setAnimated(true);
-    setOffset(x);
-    setIsOpen(x < 0);
-    if (x < 0) {
-      clearAutoClose();
-      autoCloseRef.current = setTimeout(close, 3000);
-    } else {
-      clearAutoClose();
-    }
+    setRenderOffset(x);
+    isOpenRef.current = x < 0;
+    g.current.open = x < 0;
+    g.current.offset = x;
   };
 
-  useEffect(() => () => clearAutoClose(), []);
+  const close = () => animateTo(0);
+  const open  = () => animateTo(-DELETE_W);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    startXRef.current = e.touches[0].clientX;
-    movedRef.current = false;
-    setAnimated(false);
-    clearAutoClose();
-  };
+  // Attach non-passive touch listeners to the sliding element
+  useEffect(() => {
+    const el = slideRef.current;
+    if (!el) return;
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const dx = e.touches[0].clientX - startXRef.current;
-    if (Math.abs(dx) > 5) movedRef.current = true;
-    const newOffset = isOpen
-      ? Math.min(0, Math.max(-DELETE_W, -DELETE_W + dx))
-      : Math.max(-DELETE_W, Math.min(0, dx));
-    setOffset(newOffset);
-  };
+    const onStart = (e: TouchEvent) => {
+      g.current.startX   = e.touches[0].clientX;
+      g.current.startY   = e.touches[0].clientY;
+      g.current.moved    = false;
+      g.current.dirLocked = false;
+      setAnimated(false);
+    };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    const dx = e.changedTouches[0].clientX - startXRef.current;
-    if (!movedRef.current) {
-      if (isOpen) close();
-      else onOpen();
-      return;
-    }
-    if (isOpen) {
-      if (dx > 20) close();
-      else snapTo(-DELETE_W);
-    } else {
-      if (dx < -40) snapTo(-DELETE_W);
-      else close();
-    }
-  };
+    const onMove = (e: TouchEvent) => {
+      const dx = e.touches[0].clientX - g.current.startX;
+      const dy = e.touches[0].clientY - g.current.startY;
+
+      if (!g.current.dirLocked) {
+        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return; // too small to determine
+        g.current.dirLocked = true;
+        if (Math.abs(dy) > Math.abs(dx)) return; // vertical — let scroll win
+      }
+      // Horizontal swipe: prevent the list from scrolling vertically
+      e.preventDefault();
+      g.current.moved = true;
+      const base      = g.current.open ? -DELETE_W : 0;
+      const newOffset = Math.min(0, Math.max(-DELETE_W, base + dx));
+      g.current.offset = newOffset;
+      setRenderOffset(newOffset);
+    };
+
+    const onEnd = (e: TouchEvent) => {
+      const dx = e.changedTouches[0].clientX - g.current.startX;
+      if (!g.current.moved) {
+        // It was a tap, not a swipe
+        if (g.current.open) close();
+        else onOpen();
+        return;
+      }
+      if (g.current.open) {
+        dx > 30 ? close() : open();
+      } else {
+        dx < -40 ? open() : close();
+      }
+    };
+
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove",  onMove,  { passive: false }); // ← key: non-passive
+    el.addEventListener("touchend",   onEnd,   { passive: true  });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove",  onMove);
+      el.removeEventListener("touchend",   onEnd);
+    };
+  // onOpen is stable — defined inline in the map, but re-attaching on each render is fine
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Close when another conversation is selected or when tapping outside
+  useEffect(() => {
+    if (!isSelected && isOpenRef.current) close();
+  }, [isSelected]);
 
   useEffect(() => {
-    if (!isSelected && isOpen) close();
-  }, [isSelected, isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleOutside = (e: TouchEvent | MouseEvent) => {
+    if (!isOpenRef.current) return;
+    const onOutside = (e: TouchEvent | MouseEvent) => {
       if (rowRef.current && !rowRef.current.contains(e.target as Node)) close();
     };
-    document.addEventListener("touchstart", handleOutside, { passive: true });
-    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", onOutside, { passive: true });
+    document.addEventListener("mousedown",  onOutside);
     return () => {
-      document.removeEventListener("touchstart", handleOutside);
-      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", onOutside);
+      document.removeEventListener("mousedown",  onOutside);
     };
-  }, [isOpen]);
+  }, [renderOffset]); // re-subscribe when open state changes via renderOffset
 
   return (
     <div ref={rowRef} className="relative overflow-hidden border-b border-zinc-100">
-      <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-red-500">
+      {/* Red action — sits behind the sliding row */}
+      <div className="absolute inset-y-0 right-0 w-[80px] flex items-center justify-center bg-red-500">
         <button
-          onTouchEnd={(e) => { e.stopPropagation(); clearAutoClose(); onDelete(); }}
-          onClick={(e) => { e.stopPropagation(); clearAutoClose(); onDelete(); }}
-          className="flex flex-col items-center justify-center gap-0.5 text-white w-full h-full active:bg-red-600"
+          onTouchEnd={e => { e.stopPropagation(); onDelete(); }}
+          onClick={e => { e.stopPropagation(); onDelete(); }}
+          className="flex flex-col items-center justify-center gap-1 text-white w-full h-full active:bg-red-600 transition-colors"
           data-testid={`delete-convo-${phone}`}
         >
-          <Trash2 className="w-5 h-5" />
-          <span className="text-[10px] font-semibold">Delete</span>
+          <Trash2 className="w-[22px] h-[22px]" />
+          <span className="text-[11px] font-bold tracking-wide">Delete</span>
         </button>
       </div>
+      {/* Sliding foreground */}
       <div
+        ref={slideRef}
         style={{
-          transform: `translateX(${offset}px)`,
-          transition: animated ? "transform 0.2s ease" : "none",
+          transform: `translateX(${renderOffset}px)`,
+          transition: animated ? "transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)" : "none",
+          willChange: "transform",
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
         className={`relative z-10 bg-white ${className ?? ""}`}
       >
         {children}
@@ -1861,57 +1880,59 @@ export default function AdminConversations() {
 
       {/* ═══ Conversation List — full width on mobile when no chat, fixed width on desktop ═══ */}
       <div className={`flex flex-col flex-shrink-0 border-r border-gray-200 bg-white w-full lg:w-[340px] xl:w-[380px] ${selectedPhone ? "hidden lg:flex" : "flex"}`}>
-        {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-zinc-200">
-          <div className="flex items-center justify-between mb-3">
+        {/* Header — dark green like WhatsApp sidebar */}
+        <div style={{ background: "#1f2c34" }}>
+          <div className="flex items-center justify-between px-4 pt-4 pb-3">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-blue-100 flex items-center justify-center">
-                <MessageCircle className="w-3.5 h-3.5 text-blue-600" />
-              </div>
-              <span className="text-sm font-semibold text-zinc-900">WhatsApp</span>
+              <span className="text-[16px] font-semibold text-white">WhatsApp</span>
               {totalUnread > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold min-w-[20px] text-center">
+                <span className="px-2 py-0.5 rounded-full bg-[#25D366] text-white text-[10px] font-bold min-w-[20px] text-center">
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] })}
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
+                data-testid="refresh-conversations"
+                title="Refresh"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => setShowNewChat(true)}
                 data-testid="new-chat-btn"
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#25D366] text-white text-xs font-semibold hover:bg-[#1db954] transition-all"
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
+                title="New chat"
               >
-                <Plus className="w-3.5 h-3.5" /> New Chat
-              </button>
-              <button
-                onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] })}
-                className="w-7 h-7 rounded-lg hover:bg-zinc-100 flex items-center justify-center text-zinc-400 hover:text-zinc-700 transition-all"
-                data-testid="refresh-conversations"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <Plus className="w-4.5 h-4.5 w-[18px] h-[18px]" />
               </button>
             </div>
           </div>
 
-          {/* Search */}
-          <div className="relative mb-2.5">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+          {/* Search — dark styled */}
+          <div className="relative mx-3 mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search conversations…"
-              className="h-9 w-full bg-white border border-zinc-300 rounded-lg text-sm text-zinc-900 placeholder:text-zinc-400 pl-8 pr-7 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all"
+              placeholder="Search or start new chat"
+              className="h-9 w-full rounded-lg text-sm text-white placeholder:text-white/40 pl-9 pr-7 focus:outline-none transition-all"
+              style={{ background: "#2a3942" }}
               data-testid="search-conversations"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80">
                 <X className="w-3 h-3" />
               </button>
             )}
           </div>
+        </div>
 
-          {/* Filter Tabs */}
+        {/* Filter Tabs */}
+        <div className="px-3 py-2 border-b border-zinc-100">
           <div className="flex gap-1 bg-zinc-100 rounded-lg p-1">
             {(["all", "unread", "active", "escalation", "submitted"] as const).map(f => (
               <button
@@ -1980,50 +2001,52 @@ export default function AdminConversations() {
                 <button
                   onClick={() => openConvo(convo.phone)}
                   data-testid={`convo-${convo.phone}`}
-                  className={`w-full text-left px-4 py-3 hover:bg-zinc-50 cursor-pointer transition-colors ${
-                    selectedPhone === convo.phone ? "hover:bg-blue-50" :
-                    isPaused ? "hover:bg-red-50" : ""
+                  className={`w-full text-left px-4 py-3.5 cursor-pointer transition-colors ${
+                    selectedPhone === convo.phone ? "bg-[#e9f5fb] hover:bg-[#e0eef8]" :
+                    isPaused ? "hover:bg-red-50/60" : "hover:bg-[#f5f5f5]"
                   }`}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="relative flex-shrink-0 mt-0.5">
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-shrink-0">
                       <Avatar name={convo.name} phone={convo.phone} size="md" />
                       {isPaused
-                        ? <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-red-500" />
-                        : <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${sc.dot}`} />
+                        ? <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white bg-red-500" />
+                        : <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${sc.dot}`} />
                       }
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <span className={`text-sm leading-tight truncate ${hasUnread ? "font-bold text-zinc-900" : "font-medium text-zinc-800"}`}>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className={`text-[14.5px] leading-tight truncate ${hasUnread ? "font-semibold text-zinc-900" : "font-medium text-zinc-700"}`}>
                           {convo.name || formatPhone(convo.phone)}
                         </span>
-                        <span className="text-[10px] text-zinc-400 flex-shrink-0 tabular-nums">
+                        <span className={`text-[11px] flex-shrink-0 tabular-nums ${hasUnread ? "text-[#25D366] font-semibold" : "text-zinc-400"}`}>
                           {relativeTime(convo.lastAt)}
                         </span>
                       </div>
-                      {convo.name && (
-                        <p className="text-[11px] text-zinc-400 mb-0.5 font-mono">{formatPhone(convo.phone)}</p>
-                      )}
-                      <p className={`text-xs truncate leading-snug ${hasUnread ? "text-zinc-700 font-medium" : "text-zinc-400"}`}>
-                        {convo.lastMessage ? stripWhatsAppMarkdown(convo.lastMessage) : ""}
-                      </p>
-                      <div className="flex items-center justify-between mt-1.5">
-                        {isPaused ? (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border text-red-700 bg-red-50 border-red-200 flex items-center gap-1">
-                            <AlertCircle className="w-2.5 h-2.5" /> Needs Attention
-                          </span>
-                        ) : (
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${sc.color} ${sc.bg}`}>
-                            {sc.label}
-                          </span>
-                        )}
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <p className={`text-[13px] truncate leading-snug flex-1 min-w-0 ${hasUnread ? "text-zinc-700 font-medium" : "text-zinc-400"}`}>
+                          {convo.lastMessage ? stripWhatsAppMarkdown(convo.lastMessage) : (convo.name ? formatPhone(convo.phone) : "WhatsApp")}
+                        </p>
                         {hasUnread && (
-                          <span className="min-w-[20px] h-5 px-1 rounded-full bg-blue-600 text-white text-[10px] font-semibold flex items-center justify-center">
+                          <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#25D366] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">
                             {convo.unreadCount > 9 ? "9+" : convo.unreadCount}
                           </span>
                         )}
                       </div>
+                      {(isPaused || selectedPhone === convo.phone) && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {isPaused && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md text-red-700 bg-red-50 border border-red-200 flex items-center gap-1">
+                              <AlertCircle className="w-2.5 h-2.5" /> Needs Attention
+                            </span>
+                          )}
+                          {!isPaused && (
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${sc.color} ${sc.bg}`}>
+                              {sc.label}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </button>
