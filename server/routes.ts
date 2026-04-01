@@ -32,7 +32,7 @@ const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 import { calcTransportFee, calcOvertimeCharge, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
-import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable } from "@shared/schema";
+import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable } from "@shared/schema";
 import { eq, and, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
@@ -6871,6 +6871,21 @@ Respond directly — no JSON, just the message text.`,
   });
 
   // ── Admin: reset (clear) a conversation session ────────────────────────────────
+  // ── Admin: delete entire conversation (messages + session) ──────────────────
+  app.delete("/api/admin/whatsapp/conversations/:phone", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const phone = req.params.phone;
+    try {
+      await db.delete(whatsappMessagesTable).where(eq(whatsappMessagesTable.phone, phone));
+      await db.delete(whatsappSessionsTable).where(eq(whatsappSessionsTable.phone, phone));
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e?.message || "Delete failed" });
+    }
+  });
+
   app.delete("/api/admin/whatsapp/conversations/:phone/session", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
     const user = await storage.getUserById(req.session.userId);

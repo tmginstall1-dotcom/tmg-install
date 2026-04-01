@@ -5,7 +5,7 @@ import {
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
   CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
   TriangleAlert, AlertCircle, ChevronDown, Paperclip, Smile,
-  Download, Music, File, StickyNote, Plus, RotateCcw, ListChecks,
+  Download, Music, File, StickyNote, Plus, RotateCcw, ListChecks, Trash2,
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
@@ -1458,6 +1458,104 @@ function ChatPanel({
   );
 }
 
+// ── SwipeableConvoRow ──────────────────────────────────────────────────────────
+
+function SwipeableConvoRow({
+  phone,
+  onOpen,
+  onDelete,
+  isSelected,
+  className,
+  children,
+}: {
+  phone: string;
+  onOpen: () => void;
+  onDelete: () => void;
+  isSelected: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const DELETE_W = 80;
+  const [offset, setOffset] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [animated, setAnimated] = useState(false);
+  const startXRef = useRef(0);
+  const movedRef = useRef(false);
+
+  const snapTo = (x: number) => {
+    setAnimated(true);
+    setOffset(x);
+    setIsOpen(x < 0);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startXRef.current = e.touches[0].clientX;
+    movedRef.current = false;
+    setAnimated(false);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const dx = e.touches[0].clientX - startXRef.current;
+    if (Math.abs(dx) > 5) movedRef.current = true;
+    const newOffset = isOpen
+      ? Math.min(0, Math.max(-DELETE_W, -DELETE_W + dx))
+      : Math.max(-DELETE_W, Math.min(0, dx));
+    setOffset(newOffset);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - startXRef.current;
+    if (!movedRef.current) {
+      if (isOpen) snapTo(0);
+      else onOpen();
+      return;
+    }
+    if (isOpen) {
+      if (dx > 20) snapTo(0);
+      else snapTo(-DELETE_W);
+    } else {
+      if (dx < -40) snapTo(-DELETE_W);
+      else snapTo(0);
+    }
+  };
+
+  useEffect(() => {
+    if (!isSelected && isOpen) {
+      setAnimated(true);
+      setOffset(0);
+      setIsOpen(false);
+    }
+  }, [isSelected, isOpen]);
+
+  return (
+    <div className="relative overflow-hidden border-b border-zinc-100">
+      <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-red-500">
+        <button
+          onTouchEnd={(e) => { e.stopPropagation(); onDelete(); }}
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="flex flex-col items-center justify-center gap-0.5 text-white w-full h-full active:bg-red-600"
+          data-testid={`delete-convo-${phone}`}
+        >
+          <Trash2 className="w-5 h-5" />
+          <span className="text-[10px] font-semibold">Delete</span>
+        </button>
+      </div>
+      <div
+        style={{
+          transform: `translateX(${offset}px)`,
+          transition: animated ? "transform 0.2s ease" : "none",
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className={`relative z-10 bg-white ${className ?? ""}`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function AdminConversations() {
@@ -1469,6 +1567,16 @@ export default function AdminConversations() {
   const [newChatMessage, setNewChatMessage] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const deleteConvoMutation = useMutation({
+    mutationFn: (phone: string) => apiRequest("DELETE", `/api/admin/whatsapp/conversations/${phone}`),
+    onSuccess: (_data, phone) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whatsapp/conversations"] });
+      if (selectedPhone === phone) setSelectedPhone(null);
+      toast({ title: "Conversation deleted" });
+    },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
 
   /* Override the dark landing-page gradient on <html> so any layout gaps are white */
   useEffect(() => {
@@ -1720,57 +1828,68 @@ export default function AdminConversations() {
             const hasUnread = convo.unreadCount > 0;
             const isPaused = convo.botPaused;
             return (
-              <button
+              <SwipeableConvoRow
                 key={convo.phone}
-                onClick={() => openConvo(convo.phone)}
-                data-testid={`convo-${convo.phone}`}
-                className={`w-full text-left px-4 py-3 border-b border-zinc-100 hover:bg-zinc-50 cursor-pointer transition-colors ${
-                  selectedPhone === convo.phone ? "bg-blue-50 hover:bg-blue-50" :
-                  isPaused ? "bg-red-50/40 hover:bg-red-50" : ""
-                }`}
+                phone={convo.phone}
+                onOpen={() => openConvo(convo.phone)}
+                onDelete={() => deleteConvoMutation.mutate(convo.phone)}
+                isSelected={selectedPhone === convo.phone}
+                className={
+                  selectedPhone === convo.phone ? "bg-blue-50" :
+                  isPaused ? "bg-red-50/40" : ""
+                }
               >
-                <div className="flex items-start gap-3">
-                  <div className="relative flex-shrink-0 mt-0.5">
-                    <Avatar name={convo.name} phone={convo.phone} size="md" />
-                    {isPaused
-                      ? <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-red-500" />
-                      : <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${sc.dot}`} />
-                    }
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <span className={`text-sm leading-tight truncate ${hasUnread ? "font-bold text-zinc-900" : "font-medium text-zinc-800"}`}>
-                        {convo.name || formatPhone(convo.phone)}
-                      </span>
-                      <span className="text-[10px] text-zinc-400 flex-shrink-0 tabular-nums">
-                        {relativeTime(convo.lastAt)}
-                      </span>
+                <button
+                  onClick={() => openConvo(convo.phone)}
+                  data-testid={`convo-${convo.phone}`}
+                  className={`w-full text-left px-4 py-3 hover:bg-zinc-50 cursor-pointer transition-colors ${
+                    selectedPhone === convo.phone ? "hover:bg-blue-50" :
+                    isPaused ? "hover:bg-red-50" : ""
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="relative flex-shrink-0 mt-0.5">
+                      <Avatar name={convo.name} phone={convo.phone} size="md" />
+                      {isPaused
+                        ? <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-red-500" />
+                        : <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${sc.dot}`} />
+                      }
                     </div>
-                    {convo.name && (
-                      <p className="text-[11px] text-zinc-400 mb-0.5 font-mono">{formatPhone(convo.phone)}</p>
-                    )}
-                    <p className={`text-xs truncate leading-snug ${hasUnread ? "text-zinc-700 font-medium" : "text-zinc-400"}`}>
-                      {convo.lastMessage ? stripWhatsAppMarkdown(convo.lastMessage) : ""}
-                    </p>
-                    <div className="flex items-center justify-between mt-1.5">
-                      {isPaused ? (
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border text-red-700 bg-red-50 border-red-200 flex items-center gap-1">
-                          <AlertCircle className="w-2.5 h-2.5" /> Needs Attention
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <span className={`text-sm leading-tight truncate ${hasUnread ? "font-bold text-zinc-900" : "font-medium text-zinc-800"}`}>
+                          {convo.name || formatPhone(convo.phone)}
                         </span>
-                      ) : (
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${sc.color} ${sc.bg}`}>
-                          {sc.label}
+                        <span className="text-[10px] text-zinc-400 flex-shrink-0 tabular-nums">
+                          {relativeTime(convo.lastAt)}
                         </span>
+                      </div>
+                      {convo.name && (
+                        <p className="text-[11px] text-zinc-400 mb-0.5 font-mono">{formatPhone(convo.phone)}</p>
                       )}
-                      {hasUnread && (
-                        <span className="min-w-[20px] h-5 px-1 rounded-full bg-blue-600 text-white text-[10px] font-semibold flex items-center justify-center">
-                          {convo.unreadCount > 9 ? "9+" : convo.unreadCount}
-                        </span>
-                      )}
+                      <p className={`text-xs truncate leading-snug ${hasUnread ? "text-zinc-700 font-medium" : "text-zinc-400"}`}>
+                        {convo.lastMessage ? stripWhatsAppMarkdown(convo.lastMessage) : ""}
+                      </p>
+                      <div className="flex items-center justify-between mt-1.5">
+                        {isPaused ? (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border text-red-700 bg-red-50 border-red-200 flex items-center gap-1">
+                            <AlertCircle className="w-2.5 h-2.5" /> Needs Attention
+                          </span>
+                        ) : (
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${sc.color} ${sc.bg}`}>
+                            {sc.label}
+                          </span>
+                        )}
+                        {hasUnread && (
+                          <span className="min-w-[20px] h-5 px-1 rounded-full bg-blue-600 text-white text-[10px] font-semibold flex items-center justify-center">
+                            {convo.unreadCount > 9 ? "9+" : convo.unreadCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </button>
+                </button>
+              </SwipeableConvoRow>
             );
           })}
         </div>
