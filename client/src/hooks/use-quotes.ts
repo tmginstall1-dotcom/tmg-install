@@ -54,8 +54,9 @@ export function useQuote(id: string | number) {
     enabled: !!id,
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (!data || TERMINAL_STATUSES.includes(data.status)) return false;
-      if (PAYMENT_PENDING_STATUSES.includes(data.status)) return 5_000;
+      // Only stop polling when data is confirmed terminal — keep retrying if null/loading
+      if (data && TERMINAL_STATUSES.includes(data.status)) return false;
+      if (data && PAYMENT_PENDING_STATUSES.includes(data.status)) return 5_000;
       return 15_000;
     },
   });

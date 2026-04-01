@@ -69,7 +69,7 @@ function getStepIndex(status: string) {
 
 export default function JobDetail() {
   const { id } = useParams();
-  const { data: job, isLoading } = useQuote(id!);
+  const { data: job, isLoading, isFetching, refetch } = useQuote(id!);
   const arrivedMutation = useStaffArrived();
   const completedMutation = useStaffCompleted();
   const { toast } = useToast();
@@ -129,10 +129,21 @@ export default function JobDetail() {
   );
   if (!job) return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
+      <div className="text-center px-6">
         <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-2" />
-        <p className="font-bold">Job not found</p>
-        <Link href="/staff" className="text-primary text-sm underline mt-2 inline-block">← Back to Home</Link>
+        <p className="font-bold text-slate-800 mb-1">Job not found</p>
+        <p className="text-sm text-slate-500 mb-4">This job may still be loading. Try refreshing.</p>
+        <button
+          onClick={() => { queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id'] }); refetch(); }}
+          disabled={isFetching}
+          className="inline-flex items-center gap-2 bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg mb-4 disabled:opacity-60"
+          data-testid="button-retry-job"
+        >
+          {isFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          {isFetching ? "Retrying…" : "Retry"}
+        </button>
+        <br />
+        <Link href="/staff" className="text-primary text-sm underline">← Back to Home</Link>
       </div>
     </div>
   );
