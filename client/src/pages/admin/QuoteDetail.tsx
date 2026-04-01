@@ -124,25 +124,7 @@ export default function AdminQuoteDetail() {
     },
   });
 
-  // Collect deposit for jobs already in progress (no status change)
-  const [showCollectDepositConfirm, setShowCollectDepositConfirm] = useState(false);
-  const [collectDepositNote, setCollectDepositNote] = useState("");
-  const collectDeposit = useMutation({
-    mutationFn: () =>
-      apiRequest("POST", `/api/admin/quotes/${id}/collect-deposit`, { note: collectDepositNote.trim() || undefined }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
-      setShowCollectDepositConfirm(false);
-      setCollectDepositNote("");
-      toast({ title: "✅ Deposit Collected", description: "Deposit recorded. Customer notified." });
-    },
-    onError: (err: any) => {
-      const msg = err?.message || "Could not record deposit.";
-      toast({ title: "Error", description: msg, variant: "destructive" });
-    },
-  });
-
-  // Collect final payment (cash / PayNow) + sends WA invoice
+  // Mark final PayNow payment received — confirms customer paid via PayNow/Stripe, closes case, sends WA invoice
   const [showFinalPayConfirm, setShowFinalPayConfirm] = useState(false);
   const [finalPayNote, setFinalPayNote] = useState("");
   const collectFinalPayment = useMutation({
@@ -152,10 +134,10 @@ export default function AdminQuoteDetail() {
       queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
       setShowFinalPayConfirm(false);
       setFinalPayNote("");
-      toast({ title: "✅ Final Payment Collected", description: "Case closed. Invoice sent to customer via WhatsApp." });
+      toast({ title: "✅ Final Payment Confirmed", description: "Case closed. Invoice sent to customer via WhatsApp." });
     },
     onError: (err: any) => {
-      const msg = err?.message || "Could not record final payment.";
+      const msg = err?.message || "Could not confirm final payment.";
       toast({ title: "Error", description: msg, variant: "destructive" });
     },
   });
@@ -1025,30 +1007,32 @@ export default function AdminQuoteDetail() {
                       </div>
                     )}
 
-                    {/* Deposit collection for manual jobs (no status change) */}
+                    {/* Request deposit for manual jobs that skipped the normal approval flow */}
                     {!quote.depositPaidAt && (
                       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
-                        <p className="text-xs font-semibold text-amber-800">Deposit not yet collected</p>
+                        <p className="text-xs font-semibold text-amber-800">Deposit not yet received</p>
                         <button
-                          onClick={() => setShowCollectDepositConfirm(true)}
-                          data-testid="button-collect-deposit"
-                          className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors">
-                          <QrCode className="w-4 h-4" /> Collect Deposit (PayNow / Cash)
+                          onClick={() => resendDepositEmail.mutate()}
+                          disabled={resendDepositEmail.isPending}
+                          data-testid="button-send-deposit-request"
+                          className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                          <Send className="w-4 h-4" />
+                          {resendDepositEmail.isPending ? "Sending…" : "Send Deposit Request (Stripe / PayNow)"}
+                        </button>
+                        <button
+                          onClick={() => setShowPayNowConfirm(true)}
+                          data-testid="button-mark-deposit-received"
+                          className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-amber-300 text-amber-800 hover:bg-amber-50 text-sm font-medium transition-colors">
+                          <QrCode className="w-4 h-4" /> Mark Deposit Received (PayNow)
                         </button>
                       </div>
                     )}
 
-                    <div className="pt-2 border-t border-zinc-100 space-y-2">
+                    <div className="pt-2 border-t border-zinc-100">
                       <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
                         className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
                         <CheckCircle2 className="w-4 h-4" />
-                        {requestFinalPayment.isPending ? "Sending…" : "Mark Done & Request Final"}
-                      </button>
-                      <button
-                        onClick={() => setShowFinalPayConfirm(true)}
-                        data-testid="button-collect-final-direct"
-                        className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors">
-                        <Banknote className="w-4 h-4" /> Mark Done & Collect Now (Cash/PayNow)
+                        {requestFinalPayment.isPending ? "Sending…" : "Mark Done & Request Final Payment"}
                       </button>
                     </div>
                   </div>
@@ -1062,30 +1046,16 @@ export default function AdminQuoteDetail() {
                     </div>
                     <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
                       className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                        <CheckCircle2 className="w-4 h-4" /> Mark Done & Request Final
-                    </button>
-                    <button
-                      onClick={() => setShowFinalPayConfirm(true)}
-                      data-testid="button-collect-final-inprogress"
-                      className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors">
-                      <Banknote className="w-4 h-4" /> Mark Done & Collect Now (Cash/PayNow)
+                        <CheckCircle2 className="w-4 h-4" /> Mark Done & Request Final Payment
                     </button>
                   </div>
                 )}
 
                 {quote.status === 'completed' && (
-                  <div className="space-y-2">
-                    <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
-                      className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                      <DollarSign className="w-4 h-4" /> Request Final Payment (Email/WA)
-                    </button>
-                    <button
-                      onClick={() => setShowFinalPayConfirm(true)}
-                      data-testid="button-collect-final-completed"
-                      className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors">
-                      <Banknote className="w-4 h-4" /> Collect Now (Cash / PayNow)
-                    </button>
-                  </div>
+                  <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
+                    className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                    <DollarSign className="w-4 h-4" /> Request Final Payment (Stripe / PayNow)
+                  </button>
                 )}
 
                 {quote.status === 'final_payment_requested' && (
@@ -1098,11 +1068,11 @@ export default function AdminQuoteDetail() {
                       onClick={() => setShowFinalPayConfirm(true)}
                       data-testid="button-mark-final-paid"
                       className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors">
-                      <Banknote className="w-4 h-4" /> Mark Final Payment Received
+                      <QrCode className="w-4 h-4" /> Mark PayNow Payment Received
                     </button>
                     <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
                       className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors disabled:opacity-50">
-                      <Mail className="w-4 h-4" /> Resend Payment Email
+                      <Mail className="w-4 h-4" /> Resend Payment Request
                     </button>
                   </div>
                 )}
