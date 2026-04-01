@@ -1,11 +1,12 @@
-// v2 — service worker is disabled for the native Capacitor app (TMGStaffApp
+// v3 — service worker is disabled for the native Capacitor app (TMGStaffApp
 // user agent). It runs only in normal browsers for PWA offline support.
-// The CACHE key is bumped to force existing clients to update to this version.
+// Cache key bumped to v3; now precaches /admin for offline-first admin PWA.
 
-const CACHE = 'tmg-staff-v2';
+const CACHE = 'tmg-v3';
 
 const PRECACHE = [
   '/',
+  '/admin',
   '/staff/login',
   '/staff',
 ];
