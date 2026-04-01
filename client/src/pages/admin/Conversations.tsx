@@ -5,7 +5,7 @@ import {
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
   CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
   TriangleAlert, AlertCircle, ChevronDown, Paperclip, Smile,
-  Download, Music, File, StickyNote, Plus, RotateCcw, ListChecks, Trash2,
+  Download, Music, File, StickyNote, Plus, RotateCcw, ListChecks, Trash2, Copy,
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
@@ -268,6 +268,25 @@ function MessageBubble({
   selectedPhone: string; selectedConvoName: string | null;
 }) {
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showTime, setShowTime] = useState(false);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast } = useToast();
+
+  const handleBubbleTouchStart = () => {
+    holdTimerRef.current = setTimeout(() => {
+      const text = msg.body?.startsWith("http") ? null : msg.body;
+      if (!text) return;
+      navigator.clipboard?.writeText(text).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }).catch(() => toast({ title: "Copy not supported in this browser" }));
+    }, 600);
+  };
+
+  const handleBubbleTouchEnd = () => {
+    if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
+  };
 
   const isImage    = msg.mediaType?.startsWith("image") ?? false;
   const isDocument = !isImage && !!msg.mediaUrl && !!msg.mediaType && !msg.mediaType.startsWith("video") && !msg.mediaType.startsWith("audio");
@@ -322,8 +341,18 @@ function MessageBubble({
       <div
         key={msg.id}
         data-testid={`msg-${msg.id}`}
-        className={`flex items-end gap-2 ${isOut ? "justify-end" : "justify-start"} ${topGap}`}
+        className={`flex items-end gap-2 ${isOut ? "justify-end" : "justify-start"} ${topGap} relative`}
+        onTouchStart={handleBubbleTouchStart}
+        onTouchEnd={handleBubbleTouchEnd}
+        onTouchMove={handleBubbleTouchEnd}
+        onClick={() => setShowTime(v => !v)}
+        onContextMenu={e => { e.preventDefault(); handleBubbleTouchStart(); setTimeout(handleBubbleTouchEnd, 100); }}
       >
+      {copied && (
+        <span className={`absolute z-20 -top-7 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-zinc-800 text-white shadow-lg flex items-center gap-1 pointer-events-none ${isOut ? "right-0" : "left-0"}`}>
+          <Copy className="w-3 h-3" /> Copied
+        </span>
+      )}
         {/* Inbound avatar */}
         {!isOut && (
           <div className="w-8 flex-shrink-0 self-end mb-0.5">
@@ -444,9 +473,13 @@ function MessageBubble({
             </div>
           )}
 
-          {!sameNext && (
+          {(!sameNext || showTime) && (
             <div className={`flex items-center gap-1 mt-1 ${isOut ? "justify-end pr-1" : "pl-1"}`}>
-              <span className="text-[10px] text-gray-400 tabular-nums">{formatTime(msg.createdAt)}</span>
+              <span className="text-[10px] text-gray-400 tabular-nums">
+                {showTime
+                  ? new Date(msg.createdAt).toLocaleString("en-SG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                  : formatTime(msg.createdAt)}
+              </span>
               {isNote && <StickyNote className="w-3 h-3 text-amber-400" />}
               {isBot && <Bot className="w-3 h-3 text-[#25D366]/70" />}
               {isAdm && !isNote && <CheckCheck className="w-3 h-3 text-indigo-400" />}
@@ -495,6 +528,9 @@ function ChatPanel({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const [hasNewMessages, setHasNewMessages] = useState(false);
@@ -709,6 +745,8 @@ function ChatPanel({
     setShowTemplates(false);
     setShowQuickReplies(false);
     setShowEmojiPicker(false);
+    setShowSearch(false);
+    setSearchQuery("");
   }, [selectedPhone]);
 
   function clearAttach() {
@@ -793,15 +831,18 @@ function ChatPanel({
     { label: "Thank you", text: "Thank you for choosing TMG Install! It was a pleasure working with you. Feel free to reach out anytime. 🙏" },
   ];
 
+  const searchLower = searchQuery.trim().toLowerCase();
   const grouped: { date: string; messages: WaMessage[] }[] = [];
   if (thread?.messages) {
     let lastDate = "";
     for (const msg of thread.messages) {
+      if (searchLower && !msg.body?.toLowerCase().includes(searchLower)) continue;
       const d = formatDateHeader(msg.createdAt);
       if (d !== lastDate) { grouped.push({ date: d, messages: [] }); lastDate = d; }
       grouped[grouped.length - 1].messages.push(msg);
     }
   }
+  const totalSearchResults = searchLower ? grouped.reduce((sum, g) => sum + g.messages.length, 0) : 0;
 
   // On mobile: fixed inset-0 full-screen overlay (interactive-widget=resizes-content
   // makes the layout viewport shrink with keyboard, so inset-0 ends above the keyboard).
@@ -991,6 +1032,18 @@ function ChatPanel({
                   <User className="w-3.5 h-3.5" />
                 </button>
 
+                {/* Search in thread */}
+                <button
+                  onClick={() => { setShowSearch(v => !v); setSearchQuery(""); setTimeout(() => searchInputRef.current?.focus(), 80); }}
+                  className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all ${
+                    showSearch ? "bg-violet-600 text-white border-violet-600" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                  }`}
+                  title="Search in conversation"
+                  data-testid="btn-search-thread"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                </button>
+
                 {/* Desktop: Info panel toggle */}
                 {threadLoaded && (
                   <button
@@ -1005,6 +1058,32 @@ function ChatPanel({
                 )}
               </div>
             </div>
+
+            {/* Search bar */}
+            {showSearch && (
+              <div className="flex items-center gap-2 px-3 pb-2.5 pt-1">
+                <div className="flex-1 flex items-center gap-2 rounded-xl bg-gray-100 px-3 py-2">
+                  <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search messages…"
+                    className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
+                    data-testid="search-thread-input"
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery("")} className="text-gray-400 hover:text-gray-600">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <button onClick={() => { setShowSearch(false); setSearchQuery(""); }} className="text-xs font-semibold text-violet-600">
+                  Cancel
+                </button>
+              </div>
+            )}
 
             {/* Admin Mode banner — compact single-line strip */}
             {botPaused && (
@@ -1113,8 +1192,17 @@ function ChatPanel({
             )}
 
             {!loadingThread && grouped.length === 0 && (
-              <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                No messages yet
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400 text-sm">
+                <Search className="w-8 h-8 opacity-30" />
+                <span>{searchLower ? `No messages matching "${searchQuery}"` : "No messages yet"}</span>
+              </div>
+            )}
+
+            {searchLower && totalSearchResults > 0 && (
+              <div className="flex justify-center mb-3">
+                <span className="text-[11px] font-semibold px-3 py-1 rounded-full bg-white/80 border border-violet-200 text-violet-600 shadow-sm">
+                  {totalSearchResults} result{totalSearchResults !== 1 ? "s" : ""} for "{searchQuery}"
+                </span>
               </div>
             )}
 
@@ -1481,17 +1569,34 @@ function SwipeableConvoRow({
   const [animated, setAnimated] = useState(false);
   const startXRef = useRef(0);
   const movedRef = useRef(false);
+  const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  const clearAutoClose = () => {
+    if (autoCloseRef.current) { clearTimeout(autoCloseRef.current); autoCloseRef.current = null; }
+  };
+
+  const close = () => { setAnimated(true); setOffset(0); setIsOpen(false); clearAutoClose(); };
 
   const snapTo = (x: number) => {
     setAnimated(true);
     setOffset(x);
     setIsOpen(x < 0);
+    if (x < 0) {
+      clearAutoClose();
+      autoCloseRef.current = setTimeout(close, 3000);
+    } else {
+      clearAutoClose();
+    }
   };
+
+  useEffect(() => () => clearAutoClose(), []);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     startXRef.current = e.touches[0].clientX;
     movedRef.current = false;
     setAnimated(false);
+    clearAutoClose();
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -1506,33 +1611,42 @@ function SwipeableConvoRow({
   const handleTouchEnd = (e: React.TouchEvent) => {
     const dx = e.changedTouches[0].clientX - startXRef.current;
     if (!movedRef.current) {
-      if (isOpen) snapTo(0);
+      if (isOpen) close();
       else onOpen();
       return;
     }
     if (isOpen) {
-      if (dx > 20) snapTo(0);
+      if (dx > 20) close();
       else snapTo(-DELETE_W);
     } else {
       if (dx < -40) snapTo(-DELETE_W);
-      else snapTo(0);
+      else close();
     }
   };
 
   useEffect(() => {
-    if (!isSelected && isOpen) {
-      setAnimated(true);
-      setOffset(0);
-      setIsOpen(false);
-    }
+    if (!isSelected && isOpen) close();
   }, [isSelected, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutside = (e: TouchEvent | MouseEvent) => {
+      if (rowRef.current && !rowRef.current.contains(e.target as Node)) close();
+    };
+    document.addEventListener("touchstart", handleOutside, { passive: true });
+    document.addEventListener("mousedown", handleOutside);
+    return () => {
+      document.removeEventListener("touchstart", handleOutside);
+      document.removeEventListener("mousedown", handleOutside);
+    };
+  }, [isOpen]);
+
   return (
-    <div className="relative overflow-hidden border-b border-zinc-100">
+    <div ref={rowRef} className="relative overflow-hidden border-b border-zinc-100">
       <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-red-500">
         <button
-          onTouchEnd={(e) => { e.stopPropagation(); onDelete(); }}
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          onTouchEnd={(e) => { e.stopPropagation(); clearAutoClose(); onDelete(); }}
+          onClick={(e) => { e.stopPropagation(); clearAutoClose(); onDelete(); }}
           className="flex flex-col items-center justify-center gap-0.5 text-white w-full h-full active:bg-red-600"
           data-testid={`delete-convo-${phone}`}
         >
@@ -1610,6 +1724,30 @@ export default function AdminConversations() {
     refetchInterval: 6_000,
     refetchIntervalInBackground: true,
   });
+
+  // Track previous unread counts to detect new messages in background conversations
+  const prevConvosRef = useRef<Conversation[]>([]);
+  const selectedPhoneRef = useRef(selectedPhone);
+  selectedPhoneRef.current = selectedPhone;
+  useEffect(() => {
+    if (!convos.length) { prevConvosRef.current = convos; return; }
+    const prev = prevConvosRef.current;
+    if (prev.length > 0) {
+      for (const convo of convos) {
+        if (convo.phone === selectedPhoneRef.current) continue;
+        const prevConvo = prev.find(p => p.phone === convo.phone);
+        if (!prevConvo) continue;
+        if (convo.unreadCount > prevConvo.unreadCount) {
+          toast({
+            title: `💬 ${convo.name || formatPhone(convo.phone)}`,
+            description: stripWhatsAppMarkdown(convo.lastMessage || "").slice(0, 80),
+          });
+          break;
+        }
+      }
+    }
+    prevConvosRef.current = convos;
+  }, [convos]);
 
   const selectedConvo = convos.find(c => c.phone === selectedPhone);
   const totalUnread = convos.reduce((s, c) => s + c.unreadCount, 0);
