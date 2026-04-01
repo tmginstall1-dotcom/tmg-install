@@ -2,65 +2,263 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
   <title>TMG Admin</title>
+
+  <!-- PWA manifest — tells iOS to open /admin when launched from home screen -->
   <link rel="manifest" href="/manifest-admin.json" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v2.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="TMG Admin" />
   <meta name="theme-color" content="#020617" />
+
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     html, body {
       height: 100%;
       background: #020617;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+      color: #fff;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      color: #fff;
+      padding: 32px 24px;
+      padding-bottom: max(32px, env(safe-area-inset-bottom));
+      min-height: 100dvh;
+      gap: 0;
     }
-    .logo {
-      width: 80px;
-      height: 80px;
+
+    /* Already installed — shown when in standalone mode */
+    body.installed .install-view { display: none; }
+    body.installed .open-view    { display: flex; }
+    .open-view { display: none; flex-direction: column; align-items: center; gap: 20px; }
+
+    .icon {
+      width: 96px;
+      height: 96px;
       background: #111;
-      border-radius: 20px;
+      border-radius: 22px;
       display: flex;
       align-items: center;
       justify-content: center;
       margin-bottom: 20px;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
     }
-    .logo span {
-      font-size: 42px;
+    .icon-t {
+      font-size: 56px;
       font-weight: 900;
       color: #fff;
       line-height: 1;
+      letter-spacing: -2px;
     }
-    h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-    p { font-size: 14px; color: #64748b; }
-    .spinner {
-      width: 20px; height: 20px;
-      border: 2px solid #334155;
-      border-top-color: #3b82f6;
+    .icon-bar {
+      display: block;
+      width: 32px;
+      height: 3px;
+      background: #3b82f6;
+      border-radius: 2px;
+      margin-top: 4px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .sub {
+      font-size: 15px;
+      color: #64748b;
+      text-align: center;
+      margin-bottom: 40px;
+      line-height: 1.5;
+    }
+
+    .steps {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 36px;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .step-num {
+      width: 26px;
+      height: 26px;
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      margin-top: 32px;
+      background: #1e3a5f;
+      color: #60a5fa;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .step-text {
+      flex: 1;
+    }
+    .step-text strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #e2e8f0;
+      margin-bottom: 2px;
+    }
+    .step-text span {
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+
+    /* Share icon recreation using CSS */
+    .share-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border: 1.5px solid #60a5fa;
+      border-radius: 5px;
+      position: relative;
+      vertical-align: middle;
+      margin: 0 3px;
+      flex-shrink: 0;
+    }
+    .share-icon::before {
+      content: '';
+      position: absolute;
+      top: -7px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-bottom: 6px solid #60a5fa;
+    }
+    .share-icon::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1.5px;
+      height: 10px;
+      background: #60a5fa;
+    }
+
+    .open-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      max-width: 360px;
+      padding: 16px;
+      background: #3b82f6;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      letter-spacing: -0.2px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .open-btn:active { background: #2563eb; }
+
+    .already-installed {
+      margin-top: 16px;
+      font-size: 13px;
+      color: #334155;
+      text-align: center;
+    }
+    .already-installed a {
+      color: #3b82f6;
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
-  <div class="logo"><span>T</span></div>
-  <h1>TMG Admin</h1>
-  <p>Loading admin panel…</p>
-  <div class="spinner"></div>
+  <!-- Install view: shown in browser before installing -->
+  <div class="install-view" style="display:flex;flex-direction:column;align-items:center;width:100%">
+    <div class="icon">
+      <div>
+        <div class="icon-t">T</div>
+        <span class="icon-bar"></span>
+      </div>
+    </div>
+
+    <h1>TMG Admin</h1>
+    <p class="sub">Add to your iPhone home screen<br>for instant one-tap access.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <strong>Tap the Share button</strong>
+          <span>The <span class="share-icon"></span> icon at the bottom of Safari</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <strong>Tap "Add to Home Screen"</strong>
+          <span>Scroll down in the share sheet to find it</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <strong>Tap "Add" to confirm</strong>
+          <span>The TMG Admin icon will appear on your home screen</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="already-installed">Already installed? <a href="/admin">Open Admin Panel →</a></p>
+  </div>
+
+  <!-- Open view: shown when already running as installed PWA -->
+  <div class="open-view">
+    <div class="icon">
+      <div>
+        <div class="icon-t">T</div>
+        <span class="icon-bar"></span>
+      </div>
+    </div>
+    <h1>TMG Admin</h1>
+    <a href="/admin" class="open-btn">Open Admin Panel</a>
+  </div>
+
   <script>
-    // Redirect to the admin panel immediately.
-    // If already installed as PWA (standalone), the manifest start_url
-    // handles the routing. This redirect covers first-load in browser.
-    window.location.replace('/admin');
+    // If already running as a standalone PWA, show the open button instead
+    if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
+      document.body.classList.add('installed');
+      // Auto-navigate to admin if launched as PWA
+      window.location.replace('/admin');
+    }
   </script>
 </body>
 </html>
