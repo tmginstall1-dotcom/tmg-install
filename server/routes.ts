@@ -45,13 +45,13 @@ function normalizeSGPhone(raw: string): string {
   return digits;
 }
 
-// Build the PayNow block for WhatsApp deposit messages
-function waPayNowBlock(depositAmt: number): string {
+// Build the full payment options block for WhatsApp deposit messages
+function waPayNowBlock(depositAmt: number, stripeLink: string): string {
   return (
-    `\n\n💳 *Option 1 — Pay by Card (Stripe):*\n` +
-    `(link above)\n\n` +
+    `💳 *Option 1 — Pay by Card (Stripe):*\n` +
+    `${stripeLink}\n\n` +
     `🏦 *Option 2 — PayNow Transfer:*\n` +
-    `UEN: *202412345A* (TMG Install Pte Ltd)\n` +
+    `UEN: *202424156H* (TMG Install Pte Ltd)\n` +
     `Amount: *$${depositAmt.toFixed(2)}*\n\n` +
     `After PayNow transfer, please *reply here with a screenshot* of your payment receipt. Our team will confirm your booking once verified. ✅`
   );
@@ -1350,6 +1350,7 @@ async function createStripePaymentLink(
       success_url: successWithSession,
       cancel_url: successUrl,
       metadata,
+      expires_at: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 days
     });
     return session.url;
   } catch (err) {
@@ -3317,8 +3318,7 @@ ${systemPrompt}` });
             `💰 *Deposit Invoice — ${quote.referenceNo}*\n\n` +
             `Hi ${quote.customer.name || "there"}! Your quote has been approved.\n\n` +
             `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* via one of the options below to confirm your slot:\n\n` +
-            `🔗 *Stripe (Card):*\n${paymentLink}` +
-            waPayNowBlock(depositAmt) +
+            waPayNowBlock(depositAmt, paymentLink) +
             `\n\n_Your slot is held for 48 hours._`;
           const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
           if (waSent) {
@@ -5964,8 +5964,7 @@ Respond directly — no JSON, just the message text.`,
           `💰 *Deposit Invoice — ${quote.referenceNo}*\n\n` +
           `Hi ${quote.customer?.name || "there"}! Your quote has been approved.\n\n` +
           `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* via one of the options below to confirm your slot:\n\n` +
-          `🔗 *Stripe (Card):*\n${paymentLink}` +
-          waPayNowBlock(depositAmt) +
+          waPayNowBlock(depositAmt, paymentLink) +
           `\n\n_Your slot is held for 48 hours._`;
         const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
         if (!waSent) {

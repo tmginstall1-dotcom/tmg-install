@@ -589,7 +589,7 @@ export default function QuoteStatus() {
                       />
                       <div className="text-center">
                         <p className="text-xs font-bold text-white/80">Scan with any banking app</p>
-                        <p className="text-[10px] text-white/40 mt-1">UEN: 202412345A · TMG Install Pte Ltd</p>
+                        <p className="text-[10px] text-white/40 mt-1">UEN: 202424156H · TMG Install Pte Ltd</p>
                         <p className="text-[10px] text-white/40 mt-0.5">Add your ref no. <span className="font-semibold text-white/60">{quote.referenceNo}</span> in remarks</p>
                       </div>
                     </div>

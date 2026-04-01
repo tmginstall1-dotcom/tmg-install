@@ -375,7 +375,7 @@ export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl
   const c = quote.customer;
   const slotDate = quote.preferredDate ? fmtDate(quote.preferredDate) : null;
   const depositAmt = `$${Number(quote.depositAmount || 0).toFixed(2)}`;
-  const PAYNOW_UEN = "202412345A";
+  const PAYNOW_UEN = "202424156H";
   const PAYNOW_NAME = "TMG Install Pte Ltd";
 
   const payNowSection = `
