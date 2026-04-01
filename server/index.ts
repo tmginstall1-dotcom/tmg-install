@@ -237,6 +237,23 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
     console.warn("[startup] autoBookPendingQuotes warning:", e?.message || e);
   }
 
+  // ── Prune old GPS track points (keep last 30 days only) ───────────────────
+  async function pruneOldGpsData() {
+    try {
+      const { db: dbInst } = await import("./db");
+      const { gpsTrackPoints } = await import("@shared/schema");
+      const { lt } = await import("drizzle-orm");
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const result = await dbInst.delete(gpsTrackPoints).where(lt(gpsTrackPoints.recordedAt, cutoff));
+      const rows = (result as any).rowCount ?? 0;
+      if (rows > 0) console.log(`[cleanup] Pruned ${rows} GPS track point(s) older than 30 days`);
+    } catch (e: any) {
+      console.warn("[cleanup] GPS prune warning:", e?.message || e);
+    }
+  }
+  pruneOldGpsData();
+  setInterval(pruneOldGpsData, 24 * 60 * 60 * 1000); // daily
+
   await registerRoutes(httpServer, app);
 
   // Auto-refresh WhatsApp token on startup, then every 6 days

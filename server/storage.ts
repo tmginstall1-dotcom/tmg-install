@@ -501,8 +501,7 @@ export class DatabaseStorage implements IStorage {
     const quotesList = await db.select().from(quotes)
       .where(or(...conditions))
       .orderBy(desc(quotes.createdAt));
-    const results = await Promise.all(quotesList.map(q => this.fetchQuoteDetails(q.id)));
-    return results.filter(Boolean) as QuoteResponse[];
+    return this.fetchQuoteDetailsBatch(quotesList);
   }
 
   async getCatalogItems(search?: string) {
@@ -561,16 +560,81 @@ export class DatabaseStorage implements IStorage {
     await db.delete(customers);
   }
 
+  // Batch-load all related data for a list of quotes in 2 parallel rounds (vs N×5 queries)
+  private async fetchQuoteDetailsBatch(quotesList: typeof quotes.$inferSelect[]): Promise<QuoteResponse[]> {
+    if (!quotesList.length) return [];
+
+    const quoteIds = quotesList.map(q => q.id);
+    const customerIds = [...new Set(quotesList.flatMap(q => q.customerId ? [q.customerId] : []))];
+    const staffIds    = [...new Set(quotesList.flatMap(q => q.assignedStaffId ? [q.assignedStaffId] : []))];
+    const teamIds     = [...new Set(quotesList.flatMap(q => q.assignedTeamId ? [q.assignedTeamId] : []))];
+
+    // Round 1 — 5 parallel queries instead of N×5
+    const [allCustomers, allStaff, allTeams, allItems, allUpdates] = await Promise.all([
+      customerIds.length ? db.select().from(customers).where(inArray(customers.id, customerIds)) : Promise.resolve([]),
+      staffIds.length    ? db.select().from(users).where(inArray(users.id, staffIds))             : Promise.resolve([]),
+      teamIds.length     ? db.select().from(teams).where(inArray(teams.id, teamIds))              : Promise.resolve([]),
+      db.select().from(quoteItems).where(inArray(quoteItems.quoteId, quoteIds)),
+      db.select().from(jobUpdates).where(inArray(jobUpdates.quoteId, quoteIds)).orderBy(desc(jobUpdates.createdAt)),
+    ]);
+
+    // Round 2 — catalog items + team members (depend on Round 1 results)
+    const catalogIds   = [...new Set(allItems.flatMap(i => i.catalogItemId ? [i.catalogItemId] : []))];
+    const [allCatalog, allTeamMembers] = await Promise.all([
+      catalogIds.length ? db.select().from(catalogItems).where(inArray(catalogItems.id, catalogIds)) : Promise.resolve([]),
+      teamIds.length    ? db.select().from(users).where(inArray(users.teamId, teamIds))               : Promise.resolve([]),
+    ]);
+
+    // Build lookup maps
+    const customerMap  = new Map(allCustomers.map(c => [c.id, c]));
+    const staffMap     = new Map(allStaff.map(s => [s.id, s]));
+    const teamMap      = new Map(allTeams.map(t => [t.id, t]));
+    const catalogMap   = new Map(allCatalog.map(c => [c.id, c]));
+
+    const itemsByQuote   = new Map<number, typeof quoteItems.$inferSelect[]>();
+    const updatesByQuote = new Map<number, typeof jobUpdates.$inferSelect[]>();
+    const membersByTeam  = new Map<number, typeof users.$inferSelect[]>();
+
+    for (const item of allItems) {
+      if (!itemsByQuote.has(item.quoteId)) itemsByQuote.set(item.quoteId, []);
+      itemsByQuote.get(item.quoteId)!.push(item);
+    }
+    for (const upd of allUpdates) {
+      if (!updatesByQuote.has(upd.quoteId)) updatesByQuote.set(upd.quoteId, []);
+      updatesByQuote.get(upd.quoteId)!.push(upd);
+    }
+    for (const member of allTeamMembers) {
+      if (!member.teamId) continue;
+      if (!membersByTeam.has(member.teamId)) membersByTeam.set(member.teamId, []);
+      membersByTeam.get(member.teamId)!.push(member);
+    }
+
+    return quotesList.map(quote => {
+      const team = quote.assignedTeamId ? teamMap.get(quote.assignedTeamId) : undefined;
+      return {
+        ...quote,
+        customer:      quote.customerId     ? customerMap.get(quote.customerId)     : undefined,
+        assignedStaff: quote.assignedStaffId ? staffMap.get(quote.assignedStaffId) : undefined,
+        assignedTeam:  team ? { ...team, members: membersByTeam.get(team.id) ?? [] } : undefined,
+        items: (itemsByQuote.get(quote.id) ?? []).map(item => ({
+          ...item,
+          catalogItem: item.catalogItemId ? catalogMap.get(item.catalogItemId) : undefined,
+        })),
+        updates: updatesByQuote.get(quote.id) ?? [],
+      } as QuoteResponse;
+    });
+  }
+
   async getQuotes(status?: string): Promise<QuoteResponse[]> {
-    const quotesList = status ? await db.select().from(quotes).where(eq(quotes.status, status)).orderBy(desc(quotes.createdAt)) : await db.select().from(quotes).orderBy(desc(quotes.createdAt));
-    const detailedQuotes = await Promise.all(quotesList.map(q => this.fetchQuoteDetails(q.id)));
-    return detailedQuotes.filter((q): q is QuoteResponse => q !== undefined);
+    const quotesList = status
+      ? await db.select().from(quotes).where(eq(quotes.status, status)).orderBy(desc(quotes.createdAt))
+      : await db.select().from(quotes).orderBy(desc(quotes.createdAt));
+    return this.fetchQuoteDetailsBatch(quotesList);
   }
 
   async getQuotesByStatuses(statuses: string[]): Promise<QuoteResponse[]> {
     const quotesList = await db.select().from(quotes).where(inArray(quotes.status, statuses)).orderBy(desc(quotes.createdAt));
-    const detailedQuotes = await Promise.all(quotesList.map(q => this.fetchQuoteDetails(q.id)));
-    return detailedQuotes.filter((q): q is QuoteResponse => q !== undefined);
+    return this.fetchQuoteDetailsBatch(quotesList);
   }
 
   async getQuote(id: number): Promise<QuoteResponse | undefined> {

@@ -306,6 +306,7 @@ export const quotes = pgTable("quotes", {
   quotesCreatedAtIdx: index("quotes_created_at_idx").on(t.createdAt),
   quotesScheduledAtIdx: index("quotes_scheduled_at_idx").on(t.scheduledAt),
   quotesTeamIdx: index("quotes_assigned_team_id_idx").on(t.assignedTeamId),
+  quotesStaffIdx: index("quotes_assigned_staff_id_idx").on(t.assignedStaffId),
 }));
 
 // Quote Items
