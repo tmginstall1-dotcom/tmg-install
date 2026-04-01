@@ -48,6 +48,21 @@ export async function setupVite(server: Server, app: Express) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
+
+      // Inject admin-specific manifest for /admin routes so iOS "Add to
+      // Home Screen" uses start_url=/admin rather than /
+      const pathname = url.split("?")[0];
+      if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+        template = template.replace(
+          `<link rel="manifest" href="/manifest.json" />`,
+          `<link rel="manifest" href="/manifest-admin.json" />`,
+        );
+        template = template.replace(
+          `<meta name="apple-mobile-web-app-title" content="TMG Install" />`,
+          `<meta name="apple-mobile-web-app-title" content="TMG Admin" />`,
+        );
+      }
+
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {

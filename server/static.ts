@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import fs from "fs";
 import path from "path";
 
@@ -40,7 +40,7 @@ export function serveStatic(app: Express) {
       if (filePath.endsWith(".html")) {
         // HTML must never be cached — keeps SPA routing always fresh
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      } else if (filePath.endsWith("sw.js") || filePath.endsWith("manifest.json")) {
+      } else if (filePath.endsWith("sw.js") || filePath.endsWith("manifest.json") || filePath.endsWith("manifest-admin.json")) {
         // Service worker + manifest must update promptly
         res.setHeader("Cache-Control", "no-cache");
       } else if (/\.(png|jpg|jpeg|webp|svg|ico)$/.test(filePath)) {
@@ -51,8 +51,28 @@ export function serveStatic(app: Express) {
   }));
 
   // ── SPA fallback — always serve fresh HTML for client-side routes
-  app.use("/{*path}", (_req, res) => {
+  // Injects admin-specific manifest for /admin routes so iOS uses start_url=/admin
+  const indexHtmlPath = path.resolve(distPath, "index.html");
+  app.use("/{*path}", (req: Request, res: Response) => {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.sendFile(path.resolve(distPath, "index.html"));
+    const pathname = req.path;
+    if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+      fs.readFile(indexHtmlPath, "utf-8", (err, html) => {
+        if (err) { res.sendFile(indexHtmlPath); return; }
+        const patched = html
+          .replace(
+            `<link rel="manifest" href="/manifest.json" />`,
+            `<link rel="manifest" href="/manifest-admin.json" />`,
+          )
+          .replace(
+            `<meta name="apple-mobile-web-app-title" content="TMG Install" />`,
+            `<meta name="apple-mobile-web-app-title" content="TMG Admin" />`,
+          );
+        res.setHeader("Content-Type", "text/html");
+        res.send(patched);
+      });
+    } else {
+      res.sendFile(indexHtmlPath);
+    }
   });
 }
