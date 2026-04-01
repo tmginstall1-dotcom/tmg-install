@@ -937,7 +937,7 @@ export default function AdminQuoteDetail() {
                         />
                         <div className="text-xs text-zinc-600 space-y-0.5">
                           <p><span className="font-semibold">UEN:</span> 202424156H</p>
-                          <p><span className="font-semibold">Name:</span> TMG Install Pte Ltd</p>
+                          <p><span className="font-semibold">Name:</span> TMG Install by The Moving Guy Pte Ltd</p>
                           <p className="text-emerald-700 font-semibold">Amount: {formatMoney(quote.depositAmount)}</p>
                           <p className="text-zinc-400 mt-1 leading-tight">Customer should WhatsApp receipt screenshot after transfer</p>
                         </div>

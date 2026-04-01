@@ -51,7 +51,7 @@ function waPayNowBlock(depositAmt: number, stripeLink: string): string {
     `💳 *Option 1 — Pay by Card (Stripe):*\n` +
     `${stripeLink}\n\n` +
     `🏦 *Option 2 — PayNow Transfer:*\n` +
-    `UEN: *202424156H* (TMG Install Pte Ltd)\n` +
+    `UEN: *202424156H* (TMG Install by The Moving Guy Pte Ltd)\n` +
     `Amount: *$${depositAmt.toFixed(2)}*\n\n` +
     `After PayNow transfer, please *reply here with a screenshot* of your payment receipt. Our team will confirm your booking once verified. ✅`
   );
