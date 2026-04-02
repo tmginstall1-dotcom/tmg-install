@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw, Clock, Bot, Globe, Star, Bell, BadgePercent } from "lucide-react";
+import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw, Clock, Bot, Globe, Star, Bell, BadgePercent, BellRing, BellOff } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import { useAdminPush } from "@/hooks/use-admin-push";
 
 const DAYS = [
   { key: "mon", label: "Monday" },
@@ -36,6 +37,7 @@ const DEFAULT_HOURS: BusinessHours = {
 
 export default function AdminSettings() {
   const { toast } = useToast();
+  const { state: pushState, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = useAdminPush();
   const [token, setToken] = useState("");
   const [newVersion, setNewVersion] = useState("");
   const [apkUrl, setApkUrl] = useState("");
@@ -942,6 +944,82 @@ export default function AdminSettings() {
               {loyaltyEnabled ? "ON" : "OFF"}
             </span>
           </button>
+        </div>
+      </div>
+
+      {/* ── WhatsApp Push Notifications (admin PWA) ───────────────────────────── */}
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-100">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+            <BellRing className="h-4 w-4 text-blue-600" />
+            WhatsApp Message Alerts
+          </h2>
+          <p className="text-xs text-zinc-500 mt-1">
+            Get a push notification on this device whenever a customer sends a WhatsApp message — even when the app is closed.
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          {pushState === "unsupported" && (
+            <div className="flex items-start gap-2 bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-sm text-zinc-600">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-zinc-400" />
+              <span>Push notifications are not supported in this browser. Try opening the admin panel in Chrome on Android or Safari on iOS.</span>
+            </div>
+          )}
+
+          {pushState === "denied" && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+              <BellOff className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+              <span>Notifications are <strong>blocked</strong> for this site. To enable, go to your browser's site settings and allow notifications, then reload this page.</span>
+            </div>
+          )}
+
+          {(pushState === "default" || pushState === "subscribed") && (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-800">
+                  {pushState === "subscribed" ? "Notifications enabled on this device" : "Notifications off on this device"}
+                </p>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {pushState === "subscribed"
+                    ? "You'll receive an alert here each time a customer messages on WhatsApp."
+                    : "Tap Enable to receive alerts when customers message on WhatsApp."}
+                </p>
+              </div>
+              {pushState === "subscribed" ? (
+                <button
+                  data-testid="button-push-disable"
+                  onClick={() => pushUnsubscribe().then(() => toast({ title: "Notifications disabled" }))}
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-zinc-100 text-zinc-700 hover:bg-zinc-200 text-sm font-medium transition-colors shrink-0"
+                >
+                  <BellOff className="h-4 w-4" /> Disable
+                </button>
+              ) : (
+                <button
+                  data-testid="button-push-enable"
+                  onClick={() => pushSubscribe().then(ok => ok
+                    ? toast({ title: "Notifications enabled", description: "You'll be alerted for every new WhatsApp message." })
+                    : toast({ title: "Permission denied", description: "Allow notifications in your browser settings.", variant: "destructive" })
+                  )}
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors shrink-0"
+                >
+                  <BellRing className="h-4 w-4" /> Enable
+                </button>
+              )}
+            </div>
+          )}
+
+          {pushState === "loading" && (
+            <div className="flex items-center gap-2 text-sm text-zinc-500">
+              <RefreshCw className="w-4 h-4 animate-spin" /> Checking notification status…
+            </div>
+          )}
+
+          <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-800">
+            <Bell className="w-3.5 h-3.5 shrink-0 mt-0.5 text-blue-500" />
+            <span>
+              For best results, <strong>add this admin panel to your home screen</strong> (PWA). Notifications then work even when the browser is closed — similar to a native app.
+            </span>
+          </div>
         </div>
       </div>
 

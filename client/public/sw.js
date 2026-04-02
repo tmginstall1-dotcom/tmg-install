@@ -1,8 +1,8 @@
-// v3 — service worker is disabled for the native Capacitor app (TMGStaffApp
+// v4 — Added Web Push notification support for admin PWA.
+// Service worker is disabled for the native Capacitor app (TMGStaffApp
 // user agent). It runs only in normal browsers for PWA offline support.
-// Cache key bumped to v3; now precaches /admin for offline-first admin PWA.
 
-const CACHE = 'tmg-v3';
+const CACHE = 'tmg-v4';
 
 const PRECACHE = [
   '/',
@@ -42,5 +42,48 @@ self.addEventListener('fetch', e => {
         return res;
       })
       .catch(() => caches.match(e.request))
+  );
+});
+
+// ── Web Push — show notification when a WhatsApp message arrives ────────────
+self.addEventListener('push', e => {
+  if (!e.data) return;
+
+  let payload = { title: 'TMG Admin', body: 'New message received', url: '/admin/conversations', tag: 'wa-message' };
+  try { payload = { ...payload, ...e.data.json() }; } catch {}
+
+  e.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body:    payload.body,
+      icon:    '/icon-192.png',
+      badge:   '/favicon.png',
+      tag:     payload.tag || 'wa-message',
+      renotify: true,
+      data:    { url: payload.url || '/admin/conversations' },
+      actions: [{ action: 'open', title: 'Open Chat' }],
+    })
+  );
+});
+
+// ── Notification tap — open the admin conversations page ───────────────────
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const targetUrl = e.notification.data?.url || '/admin/conversations';
+
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      // If an admin tab is already open, focus it and navigate
+      for (const client of windowClients) {
+        if (client.url.includes('/admin') && 'focus' in client) {
+          client.focus();
+          client.navigate(targetUrl);
+          return;
+        }
+      }
+      // Otherwise open a new tab
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
   );
 });

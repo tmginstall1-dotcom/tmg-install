@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
+import { initVapid, getVapidPublicKey, addSubscription, removeSubscription, sendPushToAdmins } from "./push";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { execSync } from "child_process";
@@ -4379,6 +4380,14 @@ Respond with ONLY a JSON array (no prose, no markdown):
         wamid: msg.id,
       }).catch(() => {});
 
+      // ── Push notification → admin PWA (web push) ──────────────────────────
+      sendPushToAdmins({
+        title: `WhatsApp: +${from}`,
+        body: inboundBody.length > 100 ? inboundBody.slice(0, 97) + "…" : inboundBody,
+        url: "/admin/conversations",
+        tag: `wa-${from}`,
+      }).catch(() => {});
+
       const msgType: string = msg.type || "text";
       // Include captions and interactive reply text so all message types are processed
       const text: string = extractText(msg);
@@ -7449,6 +7458,43 @@ Respond directly — no JSON, just the message text.`,
     try {
       const val = await getSetting("wa_reminders_enabled");
       res.json({ enabled: val === "true" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Web Push notifications (admin PWA) ──────────────────────────────────────
+  // Initialise VAPID keys on startup
+  initVapid().catch(e => console.error("[Push] initVapid error:", e));
+
+  app.get("/api/admin/push/vapid-key", async (_req, res) => {
+    try {
+      const publicKey = await getVapidPublicKey();
+      res.json({ publicKey });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/push/subscribe", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const sub = req.body;
+      if (!sub?.endpoint) return res.status(400).json({ error: "Invalid subscription" });
+      await addSubscription(sub);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/push/unsubscribe", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const { endpoint } = req.body;
+      if (!endpoint) return res.status(400).json({ error: "Missing endpoint" });
+      await removeSubscription(endpoint);
+      res.json({ ok: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
