@@ -5,7 +5,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   CheckCircle2, CreditCard, CalendarDays, Receipt, Clock, MapPin,
   RefreshCw, AlertCircle, MessageCircle, Loader2, ArrowRight, Package, Check,
-  Mail, MailWarning, Inbox, ShieldCheck, Info,
+  Mail, MailWarning, Inbox, ShieldCheck, Info, Image, ZoomIn,
 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 import { format, differenceInHours } from "date-fns";
@@ -60,6 +60,22 @@ export default function QuoteStatus() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [paymentVerified, setPaymentVerified] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  // Fetch job updates (arrival + completion photos) via the public tracker API
+  const { data: trackerData } = useQuery<{
+    updates: { statusChange: string; photoUrls: string[]; note: string | null; createdAt: string }[];
+  }>({
+    queryKey: [`/api/public/track/${quote?.referenceNo}`],
+    queryFn: () => fetch(`/api/public/track/${quote!.referenceNo}`).then(r => r.json()),
+    enabled: !!quote?.referenceNo && ["in_progress", "completed", "final_payment_requested", "final_paid", "closed"].includes(quote?.status ?? ""),
+    staleTime: 60_000,
+  });
+
+  const workPhotos = (trackerData?.updates ?? [])
+    .filter(u => ["in_progress", "completed"].includes(u.statusChange))
+    .flatMap(u => u.photoUrls ?? [])
+    .filter(Boolean);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -157,6 +173,7 @@ export default function QuoteStatus() {
   }
 
   return (
+    <>
     <div className="min-h-screen pt-20 pb-24 bg-white text-black">
 
       {/* Payment verification overlay */}
@@ -521,6 +538,44 @@ export default function QuoteStatus() {
                 </div>
               )}
             </motion.div>
+
+            {/* ─── Work Photos — arrival + completion shots ─── */}
+            {workPhotos.length > 0 && (
+              <motion.div {...fadeUp(0.12)} className="border border-black/12 shadow-[0_4px_24px_rgba(0,0,0,0.05)] overflow-hidden">
+                <div className="px-6 py-4 border-b border-black/8 flex items-center gap-2">
+                  <Image className="w-4 h-4 text-black/40" />
+                  <p className="text-[10px] font-semibold tracking-widest uppercase text-black/60" style={{ letterSpacing: "0.15em" }}>
+                    Work Photos
+                  </p>
+                  <span className="ml-auto text-[10px] text-black/30 font-semibold">{workPhotos.length} photo{workPhotos.length !== 1 ? "s" : ""}</span>
+                </div>
+                <div className="p-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    {workPhotos.map((url, i) => (
+                      <button
+                        key={i}
+                        data-testid={`img-work-photo-${i}`}
+                        onClick={() => setLightboxUrl(url)}
+                        className="relative group aspect-square overflow-hidden border border-black/10 focus:outline-none"
+                      >
+                        <img
+                          src={url}
+                          alt={`Work photo ${i + 1}`}
+                          className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-black/35 mt-3">
+                    Tap any photo to view full size. These are proof-of-work photos taken by the installer on arrival and completion.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
           </div>
 
           {/* ═══ RIGHT SIDEBAR ═══ */}
@@ -694,5 +749,29 @@ export default function QuoteStatus() {
 
       </div>
     </div>
+
+    {/* ─── Photo Lightbox ─── */}
+    {lightboxUrl && (
+      <div
+        className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+        onClick={() => setLightboxUrl(null)}
+        data-testid="lightbox-overlay"
+      >
+        <button
+          onClick={() => setLightboxUrl(null)}
+          className="absolute top-4 right-4 text-white/60 hover:text-white text-sm font-bold bg-white/10 hover:bg-white/20 rounded-full w-9 h-9 flex items-center justify-center transition-colors"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+        <img
+          src={lightboxUrl}
+          alt="Work photo"
+          className="max-w-full max-h-[90vh] object-contain shadow-2xl"
+          onClick={e => e.stopPropagation()}
+        />
+      </div>
+    )}
+    </>
   );
 }
