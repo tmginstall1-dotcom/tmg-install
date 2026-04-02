@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -6,6 +6,7 @@ import {
   Search, Globe, CheckCircle, XCircle, AlertCircle, Copy, ExternalLink,
   Star, Tag, FileText, ShieldCheck, BarChart2, TrendingUp, Sparkles, Link2,
 } from "lucide-react";
+import { SiWhatsapp, SiFacebook } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -459,14 +460,35 @@ export default function SeoPanel() {
             </div>
           </div>
           <div className="divide-y divide-zinc-50">
-            {[
-              { label: "WhatsApp Business",   url: "https://wa.me/6580880757",                      icon: "💬", color: "text-emerald-700 bg-emerald-50" },
-              { label: "Facebook Page",       url: "https://www.facebook.com/tmginstall",           icon: "📘", color: "text-blue-700 bg-blue-50" },
-              { label: "Carousell",           url: "https://www.carousell.sg/u/tmg_01f647/",        icon: "🛍️", color: "text-orange-700 bg-orange-50" },
-            ].map(({ label, url, icon, color }) => (
+            {([
+              {
+                label: "WhatsApp Business",
+                url:   "https://wa.me/6580880757",
+                logo:  <SiWhatsapp className="w-4 h-4 text-white" />,
+                bg:    "bg-[#25D366]",
+              },
+              {
+                label: "Facebook Page",
+                url:   "https://www.facebook.com/tmginstall",
+                logo:  <SiFacebook className="w-4 h-4 text-white" />,
+                bg:    "bg-[#1877F2]",
+              },
+              {
+                label: "Carousell",
+                url:   "https://www.carousell.sg/u/tmg_01f647/",
+                logo:  (
+                  <img
+                    src="https://www.google.com/s2/favicons?domain=carousell.sg&sz=32"
+                    alt="Carousell"
+                    className="w-4 h-4 object-contain"
+                  />
+                ),
+                bg:    "bg-[#EE4D2D]",
+              },
+            ] as { label: string; url: string; logo: ReactNode; bg: string }[]).map(({ label, url, logo, bg }) => (
               <div key={url} className="flex items-center gap-3 px-5 py-3.5">
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0 ${color}`}>
-                  {icon}
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
+                  {logo}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-zinc-800">{label}</p>
