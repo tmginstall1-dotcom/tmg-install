@@ -23,6 +23,7 @@ const LIVE = {
   schemaTypes:    ["LocalBusiness", "WebSite"],
   sitemapUrls:    4,
   robotsOk:       true,
+  sameAs:         ["WhatsApp", "Facebook", "Carousell"],
 };
 
 // ── SEO score computation ───────────────────────────────────────────────────
@@ -446,6 +447,51 @@ export default function SeoPanel() {
           </div>
         </div>
 
+        {/* Business Profiles / sameAs */}
+        <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-zinc-100 flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
+              <Link2 className="w-3.5 h-3.5 text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-zinc-900">Business Profiles</p>
+              <p className="text-[11px] text-zinc-400">Linked in Schema.org <code className="font-mono text-zinc-500">sameAs</code> — signals to Google these are the same business</p>
+            </div>
+          </div>
+          <div className="divide-y divide-zinc-50">
+            {[
+              { label: "WhatsApp Business",   url: "https://wa.me/6580880757",                      icon: "💬", color: "text-emerald-700 bg-emerald-50" },
+              { label: "Facebook Page",       url: "https://www.facebook.com/tmginstall",           icon: "📘", color: "text-blue-700 bg-blue-50" },
+              { label: "Carousell",           url: "https://www.carousell.sg/u/tmg_01f647/",        icon: "🛍️", color: "text-orange-700 bg-orange-50" },
+            ].map(({ label, url, icon, color }) => (
+              <div key={url} className="flex items-center gap-3 px-5 py-3.5">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0 ${color}`}>
+                  {icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-zinc-800">{label}</p>
+                  <p className="text-[11px] font-mono text-zinc-400 truncate">{url}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5">
+                    <CheckCircle className="w-2.5 h-2.5" />
+                    Live
+                  </span>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-300 hover:text-blue-500 transition-colors"
+                    data-testid={`link-profile-${label.toLowerCase().replace(/\s/g, "-")}`}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Full SEO Checklist */}
         <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-zinc-100 flex items-center gap-2.5">
@@ -466,6 +512,7 @@ export default function SeoPanel() {
             <CheckItem label="Twitter Card configured"                ok={!!LIVE.twitterCard}        note={`type: ${LIVE.twitterCard}`} />
             <CheckItem label="Schema.org LocalBusiness"              ok={LIVE.schemaTypes.includes("LocalBusiness")} note="Structured data for Google Knowledge Panel" />
             <CheckItem label="Schema.org WebSite + SearchAction"     ok={LIVE.schemaTypes.includes("WebSite")}      note="Enables Google Sitelinks Searchbox" />
+            <CheckItem label="Schema.org sameAs profiles"            ok={LIVE.sameAs.length >= 3}   note={LIVE.sameAs.join(" · ")} />
             <CheckItem label="Sitemap.xml present"                   ok={LIVE.sitemapUrls > 0}      note={`${LIVE.sitemapUrls} URLs indexed`} />
             <CheckItem label="robots.txt present"                    ok={LIVE.robotsOk}             note="Admin & API paths disallowed" />
             <CheckItem label="Google Analytics / Ads tracking"       ok                             note="Google Tag Manager (AW-18012639714) active" />
@@ -565,7 +612,7 @@ Sitemap: https://tmginstall.com/sitemap.xml`}
                 { icon: Sparkles, title: "Google Business Profile",   desc: "Ensure your Google Business Profile is verified and has up-to-date hours, photos, and services.", color: "text-blue-600 bg-blue-50" },
                 { icon: Star,     title: "Collect more reviews",       desc: "Send the Google Review link after every completed job. Aim for 50+ reviews to unlock the Google Knowledge Panel.", color: "text-amber-600 bg-amber-50" },
                 { icon: Search,   title: "Rank for long-tail keywords", desc: "Add blog posts or FAQ entries targeting phrases like 'IKEA wardrobe assembly Singapore' or 'HDB furniture installation'.", color: "text-green-600 bg-green-50" },
-                { icon: Globe,    title: "Build local backlinks",       desc: "Get listed on Qoo10, Carousell, and Singapore home decor directories to earn authoritative local backlinks.", color: "text-violet-600 bg-violet-50" },
+                { icon: Globe,    title: "Local listings ✓ Carousell live", desc: "Carousell profile linked in Schema.org sameAs. Next: get listed on Qoo10, HardwareZone classifieds, and Singapore home decor directories.", color: "text-violet-600 bg-violet-50" },
                 { icon: BarChart2, title: "Track keyword rankings",    desc: "Use Google Search Console to monitor which queries bring traffic, and expand pages for top queries.", color: "text-zinc-600 bg-zinc-100" },
                 { icon: TrendingUp, title: "Page Speed",               desc: "Ensure mobile LCP < 2.5s. Compress OG image and serve images via a CDN for faster load times.", color: "text-rose-600 bg-rose-50" },
               ].map(({ icon: Icon, title, desc, color }) => (
