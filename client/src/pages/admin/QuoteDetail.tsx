@@ -29,6 +29,20 @@ export default function AdminQuoteDetail() {
   const { data: quote, isLoading, isFetching } = useQuote(id);
   const { data: staffList } = useStaffList();
   const { data: teamsList = [] } = useQuery<any[]>({ queryKey: ["/api/teams"] });
+
+  const { data: trackerData } = useQuery<{
+    updates: { statusChange: string; photoUrls: string[]; note: string | null; createdAt: string }[];
+  }>({
+    queryKey: [`/api/public/track/${quote?.referenceNo}`],
+    queryFn: () => fetch(`/api/public/track/${quote!.referenceNo}`).then(r => r.json()),
+    enabled: !!quote?.referenceNo && ["in_progress", "completed", "final_payment_requested", "final_paid", "closed"].includes(quote?.status ?? ""),
+    staleTime: 60_000,
+  });
+
+  const workPhotos = (trackerData?.updates ?? [])
+    .filter(u => ["in_progress", "completed"].includes(u.statusChange))
+    .flatMap(u => u.photoUrls ?? [])
+    .filter(Boolean);
   const updateStatus = useUpdateQuoteStatus();
   const requestFinalPayment = useRequestFinalPayment();
   const confirmBooking = useConfirmBooking();
@@ -1267,6 +1281,35 @@ export default function AdminQuoteDetail() {
                         Clear additional charge
                       </button>
                     )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Work Photos */}
+            {workPhotos.length > 0 && (
+              <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-5 py-4 border-b border-zinc-100">
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5" /> Work Photos
+                  </p>
+                </div>
+                <div className="p-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    {workPhotos.map((url, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        data-testid={`img-work-photo-${i}`}
+                        onClick={() => setLightboxPhoto(url)}
+                        className="group relative aspect-square rounded-lg overflow-hidden border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <img src={url} alt={`Work photo ${i + 1}`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="text-white text-xs font-medium">View</span>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
