@@ -4308,6 +4308,9 @@ Respond with ONLY a JSON array (no prose, no markdown):
     return res.status(403).json({ message: "Forbidden" });
   });
 
+  // ── WAMID dedup set — prevents double-processing when Meta retries the webhook ─
+  const processedWamids = new Set<string>();
+
   // ── WhatsApp Incoming Message Handler (POST) ──────────────────────────────
   app.post("/api/webhooks/whatsapp", async (req, res) => {
     res.status(200).json({ status: "ok" }); // Always ack quickly
@@ -4323,6 +4326,20 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
       const msg = value.messages[0];
       const from: string = msg.from; // sender phone e.g. "6591234567"
+
+      // ── Deduplicate: Meta sometimes retries the same webhook event ────────────
+      const wamid: string = msg.id || "";
+      if (wamid && processedWamids.has(wamid)) {
+        console.log(`[WhatsApp] Duplicate webhook ignored for wamid=${wamid}`);
+        return;
+      }
+      if (wamid) {
+        processedWamids.add(wamid);
+        if (processedWamids.size > 2000) {
+          const first = processedWamids.values().next().value;
+          if (first) processedWamids.delete(first);
+        }
+      }
 
       // ── Mark as read immediately — shows double blue ticks to customer ────────
       markAsRead(msg.id).catch(() => {});
@@ -4437,6 +4454,19 @@ Respond with ONLY a JSON array (no prose, no markdown):
           console.log(`[WhatsApp] Photo batched for ${from} (n=${pendingPhotoBatches.get(from)?.imageIds.length}, state=${currentState}, caption="${text.slice(0, 50)}")`);
           return; // 200 already sent to Meta; flushPhotoBatch will reply after delay
         }
+      }
+
+      // ── Spam / solicitation guard — detects non-customer business pitches ───────
+      // Catches loan brokers, recruiters, ad agencies, etc. who DM business accounts.
+      // Respond once briefly, never reply again (bot paused so no repeated messages).
+      const SPAM_SOLICIT_REGEX = /\b(company (loan|loans|grant|grants|financing|funding)|bank loan|interest rate.*flat|interest rate.*per annum|refinanc|cash out|we (provide|offer|can help).{0,40}(loan|grant|insurance|credit|fund)|may assist.{0,30}(loan|grant|fund)|introduce.{0,30}(loan|grant|client)|earn.*commission|passive income|business.*opportunity|investment.*opportunity|mlm|multi.level|direct.*sales|we can (get|help|assist) you.*\$|approved loan|apply for.*loan)\b/i;
+      if (SPAM_SOLICIT_REGEX.test(text) && !session?.botPaused) {
+        await storage.upsertWhatsAppSession(from, { botPaused: true, botPausedAt: new Date() });
+        await sendBotMessage(from,
+          `Thanks for reaching out! We're a furniture installation company and aren't looking for financial or business services at this time. Wishing you all the best! 😊`
+        );
+        console.log(`[WhatsApp] SPAM/SOLICITATION blocked for ${from}: "${text.slice(0, 80)}"`);
+        return;
       }
 
       // ── Escalation detection — runs before state processing so no customer is left stranded ───────
