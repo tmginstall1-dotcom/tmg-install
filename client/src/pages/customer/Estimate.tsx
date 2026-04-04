@@ -1721,39 +1721,6 @@ export default function EstimateWizard() {
                   </div>
                 )}
 
-                {/* ── What happens next ── */}
-                <div className="border border-black/10 bg-black/[0.015] p-5 space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-black/40">What happens next</p>
-                  <div className="space-y-3">
-                    {[
-                      { n: "1", text: "We review your quote — usually within 2 hours on weekdays." },
-                      { n: "2", text: "You'll receive a deposit link (50%) via email & WhatsApp to secure your slot." },
-                      { n: "3", text: "Our team arrives at your chosen time. Balance paid on completion." },
-                    ].map(({ n, text }) => (
-                      <div key={n} className="flex items-start gap-3">
-                        <span className="w-5 h-5 rounded-full bg-black text-white text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">{n}</span>
-                        <p className="text-sm text-black/60 leading-relaxed">{text}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs font-semibold text-black/40 border-t border-black/8 pt-3">
-                    No payment required to submit this form. We only request the deposit after confirming your quote.
-                  </p>
-                </div>
-
-                {/* ── Trust badges ── */}
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1">
-                  {[
-                    "7-day workmanship warranty",
-                    "No hidden fees",
-                    "Cancel >48 hrs for partial refund",
-                  ].map(t => (
-                    <span key={t} className="flex items-center gap-1.5 text-xs text-black/40">
-                      <Check className="w-3 h-3 text-black/30 shrink-0" /> {t}
-                    </span>
-                  ))}
-                </div>
-
               </div>
             )}
 
