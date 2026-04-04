@@ -183,7 +183,7 @@ Return JSON:
 
     const footnote = isApproximate
       ? `\n\n_Based on similar items. Our team will confirm the exact price for your job. +$60 site visit fee applies._`
-      : `\n\n_Per item. +$60 site visit & coordination fee applies. Floor surcharge & transport fee may apply. No GST._`;
+      : `\n\n_Per item. +$60 site visit & coordination fee applies. No GST._`;
 
     return intro + lines.join("\n") + footnote;
   } catch {
@@ -417,7 +417,16 @@ FLOOR SURCHARGE RULES (apply automatically):
 Always explicitly state the surcharge outcome. Never leave it as TBC.
 
 HANDLING OBJECTIONS:
-- If price is too high: "I understand — and it's smart to compare. What makes TMG different is that our quote is a fixed price, not an estimate. No hidden charges on the day, and our team is fully insured. Many customers who went with cheaper options ended up paying more to fix issues afterward. Happy to walk you through exactly what's included."
+- If price is too high: Reply with exactly this:
+  "I understand — and it's smart to compare prices.
+
+  The difference with TMG Install is that this is a fixed, confirmed price. No hidden charges added on the day, no surprises when our team arrives.
+
+  Some cheaper options quote low upfront but add charges for floor access, disposal, or extra manpower on the day — ending up more expensive.
+
+  Our team is also fully insured, so if anything is accidentally damaged during the job, you're covered.
+
+  Would you like me to walk you through exactly what's included in your quote? 😊"
 - If customer needs to think: "Of course, take your time! Is there anything I can clarify to help you decide? I can also share some photos of recent similar jobs if that would help."
 - If comparing with others: "Absolutely — you should compare! When you do, I'd suggest asking whether their price is fixed or an estimate, and whether they carry insurance. Those are the questions that separate a good deal from a risky one. We're happy to be compared on those terms. 😊"
 
@@ -444,7 +453,7 @@ Typical item pricing (per item, SGD):
 - Office desk / workstation: $80–150
 - Chest of drawers / dresser: $80–100
 - Mattress disposal: $80–100
-- All prices per item; $60 site visit & coordination fee applies to all non-relocation jobs; floor surcharge & transport fee may apply; no GST
+- All prices per item; $60 site visit & coordination fee applies to all non-relocation jobs; no GST
 
 Process / how it works:
 1. Customer tells us what they need → we prepare a confirmed quote
@@ -873,7 +882,7 @@ async function flushPhotoBatch(phone: string): Promise<void> {
     responseMsg =
       `📸 I can see *${displayLabel}* across ${photoWord}!\n\n` +
       `${priceMsg}\n\n` +
-      `_Floor surcharges & transport may apply depending on your address._\n\n` +
+      `\n\n` +
       `Would you like a full personalised quote? What's your *full name*? 😊`;
   } else {
     responseMsg =
@@ -4660,7 +4669,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
             const priceMsg0 = await buildJobEstimateMessage(fakeSession0 as any)
               || await smartPricingLookup(scannedItems0[0].name);
             if (priceMsg0) {
-              const r0 = `📸 I can see *${displayLabel0}* in your photo!\n\n${priceMsg0}\n\n_Floor surcharges & transport may apply._\n\nWould you like a full personalised quote? What's your *full name*? 😊`;
+              const r0 = `📸 I can see *${displayLabel0}* in your photo!\n\n${priceMsg0}\n\nWould you like a full personalised quote? What's your *full name*?`;
               await sendBotMessage(from, r0);
               saveHistory(from, [], `[photo: ${displayLabel0}]`, r0);
               return;
@@ -4797,7 +4806,7 @@ Message: "${text.slice(0, 800)}"`
             const estimateMsg = await buildJobEstimateMessage(fakeSession as any);
             if (estimateMsg) {
               const intro = `Hello! Welcome to TMG Install — Singapore's trusted installation specialists with 200+ completed jobs across the island.\n\n`;
-              const outro = `\n\nWould you like a personalised quote? Just say *Yes* and I'll get the details from you.\n\n_Floor surcharges and transport (for relocation) are confirmed once we know more about your job._`;
+              const outro = `\n\nWould you like a personalised quote? Just say *Yes* and I'll get the details from you.`;
               await sendBotMessage(from, `${intro}${estimateMsg}${outro}`);
               scheduleQuoteFollowUp(from);
               saveHistory(from, [], text, estimateMsg);
@@ -4916,7 +4925,7 @@ When in doubt between ready_to_book and any other intent, choose ready_to_book.`
               distanceKm: null as string | null,
             };
             const estimateMsg = await buildJobEstimateMessage(fakeItemSession as any);
-            const outro = `\n\nWould you like a full personalised quote? Just say *Yes* and I'll get the job details from you. 😊\n\n_Floor surcharges & transport confirmed once we know your address._`;
+            const outro = `\n\nWould you like a full personalised quote? Just say *Yes* and I'll get the job details from you.`;
             const itemReply = intro + (estimateMsg
               ? `${estimateMsg}${outro}`
               : `We'd be happy to quote for *${firstMsgItem}*.\n\nWould you like a personalised quote? 😊`
@@ -4982,6 +4991,15 @@ When in doubt between ready_to_book and any other intent, choose ready_to_book.`
         }
         continueMsg += `\n_Next step: ${stateLabel[session.state] || "let's continue"}_`;
         await sendBotMessage(from, continueMsg);
+        return;
+      }
+
+      // ── Price objection intercept — fires for any session state ─────────────────
+      const PRICE_OBJECTION_RE = /\b(too (expensive|high|much|costly|pric[ey])|very expensive|so expensive|quite expensive|price (is |too )?(high|expensive|much)|cheaper|lower (the |your )?price|can.*reduce|any.*discount|other.*cheaper|going with.*cheaper|found.*cheaper|quote.*high|your (price|quote|rate).*high|expensive lah|ex lah|abit ex|a bit ex|too ex)\b/i;
+      if (PRICE_OBJECTION_RE.test(text) && !session?.botPaused) {
+        const objectionReply = `I understand — and it's smart to compare prices.\n\nThe difference with TMG Install is that this is a fixed, confirmed price. No hidden charges added on the day, no surprises when our team arrives.\n\nSome cheaper options quote low upfront but add charges for floor access, disposal, or extra manpower on the day — ending up more expensive.\n\nOur team is also fully insured, so if anything is accidentally damaged during the job, you're covered.\n\nWould you like me to walk you through exactly what's included in your quote? 😊`;
+        await sendBotMessage(from, objectionReply);
+        saveHistory(from, conversationHistory, text, objectionReply);
         return;
       }
 
@@ -5165,7 +5183,7 @@ If the case is unusual or complex, say the team will review and follow up.`
                 };
                 const priceMsg = await buildJobEstimateMessage(fakeEstSession as any)
                   || await smartPricingLookup(resolvedPricingItem); // fallback if not in catalog
-                const floorNote = `\n\n_Floor surcharges & transport may apply._`;
+                const floorNote = ``;
                 if (serviceLabel) {
                   const priceBlock = priceMsg
                     ? `${priceMsg}${floorNote}\n`
