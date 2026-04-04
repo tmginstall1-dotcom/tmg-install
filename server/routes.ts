@@ -161,29 +161,29 @@ Return JSON:
     });
 
     const typeLabel: Record<string, string> = {
-      install:          "🔧 *Installation*",
-      dismantle:        "🔨 *Dismantling*",
-      relocate:         "🚚 *Relocation* _(incl. dismantle + reinstall)_",
-      dispose:          "🗑️ *Disposal*",
-      dismantle_dispose:"🔨🗑️ *Dismantle + Dispose*",
+      install:          "Assembly / Installation",
+      dismantle:        "Dismantling",
+      relocate:         "Relocation (incl. dismantle + reinstall)",
+      dispose:          "Disposal",
+      dismantle_dispose:"Dismantling + Disposal",
     };
 
     const lines = Object.entries(byType)
       .filter(([type]) => typeLabel[type])
       .map(([type, prices]) => {
         const min = Math.min(...prices), max = Math.max(...prices);
-        return `${typeLabel[type]}: *$${min}${min !== max ? ` – $${max}` : ""}*`;
+        return `• ${typeLabel[type]} — SGD $${min}${min !== max ? `–$${max}` : ""}`;
       });
 
     if (lines.length === 0) return null;
 
     const intro = isApproximate
-      ? `Here's our closest pricing reference for *${itemLabel}* in Singapore:\n\n`
-      : `Here's our pricing for *${itemLabel}* in Singapore:\n\n`;
+      ? `Confirmed pricing reference for *${itemLabel}* in Singapore:\n\n`
+      : `Confirmed pricing for *${itemLabel}* in Singapore:\n\n`;
 
     const footnote = isApproximate
-      ? `\n\n_Estimated based on similar items. Final price confirmed after our team reviews your job. +$60 callout fee applies._`
-      : `\n\n_Per item. +$60 callout fee applies. Floor surcharge & transport extra._`;
+      ? `\n\n_Based on similar items. Our team will confirm the exact price for your job. +$60 site visit fee applies._`
+      : `\n\n_Per item. +$60 site visit & coordination fee applies. Floor surcharge & transport fee may apply. No GST._`;
 
     return intro + lines.join("\n") + footnote;
   } catch {
@@ -247,8 +247,7 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     const itemLines: string[] = [];
     const adjustmentLines: string[] = [];
     const surchargeLines: string[] = [];
-    const svcEmoji: Record<string, string> = { install: "🔧", dismantle: "🔨", relocate: "🚚", dispose: "🗑️", dismantle_dispose: "🔨🗑️" };
-    const svcLabel: Record<string, string> = { install: "Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal", dismantle_dispose: "Dismantle + Dispose" };
+    const svcLabel: Record<string, string> = { install: "Assembly / Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal", dismantle_dispose: "Dismantling + Disposal" };
     let hasTBCItems = false;
 
     // Load corrections once for auto-learn de-dupe check
@@ -287,17 +286,15 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
       totalEstimate += subtotal;
       if (item.serviceType === 'dismantle') dismantleSubtotal += subtotal;
       if (item.serviceType === 'install')   installSubtotal   += subtotal;
-      const emo = svcEmoji[item.serviceType] || "🔧";
       const svc = svcLabel[item.serviceType] || item.serviceType;
       if (unitPrice > 0) {
-        // Show: emoji Name (Service)\n   qty × $unit = $subtotal
         const calcStr = qty > 1
-          ? `   ${qty} × $${unitPrice.toFixed(0)} = *$${subtotal.toFixed(0)}*`
-          : `   $${unitPrice.toFixed(0)}`;
-        itemLines.push(`${emo} *${item.detectedName}* _(${svc})_\n${calcStr}`);
+          ? ` (${qty} × SGD $${unitPrice.toFixed(0)}) — SGD $${subtotal.toFixed(0)}`
+          : ` — SGD $${unitPrice.toFixed(0)}`;
+        itemLines.push(`• ${item.detectedName} [${svc}]${calcStr}`);
       } else {
         hasTBCItems = true;
-        itemLines.push(`${emo} *${item.detectedName}* _(${svc})_\n   _price to be confirmed_`);
+        itemLines.push(`• ${item.detectedName} [${svc}] — price to be confirmed by team`);
       }
     }
 
@@ -308,7 +305,7 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
       : 0;
     if (drDiscountAmt > 0) {
       totalEstimate -= drDiscountAmt;
-      adjustmentLines.push(`🔗 D&R bundle saving (${Math.round(drPct * 100)}% off dismantling): *-$${drDiscountAmt.toFixed(0)}*`);
+      adjustmentLines.push(`D&R bundle saving (${Math.round(drPct * 100)}% off dismantling) — -SGD $${drDiscountAmt.toFixed(0)}`);
     }
 
     // Bulk discount
@@ -318,7 +315,7 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     const discountAmt = Math.round(totalEstimate * discountPct * 100) / 100;
     if (discountAmt > 0) {
       totalEstimate -= discountAmt;
-      adjustmentLines.push(`🏷️ Bulk discount (${Math.round(discountPct * 100)}% off, ${totalQty} items): *-$${discountAmt.toFixed(0)}*`);
+      adjustmentLines.push(`Bulk discount (${Math.round(discountPct * 100)}% off for ${totalQty} items) — -SGD $${discountAmt.toFixed(0)}`);
     }
     const laborTotal = totalEstimate;
 
@@ -327,46 +324,57 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     const hasLift = session.hasLift ?? true;
     const floorsAbove = Math.max(0, floorLevel - 1);
     const floorSurcharge = floorsAbove * (hasLift ? PricingConfig.floor.perFloorWithLift : PricingConfig.floor.perFloorNoLift);
-    if (floorSurcharge > 0) surchargeLines.push(`🏢 Floor surcharge (Floor ${floorLevel}, ${hasLift ? "with lift" : "no lift"}): *+$${floorSurcharge.toFixed(0)}*`);
+    if (floorSurcharge > 0) surchargeLines.push(`• Floor surcharge (Floor ${floorLevel}, no lift) — SGD $${floorSurcharge.toFixed(0)}`);
 
     // Access surcharge
     const access = session.accessDifficulty ?? "easy";
     const accessPct = access === "medium" ? PricingConfig.access.mediumPct : access === "hard" ? PricingConfig.access.hardPct : 0;
     const accessSurcharge = Math.round(laborTotal * accessPct * 100) / 100;
-    if (accessSurcharge > 0) surchargeLines.push(`🚪 Access surcharge (${access === "medium" ? "Moderate" : "Difficult"}): *+$${accessSurcharge.toFixed(0)}*`);
+    if (accessSurcharge > 0) surchargeLines.push(`• Access surcharge (${access === "medium" ? "Moderate" : "Difficult"}) — SGD $${accessSurcharge.toFixed(0)}`);
 
     // Transport fee (relocation only) OR callout fee (non-relocation)
     const distKm = session.distanceKm ? parseFloat(session.distanceKm) : 0;
     const transportFee = session.isRelocation ? calcTransportFee(distKm) : 0;
-    if (transportFee > 0) surchargeLines.push(`🚛 Transport fee: *+$${transportFee.toFixed(0)}*`);
+    if (transportFee > 0) surchargeLines.push(`• Transport fee — SGD $${transportFee.toFixed(0)}`);
 
     const calloutFee = session.isRelocation ? 0 : PricingConfig.callout.fee;
-    if (calloutFee > 0) surchargeLines.push(`🚗 Callout / site visit: *+$${calloutFee.toFixed(0)}*`);
+    if (calloutFee > 0) surchargeLines.push(`• Site visit & coordination — SGD $${calloutFee.toFixed(0)}`);
 
     const grandTotal = laborTotal + floorSurcharge + accessSurcharge + transportFee + calloutFee;
     const deposit = grandTotal * 0.5;
 
     if (grandTotal === 0) return null;
 
-    const DIV = `━━━━━━━━━━━━━━━━━━━━━━━`;
-    let msg = `📋 *Price Breakdown*\n${DIV}\n\n`;
-    msg += itemLines.join("\n\n");
-    // Bulk discount (if any) shown right after items
+    // Build the clean bullet-format confirmed quote
+    const jobDesc = itemLines.length === 1 ? itemLines[0].split("\n")[0].replace(/^•\s*/, "").split("—")[0].trim() : `${itemLines.length} items`;
+    let msg = `Here is your confirmed quote for ${jobDesc}:\n\n`;
+    msg += itemLines.join("\n");
     if (adjustmentLines.length > 0) {
-      msg += `\n\n${adjustmentLines.join("\n")}`;
+      msg += "\n" + adjustmentLines.map((l: string) => `• ${l.replace(/^[•\s]+/, "")}`).join("\n");
     }
-    msg += `\n\n${DIV}\n`;
-    // Surcharges (floor, access, transport)
     if (surchargeLines.length > 0) {
-      msg += surchargeLines.join("\n") + "\n";
+      msg += "\n" + surchargeLines.join("\n");
     }
-    msg += `💰 *Total: SGD $${grandTotal.toFixed(0)}*\n`;
-    msg += `🔒 *50% deposit to confirm: SGD $${deposit.toFixed(0)}*\n`;
+    msg += `\n\n─────────────────────────────\n`;
+    msg += `Total: SGD $${grandTotal.toFixed(0)} (No GST)\n`;
+    msg += `Deposit to confirm: SGD $${deposit.toFixed(0)}\n`;
+    msg += `─────────────────────────────\n\n`;
+    msg += `This is a fixed price — no surprises on the day. ✅\n\n`;
+    // Floor surcharge outcome statement
+    if (!session.hasLift && (session.floorLevel ?? 1) > 1) {
+      const floorLvl = session.floorLevel ?? 1;
+      const surchargeAmt = floorLvl <= 3 ? 20 : floorLvl <= 6 ? 40 : 60;
+      msg += `Floor surcharge of SGD $${surchargeAmt} applied — no lift access at this building.\n\n`;
+    } else {
+      msg += `Lift access confirmed — no floor surcharge applied.\n\n`;
+    }
     if (session.isRelocation) {
-      msg += `⏱ _Relocation includes 90 mins crew time. Additional charges apply after._\n`;
+      msg += `_Relocation includes 90 mins crew time. Additional charges apply after._\n\n`;
     }
-    msg += `${DIV}\n`;
-    msg += `_${hasTBCItems ? "⚠️ Some items need manual pricing. " : ""}Prices are estimates — confirmed by our team before payment. No GST._`;
+    if (hasTBCItems) {
+      msg += `_Note: Some items require manual pricing — our team will confirm the final amount._\n\n`;
+    }
+    msg += `Our team is experienced, punctual, and fully insured — 200+ jobs completed across Singapore.`;
     return msg;
   } catch {
     return null;
@@ -374,42 +382,57 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
 }
 
 // ─── Coordinator persona shared across all GPT reply functions ───────────────
-const COORDINATOR_PERSONA = `You are the TMGinstall WhatsApp customer coordinator.
+const COORDINATOR_PERSONA = `You are the customer service assistant for TMG Install — Singapore's trusted furniture installation and disposal specialists. You are professional, warm, and knowledgeable. You speak like a helpful human representative, not an automated bot.
 
-You are chatting with customers on WhatsApp.
-You must sound like a real helpful human coordinator, not a bot.
+PERSONALITY:
+- Confident and reassuring, not salesy
+- Use clear, simple English — no jargon
+- Be concise. Customers are busy.
+- Use a maximum of 1–2 emojis per message, only where natural
+- Never sound desperate or pushy
+- When in doubt, be brief and helpful
 
-Tone:
-- warm
-- practical
-- concise
-- calm
-- human
-- not salesy
-- not overly formal
+HARD RULES:
+- Never say you are an AI
+- Never use the word "estimate" — always say "confirmed price", "fixed price", or "confirmed quote"
+- Never say "prices may vary" or "TBC" or "rough price"
+- Never ask more than one question at a time
+- Never ask for information the customer already gave
+- Never ignore a customer question — answer it first, then continue
+- Never say booking is confirmed unless the real system confirms it
+- Never invent pricing, policy, or availability
+- If the case is complex, say the team will review and follow up
 
-Hard rules:
-- never say you are an AI
-- never sound robotic or scripted
-- never ask a huge list of questions at once
-- never ask for information the customer already gave
-- never ignore a customer question — answer it first, then continue
-- never say booking is confirmed unless the real system confirms it
-- never invent pricing, policy, or availability
-- if the case is complex, say the team/admin will review and follow up
+BEFORE GIVING ANY PRICE — always collect in this order:
+1. Service type (if not already stated): Dismantling only / Disposal only / Dismantling + Disposal / Assembly / Relocation
+2. Floor and lift access (required to confirm the final price — never skip this)
+3. Furniture items (if not already stated)
+Only after collecting all three should you generate a confirmed quote.
 
-TMG Install — full company knowledge:
+FLOOR SURCHARGE RULES (apply automatically):
+- Lift available → No surcharge. State: "Lift access confirmed — no floor surcharge."
+- No lift, floors 1–3 → Add SGD $20
+- No lift, floors 4–6 → Add SGD $40
+- No lift, floor 7 and above → Add SGD $60
+Always explicitly state the surcharge outcome. Never leave it as TBC.
+
+HANDLING OBJECTIONS:
+- If price is too high: "I understand — and it's smart to compare. What makes TMG different is that our quote is a fixed price, not an estimate. No hidden charges on the day, and our team is fully insured. Many customers who went with cheaper options ended up paying more to fix issues afterward. Happy to walk you through exactly what's included."
+- If customer needs to think: "Of course, take your time! Is there anything I can clarify to help you decide? I can also share some photos of recent similar jobs if that would help."
+- If comparing with others: "Absolutely — you should compare! When you do, I'd suggest asking whether their price is fixed or an estimate, and whether they carry insurance. Those are the questions that separate a good deal from a risky one. We're happy to be compared on those terms. 😊"
+
+TMG Install — company knowledge:
 Company: The Moving Guy Pte Ltd, trading as TMG Install
 Location: Singapore (all areas — HDB, condo, landed, commercial, office)
 WhatsApp: +65 8088 0757
 
 Services:
-1. INSTALLATION / ASSEMBLY — flat-pack furniture (IKEA, Taobao, self-purchased), gym equipment, TV brackets, shelving. From $80/item.
+1. ASSEMBLY / INSTALLATION — flat-pack furniture (IKEA, Taobao, self-purchased), gym equipment, TV brackets, shelving. From $80/item.
 2. DISMANTLING — safe disassembly for moving, renovation, or disposal. From $60/item.
 3. DISPOSAL — haul-away of unwanted furniture. From $80/item. Dismantle + dispose bundle saves money.
 4. RELOCATION — all-in-one service: dismantle at origin, transport, reinstall at destination. From $180 (varies by distance & volume).
 
-Typical item pricing (approximate, per item, SGD):
+Typical item pricing (per item, SGD):
 - Single/super-single bed frame: $80–100 install, $60–80 dismantle
 - Queen/king bed frame: $100–150 install, $80–120 dismantle
 - IKEA PAX / 3-door wardrobe: $120–180 install, $100–150 dismantle
@@ -421,10 +444,10 @@ Typical item pricing (approximate, per item, SGD):
 - Office desk / workstation: $80–150
 - Chest of drawers / dresser: $80–100
 - Mattress disposal: $80–100
-- All prices per item; $60 callout fee applies to all non-relocation jobs; floor surcharge & transport fee may apply; no GST
+- All prices per item; $60 site visit & coordination fee applies to all non-relocation jobs; floor surcharge & transport fee may apply; no GST
 
 Process / how it works:
-1. Customer tells us what they need → we prepare a quote
+1. Customer tells us what they need → we prepare a confirmed quote
 2. Admin reviews and confirms pricing → sends a deposit payment link
 3. Customer pays 50% deposit → slot is locked in
 4. Team arrives on the agreed date; full payment (remaining 50%) on job completion
@@ -432,22 +455,20 @@ Process / how it works:
 
 Scheduling:
 - Available weekdays and weekends (subject to availability)
-- Minimum notice: 48 hours recommended; urgent same-day may be possible (ask admin)
+- Minimum notice: 48 hours recommended; urgent same-day may be possible
 - Time windows: morning (9am–12pm) or afternoon (1pm–5pm)
-- Customer does not need to be home for some pickup/disposal jobs (admin can advise)
 
 Other policies:
 - All tools and equipment supplied by TMG — customer brings nothing
 - No GST; all prices are nett
 - Rescheduling: minimum 48 hours notice
-- For large or complex jobs (>5 items, multi-floor, very heavy items), admin will assess on-site if needed
 - TMG serves all of Singapore: Jurong, Tampines, Woodlands, Punggol, Sengkang, Bishan, Serangoon, Toa Payoh, Bedok, Clementi, Buona Vista, Orchard, CBD, etc.
 
 Natural acknowledgement examples:
-- "Got it, bed frame and wardrobe — noted."
+- "Got it, noted."
 - "No problem, I've updated that."
-- "Thanks, that helps."
-- "Understood — making a note of that."`;
+- "Understood — making a note of that."
+- "Thanks, that helps."`;
 
 // ─── Shared company FAQ knowledge for free-form answers (static fallback) ────
 const FAQ_KNOWLEDGE = `TMG Install (The Moving Guy Pte Ltd) — Singapore furniture services.
@@ -4311,6 +4332,43 @@ Respond with ONLY a JSON array (no prose, no markdown):
   // ── WAMID dedup set — prevents double-processing when Meta retries the webhook ─
   const processedWamids = new Set<string>();
 
+  // ── 10-minute quote follow-up timer (in-memory per phone) ─────────────────
+  const quoteFollowUpTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  function scheduleQuoteFollowUp(from: string) {
+    // Clear any existing timer for this phone
+    const existing = quoteFollowUpTimers.get(from);
+    if (existing) clearTimeout(existing);
+
+    const FOLLOW_UP_MS = 10 * 60 * 1000; // 10 minutes
+    const timer = setTimeout(async () => {
+      quoteFollowUpTimers.delete(from);
+      try {
+        const sess = await storage.getWhatsAppSession(from);
+        // Only send if still at pricing_shown and bot is not paused
+        if (sess && sess.state === "pricing_shown" && !sess.botPaused) {
+          const followUpMsg =
+            `Hi! Just checking in — did you get a chance to review the quote? 😊
+
+` +
+            `Happy to answer any questions or adjust anything before you decide. ` +
+            `Our team is ready to lock in your slot whenever you are.`;
+          await sendBotMessage(from, followUpMsg);
+        }
+      } catch { /* silent — never block */ }
+    }, FOLLOW_UP_MS);
+
+    quoteFollowUpTimers.set(from, timer);
+  }
+
+  function clearQuoteFollowUpTimer(from: string) {
+    const existing = quoteFollowUpTimers.get(from);
+    if (existing) {
+      clearTimeout(existing);
+      quoteFollowUpTimers.delete(from);
+    }
+  }
+
   // ── WhatsApp Incoming Message Handler (POST) ──────────────────────────────
   app.post("/api/webhooks/whatsapp", async (req, res) => {
     res.status(200).json({ status: "ok" }); // Always ack quickly
@@ -4326,6 +4384,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
       const msg = value.messages[0];
       const from: string = msg.from; // sender phone e.g. "6591234567"
+      clearQuoteFollowUpTimer(from); // Customer replied — cancel any pending follow-up
 
       // ── Deduplicate: Meta sometimes retries the same webhook event ────────────
       const wamid: string = msg.id || "";
@@ -4521,7 +4580,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
           awaiting_items:     `\n\nSo, what items do you need help with? 😊`,
           awaiting_service:   `\n\nWhich of the above services do you need? Just let me know! 😊`,
           awaiting_date:      `\n\nBack to your quote — what *date* works best for you? 📅`,
-          pricing_shown:      `\n\nWould you like to proceed with a full personalised quote? 😊`,
+          pricing_shown:      `\n\nWould you like to proceed with a full personalised quote?`,
           confirm_booking:    `\n\nReady to confirm? Just reply *Yes* to lock in your booking 😊`,
         };
         const resumeHint = stateResumePrompt[session?.state ?? ""] ?? `\n\nLet me know how I can help you! 😊`;
@@ -4549,7 +4608,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
           // Brief greeting with existing session — offer resume
           const progress = session.state.replace(/_/g, " ");
           await sendBotMessage(from,
-            `👋 Welcome back, *${session.collectedName || "there"}*! Great to hear from you again 😊\n\nYou have a quote in progress. What would you like to do?\n\n• Type *continue* — pick up where you left off\n• Type *restart* — start a fresh new quote`
+            `Welcome back${session.collectedName ? ", " + session.collectedName : ""}! You have a quote in progress.\n\n• Type *continue* — pick up where you left off\n• Type *restart* — start a fresh new quote`
           );
           return;
         }
@@ -4687,46 +4746,38 @@ Message: "${text.slice(0, 800)}"`
 
         // ── Pricing overview message — shown to every new contact ──────────────
         const PRICING_OVERVIEW =
-          `💰 *Our Pricing (Singapore):*\n` +
-          `━━━━━━━━━━━━━━━━━━━━\n` +
-          `🔧 *Installation* (flat-pack / assembly): from *$80/item*\n` +
-          `🔨 *Dismantling*: from *$60/item*\n` +
-          `🗑️ *Disposal* (haul away): from *$80/item*\n` +
-          `🔨🗑️ *Dismantle + Dispose* bundle: best value!\n` +
-          `🚚 *Relocation* (dismantle + move + reinstall, all-in): from *$180*\n\n` +
-          `_All prices per item. Min. job $180. Floor surcharge & transport may apply. No GST._\n\n` +
-          `📸 *Want the exact price for your item?* Type the name or send a photo and I'll look it up!\n\n` +
-          `Happy with our pricing? Reply *Yes* and I'll prepare a personalised quote in 2 minutes 😊`;
+          `Our confirmed pricing (Singapore):\n\n` +
+          `• Assembly / Installation — from SGD $80 per item\n` +
+          `• Dismantling — from SGD $60 per item\n` +
+          `• Disposal (haul away) — from SGD $80 per item\n` +
+          `• Dismantling + Disposal bundle — best value\n` +
+          `• Relocation (dismantle + move + reinstall) — from SGD $180\n\n` +
+          `All prices are fixed — no hidden charges on the day. No GST.\n\n` +
+          `Want the exact price for your item? Type the name or send a photo and I'll look it up right away.`;
 
         if (extractedName && extractedAddress && extractedItems) {
-          const r = `👋 Hi *${extractedName}*! Got it — let me confirm what you've told me:\n\n` +
-            `📍 *Address:* ${extractedAddress}\n` +
-            `🛋️ *Items:*\n${extractedItems}\n\n` +
+          const r = `Hi ${extractedName}! Here's what I've noted from your message:\n\n` +
+            `Address: ${extractedAddress}\n` +
+            `Items:\n${extractedItems}\n\n` +
             `Does this look right?\n• Reply *YES* to proceed\n• Tell me what to correct\n• Send a photo to add more items`;
           await sendBotMessage(from, r);
           saveHistory(from, [], text, r);
         } else if (extractedAddress && extractedName) {
-          const r = `👋 Hi *${extractedName}*! I've noted your address: *${extractedAddress}*.\n\n` +
-            `What furniture do you need help with?\n\n📸 *Send a photo* and I'll identify everything, or *type the list* below.\n\n` +
-            `_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
+          const r = `Hi ${extractedName}! I've noted your address — ${extractedAddress}.\n\nWhat furniture do you need help with?\n\nSend a photo and I'll identify everything, or type the list below.\n\n_e.g. 1 queen bed frame (install), 3-door wardrobe (dismantle)_`;
           await sendBotMessage(from, r);
           saveHistory(from, [], text, r);
         } else if (extractedAddress && extractedItems) {
           const addrLine = extractedToAddress
             ? `📍 *From:* ${extractedAddress}\n📍 *To:* ${extractedToAddress}\n`
             : `📍 *Address:* ${extractedAddress}\n`;
-          const r = `👋 Hi! Got it — here's what I've noted:\n\n` +
+          const r = `Got it — here's what I've noted:\n\n` +
             addrLine +
-            `🛋️ *Items:*\n${extractedItems}\n\n` +
-            `Before I lock it in, could I get your *full name*? 😊\n\n` +
-            `_e.g. "John", "Mary Tan", "Ahmad"_`;
+            `Items:\n${extractedItems}\n\nCould I get your full name to continue?\n\n_e.g. "John", "Mary Tan", "Ahmad"_`;
           await sendBotMessage(from, r);
           saveHistory(from, [], text, r);
         } else if (extractedName) {
           // Got name but no address — ask for job address directly (no pricing dump)
-          const r = `👋 Hi *${extractedName}*! Thanks for reaching out to *TMG Install* 🏠\n\n` +
-            `What service do you need and where is the job located? 📍\n\n` +
-            `_e.g. "Installation at Blk 261 Serangoon Central #05-01" or "Relocation from Tampines to Bedok"_`;
+          const r = `Hi ${extractedName}! What service do you need and where is the job located?\n\n_e.g. "Installation at Blk 261 Serangoon Central #05-01" or "Relocation from Tampines to Bedok"_`;
           await sendBotMessage(from, r);
           saveHistory(from, [], text, r);
         } else if (extractedItems) {
@@ -4745,9 +4796,10 @@ Message: "${text.slice(0, 800)}"`
             };
             const estimateMsg = await buildJobEstimateMessage(fakeSession as any);
             if (estimateMsg) {
-              const intro = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n`;
-              const outro = `\n\nWould you like to get the full personalised quote? Just say *Yes* and I'll get the details from you! 😊\n\n_Floor surcharges & transport (for relocation) will be confirmed once we know more about your job._`;
+              const intro = `Hello! Welcome to TMG Install — Singapore's trusted installation specialists with 200+ completed jobs across the island.\n\n`;
+              const outro = `\n\nWould you like a personalised quote? Just say *Yes* and I'll get the details from you.\n\n_Floor surcharges and transport (for relocation) are confirmed once we know more about your job._`;
               await sendBotMessage(from, `${intro}${estimateMsg}${outro}`);
+              scheduleQuoteFollowUp(from);
               saveHistory(from, [], text, estimateMsg);
               return;
             }
@@ -4762,9 +4814,9 @@ Message: "${text.slice(0, 800)}"`
             collectedItems: extractedItems,
             isRelocation: extractedIsRelocation,
           });
-          const intro2 = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n`;
+          const intro2 = `Hello! Welcome to TMG Install — Singapore's trusted installation specialists with 200+ completed jobs across the island.\n\n`;
           const itemsAck = `Got it — here's what I've noted:\n${extractedItems}\n\n`;
-          const nextQ = `📍 What's the *job address*? Include block/unit number if possible.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
+          const nextQ = `What's the job address? Include block and unit number if possible.\n\n_e.g. Blk 261 Serangoon Central #05-01, S550261_`;
           await sendBotMessage(from, `${intro2}${itemsAck}${nextQ}`);
           saveHistory(from, [], text, `${intro2}${itemsAck}${nextQ}`);
 
@@ -4854,7 +4906,7 @@ When in doubt between ready_to_book and any other intent, choose ready_to_book.`
 
           // Send the appropriate first reply — history saved in ALL paths so next turn has context
           if (firstMsgItem) {
-            const intro = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n`;
+            const intro = `Hello! Welcome to TMG Install — Singapore's trusted installation specialists with 200+ completed jobs across the island.\n\n`;
             const fakeItemSession = {
               collectedItems: firstMsgItem,
               floorLevel: null as number | null,
@@ -4876,23 +4928,21 @@ When in doubt between ready_to_book and any other intent, choose ready_to_book.`
             saveHistory(from, [], text, firstMsgReply);
           } else if (firstMsgReply) {
             // Question answered — wrap with a greeting
-            const qReply = `👋 Hi! Thanks for reaching out to *TMG Install* 🏠\n\n${firstMsgReply}`;
+            const qReply = `Hello! Welcome to TMG Install — Singapore's trusted installation specialists with 200+ completed jobs across the island.\n\n${firstMsgReply}`;
             await sendBotMessage(from, qReply);
             saveHistory(from, [], text, qReply);
           } else if (firstMsgShowPricing) {
             const pReply =
-              `👋 Hi there! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
-              `We handle:\n• 🔧 Furniture *installation* & assembly\n• 🔨 *Dismantling* & removal\n• 🚚 *Relocation* (home or office)\n• 🗑️ *Disposal*\n\n` +
-              `All across Singapore — no calls needed, upfront pricing.\n\n` +
+              `Hello! Welcome to TMG Install — Singapore's trusted installation specialists with 200+ completed jobs across the island.\n\n` +
+              `We handle installation, dismantling, relocation, and disposal — all across Singapore.\n\n` +
               PRICING_OVERVIEW;
             await sendBotMessage(from, pReply);
             saveHistory(from, [], text, pReply);
           } else {
             // Plain greeting — brief welcome, open invitation
             const gReply =
-              `👋 Hi there! Thanks for reaching out to *TMG Install* — we're *The Moving Guy Pte Ltd* 🏠\n\n` +
-              `We help with furniture *installation*, *dismantling*, *relocation*, and *disposal* all across Singapore.\n\n` +
-              `What can I help you with today? 😊`;
+              `Hello! Welcome to TMG Install — Singapore's trusted installation specialists with 200+ completed jobs across the island.\n\n` +
+              `How can I help you today?`;
             await sendBotMessage(from, gReply);
             saveHistory(from, [], text, gReply);
           }
@@ -4902,7 +4952,7 @@ When in doubt between ready_to_book and any other intent, choose ready_to_book.`
 
       if (textLower === "continue" && session) {
         const stateLabel: Record<string, string> = {
-          pricing_shown: "review our pricing — reply Yes when ready",
+          pricing_shown: "review the quote — reply Yes when ready",
           awaiting_name: "we still need your name",
           awaiting_address: "we still need your job address",
           awaiting_items: "we still need the furniture list",
@@ -5004,11 +5054,11 @@ If the case is unusual or complex, say the team will review and follow up.`
           if (gc.isCommand && gc.command && gc.command !== "none") {
             if (gc.command === "change_name") {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_name" });
-              await sendBotMessage(from, `Sure! What's the correct name? 😊`);
+              await sendBotMessage(from, `Sure! What's the correct name?`);
               return;
             } else if (gc.command === "change_address" && !["awaiting_address", "awaiting_to_address"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_address" });
-              await sendBotMessage(from, `No problem! What's the correct job address? 📍`);
+              await sendBotMessage(from, `No problem! What's the correct job address? Include block and unit number.`);
               return;
             } else if (gc.command === "change_items" && !["awaiting_items", "awaiting_items_verify", "awaiting_confirmation"].includes(state)) {
               // Note: awaiting_confirmation excluded — its own handler handles targeted add/remove/edit with GPT delta logic
@@ -5018,7 +5068,7 @@ If the case is unusual or complex, say the team will review and follow up.`
             } else if (gc.command === "change_date" && !["awaiting_date"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_date" });
               const { message: dateMenu } = await buildDateMenuMessage();
-              await sendBotMessage(from, `No problem! Let's update that. 😊\n\n${dateMenu}`);
+              await sendBotMessage(from, `No problem! Let's update that.\n\n${dateMenu}`);
               return;
             } else if (gc.command === "change_floor" && !["awaiting_floor"].includes(state)) {
               await storage.upsertWhatsAppSession(from, { state: "awaiting_floor" });
@@ -5032,7 +5082,7 @@ If the case is unusual or complex, say the team will review and follow up.`
               const richSessR = parseStructuredState(session);
               richSessR.special_remarks = null;
               await storage.upsertWhatsAppSession(from, { state: "collecting", structuredState: JSON.stringify(richSessR), specialRemarks: null });
-              await sendBotMessage(from, `Sure! What are the special notes or requirements for our team? 📝\n\n_e.g. wall mounting needed, drilling, fragile items, parking info. Reply *none* to skip._`);
+              await sendBotMessage(from, `Sure! Any special notes or requirements for our team?\n\n_e.g. wall mounting needed, drilling, fragile items, parking info. Reply *none* to skip._`);
               return;
             } else if (gc.command === "change_email") {
               const richSessEm = parseStructuredState(session);
@@ -5058,7 +5108,7 @@ If the case is unusual or complex, say the team will review and follow up.`
               const pricingItem = gc.pricingItem as string | null;
               const pricingService = gc.pricingService as string | null; // service type extracted from caption/text
               const statePromptPricing: Record<string, string> = {
-                pricing_shown: `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`,
+                pricing_shown: `Ready to proceed? Reply *Yes* and I'll prepare your personalised quote.`,
                 awaiting_name: `What's your *full name*?`,
                 awaiting_address: `📍 What's the *job address*?`,
                 awaiting_items: `🛋️ What furniture do you need help with?`,
@@ -5147,6 +5197,7 @@ If the case is unusual or complex, say the team will review and follow up.`
                 const estimateMsg = await buildJobEstimateMessage(session!);
                 if (estimateMsg) {
                   await sendBotMessage(from, `${estimateMsg}\n\n${continuePrompt}`);
+                  scheduleQuoteFollowUp(from);
                   saveHistory(from, conversationHistory, text, estimateMsg);
                   return;
                 }
@@ -5169,7 +5220,7 @@ If the case is unusual or complex, say the team will review and follow up.`
                 );
               } else {
                 await sendBotMessage(from,
-                  `Sure, I can check that for you! 😊\n\nWhat item would you like a price for? And what service do you need?\n\n` +
+                  `Sure! What item would you like a price for, and what service do you need?\n\n` +
                   `_e.g. "IKEA PAX wardrobe — dismantling" or "queen bed frame — relocation"_`
                 );
               }
@@ -5177,7 +5228,7 @@ If the case is unusual or complex, say the team will review and follow up.`
             } else if (gc.command === "faq" && gc.faqAnswer) {
               // Answer the question and prompt to continue the flow
               const statePrompt: Record<string, string> = {
-                pricing_shown: `Happy with our pricing? Reply *Yes* to start your personalised quote 😊`,
+                pricing_shown: `Ready to proceed? Reply *Yes* and I'll prepare your personalised quote.`,
                 awaiting_name: `What's your *full name*?`,
                 awaiting_address: `📍 Now, what's the *job address*?`,
                 awaiting_items: `🛋️ What furniture do you need help with? (send a photo or type the list)`,
@@ -5263,7 +5314,7 @@ If the case is unusual or complex, say the team will review and follow up.`
               }
 
               const resumeStepHint: Record<string, string> = {
-                pricing_shown: "Just reply *Yes* whenever you're happy with our pricing and we'll get started!",
+                pricing_shown: "Reply *Yes* whenever you're ready and I'll lock in your slot.",
                 awaiting_name: "We just need your *name* to get started.",
                 awaiting_address: "We just need your *job address* to lock in your quote.",
                 awaiting_items: "We just need to know which *items* you need help with.",
