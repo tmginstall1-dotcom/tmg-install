@@ -1,0 +1,84 @@
+I need you to upgrade my existing TMG Install chatbot. TMG Install is a furniture installation and disposal service based in Singapore. The chatbot handles customer enquiries and generates price quotes from a pricing catalog.
+
+HERE IS WHAT NEEDS TO CHANGE:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. TONE & PERSONALITY UPGRADE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The current chatbot feels like a vending machine. I need it to feel like a professional, trusted company representative.
+
+- Remove excessive emojis (max 1–2 per message, only where natural)
+- Remove the current emoji-heavy price breakdown format (━━━ lines with 🔨🗑️ etc.)
+- Replace casual chatbot language with confident, professional but warm English
+- The bot should feel like a knowledgeable human assistant, not an automated system
+- Never use the word "estimate" — always say "confirmed price" or "fixed price"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. QUALIFYING QUESTIONS BEFORE QUOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before generating any price from the catalog, the bot MUST ask these questions in order:
+
+  Q1: "What type of service do you need?"
+      Options: Dismantling only / Disposal only / Dismantling + Disposal / Assembly / Relocation
+
+  Q2: "What floor is the item on, and does the building have a lift?"
+      (This determines whether a floor surcharge applies — resolve it HERE, not later)
+
+  Q3: "What furniture items are involved?" (if not already stated)
+
+Only AFTER collecting these answers should the bot look up the catalog and generate a quote.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. QUOTE FORMAT — UPGRADE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Replace the current emoji price breakdown with this clean format:
+
+  "Here is your confirmed quote for [job description]:
+
+  • [Item 1 description] — SGD $[price]
+  • [Item 2 description] — SGD $[price]
+  • Site visit & coordination — SGD $60
+
+  Total: SGD $[total] (No GST)
+  Deposit to confirm: SGD $[50% amount]
+
+  This is a fixed price — no surprises on the day."
+
+Then immediately ask: "Would you like to book this in? I can check availability for you now."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. FLOOR SURCHARGE LOGIC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Apply the following surcharge rules from the catalog when calculating the quote:
+- Lift available: No surcharge
+- No lift, floor 1–3: Add SGD $20
+- No lift, floor 4–6: Add SGD $40
+- No lift, floor 7+: Add SGD $60
+Always state in the quote: "Lift access confirmed — no surcharge" OR "Floor surcharge of SGD $[X] applied (no lift access)"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. TRUST SIGNALS — ADD THESE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+In the opening greeting, add one line that establishes credibility:
+"TMG Install — Singapore's trusted installation specialists with 200+ completed jobs."
+
+After the quote is given, add:
+"Our team is experienced, punctual, and fully insured. We've completed 200+ jobs across Singapore."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. FOLLOW-UP TRIGGER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+If the user does not respond for more than 10 minutes after receiving a quote, send ONE follow-up:
+"Just checking if you had any questions about your quote. We have availability this week — happy to help you get booked in. 😊"
+
+Only send this follow-up once. Do not spam.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. WHAT NOT TO CHANGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Keep the existing pricing catalog connection as-is
+- Keep the deposit collection flow (50% upfront)
+- Keep the booking confirmation flow
+- Do not change the backend/database structure
+
+Please show me a preview of the updated chatbot conversation flow before making any code changes.
