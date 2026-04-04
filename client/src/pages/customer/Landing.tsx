@@ -881,6 +881,66 @@ export default function Landing() {
       {/* ═══════════════════════ TRUST STRIP ═══════════════════════ */}
       <TrustStripAnimated />
 
+      {/* ═══════════════════ HOW IT WORKS ════════════════════════ */}
+      <section className="px-4 sm:px-6 lg:px-8 py-20 border-b border-white/8 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(251,191,36,0.04) 0%, transparent 70%)" }} />
+        <div className="max-w-5xl mx-auto relative">
+          <motion.div {...fadeUpDelayed(0)} className="text-center mb-14">
+            <p className="section-eyebrow mb-3">Simple Process</p>
+            <h2 className="section-title text-gradient-warm">How it works</h2>
+            <p className="font-body text-sm text-white/45 mt-3 max-w-md mx-auto">From quote to completion — straightforward, transparent, and done right.</p>
+          </motion.div>
+          <div className="grid sm:grid-cols-3 gap-8 sm:gap-0 relative">
+            {/* Connector line desktop */}
+            <div className="hidden sm:block absolute top-10 left-[calc(16.67%+20px)] right-[calc(16.67%+20px)] h-px bg-gradient-to-r from-amber-400/30 via-amber-400/60 to-amber-400/30" />
+            {[
+              {
+                step: "01",
+                icon: FileText,
+                title: "Build your quote",
+                desc: "Pick items from our 250+ catalog, upload a photo, or paste your list. Get an instant itemised price — no calls needed.",
+                cta: null,
+              },
+              {
+                step: "02",
+                icon: CreditCard,
+                title: "Pay a small deposit",
+                desc: "Secure your slot with a 50% deposit via Stripe or PayNow. The remaining 50% is only due after the job is done.",
+                cta: null,
+              },
+              {
+                step: "03",
+                icon: CalendarDays,
+                title: "We show up & deliver",
+                desc: "Our team arrives at your chosen time, fully equipped. Track them live. Balance payment on completion.",
+                cta: null,
+              },
+            ].map(({ step, icon: Icon, title, desc }, i) => (
+              <motion.div key={step} {...fadeUpDelayed(i * 0.12)} className="flex flex-col items-center text-center sm:px-8 relative">
+                <div className="relative mb-6">
+                  <div className="w-20 h-20 border border-amber-400/30 bg-white/[0.04] flex items-center justify-center relative">
+                    <Icon className="w-8 h-8 text-amber-400/80" />
+                    <span className="absolute -top-2.5 -right-2.5 text-[10px] font-black bg-amber-400 text-black px-1.5 py-0.5 tracking-[0.06em]">{step}</span>
+                  </div>
+                </div>
+                <h3 className="font-heading font-bold text-lg text-white mb-2">{title}</h3>
+                <p className="font-body text-sm text-white/45 leading-relaxed">{desc}</p>
+              </motion.div>
+            ))}
+          </div>
+          <motion.div {...fadeUpDelayed(0.36)} className="text-center mt-12">
+            <Link
+              href="/estimate"
+              onClick={() => trackEvent("cta_click", "/", "how_it_works_cta")}
+              className="group inline-flex items-center gap-2.5 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn"
+            >
+              Get My Instant Quote <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </Link>
+            <p className="text-xs text-white/30 mt-3">No calls required · Takes about 2 minutes</p>
+          </motion.div>
+        </div>
+      </section>
+
       {/* ════════════════════ WORK GALLERY ════════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-8 py-16 border-b border-white/8">
         <div className="max-w-6xl mx-auto">
