@@ -385,7 +385,6 @@ const CN = {
   sub:      "一站式家具安装 · 拆除 · 搬运服务。超过250种固定报价，即时透明，无隐藏费用。",
   cta1:     "立即获取报价",
   cta2:     "WhatsApp咨询",
-  portalLink: "查看我的订单",
 };
 const EN = {
   badge:    "Singapore's Furniture Installation Specialists",
@@ -395,7 +394,6 @@ const EN = {
   sub:      "Full-service furniture installation, dismantling & relocation. 250+ fixed catalog prices — instant, transparent, no hidden fees.",
   cta1:     "Get Your Estimate",
   cta2:     "WhatsApp Us",
-  portalLink: "My Orders",
 };
 
 export default function Landing() {
@@ -660,13 +658,6 @@ export default function Landing() {
                     <MessageCircle className="w-4 h-4" /> {t.cta2}
                   </a>
                 </MagneticButton>
-                <Link
-                  href="/portal"
-                  data-testid="link-customer-portal"
-                  className="flex w-full sm:inline-flex items-center justify-center gap-1.5 px-4 py-4 text-white/50 hover:text-white/80 text-xs font-semibold transition-colors"
-                >
-                  <Receipt className="w-3.5 h-3.5" /> {t.portalLink}
-                </Link>
               </div>
 
               {/* ── Micro-trust line ── */}
