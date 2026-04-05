@@ -246,43 +246,6 @@ export default function EstimateWizard() {
 
   const { visible: promoVisible, promo: promoBarData } = usePromoBar();
 
-  const applyPromo = useCallback(async (code: string) => {
-    const trimmed = code.trim().toUpperCase();
-    if (!trimmed) return;
-    setPromoStatus("validating");
-    setPromoMessage("");
-    try {
-      const res = await fetch("/api/promo/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: trimmed }),
-      });
-      const data = await res.json();
-      if (data.valid) {
-        setPromoCode(trimmed);
-        setPromoDiscount(data.discount);
-        setPromoStatus("valid");
-        setPromoMessage(data.message);
-      } else {
-        setPromoCode(null);
-        setPromoDiscount(0);
-        setPromoStatus("invalid");
-        setPromoMessage(data.message || "Invalid code");
-      }
-    } catch {
-      setPromoStatus("invalid");
-      setPromoMessage("Could not validate code. Try again.");
-    }
-  }, []);
-
-  const removePromo = useCallback(() => {
-    setPromoCode(null);
-    setPromoDiscount(0);
-    setPromoStatus("idle");
-    setPromoMessage("");
-    setPromoInput("");
-  }, []);
-
   const isRelocation = services.includes("relocate");
 
   // Fetch catalog — short stale time so price changes apply quickly
@@ -411,6 +374,43 @@ export default function EstimateWizard() {
   const grandTotalAfterPromo = Math.max(0, total - promoDiscount);
   const effectiveDeposit = Math.round(grandTotalAfterPromo * 0.5 * 100) / 100;
   const effectiveFinal = Math.round((grandTotalAfterPromo - effectiveDeposit) * 100) / 100;
+
+  const applyPromo = useCallback(async (code: string) => {
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) return;
+    setPromoStatus("validating");
+    setPromoMessage("");
+    try {
+      const res = await fetch("/api/promo/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmed, orderTotal: total }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setPromoCode(trimmed);
+        setPromoDiscount(data.discount);
+        setPromoStatus("valid");
+        setPromoMessage(data.message);
+      } else {
+        setPromoCode(null);
+        setPromoDiscount(0);
+        setPromoStatus("invalid");
+        setPromoMessage(data.message || "Invalid code");
+      }
+    } catch {
+      setPromoStatus("invalid");
+      setPromoMessage("Could not validate code. Try again.");
+    }
+  }, [total]);
+
+  const removePromo = useCallback(() => {
+    setPromoCode(null);
+    setPromoDiscount(0);
+    setPromoStatus("idle");
+    setPromoMessage("");
+    setPromoInput("");
+  }, []);
 
   // ── Catalog add ───────────────────────────────────────────────────────────
 

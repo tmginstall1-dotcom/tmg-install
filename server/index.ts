@@ -214,9 +214,10 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
       ALTER TABLE quotes ADD COLUMN IF NOT EXISTS promo_code TEXT;
       ALTER TABLE quotes ADD COLUMN IF NOT EXISTS promo_discount NUMERIC DEFAULT 0;
       ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS remark TEXT;
-      INSERT INTO promo_codes (code, discount_amount, max_uses, uses_count, active)
-      VALUES ('TMG50', 50, 100, 0, TRUE)
-      ON CONFLICT (code) DO NOTHING;
+      ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS min_order_amount NUMERIC DEFAULT 0;
+      INSERT INTO promo_codes (code, discount_amount, max_uses, uses_count, active, min_order_amount)
+      VALUES ('TMG50', 50, 100, 0, TRUE, 150)
+      ON CONFLICT (code) DO UPDATE SET min_order_amount = 150;
     `));
 
     console.log("[startup] DB schema ready, TMG50 seeded.");

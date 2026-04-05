@@ -6611,7 +6611,7 @@ Respond directly — no JSON, just the message text.`,
 
   // POST /api/promo/validate — public: validates a promo code before submission
   app.post("/api/promo/validate", async (req, res) => {
-    const { code } = req.body as { code?: string };
+    const { code, orderTotal } = req.body as { code?: string; orderTotal?: number };
     if (!code?.trim()) return res.status(400).json({ valid: false, message: "No code provided" });
     try {
       const rows = await db.select().from(promoCodes)
@@ -6620,6 +6620,13 @@ Respond directly — no JSON, just the message text.`,
       const p = rows[0];
       if (!p.active) return res.json({ valid: false, message: "This promo code is no longer active" });
       if (p.usesCount >= p.maxUses) return res.json({ valid: false, message: "All promo slots have been claimed — thank you!" });
+      const minOrder = parseFloat(p.minOrderAmount ?? "0");
+      if (minOrder > 0 && orderTotal !== undefined && orderTotal < minOrder) {
+        return res.json({
+          valid: false,
+          message: `Minimum job total of $${minOrder.toFixed(0)} required to use this code (your total: $${orderTotal.toFixed(2)})`,
+        });
+      }
       return res.json({ valid: true, discount: parseFloat(p.discountAmount), message: `$${parseFloat(p.discountAmount).toFixed(0)} discount applied!` });
     } catch (e: any) {
       return res.status(500).json({ valid: false, message: e.message });

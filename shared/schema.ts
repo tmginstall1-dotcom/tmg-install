@@ -166,6 +166,7 @@ export const promoCodes = pgTable("promo_codes", {
   maxUses: integer("max_uses").notNull().default(100),
   usesCount: integer("uses_count").notNull().default(0),
   active: boolean("active").notNull().default(true),
+  minOrderAmount: numeric("min_order_amount").default("0"), // minimum job total required to use this code
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type PromoCode = typeof promoCodes.$inferSelect;
