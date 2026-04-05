@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { users, catalogItems, faqEntries, cannedReplies } from "@shared/schema";
-import { eq, count } from "drizzle-orm";
+import { eq, count, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 const ACCOUNTS = [
@@ -1864,6 +1864,44 @@ export async function seedDatabase() {
     await db.update(catalogItems).set({ basePrice: "15.00" }).where(eq(catalogItems.sku, "DNC-DISMANTLE"));
 
     console.log("[startup] Round 12: Round 11 price rollback applied.");
+  }
+
+  // Round 13: Align ALL catalog relocate prices with D&R bundle formula (RELOCATE-FORMULA-R1 marker)
+  // Sets every active relocate-service catalog item to (install + dismantle) × 0.60
+  // where both install and dismantle entries exist for that item name.
+  // Items with only a relocate entry (mattresses, boxes, appliances) are left unchanged.
+  const r13 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "RELOCATE-FORMULA-R1"));
+  if (r13.length === 0) {
+    await db.insert(catalogItems).values({
+      name: "__relocate_formula_r1_marker__",
+      sku: "RELOCATE-FORMULA-R1",
+      category: "System",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    });
+
+    await db.execute(sql`
+      UPDATE catalog_items AS r
+      SET base_price = ROUND(
+          (i.base_price + d.base_price) * 0.60,
+          2
+        )
+      FROM catalog_items AS i
+      JOIN catalog_items AS d
+        ON  d.name         = i.name
+        AND d.service_type = 'dismantle'
+        AND d.active       = true
+        AND d.category    != 'System'
+      WHERE r.name         = i.name
+        AND r.service_type = 'relocate'
+        AND i.service_type = 'install'
+        AND r.active       = true
+        AND i.active       = true
+        AND i.category    != 'System'
+    `);
+
+    console.log("[startup] Round 13: All catalog relocate prices aligned with D&R bundle formula (install + dismantle) × 0.60.");
   }
 
 }
