@@ -33,13 +33,12 @@ export const PricingConfig = {
     hardPct: 0.20,   // +20% of labor-after-discount
   },
   transport: {
-    // Lalamove Singapore 2.4m Van (Toyota Hiace) pricing — 2025
-    vanBase: 38,        // Base fare for 2.4m Van (includes first 3 km)
+    vanBase: 28,        // Base fare (includes first 3 km)
     helperFee: 30,      // Driver + 1 helper surcharge (standard for furniture jobs)
     includedKm: 3,      // First 3 km included in van base fare
     ratePerKm: 0.50,    // Per km after first 3 km
     cbdSurcharge: 5,    // CBD area surcharge (Mon–Sat 6:30am–8:30pm)
-    get minFee() { return this.vanBase + this.helperFee; }, // $68 minimum
+    get minFee() { return this.vanBase + this.helperFee; }, // $58 minimum
   },
   overtime: {
     // Relocation-only jobs: base price covers 120 minutes of crew time (matches Lalamove 2-hour window)
@@ -133,8 +132,8 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Lalamove 2.4m Van (Toyota Hiace) pricing for Singapore — 2025
- *  Base $38 (first 3 km) + $0.50/km after + $30 helper = $68 minimum
+/** Transport pricing — 2.4m Van (Toyota Hiace), Singapore
+ *  Base $28 (first 3 km) + $0.50/km after + $30 helper = $58 minimum
  */
 export function calcTransportFee(distanceKm: number): number {
   const cfg = PricingConfig.transport;

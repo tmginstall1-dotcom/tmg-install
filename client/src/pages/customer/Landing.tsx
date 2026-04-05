@@ -1535,13 +1535,13 @@ export default function Landing() {
                 <div className="glass-card-light p-3 space-y-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white">Carry Only — Transport &amp; Stairs</p>
                   <p className="text-[10px] text-white/50 font-body">No per-item labor. You pay transport fee only.</p>
-                  <p className="text-[11px] font-semibold text-white">From <span className="text-amber-400">$68</span> <span className="text-white/40 font-normal">(≤3 km, 1 helper incl.)</span></p>
+                  <p className="text-[11px] font-semibold text-white">From <span className="text-amber-400">$58</span> <span className="text-white/40 font-normal">(≤3 km, 1 helper incl.)</span></p>
                   <p className="text-[10px] text-white/40">+$0.50/km · Stairs: +$5/level (lift), +$15/level (no lift)</p>
                 </div>
                 <div className="glass-card-dark p-3 space-y-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white">Dismantle &amp; Reinstall — Full Service</p>
                   <p className="text-[10px] text-white/55 font-body">Transport + dismantle at origin + reassemble at destination.</p>
-                  <p className="text-[11px] font-semibold text-white">From <span className="text-amber-400">$68</span> <span className="text-white/50 font-normal">+ D&amp;R labor per item below</span></p>
+                  <p className="text-[11px] font-semibold text-white">From <span className="text-amber-400">$58</span> <span className="text-white/50 font-normal">+ D&amp;R labor per item below</span></p>
                   <p className="text-[10px] text-white/45">+$0.50/km · 90 min crew · Overtime $30/30-min block</p>
                 </div>
               </div>
@@ -1629,7 +1629,7 @@ export default function Landing() {
             <div className="px-4 py-4 border-t border-white/8 bg-white/[0.03]">
               <p className="font-body text-xs text-white/35 mb-3">
                 {pricingTab === "relocate"
-                  ? "D&R Labor shown. Transport from $68 (≤3km, 1 helper incl.) + $0.50/km. Carry Only = transport fee only."
+                  ? "D&R Labor shown. Transport from $58 (≤3km, 1 helper incl.) + $0.50/km. Carry Only = transport fee only."
                   : "Sample prices per item (SGD). Transport & access fees extra."}
               </p>
               <Link
@@ -1675,8 +1675,8 @@ export default function Landing() {
                 </div>
                 <div className="bg-white/5 px-4 py-3">
                   <p className="text-[10px] text-white/35 font-body mb-1">Example: 10 km, ground floor both ends</p>
-                  <p className="text-xl font-black text-amber-400">$71.50 <span className="text-sm font-normal text-white/40">total</span></p>
-                  <p className="text-[10px] text-white/30">$68 base + 7km × $0.50</p>
+                  <p className="text-xl font-black text-amber-400">$61.50 <span className="text-sm font-normal text-white/40">total</span></p>
+                  <p className="text-[10px] text-white/30">$58 base + 7km × $0.50</p>
                 </div>
               </div>
               {/* Dismantle & Reinstall */}
@@ -1706,14 +1706,14 @@ export default function Landing() {
                 </div>
                 <div className="bg-amber-400/8 px-4 py-3">
                   <p className="text-[10px] text-white/35 font-body mb-1">Example: 10 km, 1 × Queen Bed Frame, ground floor</p>
-                  <p className="text-xl font-black text-amber-400">$155.50 <span className="text-sm font-normal text-white/40">total</span></p>
-                  <p className="text-[10px] text-white/30">$68 base + 7km × $0.50 + $84 D&R labor (40% bundle discount)</p>
+                  <p className="text-xl font-black text-amber-400">$145.50 <span className="text-sm font-normal text-white/40">total</span></p>
+                  <p className="text-[10px] text-white/30">$58 base + 7km × $0.50 + $84 D&R labor (40% bundle discount)</p>
                 </div>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-white/8 bg-white/[0.03] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <p className="font-body text-xs text-white/35">
-                Van base $38 (first 3 km) + 1 helper $30 = $68 minimum · 120-min crew time included · Overtime $30/30-min block, capped at $200.
+                Van base $28 (first 3 km) + 1 helper $30 = $58 minimum · 120-min crew time included · Overtime $30/30-min block, capped at $200.
               </p>
               <Link
                 href="/estimate"
