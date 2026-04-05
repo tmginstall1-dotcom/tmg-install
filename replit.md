@@ -51,7 +51,7 @@ Always provide full file contents when editing any code file — never partial s
 - **Schema**: Defined in `shared/schema.ts`.
 - **Tables**: Includes `users`, `customers`, `catalog_items`, `quotes`, `quote_items`, `job_updates`, `promo_codes`, and `attendance_logs`.
 - **Key Fields**: `quotes` table tracks status, reschedule count, booking details, amounts, payment statuses, and promo code applied (`promo_code`, `promo_discount`). `job_updates` stores photo URLs as JSON arrays.
-- **Seeding**: Includes a `server/run-seed.ts` script for populating the database with initial data, including 217 catalog items across 19 categories.
+- **Seeding**: `server/seed.ts` runs on every startup (idempotent rounds). 11 rounds total: Rounds 1–9 seed catalog items; Round 10 adds dispose/dismantle_dispose coverage; Round 11 (SG-MARKET-R1, April 2026) applies market-calibrated price corrections based on 2025 Singapore competitor research (Airtasker, ITB, LocalHandymanSG, Kaodim).
 - **Booking Rules**: Enforces rules for customer booking requests, admin confirmations, and reschedule limitations.
 
 ### Promo Campaign System

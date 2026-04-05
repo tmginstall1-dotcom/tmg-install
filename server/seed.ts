@@ -1756,4 +1756,68 @@ export async function seedDatabase() {
     console.log("[startup] Round 10: 566 dispose/dd/extra entries seeded.");
   }
 
+  // Round 11: SG Market Calibration (SG-MARKET-R1 marker)
+  // Price corrections based on 2025 Singapore market research across Airtasker, ITB,
+  // LocalHandymanSG, Kaodim, Carousell Services, and verified competitor pricing.
+  const r11 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "SG-MARKET-R1"));
+  if (r11.length === 0) {
+    await db.insert(catalogItems).values({
+      name: "__sg_market_r1_marker__",
+      sku: "SG-MARKET-R1",
+      category: "System",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    });
+
+    // ── Price corrections ────────────────────────────────────────────────────
+    // Coffee Table: market $50–$70 (was $40 — below cheapest market rate)
+    await db.update(catalogItems).set({ basePrice: "55.00" }).where(eq(catalogItems.sku, "CFT-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "40.00" }).where(eq(catalogItems.sku, "CFT-DISMANTLE"));
+    await db.update(catalogItems).set({ basePrice: "80.00" }).where(eq(catalogItems.sku, "CFT-RELOCATE"));
+
+    // TV Console: market $60–$120 (was $60 — at absolute floor; raised to mid-market)
+    await db.update(catalogItems).set({ basePrice: "80.00" }).where(eq(catalogItems.sku, "TVC-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "60.00" }).where(eq(catalogItems.sku, "TVC-DISMANTLE"));
+    await db.update(catalogItems).set({ basePrice: "130.00" }).where(eq(catalogItems.sku, "TVC-RELOCATE"));
+
+    // Sliding Door Wardrobe 2-door: market $150–$200+ (was $120 — underpriced)
+    await db.update(catalogItems).set({ basePrice: "150.00" }).where(eq(catalogItems.sku, "SLDR2-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "100.00" }).where(eq(catalogItems.sku, "SLDR2-DISMANTLE"));
+
+    // Office Desk (generic single): market $50–$100 (was $50 — at floor; mid-market)
+    await db.update(catalogItems).set({ basePrice: "70.00" }).where(eq(catalogItems.sku, "OD-01"));
+
+    // Queen Bed Frame: market $80–$150 (was $80 — at floor; nudged to lower-mid)
+    await db.update(catalogItems).set({ basePrice: "90.00" }).where(eq(catalogItems.sku, "QB-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "65.00" }).where(eq(catalogItems.sku, "QB-DISMANTLE"));
+    await db.update(catalogItems).set({ basePrice: "140.00" }).where(eq(catalogItems.sku, "QB-RELOCATE"));
+
+    // King Bed Frame: market $100–$180 (was $100 — at floor; nudged to lower-mid)
+    await db.update(catalogItems).set({ basePrice: "110.00" }).where(eq(catalogItems.sku, "KB-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "85.00" }).where(eq(catalogItems.sku, "KB-DISMANTLE"));
+    await db.update(catalogItems).set({ basePrice: "160.00" }).where(eq(catalogItems.sku, "KB-RELOCATE"));
+
+    // Dining Chair: market $20–$50 per piece (raise slightly from $20 for per-piece jobs)
+    await db.update(catalogItems).set({ basePrice: "25.00" }).where(eq(catalogItems.sku, "DNC-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "20.00" }).where(eq(catalogItems.sku, "DNC-DISMANTLE"));
+
+    // ── New items: missing bed sizes ─────────────────────────────────────────
+    // Double Bed Frame (between Single $60 and Queen $90) — very common in SG
+    await db.insert(catalogItems).values([
+      { name: "Double Bed Frame", sku: "DB-INSTALL-01",   category: "Beds", serviceType: "install",   basePrice: "75.00",  volumeM3: "0.45" },
+      { name: "Double Bed Frame", sku: "DB-DISMANTLE-01", category: "Beds", serviceType: "dismantle", basePrice: "55.00",  volumeM3: "0.45" },
+      { name: "Double Bed Frame", sku: "DB-RELOCATE-01",  category: "Beds", serviceType: "relocate",  basePrice: "115.00", volumeM3: "0.45" },
+    ]).onConflictDoNothing();
+
+    // Super Single Bed Frame (between Single $60 and Double $75) — standard SG HDB size
+    await db.insert(catalogItems).values([
+      { name: "Super Single Bed Frame", sku: "SSB-INSTALL",   category: "Beds", serviceType: "install",   basePrice: "65.00",  volumeM3: "0.38" },
+      { name: "Super Single Bed Frame", sku: "SSB-DISMANTLE", category: "Beds", serviceType: "dismantle", basePrice: "50.00",  volumeM3: "0.38" },
+      { name: "Super Single Bed Frame", sku: "SSB-RELOCATE",  category: "Beds", serviceType: "relocate",  basePrice: "105.00", volumeM3: "0.38" },
+    ]).onConflictDoNothing();
+
+    console.log("[startup] Round 11: SG market calibration applied.");
+  }
+
 }
