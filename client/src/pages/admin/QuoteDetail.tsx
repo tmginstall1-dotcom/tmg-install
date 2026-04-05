@@ -645,6 +645,28 @@ export default function AdminQuoteDetail() {
                       <span className="text-xs text-zinc-500">Created</span>
                       <span className="text-sm text-zinc-900">{format(new Date(quote.createdAt), "MMM d, yyyy h:mm a")}</span>
                     </div>
+                    {(quote.preferredDate || quote.scheduledAt) && (
+                      <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
+                        <span className="text-xs text-zinc-500">{quote.scheduledAt ? "Scheduled" : "Requested"}</span>
+                        <span className="text-sm text-zinc-900 font-medium">
+                          {quote.scheduledAt
+                            ? format(new Date(quote.scheduledAt), "EEE, MMM d, yyyy")
+                            : (() => {
+                                try {
+                                  return format(new Date(quote.preferredDate + "T12:00:00"), "EEE, MMM d, yyyy");
+                                } catch {
+                                  return quote.preferredDate;
+                                }
+                              })()
+                          }
+                          {(quote.timeWindow || quote.preferredTimeWindow) && (
+                            <span className="ml-1.5 text-xs font-normal text-zinc-500">
+                              · {quote.scheduledAt ? quote.timeWindow : quote.preferredTimeWindow}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="space-y-4">
