@@ -51,6 +51,8 @@ export const users = pgTable("users", {
   annualLeaveEntitlement: integer("annual_leave_entitlement").default(14), // days per year
   // Push notification token (Firebase Cloud Messaging — registered from Android app)
   fcmToken: text("fcm_token"),
+  // Optional clock-in time restriction — "HH:MM" in SGT (e.g. "07:25"). If set, staff may only clock in within ±10 min of this time.
+  clockInTime: text("clock_in_time"),
 });
 
 // Attendance Amendment Requests

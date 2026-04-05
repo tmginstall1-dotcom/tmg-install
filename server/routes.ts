@@ -1656,6 +1656,27 @@ export async function registerRoutes(
         lng: z.string({ required_error: "GPS location is required to clock in." }),
       }).parse(req.body);
       if (!lat || !lng) return res.status(400).json({ message: "GPS location is required to clock in." });
+
+      // Check clock-in time restriction (clockInTime stored as "HH:MM" SGT)
+      const staffUser = await storage.getUserById(req.session.userId);
+      if (staffUser?.clockInTime) {
+        // Current time in Singapore (UTC+8)
+        const nowSGT = new Date(Date.now() + 8 * 60 * 60 * 1000);
+        const nowH = nowSGT.getUTCHours();
+        const nowM = nowSGT.getUTCMinutes();
+        const nowMinutes = nowH * 60 + nowM;
+        const [rH, rM] = staffUser.clockInTime.split(":").map(Number);
+        const restrictedMinutes = rH * 60 + rM;
+        const diff = Math.abs(nowMinutes - restrictedMinutes);
+        if (diff > 10) {
+          const fmt = (h: number, m: number) =>
+            `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+          return res.status(403).json({
+            message: `You may only clock in at ${fmt(rH, rM)} (±10 min). Current Singapore time: ${fmt(nowH, nowM)}.`,
+          });
+        }
+      }
+
       // Check if already clocked in today
       const existing = await storage.getTodayAttendance(req.session.userId);
       if (existing && !existing.clockOutAt) return res.status(409).json({ message: "Already clocked in" });

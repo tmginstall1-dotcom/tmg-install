@@ -215,9 +215,11 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
       ALTER TABLE quotes ADD COLUMN IF NOT EXISTS promo_discount NUMERIC DEFAULT 0;
       ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS remark TEXT;
       ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS min_order_amount NUMERIC DEFAULT 0;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS clock_in_time TEXT;
       INSERT INTO promo_codes (code, discount_amount, max_uses, uses_count, active, min_order_amount)
       VALUES ('TMG50', 50, 100, 0, TRUE, 150)
       ON CONFLICT (code) DO UPDATE SET min_order_amount = 150;
+      UPDATE users SET clock_in_time = '07:25' WHERE username = 'tmg_nkb' AND clock_in_time IS NULL;
     `));
 
     console.log("[startup] DB schema ready, TMG50 seeded.");
