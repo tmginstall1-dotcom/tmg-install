@@ -1820,4 +1820,50 @@ export async function seedDatabase() {
     console.log("[startup] Round 11: SG market calibration applied.");
   }
 
+  // Round 12: Roll back Round 11 price increases — restore original prices (ROLLBACK-R11 marker)
+  const r12 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "ROLLBACK-R11"));
+  if (r12.length === 0) {
+    await db.insert(catalogItems).values({
+      name: "__rollback_r11_marker__",
+      sku: "ROLLBACK-R11",
+      category: "System",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    });
+
+    // Coffee Table — restore to $40 install, $30 dismantle, $70 relocate
+    await db.update(catalogItems).set({ basePrice: "40.00" }).where(eq(catalogItems.sku, "CFT-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "30.00" }).where(eq(catalogItems.sku, "CFT-DISMANTLE"));
+    await db.update(catalogItems).set({ basePrice: "70.00" }).where(eq(catalogItems.sku, "CFT-RELOCATE"));
+
+    // TV Console — restore to $60 install, $50 dismantle, $100 relocate
+    await db.update(catalogItems).set({ basePrice: "60.00" }).where(eq(catalogItems.sku, "TVC-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "50.00" }).where(eq(catalogItems.sku, "TVC-DISMANTLE"));
+    await db.update(catalogItems).set({ basePrice: "100.00" }).where(eq(catalogItems.sku, "TVC-RELOCATE"));
+
+    // Sliding Door Wardrobe 2-door — restore to $120 install, $85 dismantle
+    await db.update(catalogItems).set({ basePrice: "120.00" }).where(eq(catalogItems.sku, "SLDR2-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "85.00" }).where(eq(catalogItems.sku, "SLDR2-DISMANTLE"));
+
+    // Office Desk — restore to $50 install
+    await db.update(catalogItems).set({ basePrice: "50.00" }).where(eq(catalogItems.sku, "OD-01"));
+
+    // Queen Bed Frame — restore to $80 install, $60 dismantle, $120 relocate
+    await db.update(catalogItems).set({ basePrice: "80.00" }).where(eq(catalogItems.sku, "QB-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "60.00" }).where(eq(catalogItems.sku, "QB-DISMANTLE"));
+    await db.update(catalogItems).set({ basePrice: "120.00" }).where(eq(catalogItems.sku, "QB-RELOCATE"));
+
+    // King Bed Frame — restore to $100 install, $80 dismantle, $150 relocate
+    await db.update(catalogItems).set({ basePrice: "100.00" }).where(eq(catalogItems.sku, "KB-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "80.00" }).where(eq(catalogItems.sku, "KB-DISMANTLE"));
+    await db.update(catalogItems).set({ basePrice: "150.00" }).where(eq(catalogItems.sku, "KB-RELOCATE"));
+
+    // Dining Chair — restore to $20 install, $15 dismantle
+    await db.update(catalogItems).set({ basePrice: "20.00" }).where(eq(catalogItems.sku, "DNC-INSTALL"));
+    await db.update(catalogItems).set({ basePrice: "15.00" }).where(eq(catalogItems.sku, "DNC-DISMANTLE"));
+
+    console.log("[startup] Round 12: Round 11 price rollback applied.");
+  }
+
 }

@@ -436,8 +436,8 @@ Location: Singapore (all areas — HDB, condo, landed, commercial, office)
 WhatsApp: +65 8088 0757
 
 Services:
-1. ASSEMBLY / INSTALLATION — flat-pack furniture (IKEA, Taobao, self-purchased), gym equipment, TV brackets, shelving. From $60/item.
-2. DISMANTLING — safe disassembly for moving, renovation, or disposal. From $50/item.
+1. ASSEMBLY / INSTALLATION — flat-pack furniture (IKEA, Taobao, self-purchased), gym equipment, TV brackets, shelving. From $80/item.
+2. DISMANTLING — safe disassembly for moving, renovation, or disposal. From $60/item.
 3. DISPOSAL — haul-away of unwanted furniture. From $80/item. Dismantle + dispose bundle saves money.
 4. RELOCATION — all-in-one service: dismantle at origin, transport, reinstall at destination. From $180 (varies by distance & volume).
 
@@ -445,20 +445,20 @@ Typical item pricing (per item, SGD):
 - Single bed frame: $60 install, $45 dismantle
 - Super single bed frame: $65 install, $50 dismantle
 - Double bed frame: $75 install, $55 dismantle
-- Queen bed frame: $90 install, $65 dismantle
-- King bed frame: $110 install, $85 dismantle
+- Queen bed frame: $80 install, $60 dismantle
+- King bed frame: $100 install, $80 dismantle
 - IKEA PAX wardrobe: $160 install, $110 dismantle
-- Sliding door wardrobe (2-door): $150 install, $100 dismantle
+- Sliding door wardrobe (2-door): $120 install, $85 dismantle
 - Sliding door wardrobe (3-door): $160 install, $110 dismantle
 - Hinged door wardrobe (4-door): $150 install, $110 dismantle
 - 4-door or custom wardrobe: $180–300
 - Dining table: $80 install
-- Dining chair (per piece): $25 install
+- Dining chair (per piece): $20 install
 - Sofa (2-seater): $60 install; (3-seater): $80 install
-- TV console / entertainment unit: $80 install
-- Coffee table: $55 install
+- TV console / entertainment unit: $60 install
+- Coffee table: $40 install
 - Bookcase / shelving unit: $60–80 install
-- Office desk: $70 install; L-shaped/executive desk: $100 install
+- Office desk: $50 install; L-shaped/executive desk: $100 install
 - Chest of drawers / dresser: $65–80 install
 - Mattress disposal: $80–100
 - All prices per item; $60 site visit & coordination fee applies to all non-relocation jobs; no GST
@@ -492,8 +492,8 @@ const FAQ_KNOWLEDGE = `TMG Install (The Moving Guy Pte Ltd) — Singapore furnit
 
 Services: installation/assembly, dismantling, relocation (all-in-one), disposal/haul-away.
 Coverage: all of Singapore — HDB, condo, landed, commercial & office.
-Pricing: from $60/item install, $50/item dismantle, $80/item disposal, from $180 relocation. $60 callout fee on all non-relocation jobs. No GST.
-Common prices: single bed $60 install, super single $65, double $75, queen $90, king $110; wardrobe install $150–300; sofa $60–80 install; TV console $80; coffee table $55; dining chair $25; office desk $70.
+Pricing: from $80/item install, $60/item dismantle, $80/item disposal, from $200 relocation. $60 callout fee on all non-relocation jobs. No GST.
+Common prices: bed frame install $80–150, wardrobe install $120–300, sofa dismantle $80–100, dining set $80–120.
 Payment: 50% deposit (PayNow / bank transfer / card) to confirm booking; 50% on completion.
 Availability: weekdays & weekends (subject to slots). Min. 48h notice. Morning (9am–12pm) or afternoon (1pm–5pm).
 All tools supplied. Customer doesn't need to be home for some pickup/disposal jobs.
