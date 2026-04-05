@@ -254,13 +254,18 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     let existingCorrections: { detectedDescription: string }[] = [];
     try { existingCorrections = await storage.getPricingCorrections(); } catch { /* ignore */ }
 
+    /** Fuzzy-match helper: find a catalog entry by item name + serviceType */
+    const findCatalogEntry = (name: string, svcType: string) => catalog.find(c =>
+      c.serviceType === svcType &&
+      (name.toLowerCase().includes(c.name.toLowerCase()) ||
+       c.name.toLowerCase().includes(name.toLowerCase()) ||
+       name.toLowerCase().split(/\s+/).some((w: string) => w.length > 3 && c.name.toLowerCase().includes(w)))
+    );
+
+    const drPct = PricingConfig.fallback.relocateDRDiscount; // 0.40
+
     for (const item of aiParsed) {
-      const matched = catalog.find(c =>
-        c.serviceType === item.serviceType &&
-        (item.detectedName.toLowerCase().includes(c.name.toLowerCase()) ||
-         c.name.toLowerCase().includes(item.detectedName.toLowerCase()) ||
-         item.detectedName.toLowerCase().split(/\s+/).some((w: string) => w.length > 3 && c.name.toLowerCase().includes(w)))
-      );
+      const matched = findCatalogEntry(item.detectedName, item.serviceType);
 
       // Auto-learn: if we found a confident catalog match and no correction exists yet, save it
       if (matched) {
@@ -280,7 +285,24 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
         }
       }
 
-      const unitPrice = matched ? Number(matched.basePrice) : (item.estimatedUnitPrice || 0);
+      let unitPrice: number;
+      // For relocation items: use same formula as web wizard — (install + dismantle) × (1 − drPct)
+      // This gives the bundled full-service rate, matching what customers see on the website.
+      if (item.serviceType === 'relocate') {
+        const installEntry   = findCatalogEntry(item.detectedName, 'install');
+        const dismantleEntry = findCatalogEntry(item.detectedName, 'dismantle');
+        if (installEntry && dismantleEntry) {
+          unitPrice = (Number(installEntry.basePrice) + Number(dismantleEntry.basePrice)) * (1 - drPct);
+        } else if (matched) {
+          // Fall back to relocate catalog price if install+dismantle not both found
+          unitPrice = Number(matched.basePrice);
+        } else {
+          unitPrice = item.estimatedUnitPrice || 0;
+        }
+      } else {
+        unitPrice = matched ? Number(matched.basePrice) : (item.estimatedUnitPrice || 0);
+      }
+
       const qty = item.quantity || 1;
       const subtotal = unitPrice * qty;
       totalEstimate += subtotal;
@@ -298,8 +320,7 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
       }
     }
 
-    // D&R bundle discount: 40% off dismantle when quote has BOTH dismantle AND install items
-    const drPct = PricingConfig.fallback.relocateDRDiscount;
+    // D&R bundle discount: only applies to mixed dismantle+install quotes (not pure relocation)
     const drDiscountAmt = (dismantleSubtotal > 0 && installSubtotal > 0)
       ? Math.round(dismantleSubtotal * drPct * 100) / 100
       : 0;
