@@ -447,12 +447,22 @@ export default function EstimateWizard() {
           }
         } else {
           // Non-relocate, or mixed services: add one line per service type
+          // For relocate entries: always apply D&R bundle formula (install + dismantle) × (1 − drPct)
+          const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount; // 0.60
           relevant.forEach(entry => {
             const existing = updated.find(i => i.catalogItemId === entry.id);
+            let unitPrice = parseFloat(entry.basePrice);
+            if (entry.serviceType === 'relocate') {
+              const installEntry = group.entries.find(e => e.serviceType === 'install');
+              const dismantleEntry = group.entries.find(e => e.serviceType === 'dismantle');
+              if (installEntry && dismantleEntry) {
+                unitPrice = (parseFloat(installEntry.basePrice) + parseFloat(dismantleEntry.basePrice)) * drDiscount;
+              }
+            }
             if (existing) {
               updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
             } else {
-              updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), volumeM3: entry.volumeM3, isCustom: false });
+              updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice, volumeM3: entry.volumeM3, isCustom: false });
             }
           });
         }
@@ -1098,12 +1108,20 @@ export default function EstimateWizard() {
                                     );
                                   }
                                 }
-                                return group.entries.filter(e => services.includes(e.serviceType)).map(e => (
-                                  <div key={e.id} className="flex items-center gap-2 justify-end">
-                                    {serviceBadge(e.serviceType)}
-                                    <span className="text-xs font-bold">${e.basePrice}</span>
-                                  </div>
-                                ));
+                                return group.entries.filter(e => services.includes(e.serviceType)).map(e => {
+                                  let displayPrice = parseFloat(e.basePrice);
+                                  if (e.serviceType === 'relocate') {
+                                    const inst2 = group.entries.find(x => x.serviceType === 'install');
+                                    const dis2  = group.entries.find(x => x.serviceType === 'dismantle');
+                                    if (inst2 && dis2) displayPrice = (parseFloat(inst2.basePrice) + parseFloat(dis2.basePrice)) * (1 - PricingConfig.fallback.relocateDRDiscount);
+                                  }
+                                  return (
+                                    <div key={e.id} className="flex items-center gap-2 justify-end">
+                                      {serviceBadge(e.serviceType)}
+                                      <span className="text-xs font-bold">${displayPrice.toFixed(0)}</span>
+                                    </div>
+                                  );
+                                });
                               })()}
                             </div>
                           </button>
@@ -1139,8 +1157,15 @@ export default function EstimateWizard() {
                               }
                               const relevant = group.entries.filter(e => services.includes(e.serviceType));
                               if (relevant.length === 0) return null;
-                              if (relevant.length === 1) return `$${relevant[0].basePrice}`;
-                              const total = relevant.reduce((s, e) => s + parseFloat(e.basePrice), 0);
+                              const drDiscount2 = 1 - PricingConfig.fallback.relocateDRDiscount;
+                              const total = relevant.reduce((s, e) => {
+                                if (e.serviceType === 'relocate') {
+                                  const inst2 = group.entries.find(x => x.serviceType === 'install');
+                                  const dis2  = group.entries.find(x => x.serviceType === 'dismantle');
+                                  if (inst2 && dis2) return s + (parseFloat(inst2.basePrice) + parseFloat(dis2.basePrice)) * drDiscount2;
+                                }
+                                return s + parseFloat(e.basePrice);
+                              }, 0);
                               return `$${total.toFixed(0)}`;
                             })();
                             return (
@@ -1402,6 +1427,12 @@ export default function EstimateWizard() {
                     </div>
                     <div className="px-5 py-4 bg-black/[0.025] space-y-1.5 text-sm border-t border-black/8">
                       <div className="flex justify-between text-black/45"><span>Labor subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                      {items.some(i => i.serviceType === 'relocate') && (
+                        <div className="flex items-center gap-1.5 text-green-700 text-xs font-medium">
+                          <Tag className="w-3 h-3 shrink-0" />
+                          <span>Relocation: D&amp;R bundle rate applied — 40% off (install + dismantle combined)</span>
+                        </div>
+                      )}
                       {pricingResult.discountLine && (
                         <div className="flex justify-between text-black/60 font-medium">
                           <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5" />{pricingResult.discountLine.label}</span>
@@ -1643,6 +1674,12 @@ export default function EstimateWizard() {
                     </div>
                     <div className="pt-4 space-y-2 text-sm">
                       <div className="flex justify-between text-black/45"><span>Labor subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                      {items.some(i => i.serviceType === 'relocate') && (
+                        <div className="flex items-center gap-1.5 text-green-700 text-xs font-medium">
+                          <Tag className="w-3 h-3 shrink-0" />
+                          <span>Relocation: D&amp;R bundle rate applied — 40% off (install + dismantle combined)</span>
+                        </div>
+                      )}
                       {pricingResult.discountLine && (
                         <div className="flex justify-between text-black/60 font-medium">
                           <span className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" />{pricingResult.discountLine.label}</span>

@@ -874,6 +874,12 @@ export default function AdminQuoteDetail() {
                         <span className="text-zinc-500">Subtotal</span>
                         <span className="font-medium text-zinc-900 tabular-nums">{formatMoney(quote.subtotal || 0)}</span>
                       </div>
+                      {quote.items?.some((i: any) => i.serviceType === 'relocate') && (
+                        <div className="flex items-start gap-1.5 text-xs text-emerald-700 font-medium">
+                          <span className="mt-0.5">✓</span>
+                          <span>D&R bundle rate: relocation items priced at 40% off (install + dismantle combined)</span>
+                        </div>
+                      )}
                       {Number(quote.discount || 0) > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-zinc-500">Discount</span>
