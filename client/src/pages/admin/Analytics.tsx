@@ -7,10 +7,11 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import {
-  BarChart2, MousePointerClick, Users, TrendingUp, Globe, ArrowRight,
+  BarChart2, MousePointerClick, Users, TrendingUp, TrendingDown, Globe, ArrowRight,
   Eye, Smartphone, Monitor, Tablet, Clock, FileText, Percent, Layers,
   Megaphone, MapPin, RefreshCw, DollarSign, Briefcase, MessageSquare,
-  CheckCircle, AlertCircle, Package, Activity, UserCheck, Star,
+  CheckCircle, AlertCircle, Package, Activity, UserCheck, Star, Receipt,
+  Wallet, PiggyBank,
 } from "lucide-react";
 
 const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
@@ -56,6 +57,18 @@ type BusinessData = {
   staffAttendance: { id: number; name: string; hours: number; jobs: number }[];
   whatsappTrend: { date: string; count: number }[];
   waSubmitted: number; waEscalated: number;
+};
+
+type PnlData = {
+  totalRevenue: number;
+  totalExpenses: number;
+  netProfit: number;
+  profitMargin: number;
+  jobCount: number;
+  avgJobRevenue: number;
+  pendingExpenses: number;
+  monthlyTrend: { month: string; label: string; revenue: number; expenses: number; profit: number }[];
+  expensesByCategory: { category: string; amount: number }[];
 };
 
 /* ─── Constants ──────────────────────────────────────────────────────────────── */
@@ -989,8 +1002,181 @@ function WebsiteTab({ days }: { days: number }) {
   );
 }
 
+/* ─── P&L tab ────────────────────────────────────────────────────────────────── */
+const CAT_COLORS: Record<string, string> = {
+  fuel:      "#f59e0b",
+  tools:     "#8b5cf6",
+  transport: "#06b6d4",
+  meals:     "#f97316",
+  parking:   "#64748b",
+  other:     "#94a3b8",
+};
+
+function PnLTab() {
+  const { data, isLoading } = useQuery<PnlData>({
+    queryKey: ["/api/admin/analytics/pnl"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/admin/analytics/pnl`, { credentials: "include" });
+      return res.json();
+    },
+    refetchInterval: 120_000,
+  });
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const { totalRevenue, totalExpenses, netProfit, profitMargin, jobCount,
+          avgJobRevenue, pendingExpenses, monthlyTrend, expensesByCategory } = data;
+
+  const profitable = netProfit >= 0;
+  const maxCatAmount = expensesByCategory[0]?.amount ?? 1;
+
+  return (
+    <div className="space-y-6">
+      {/* KPI cards */}
+      <div>
+        <SectionTitle>All-Time Profit &amp; Loss</SectionTitle>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <KpiCard
+            label="Total Revenue"
+            value={fmtSGD(totalRevenue)}
+            sub={`${jobCount} completed jobs`}
+            icon={Wallet}
+            color="text-emerald-500"
+          />
+          <KpiCard
+            label="Total Expenses"
+            value={fmtSGD(totalExpenses)}
+            sub="Approved claims only"
+            icon={Receipt}
+            color="text-red-500"
+          />
+          <KpiCard
+            label="Net Profit"
+            value={fmtSGD(Math.abs(netProfit))}
+            sub={profitable ? "Profit" : "Loss"}
+            icon={profitable ? TrendingUp : TrendingDown}
+            color={profitable ? "text-emerald-500" : "text-red-500"}
+            valueClass={profitable ? "text-emerald-600" : "text-red-600"}
+          />
+          <KpiCard
+            label="Profit Margin"
+            value={`${profitMargin}%`}
+            sub={`Avg $${avgJobRevenue.toLocaleString()} / job`}
+            icon={Percent}
+            color={profitable ? "text-blue-500" : "text-red-500"}
+          />
+        </div>
+      </div>
+
+      {/* Pending expenses alert */}
+      {pendingExpenses > 0 && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-3.5">
+          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+          <p className="text-sm text-amber-700">
+            <span className="font-semibold">{fmtSGD(pendingExpenses)}</span> in pending expense claims are awaiting approval — not included in the figures above.
+          </p>
+        </div>
+      )}
+
+      {/* Monthly Revenue vs Expenses chart */}
+      <Panel title="Monthly Revenue vs Expenses" icon={BarChart2}>
+        {monthlyTrend.length === 0 ? <EmptyState msg="No completed jobs or expenses yet" /> : (
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={monthlyTrend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap="30%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={52}
+                tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+              <Tooltip
+                contentStyle={{ fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 8 }}
+                formatter={(val: any, name: string) => [`$${Number(val).toLocaleString()}`, name]}
+              />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#64748b", paddingTop: 8 }} />
+              <Bar dataKey="revenue"  name="Revenue"  fill="#10b981" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="profit"   name="Profit"   fill="#3b82f6" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </Panel>
+
+      {/* Expense breakdown + profit summary */}
+      <div className="grid sm:grid-cols-2 gap-4">
+
+        {/* Expense categories */}
+        <Panel title="Expenses by Category" icon={Receipt}>
+          {expensesByCategory.length === 0 ? <EmptyState msg="No approved expenses yet" /> : (
+            <div className="space-y-3">
+              {expensesByCategory.map(({ category, amount }) => (
+                <div key={category}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-zinc-700 capitalize">{category}</span>
+                    <span className="text-xs font-bold text-zinc-900">${amount.toLocaleString()}</span>
+                  </div>
+                  <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${(amount / maxCatAmount) * 100}%`, background: CAT_COLORS[category] || "#94a3b8" }}
+                    />
+                  </div>
+                </div>
+              ))}
+              <div className="pt-2 border-t border-zinc-100 flex justify-between">
+                <span className="text-xs text-zinc-500 font-medium">Total approved</span>
+                <span className="text-xs font-bold text-red-600">${totalExpenses.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        {/* Summary card */}
+        <Panel title="P&L Summary" icon={PiggyBank}>
+          <div className="space-y-3">
+            {[
+              { label: "Total Revenue",    value: fmtSGD(totalRevenue),   color: "text-emerald-600", bg: "bg-emerald-50" },
+              { label: "Total Expenses",   value: `– ${fmtSGD(totalExpenses)}`, color: "text-red-600",     bg: "bg-red-50"     },
+              { label: "Net Profit / Loss", value: (profitable ? "" : "– ") + fmtSGD(Math.abs(netProfit)),
+                color: profitable ? "text-emerald-700" : "text-red-700",
+                bg: profitable ? "bg-emerald-50" : "bg-red-50", bold: true },
+            ].map(row => (
+              <div key={row.label} className={`flex items-center justify-between rounded-lg px-3 py-2.5 ${row.bg}`}>
+                <span className={`text-xs ${row.bold ? "font-semibold" : "font-medium"} text-zinc-700`}>{row.label}</span>
+                <span className={`text-sm font-bold ${row.color}`}>{row.value}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between rounded-lg px-3 py-2.5 bg-blue-50">
+              <span className="text-xs font-medium text-zinc-700">Profit Margin</span>
+              <span className={`text-sm font-bold ${profitable ? "text-blue-600" : "text-red-600"}`}>{profitMargin}%</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2.5 bg-zinc-50">
+              <span className="text-xs font-medium text-zinc-700">Completed Jobs</span>
+              <span className="text-sm font-bold text-zinc-900">{jobCount}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2.5 bg-zinc-50">
+              <span className="text-xs font-medium text-zinc-700">Avg Revenue / Job</span>
+              <span className="text-sm font-bold text-zinc-900">{fmtSGD(avgJobRevenue)}</span>
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      {/* P&L note */}
+      <p className="text-xs text-zinc-400 text-center pb-2">
+        Revenue = sum of all completed / final-paid / closed job totals. Expenses = approved staff expense claims only.
+        Pending claims excluded until approved.
+      </p>
+    </div>
+  );
+}
+
 /* ─── Main Page ──────────────────────────────────────────────────────────────── */
-type Tab = "business" | "website" | "operations";
+type Tab = "business" | "website" | "operations" | "pnl";
 
 export default function Analytics() {
   const [tab, setTab] = useState<Tab>("business");
@@ -1004,6 +1190,7 @@ export default function Analytics() {
   const TABS: { key: Tab; label: string; icon: any }[] = [
     { key: "business",   label: "Business",   icon: BarChart2     },
     { key: "operations", label: "Operations", icon: Activity      },
+    { key: "pnl",        label: "P&L",        icon: PiggyBank     },
     { key: "website",    label: "Website",    icon: Globe         },
   ];
 
@@ -1031,17 +1218,19 @@ export default function Analytics() {
                   </button>
                 ))}
               </div>
-              {/* Day range */}
-              <div className="flex p-1 rounded-lg border border-zinc-200 bg-zinc-100 overflow-hidden">
-                {dayOptions.map(opt => (
-                  <button key={opt.value} onClick={() => setActiveDays(opt.value)} data-testid={`days-${opt.value}`}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                      activeDays === opt.value ? "bg-white text-zinc-900 shadow-sm border border-zinc-200" : "text-zinc-500 hover:text-zinc-700"
-                    }`}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              {/* Day range — hidden on P&L tab (all-time data) */}
+              {tab !== "pnl" && (
+                <div className="flex p-1 rounded-lg border border-zinc-200 bg-zinc-100 overflow-hidden">
+                  {dayOptions.map(opt => (
+                    <button key={opt.value} onClick={() => setActiveDays(opt.value)} data-testid={`days-${opt.value}`}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                        activeDays === opt.value ? "bg-white text-zinc-900 shadow-sm border border-zinc-200" : "text-zinc-500 hover:text-zinc-700"
+                      }`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1050,6 +1239,7 @@ export default function Analytics() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
         {tab === "business"   && <BusinessTab   days={days}    />}
         {tab === "operations" && <OperationsTab days={days}    />}
+        {tab === "pnl"        && <PnLTab />}
         {tab === "website"    && <WebsiteTab    days={webDays} />}
       </div>
     </div>

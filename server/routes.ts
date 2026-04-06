@@ -2025,6 +2025,99 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ── P&L Analytics ──────────────────────────────────────────────────────────
+  app.get("/api/admin/analytics/pnl", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const DONE_STATUSES = ["completed", "final_payment_requested", "final_paid", "closed"];
+
+      // ── Revenue: all completed/paid/closed jobs ──
+      const allQuotes = await db.select({
+        id: quotesTable.id, status: quotesTable.status,
+        total: quotesTable.total, scheduledAt: quotesTable.scheduledAt,
+        createdAt: quotesTable.createdAt,
+      }).from(quotesTable);
+
+      const doneQuotes = allQuotes.filter(q => DONE_STATUSES.includes(q.status));
+      const totalRevenue = doneQuotes.reduce((s, q) => s + parseFloat(q.total || "0"), 0);
+
+      // ── Expenses: all approved receipts ──
+      const allReceipts = await storage.getAllReceipts();
+      const approvedReceipts = (allReceipts as any[]).filter((r: any) => r.status === "approved");
+      const totalExpenses = approvedReceipts.reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
+
+      const netProfit = totalRevenue - totalExpenses;
+      const profitMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100 * 10) / 10 : 0;
+
+      // ── Monthly trend (last 6 months): revenue vs expenses ──
+      const now = new Date();
+      const sixMonthsAgo = new Date(now);
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+      sixMonthsAgo.setDate(1);
+
+      const monthlyRevMap: Record<string, number> = {};
+      const monthlyExpMap: Record<string, number> = {};
+
+      for (const q of doneQuotes) {
+        const d = q.scheduledAt || q.createdAt;
+        if (!d || d < sixMonthsAgo) continue;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        monthlyRevMap[key] = (monthlyRevMap[key] || 0) + parseFloat(q.total || "0");
+      }
+
+      for (const r of approvedReceipts as any[]) {
+        if (!r.receiptDate) continue;
+        const d = new Date(r.receiptDate);
+        if (d < sixMonthsAgo) continue;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        monthlyExpMap[key] = (monthlyExpMap[key] || 0) + parseFloat(r.amount || "0");
+      }
+
+      // Build a union of all months present in either map
+      const allMonths = Array.from(new Set([...Object.keys(monthlyRevMap), ...Object.keys(monthlyExpMap)])).sort();
+      const monthlyTrend = allMonths.map(key => ({
+        month: key,
+        label: new Date(key + "-01").toLocaleDateString("en-SG", { month: "short", year: "2-digit" }),
+        revenue: Math.round(monthlyRevMap[key] || 0),
+        expenses: Math.round(monthlyExpMap[key] || 0),
+        profit: Math.round((monthlyRevMap[key] || 0) - (monthlyExpMap[key] || 0)),
+      }));
+
+      // ── Expense breakdown by category ──
+      const catMap: Record<string, number> = {};
+      for (const r of approvedReceipts as any[]) {
+        const cat = r.category || "other";
+        catMap[cat] = (catMap[cat] || 0) + parseFloat(r.amount || "0");
+      }
+      const expensesByCategory = Object.entries(catMap)
+        .map(([category, amount]) => ({ category, amount: Math.round(amount * 100) / 100 }))
+        .sort((a, b) => b.amount - a.amount);
+
+      // ── Revenue by job count ──
+      const jobCount = doneQuotes.length;
+      const avgJobRevenue = jobCount > 0 ? Math.round(totalRevenue / jobCount) : 0;
+
+      // ── Pending expenses (not yet approved) ──
+      const pendingExpenses = (allReceipts as any[])
+        .filter((r: any) => r.status === "pending")
+        .reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
+
+      res.json({
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        totalExpenses: Math.round(totalExpenses * 100) / 100,
+        netProfit: Math.round(netProfit * 100) / 100,
+        profitMargin,
+        jobCount,
+        avgJobRevenue,
+        pendingExpenses: Math.round(pendingExpenses * 100) / 100,
+        monthlyTrend,
+        expensesByCategory,
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // -- Android crash reporter (unauthenticated — fires from native crash handler) --
   app.post("/api/crash-report", (req, res) => {
     const report = req.body?.crash ?? JSON.stringify(req.body);
