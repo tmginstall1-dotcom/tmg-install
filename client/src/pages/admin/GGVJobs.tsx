@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -161,47 +161,75 @@ export default function GGVJobs() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // ── Upload & AI Scan ────────────────────────────────────────────────────────
+  // ── Upload & AI Scan (multi-file) ──────────────────────────────────────────
+
+  const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Show image preview
-    const reader = new FileReader();
-    reader.onload = (ev) => setPreviewImage(ev.target?.result as string);
-    reader.readAsDataURL(file);
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
 
     setScanning(true);
-    try {
-      const fd = new FormData();
-      fd.append("image", file);
-      const res = await fetch("/api/admin/ggv-jobs/scan", {
-        method: "POST",
-        credentials: "include",
-        body: fd,
+    setScanProgress({ current: 0, total: files.length });
+
+    const mergedJobs: (ScannedJob & { _source?: string })[] = [];
+    let detectedDate: string | null = null;
+    let detectedGroup = "";
+    let detectedType = "";
+    const previews: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setScanProgress({ current: i + 1, total: files.length });
+
+      // Collect image preview data URL
+      await new Promise<void>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => { previews.push(ev.target?.result as string); resolve(); };
+        reader.readAsDataURL(file);
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Scan failed");
+
+      try {
+        const fd = new FormData();
+        fd.append("image", file);
+        const res = await fetch("/api/admin/ggv-jobs/scan", {
+          method: "POST",
+          credentials: "include",
+          body: fd,
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.message || "Scan failed");
+        }
+        const data: ScanResult = await res.json();
+        if (data.jobs?.length) {
+          // Tag each row with its source filename for display
+          data.jobs.forEach(j => mergedJobs.push({ ...j, _source: file.name }));
+          if (!detectedDate && data.date) detectedDate = data.date;
+          if (!detectedGroup && data.vehicleGroup) detectedGroup = data.vehicleGroup;
+          if (!detectedType && data.vehicleType) detectedType = data.vehicleType;
+        }
+      } catch (err: any) {
+        toast({ title: `File ${i + 1} scan failed`, description: `${file.name}: ${err.message}`, variant: "destructive" });
       }
-      const data: ScanResult = await res.json();
-      if (!data.jobs?.length) {
-        toast({ title: "No jobs found", description: "AI couldn't extract any job rows from this image.", variant: "destructive" });
-        return;
-      }
-      setScanResult(data);
-      setSelectedRows(data.jobs.map(() => true));
-      setPreviewDate(data.date || selectedDate);
-      if (data.vehicleGroup) setVehicleGroup(data.vehicleGroup);
-      if (data.vehicleType) setVehicleType(data.vehicleType);
-      setPreviewOpen(true);
-    } catch (err: any) {
-      toast({ title: "Scan failed", description: err.message, variant: "destructive" });
-    } finally {
-      setScanning(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+
+    setScanning(false);
+    setScanProgress({ current: 0, total: 0 });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    if (!mergedJobs.length) {
+      toast({ title: "No jobs found", description: "AI couldn't extract any job rows from the uploaded image(s).", variant: "destructive" });
+      return;
+    }
+
+    setScanResult({ date: detectedDate, vehicleGroup: detectedGroup, vehicleType: detectedType, jobs: mergedJobs });
+    setSelectedRows(mergedJobs.map(() => true));
+    setPreviewDate(detectedDate || selectedDate);
+    if (detectedGroup) setVehicleGroup(detectedGroup);
+    if (detectedType) setVehicleType(detectedType);
+    setPreviewImage(previews[0] ?? null); // show first image as thumbnail
+    setPreviewOpen(true);
   }, [selectedDate, toast]);
 
   async function handleImport() {
@@ -311,11 +339,12 @@ export default function GGVJobs() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Upload & Scan */}
+            {/* Upload & Scan — multiple files */}
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*,.png,.jpg,.jpeg,.webp"
+              multiple
               className="hidden"
               onChange={handleFileChange}
               data-testid="input-scan-file"
@@ -343,11 +372,26 @@ export default function GGVJobs() {
           </div>
         </div>
 
-        {/* Scanning overlay hint */}
+        {/* Scanning progress banner */}
         {scanning && (
           <div className="mb-4 flex items-center gap-3 bg-blue-500/10 border border-blue-500/25 rounded-xl px-4 py-3">
             <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
-            <p className="text-sm text-blue-300 font-medium">AI is reading your spreadsheet… this usually takes 5–15 seconds</p>
+            <div className="flex-1">
+              <p className="text-sm text-blue-300 font-medium">
+                {scanProgress.total > 1
+                  ? `Scanning image ${scanProgress.current} of ${scanProgress.total}…`
+                  : "AI is reading your spreadsheet…"}
+              </p>
+              {scanProgress.total > 1 && (
+                <div className="mt-1.5 h-1.5 bg-blue-500/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-400 rounded-full transition-all duration-500"
+                    style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            <span className="text-xs text-blue-500 font-mono">5–15s / image</span>
           </div>
         )}
 
@@ -546,10 +590,10 @@ export default function GGVJobs() {
             </div>
           </div>
 
-          {/* Preview image thumbnail */}
-          {previewImage && (
-            <div className="rounded-lg overflow-hidden border border-white/8 max-h-40 flex items-center justify-center bg-black">
-              <img src={previewImage} alt="Uploaded spreadsheet" className="max-h-40 object-contain opacity-80" />
+          {/* Preview image thumbnail — only shown for single upload */}
+          {previewImage && scanResult && !scanResult.jobs.some(j => (j as any)._source && (j as any)._source !== scanResult.jobs[0] && (j as any)._source !== (scanResult.jobs[0] as any)._source) && (
+            <div className="rounded-lg overflow-hidden border border-white/8 max-h-36 flex items-center justify-center bg-black">
+              <img src={previewImage} alt="Uploaded spreadsheet" className="max-h-36 object-contain opacity-80" />
             </div>
           )}
 
@@ -573,45 +617,63 @@ export default function GGVJobs() {
                 </tr>
               </thead>
               <tbody>
-                {scanResult?.jobs.map((job, i) => (
-                  <tr
-                    key={i}
-                    className={`border-b border-white/5 transition-colors ${
-                      !selectedRows[i] ? "opacity-40" :
-                      job.flagged ? "bg-rose-500/10" : ""
-                    }`}
-                  >
-                    <td className="px-2 py-2 text-center">
-                      <Checkbox
-                        checked={selectedRows[i] ?? true}
-                        onCheckedChange={v => setSelectedRows(r => r.map((val, idx) => idx === i ? !!v : val))}
-                        className="border-slate-500"
-                      />
-                    </td>
-                    <td className="px-2 py-2 font-mono text-slate-300">
-                      <div className="flex items-center gap-1">
-                        {job.flagged && <Flag className="w-2.5 h-2.5 text-rose-400" />}
-                        {job.jobNo || <span className="text-slate-600">—</span>}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 font-mono text-slate-400">{job.bookingRef || "—"}</td>
-                    <td className="px-2 py-2 text-slate-400">
-                      {job.timeStart && job.timeEnd ? `${job.timeStart}–${job.timeEnd}` : job.timeStart || "—"}
-                    </td>
-                    <td className="px-2 py-2 text-right text-slate-400">{fmt(job.listedPrice)}</td>
-                    <td className="px-2 py-2 text-right text-rose-400">{(job.deduction ?? 0) > 0 ? `-${fmt(job.deduction)}` : "—"}</td>
-                    <td className="px-2 py-2 text-right font-black text-emerald-400">{fmt(job.actualPrice)}</td>
-                    <td className="px-2 py-2">
-                      {job.serviceType
-                        ? <span className="bg-blue-500/15 text-blue-300 px-1 py-0.5 rounded text-[10px] font-bold">{job.serviceType}</span>
-                        : "—"}
-                    </td>
-                    <td className="px-2 py-2 text-slate-400 max-w-[12rem] truncate" title={job.address ?? ""}>{job.address || "—"}</td>
-                    <td className="px-2 py-2 text-slate-400">{job.postalCode || "—"}</td>
-                    <td className="px-2 py-2 text-right text-slate-400">{job.distanceKm != null ? job.distanceKm.toFixed(2) : "—"}</td>
-                    <td className="px-2 py-2 text-amber-400 max-w-[10rem] truncate" title={job.remarks ?? ""}>{job.remarks || "—"}</td>
-                  </tr>
-                ))}
+                {scanResult?.jobs.map((job, i) => {
+                  const source = (job as any)._source as string | undefined;
+                  const prevSource = i > 0 ? ((scanResult.jobs[i - 1] as any)._source as string | undefined) : null;
+                  const isNewSource = source && source !== prevSource;
+                  const isMultiFile = scanResult.jobs.some((j, idx) => idx > 0 && (j as any)._source !== (scanResult.jobs[0] as any)._source);
+                  return (
+                    <Fragment key={i}>
+                      {isMultiFile && isNewSource && (
+                        <tr key={`source-${i}`} className="bg-slate-800/80 border-b border-white/10">
+                          <td colSpan={12} className="px-2 py-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <FileImage className="w-3 h-3 text-blue-400" />
+                              <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest truncate max-w-xs">{source}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      <tr
+                        key={i}
+                        className={`border-b border-white/5 transition-colors ${
+                          !selectedRows[i] ? "opacity-40" :
+                          job.flagged ? "bg-rose-500/10" : ""
+                        }`}
+                      >
+                        <td className="px-2 py-2 text-center">
+                          <Checkbox
+                            checked={selectedRows[i] ?? true}
+                            onCheckedChange={v => setSelectedRows(r => r.map((val, idx) => idx === i ? !!v : val))}
+                            className="border-slate-500"
+                          />
+                        </td>
+                        <td className="px-2 py-2 font-mono text-slate-300">
+                          <div className="flex items-center gap-1">
+                            {job.flagged && <Flag className="w-2.5 h-2.5 text-rose-400" />}
+                            {job.jobNo || <span className="text-slate-600">—</span>}
+                          </div>
+                        </td>
+                        <td className="px-2 py-2 font-mono text-slate-400">{job.bookingRef || "—"}</td>
+                        <td className="px-2 py-2 text-slate-400">
+                          {job.timeStart && job.timeEnd ? `${job.timeStart}–${job.timeEnd}` : job.timeStart || "—"}
+                        </td>
+                        <td className="px-2 py-2 text-right text-slate-400">{fmt(job.listedPrice)}</td>
+                        <td className="px-2 py-2 text-right text-rose-400">{(job.deduction ?? 0) > 0 ? `-${fmt(job.deduction)}` : "—"}</td>
+                        <td className="px-2 py-2 text-right font-black text-emerald-400">{fmt(job.actualPrice)}</td>
+                        <td className="px-2 py-2">
+                          {job.serviceType
+                            ? <span className="bg-blue-500/15 text-blue-300 px-1 py-0.5 rounded text-[10px] font-bold">{job.serviceType}</span>
+                            : "—"}
+                        </td>
+                        <td className="px-2 py-2 text-slate-400 max-w-[12rem] truncate" title={job.address ?? ""}>{job.address || "—"}</td>
+                        <td className="px-2 py-2 text-slate-400">{job.postalCode || "—"}</td>
+                        <td className="px-2 py-2 text-right text-slate-400">{job.distanceKm != null ? job.distanceKm.toFixed(2) : "—"}</td>
+                        <td className="px-2 py-2 text-amber-400 max-w-[10rem] truncate" title={job.remarks ?? ""}>{job.remarks || "—"}</td>
+                      </tr>
+                    </Fragment>
+                  );
+                })}
               </tbody>
               {scanResult && selectedCount > 0 && (
                 <tfoot>
