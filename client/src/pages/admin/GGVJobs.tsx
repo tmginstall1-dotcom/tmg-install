@@ -89,6 +89,17 @@ function todaySGT() {
   return nowSGT.toISOString().slice(0, 10);
 }
 
+const DELIVERY_FEE = 23.80;
+
+function isDeliveryJob(jobNo: string | null | undefined): boolean {
+  return !!(jobNo && jobNo.trim().toUpperCase().startsWith("S"));
+}
+
+function effectiveActual(job: GGVJob): number {
+  const base = parseFloat(job.actualPrice ?? "");
+  return (isNaN(base) ? 0 : base) + (isDeliveryJob(job.jobNo) ? DELIVERY_FEE : 0);
+}
+
 function fmt(val: string | number | null | undefined, prefix = "$") {
   const n = typeof val === "number" ? val : parseFloat(val ?? "");
   if (isNaN(n)) return "—";
@@ -319,7 +330,7 @@ export default function GGVJobs() {
 
   const totalListed = sum(jobs, "listedPrice");
   const totalDeduction = sum(jobs, "deduction");
-  const totalActual = sum(jobs, "actualPrice");
+  const totalActual = jobs.reduce((s, j) => s + effectiveActual(j), 0);
   const isPending = createMut.isPending || updateMut.isPending;
   const selectedCount = selectedRows.filter(Boolean).length;
 
@@ -472,6 +483,8 @@ export default function GGVJobs() {
                 {jobs.map((job) => {
                   const isFlagged = job.flagged;
                   const hasRemarks = !!(job.remarks?.trim());
+                  const isDelivery = isDeliveryJob(job.jobNo);
+                  const effActual = effectiveActual(job);
                   return (
                     <tr
                       key={job.id}
@@ -492,10 +505,15 @@ export default function GGVJobs() {
                       <td className="px-3 py-2.5 text-xs text-slate-400">
                         {job.timeStart && job.timeEnd ? `${job.timeStart}–${job.timeEnd}` : job.timeStart || "—"}
                       </td>
-                      <td className="px-3 py-2.5 text-right text-xs text-slate-400">{fmt(job.listedPrice)}</td>
-                      <td className="px-3 py-2.5 text-right text-xs text-rose-400">{parseFloat(job.deduction ?? "0") > 0 ? `-${fmt(job.deduction)}` : "—"}</td>
+                      <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-400">{fmt(job.listedPrice)}</td>
+                      <td className="px-3 py-2.5 text-right text-xs tabular-nums text-rose-400">{parseFloat(job.deduction ?? "0") > 0 ? `-${fmt(job.deduction)}` : "—"}</td>
                       <td className="px-3 py-2.5 text-right">
-                        <span className="text-sm font-black text-emerald-400">{fmt(job.actualPrice)}</span>
+                        <span className="text-sm font-black tabular-nums text-emerald-400">${effActual.toFixed(2)}</span>
+                        {isDelivery && (
+                          <div className="text-[9px] tabular-nums text-emerald-700 font-medium leading-tight">
+                            +${DELIVERY_FEE.toFixed(2)} del.
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2.5">
                         {job.serviceType
@@ -525,9 +543,9 @@ export default function GGVJobs() {
                 <tfoot>
                   <tr className="border-t border-white/10 bg-slate-800/80">
                     <td colSpan={3} className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">{jobs.length} job{jobs.length !== 1 ? "s" : ""}</td>
-                    <td className="px-3 py-3 text-right text-xs font-bold text-slate-300">${totalListed.toFixed(2)}</td>
-                    <td className="px-3 py-3 text-right text-xs font-bold text-rose-400">{totalDeduction > 0 ? `-$${totalDeduction.toFixed(2)}` : "—"}</td>
-                    <td className="px-3 py-3 text-right"><span className="text-base font-black text-emerald-400">${totalActual.toFixed(2)}</span></td>
+                    <td className="px-3 py-3 text-right text-xs font-bold tabular-nums text-slate-300">${totalListed.toFixed(2)}</td>
+                    <td className="px-3 py-3 text-right text-xs font-bold tabular-nums text-rose-400">{totalDeduction > 0 ? `-$${totalDeduction.toFixed(2)}` : "—"}</td>
+                    <td className="px-3 py-3 text-right"><span className="text-base font-black tabular-nums text-emerald-400">${totalActual.toFixed(2)}</span></td>
                     <td colSpan={7} />
                   </tr>
                 </tfoot>
@@ -541,12 +559,12 @@ export default function GGVJobs() {
           <div className="grid grid-cols-3 gap-3 mt-4">
             {[
               { label: "Total Listed", value: `$${totalListed.toFixed(2)}`, color: "text-slate-300" },
-              { label: "Total Deductions", value: `-$${totalDeduction.toFixed(2)}`, color: "text-rose-400" },
+              { label: "Total Deductions", value: totalDeduction > 0 ? `-$${totalDeduction.toFixed(2)}` : "—", color: "text-rose-400" },
               { label: "Total Actual", value: `$${totalActual.toFixed(2)}`, color: "text-emerald-400", big: true },
             ].map(({ label, value, color, big }) => (
               <div key={label} className="bg-slate-900 border border-white/8 rounded-xl p-4 text-center">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{label}</p>
-                <p className={`font-black ${big ? "text-2xl" : "text-lg"} ${color}`}>{value}</p>
+                <p className={`font-black tabular-nums ${big ? "text-2xl" : "text-lg"} ${color}`}>{value}</p>
               </div>
             ))}
           </div>
