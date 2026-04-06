@@ -182,8 +182,8 @@ Return JSON:
       : `Confirmed pricing for *${itemLabel}* in Singapore:\n\n`;
 
     const footnote = isApproximate
-      ? `\n\n_Based on similar items. Our team will confirm the exact price for your job. +$60 site visit fee applies._`
-      : `\n\n_Per item. +$60 site visit & coordination fee applies. No GST._`;
+      ? `\n\n_Based on similar items. Our team will confirm the exact price for your job. +$60 mobilisation & coordination fee applies._`
+      : `\n\n_Per item. +$60 mobilisation & coordination fee applies. No GST._`;
 
     return intro + lines.join("\n") + footnote;
   } catch {
@@ -482,7 +482,7 @@ Typical item pricing (per item, SGD):
 - Office desk: $50 install; L-shaped/executive desk: $100 install
 - Chest of drawers / dresser: $65–80 install
 - Mattress disposal: $80–100
-- All prices per item; $60 site visit & coordination fee applies to all non-relocation jobs; no GST
+- All prices per item; $60 mobilisation & coordination fee applies to all non-relocation jobs; no GST
 
 Process / how it works:
 1. Customer tells us what they need → we prepare a confirmed quote
@@ -513,7 +513,7 @@ const FAQ_KNOWLEDGE = `TMG Install (The Moving Guy Pte Ltd) — Singapore furnit
 
 Services: installation/assembly, dismantling, relocation (all-in-one), disposal/haul-away.
 Coverage: all of Singapore — HDB, condo, landed, commercial & office.
-Pricing: from $80/item install, $60/item dismantle, $80/item disposal, from $200 relocation. $60 callout fee on all non-relocation jobs. No GST.
+Pricing: from $80/item install, $60/item dismantle, $80/item disposal, from $200 relocation. $60 mobilisation & coordination fee on all non-relocation jobs. No GST.
 Common prices: bed frame install $80–150, wardrobe install $120–300, sofa dismantle $80–100, dining set $80–120.
 Payment: 50% deposit (PayNow / bank transfer / card) to confirm booking; 50% on completion.
 Availability: weekdays & weekends (subject to slots). Min. 48h notice. Morning (9am–12pm) or afternoon (1pm–5pm).
@@ -5991,7 +5991,7 @@ Return ONLY valid JSON.`,
 
 COMPANY INFO:
 - Services: furniture installation, dismantling, and relocation across all of Singapore
-- Pricing: from SGD 80/item; $60 callout fee on all non-relocation jobs; relocation adds transport fee
+- Pricing: from SGD 80/item; $60 mobilisation & coordination fee on all non-relocation jobs; relocation adds transport fee
 - Coverage: HDB flats, condos, landed property, commercial/offices — all of Singapore
 - Payment: 50% deposit (PayNow/bank transfer/card), 50% balance on job completion
 - Typical turnaround: quote within 1 business day, job booked after deposit confirmed

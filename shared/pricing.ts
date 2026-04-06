@@ -258,10 +258,10 @@ export function computePricing(input: PricingInput): PricingResult {
 
   const feeLines: FeeLine[] = [];
 
-  // Callout / site visit fee (non-relocation jobs only)
+  // Mobilisation & coordination fee (non-relocation jobs only)
   // Replaces the old $180 minimum — transparent $60 base fee instead.
   if (!input.needsRelocation) {
-    feeLines.push({ label: 'Callout / Site Visit', amount: cfg.callout.fee });
+    feeLines.push({ label: 'Mobilisation & Coordination', amount: cfg.callout.fee });
   }
 
   // Transport fee (relocation only) — multiplied by number of trips
