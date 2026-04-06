@@ -339,11 +339,17 @@ export default function AdminQuoteDetail() {
     const scheduledDate = q.scheduledAt ? new Date(q.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : null;
     const address = q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress || "—");
 
+    const isFullyPaid = !!(q.finalPaidAt) || q.paymentStatus === "paid_in_full";
+    const isDepositPaid = !!(q.depositPaidAt) || q.paymentStatus === "deposit_paid";
+    const depositAmt = Number(q.depositAmount || 0);
+    const totalAmt = Number(q.total || 0);
+    const balanceAmt = Math.max(0, totalAmt - depositAmt);
+
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Job Order — ${q.referenceNo}</title>
+  <title>${q.referenceNo}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 32px; }
@@ -454,18 +460,48 @@ export default function AdminQuoteDetail() {
     ${Number(q.transportFee || 0) > 0 ? `<div class="totals-row"><span>Transport</span><span>S$${Number(q.transportFee).toFixed(2)}</span></div>` : ""}
     ${Number(q.promoDiscount || 0) > 0 ? `<div class="totals-row"><span>Promo (${q.promoCode || ""})</span><span>−S$${Number(q.promoDiscount).toFixed(2)}</span></div>` : ""}
     <div class="totals-row grand"><span>Total</span><span>S$${Number(q.total || 0).toFixed(2)}</span></div>
-    <div class="totals-row" style="margin-top:8px;font-size:10px;">
-      <span>Payment</span>
-      <span>
-        ${q.paymentStatus === "paid_in_full" ? '<span class="badge badge-paid">Paid in Full</span>' : q.paymentStatus === "deposit_paid" ? `<span class="badge badge-partial">Deposit Paid · Balance S$${(Number(q.total||0)-Number(q.depositAmount||0)).toFixed(2)}</span>` : '<span class="badge badge-unpaid">Unpaid</span>'}
-      </span>
+    ${isFullyPaid ? `
+    <div class="totals-row" style="margin-top:12px;border-top:2px solid #16a34a;padding-top:10px;">
+      <span style="font-size:11px;font-weight:700;color:#15803d;">① Deposit (50%)</span>
+      <span style="font-size:11px;font-weight:700;color:#15803d;">S$${depositAmt.toFixed(2)} ✓</span>
     </div>
+    <div class="totals-row" style="padding-top:4px;">
+      <span style="font-size:11px;font-weight:700;color:#15803d;">② Balance (50%)</span>
+      <span style="font-size:11px;font-weight:700;color:#15803d;">S$${balanceAmt.toFixed(2)} ✓</span>
+    </div>
+    <div style="margin-top:8px;background:#dcfce7;border:1.5px solid #16a34a;border-radius:8px;padding:8px 12px;text-align:center;">
+      <span style="font-size:13px;font-weight:800;color:#15803d;letter-spacing:0.05em;">✅ FULLY PAID — CASE CLOSED</span>
+    </div>` : isDepositPaid ? `
+    <div class="totals-row" style="margin-top:12px;border-top:2px solid #ca8a04;padding-top:10px;">
+      <span style="font-size:11px;font-weight:700;color:#15803d;">① Deposit (50%)</span>
+      <span style="font-size:11px;font-weight:700;color:#15803d;">S$${depositAmt.toFixed(2)} ✓ PAID</span>
+    </div>
+    <div class="totals-row" style="padding-top:4px;">
+      <span style="font-size:11px;font-weight:700;color:#b45309;">② Balance (50%) — DUE ON COMPLETION</span>
+      <span style="font-size:12px;font-weight:800;color:#b45309;">S$${balanceAmt.toFixed(2)}</span>
+    </div>` : `
+    <div class="totals-row" style="margin-top:8px;">
+      <span>Payment</span>
+      <span><span class="badge badge-unpaid">UNPAID</span></span>
+    </div>`}
   </div>
 
   <!-- Payment Details -->
+  ${isFullyPaid ? `
+  <div class="payment-section" style="background:#f0fdf4;border-color:#86efac;margin-top:24px;">
+    <div style="flex:1;text-align:center;padding:8px 0;">
+      <div style="font-size:18px;font-weight:800;color:#15803d;margin-bottom:4px;">✅ RECEIPT — PAID IN FULL</div>
+      <div style="font-size:10px;color:#166534;">Both deposit and final balance have been received. Thank you!</div>
+      <div style="margin-top:10px;display:flex;justify-content:center;gap:32px;font-size:10px;color:#15803d;">
+        <span>Deposit: <strong>S$${depositAmt.toFixed(2)}</strong></span>
+        <span>Balance: <strong>S$${balanceAmt.toFixed(2)}</strong></span>
+        <span>Total: <strong>S$${totalAmt.toFixed(2)}</strong></span>
+      </div>
+    </div>
+  </div>` : `
   <div class="payment-section">
     <div class="payment-details">
-      <h3>Payment Details</h3>
+      <h3>Payment Details${isDepositPaid ? ' — Balance Due' : ''}</h3>
       <table>
         <tr><th>Bank</th><td>OCBC Bank</td></tr>
         <tr><th>Account No.</th><td>596795617001</td></tr>
@@ -481,7 +517,7 @@ export default function AdminQuoteDetail() {
       <img src="${window.location.origin}/paynow-qr.png" alt="PayNow QR Code" />
       <p>Scan to Pay via PayNow</p>
     </div>
-  </div>
+  </div>`}
 
   <!-- Terms & Conditions -->
   <div class="tnc">
