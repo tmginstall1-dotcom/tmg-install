@@ -106,30 +106,30 @@ export function AdminBottomNav() {
       {/* More drawer */}
       <div
         ref={drawerRef}
-        className={`fixed bottom-[64px] inset-x-0 z-50 sm:hidden transition-transform duration-300 ease-out ${
+        className={`fixed bottom-[72px] inset-x-0 z-50 sm:hidden transition-transform duration-300 ease-out ${
           drawerOpen ? "translate-y-0" : "translate-y-full pointer-events-none"
         }`}
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="mx-3 mb-2 bg-white rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100">
-            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">More</p>
+        <div className="mx-3 mb-3 bg-[#0B0F19] rounded-2xl shadow-[0_-8px_40px_rgba(0,0,0,0.3)] border border-white/10 overflow-hidden backdrop-blur-xl">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-white/5">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">More Options</p>
             <button
               onClick={() => setDrawerOpen(false)}
-              className="w-7 h-7 flex items-center justify-center rounded-full bg-zinc-100 text-zinc-500"
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-slate-300 hover:bg-white/20 transition-colors"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Add to Home Screen prompt */}
           {!installed && (canNativeInstall || showIOSGuide) && (
-            <div className="px-4 py-3 border-b border-zinc-100 bg-slate-950">
+            <div className="px-4 py-3 border-b border-white/5 bg-blue-500/10">
               {canNativeInstall && (
                 <button
                   onClick={async () => { await install(); setDrawerOpen(false); }}
                   data-testid="admin-install-app"
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-white text-slate-950 font-bold rounded-xl text-sm hover:bg-zinc-100 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white font-bold rounded-xl text-sm hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/50"
                 >
                   <Download className="w-4 h-4" />
                   Add TMG Admin to Home Screen
@@ -140,24 +140,24 @@ export function AdminBottomNav() {
                   <button
                     onClick={() => setShowIOSSteps(v => !v)}
                     data-testid="admin-ios-install-guide"
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-white text-slate-950 font-bold rounded-xl text-sm hover:bg-zinc-100 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white font-bold rounded-xl text-sm hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/50"
                   >
                     <Smartphone className="w-4 h-4" />
                     Add TMG Admin to Home Screen
                   </button>
                   {showIOSSteps && (
-                    <div className="mt-2.5 rounded-xl bg-white/10 p-3.5 space-y-2.5">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">3 quick steps</p>
+                    <div className="mt-3 rounded-xl bg-black/30 border border-white/5 p-4 space-y-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-1">3 quick steps</p>
                       {[
                         { icon: Share, step: "1", text: "Tap the Share icon at the bottom of Safari" },
                         { icon: null, step: "2", text: 'Scroll down and tap "Add to Home Screen"' },
                         { icon: null, step: "3", text: 'Tap "Add" — TMG Admin appears on your home screen' },
                       ].map(({ icon: Icon, step, text }) => (
-                        <div key={step} className="flex items-start gap-2.5">
-                          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 text-white">{step}</span>
-                          <div className="flex items-start gap-1.5 flex-1">
-                            {Icon && <Icon className="w-3.5 h-3.5 text-zinc-400 mt-0.5 shrink-0" />}
-                            <p className="text-xs text-zinc-300 leading-relaxed">{text}</p>
+                        <div key={step} className="flex items-start gap-3">
+                          <span className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 text-blue-400 ring-1 ring-blue-500/30">{step}</span>
+                          <div className="flex items-start gap-2 flex-1">
+                            {Icon && <Icon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />}
+                            <p className="text-[13px] text-slate-300 leading-relaxed font-medium">{text}</p>
                           </div>
                         </div>
                       ))}
@@ -168,28 +168,28 @@ export function AdminBottomNav() {
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-0 divide-x divide-y divide-zinc-100">
+          <div className="grid grid-cols-3 gap-0 divide-x divide-y divide-white/5 bg-black/20">
             {secondaryItems.map(({ href, icon: Icon, label, badge, urgent }) => {
               const active = isActive(href, location);
               return (
                 <Link key={href} href={href}>
                   <div
                     data-testid={`admin-more-nav-${label.toLowerCase().replace(/\s/g, "-")}`}
-                    className={`flex flex-col items-center gap-2 py-5 px-3 cursor-pointer transition-colors ${
-                      active ? "bg-blue-50" : "hover:bg-zinc-50"
+                    className={`flex flex-col items-center gap-2.5 py-6 px-3 cursor-pointer transition-colors ${
+                      active ? "bg-blue-500/10" : "hover:bg-white/5"
                     }`}
                   >
                     <div className="relative">
-                      <Icon className={`w-5 h-5 ${active ? "text-blue-600" : "text-zinc-500"}`} />
+                      <Icon className={`w-[22px] h-[22px] ${active ? "text-blue-400" : "text-slate-400"}`} />
                       {badge > 0 && (
-                        <span className={`absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full text-[8px] font-bold flex items-center justify-center leading-none ${
-                          urgent ? "bg-red-500 text-white" : "bg-zinc-400 text-white"
+                        <span className={`absolute -top-2 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center leading-none shadow-sm ${
+                          urgent ? "bg-red-500 text-white" : "bg-blue-500 text-white"
                         }`}>
                           {badge > 9 ? "9+" : badge}
                         </span>
                       )}
                     </div>
-                    <span className={`text-[11px] font-semibold ${active ? "text-blue-600" : "text-zinc-600"}`}>
+                    <span className={`text-[11px] tracking-wide ${active ? "font-bold text-blue-300" : "font-semibold text-slate-400"}`}>
                       {label}
                     </span>
                   </div>
@@ -202,33 +202,32 @@ export function AdminBottomNav() {
 
       {/* Bottom tab bar */}
       <nav
-        className="fixed bottom-0 inset-x-0 sm:hidden z-50 bg-white border-t border-zinc-200"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="fixed bottom-0 inset-x-0 sm:hidden z-50 bg-[#0B0F19] border-t border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.2)] pb-[env(safe-area-inset-bottom)]"
       >
-        <div className="grid grid-cols-5 h-16">
+        <div className="grid grid-cols-5 h-[72px]">
           {primaryTabs.map(({ href, label, icon: Icon, badge, urgent }) => {
             const active = isActive(href, location);
             return (
               <Link key={href} href={href}>
                 <div
                   data-testid={`admin-bottom-nav-${label.toLowerCase()}`}
-                  className={`relative flex flex-col items-center justify-center h-full gap-1 transition-colors cursor-pointer ${
-                    active ? "text-blue-600" : "text-zinc-400"
+                  className={`relative flex flex-col items-center justify-center h-full gap-1.5 transition-all cursor-pointer ${
+                    active ? "text-blue-400" : "text-slate-500 hover:text-slate-300"
                   }`}
                 >
                   {badge > 0 && (
-                    <span className={`absolute top-2 right-[calc(50%-16px)] translate-x-3 min-w-[15px] h-[15px] px-0.5 rounded-full text-[8px] font-bold flex items-center justify-center leading-none ${
-                      urgent ? "bg-red-500 text-white" : "bg-zinc-400 text-white"
+                    <span className={`absolute top-2 right-[calc(50%-20px)] translate-x-3 min-w-[16px] h-[16px] px-1 rounded-full text-[9px] font-bold flex items-center justify-center leading-none shadow-sm z-10 ${
+                      urgent ? "bg-red-500 text-white shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-blue-500 text-white"
                     }`}>
                       {badge > 9 ? "9+" : badge}
                     </span>
                   )}
-                  <div className={`w-10 h-8 flex items-center justify-center rounded-xl transition-all ${
-                    active ? "bg-blue-50" : ""
+                  <div className={`relative w-12 h-8 flex items-center justify-center rounded-xl transition-all ${
+                    active ? "bg-blue-500/15 ring-1 ring-inset ring-blue-500/30" : ""
                   }`}>
-                    <Icon className="w-5 h-5" />
+                    <Icon className={`w-5 h-5 ${active ? "scale-110" : "scale-100"} transition-transform`} />
                   </div>
-                  <span className={`text-[10px] leading-none ${active ? "font-bold" : "font-medium"}`}>{label}</span>
+                  <span className={`text-[10px] tracking-wide ${active ? "font-bold" : "font-medium"}`}>{label}</span>
                 </div>
               </Link>
             );
@@ -238,21 +237,21 @@ export function AdminBottomNav() {
           <button
             data-testid="admin-bottom-nav-more"
             onClick={() => setDrawerOpen(v => !v)}
-            className={`relative flex flex-col items-center justify-center h-full gap-1 transition-colors cursor-pointer w-full ${
-              isInMore || drawerOpen ? "text-blue-600" : "text-zinc-400"
+            className={`relative flex flex-col items-center justify-center h-full gap-1.5 transition-all cursor-pointer w-full ${
+              isInMore || drawerOpen ? "text-blue-400" : "text-slate-500 hover:text-slate-300"
             }`}
           >
             {moreBadge > 0 && (
-              <span className="absolute top-2 right-[calc(50%-16px)] translate-x-3 min-w-[15px] h-[15px] px-0.5 bg-red-500 text-white rounded-full text-[8px] font-bold flex items-center justify-center leading-none">
+              <span className="absolute top-2 right-[calc(50%-20px)] translate-x-3 min-w-[16px] h-[16px] px-1 bg-red-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center leading-none shadow-[0_0_8px_rgba(239,68,68,0.5)] z-10">
                 {moreBadge > 9 ? "9+" : moreBadge}
               </span>
             )}
-            <div className={`w-10 h-8 flex items-center justify-center rounded-xl transition-all ${
-              isInMore || drawerOpen ? "bg-blue-50" : ""
+            <div className={`relative w-12 h-8 flex items-center justify-center rounded-xl transition-all ${
+              isInMore || drawerOpen ? "bg-blue-500/15 ring-1 ring-inset ring-blue-500/30" : ""
             }`}>
-              <MoreHorizontal className="w-5 h-5" />
+              <MoreHorizontal className={`w-6 h-6 ${isInMore || drawerOpen ? "scale-110" : "scale-100"} transition-transform`} />
             </div>
-            <span className={`text-[10px] leading-none ${isInMore || drawerOpen ? "font-bold" : "font-medium"}`}>More</span>
+            <span className={`text-[10px] tracking-wide ${isInMore || drawerOpen ? "font-bold" : "font-medium"}`}>More</span>
           </button>
         </div>
       </nav>

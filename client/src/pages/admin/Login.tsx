@@ -290,41 +290,43 @@ function AdminLoginForm() {
     <div className="min-h-screen flex">
 
       {/* ── Left panel — brand ──────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-[46%] xl:w-[42%] flex-col justify-between p-12 bg-[#0D1117] relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[46%] xl:w-[42%] flex-col justify-between p-14 bg-[#070B14] relative overflow-hidden border-r border-white/5">
         {/* Grid texture */}
-        <div className="absolute inset-0 opacity-[0.04]"
+        <div className="absolute inset-0 opacity-[0.03]"
           style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "48px 48px" }} />
         {/* Glow */}
-        <div className="absolute top-0 left-0 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
+        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[120px] -translate-x-1/2 -translate-y-1/2" />
+        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-[120px] translate-x-1/2 translate-y-1/2" />
 
         {/* Brand */}
-        <div className="relative z-10 flex items-center gap-3">
-          <LogoMark size={40} className="shadow-lg" />
+        <div className="relative z-10 flex items-center gap-4">
+          <div className="p-1 bg-white/5 rounded-2xl border border-white/10 shadow-2xl backdrop-blur-sm">
+            <LogoMark size={48} className="shadow-lg rounded-xl" />
+          </div>
           <div>
-            <p className="text-white font-black text-sm tracking-[0.12em] uppercase">TMG Install</p>
-            <p className="text-white/30 text-[11px] tracking-widest uppercase">Operations</p>
+            <p className="text-white font-black text-[15px] tracking-[0.15em] uppercase">TMG Install</p>
+            <p className="text-blue-400 font-bold text-[10px] tracking-[0.2em] uppercase mt-0.5">Operations</p>
           </div>
         </div>
 
         {/* Tagline + features */}
-        <div className="relative z-10 space-y-8">
+        <div className="relative z-10 space-y-10">
           <div>
-            <p className="text-4xl font-black text-white leading-tight tracking-tight">
-              Your command<br />centre for<br />every job.
+            <p className="text-5xl font-black text-white leading-[1.05] tracking-tight">
+              Your command<br />centre for<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">every job.</span>
             </p>
-            <p className="text-white/40 text-sm mt-4 leading-relaxed">
-              Manage quotes, staff, attendance and payroll from one dashboard.
+            <p className="text-slate-400 text-[15px] mt-5 leading-relaxed max-w-md font-medium">
+              Manage quotes, staff, attendance and payroll from one unified dashboard.
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             {ADMIN_FEATURES.map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-3.5">
-                <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
-                  <Icon className="w-4 h-4 text-violet-400" />
+              <div key={text} className="flex items-center gap-4 group">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0 group-hover:bg-blue-500/20 group-hover:scale-105 transition-all">
+                  <Icon className="w-4 h-4 text-blue-400" />
                 </div>
-                <span className="text-white/55 text-[13px]">{text}</span>
+                <span className="text-slate-300 font-medium text-[14px]">{text}</span>
               </div>
             ))}
           </div>
@@ -332,33 +334,36 @@ function AdminLoginForm() {
 
         {/* Footer */}
         <div className="relative z-10">
-          <p className="text-white/20 text-[11px]">The Moving Guy Pte Ltd · UEN 202424156H · Singapore · {APP_VERSION}</p>
+          <p className="text-slate-500 font-medium text-[11px] uppercase tracking-wider">The Moving Guy Pte Ltd · UEN 202424156H · Singapore · {APP_VERSION}</p>
         </div>
       </div>
 
       {/* ── Right panel — form ───────────────────────────────── */}
       <div className="flex-1 overflow-y-auto bg-white">
         <div ref={formRef} className="min-h-full flex flex-col items-center justify-center px-7 sm:px-12 py-16">
-          <div className="w-full max-w-[380px]">
+          <div className="w-full max-w-[400px]">
 
             {/* Mobile brand (shown only on small screens) */}
-            <div className="lg:hidden mb-10 text-center">
+            <div className="lg:hidden mb-12 text-center">
               <BrandBlock portal="admin" />
             </div>
 
             {/* Heading */}
-            <div className="mb-8">
-              <p className="text-[12px] font-bold text-violet-600 uppercase tracking-widest mb-2">Operations Dashboard</p>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Welcome back</h1>
-              <p className="text-slate-400 text-[14px] mt-2">Sign in to manage your operations</p>
+            <div className="mb-10 text-center lg:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 mb-4 lg:mx-0 mx-auto">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Secure Access</span>
+              </div>
+              <h1 className="text-[32px] font-black text-slate-900 tracking-tight leading-tight">Welcome back</h1>
+              <p className="text-slate-500 font-medium text-[15px] mt-2">Sign in to manage your operations</p>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Username</label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest ml-1">Username</label>
+                <div className="relative group">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none" />
                   <input
                     required
                     autoComplete="username"
@@ -366,16 +371,16 @@ function AdminLoginForm() {
                     onChange={e => { setUsername(e.target.value); setError(""); }}
                     onFocus={e => scrollIntoView(e.target)}
                     placeholder="Enter your username"
-                    className="w-full pl-11 pr-4 py-3.5 rounded-xl border-2 border-slate-100 bg-slate-50 text-slate-900 text-[15px] placeholder:text-slate-300 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/10 outline-none transition-all font-medium"
+                    className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-slate-200 bg-white text-slate-900 text-[15px] placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-semibold shadow-sm"
                     data-testid="input-username"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest ml-1">Password</label>
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none" />
                   <input
                     required
                     type={showPassword ? "text" : "password"}
@@ -384,13 +389,13 @@ function AdminLoginForm() {
                     onChange={e => { setPassword(e.target.value); setError(""); }}
                     onFocus={e => scrollIntoView(e.target)}
                     placeholder="Enter your password"
-                    className="w-full pl-11 pr-14 py-3.5 rounded-xl border-2 border-slate-100 bg-slate-50 text-slate-900 text-[15px] placeholder:text-slate-300 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/10 outline-none transition-all font-medium"
+                    className="w-full pl-12 pr-14 py-4 rounded-2xl border-2 border-slate-200 bg-white text-slate-900 text-[15px] placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-semibold shadow-sm"
                     data-testid="input-password"
                   />
                   <button
                     type="button" tabIndex={-1}
                     onClick={() => setShowPassword(v => !v)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
                     data-testid="button-toggle-password"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -399,9 +404,9 @@ function AdminLoginForm() {
               </div>
 
               {error && (
-                <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
-                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                  <p className="text-[13px] text-red-600 font-medium">{error}</p>
+                <div className="flex items-center gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl shadow-sm">
+                  <div className="w-2 h-2 rounded-full bg-red-500 shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                  <p className="text-[13px] text-red-700 font-bold">{error}</p>
                 </div>
               )}
 
@@ -409,7 +414,7 @@ function AdminLoginForm() {
                 type="submit"
                 disabled={isLoggingIn}
                 data-testid="button-login"
-                className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 active:scale-[0.98] disabled:opacity-60 text-white font-black text-[15px] shadow-lg shadow-violet-500/25 transition-all mt-2"
+                className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-[0.98] disabled:opacity-60 text-white font-bold text-[16px] shadow-lg shadow-slate-900/20 transition-all mt-2"
               >
                 {isLoggingIn
                   ? <><Loader2 className="w-5 h-5 animate-spin" /> Signing in…</>
@@ -418,10 +423,10 @@ function AdminLoginForm() {
               </button>
             </form>
 
-            <div className="mt-10 pt-6 border-t border-slate-100 text-center">
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                The Moving Guy Pte Ltd · UEN 202424156H · Singapore<br />
-                <span className="text-slate-200">{APP_VERSION}</span>
+            <div className="mt-12 pt-8 border-t border-slate-100 text-center lg:hidden">
+              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest leading-relaxed">
+                The Moving Guy Pte Ltd · UEN 202424156H<br />
+                <span className="text-slate-300">{APP_VERSION}</span>
               </p>
             </div>
           </div>

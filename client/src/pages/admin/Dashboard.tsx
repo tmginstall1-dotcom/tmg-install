@@ -53,30 +53,31 @@ function QuoteRow({ quote, compact = false }: { quote: any; compact?: boolean })
     <div
       onClick={() => navigate(`/admin/quotes/${quote.id}`)}
       data-testid={`quote-row-${quote.id}`}
-      className="group flex items-center gap-3 px-4 py-3 hover:bg-zinc-50/80 cursor-pointer border-b border-zinc-100 last:border-0 transition-colors"
+      className="group flex items-center gap-4 px-5 py-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 transition-all active:bg-slate-100"
     >
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatarBg(quote.id)}`}>
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 shadow-sm ${avatarBg(quote.id)}`}>
         {initials(quote.customer?.name)}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-zinc-900 truncate leading-tight">
+        <div className="flex items-center gap-2.5">
+          <p className="text-[15px] font-bold text-slate-900 truncate leading-tight">
             {quote.customer?.name || "Unknown"}
           </p>
           <StatusBadge status={quote.status} />
         </div>
         {!compact && (
-          <p className="text-xs text-zinc-400 truncate mt-0.5">
-            {quote.referenceNo} · {quote.serviceAddress || "No address"}
+          <p className="text-[13px] text-slate-500 truncate mt-1.5 font-medium">
+            <span className="text-slate-400 font-mono tracking-tight mr-1.5">{quote.referenceNo}</span>
+            {quote.serviceAddress || "No address"}
           </p>
         )}
       </div>
-      <div className="shrink-0 text-right flex items-center gap-3">
+      <div className="shrink-0 text-right flex items-center gap-4">
         <div>
-          <p className="text-sm font-bold text-zinc-900 tabular-nums leading-tight">{formatMoney(quote.total)}</p>
-          <p className="text-[11px] text-zinc-400 mt-0.5 tabular-nums">{dateLabel(quote)}</p>
+          <p className="text-[15px] font-bold text-slate-900 tabular-nums leading-tight">{formatMoney(quote.total)}</p>
+          <p className="text-[12px] text-slate-500 font-medium mt-1 tabular-nums">{dateLabel(quote)}</p>
         </div>
-        <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-blue-500 transition-colors shrink-0" />
+        <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0" />
       </div>
     </div>
   );
@@ -97,16 +98,16 @@ function Panel({
   const [expanded, setExpanded] = useState(!collapsible || (quotes.length > 0));
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
       <div
-        className={`flex items-center justify-between px-4 py-3.5 border-b border-zinc-100 ${collapsible ? "cursor-pointer hover:bg-zinc-50/50" : ""}`}
+        className={`flex items-center justify-between px-5 py-4 border-b border-slate-100 ${collapsible ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : "bg-slate-50/30"}`}
         onClick={collapsible ? () => setExpanded(v => !v) : undefined}
       >
-        <div className="flex items-center gap-2.5">
-          <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-[15px] font-bold text-slate-900 tracking-tight">{title}</h2>
           {badge != null && badge > 0 && (
-            <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
-              badgeUrgent ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
+            <span className={`inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full text-[11px] font-black tracking-wide ${
+              badgeUrgent ? "bg-red-100 text-red-700 ring-1 ring-red-200" : "bg-blue-100 text-blue-700 ring-1 ring-blue-200"
             }`}>
               {badge}
             </span>
@@ -114,19 +115,19 @@ function Panel({
         </div>
         {quotes.length > 0 && (
           <Link href="/admin/schedule" onClick={e => e.stopPropagation()}>
-            <span className="text-xs font-medium text-blue-600 hover:text-blue-700">View all</span>
+            <span className="text-[13px] font-bold text-blue-600 hover:text-blue-700 transition-colors">View all</span>
           </Link>
         )}
       </div>
 
       {expanded && (
         quotes.length === 0 ? (
-          <div className="py-10 flex flex-col items-center gap-2 text-zinc-400">
-            <EmptyIcon className="w-8 h-8 text-zinc-300" />
-            <p className="text-sm font-medium">{emptyMsg}</p>
+          <div className="py-12 flex flex-col items-center gap-3 text-slate-400">
+            <EmptyIcon className="w-10 h-10 text-slate-200" />
+            <p className="text-[14px] font-semibold">{emptyMsg}</p>
           </div>
         ) : (
-          <div>
+          <div className="divide-y divide-slate-100">
             {quotes.map(q => <QuoteRow key={q.id} quote={q} />)}
           </div>
         )
@@ -233,64 +234,68 @@ export default function AdminDashboard() {
     <div className="min-h-screen pt-14 pb-20 lg:pb-6 lg:pl-56 bg-zinc-50 overflow-x-hidden">
 
       {/* Page header */}
-      <div className="bg-white border-b border-zinc-200 px-5 py-4">
+      <div className="bg-white border-b border-slate-200 px-6 py-6 shadow-sm relative z-10">
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
             <div>
-              <p className="text-xs text-zinc-400 font-medium tabular-nums">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
-              <h1 className="text-lg font-bold text-zinc-900 mt-0.5 leading-tight">{greeting()}</h1>
+              <p className="text-[13px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">{greeting()}</h1>
             </div>
-            <div className="flex items-center gap-5 pt-0.5">
+            <div className="flex items-center gap-6 sm:pt-0.5">
               <div className="text-right">
-                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Collected</p>
-                <p className="text-xl font-bold text-zinc-900 tabular-nums leading-none">{formatMoney(totalRevenue)}</p>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Collected</p>
+                <p className="text-2xl font-black text-slate-900 tabular-nums leading-none tracking-tight">{formatMoney(totalRevenue)}</p>
               </div>
-              <div className="w-px h-10 bg-zinc-200" />
+              <div className="w-px h-12 bg-slate-200" />
               <div className="text-right">
-                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Pipeline</p>
-                <p className="text-xl font-bold text-blue-600 tabular-nums leading-none">{formatMoney(pipelineValue)}</p>
+                <p className="text-[11px] font-bold text-blue-500/70 uppercase tracking-widest mb-1.5">Pipeline</p>
+                <p className="text-2xl font-black text-blue-600 tabular-nums leading-none tracking-tight">{formatMoney(pipelineValue)}</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-5 py-5 space-y-4">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* Urgent alert banner */}
         {urgentCount > 0 && (
-          <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-2xl">
-            <BellRing className="w-4 h-4 text-red-500 shrink-0" />
-            <p className="text-sm font-semibold text-red-700 flex-1">
+          <div className="flex items-center gap-3.5 px-5 py-4 bg-red-50 border border-red-200 rounded-2xl shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+              <BellRing className="w-4 h-4 text-red-600" />
+            </div>
+            <p className="text-[15px] font-bold text-red-800 flex-1 tracking-tight">
               {urgentCount} item{urgentCount > 1 ? "s" : ""} need{urgentCount === 1 ? "s" : ""} your attention
-              {newQuotes.length > 0 && ` · ${newQuotes.length} new request${newQuotes.length > 1 ? "s" : ""}`}
-              {awaitingPayment.length > 0 && ` · ${awaitingPayment.length} awaiting final payment`}
+              {newQuotes.length > 0 && <span className="font-medium text-red-600/80 ml-2">· {newQuotes.length} new request{newQuotes.length > 1 ? "s" : ""}</span>}
+              {awaitingPayment.length > 0 && <span className="font-medium text-red-600/80 ml-2">· {awaitingPayment.length} awaiting final payment</span>}
             </p>
           </div>
         )}
 
         {/* KPI strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           {[
-            { label: "New Requests",    value: newQuotes.length,       icon: ClipboardList, urgent: newQuotes.length > 0,       color: newQuotes.length > 0 ? "text-red-600" : "text-zinc-900" },
-            { label: "Awaiting Deposit",value: awaitingDeposit.length, icon: DollarSign,    urgent: false,                      color: "text-zinc-900" },
-            { label: "Today's Jobs",    value: todayJobs.length,       icon: CalendarCheck, urgent: false,                      color: todayJobs.length > 0 ? "text-blue-600" : "text-zinc-900" },
-            { label: "Active Jobs",     value: activeJobs.length,      icon: Zap,           urgent: false,                      color: activeJobs.length > 0 ? "text-emerald-600" : "text-zinc-900" },
-            { label: "Payment Due",     value: awaitingPayment.length, icon: AlertCircle,   urgent: awaitingPayment.length > 0, color: awaitingPayment.length > 0 ? "text-orange-600" : "text-zinc-900" },
+            { label: "New Requests",    value: newQuotes.length,       icon: ClipboardList, urgent: newQuotes.length > 0,       color: newQuotes.length > 0 ? "text-red-600" : "text-slate-900" },
+            { label: "Awaiting Deposit",value: awaitingDeposit.length, icon: DollarSign,    urgent: false,                      color: "text-slate-900" },
+            { label: "Today's Jobs",    value: todayJobs.length,       icon: CalendarCheck, urgent: false,                      color: todayJobs.length > 0 ? "text-blue-600" : "text-slate-900" },
+            { label: "Active Jobs",     value: activeJobs.length,      icon: Zap,           urgent: false,                      color: activeJobs.length > 0 ? "text-emerald-600" : "text-slate-900" },
+            { label: "Payment Due",     value: awaitingPayment.length, icon: AlertCircle,   urgent: awaitingPayment.length > 0, color: awaitingPayment.length > 0 ? "text-orange-600" : "text-slate-900" },
           ].map((card, idx) => {
             const Icon = card.icon;
             const isOrphan = idx === 4 && true;
             return (
               <div
                 key={card.label}
-                className={`bg-white border rounded-2xl px-4 py-3.5 shadow-sm flex flex-col gap-2 ${
-                  card.urgent && card.value > 0 ? "border-red-200 bg-red-50/40" : "border-zinc-200"
+                className={`bg-white border rounded-2xl px-5 py-4 shadow-sm flex flex-col gap-3 transition-shadow hover:shadow-md ${
+                  card.urgent && card.value > 0 ? "border-red-200 bg-gradient-to-b from-red-50/50 to-white ring-1 ring-inset ring-red-500/10" : "border-slate-200"
                 } ${isOrphan ? "col-span-2 sm:col-span-1" : ""}`}
               >
-                <Icon className={`w-4 h-4 ${card.urgent && card.value > 0 ? "text-red-400" : "text-zinc-400"}`} />
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.urgent && card.value > 0 ? "bg-red-100" : "bg-slate-100"}`}>
+                  <Icon className={`w-4 h-4 ${card.urgent && card.value > 0 ? "text-red-600" : "text-slate-500"}`} />
+                </div>
                 <div>
-                  <div className={`text-2xl font-bold tabular-nums leading-none ${card.color}`}>{card.value}</div>
-                  <div className="text-[11px] text-zinc-500 font-medium mt-1">{card.label}</div>
+                  <div className={`text-3xl font-black tabular-nums tracking-tight leading-none ${card.color}`}>{card.value}</div>
+                  <div className="text-[12px] text-slate-500 font-bold mt-1.5">{card.label}</div>
                 </div>
               </div>
             );
