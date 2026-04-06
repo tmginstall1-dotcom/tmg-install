@@ -7657,6 +7657,60 @@ Respond directly — no JSON, just the message text.`,
   });
 
   // ── GGV Jobs ────────────────────────────────────────────────────────────────
+  // POST /api/admin/ggv-jobs/scan — upload spreadsheet image, extract rows via AI
+  app.post("/api/admin/ggv-jobs/scan", upload.single("image"), async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    if (!req.file) return res.status(400).json({ message: "No image uploaded" });
+    const mimeType = req.file.mimetype || "image/jpeg";
+    const base64 = req.file.buffer.toString("base64");
+    try {
+      const scanRes = await openai.chat.completions.create({
+        model: "gpt-4o",
+        max_tokens: 3000,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `You are a data extraction assistant. The user shows you a spreadsheet screenshot of daily delivery/installation jobs for a Singapore logistics company.
+
+Extract ALL job rows from the spreadsheet. Each row is one job. Columns (read left to right):
+- jobNo: Job order number (e.g. "S045260062103")
+- bookingRef: Booking reference (e.g. "V045260161488")
+- timeStart: Start time in HH:MM format (e.g. "09:00")
+- timeEnd: End time in HH:MM format (e.g. "12:00")
+- listedPrice: Listed/gross price in dollars (number, e.g. 99.90)
+- deduction: Deduction/fee amount (number, e.g. 18.33; use 0 if blank)
+- actualPrice: Actual payout — the KEY column (number, e.g. 9.17)
+- serviceType: Service code (e.g. "D+A", "R+A+DISS", "ASD+ASA")
+- remarks: Any notes text in the row (string or null)
+- address: Job address
+- postalCode: 6-digit Singapore postal code (string)
+- distanceKm: Distance in km (number, e.g. 15.95)
+- ratePerKm: Rate per km (small number e.g. 0.06)
+- flagged: true if row is highlighted red/pink/orange, false otherwise
+Also extract from the header:
+- date: Date of jobs if visible as YYYY-MM-DD, else null
+- vehicleGroup: Header vehicle group text (e.g. "TMG1 GGV 029")
+- vehicleType: Header van type text (e.g. "EV VAN")
+
+Return ONLY valid JSON:
+{"date":null,"vehicleGroup":"TMG1 GGV 029","vehicleType":"EV VAN","jobs":[{"jobNo":"S045260062103","bookingRef":"V045260161488","timeStart":"09:00","timeEnd":"12:00","listedPrice":99.90,"deduction":18.33,"actualPrice":9.17,"serviceType":"D+A","remarks":null,"address":"17 Jalan Tenteram #08-120","postalCode":"321017","distanceKm":15.95,"ratePerKm":0.06,"flagged":false}]}`,
+          },
+          {
+            role: "user",
+            content: [{ type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "high" } }] as any,
+          },
+        ],
+      });
+      const parsed = JSON.parse(scanRes.choices[0]?.message?.content || "{}");
+      return res.json(parsed);
+    } catch (e: any) {
+      return res.status(500).json({ message: `Scan failed: ${e.message}` });
+    }
+  });
+
   // GET /api/admin/ggv-jobs?date=YYYY-MM-DD
   app.get("/api/admin/ggv-jobs", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });

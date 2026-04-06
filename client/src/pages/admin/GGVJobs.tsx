@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -13,7 +14,8 @@ import {
 } from "@/components/ui/select";
 import {
   Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
-  TruckIcon, Flag, AlertCircle,
+  TruckIcon, Flag, AlertCircle, Upload, Loader2, CheckCheck,
+  FileImage, Eye,
 } from "lucide-react";
 
 type GGVJob = {
@@ -35,6 +37,30 @@ type GGVJob = {
   distanceKm: string | null;
   ratePerKm: string | null;
   flagged: boolean;
+};
+
+type ScannedJob = {
+  jobNo: string | null;
+  bookingRef: string | null;
+  timeStart: string | null;
+  timeEnd: string | null;
+  listedPrice: number | null;
+  deduction: number | null;
+  actualPrice: number | null;
+  serviceType: string | null;
+  remarks: string | null;
+  address: string | null;
+  postalCode: string | null;
+  distanceKm: number | null;
+  ratePerKm: number | null;
+  flagged: boolean;
+};
+
+type ScanResult = {
+  date: string | null;
+  vehicleGroup: string;
+  vehicleType: string;
+  jobs: ScannedJob[];
 };
 
 const SERVICE_TYPES = [
@@ -63,8 +89,8 @@ function todaySGT() {
   return nowSGT.toISOString().slice(0, 10);
 }
 
-function fmt(val: string | null | undefined, prefix = "$") {
-  const n = parseFloat(val ?? "");
+function fmt(val: string | number | null | undefined, prefix = "$") {
+  const n = typeof val === "number" ? val : parseFloat(val ?? "");
   if (isNaN(n)) return "—";
   return `${prefix}${n.toFixed(2)}`;
 }
@@ -97,6 +123,16 @@ export default function GGVJobs() {
   const [vehicleType, setVehicleType] = useState("EV VAN");
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
+  // Scan state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<boolean[]>([]);
+  const [previewDate, setPreviewDate] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   const queryKey = ["/api/admin/ggv-jobs", selectedDate];
 
   const { data: jobs = [], isLoading } = useQuery<GGVJob[]>({
@@ -124,6 +160,90 @@ export default function GGVJobs() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setDeleteId(null); toast({ title: "Job deleted" }); },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  // ── Upload & AI Scan ────────────────────────────────────────────────────────
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Show image preview
+    const reader = new FileReader();
+    reader.onload = (ev) => setPreviewImage(ev.target?.result as string);
+    reader.readAsDataURL(file);
+
+    setScanning(true);
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await fetch("/api/admin/ggv-jobs/scan", {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Scan failed");
+      }
+      const data: ScanResult = await res.json();
+      if (!data.jobs?.length) {
+        toast({ title: "No jobs found", description: "AI couldn't extract any job rows from this image.", variant: "destructive" });
+        return;
+      }
+      setScanResult(data);
+      setSelectedRows(data.jobs.map(() => true));
+      setPreviewDate(data.date || selectedDate);
+      if (data.vehicleGroup) setVehicleGroup(data.vehicleGroup);
+      if (data.vehicleType) setVehicleType(data.vehicleType);
+      setPreviewOpen(true);
+    } catch (err: any) {
+      toast({ title: "Scan failed", description: err.message, variant: "destructive" });
+    } finally {
+      setScanning(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, [selectedDate, toast]);
+
+  async function handleImport() {
+    if (!scanResult) return;
+    setImporting(true);
+    const toImport = scanResult.jobs.filter((_, i) => selectedRows[i]);
+    let saved = 0;
+    for (const job of toImport) {
+      try {
+        await apiRequest("POST", "/api/admin/ggv-jobs", {
+          date: previewDate || selectedDate,
+          vehicleGroup: scanResult.vehicleGroup || vehicleGroup,
+          vehicleType: scanResult.vehicleType || vehicleType,
+          jobNo: job.jobNo || null,
+          bookingRef: job.bookingRef || null,
+          timeStart: job.timeStart || null,
+          timeEnd: job.timeEnd || null,
+          listedPrice: job.listedPrice != null ? String(job.listedPrice) : null,
+          deduction: job.deduction != null ? String(job.deduction) : "0",
+          actualPrice: job.actualPrice != null ? String(job.actualPrice) : null,
+          serviceType: job.serviceType || null,
+          remarks: job.remarks || null,
+          address: job.address || null,
+          postalCode: job.postalCode || null,
+          distanceKm: job.distanceKm != null ? String(job.distanceKm) : null,
+          ratePerKm: job.ratePerKm != null ? String(job.ratePerKm) : null,
+          flagged: job.flagged ?? false,
+        });
+        saved++;
+      } catch {}
+    }
+    setImporting(false);
+    setPreviewOpen(false);
+    setScanResult(null);
+    setPreviewImage(null);
+    // If the date extracted matches selectedDate, the query will refresh
+    if (previewDate) setSelectedDate(previewDate);
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/ggv-jobs"] });
+    toast({ title: `${saved} job${saved !== 1 ? "s" : ""} imported successfully` });
+  }
+
+  // ── Manual add/edit ─────────────────────────────────────────────────────────
 
   function openAdd() {
     setEditingJob(null);
@@ -156,36 +276,24 @@ export default function GGVJobs() {
 
   function handleSave() {
     const payload = {
-      date: selectedDate,
-      vehicleGroup,
-      vehicleType,
-      jobNo: form.jobNo || null,
-      bookingRef: form.bookingRef || null,
-      timeStart: form.timeStart || null,
-      timeEnd: form.timeEnd || null,
-      listedPrice: form.listedPrice || null,
-      deduction: form.deduction || "0",
-      actualPrice: form.actualPrice || null,
-      serviceType: form.serviceType || null,
-      remarks: form.remarks || null,
-      address: form.address || null,
-      postalCode: form.postalCode || null,
-      distanceKm: form.distanceKm || null,
-      ratePerKm: form.ratePerKm || null,
-      flagged: form.flagged,
+      date: selectedDate, vehicleGroup, vehicleType,
+      jobNo: form.jobNo || null, bookingRef: form.bookingRef || null,
+      timeStart: form.timeStart || null, timeEnd: form.timeEnd || null,
+      listedPrice: form.listedPrice || null, deduction: form.deduction || "0",
+      actualPrice: form.actualPrice || null, serviceType: form.serviceType || null,
+      remarks: form.remarks || null, address: form.address || null,
+      postalCode: form.postalCode || null, distanceKm: form.distanceKm || null,
+      ratePerKm: form.ratePerKm || null, flagged: form.flagged,
     };
-    if (editingJob) {
-      updateMut.mutate({ id: editingJob.id, data: payload });
-    } else {
-      createMut.mutate(payload);
-    }
+    if (editingJob) updateMut.mutate({ id: editingJob.id, data: payload });
+    else createMut.mutate(payload);
   }
 
   const totalListed = sum(jobs, "listedPrice");
   const totalDeduction = sum(jobs, "deduction");
   const totalActual = sum(jobs, "actualPrice");
-
   const isPending = createMut.isPending || updateMut.isPending;
+  const selectedCount = selectedRows.filter(Boolean).length;
 
   return (
     <div className="lg:pl-56 pt-14 min-h-screen bg-slate-950">
@@ -202,23 +310,51 @@ export default function GGVJobs() {
               <p className="text-[11px] text-slate-500">Daily delivery & installation job log</p>
             </div>
           </div>
-          <Button
-            onClick={openAdd}
-            data-testid="btn-add-ggv-job"
-            className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add Job
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Upload & Scan */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.png,.jpg,.jpeg,.webp"
+              className="hidden"
+              onChange={handleFileChange}
+              data-testid="input-scan-file"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={scanning}
+              data-testid="btn-scan-upload"
+              variant="outline"
+              className="border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 font-bold text-xs gap-1.5"
+            >
+              {scanning ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Scanning…</>
+              ) : (
+                <><Upload className="w-3.5 h-3.5" /> Upload & Scan</>
+              )}
+            </Button>
+            <Button
+              onClick={openAdd}
+              data-testid="btn-add-ggv-job"
+              className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Job
+            </Button>
+          </div>
         </div>
+
+        {/* Scanning overlay hint */}
+        {scanning && (
+          <div className="mb-4 flex items-center gap-3 bg-blue-500/10 border border-blue-500/25 rounded-xl px-4 py-3">
+            <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
+            <p className="text-sm text-blue-300 font-medium">AI is reading your spreadsheet… this usually takes 5–15 seconds</p>
+          </div>
+        )}
 
         {/* Date nav + vehicle header */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
           <div className="flex items-center gap-2 bg-slate-900 border border-white/8 rounded-lg px-2 py-1.5">
-            <button
-              onClick={() => setSelectedDate(d => shiftDate(d, -1))}
-              data-testid="btn-prev-day"
-              className="p-1 text-slate-400 hover:text-white rounded transition-colors"
-            >
+            <button onClick={() => setSelectedDate(d => shiftDate(d, -1))} data-testid="btn-prev-day" className="p-1 text-slate-400 hover:text-white rounded transition-colors">
               <ChevronLeft className="w-4 h-4" />
             </button>
             <input
@@ -228,32 +364,19 @@ export default function GGVJobs() {
               data-testid="input-date"
               className="bg-transparent text-sm font-semibold text-white outline-none w-36"
             />
-            <button
-              onClick={() => setSelectedDate(d => shiftDate(d, 1))}
-              data-testid="btn-next-day"
-              className="p-1 text-slate-400 hover:text-white rounded transition-colors"
-            >
+            <button onClick={() => setSelectedDate(d => shiftDate(d, 1))} data-testid="btn-next-day" className="p-1 text-slate-400 hover:text-white rounded transition-colors">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
           <span className="text-slate-400 text-sm hidden sm:block">{formatDisplay(selectedDate)}</span>
-
           <div className="flex items-center gap-2 ml-auto">
             <div className="flex items-center gap-1.5 bg-slate-900 border border-white/8 rounded-lg px-3 py-1.5">
               <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wide">Group</span>
-              <input
-                value={vehicleGroup}
-                onChange={e => setVehicleGroup(e.target.value)}
-                className="bg-transparent text-sm font-semibold text-emerald-400 outline-none w-28"
-              />
+              <input value={vehicleGroup} onChange={e => setVehicleGroup(e.target.value)} className="bg-transparent text-sm font-semibold text-emerald-400 outline-none w-28" />
             </div>
             <div className="flex items-center gap-1.5 bg-slate-900 border border-white/8 rounded-lg px-3 py-1.5">
               <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wide">Van</span>
-              <input
-                value={vehicleType}
-                onChange={e => setVehicleType(e.target.value)}
-                className="bg-transparent text-sm font-semibold text-slate-300 outline-none w-20"
-              />
+              <input value={vehicleType} onChange={e => setVehicleType(e.target.value)} className="bg-transparent text-sm font-semibold text-slate-300 outline-none w-20" />
             </div>
           </div>
         </div>
@@ -281,17 +404,23 @@ export default function GGVJobs() {
               </thead>
               <tbody>
                 {isLoading && (
-                  <tr>
-                    <td colSpan={13} className="text-center py-12 text-slate-500 text-sm">Loading…</td>
-                  </tr>
+                  <tr><td colSpan={13} className="text-center py-12 text-slate-500 text-sm">Loading…</td></tr>
                 )}
                 {!isLoading && jobs.length === 0 && (
                   <tr>
                     <td colSpan={13} className="text-center py-12">
-                      <div className="flex flex-col items-center gap-2 text-slate-600">
-                        <TruckIcon className="w-8 h-8" />
-                        <p className="text-sm font-semibold">No jobs for this day</p>
-                        <p className="text-xs">Click "Add Job" to enter the first entry</p>
+                      <div className="flex flex-col items-center gap-3 text-slate-600">
+                        <FileImage className="w-10 h-10" />
+                        <div>
+                          <p className="text-sm font-semibold text-slate-400">No jobs for this day</p>
+                          <p className="text-xs mt-1">Upload a spreadsheet screenshot to auto-fill, or click "Add Job" to enter manually</p>
+                        </div>
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="mt-1 flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-semibold border border-blue-500/30 px-3 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors"
+                        >
+                          <Upload className="w-3 h-3" /> Upload & Scan
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -304,10 +433,8 @@ export default function GGVJobs() {
                       key={job.id}
                       data-testid={`row-ggv-${job.id}`}
                       className={`border-b border-white/5 transition-colors ${
-                        isFlagged
-                          ? "bg-rose-500/10 hover:bg-rose-500/15"
-                          : hasRemarks
-                          ? "bg-amber-500/8 hover:bg-amber-500/12"
+                        isFlagged ? "bg-rose-500/10 hover:bg-rose-500/15"
+                          : hasRemarks ? "bg-amber-500/8 hover:bg-amber-500/12"
                           : "hover:bg-white/[0.03]"
                       }`}
                     >
@@ -338,18 +465,10 @@ export default function GGVJobs() {
                       <td className="px-3 py-2.5 text-xs text-amber-400 max-w-[10rem] truncate" title={job.remarks ?? ""}>{job.remarks || "—"}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1 justify-end">
-                          <button
-                            onClick={() => openEdit(job)}
-                            data-testid={`btn-edit-${job.id}`}
-                            className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
-                          >
+                          <button onClick={() => openEdit(job)} data-testid={`btn-edit-${job.id}`} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-white/10 transition-colors">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={() => setDeleteId(job.id)}
-                            data-testid={`btn-delete-${job.id}`}
-                            className="p-1.5 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                          >
+                          <button onClick={() => setDeleteId(job.id)} data-testid={`btn-delete-${job.id}`} className="p-1.5 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -358,19 +477,13 @@ export default function GGVJobs() {
                   );
                 })}
               </tbody>
-
-              {/* Totals row */}
               {jobs.length > 0 && (
                 <tfoot>
                   <tr className="border-t border-white/10 bg-slate-800/80">
-                    <td colSpan={3} className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      {jobs.length} job{jobs.length !== 1 ? "s" : ""}
-                    </td>
+                    <td colSpan={3} className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">{jobs.length} job{jobs.length !== 1 ? "s" : ""}</td>
                     <td className="px-3 py-3 text-right text-xs font-bold text-slate-300">${totalListed.toFixed(2)}</td>
                     <td className="px-3 py-3 text-right text-xs font-bold text-rose-400">{totalDeduction > 0 ? `-$${totalDeduction.toFixed(2)}` : "—"}</td>
-                    <td className="px-3 py-3 text-right">
-                      <span className="text-base font-black text-emerald-400">${totalActual.toFixed(2)}</span>
-                    </td>
+                    <td className="px-3 py-3 text-right"><span className="text-base font-black text-emerald-400">${totalActual.toFixed(2)}</span></td>
                     <td colSpan={7} />
                   </tr>
                 </tfoot>
@@ -396,242 +509,244 @@ export default function GGVJobs() {
         )}
       </div>
 
-      {/* Add / Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-slate-900 border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+      {/* ── AI Scan Preview Modal ────────────────────────────────────────────── */}
+      <Dialog open={previewOpen} onOpenChange={v => { if (!importing) setPreviewOpen(v); }}>
+        <DialogContent className="bg-slate-900 border-white/10 text-white max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-white font-black">
-              {editingJob ? "Edit Job" : "Add Job"}
+            <DialogTitle className="flex items-center gap-2 font-black text-white">
+              <Eye className="w-4 h-4 text-blue-400" />
+              Review Scanned Jobs
+              <span className="ml-auto text-xs font-normal text-slate-400">
+                {scanResult?.jobs.length} row{scanResult?.jobs.length !== 1 ? "s" : ""} found — {selectedCount} selected
+              </span>
             </DialogTitle>
           </DialogHeader>
 
+          {/* Date override */}
+          <div className="flex items-center gap-3 p-3 bg-white/5 rounded-lg">
+            <div className="flex items-center gap-2 flex-1">
+              <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest shrink-0">Save to date</Label>
+              <input
+                type="date"
+                value={previewDate}
+                onChange={e => setPreviewDate(e.target.value)}
+                className="bg-slate-800 border border-white/10 rounded text-sm text-white px-2 py-1 outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedRows(r => r.map(() => true))}
+                className="text-xs text-blue-400 hover:text-blue-300 font-semibold"
+              >Select all</button>
+              <span className="text-slate-600">·</span>
+              <button
+                onClick={() => setSelectedRows(r => r.map(() => false))}
+                className="text-xs text-slate-400 hover:text-white font-semibold"
+              >None</button>
+            </div>
+          </div>
+
+          {/* Preview image thumbnail */}
+          {previewImage && (
+            <div className="rounded-lg overflow-hidden border border-white/8 max-h-40 flex items-center justify-center bg-black">
+              <img src={previewImage} alt="Uploaded spreadsheet" className="max-h-40 object-contain opacity-80" />
+            </div>
+          )}
+
+          {/* Extracted rows table */}
+          <div className="overflow-x-auto rounded-lg border border-white/8">
+            <table className="w-full text-xs min-w-[900px]">
+              <thead>
+                <tr className="bg-slate-800/60 border-b border-white/8">
+                  <th className="px-2 py-2 w-8"></th>
+                  <th className="text-left px-2 py-2 text-slate-500 font-black uppercase tracking-wider">Job No</th>
+                  <th className="text-left px-2 py-2 text-slate-500 font-black uppercase tracking-wider">Booking Ref</th>
+                  <th className="text-left px-2 py-2 text-slate-500 font-black uppercase tracking-wider">Time</th>
+                  <th className="text-right px-2 py-2 text-slate-500 font-black uppercase tracking-wider">Listed</th>
+                  <th className="text-right px-2 py-2 text-slate-500 font-black uppercase tracking-wider">Deduct</th>
+                  <th className="text-right px-2 py-2 text-emerald-500 font-black uppercase tracking-wider">Actual $</th>
+                  <th className="text-left px-2 py-2 text-slate-500 font-black uppercase tracking-wider">Type</th>
+                  <th className="text-left px-2 py-2 text-slate-500 font-black uppercase tracking-wider">Address</th>
+                  <th className="text-left px-2 py-2 text-slate-500 font-black uppercase tracking-wider">Postal</th>
+                  <th className="text-right px-2 py-2 text-slate-500 font-black uppercase tracking-wider">km</th>
+                  <th className="text-left px-2 py-2 text-slate-500 font-black uppercase tracking-wider">Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scanResult?.jobs.map((job, i) => (
+                  <tr
+                    key={i}
+                    className={`border-b border-white/5 transition-colors ${
+                      !selectedRows[i] ? "opacity-40" :
+                      job.flagged ? "bg-rose-500/10" : ""
+                    }`}
+                  >
+                    <td className="px-2 py-2 text-center">
+                      <Checkbox
+                        checked={selectedRows[i] ?? true}
+                        onCheckedChange={v => setSelectedRows(r => r.map((val, idx) => idx === i ? !!v : val))}
+                        className="border-slate-500"
+                      />
+                    </td>
+                    <td className="px-2 py-2 font-mono text-slate-300">
+                      <div className="flex items-center gap-1">
+                        {job.flagged && <Flag className="w-2.5 h-2.5 text-rose-400" />}
+                        {job.jobNo || <span className="text-slate-600">—</span>}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 font-mono text-slate-400">{job.bookingRef || "—"}</td>
+                    <td className="px-2 py-2 text-slate-400">
+                      {job.timeStart && job.timeEnd ? `${job.timeStart}–${job.timeEnd}` : job.timeStart || "—"}
+                    </td>
+                    <td className="px-2 py-2 text-right text-slate-400">{fmt(job.listedPrice)}</td>
+                    <td className="px-2 py-2 text-right text-rose-400">{(job.deduction ?? 0) > 0 ? `-${fmt(job.deduction)}` : "—"}</td>
+                    <td className="px-2 py-2 text-right font-black text-emerald-400">{fmt(job.actualPrice)}</td>
+                    <td className="px-2 py-2">
+                      {job.serviceType
+                        ? <span className="bg-blue-500/15 text-blue-300 px-1 py-0.5 rounded text-[10px] font-bold">{job.serviceType}</span>
+                        : "—"}
+                    </td>
+                    <td className="px-2 py-2 text-slate-400 max-w-[12rem] truncate" title={job.address ?? ""}>{job.address || "—"}</td>
+                    <td className="px-2 py-2 text-slate-400">{job.postalCode || "—"}</td>
+                    <td className="px-2 py-2 text-right text-slate-400">{job.distanceKm != null ? job.distanceKm.toFixed(2) : "—"}</td>
+                    <td className="px-2 py-2 text-amber-400 max-w-[10rem] truncate" title={job.remarks ?? ""}>{job.remarks || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {scanResult && selectedCount > 0 && (
+                <tfoot>
+                  <tr className="border-t border-white/10 bg-slate-800/60">
+                    <td colSpan={6} className="px-2 py-2 text-slate-500">{selectedCount} selected</td>
+                    <td className="px-2 py-2 text-right font-black text-emerald-400">
+                      ${scanResult.jobs.filter((_, i) => selectedRows[i]).reduce((s, j) => s + (j.actualPrice ?? 0), 0).toFixed(2)}
+                    </td>
+                    <td colSpan={5} />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setPreviewOpen(false)} disabled={importing} className="text-slate-400 hover:text-white">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImport}
+              disabled={importing || selectedCount === 0}
+              className="bg-emerald-500 hover:bg-emerald-400 text-black font-black gap-1.5"
+              data-testid="btn-import-jobs"
+            >
+              {importing ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Importing…</>
+              ) : (
+                <><CheckCheck className="w-3.5 h-3.5" /> Import {selectedCount} job{selectedCount !== 1 ? "s" : ""}</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add / Edit Dialog ──────────────────────────────────────────────────── */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="bg-slate-900 border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-white font-black">{editingJob ? "Edit Job" : "Add Job"}</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
-            {/* Vehicle header */}
             <div className="grid grid-cols-2 gap-3 p-3 bg-white/5 rounded-lg">
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Vehicle Group</Label>
-                <Input
-                  value={vehicleGroup}
-                  onChange={e => setVehicleGroup(e.target.value)}
-                  className="bg-slate-800 border-white/10 text-white text-sm h-8"
-                  data-testid="input-vehicle-group"
-                />
+                <Input value={vehicleGroup} onChange={e => setVehicleGroup(e.target.value)} className="bg-slate-800 border-white/10 text-white text-sm h-8" data-testid="input-vehicle-group" />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Vehicle Type</Label>
-                <Input
-                  value={vehicleType}
-                  onChange={e => setVehicleType(e.target.value)}
-                  className="bg-slate-800 border-white/10 text-white text-sm h-8"
-                  data-testid="input-vehicle-type"
-                />
+                <Input value={vehicleType} onChange={e => setVehicleType(e.target.value)} className="bg-slate-800 border-white/10 text-white text-sm h-8" data-testid="input-vehicle-type" />
               </div>
             </div>
-
-            {/* Job identifiers */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Job No</Label>
-                <Input
-                  value={form.jobNo}
-                  onChange={e => setForm(f => ({ ...f, jobNo: e.target.value }))}
-                  placeholder="S045260062103"
-                  className="bg-slate-800 border-white/10 text-white text-sm h-9 font-mono"
-                  data-testid="input-job-no"
-                />
+                <Input value={form.jobNo} onChange={e => setForm(f => ({ ...f, jobNo: e.target.value }))} placeholder="S045260062103" className="bg-slate-800 border-white/10 text-white text-sm h-9 font-mono" data-testid="input-job-no" />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Booking Ref</Label>
-                <Input
-                  value={form.bookingRef}
-                  onChange={e => setForm(f => ({ ...f, bookingRef: e.target.value }))}
-                  placeholder="V045260161488"
-                  className="bg-slate-800 border-white/10 text-white text-sm h-9 font-mono"
-                  data-testid="input-booking-ref"
-                />
+                <Input value={form.bookingRef} onChange={e => setForm(f => ({ ...f, bookingRef: e.target.value }))} placeholder="V045260161488" className="bg-slate-800 border-white/10 text-white text-sm h-9 font-mono" data-testid="input-booking-ref" />
               </div>
             </div>
-
-            {/* Time */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Time Start</Label>
-                <Input
-                  type="time"
-                  value={form.timeStart}
-                  onChange={e => setForm(f => ({ ...f, timeStart: e.target.value }))}
-                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
-                  data-testid="input-time-start"
-                />
+                <Input type="time" value={form.timeStart} onChange={e => setForm(f => ({ ...f, timeStart: e.target.value }))} className="bg-slate-800 border-white/10 text-white text-sm h-9" data-testid="input-time-start" />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Time End</Label>
-                <Input
-                  type="time"
-                  value={form.timeEnd}
-                  onChange={e => setForm(f => ({ ...f, timeEnd: e.target.value }))}
-                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
-                  data-testid="input-time-end"
-                />
+                <Input type="time" value={form.timeEnd} onChange={e => setForm(f => ({ ...f, timeEnd: e.target.value }))} className="bg-slate-800 border-white/10 text-white text-sm h-9" data-testid="input-time-end" />
               </div>
             </div>
-
-            {/* Pricing */}
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
-                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Listed Price ($)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={form.listedPrice}
-                  onChange={e => setForm(f => ({ ...f, listedPrice: e.target.value }))}
-                  placeholder="99.90"
-                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
-                  data-testid="input-listed-price"
-                />
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Listed ($)</Label>
+                <Input type="number" step="0.01" value={form.listedPrice} onChange={e => setForm(f => ({ ...f, listedPrice: e.target.value }))} placeholder="99.90" className="bg-slate-800 border-white/10 text-white text-sm h-9" data-testid="input-listed-price" />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Deduction ($)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={form.deduction}
-                  onChange={e => setForm(f => ({ ...f, deduction: e.target.value }))}
-                  placeholder="18.33"
-                  className="bg-slate-800 border-white/10 text-rose-300 text-sm h-9"
-                  data-testid="input-deduction"
-                />
+                <Input type="number" step="0.01" value={form.deduction} onChange={e => setForm(f => ({ ...f, deduction: e.target.value }))} placeholder="18.33" className="bg-slate-800 border-white/10 text-rose-300 text-sm h-9" data-testid="input-deduction" />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-emerald-500 uppercase font-black tracking-widest">Actual Price ($) ★</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={form.actualPrice}
-                  onChange={e => setForm(f => ({ ...f, actualPrice: e.target.value }))}
-                  placeholder="9.17"
-                  className="bg-emerald-950/40 border-emerald-500/30 text-emerald-400 font-black text-sm h-9"
-                  data-testid="input-actual-price"
-                />
+                <Input type="number" step="0.01" value={form.actualPrice} onChange={e => setForm(f => ({ ...f, actualPrice: e.target.value }))} placeholder="9.17" className="bg-emerald-950/40 border-emerald-500/30 text-emerald-400 font-black text-sm h-9" data-testid="input-actual-price" />
               </div>
             </div>
-
-            {/* Service type + flagged */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Service Type</Label>
-                <Select
-                  value={form.serviceType || "__none__"}
-                  onValueChange={v => setForm(f => ({ ...f, serviceType: v === "__none__" ? "" : v }))}
-                >
+                <Select value={form.serviceType || "__none__"} onValueChange={v => setForm(f => ({ ...f, serviceType: v === "__none__" ? "" : v }))}>
                   <SelectTrigger className="bg-slate-800 border-white/10 text-white h-9 text-sm" data-testid="select-service-type">
                     <SelectValue placeholder="Select…" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-800 border-white/10 text-white">
                     <SelectItem value="__none__">— None —</SelectItem>
-                    {SERVICE_TYPES.map(t => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
+                    {SERVICE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Flag Row</Label>
-                <button
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, flagged: !f.flagged }))}
-                  data-testid="btn-flagged"
-                  className={`w-full h-9 rounded-md border text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
-                    form.flagged
-                      ? "bg-rose-500/20 border-rose-500/40 text-rose-400"
-                      : "bg-slate-800 border-white/10 text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <Flag className="w-3.5 h-3.5" />
-                  {form.flagged ? "Flagged" : "Not Flagged"}
+                <button type="button" onClick={() => setForm(f => ({ ...f, flagged: !f.flagged }))} data-testid="btn-flagged"
+                  className={`w-full h-9 rounded-md border text-sm font-bold flex items-center justify-center gap-2 transition-colors ${form.flagged ? "bg-rose-500/20 border-rose-500/40 text-rose-400" : "bg-slate-800 border-white/10 text-slate-400 hover:text-white"}`}>
+                  <Flag className="w-3.5 h-3.5" />{form.flagged ? "Flagged" : "Not Flagged"}
                 </button>
               </div>
             </div>
-
-            {/* Address */}
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2 space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Address</Label>
-                <Input
-                  value={form.address}
-                  onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
-                  placeholder="17 Jalan Tenteram #08-120"
-                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
-                  data-testid="input-address"
-                />
+                <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="17 Jalan Tenteram #08-120" className="bg-slate-800 border-white/10 text-white text-sm h-9" data-testid="input-address" />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Postal Code</Label>
-                <Input
-                  value={form.postalCode}
-                  onChange={e => setForm(f => ({ ...f, postalCode: e.target.value }))}
-                  placeholder="321017"
-                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
-                  data-testid="input-postal-code"
-                />
+                <Input value={form.postalCode} onChange={e => setForm(f => ({ ...f, postalCode: e.target.value }))} placeholder="321017" className="bg-slate-800 border-white/10 text-white text-sm h-9" data-testid="input-postal-code" />
               </div>
             </div>
-
-            {/* Distance */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Distance (km)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={form.distanceKm}
-                  onChange={e => setForm(f => ({ ...f, distanceKm: e.target.value }))}
-                  placeholder="15.95"
-                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
-                  data-testid="input-distance"
-                />
+                <Input type="number" step="0.01" value={form.distanceKm} onChange={e => setForm(f => ({ ...f, distanceKm: e.target.value }))} placeholder="15.95" className="bg-slate-800 border-white/10 text-white text-sm h-9" data-testid="input-distance" />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Rate / km</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={form.ratePerKm}
-                  onChange={e => setForm(f => ({ ...f, ratePerKm: e.target.value }))}
-                  placeholder="0.06"
-                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
-                  data-testid="input-rate-per-km"
-                />
+                <Input type="number" step="0.01" value={form.ratePerKm} onChange={e => setForm(f => ({ ...f, ratePerKm: e.target.value }))} placeholder="0.06" className="bg-slate-800 border-white/10 text-white text-sm h-9" data-testid="input-rate-per-km" />
               </div>
             </div>
-
-            {/* Remarks */}
             <div className="space-y-1">
               <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Remarks / Notes</Label>
-              <Input
-                value={form.remarks}
-                onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))}
-                placeholder="SHI DONG 04/03 COMPLETED"
-                className="bg-slate-800 border-white/10 text-amber-400 text-sm h-9"
-                data-testid="input-remarks"
-              />
+              <Input value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} placeholder="SHI DONG 04/03 COMPLETED" className="bg-slate-800 border-white/10 text-amber-400 text-sm h-9" data-testid="input-remarks" />
             </div>
           </div>
-
           <DialogFooter className="mt-2 gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => setDialogOpen(false)}
-              className="text-slate-400 hover:text-white"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={isPending}
-              className="bg-emerald-500 hover:bg-emerald-400 text-black font-black"
-              data-testid="btn-save-job"
-            >
+            <Button variant="ghost" onClick={() => setDialogOpen(false)} className="text-slate-400 hover:text-white">Cancel</Button>
+            <Button onClick={handleSave} disabled={isPending} className="bg-emerald-500 hover:bg-emerald-400 text-black font-black" data-testid="btn-save-job">
               {isPending ? "Saving…" : editingJob ? "Save Changes" : "Add Job"}
             </Button>
           </DialogFooter>
@@ -646,15 +761,10 @@ export default function GGVJobs() {
               <AlertCircle className="w-5 h-5" /> Delete Job
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-400">This job entry will be permanently deleted. This cannot be undone.</p>
+          <p className="text-sm text-slate-400">This job entry will be permanently deleted.</p>
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setDeleteId(null)} className="text-slate-400 hover:text-white">Cancel</Button>
-            <Button
-              onClick={() => deleteId && deleteMut.mutate(deleteId)}
-              disabled={deleteMut.isPending}
-              className="bg-rose-500 hover:bg-rose-400 text-white font-black"
-              data-testid="btn-confirm-delete"
-            >
+            <Button onClick={() => deleteId && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending} className="bg-rose-500 hover:bg-rose-400 text-white font-black" data-testid="btn-confirm-delete">
               {deleteMut.isPending ? "Deleting…" : "Delete"}
             </Button>
           </DialogFooter>
