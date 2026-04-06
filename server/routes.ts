@@ -605,7 +605,8 @@ async function sendCaseClosedNotifications(quote: any): Promise<void> {
     else               console.error(`[Closed] Receipt email FAILED for ${ref}`);
   }
 
-  const waPhone = normalizeSGPhone(quote.customerWhatsappPhone);
+  const rawWaClosedPhone = quote.customerWhatsappPhone || quote.customer?.phone;
+  const waPhone = rawWaClosedPhone ? normalizeSGPhone(rawWaClosedPhone) : "";
   if (!closedViaMail && waPhone) {
     const total    = Number(quote.total || 0).toFixed(2);
     const closeMsg =
@@ -1455,14 +1456,20 @@ export async function registerRoutes(
         }
 
         if (type === "deposit") {
-          await sendEmail({
-            to: quote.customer.email,
-            subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
-            html: depositReceivedEmail(quote),
-          });
+          const hasRealEmailWh = quote.customer.email &&
+            !quote.customer.email.endsWith("@tmginstall.com") &&
+            quote.customer.email.includes("@");
+          if (hasRealEmailWh) {
+            await sendEmail({
+              to: quote.customer.email,
+              subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
+              html: depositReceivedEmail(quote),
+            });
+          }
           console.log(`Stripe webhook: deposit paid for ${quote.referenceNo} (SGD ${amountPaid})`);
-          // Send tracker link via WhatsApp
-          const trackPhone = normalizeSGPhone(quote.customerWhatsappPhone);
+          // Send tracker link via WhatsApp (fallback to customer.phone for web-booked)
+          const rawTrackPhoneWh = quote.customerWhatsappPhone || quote.customer?.phone;
+          const trackPhone = rawTrackPhoneWh ? normalizeSGPhone(rawTrackPhoneWh) : null;
           if (trackPhone) {
             const trackMsg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
             await sendWhatsAppMessage(trackPhone, trackMsg).catch(() => {});
@@ -3381,20 +3388,22 @@ ${systemPrompt}` });
           }
         }
 
-        // Always send WhatsApp for WhatsApp-originated customers, or as fallback if email failed
-        const waPhone = quote.customerWhatsappPhone ? normalizeSGPhone(quote.customerWhatsappPhone) : null;
-        if (waPhone && (!hasRealEmail)) {
+        // Send WhatsApp for WA-originated customers or as fallback when email not available
+        // Use customerWhatsappPhone first, fall back to customer.phone for web-booked customers
+        const rawWaPhone2 = quote.customerWhatsappPhone || quote.customer?.phone;
+        const waPhone2 = rawWaPhone2 ? normalizeSGPhone(rawWaPhone2) : null;
+        if (waPhone2 && !hasRealEmail) {
           const waMsg =
             `💰 *Deposit Invoice — ${quote.referenceNo}*\n\n` +
             `Hi ${quote.customer.name || "there"}! Your quote has been approved.\n\n` +
             `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* via one of the options below to confirm your slot:\n\n` +
             waPayNowBlock(depositAmt, paymentLink) +
             `\n\n_Your slot is held for 48 hours._`;
-          const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
+          const waSent = await sendWhatsAppMessage(waPhone2, waMsg).catch(() => false);
           if (waSent) {
-            console.log(`[Deposit] WhatsApp payment link sent to ${waPhone} for ${quote.referenceNo}`);
+            console.log(`[Deposit] WhatsApp payment link sent to ${waPhone2} for ${quote.referenceNo}`);
           } else {
-            console.error(`[Deposit] WhatsApp send FAILED to ${waPhone} for ${quote.referenceNo}`);
+            console.error(`[Deposit] WhatsApp send FAILED to ${waPhone2} for ${quote.referenceNo}`);
           }
         }
       }
@@ -3436,13 +3445,19 @@ ${systemPrompt}` });
       
       // After deposit paid, send slot confirmation email + WhatsApp tracking link
       if (input.paymentType === 'deposit' && quote.customer) {
-        const emailHtml = depositReceivedEmail(quote);
-        await sendEmail({
-          to: quote.customer.email,
-          subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
-          html: emailHtml,
-        });
-        const trackPhone = normalizeSGPhone(quote.customerWhatsappPhone);
+        const hasRealEmailDep = quote.customer.email &&
+          !quote.customer.email.endsWith("@tmginstall.com") &&
+          quote.customer.email.includes("@");
+        if (hasRealEmailDep) {
+          const emailHtml = depositReceivedEmail(quote);
+          await sendEmail({
+            to: quote.customer.email,
+            subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
+            html: emailHtml,
+          });
+        }
+        const rawTrackPhone = quote.customerWhatsappPhone || quote.customer?.phone;
+        const trackPhone = rawTrackPhone ? normalizeSGPhone(rawTrackPhone) : null;
         if (trackPhone) {
           const trackMsg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
           await sendWhatsAppMessage(trackPhone, trackMsg).catch(() => {});
@@ -3522,21 +3537,30 @@ ${systemPrompt}` });
       if (!quote || !quote.customer) return res.status(200).json({ status: "ok" });
 
       if (!alreadyProcessedByWebhook) {
+        const hasRealEmailVp = quote.customer.email &&
+          !quote.customer.email.endsWith("@tmginstall.com") &&
+          quote.customer.email.includes("@");
+
         if (type === "deposit") {
-          await sendEmail({
-            to: quote.customer.email,
-            subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
-            html: depositReceivedEmail(quote),
-          });
+          if (hasRealEmailVp) {
+            await sendEmail({
+              to: quote.customer.email,
+              subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
+              html: depositReceivedEmail(quote),
+            });
+          }
+          // Send tracker link via WhatsApp (fallback to customer.phone for web-booked)
+          const rawVpPhone = quote.customerWhatsappPhone || quote.customer?.phone;
+          const vpTrackPhone = rawVpPhone ? normalizeSGPhone(rawVpPhone) : null;
+          if (vpTrackPhone) {
+            const trackMsg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
+            await sendWhatsAppMessage(vpTrackPhone, trackMsg).catch(() => {});
+          }
           console.log(`Payment verified (no-webhook): deposit paid for ${quote.referenceNo}`);
         }
 
         if (type === "final") {
-          await sendEmail({
-            to: quote.customer.email,
-            subject: `[${quote.referenceNo}] Payment Received — Case Closed`,
-            html: caseClosedEmail(quote),
-          });
+          await sendCaseClosedNotifications(quote);
           console.log(`Payment verified (no-webhook): final paid for ${quote.referenceNo}`);
         }
       } else {
@@ -5994,7 +6018,7 @@ Respond directly — no JSON, just the message text.`,
 
       // Admin can pass an explicit phone override (for web-submitted quotes with no WA phone)
       const { phone: phoneOverride } = (req.body as { phone?: string }) || {};
-      const rawPhone = phoneOverride?.trim() || (quote as any).customerWhatsappPhone;
+      const rawPhone = phoneOverride?.trim() || (quote as any).customerWhatsappPhone || (quote as any).customer?.phone;
       if (!rawPhone) return res.status(400).json({ message: "No WhatsApp number — please provide one." });
 
       // Normalise: strip non-digits, add SG country code if bare 8-digit local number
@@ -6143,17 +6167,23 @@ Respond directly — no JSON, just the message text.`,
       );
 
       // Same post-payment notifications as Stripe flow
-      try {
-        await sendEmail({
-          to: updated.customer.email,
-          subject: `[${updated.referenceNo}] Deposit Received — Slot Confirmed!`,
-          html: depositReceivedEmail(updated),
-        });
-      } catch (emailErr) {
-        console.error("[PayNow] Email failed:", emailErr);
+      const hasRealEmailPn = updated.customer.email &&
+        !updated.customer.email.endsWith("@tmginstall.com") &&
+        updated.customer.email.includes("@");
+      if (hasRealEmailPn) {
+        try {
+          await sendEmail({
+            to: updated.customer.email,
+            subject: `[${updated.referenceNo}] Deposit Received — Slot Confirmed!`,
+            html: depositReceivedEmail(updated),
+          });
+        } catch (emailErr) {
+          console.error("[PayNow] Email failed:", emailErr);
+        }
       }
 
-      const trackPhone = normalizeSGPhone(updated.customerWhatsappPhone);
+      const rawTrackPhonePn = updated.customerWhatsappPhone || updated.customer?.phone;
+      const trackPhone = rawTrackPhonePn ? normalizeSGPhone(rawTrackPhonePn) : null;
       if (trackPhone) {
         const msg = `✅ *Deposit received via PayNow — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${updated.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
         await sendWhatsAppMessage(trackPhone, msg).catch(() => {});
@@ -6230,7 +6260,8 @@ Respond directly — no JSON, just the message text.`,
         `Thank you for choosing *TMG Install*! 🙏`,
       ].join("\n");
 
-      const waPhone = normalizeSGPhone(updated.customerWhatsappPhone);
+      const rawWaFinal = updated.customerWhatsappPhone || updated.customer?.phone;
+      const waPhone = rawWaFinal ? normalizeSGPhone(rawWaFinal) : null;
       if (waPhone) {
         await sendWhatsAppMessage(waPhone, invoiceLines).catch(() => {});
         console.log(`[FinalPayment] WA invoice sent to +${waPhone} for ${ref}`);
