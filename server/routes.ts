@@ -7656,5 +7656,50 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── GGV Jobs ────────────────────────────────────────────────────────────────
+  // GET /api/admin/ggv-jobs?date=YYYY-MM-DD
+  app.get("/api/admin/ggv-jobs", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const date = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+    const rows = await storage.getGGVJobs(date);
+    return res.json(rows);
+  });
+
+  // POST /api/admin/ggv-jobs
+  app.post("/api/admin/ggv-jobs", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const job = await storage.createGGVJob(req.body);
+      return res.status(201).json(job);
+    } catch (e: any) { return res.status(400).json({ message: e.message }); }
+  });
+
+  // PATCH /api/admin/ggv-jobs/:id
+  app.patch("/api/admin/ggv-jobs/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = Number(req.params.id);
+    try {
+      const job = await storage.updateGGVJob(id, req.body);
+      if (!job) return res.status(404).json({ message: "Not found" });
+      return res.json(job);
+    } catch (e: any) { return res.status(400).json({ message: e.message }); }
+  });
+
+  // DELETE /api/admin/ggv-jobs/:id
+  app.delete("/api/admin/ggv-jobs/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = Number(req.params.id);
+    await storage.deleteGGVJob(id);
+    return res.json({ ok: true });
+  });
+
   return httpServer;
 }

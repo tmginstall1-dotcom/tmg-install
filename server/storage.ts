@@ -2,7 +2,7 @@ import { db } from "./db";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   attendanceAmendments, leaveRequests, payslips, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
-  receipts, faqEntries, cannedReplies, pricingCorrections,
+  receipts, faqEntries, cannedReplies, pricingCorrections, ggvJobs,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
   type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser,
@@ -13,6 +13,7 @@ import {
   type Receipt, type ReceiptWithUser,
   type FaqEntry, type InsertFaqEntry, type CannedReply, type InsertCannedReply,
   type PricingCorrection, type InsertPricingCorrection,
+  type GGVJob, type InsertGGVJob,
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 
@@ -144,6 +145,12 @@ export interface IStorage {
   createPricingCorrection(data: InsertPricingCorrection): Promise<PricingCorrection>;
   updatePricingCorrection(id: number, data: Partial<InsertPricingCorrection>): Promise<PricingCorrection | undefined>;
   deletePricingCorrection(id: number): Promise<void>;
+
+  // GGV Jobs
+  getGGVJobs(date: string): Promise<GGVJob[]>;
+  createGGVJob(data: InsertGGVJob): Promise<GGVJob>;
+  updateGGVJob(id: number, data: Partial<InsertGGVJob>): Promise<GGVJob | undefined>;
+  deleteGGVJob(id: number): Promise<void>;
 
   // Site Analytics
   addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
@@ -1265,6 +1272,21 @@ export class DatabaseStorage implements IStorage {
     await db.update(whatsappMessages)
       .set({ readAt: new Date() })
       .where(and(eq(whatsappMessages.phone, phone), eq(whatsappMessages.direction, 'inbound'), isNull(whatsappMessages.readAt)));
+  }
+
+  async getGGVJobs(date: string): Promise<GGVJob[]> {
+    return db.select().from(ggvJobs).where(eq(ggvJobs.date, date)).orderBy(ggvJobs.id);
+  }
+  async createGGVJob(data: InsertGGVJob): Promise<GGVJob> {
+    const [row] = await db.insert(ggvJobs).values(data).returning();
+    return row;
+  }
+  async updateGGVJob(id: number, data: Partial<InsertGGVJob>): Promise<GGVJob | undefined> {
+    const [row] = await db.update(ggvJobs).set(data).where(eq(ggvJobs.id, id)).returning();
+    return row;
+  }
+  async deleteGGVJob(id: number): Promise<void> {
+    await db.delete(ggvJobs).where(eq(ggvJobs.id, id));
   }
 
   async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent> {

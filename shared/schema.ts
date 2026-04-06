@@ -441,6 +441,31 @@ export type PricingCorrection = typeof pricingCorrections.$inferSelect;
 export type InsertPricingCorrection = typeof pricingCorrections.$inferInsert;
 export const insertPricingCorrectionSchema = createInsertSchema(pricingCorrections).omit({ id: true, createdAt: true });
 
+// GGV Jobs — daily delivery/installation job tracker (from Lalamove/GGV sheets)
+export const ggvJobs = pgTable("ggv_jobs", {
+  id: serial("id").primaryKey(),
+  date: text("date").notNull(),                          // "YYYY-MM-DD"
+  vehicleGroup: text("vehicle_group").notNull().default("TMG1 GGV 029"),
+  vehicleType: text("vehicle_type").notNull().default("EV VAN"),
+  jobNo: text("job_no"),                                 // e.g. S045260062103
+  bookingRef: text("booking_ref"),                       // e.g. V045260161488
+  timeStart: text("time_start"),                         // "09:00"
+  timeEnd: text("time_end"),                             // "12:00"
+  listedPrice: numeric("listed_price"),
+  deduction: numeric("deduction").default("0"),
+  actualPrice: numeric("actual_price"),                  // THE KEY COLUMN
+  serviceType: text("service_type"),                     // D+A, R+A+DISS, etc.
+  remarks: text("remarks"),
+  address: text("address"),
+  postalCode: text("postal_code"),
+  distanceKm: numeric("distance_km"),
+  ratePerKm: numeric("rate_per_km"),
+  flagged: boolean("flagged").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type GGVJob = typeof ggvJobs.$inferSelect;
+export type InsertGGVJob = typeof ggvJobs.$inferInsert;
+
 // Canned Replies — quick reply templates for admin manual responses
 export const cannedReplies = pgTable("canned_replies", {
   id: serial("id").primaryKey(),

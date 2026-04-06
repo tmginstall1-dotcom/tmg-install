@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Calendar, MessageCircle, Users, MoreHorizontal,
   Receipt, BarChart2, FileDown, Settings, HelpCircle, X,
-  Smartphone, Share, Download, Search,
+  Smartphone, Share, Download, Search, Truck,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
@@ -17,7 +17,7 @@ function isActive(href: string, location: string) {
 }
 
 const PRIMARY_SECONDARY = new Set([
-  "/admin/receipts", "/admin/analytics", "/admin/export", "/admin/faq", "/admin/settings", "/admin/seo",
+  "/admin/receipts", "/admin/analytics", "/admin/export", "/admin/faq", "/admin/settings", "/admin/seo", "/admin/ggv-jobs",
 ]);
 
 export function AdminBottomNav() {
@@ -85,6 +85,7 @@ export function AdminBottomNav() {
 
   const secondaryItems = [
     { href: "/admin/receipts",  icon: Receipt,   label: "Receipts",    badge: receiptsBadge, urgent: receiptsBadge > 0 },
+    { href: "/admin/ggv-jobs",  icon: Truck,     label: "GGV Jobs",    badge: 0 },
     { href: "/admin/analytics", icon: BarChart2, label: "Analytics",   badge: 0 },
     { href: "/admin/export",    icon: FileDown,  label: "Export PDF",  badge: 0 },
     { href: "/admin/seo",       icon: Search,    label: "SEO",         badge: 0 },

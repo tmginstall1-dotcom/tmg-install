@@ -1,0 +1,665 @@
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
+  TruckIcon, Flag, AlertCircle,
+} from "lucide-react";
+
+type GGVJob = {
+  id: number;
+  date: string;
+  vehicleGroup: string;
+  vehicleType: string;
+  jobNo: string | null;
+  bookingRef: string | null;
+  timeStart: string | null;
+  timeEnd: string | null;
+  listedPrice: string | null;
+  deduction: string | null;
+  actualPrice: string | null;
+  serviceType: string | null;
+  remarks: string | null;
+  address: string | null;
+  postalCode: string | null;
+  distanceKm: string | null;
+  ratePerKm: string | null;
+  flagged: boolean;
+};
+
+const SERVICE_TYPES = [
+  "D+A", "R+A+DISS", "ASD+ASA", "D+A+DISS", "A+DISS", "D only", "A only", "Other",
+];
+
+const EMPTY_FORM = {
+  jobNo: "",
+  bookingRef: "",
+  timeStart: "",
+  timeEnd: "",
+  listedPrice: "",
+  deduction: "",
+  actualPrice: "",
+  serviceType: "",
+  remarks: "",
+  address: "",
+  postalCode: "",
+  distanceKm: "",
+  ratePerKm: "",
+  flagged: false,
+};
+
+function todaySGT() {
+  const nowSGT = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  return nowSGT.toISOString().slice(0, 10);
+}
+
+function fmt(val: string | null | undefined, prefix = "$") {
+  const n = parseFloat(val ?? "");
+  if (isNaN(n)) return "—";
+  return `${prefix}${n.toFixed(2)}`;
+}
+
+function sum(jobs: GGVJob[], key: keyof GGVJob) {
+  return jobs.reduce((s, j) => {
+    const v = parseFloat((j[key] as string) ?? "");
+    return s + (isNaN(v) ? 0 : v);
+  }, 0);
+}
+
+function shiftDate(date: string, days: number) {
+  const d = new Date(date + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatDisplay(date: string) {
+  const d = new Date(date + "T00:00:00Z");
+  return d.toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+export default function GGVJobs() {
+  const { toast } = useToast();
+  const [selectedDate, setSelectedDate] = useState(todaySGT);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState<GGVJob | null>(null);
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [vehicleGroup, setVehicleGroup] = useState("TMG1 GGV 029");
+  const [vehicleType, setVehicleType] = useState("EV VAN");
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const queryKey = ["/api/admin/ggv-jobs", selectedDate];
+
+  const { data: jobs = [], isLoading } = useQuery<GGVJob[]>({
+    queryKey,
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/ggv-jobs?date=${selectedDate}`, { credentials: "include" });
+      return res.json();
+    },
+  });
+
+  const createMut = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/admin/ggv-jobs", data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setDialogOpen(false); toast({ title: "Job added" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => apiRequest("PATCH", `/api/admin/ggv-jobs/${id}`, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setDialogOpen(false); toast({ title: "Job updated" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/ggv-jobs/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setDeleteId(null); toast({ title: "Job deleted" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  function openAdd() {
+    setEditingJob(null);
+    setForm({ ...EMPTY_FORM });
+    setDialogOpen(true);
+  }
+
+  function openEdit(job: GGVJob) {
+    setEditingJob(job);
+    setVehicleGroup(job.vehicleGroup);
+    setVehicleType(job.vehicleType);
+    setForm({
+      jobNo: job.jobNo ?? "",
+      bookingRef: job.bookingRef ?? "",
+      timeStart: job.timeStart ?? "",
+      timeEnd: job.timeEnd ?? "",
+      listedPrice: job.listedPrice ?? "",
+      deduction: job.deduction ?? "",
+      actualPrice: job.actualPrice ?? "",
+      serviceType: job.serviceType ?? "",
+      remarks: job.remarks ?? "",
+      address: job.address ?? "",
+      postalCode: job.postalCode ?? "",
+      distanceKm: job.distanceKm ?? "",
+      ratePerKm: job.ratePerKm ?? "",
+      flagged: job.flagged,
+    });
+    setDialogOpen(true);
+  }
+
+  function handleSave() {
+    const payload = {
+      date: selectedDate,
+      vehicleGroup,
+      vehicleType,
+      jobNo: form.jobNo || null,
+      bookingRef: form.bookingRef || null,
+      timeStart: form.timeStart || null,
+      timeEnd: form.timeEnd || null,
+      listedPrice: form.listedPrice || null,
+      deduction: form.deduction || "0",
+      actualPrice: form.actualPrice || null,
+      serviceType: form.serviceType || null,
+      remarks: form.remarks || null,
+      address: form.address || null,
+      postalCode: form.postalCode || null,
+      distanceKm: form.distanceKm || null,
+      ratePerKm: form.ratePerKm || null,
+      flagged: form.flagged,
+    };
+    if (editingJob) {
+      updateMut.mutate({ id: editingJob.id, data: payload });
+    } else {
+      createMut.mutate(payload);
+    }
+  }
+
+  const totalListed = sum(jobs, "listedPrice");
+  const totalDeduction = sum(jobs, "deduction");
+  const totalActual = sum(jobs, "actualPrice");
+
+  const isPending = createMut.isPending || updateMut.isPending;
+
+  return (
+    <div className="lg:pl-56 pt-14 min-h-screen bg-slate-950">
+      <div className="p-4 lg:p-6 max-w-[1600px] mx-auto">
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+              <TruckIcon className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-white tracking-tight">GGV Job Tracker</h1>
+              <p className="text-[11px] text-slate-500">Daily delivery & installation job log</p>
+            </div>
+          </div>
+          <Button
+            onClick={openAdd}
+            data-testid="btn-add-ggv-job"
+            className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add Job
+          </Button>
+        </div>
+
+        {/* Date nav + vehicle header */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+          <div className="flex items-center gap-2 bg-slate-900 border border-white/8 rounded-lg px-2 py-1.5">
+            <button
+              onClick={() => setSelectedDate(d => shiftDate(d, -1))}
+              data-testid="btn-prev-day"
+              className="p-1 text-slate-400 hover:text-white rounded transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={e => setSelectedDate(e.target.value)}
+              data-testid="input-date"
+              className="bg-transparent text-sm font-semibold text-white outline-none w-36"
+            />
+            <button
+              onClick={() => setSelectedDate(d => shiftDate(d, 1))}
+              data-testid="btn-next-day"
+              className="p-1 text-slate-400 hover:text-white rounded transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          <span className="text-slate-400 text-sm hidden sm:block">{formatDisplay(selectedDate)}</span>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-1.5 bg-slate-900 border border-white/8 rounded-lg px-3 py-1.5">
+              <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wide">Group</span>
+              <input
+                value={vehicleGroup}
+                onChange={e => setVehicleGroup(e.target.value)}
+                className="bg-transparent text-sm font-semibold text-emerald-400 outline-none w-28"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-900 border border-white/8 rounded-lg px-3 py-1.5">
+              <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wide">Van</span>
+              <input
+                value={vehicleType}
+                onChange={e => setVehicleType(e.target.value)}
+                className="bg-transparent text-sm font-semibold text-slate-300 outline-none w-20"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="rounded-xl border border-white/8 overflow-hidden bg-slate-900">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[1100px]">
+              <thead>
+                <tr className="border-b border-white/8 bg-slate-800/60">
+                  <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-36">Job No</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-36">Booking Ref</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-24">Time</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-24">Listed</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-24">Deduction</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-emerald-500 w-28">Actual $</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-28">Service</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-44">Address</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-20">Postal</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-20">Dist km</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-16">Rate</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Remarks</th>
+                  <th className="px-3 py-2.5 w-16"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading && (
+                  <tr>
+                    <td colSpan={13} className="text-center py-12 text-slate-500 text-sm">Loading…</td>
+                  </tr>
+                )}
+                {!isLoading && jobs.length === 0 && (
+                  <tr>
+                    <td colSpan={13} className="text-center py-12">
+                      <div className="flex flex-col items-center gap-2 text-slate-600">
+                        <TruckIcon className="w-8 h-8" />
+                        <p className="text-sm font-semibold">No jobs for this day</p>
+                        <p className="text-xs">Click "Add Job" to enter the first entry</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {jobs.map((job) => {
+                  const isFlagged = job.flagged;
+                  const hasRemarks = !!(job.remarks?.trim());
+                  return (
+                    <tr
+                      key={job.id}
+                      data-testid={`row-ggv-${job.id}`}
+                      className={`border-b border-white/5 transition-colors ${
+                        isFlagged
+                          ? "bg-rose-500/10 hover:bg-rose-500/15"
+                          : hasRemarks
+                          ? "bg-amber-500/8 hover:bg-amber-500/12"
+                          : "hover:bg-white/[0.03]"
+                      }`}
+                    >
+                      <td className="px-3 py-2.5 font-mono text-xs text-slate-300">
+                        <div className="flex items-center gap-1.5">
+                          {isFlagged && <Flag className="w-3 h-3 text-rose-400 shrink-0" />}
+                          {job.jobNo || <span className="text-slate-600">—</span>}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 font-mono text-xs text-slate-400">{job.bookingRef || <span className="text-slate-600">—</span>}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-400">
+                        {job.timeStart && job.timeEnd ? `${job.timeStart}–${job.timeEnd}` : job.timeStart || "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs text-slate-400">{fmt(job.listedPrice)}</td>
+                      <td className="px-3 py-2.5 text-right text-xs text-rose-400">{parseFloat(job.deduction ?? "0") > 0 ? `-${fmt(job.deduction)}` : "—"}</td>
+                      <td className="px-3 py-2.5 text-right">
+                        <span className="text-sm font-black text-emerald-400">{fmt(job.actualPrice)}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {job.serviceType
+                          ? <span className="text-[10px] font-black bg-blue-500/15 text-blue-300 px-1.5 py-0.5 rounded">{job.serviceType}</span>
+                          : <span className="text-slate-600 text-xs">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-slate-400 max-w-[11rem] truncate" title={job.address ?? ""}>{job.address || "—"}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-400">{job.postalCode || "—"}</td>
+                      <td className="px-3 py-2.5 text-right text-xs text-slate-400">{job.distanceKm ? parseFloat(job.distanceKm).toFixed(2) : "—"}</td>
+                      <td className="px-3 py-2.5 text-right text-xs text-slate-500">{job.ratePerKm ? parseFloat(job.ratePerKm).toFixed(2) : "—"}</td>
+                      <td className="px-3 py-2.5 text-xs text-amber-400 max-w-[10rem] truncate" title={job.remarks ?? ""}>{job.remarks || "—"}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1 justify-end">
+                          <button
+                            onClick={() => openEdit(job)}
+                            data-testid={`btn-edit-${job.id}`}
+                            className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteId(job.id)}
+                            data-testid={`btn-delete-${job.id}`}
+                            className="p-1.5 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+
+              {/* Totals row */}
+              {jobs.length > 0 && (
+                <tfoot>
+                  <tr className="border-t border-white/10 bg-slate-800/80">
+                    <td colSpan={3} className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      {jobs.length} job{jobs.length !== 1 ? "s" : ""}
+                    </td>
+                    <td className="px-3 py-3 text-right text-xs font-bold text-slate-300">${totalListed.toFixed(2)}</td>
+                    <td className="px-3 py-3 text-right text-xs font-bold text-rose-400">{totalDeduction > 0 ? `-$${totalDeduction.toFixed(2)}` : "—"}</td>
+                    <td className="px-3 py-3 text-right">
+                      <span className="text-base font-black text-emerald-400">${totalActual.toFixed(2)}</span>
+                    </td>
+                    <td colSpan={7} />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+
+        {/* Summary cards */}
+        {jobs.length > 0 && (
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            {[
+              { label: "Total Listed", value: `$${totalListed.toFixed(2)}`, color: "text-slate-300" },
+              { label: "Total Deductions", value: `-$${totalDeduction.toFixed(2)}`, color: "text-rose-400" },
+              { label: "Total Actual", value: `$${totalActual.toFixed(2)}`, color: "text-emerald-400", big: true },
+            ].map(({ label, value, color, big }) => (
+              <div key={label} className="bg-slate-900 border border-white/8 rounded-xl p-4 text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{label}</p>
+                <p className={`font-black ${big ? "text-2xl" : "text-lg"} ${color}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="bg-slate-900 border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-white font-black">
+              {editingJob ? "Edit Job" : "Add Job"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Vehicle header */}
+            <div className="grid grid-cols-2 gap-3 p-3 bg-white/5 rounded-lg">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Vehicle Group</Label>
+                <Input
+                  value={vehicleGroup}
+                  onChange={e => setVehicleGroup(e.target.value)}
+                  className="bg-slate-800 border-white/10 text-white text-sm h-8"
+                  data-testid="input-vehicle-group"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Vehicle Type</Label>
+                <Input
+                  value={vehicleType}
+                  onChange={e => setVehicleType(e.target.value)}
+                  className="bg-slate-800 border-white/10 text-white text-sm h-8"
+                  data-testid="input-vehicle-type"
+                />
+              </div>
+            </div>
+
+            {/* Job identifiers */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Job No</Label>
+                <Input
+                  value={form.jobNo}
+                  onChange={e => setForm(f => ({ ...f, jobNo: e.target.value }))}
+                  placeholder="S045260062103"
+                  className="bg-slate-800 border-white/10 text-white text-sm h-9 font-mono"
+                  data-testid="input-job-no"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Booking Ref</Label>
+                <Input
+                  value={form.bookingRef}
+                  onChange={e => setForm(f => ({ ...f, bookingRef: e.target.value }))}
+                  placeholder="V045260161488"
+                  className="bg-slate-800 border-white/10 text-white text-sm h-9 font-mono"
+                  data-testid="input-booking-ref"
+                />
+              </div>
+            </div>
+
+            {/* Time */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Time Start</Label>
+                <Input
+                  type="time"
+                  value={form.timeStart}
+                  onChange={e => setForm(f => ({ ...f, timeStart: e.target.value }))}
+                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
+                  data-testid="input-time-start"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Time End</Label>
+                <Input
+                  type="time"
+                  value={form.timeEnd}
+                  onChange={e => setForm(f => ({ ...f, timeEnd: e.target.value }))}
+                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
+                  data-testid="input-time-end"
+                />
+              </div>
+            </div>
+
+            {/* Pricing */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Listed Price ($)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.listedPrice}
+                  onChange={e => setForm(f => ({ ...f, listedPrice: e.target.value }))}
+                  placeholder="99.90"
+                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
+                  data-testid="input-listed-price"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Deduction ($)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.deduction}
+                  onChange={e => setForm(f => ({ ...f, deduction: e.target.value }))}
+                  placeholder="18.33"
+                  className="bg-slate-800 border-white/10 text-rose-300 text-sm h-9"
+                  data-testid="input-deduction"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-emerald-500 uppercase font-black tracking-widest">Actual Price ($) ★</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.actualPrice}
+                  onChange={e => setForm(f => ({ ...f, actualPrice: e.target.value }))}
+                  placeholder="9.17"
+                  className="bg-emerald-950/40 border-emerald-500/30 text-emerald-400 font-black text-sm h-9"
+                  data-testid="input-actual-price"
+                />
+              </div>
+            </div>
+
+            {/* Service type + flagged */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Service Type</Label>
+                <Select
+                  value={form.serviceType || "__none__"}
+                  onValueChange={v => setForm(f => ({ ...f, serviceType: v === "__none__" ? "" : v }))}
+                >
+                  <SelectTrigger className="bg-slate-800 border-white/10 text-white h-9 text-sm" data-testid="select-service-type">
+                    <SelectValue placeholder="Select…" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-white/10 text-white">
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {SERVICE_TYPES.map(t => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Flag Row</Label>
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, flagged: !f.flagged }))}
+                  data-testid="btn-flagged"
+                  className={`w-full h-9 rounded-md border text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
+                    form.flagged
+                      ? "bg-rose-500/20 border-rose-500/40 text-rose-400"
+                      : "bg-slate-800 border-white/10 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Flag className="w-3.5 h-3.5" />
+                  {form.flagged ? "Flagged" : "Not Flagged"}
+                </button>
+              </div>
+            </div>
+
+            {/* Address */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2 space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Address</Label>
+                <Input
+                  value={form.address}
+                  onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                  placeholder="17 Jalan Tenteram #08-120"
+                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
+                  data-testid="input-address"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Postal Code</Label>
+                <Input
+                  value={form.postalCode}
+                  onChange={e => setForm(f => ({ ...f, postalCode: e.target.value }))}
+                  placeholder="321017"
+                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
+                  data-testid="input-postal-code"
+                />
+              </div>
+            </div>
+
+            {/* Distance */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Distance (km)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.distanceKm}
+                  onChange={e => setForm(f => ({ ...f, distanceKm: e.target.value }))}
+                  placeholder="15.95"
+                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
+                  data-testid="input-distance"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Rate / km</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.ratePerKm}
+                  onChange={e => setForm(f => ({ ...f, ratePerKm: e.target.value }))}
+                  placeholder="0.06"
+                  className="bg-slate-800 border-white/10 text-white text-sm h-9"
+                  data-testid="input-rate-per-km"
+                />
+              </div>
+            </div>
+
+            {/* Remarks */}
+            <div className="space-y-1">
+              <Label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Remarks / Notes</Label>
+              <Input
+                value={form.remarks}
+                onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))}
+                placeholder="SHI DONG 04/03 COMPLETED"
+                className="bg-slate-800 border-white/10 text-amber-400 text-sm h-9"
+                data-testid="input-remarks"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-2 gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setDialogOpen(false)}
+              className="text-slate-400 hover:text-white"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={isPending}
+              className="bg-emerald-500 hover:bg-emerald-400 text-black font-black"
+              data-testid="btn-save-job"
+            >
+              {isPending ? "Saving…" : editingJob ? "Save Changes" : "Add Job"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm */}
+      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent className="bg-slate-900 border-white/10 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-400">
+              <AlertCircle className="w-5 h-5" /> Delete Job
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-400">This job entry will be permanently deleted. This cannot be undone.</p>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setDeleteId(null)} className="text-slate-400 hover:text-white">Cancel</Button>
+            <Button
+              onClick={() => deleteId && deleteMut.mutate(deleteId)}
+              disabled={deleteMut.isPending}
+              className="bg-rose-500 hover:bg-rose-400 text-white font-black"
+              data-testid="btn-confirm-delete"
+            >
+              {deleteMut.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
