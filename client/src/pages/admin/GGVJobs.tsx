@@ -436,8 +436,124 @@ export default function GGVJobs() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="rounded-xl border border-white/8 overflow-hidden bg-slate-900">
+        {/* ── Mobile card view (< md) ──────────────────────────────────────────── */}
+        <div className="md:hidden space-y-2">
+          {isLoading && (
+            <div className="text-center py-10 text-slate-500 text-sm">Loading…</div>
+          )}
+          {!isLoading && jobs.length === 0 && (
+            <div className="rounded-xl border border-white/8 bg-slate-900 p-8 flex flex-col items-center gap-3 text-slate-600">
+              <FileImage className="w-9 h-9" />
+              <div className="text-center">
+                <p className="text-sm font-semibold text-slate-400">No jobs for this day</p>
+                <p className="text-xs mt-1">Upload a spreadsheet screenshot or tap Add Job</p>
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 text-xs text-blue-400 font-semibold border border-blue-500/30 px-3 py-1.5 rounded-lg"
+              >
+                <Upload className="w-3 h-3" /> Upload & Scan
+              </button>
+            </div>
+          )}
+          {jobs.map((job) => {
+            const isFlagged  = job.flagged;
+            const isDelivery = isDeliveryJob(job.jobNo);
+            const effActual  = effectiveActual(job);
+            const deductAmt  = parseFloat(job.deduction ?? "0");
+            return (
+              <div
+                key={job.id}
+                data-testid={`row-ggv-${job.id}`}
+                className={`rounded-xl border px-4 py-3 ${
+                  isFlagged
+                    ? "bg-rose-500/10 border-rose-500/30"
+                    : job.remarks?.trim()
+                    ? "bg-amber-500/8 border-amber-500/20"
+                    : "bg-slate-900 border-white/8"
+                }`}
+              >
+                {/* Top row: job no + service + actual $ */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {isFlagged && <Flag className="w-3 h-3 text-rose-400 shrink-0" />}
+                      <span className="font-mono text-[11px] text-slate-300">{job.jobNo || "—"}</span>
+                      {job.serviceType && (
+                        <span className="text-[10px] font-black bg-blue-500/15 text-blue-300 px-1.5 py-0.5 rounded">
+                          {job.serviceType}
+                        </span>
+                      )}
+                      {isDelivery && (
+                        <span className="text-[9px] font-black bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded">
+                          DEL
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate">{job.address || "—"}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-lg font-black tabular-nums text-emerald-400">${effActual.toFixed(2)}</span>
+                    {isDelivery && (
+                      <div className="text-[9px] text-emerald-700 font-medium">+${DELIVERY_FEE.toFixed(2)} del.</div>
+                    )}
+                  </div>
+                </div>
+                {/* Bottom row: time + prices + actions */}
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                    {(job.timeStart || job.timeEnd) && (
+                      <span>{job.timeStart ?? "?"}{job.timeEnd ? `–${job.timeEnd}` : ""}</span>
+                    )}
+                    {job.listedPrice && (
+                      <span className="tabular-nums">${parseFloat(job.listedPrice).toFixed(2)}</span>
+                    )}
+                    {deductAmt > 0 && (
+                      <span className="text-rose-400 tabular-nums">-${deductAmt.toFixed(2)}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => openEdit(job)}
+                      data-testid={`btn-edit-${job.id}`}
+                      className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteId(job.id)}
+                      data-testid={`btn-delete-${job.id}`}
+                      className="p-1.5 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                {job.remarks?.trim() && (
+                  <p className="text-[11px] text-amber-400 mt-1.5 italic">{job.remarks}</p>
+                )}
+              </div>
+            );
+          })}
+          {/* Mobile totals bar */}
+          {jobs.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              {[
+                { label: "Listed",      value: `$${totalListed.toFixed(2)}`,                                    color: "text-slate-300" },
+                { label: "Deductions",  value: totalDeduction > 0 ? `-$${totalDeduction.toFixed(2)}` : "—",     color: "text-rose-400"  },
+                { label: "Actual",      value: `$${totalActual.toFixed(2)}`,                                    color: "text-emerald-400", big: true },
+              ].map(({ label, value, color, big }) => (
+                <div key={label} className="bg-slate-900 border border-white/8 rounded-xl p-3 text-center">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">{label}</p>
+                  <p className={`font-black tabular-nums ${big ? "text-base" : "text-sm"} ${color}`}>{value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Desktop table (≥ md) ─────────────────────────────────────────────── */}
+        <div className="hidden md:block rounded-xl border border-white/8 overflow-hidden bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[1100px]">
               <thead>
@@ -554,9 +670,9 @@ export default function GGVJobs() {
           </div>
         </div>
 
-        {/* Summary cards */}
+        {/* Summary cards — desktop only (mobile has inline totals in card view) */}
         {jobs.length > 0 && (
-          <div className="grid grid-cols-3 gap-3 mt-4">
+          <div className="hidden md:grid grid-cols-3 gap-3 mt-4">
             {[
               { label: "Total Listed", value: `$${totalListed.toFixed(2)}`, color: "text-slate-300" },
               { label: "Total Deductions", value: totalDeduction > 0 ? `-$${totalDeduction.toFixed(2)}` : "—", color: "text-rose-400" },

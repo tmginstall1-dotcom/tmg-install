@@ -2056,7 +2056,11 @@ export async function registerRoutes(
         monthlyTmgRevMap[key] = (monthlyTmgRevMap[key] || 0) + parseFloat(q.total || "0");
       }
 
-      // ── GGV Revenue: actualPrice from all GGV jobs ───────────────────────────
+      // ── GGV Revenue: actualPrice + delivery fee from all GGV jobs ─────────────
+      // Delivery jobs are identified by jobNo starting with "S".
+      // These earn an additional flat delivery fee of $23.80 per trip,
+      // matching the effectiveActual() logic used on the GGV Jobs UI page.
+      const GGV_DELIVERY_FEE = 23.80;
       const allGGVJobs = await db.select({
         id: ggvJobsTable.id, date: ggvJobsTable.date,
         actualPrice: ggvJobsTable.actualPrice,
@@ -2065,19 +2069,25 @@ export async function registerRoutes(
         jobNo: ggvJobsTable.jobNo,
       }).from(ggvJobsTable);
 
-      const ggvRevenue = allGGVJobs.reduce((s, j) => s + parseFloat(j.actualPrice || "0"), 0);
-      const ggvListedTotal = allGGVJobs.reduce((s, j) => s + parseFloat(j.listedPrice || "0"), 0);
+      const ggvEffective = (j: { actualPrice: string | null; jobNo: string | null }): number => {
+        const base = parseFloat(j.actualPrice || "0");
+        const fee  = j.jobNo?.trim()?.toUpperCase()?.startsWith("S") ? GGV_DELIVERY_FEE : 0;
+        return (isNaN(base) ? 0 : base) + fee;
+      };
+
+      const ggvRevenue      = allGGVJobs.reduce((s, j) => s + ggvEffective(j), 0);
+      const ggvListedTotal  = allGGVJobs.reduce((s, j) => s + parseFloat(j.listedPrice || "0"), 0);
       const ggvDeductionTotal = allGGVJobs.reduce((s, j) => s + parseFloat(j.deduction || "0"), 0);
       const ggvJobCount = allGGVJobs.length;
 
-      // Monthly GGV revenue
+      // Monthly GGV revenue (same effective formula)
       const monthlyGGVRevMap: Record<string, number> = {};
       for (const j of allGGVJobs) {
         if (!j.date) continue;
         const d = new Date(j.date);
         if (d < sixMonthsAgo) continue;
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        monthlyGGVRevMap[key] = (monthlyGGVRevMap[key] || 0) + parseFloat(j.actualPrice || "0");
+        monthlyGGVRevMap[key] = (monthlyGGVRevMap[key] || 0) + ggvEffective(j);
       }
 
       const totalRevenue = tmgRevenue + ggvRevenue;
