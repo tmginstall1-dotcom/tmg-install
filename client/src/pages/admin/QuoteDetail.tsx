@@ -199,11 +199,6 @@ export default function AdminQuoteDetail() {
 
   const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'booked', 'assigned', 'closed', 'final_paid'].includes(quote.status);
 
-  const quoteTotal = Number(quote.total || 0);
-  const depositAmt = Number(quote.depositAmount || 0);
-  const depositPct = quoteTotal > 0 ? Math.round((depositAmt / quoteTotal) * 100) : 50;
-  const balancePct = 100 - depositPct;
-
   const handleStartEdit = () => {
     setEditCustomer({
       name: quote.customer?.name || '',
@@ -1254,7 +1249,7 @@ export default function AdminQuoteDetail() {
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${quote.depositPaidAt ? 'bg-emerald-500 text-white' : 'bg-zinc-200 text-zinc-500'}`}>
                       {quote.depositPaidAt ? '✓' : '1'}
                     </div>
-                    <span className={`text-sm font-medium ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Deposit ({depositPct}%)</span>
+                    <span className={`text-sm font-medium ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Deposit (50%)</span>
                   </div>
                   <span className={`text-sm font-semibold tabular-nums ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-900'}`}>
                     {formatMoney(quote.depositAmount)}
@@ -1266,7 +1261,7 @@ export default function AdminQuoteDetail() {
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${quote.finalPaidAt ? 'bg-emerald-500 text-white' : 'bg-zinc-200 text-zinc-500'}`}>
                       {quote.finalPaidAt ? '✓' : '2'}
                     </div>
-                    <span className={`text-sm font-medium ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Balance ({balancePct}%)</span>
+                    <span className={`text-sm font-medium ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Balance (50%)</span>
                   </div>
                   <span className={`text-sm font-semibold tabular-nums ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-900'}`}>
                     {formatMoney(quote.finalAmount)}
