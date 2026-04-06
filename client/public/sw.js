@@ -1,47 +1,84 @@
-// v5 — Force cache refresh; fee label updated to Mobilisation & Coordination everywhere.
+// v6 — Smarter caching: cache-first for hashed bundles, network-first for pages.
 // Service worker is disabled for the native Capacitor app (TMGStaffApp
 // user agent). It runs only in normal browsers for PWA offline support.
 
-const CACHE = 'tmg-v5';
+const CACHE_STATIC  = 'tmg-static-v6';   // hashed JS/CSS/font bundles — cache-first
+const CACHE_DYNAMIC = 'tmg-dynamic-v6';  // pages & images — network-first
 
-const PRECACHE = [
+const PRECACHE_PAGES = [
   '/',
-  '/admin',
-  '/staff/login',
-  '/staff',
+  '/estimate',
 ];
 
+// On install: warm the page cache and immediately activate
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())
+    caches.open(CACHE_DYNAMIC)
+      .then(c => c.addAll(PRECACHE_PAGES))
+      .then(() => self.skipWaiting())
   );
 });
 
+// On activate: drop all old caches
 self.addEventListener('activate', e => {
+  const KEEP = [CACHE_STATIC, CACHE_DYNAMIC];
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => !KEEP.includes(k)).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
+  const { request } = e;
+  const url = new URL(request.url);
 
-  // Always go to network for API calls — never serve stale data
+  // 1. Never intercept API calls — always fresh from server
   if (url.pathname.startsWith('/api/')) return;
 
-  // For everything else: try network first, fall back to cache
+  // 2. Non-GET requests pass straight through
+  if (request.method !== 'GET') return;
+
+  // 3. Hashed asset bundles (/assets/*.js, /assets/*.css, /fonts/*.woff2)
+  //    These filenames contain a content hash — safe to cache forever (cache-first)
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/')) {
+    e.respondWith(
+      caches.open(CACHE_STATIC).then(async cache => {
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        const fresh = await fetch(request);
+        if (fresh.ok) cache.put(request, fresh.clone());
+        return fresh;
+      })
+    );
+    return;
+  }
+
+  // 4. Work gallery images (/work/*.jpg) — cache-first, 7-day TTL
+  if (url.pathname.startsWith('/work/')) {
+    e.respondWith(
+      caches.open(CACHE_DYNAMIC).then(async cache => {
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        const fresh = await fetch(request);
+        if (fresh.ok) cache.put(request, fresh.clone());
+        return fresh;
+      })
+    );
+    return;
+  }
+
+  // 5. Everything else (HTML pages, icons, manifest) — network-first, cache fallback
   e.respondWith(
-    fetch(e.request)
+    fetch(request)
       .then(res => {
-        if (res.ok && e.request.method === 'GET') {
+        if (res.ok) {
           const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
+          caches.open(CACHE_DYNAMIC).then(c => c.put(request, clone));
         }
         return res;
       })
-      .catch(() => caches.match(e.request))
+      .catch(() => caches.match(request))
   );
 });
 
@@ -54,13 +91,13 @@ self.addEventListener('push', e => {
 
   e.waitUntil(
     self.registration.showNotification(payload.title, {
-      body:    payload.body,
-      icon:    '/icon-192.png',
-      badge:   '/favicon.png',
-      tag:     payload.tag || 'wa-message',
+      body:     payload.body,
+      icon:     '/icon-192.png',
+      badge:    '/favicon.png',
+      tag:      payload.tag || 'wa-message',
       renotify: true,
-      data:    { url: payload.url || '/admin/conversations' },
-      actions: [{ action: 'open', title: 'Open Chat' }],
+      data:     { url: payload.url || '/admin/conversations' },
+      actions:  [{ action: 'open', title: 'Open Chat' }],
     })
   );
 });
@@ -72,7 +109,6 @@ self.addEventListener('notificationclick', e => {
 
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
-      // If an admin tab is already open, focus it and navigate
       for (const client of windowClients) {
         if (client.url.includes('/admin') && 'focus' in client) {
           client.focus();
@@ -80,10 +116,7 @@ self.addEventListener('notificationclick', e => {
           return;
         }
       }
-      // Otherwise open a new tab
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
     })
   );
 });

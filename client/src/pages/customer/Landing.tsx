@@ -22,17 +22,13 @@ import {
   Wind,
   ChefHat,
   Plus,
-  Minus,
   CalendarDays,
   CreditCard,
   FileText,
-  Mail,
   ScanSearch,
   ListChecks,
-  Users,
   Receipt,
   Globe,
-  ChevronDown
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";

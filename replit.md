@@ -25,7 +25,7 @@ Always provide full file contents when editing any code file — never partial s
 ### Frontend (React + Vite)
 - **Technology Stack**: React 18 with TypeScript, Vite for bundling, `wouter` for routing, and TanStack Query for state management and data fetching.
 - **UI/UX**: Utilizes `shadcn/ui`, Radix UI, and Tailwind CSS for components and styling, with Framer Motion for animations.
-- **Performance**: Leverages `React.lazy` and `Suspense` for code splitting and `Vite manualChunks` for optimized vendor dependency loading.
+- **Performance**: Leverages `React.lazy` and `Suspense` for code splitting and `Vite manualChunks` for optimized vendor dependency loading. Build target is `es2020` (no legacy polyfills). `reportCompressedSize: false` keeps builds fast (~25s). Vendor chunks: `vendor-react`, `vendor-query`, `vendor-motion`, `vendor-charts`, `vendor-maps`, `vendor-radix`.
 - **Core Pages**: Includes a comprehensive landing page, a multi-step estimate wizard, customer quote status pages, and distinct admin and staff dashboards with job management and tracking functionalities.
 - **Admin Layout**: Features a fixed left sidebar for desktop (`AdminSidebar`) and a tabbed bottom navigation for mobile (`AdminBottomNav`), both providing live badge counts.
 

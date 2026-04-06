@@ -17,8 +17,18 @@ app.set("trust proxy", 1);
 // ── Health check — always respond immediately, before any DB work ─────────────
 app.get("/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
-// Gzip compress all responses — reduces JSON payload size by 70-90%
-app.use(compression());
+// Gzip compress text responses — reduces JSON/HTML/CSS/JS size by 70-90%
+// Skip tiny responses (<1 KB) and already-compressed formats (images, fonts)
+app.use(compression({
+  level: 7,           // strong compression; balanced vs CPU cost
+  threshold: 1024,    // skip compressing responses under 1 KB (not worth it)
+  filter: (req, res) => {
+    const ct = res.getHeader("Content-Type") as string | undefined;
+    if (!ct) return false;
+    // Only compress text-based content types; images/woff/zip are already compressed
+    return /text|javascript|json|xml|svg/.test(ct);
+  },
+}));
 
 // Security + performance headers on every response
 app.use((_req: Request, res: Response, next: NextFunction) => {
