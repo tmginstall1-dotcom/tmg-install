@@ -61,13 +61,25 @@ type BusinessData = {
 
 type PnlData = {
   totalRevenue: number;
+  tmgRevenue: number;
+  ggvRevenue: number;
+  ggvListedTotal: number;
+  ggvDeductionTotal: number;
+  ggvJobCount: number;
   totalExpenses: number;
+  totalReceiptExpenses: number;
+  totalSalaryCost: number;
   netProfit: number;
   profitMargin: number;
   jobCount: number;
   avgJobRevenue: number;
   pendingExpenses: number;
-  monthlyTrend: { month: string; label: string; revenue: number; expenses: number; profit: number }[];
+  monthlyTrend: {
+    month: string; label: string;
+    revenue: number; tmgRevenue: number; ggvRevenue: number;
+    expenses: number; receiptsExpense: number; salaryExpense: number;
+    profit: number;
+  }[];
   expensesByCategory: { category: string; amount: number }[];
 };
 
@@ -1030,47 +1042,49 @@ function PnLTab() {
     );
   }
 
-  const { totalRevenue, totalExpenses, netProfit, profitMargin, jobCount,
-          avgJobRevenue, pendingExpenses, monthlyTrend, expensesByCategory } = data;
+  const {
+    totalRevenue, tmgRevenue, ggvRevenue, ggvListedTotal, ggvDeductionTotal, ggvJobCount,
+    totalExpenses, totalReceiptExpenses, totalSalaryCost,
+    netProfit, profitMargin, jobCount, avgJobRevenue,
+    pendingExpenses, monthlyTrend, expensesByCategory,
+  } = data;
 
   const profitable = netProfit >= 0;
   const maxCatAmount = expensesByCategory[0]?.amount ?? 1;
 
   return (
     <div className="space-y-6">
-      {/* KPI cards */}
+
+      {/* ── Row 1: Revenue KPIs ── */}
       <div>
-        <SectionTitle>All-Time Profit &amp; Loss</SectionTitle>
+        <SectionTitle>Revenue — All Time</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <KpiCard
-            label="Total Revenue"
-            value={fmtSGD(totalRevenue)}
-            sub={`${jobCount} completed jobs`}
-            icon={Wallet}
-            color="text-emerald-500"
-          />
-          <KpiCard
-            label="Total Expenses"
-            value={fmtSGD(totalExpenses)}
-            sub="Approved claims only"
-            icon={Receipt}
-            color="text-red-500"
-          />
-          <KpiCard
-            label="Net Profit"
-            value={fmtSGD(Math.abs(netProfit))}
-            sub={profitable ? "Profit" : "Loss"}
+          <KpiCard label="Total Revenue" value={fmtSGD(totalRevenue)}
+            sub="TMG jobs + GGV combined" icon={Wallet} color="text-emerald-500" />
+          <KpiCard label="TMG Jobs" value={fmtSGD(tmgRevenue)}
+            sub={`${jobCount} completed`} icon={Briefcase} color="text-blue-500" />
+          <KpiCard label="GoGoVan Revenue" value={fmtSGD(ggvRevenue)}
+            sub={`${ggvJobCount} GGV jobs (net after platform deductions)`} icon={TrendingUp} color="text-violet-500" />
+          <KpiCard label="GGV Deductions" value={fmtSGD(ggvDeductionTotal)}
+            sub={`Listed: ${fmtSGD(ggvListedTotal)}`} icon={TrendingDown} color="text-orange-500" />
+        </div>
+      </div>
+
+      {/* ── Row 2: Expense KPIs ── */}
+      <div>
+        <SectionTitle>Expenses — All Time</SectionTitle>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <KpiCard label="Total Expenses" value={fmtSGD(totalExpenses)}
+            sub="Salary + approved claims" icon={Receipt} color="text-red-500" />
+          <KpiCard label="Staff Salary" value={fmtSGD(totalSalaryCost)}
+            sub="Hourly × hours logged + monthly rates" icon={Users} color="text-red-400" />
+          <KpiCard label="Receipts & Claims" value={fmtSGD(totalReceiptExpenses)}
+            sub="Approved expense claims" icon={FileText} color="text-red-400" />
+          <KpiCard label="Net Profit" value={fmtSGD(Math.abs(netProfit))}
+            sub={`${profitable ? "Profit" : "Loss"} · ${profitMargin}% margin`}
             icon={profitable ? TrendingUp : TrendingDown}
             color={profitable ? "text-emerald-500" : "text-red-500"}
-            valueClass={profitable ? "text-emerald-600" : "text-red-600"}
-          />
-          <KpiCard
-            label="Profit Margin"
-            value={`${profitMargin}%`}
-            sub={`Avg $${avgJobRevenue.toLocaleString()} / job`}
-            icon={Percent}
-            color={profitable ? "text-blue-500" : "text-red-500"}
-          />
+            valueClass={profitable ? "text-emerald-600" : "text-red-600"} />
         </div>
       </div>
 
@@ -1079,16 +1093,16 @@ function PnLTab() {
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-3.5">
           <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
           <p className="text-sm text-amber-700">
-            <span className="font-semibold">{fmtSGD(pendingExpenses)}</span> in pending expense claims are awaiting approval — not included in the figures above.
+            <span className="font-semibold">{fmtSGD(pendingExpenses)}</span> in pending expense claims awaiting approval — not included above.
           </p>
         </div>
       )}
 
-      {/* Monthly Revenue vs Expenses chart */}
-      <Panel title="Monthly Revenue vs Expenses" icon={BarChart2}>
-        {monthlyTrend.length === 0 ? <EmptyState msg="No completed jobs or expenses yet" /> : (
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={monthlyTrend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap="30%">
+      {/* ── Monthly chart: stacked revenue vs expenses ── */}
+      <Panel title="Monthly Revenue vs Expenses (last 6 months)" icon={BarChart2}>
+        {monthlyTrend.length === 0 ? <EmptyState msg="No data yet" /> : (
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={monthlyTrend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap="28%">
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={52}
@@ -1098,78 +1112,100 @@ function PnLTab() {
                 formatter={(val: any, name: string) => [`$${Number(val).toLocaleString()}`, name]}
               />
               <Legend wrapperStyle={{ fontSize: 11, color: "#64748b", paddingTop: 8 }} />
-              <Bar dataKey="revenue"  name="Revenue"  fill="#10b981" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="profit"   name="Profit"   fill="#3b82f6" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="tmgRevenue"     name="TMG Jobs"      stackId="rev" fill="#10b981" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="ggvRevenue"     name="GoGoVan"       stackId="rev" fill="#8b5cf6" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="salaryExpense"  name="Staff Salary"  stackId="exp" fill="#ef4444" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="receiptsExpense" name="Receipts"     stackId="exp" fill="#f97316" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
       </Panel>
 
-      {/* Expense breakdown + profit summary */}
+      {/* ── Expense categories + P&L Summary ── */}
       <div className="grid sm:grid-cols-2 gap-4">
 
-        {/* Expense categories */}
+        {/* Expense breakdown by category */}
         <Panel title="Expenses by Category" icon={Receipt}>
-          {expensesByCategory.length === 0 ? <EmptyState msg="No approved expenses yet" /> : (
+          {expensesByCategory.length === 0 ? <EmptyState msg="No expenses yet" /> : (
             <div className="space-y-3">
-              {expensesByCategory.map(({ category, amount }) => (
-                <div key={category}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-zinc-700 capitalize">{category}</span>
-                    <span className="text-xs font-bold text-zinc-900">${amount.toLocaleString()}</span>
+              {expensesByCategory.map(({ category, amount }) => {
+                const label = category === "staff_salary" ? "Staff Salary" : category.charAt(0).toUpperCase() + category.slice(1).replace(/_/g, " ");
+                const color = category === "staff_salary" ? "#ef4444" : CAT_COLORS[category] || "#94a3b8";
+                return (
+                  <div key={category}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-zinc-700">{label}</span>
+                      <span className="text-xs font-bold text-zinc-900">${amount.toLocaleString()}</span>
+                    </div>
+                    <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all"
+                        style={{ width: `${(amount / maxCatAmount) * 100}%`, background: color }} />
+                    </div>
                   </div>
-                  <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{ width: `${(amount / maxCatAmount) * 100}%`, background: CAT_COLORS[category] || "#94a3b8" }}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               <div className="pt-2 border-t border-zinc-100 flex justify-between">
-                <span className="text-xs text-zinc-500 font-medium">Total approved</span>
-                <span className="text-xs font-bold text-red-600">${totalExpenses.toLocaleString()}</span>
+                <span className="text-xs text-zinc-500 font-medium">Total expenses</span>
+                <span className="text-xs font-bold text-red-600">{fmtSGD(totalExpenses)}</span>
               </div>
             </div>
           )}
         </Panel>
 
-        {/* Summary card */}
+        {/* Full P&L waterfall summary */}
         <Panel title="P&L Summary" icon={PiggyBank}>
-          <div className="space-y-3">
-            {[
-              { label: "Total Revenue",    value: fmtSGD(totalRevenue),   color: "text-emerald-600", bg: "bg-emerald-50" },
-              { label: "Total Expenses",   value: `– ${fmtSGD(totalExpenses)}`, color: "text-red-600",     bg: "bg-red-50"     },
-              { label: "Net Profit / Loss", value: (profitable ? "" : "– ") + fmtSGD(Math.abs(netProfit)),
-                color: profitable ? "text-emerald-700" : "text-red-700",
-                bg: profitable ? "bg-emerald-50" : "bg-red-50", bold: true },
-            ].map(row => (
-              <div key={row.label} className={`flex items-center justify-between rounded-lg px-3 py-2.5 ${row.bg}`}>
-                <span className={`text-xs ${row.bold ? "font-semibold" : "font-medium"} text-zinc-700`}>{row.label}</span>
-                <span className={`text-sm font-bold ${row.color}`}>{row.value}</span>
+          <div className="space-y-2">
+            {/* Revenue */}
+            <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-emerald-50">
+              <span className="text-xs font-medium text-zinc-700">TMG Job Revenue</span>
+              <span className="text-sm font-bold text-emerald-600">{fmtSGD(tmgRevenue)}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-violet-50">
+              <span className="text-xs font-medium text-zinc-700">GoGoVan Revenue (net)</span>
+              <span className="text-sm font-bold text-violet-600">{fmtSGD(ggvRevenue)}</span>
+            </div>
+            {ggvDeductionTotal > 0 && (
+              <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-orange-50">
+                <span className="text-xs font-medium text-zinc-600">GGV Platform Deductions</span>
+                <span className="text-sm font-bold text-orange-500">– {fmtSGD(ggvDeductionTotal)}</span>
               </div>
-            ))}
-            <div className="flex items-center justify-between rounded-lg px-3 py-2.5 bg-blue-50">
+            )}
+            <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-emerald-100">
+              <span className="text-xs font-semibold text-zinc-700">= Total Revenue</span>
+              <span className="text-sm font-bold text-emerald-700">{fmtSGD(totalRevenue)}</span>
+            </div>
+            {/* Expenses */}
+            <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-red-50">
+              <span className="text-xs font-medium text-zinc-700">Staff Salary Cost</span>
+              <span className="text-sm font-bold text-red-500">– {fmtSGD(totalSalaryCost)}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-red-50">
+              <span className="text-xs font-medium text-zinc-700">Receipts &amp; Claims</span>
+              <span className="text-sm font-bold text-red-500">– {fmtSGD(totalReceiptExpenses)}</span>
+            </div>
+            {/* Bottom line */}
+            <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 ${profitable ? "bg-emerald-100" : "bg-red-100"}`}>
+              <span className="text-xs font-bold text-zinc-800">Net {profitable ? "Profit" : "Loss"}</span>
+              <span className={`text-base font-black ${profitable ? "text-emerald-700" : "text-red-700"}`}>
+                {profitable ? "" : "– "}{fmtSGD(Math.abs(netProfit))}
+              </span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-blue-50">
               <span className="text-xs font-medium text-zinc-700">Profit Margin</span>
               <span className={`text-sm font-bold ${profitable ? "text-blue-600" : "text-red-600"}`}>{profitMargin}%</span>
             </div>
-            <div className="flex items-center justify-between rounded-lg px-3 py-2.5 bg-zinc-50">
-              <span className="text-xs font-medium text-zinc-700">Completed Jobs</span>
-              <span className="text-sm font-bold text-zinc-900">{jobCount}</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg px-3 py-2.5 bg-zinc-50">
-              <span className="text-xs font-medium text-zinc-700">Avg Revenue / Job</span>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-zinc-50">
+              <span className="text-xs font-medium text-zinc-700">Avg TMG Revenue / Job</span>
               <span className="text-sm font-bold text-zinc-900">{fmtSGD(avgJobRevenue)}</span>
             </div>
           </div>
         </Panel>
       </div>
 
-      {/* P&L note */}
       <p className="text-xs text-zinc-400 text-center pb-2">
-        Revenue = sum of all completed / final-paid / closed job totals. Expenses = approved staff expense claims only.
-        Pending claims excluded until approved.
+        TMG Revenue = completed/final-paid/closed job totals. GGV Revenue = actualPrice after GoGoVan platform deductions.
+        Staff Salary = actual hours logged × hourly/overtime rates (hourly staff) + monthly rates × employment duration (salaried staff).
+        Receipts = approved expense claims. Pending claims excluded until approved.
       </p>
     </div>
   );

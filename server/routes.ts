@@ -33,7 +33,7 @@ const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 import { calcTransportFee, calcOvertimeCharge, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
-import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable } from "@shared/schema";
+import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable } from "@shared/schema";
 import { eq, and, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
@@ -2032,8 +2032,12 @@ export async function registerRoutes(
     if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const DONE_STATUSES = ["completed", "final_payment_requested", "final_paid", "closed"];
+      const now = new Date();
+      const sixMonthsAgo = new Date(now);
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+      sixMonthsAgo.setDate(1);
 
-      // ── Revenue: all completed/paid/closed jobs ──
+      // ── TMG Revenue: all completed/paid/closed quotes ────────────────────────
       const allQuotes = await db.select({
         id: quotesTable.id, status: quotesTable.status,
         total: quotesTable.total, scheduledAt: quotesTable.scheduledAt,
@@ -2041,77 +2045,174 @@ export async function registerRoutes(
       }).from(quotesTable);
 
       const doneQuotes = allQuotes.filter(q => DONE_STATUSES.includes(q.status));
-      const totalRevenue = doneQuotes.reduce((s, q) => s + parseFloat(q.total || "0"), 0);
+      const tmgRevenue = doneQuotes.reduce((s, q) => s + parseFloat(q.total || "0"), 0);
 
-      // ── Expenses: all approved receipts ──
-      const allReceipts = await storage.getAllReceipts();
-      const approvedReceipts = (allReceipts as any[]).filter((r: any) => r.status === "approved");
-      const totalExpenses = approvedReceipts.reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
-
-      const netProfit = totalRevenue - totalExpenses;
-      const profitMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100 * 10) / 10 : 0;
-
-      // ── Monthly trend (last 6 months): revenue vs expenses ──
-      const now = new Date();
-      const sixMonthsAgo = new Date(now);
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-      sixMonthsAgo.setDate(1);
-
-      const monthlyRevMap: Record<string, number> = {};
-      const monthlyExpMap: Record<string, number> = {};
-
+      // Monthly TMG revenue
+      const monthlyTmgRevMap: Record<string, number> = {};
       for (const q of doneQuotes) {
         const d = q.scheduledAt || q.createdAt;
         if (!d || d < sixMonthsAgo) continue;
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        monthlyRevMap[key] = (monthlyRevMap[key] || 0) + parseFloat(q.total || "0");
+        monthlyTmgRevMap[key] = (monthlyTmgRevMap[key] || 0) + parseFloat(q.total || "0");
       }
 
+      // ── GGV Revenue: actualPrice from all GGV jobs ───────────────────────────
+      const allGGVJobs = await db.select({
+        id: ggvJobsTable.id, date: ggvJobsTable.date,
+        actualPrice: ggvJobsTable.actualPrice,
+        listedPrice: ggvJobsTable.listedPrice,
+        deduction: ggvJobsTable.deduction,
+        jobNo: ggvJobsTable.jobNo,
+      }).from(ggvJobsTable);
+
+      const ggvRevenue = allGGVJobs.reduce((s, j) => s + parseFloat(j.actualPrice || "0"), 0);
+      const ggvListedTotal = allGGVJobs.reduce((s, j) => s + parseFloat(j.listedPrice || "0"), 0);
+      const ggvDeductionTotal = allGGVJobs.reduce((s, j) => s + parseFloat(j.deduction || "0"), 0);
+      const ggvJobCount = allGGVJobs.length;
+
+      // Monthly GGV revenue
+      const monthlyGGVRevMap: Record<string, number> = {};
+      for (const j of allGGVJobs) {
+        if (!j.date) continue;
+        const d = new Date(j.date);
+        if (d < sixMonthsAgo) continue;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        monthlyGGVRevMap[key] = (monthlyGGVRevMap[key] || 0) + parseFloat(j.actualPrice || "0");
+      }
+
+      const totalRevenue = tmgRevenue + ggvRevenue;
+
+      // ── Staff Salary Cost: actual hours × rates from attendance logs ─────────
+      const staffList = await storage.getStaffMembers() as any[];
+      const allAttLogs = await db.select({
+        userId: attendanceLogs.userId,
+        clockInAt: attendanceLogs.clockInAt,
+        clockOutAt: attendanceLogs.clockOutAt,
+      }).from(attendanceLogs);
+
+      // Build salary cost map per month
+      const monthlySalaryMap: Record<string, number> = {};
+      let totalSalaryCost = 0;
+
+      // Hourly staff: calculate from actual attendance logs
+      const hourlyStaff = staffList.filter((s: any) => s.payType === "hourly" || !s.payType);
+      const monthlyStaff = staffList.filter((s: any) => s.payType === "monthly");
+
+      for (const s of hourlyStaff) {
+        const myLogs = allAttLogs.filter(l => l.userId === s.id && l.clockInAt && l.clockOutAt);
+        for (const log of myLogs) {
+          const hrs = (log.clockOutAt!.getTime() - log.clockInAt!.getTime()) / 3600000;
+          const regularHrs = Math.min(hrs, 8);
+          const overtimeHrs = Math.max(0, hrs - 8);
+          const cost = regularHrs * parseFloat(s.hourlyRate || "0")
+                     + overtimeHrs * parseFloat(s.overtimeRate || s.hourlyRate || "0");
+          totalSalaryCost += cost;
+          const key = `${log.clockInAt!.getFullYear()}-${String(log.clockInAt!.getMonth() + 1).padStart(2, "0")}`;
+          monthlySalaryMap[key] = (monthlySalaryMap[key] || 0) + cost;
+        }
+      }
+
+      // Monthly-rate staff: prorate based on employment start date to now
+      for (const s of monthlyStaff) {
+        const rate = parseFloat(s.monthlyRate || "0");
+        if (rate === 0) continue;
+        const startDate = s.startDate ? new Date(s.startDate) : new Date(now.getFullYear() - 1, 0, 1);
+        // Walk month by month from startDate to now
+        const cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        while (cur <= now) {
+          const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`;
+          monthlySalaryMap[key] = (monthlySalaryMap[key] || 0) + rate;
+          totalSalaryCost += rate;
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      }
+
+      // ── Expenses: approved receipts ──────────────────────────────────────────
+      const allReceipts = await storage.getAllReceipts();
+      const approvedReceipts = (allReceipts as any[]).filter((r: any) => r.status === "approved");
+      const totalReceiptExpenses = approvedReceipts.reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
+
+      const monthlyReceiptExpMap: Record<string, number> = {};
       for (const r of approvedReceipts as any[]) {
         if (!r.receiptDate) continue;
         const d = new Date(r.receiptDate);
         if (d < sixMonthsAgo) continue;
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        monthlyExpMap[key] = (monthlyExpMap[key] || 0) + parseFloat(r.amount || "0");
+        monthlyReceiptExpMap[key] = (monthlyReceiptExpMap[key] || 0) + parseFloat(r.amount || "0");
       }
 
-      // Build a union of all months present in either map
-      const allMonths = Array.from(new Set([...Object.keys(monthlyRevMap), ...Object.keys(monthlyExpMap)])).sort();
-      const monthlyTrend = allMonths.map(key => ({
-        month: key,
-        label: new Date(key + "-01").toLocaleDateString("en-SG", { month: "short", year: "2-digit" }),
-        revenue: Math.round(monthlyRevMap[key] || 0),
-        expenses: Math.round(monthlyExpMap[key] || 0),
-        profit: Math.round((monthlyRevMap[key] || 0) - (monthlyExpMap[key] || 0)),
-      }));
+      const totalExpenses = totalReceiptExpenses + totalSalaryCost;
+      const netProfit = totalRevenue - totalExpenses;
+      const profitMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100 * 10) / 10 : 0;
 
-      // ── Expense breakdown by category ──
+      // ── Monthly trend (last 6 months) ────────────────────────────────────────
+      const allMonths = Array.from(new Set([
+        ...Object.keys(monthlyTmgRevMap),
+        ...Object.keys(monthlyGGVRevMap),
+        ...Object.keys(monthlyReceiptExpMap),
+        ...Object.keys(monthlySalaryMap).filter(k => k >= sixMonthsAgo.toISOString().slice(0, 7)),
+      ])).sort();
+
+      const monthlyTrend = allMonths.map(key => {
+        const tmgRev = Math.round(monthlyTmgRevMap[key] || 0);
+        const ggvRev = Math.round(monthlyGGVRevMap[key] || 0);
+        const receipts = Math.round(monthlyReceiptExpMap[key] || 0);
+        const salary = Math.round(monthlySalaryMap[key] || 0);
+        const revenue = tmgRev + ggvRev;
+        const expenses = receipts + salary;
+        return {
+          month: key,
+          label: new Date(key + "-01").toLocaleDateString("en-SG", { month: "short", year: "2-digit" }),
+          revenue,
+          tmgRevenue: tmgRev,
+          ggvRevenue: ggvRev,
+          expenses,
+          receiptsExpense: receipts,
+          salaryExpense: salary,
+          profit: revenue - expenses,
+        };
+      });
+
+      // ── Expense breakdown by category (receipts + salary) ────────────────────
       const catMap: Record<string, number> = {};
       for (const r of approvedReceipts as any[]) {
         const cat = r.category || "other";
         catMap[cat] = (catMap[cat] || 0) + parseFloat(r.amount || "0");
       }
+      if (totalSalaryCost > 0) {
+        catMap["staff_salary"] = (catMap["staff_salary"] || 0) + totalSalaryCost;
+      }
       const expensesByCategory = Object.entries(catMap)
         .map(([category, amount]) => ({ category, amount: Math.round(amount * 100) / 100 }))
         .sort((a, b) => b.amount - a.amount);
 
-      // ── Revenue by job count ──
+      // ── Misc KPIs ────────────────────────────────────────────────────────────
       const jobCount = doneQuotes.length;
-      const avgJobRevenue = jobCount > 0 ? Math.round(totalRevenue / jobCount) : 0;
+      const avgJobRevenue = jobCount > 0 ? Math.round(tmgRevenue / jobCount) : 0;
 
-      // ── Pending expenses (not yet approved) ──
       const pendingExpenses = (allReceipts as any[])
         .filter((r: any) => r.status === "pending")
         .reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
 
       res.json({
-        totalRevenue: Math.round(totalRevenue * 100) / 100,
-        totalExpenses: Math.round(totalExpenses * 100) / 100,
-        netProfit: Math.round(netProfit * 100) / 100,
-        profitMargin,
+        // Revenue
+        totalRevenue:    Math.round(totalRevenue    * 100) / 100,
+        tmgRevenue:      Math.round(tmgRevenue      * 100) / 100,
+        ggvRevenue:      Math.round(ggvRevenue      * 100) / 100,
+        ggvListedTotal:  Math.round(ggvListedTotal  * 100) / 100,
+        ggvDeductionTotal: Math.round(ggvDeductionTotal * 100) / 100,
+        ggvJobCount,
         jobCount,
         avgJobRevenue,
-        pendingExpenses: Math.round(pendingExpenses * 100) / 100,
+        // Expenses
+        totalExpenses:        Math.round(totalExpenses        * 100) / 100,
+        totalReceiptExpenses: Math.round(totalReceiptExpenses * 100) / 100,
+        totalSalaryCost:      Math.round(totalSalaryCost      * 100) / 100,
+        pendingExpenses:      Math.round(pendingExpenses       * 100) / 100,
+        // Profit
+        netProfit:     Math.round(netProfit     * 100) / 100,
+        profitMargin,
+        // Charts
         monthlyTrend,
         expensesByCategory,
       });
