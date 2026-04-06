@@ -543,11 +543,30 @@ export default function AdminQuoteDetail() {
           </div>
           
           <div className="flex items-center gap-1 shrink-0">
-            {canEdit && !isEditing && (
+            {canEdit && !isEditing && !['closed', 'final_paid', 'cancelled'].includes(quote.status) && (
               <button onClick={handleStartEdit} data-testid="button-edit-quote"
                 className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs sm:text-sm font-medium transition-colors">
                 <Edit2 className="w-3.5 h-3.5 text-zinc-400" />
                 <span className="hidden sm:inline">Edit</span>
+              </button>
+            )}
+            {['closed', 'final_paid'].includes(quote.status) && (
+              <button
+                data-testid="button-reopen-job-header"
+                disabled={reopenJob.isPending}
+                onClick={() => {
+                  const reason = prompt("Reason for reopening (optional):");
+                  if (reason === null) return;
+                  reopenJob.mutate(reason || undefined);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 text-xs sm:text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {reopenJob.isPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-3.5 h-3.5" />
+                )}
+                <span>Reopen</span>
               </button>
             )}
             <button
