@@ -199,6 +199,11 @@ export default function AdminQuoteDetail() {
 
   const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'booked', 'assigned', 'closed', 'final_paid'].includes(quote.status);
 
+  const quoteTotal = Number(quote.total || 0);
+  const depositAmt = Number(quote.depositAmount || 0);
+  const depositPct = quoteTotal > 0 ? Math.round((depositAmt / quoteTotal) * 100) : 50;
+  const balancePct = 100 - depositPct;
+
   const handleStartEdit = () => {
     setEditCustomer({
       name: quote.customer?.name || '',
@@ -1120,12 +1125,29 @@ export default function AdminQuoteDetail() {
                       </div>
                     )}
 
-                    <div className="pt-2 border-t border-zinc-100">
-                      <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
-                        className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                        <CheckCircle2 className="w-4 h-4" />
-                        {requestFinalPayment.isPending ? "Sending…" : "Mark Done & Request Final Payment"}
-                      </button>
+                    <div className="pt-2 border-t border-zinc-100 space-y-2">
+                      {!quote.finalPaidAt && (
+                        <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
+                          data-testid="button-mark-done-request-final"
+                          className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                          <CheckCircle2 className="w-4 h-4" />
+                          {requestFinalPayment.isPending ? "Sending…" : "Mark Done & Request Final Payment"}
+                        </button>
+                      )}
+                      {!quote.finalPaidAt && (
+                        <button
+                          onClick={() => setShowFinalPayConfirm(true)}
+                          data-testid="button-mark-final-received-manual"
+                          className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors">
+                          <QrCode className="w-4 h-4" /> Mark Final Payment Already Received
+                        </button>
+                      )}
+                      {quote.finalPaidAt && (
+                        <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <p className="text-xs text-emerald-700 font-medium">Customer has fully paid — use <strong>Reopen</strong> in the header first if job needs to be redone, or <strong>Manual Close</strong> to close the case now.</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1232,7 +1254,7 @@ export default function AdminQuoteDetail() {
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${quote.depositPaidAt ? 'bg-emerald-500 text-white' : 'bg-zinc-200 text-zinc-500'}`}>
                       {quote.depositPaidAt ? '✓' : '1'}
                     </div>
-                    <span className={`text-sm font-medium ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Deposit (50%)</span>
+                    <span className={`text-sm font-medium ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Deposit ({depositPct}%)</span>
                   </div>
                   <span className={`text-sm font-semibold tabular-nums ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-900'}`}>
                     {formatMoney(quote.depositAmount)}
@@ -1244,7 +1266,7 @@ export default function AdminQuoteDetail() {
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${quote.finalPaidAt ? 'bg-emerald-500 text-white' : 'bg-zinc-200 text-zinc-500'}`}>
                       {quote.finalPaidAt ? '✓' : '2'}
                     </div>
-                    <span className={`text-sm font-medium ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Balance (50%)</span>
+                    <span className={`text-sm font-medium ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Balance ({balancePct}%)</span>
                   </div>
                   <span className={`text-sm font-semibold tabular-nums ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-900'}`}>
                     {formatMoney(quote.finalAmount)}
