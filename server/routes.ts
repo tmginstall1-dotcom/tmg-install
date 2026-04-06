@@ -2094,10 +2094,16 @@ export async function registerRoutes(
       const monthlySalaryMap: Record<string, number> = {};
       let totalSalaryCost = 0;
 
-      // Hourly staff: calculate from actual attendance logs
-      const hourlyStaff = staffList.filter((s: any) => s.payType === "hourly" || !s.payType);
-      const monthlyStaff = staffList.filter((s: any) => s.payType === "monthly");
+      // ── Staff classification ──────────────────────────────────────────────────
+      // A staff member is treated as "monthly salaried" when they have a monthly
+      // rate > 0 (regardless of the payType field).  This prevents the common
+      // data-entry mistake of leaving payType='hourly' while a monthly salary
+      // has been entered, which would otherwise produce a $0 salary cost.
+      const monthlyStaff = staffList.filter((s: any) => parseFloat(s.monthlyRate || "0") > 0);
+      const hourlyStaff  = staffList.filter((s: any) =>
+        parseFloat(s.monthlyRate || "0") === 0 && parseFloat(s.hourlyRate || "0") > 0);
 
+      // Hourly staff: calculate from actual attendance logs
       for (const s of hourlyStaff) {
         const myLogs = allAttLogs.filter(l => l.userId === s.id && l.clockInAt && l.clockOutAt);
         for (const log of myLogs) {
@@ -2112,17 +2118,28 @@ export async function registerRoutes(
         }
       }
 
-      // Monthly-rate staff: prorate based on employment start date to now
+      // Monthly-rate staff: prorate based on employment start date to now.
+      // The current (partial) month is prorated by days elapsed ÷ days in month.
+      // If no start_date is recorded, we default to the 1st of the current month
+      // to avoid accumulating phantom salary for unknown prior months.
       for (const s of monthlyStaff) {
         const rate = parseFloat(s.monthlyRate || "0");
         if (rate === 0) continue;
-        const startDate = s.startDate ? new Date(s.startDate) : new Date(now.getFullYear() - 1, 0, 1);
-        // Walk month by month from startDate to now
+        // Default: current month only (safe fallback when start_date is missing)
+        const startDate = s.startDate
+          ? new Date(s.startDate)
+          : new Date(now.getFullYear(), now.getMonth(), 1);
         const cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
         while (cur <= now) {
           const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`;
-          monthlySalaryMap[key] = (monthlySalaryMap[key] || 0) + rate;
-          totalSalaryCost += rate;
+          const isCurrentMonth =
+            cur.getFullYear() === now.getFullYear() && cur.getMonth() === now.getMonth();
+          // Prorate the current month: only charge salary for days worked so far
+          const monthCost = isCurrentMonth
+            ? rate * (now.getDate() / new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate())
+            : rate;
+          monthlySalaryMap[key] = (monthlySalaryMap[key] || 0) + monthCost;
+          totalSalaryCost += monthCost;
           cur.setMonth(cur.getMonth() + 1);
         }
       }

@@ -1043,7 +1043,7 @@ function PnLTab() {
   }
 
   const {
-    totalRevenue, tmgRevenue, ggvRevenue, ggvListedTotal, ggvDeductionTotal, ggvJobCount,
+    totalRevenue, tmgRevenue, ggvRevenue, ggvJobCount,
     totalExpenses, totalReceiptExpenses, totalSalaryCost,
     netProfit, profitMargin, jobCount, avgJobRevenue,
     pendingExpenses, monthlyTrend, expensesByCategory,
@@ -1058,15 +1058,13 @@ function PnLTab() {
       {/* ── Row 1: Revenue KPIs ── */}
       <div>
         <SectionTitle>Revenue — All Time</SectionTitle>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <KpiCard label="Total Revenue" value={fmtSGD(totalRevenue)}
             sub="TMG jobs + GGV combined" icon={Wallet} color="text-emerald-500" />
           <KpiCard label="TMG Jobs" value={fmtSGD(tmgRevenue)}
             sub={`${jobCount} completed`} icon={Briefcase} color="text-blue-500" />
-          <KpiCard label="GoGoVan Revenue" value={fmtSGD(ggvRevenue)}
-            sub={`${ggvJobCount} GGV jobs (net after platform deductions)`} icon={TrendingUp} color="text-violet-500" />
-          <KpiCard label="GGV Deductions" value={fmtSGD(ggvDeductionTotal)}
-            sub={`Listed: ${fmtSGD(ggvListedTotal)}`} icon={TrendingDown} color="text-orange-500" />
+          <KpiCard label="GoGoVan Net Earnings" value={fmtSGD(ggvRevenue)}
+            sub={`${ggvJobCount} trips · net transport payout`} icon={TrendingUp} color="text-violet-500" />
         </div>
       </div>
 
@@ -1077,7 +1075,7 @@ function PnLTab() {
           <KpiCard label="Total Expenses" value={fmtSGD(totalExpenses)}
             sub="Salary + approved claims" icon={Receipt} color="text-red-500" />
           <KpiCard label="Staff Salary" value={fmtSGD(totalSalaryCost)}
-            sub="Hourly × hours logged + monthly rates" icon={Users} color="text-red-400" />
+            sub="Monthly salary (prorated) + hourly hours" icon={Users} color="text-red-400" />
           <KpiCard label="Receipts & Claims" value={fmtSGD(totalReceiptExpenses)}
             sub="Approved expense claims" icon={FileText} color="text-red-400" />
           <KpiCard label="Net Profit" value={fmtSGD(Math.abs(netProfit))}
@@ -1161,15 +1159,9 @@ function PnLTab() {
               <span className="text-sm font-bold text-emerald-600">{fmtSGD(tmgRevenue)}</span>
             </div>
             <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-violet-50">
-              <span className="text-xs font-medium text-zinc-700">GoGoVan Revenue (net)</span>
+              <span className="text-xs font-medium text-zinc-700">GoGoVan Net Earnings</span>
               <span className="text-sm font-bold text-violet-600">{fmtSGD(ggvRevenue)}</span>
             </div>
-            {ggvDeductionTotal > 0 && (
-              <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-orange-50">
-                <span className="text-xs font-medium text-zinc-600">GGV Platform Deductions</span>
-                <span className="text-sm font-bold text-orange-500">– {fmtSGD(ggvDeductionTotal)}</span>
-              </div>
-            )}
             <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-emerald-100">
               <span className="text-xs font-semibold text-zinc-700">= Total Revenue</span>
               <span className="text-sm font-bold text-emerald-700">{fmtSGD(totalRevenue)}</span>
@@ -1203,9 +1195,9 @@ function PnLTab() {
       </div>
 
       <p className="text-xs text-zinc-400 text-center pb-2">
-        TMG Revenue = completed/final-paid/closed job totals. GGV Revenue = actualPrice after GoGoVan platform deductions.
-        Staff Salary = actual hours logged × hourly/overtime rates (hourly staff) + monthly rates × employment duration (salaried staff).
-        Receipts = approved expense claims. Pending claims excluded until approved.
+        TMG Revenue = completed/final-paid/closed job totals. GoGoVan = net transport payout (actualPrice after GoGoVan platform fee).
+        Staff Salary = monthly rate × months employed (prorated for current month), or hours logged × hourly rate for hourly staff.
+        Receipts = approved expense claims only. Pending claims excluded until approved.
       </p>
     </div>
   );
