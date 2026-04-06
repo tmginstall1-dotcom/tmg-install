@@ -1,8 +1,8 @@
-// v4 — Added Web Push notification support for admin PWA.
+// v5 — Force cache refresh; fee label updated to Mobilisation & Coordination everywhere.
 // Service worker is disabled for the native Capacitor app (TMGStaffApp
 // user agent). It runs only in normal browsers for PWA offline support.
 
-const CACHE = 'tmg-v4';
+const CACHE = 'tmg-v5';
 
 const PRECACHE = [
   '/',
