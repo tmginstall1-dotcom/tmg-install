@@ -3063,7 +3063,10 @@ ${systemPrompt}` });
       const body = z.object({
         customerName:     z.string().min(1),
         customerPhone:    z.string().min(6),
+        customerEmail:    z.string().email().optional().nullable(),
         serviceAddress:   z.string().min(1),
+        dropoffAddress:   z.string().optional().nullable(),
+        isRelocation:     z.boolean().optional().default(false),
         scheduledDate:    z.string().optional().nullable(),
         timeWindow:       z.string().optional().nullable(),
         selectedServices: z.array(z.string()).optional().default([]),
@@ -3072,7 +3075,7 @@ ${systemPrompt}` });
         total:            z.string().optional().default("0"),
         depositAmount:    z.string().optional().default("0"),
         paymentStatus:    z.enum(["unpaid", "deposit_paid", "paid_in_full"]).optional().default("unpaid"),
-        sourceChannel:    z.string().optional().default("phone"),
+        sourceChannel:    z.string().optional().default("whatsapp"),
         items:            z.array(z.object({
           description: z.string().min(1),
           quantity:    z.number().int().positive().default(1),
@@ -3095,18 +3098,23 @@ ${systemPrompt}` });
       }, 0);
       const total = parseFloat(body.total || "0") || subtotal;
 
+      // Use real email if provided, otherwise use placeholder for WA-only customers
+      const customerEmail = body.customerEmail?.trim() || `${phone}@tmginstall.com`;
+
       const quote = await storage.createQuote(
         {
           name: body.customerName,
-          email: `${phone}@tmginstall.com`,
+          email: customerEmail,
           phone: body.customerPhone,
           companyName: undefined,
         },
         {
           referenceNo:         refNo,
           serviceAddress:      body.serviceAddress,
+          dropoffAddress:      body.dropoffAddress || undefined,
+          pickupAddress:       body.isRelocation ? body.serviceAddress : undefined,
           status:              "booked",
-          sourceChannel:       body.sourceChannel || "phone",
+          sourceChannel:       body.sourceChannel || "whatsapp",
           customerWhatsappPhone: phone,
           selectedServices:    body.selectedServices?.length ? JSON.stringify(body.selectedServices) : undefined,
           scheduledAt:         scheduledAt,

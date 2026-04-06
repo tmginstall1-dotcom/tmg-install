@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
-  User, Phone, MapPin, Calendar, Clock, Package, DollarSign,
+  User, MapPin, Calendar, Clock, Package,
   Plus, Trash2, CheckCircle2, ExternalLink, Sparkles, Upload,
   X, FileImage, AlertCircle, ChevronDown, ChevronUp,
+  ArrowRight, Truck, Wrench, Mail,
 } from "lucide-react";
 
 const SERVICE_OPTIONS = [
@@ -48,6 +49,8 @@ const CONFIDENCE_COLORS: Record<string, string> = {
   low:    "bg-red-50 text-red-700 border-red-200",
 };
 
+type JobType = "standard" | "relocation";
+
 type LineItem = { id: number; description: string; quantity: number; unitPrice: string; remark?: string | null; aiGenerated?: boolean };
 let _id = 1;
 const genId = () => _id++;
@@ -73,6 +76,26 @@ interface Props {
   onClose: () => void;
 }
 
+function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="px-6 py-4">
+      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+        {icon} {title}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export function CreateJobModal({ open, onClose }: Props) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -86,18 +109,40 @@ export function CreateJobModal({ open, onClose }: Props) {
   const [scanError, setScanError]       = useState<string | null>(null);
   const [scanCollapsed, setScanCollapsed] = useState(false);
 
-  // Form state
+  // Job type
+  const [jobType, setJobType] = useState<JobType>("standard");
+
+  // Customer state
   const [customerName, setCustomerName]       = useState("");
   const [customerPhone, setCustomerPhone]     = useState("");
+  const [customerEmail, setCustomerEmail]     = useState("");
+
+  // Address state
   const [serviceAddress, setServiceAddress]   = useState("");
+  const [dropoffAddress, setDropoffAddress]   = useState("");
+
+  // Relocation-specific
+  const [pickupFloor, setPickupFloor]         = useState("");
+  const [dropoffFloor, setDropoffFloor]       = useState("");
+  const [pickupLift, setPickupLift]           = useState<boolean | null>(null);
+  const [dropoffLift, setDropoffLift]         = useState<boolean | null>(null);
+  const [includeDismantle, setIncludeDismantle] = useState(false);
+  const [includeAssembly, setIncludeAssembly]   = useState(false);
+
+  // Schedule
   const [services, setServices]               = useState<string[]>([]);
   const [scheduledDate, setScheduledDate]     = useState("");
   const [timeWindow, setTimeWindow]           = useState("09:00-12:00");
+
+  // Items & pricing
   const [items, setItems]                     = useState<LineItem[]>([{ id: genId(), description: "", quantity: 1, unitPrice: "" }]);
   const [manualTotal, setManualTotal]         = useState("");
+  const [depositAmountInput, setDepositAmountInput] = useState("");
   const [paymentStatus, setPaymentStatus]     = useState("unpaid");
+
+  // Assignment & meta
   const [assignedStaffId, setAssignedStaffId] = useState<string>("");
-  const [sourceChannel, setSourceChannel]     = useState("phone");
+  const [sourceChannel, setSourceChannel]     = useState("whatsapp");
   const [notes, setNotes]                     = useState("");
   const [createdJob, setCreatedJob]           = useState<CreatedJob | null>(null);
 
@@ -110,7 +155,21 @@ export function CreateJobModal({ open, onClose }: Props) {
     return sum + (item.quantity * parseFloat(item.unitPrice || "0"));
   }, 0);
 
-  // ── AI Scan ────────────────────────────────────────────────────────────────
+  const isRelocation = jobType === "relocation";
+
+  // ── Job type switch ─────────────────────────────────────────────────────────
+  const handleJobTypeChange = (type: JobType) => {
+    setJobType(type);
+    if (type === "relocation") {
+      setSourceChannel(prev => prev);
+      // Auto-add Relocation to services if not already there
+      setServices(prev => prev.includes("Relocation") ? prev : [...prev, "Relocation"]);
+    } else {
+      setServices(prev => prev.filter(s => s !== "Relocation"));
+    }
+  };
+
+  // ── AI Scan ─────────────────────────────────────────────────────────────────
   const handleFileSelect = (file: File) => {
     const isImage = file.type.startsWith("image/");
     const isPdf   = file.type === "application/pdf";
@@ -126,8 +185,6 @@ export function CreateJobModal({ open, onClose }: Props) {
     setScanResult(null);
     setScanError(null);
     setScanCollapsed(false);
-
-    // Show thumbnail for images
     if (isImage) {
       const reader = new FileReader();
       reader.onload = e => setScanPreview(e.target?.result as string);
@@ -135,7 +192,6 @@ export function CreateJobModal({ open, onClose }: Props) {
     } else {
       setScanPreview(null);
     }
-    // Auto-trigger scan
     doScan(file);
   };
 
@@ -162,25 +218,17 @@ export function CreateJobModal({ open, onClose }: Props) {
     if (!scanResult) return;
     if (scanResult.items.length > 0) {
       setItems(scanResult.items.map(i => ({
-        id:           genId(),
-        description:  i.name,
-        quantity:     i.quantity,
-        unitPrice:    i.unitPrice,
-        remark:       i.remark || null,
-        aiGenerated:  true,
+        id: genId(), description: i.name, quantity: i.quantity,
+        unitPrice: i.unitPrice, remark: i.remark || null, aiGenerated: true,
       })));
     }
-    if (scanResult.address && !serviceAddress) {
-      setServiceAddress(scanResult.address);
-    }
-    if (scanResult.notes && !notes) {
-      setNotes(scanResult.notes);
-    }
+    if (scanResult.address && !serviceAddress) setServiceAddress(scanResult.address);
+    if (scanResult.notes && !notes) setNotes(scanResult.notes);
     setScanCollapsed(true);
-    toast({ title: "AI suggestions applied", description: `${scanResult.items.length} item${scanResult.items.length !== 1 ? "s" : ""} added to the quote.` });
+    toast({ title: "AI suggestions applied", description: `${scanResult.items.length} item${scanResult.items.length !== 1 ? "s" : ""} added.` });
   };
 
-  // ── Job creation ───────────────────────────────────────────────────────────
+  // ── Job creation ─────────────────────────────────────────────────────────────
   const createJob = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const res = await apiRequest("POST", "/api/admin/jobs/create", data);
@@ -199,21 +247,40 @@ export function CreateJobModal({ open, onClose }: Props) {
   const handleSubmit = () => {
     if (!customerName.trim()) return toast({ title: "Customer name required", variant: "destructive" });
     if (!customerPhone.trim()) return toast({ title: "Customer phone required", variant: "destructive" });
-    if (!serviceAddress.trim()) return toast({ title: "Service address required", variant: "destructive" });
+    if (!serviceAddress.trim()) return toast({ title: isRelocation ? "Pick-up address required" : "Service address required", variant: "destructive" });
+    if (isRelocation && !dropoffAddress.trim()) return toast({ title: "Drop-off address required", variant: "destructive" });
 
     const validItems = items.filter(i => i.description.trim());
+
+    // Build floor/access note for relocation
+    const accessLines: string[] = [];
+    if (isRelocation) {
+      if (pickupFloor) accessLines.push(`Pick-up: ${pickupFloor}${pickupLift !== null ? ` (lift: ${pickupLift ? "yes" : "no"})` : ""}`);
+      if (dropoffFloor) accessLines.push(`Drop-off: ${dropoffFloor}${dropoffLift !== null ? ` (lift: ${dropoffLift ? "yes" : "no"})` : ""}`);
+      if (includeDismantle) accessLines.push("Include dismantling at pick-up");
+      if (includeAssembly) accessLines.push("Include assembly at drop-off");
+    }
+    const combinedNotes = [
+      notes.trim(),
+      accessLines.length > 0 ? `Access info — ${accessLines.join("; ")}` : "",
+    ].filter(Boolean).join("\n");
 
     createJob.mutate({
       customerName:     customerName.trim(),
       customerPhone:    customerPhone.trim(),
+      customerEmail:    customerEmail.trim() || null,
       serviceAddress:   serviceAddress.trim(),
+      dropoffAddress:   isRelocation ? dropoffAddress.trim() : null,
+      isRelocation,
       scheduledDate:    scheduledDate || null,
       timeWindow:       scheduledDate ? timeWindow : null,
-      selectedServices: services,
-      notes:            notes.trim() || null,
+      selectedServices: isRelocation
+        ? ["Relocation", ...services.filter(s => s !== "Relocation")]
+        : services,
+      notes:            combinedNotes || null,
       assignedStaffId:  assignedStaffId ? parseInt(assignedStaffId) : null,
       total:            manualTotal || calculatedTotal.toFixed(2),
-      depositAmount:    "0",
+      depositAmount:    depositAmountInput || "0",
       paymentStatus,
       sourceChannel,
       items: validItems.map(i => ({
@@ -226,19 +293,20 @@ export function CreateJobModal({ open, onClose }: Props) {
   };
 
   const handleClose = () => {
-    if (createdJob) {
-      setCreatedJob(null);
-      resetForm();
-    }
+    if (createdJob) { setCreatedJob(null); resetForm(); }
     onClose();
   };
 
   const resetForm = () => {
-    setCustomerName(""); setCustomerPhone(""); setServiceAddress("");
+    setJobType("standard");
+    setCustomerName(""); setCustomerPhone(""); setCustomerEmail("");
+    setServiceAddress(""); setDropoffAddress("");
+    setPickupFloor(""); setDropoffFloor(""); setPickupLift(null); setDropoffLift(null);
+    setIncludeDismantle(false); setIncludeAssembly(false);
     setServices([]); setScheduledDate(""); setTimeWindow("09:00-12:00");
     setItems([{ id: genId(), description: "", quantity: 1, unitPrice: "" }]);
-    setManualTotal(""); setPaymentStatus("unpaid"); setAssignedStaffId("");
-    setSourceChannel("phone"); setNotes("");
+    setManualTotal(""); setDepositAmountInput(""); setPaymentStatus("unpaid"); setAssignedStaffId("");
+    setSourceChannel("whatsapp"); setNotes("");
     setScanFile(null); setScanPreview(null); setScanResult(null);
     setScanError(null); setScanning(false); setScanCollapsed(false);
   };
@@ -253,6 +321,30 @@ export function CreateJobModal({ open, onClose }: Props) {
     setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i));
   };
 
+  const LiftToggle = ({
+    value, onChange, label,
+  }: { value: boolean | null; onChange: (v: boolean) => void; label: string }) => (
+    <div>
+      <Label className="text-xs text-zinc-500 mb-1.5 block">{label}</Label>
+      <div className="flex gap-1.5">
+        {([true, false] as const).map(v => (
+          <button
+            key={String(v)}
+            type="button"
+            onClick={() => onChange(v)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              value === v
+                ? v ? "bg-green-600 text-white border-green-600" : "bg-red-500 text-white border-red-500"
+                : "bg-white text-zinc-500 border-zinc-200 hover:border-zinc-400"
+            }`}
+          >
+            {v ? "Yes" : "No"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={open ? handleClose : undefined}>
       <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto p-0 gap-0">
@@ -264,7 +356,7 @@ export function CreateJobModal({ open, onClose }: Props) {
             New Job
           </DialogTitle>
           <DialogDescription className="text-xs text-zinc-400 mt-1">
-            Log a job from any source — phone call, IKEA direct, referral, walk-in.
+            Log a job from any source — phone call, IKEA direct, referral, WhatsApp.
           </DialogDescription>
         </DialogHeader>
 
@@ -313,6 +405,45 @@ export function CreateJobModal({ open, onClose }: Props) {
           /* ── Form ─────────────────────────────────────────── */
           <div className="divide-y divide-zinc-100">
 
+            {/* ── Job Type ── */}
+            <div className="px-6 py-4">
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Job Type</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  data-testid="chip-jobtype-standard"
+                  onClick={() => handleJobTypeChange("standard")}
+                  className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                    !isRelocation
+                      ? "bg-black text-white border-black"
+                      : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
+                  }`}
+                >
+                  <Wrench className="w-4 h-4 shrink-0" />
+                  <div className="text-left">
+                    <div className="font-semibold">Installation / Service</div>
+                    <div className={`text-xs mt-0.5 ${!isRelocation ? "text-zinc-300" : "text-zinc-400"}`}>Assembly, wall mounting, etc.</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  data-testid="chip-jobtype-relocation"
+                  onClick={() => handleJobTypeChange("relocation")}
+                  className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                    isRelocation
+                      ? "bg-black text-white border-black"
+                      : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
+                  }`}
+                >
+                  <Truck className="w-4 h-4 shrink-0" />
+                  <div className="text-left">
+                    <div className="font-semibold">Relocation / Moving</div>
+                    <div className={`text-xs mt-0.5 ${isRelocation ? "text-zinc-300" : "text-zinc-400"}`}>Pickup → delivery, with/without D&R</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {/* ── AI Floor Plan / Photo Scan ── */}
             <div className="px-6 py-4">
               <div className="flex items-center justify-between mb-3">
@@ -331,23 +462,16 @@ export function CreateJobModal({ open, onClose }: Props) {
                 )}
               </div>
 
-              {/* Drop zone */}
               {!scanFile && (
                 <div
                   data-testid="scan-dropzone"
                   onClick={() => fileInputRef.current?.click()}
-                  onDragOver={e => { e.preventDefault(); }}
-                  onDrop={e => {
-                    e.preventDefault();
-                    const file = e.dataTransfer.files[0];
-                    if (file) handleFileSelect(file);
-                  }}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleFileSelect(file); }}
                   className="border-2 border-dashed border-zinc-200 rounded-xl p-6 text-center cursor-pointer hover:border-violet-300 hover:bg-violet-50/40 transition-all group"
                 >
                   <Upload className="w-7 h-7 mx-auto mb-2 text-zinc-300 group-hover:text-violet-400 transition-colors" />
-                  <p className="text-sm font-medium text-zinc-500 group-hover:text-violet-600">
-                    Upload floor plan, delivery order, or furniture photo
-                  </p>
+                  <p className="text-sm font-medium text-zinc-500 group-hover:text-violet-600">Upload floor plan, delivery order, or furniture photo</p>
                   <p className="text-xs text-zinc-400 mt-1">JPG, PNG, WEBP, PDF · Max 10 MB</p>
                   <input
                     ref={fileInputRef}
@@ -360,10 +484,8 @@ export function CreateJobModal({ open, onClose }: Props) {
                 </div>
               )}
 
-              {/* File selected — preview + scan results */}
               {scanFile && !scanCollapsed && (
                 <div className="space-y-3">
-                  {/* File pill + remove */}
                   <div className="flex items-center gap-3">
                     {scanPreview ? (
                       <img src={scanPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-zinc-200 shrink-0" />
@@ -384,16 +506,12 @@ export function CreateJobModal({ open, onClose }: Props) {
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-
-                  {/* Scanning indicator */}
                   {scanning && (
                     <div className="flex items-center gap-2 px-3 py-2.5 bg-violet-50 border border-violet-100 rounded-lg">
                       <div className="w-4 h-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin shrink-0" />
                       <span className="text-sm text-violet-700 font-medium">AI is analyzing your document…</span>
                     </div>
                   )}
-
-                  {/* Scan error */}
                   {scanError && !scanning && (
                     <div className="flex items-start gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-lg">
                       <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
@@ -404,8 +522,6 @@ export function CreateJobModal({ open, onClose }: Props) {
                       </div>
                     </div>
                   )}
-
-                  {/* Scan results */}
                   {scanResult && !scanning && (
                     <div className="border border-zinc-200 rounded-xl overflow-hidden">
                       <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-50 border-b border-zinc-100">
@@ -416,17 +532,10 @@ export function CreateJobModal({ open, onClose }: Props) {
                             {scanResult.confidence} confidence
                           </span>
                         </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          data-testid="button-apply-scan"
-                          onClick={applyScanResult}
-                          className="h-7 px-3 text-xs bg-violet-600 hover:bg-violet-700 text-white gap-1"
-                        >
+                        <Button type="button" size="sm" data-testid="button-apply-scan" onClick={applyScanResult} className="h-7 px-3 text-xs bg-violet-600 hover:bg-violet-700 text-white gap-1">
                           <Plus className="w-3 h-3" /> Apply to Quote
                         </Button>
                       </div>
-
                       <div className="divide-y divide-zinc-50 max-h-48 overflow-y-auto">
                         {scanResult.items.map((item, idx) => (
                           <div key={idx} className="flex items-center justify-between px-4 py-2.5 text-sm">
@@ -436,15 +545,10 @@ export function CreateJobModal({ open, onClose }: Props) {
                           </div>
                         ))}
                       </div>
-
                       {(scanResult.address || scanResult.notes) && (
                         <div className="px-4 py-2.5 bg-blue-50 border-t border-blue-100 space-y-1">
-                          {scanResult.address && (
-                            <p className="text-xs text-blue-700"><span className="font-semibold">Address: </span>{scanResult.address}</p>
-                          )}
-                          {scanResult.notes && (
-                            <p className="text-xs text-blue-600"><span className="font-semibold">Notes: </span>{scanResult.notes}</p>
-                          )}
+                          {scanResult.address && <p className="text-xs text-blue-700"><span className="font-semibold">Address: </span>{scanResult.address}</p>}
+                          {scanResult.notes && <p className="text-xs text-blue-600"><span className="font-semibold">Notes: </span>{scanResult.notes}</p>}
                         </div>
                       )}
                     </div>
@@ -452,7 +556,6 @@ export function CreateJobModal({ open, onClose }: Props) {
                 </div>
               )}
 
-              {/* Collapsed summary */}
               {scanFile && scanCollapsed && scanResult && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-lg border border-violet-100">
                   <Sparkles className="w-3.5 h-3.5 text-violet-500 shrink-0" />
@@ -463,72 +566,192 @@ export function CreateJobModal({ open, onClose }: Props) {
               )}
             </div>
 
-            {/* Customer */}
+            {/* ── Customer ── */}
             <Section icon={<User className="w-4 h-4 text-zinc-500" />} title="Customer">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs text-zinc-500 mb-1.5 block">Name *</Label>
-                  <Input
-                    data-testid="input-customer-name"
-                    value={customerName}
-                    onChange={e => setCustomerName(e.target.value)}
-                    placeholder="e.g. John Tan"
-                    className="h-9 text-sm border-zinc-300"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-zinc-500 mb-1.5 block">Phone * (SG)</Label>
-                  <div className="flex">
-                    <span className="inline-flex items-center px-3 h-9 border border-r-0 border-zinc-300 rounded-l-md bg-zinc-50 text-sm text-zinc-500">+65</span>
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1.5 block">Name *</Label>
                     <Input
-                      data-testid="input-customer-phone"
-                      value={customerPhone}
-                      onChange={e => setCustomerPhone(e.target.value)}
-                      placeholder="9123 4567"
-                      className="h-9 text-sm border-zinc-300 rounded-l-none"
+                      data-testid="input-customer-name"
+                      value={customerName}
+                      onChange={e => setCustomerName(e.target.value)}
+                      placeholder="e.g. Ahmad bin Ismail"
+                      className="h-9 text-sm border-zinc-300"
                     />
                   </div>
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1.5 block">WhatsApp / Phone * (SG)</Label>
+                    <div className="flex">
+                      <span className="inline-flex items-center px-3 h-9 border border-r-0 border-zinc-300 rounded-l-md bg-zinc-50 text-sm text-zinc-500">+65</span>
+                      <Input
+                        data-testid="input-customer-phone"
+                        value={customerPhone}
+                        onChange={e => setCustomerPhone(e.target.value)}
+                        placeholder="9123 4567"
+                        className="h-9 text-sm border-zinc-300 rounded-l-none"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </Section>
-
-            {/* Job details */}
-            <Section icon={<MapPin className="w-4 h-4 text-zinc-500" />} title="Job Details">
-              <div className="space-y-3">
                 <div>
-                  <Label className="text-xs text-zinc-500 mb-1.5 block">Service Address *</Label>
+                  <Label className="text-xs text-zinc-500 mb-1.5 block">
+                    <Mail className="w-3 h-3 inline mr-1" />
+                    Email (optional — for email confirmations)
+                  </Label>
                   <Input
-                    data-testid="input-service-address"
-                    value={serviceAddress}
-                    onChange={e => setServiceAddress(e.target.value)}
-                    placeholder="Blk 123 Tampines St 86, #04-56, Singapore 520123"
+                    data-testid="input-customer-email"
+                    type="email"
+                    value={customerEmail}
+                    onChange={e => setCustomerEmail(e.target.value)}
+                    placeholder="customer@email.com"
                     className="h-9 text-sm border-zinc-300"
                   />
                 </div>
-                <div>
-                  <Label className="text-xs text-zinc-500 mb-1.5 block">Services</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {SERVICE_OPTIONS.map(s => (
-                      <button
-                        key={s}
-                        type="button"
-                        data-testid={`chip-service-${s.toLowerCase().replace(/\W/g, "-")}`}
-                        onClick={() => toggleService(s)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                          services.includes(s)
-                            ? "bg-black text-white border-black"
-                            : "bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400"
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
             </Section>
 
-            {/* Schedule */}
+            {/* ── Address ── */}
+            <Section icon={<MapPin className="w-4 h-4 text-zinc-500" />} title={isRelocation ? "Locations" : "Job Address"}>
+              {isRelocation ? (
+                <div className="space-y-4">
+                  {/* Pickup */}
+                  <div className="rounded-xl border border-zinc-200 p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                        <span className="text-[10px] font-bold text-blue-600">A</span>
+                      </div>
+                      <span className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">Pick-up Address</span>
+                    </div>
+                    <div>
+                      <Input
+                        data-testid="input-service-address"
+                        value={serviceAddress}
+                        onChange={e => setServiceAddress(e.target.value)}
+                        placeholder="Blk 123 Tampines St 86, #04-56, Singapore 520123"
+                        className="h-9 text-sm border-zinc-300"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-zinc-500 mb-1.5 block">Floor / Unit</Label>
+                        <Input
+                          data-testid="input-pickup-floor"
+                          value={pickupFloor}
+                          onChange={e => setPickupFloor(e.target.value)}
+                          placeholder="e.g. #04-56"
+                          className="h-9 text-sm border-zinc-300"
+                        />
+                      </div>
+                      <LiftToggle value={pickupLift} onChange={setPickupLift} label="Lift Available?" />
+                    </div>
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="flex items-center justify-center">
+                    <div className="flex items-center gap-2 text-zinc-400">
+                      <div className="h-px flex-1 bg-zinc-200 w-16" />
+                      <ArrowRight className="w-4 h-4" />
+                      <div className="h-px flex-1 bg-zinc-200 w-16" />
+                    </div>
+                  </div>
+
+                  {/* Dropoff */}
+                  <div className="rounded-xl border border-zinc-200 p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                        <span className="text-[10px] font-bold text-green-600">B</span>
+                      </div>
+                      <span className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">Drop-off Address</span>
+                    </div>
+                    <div>
+                      <Input
+                        data-testid="input-dropoff-address"
+                        value={dropoffAddress}
+                        onChange={e => setDropoffAddress(e.target.value)}
+                        placeholder="Blk 456 Jurong West Ave 3, #12-88, Singapore 640456"
+                        className="h-9 text-sm border-zinc-300"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-zinc-500 mb-1.5 block">Floor / Unit</Label>
+                        <Input
+                          data-testid="input-dropoff-floor"
+                          value={dropoffFloor}
+                          onChange={e => setDropoffFloor(e.target.value)}
+                          placeholder="e.g. #12-88"
+                          className="h-9 text-sm border-zinc-300"
+                        />
+                      </div>
+                      <LiftToggle value={dropoffLift} onChange={setDropoffLift} label="Lift Available?" />
+                    </div>
+                  </div>
+
+                  {/* Relocation scope */}
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-2 block">Additional Services Included</Label>
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        data-testid="chip-include-dismantle"
+                        onClick={() => setIncludeDismantle(v => !v)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                          includeDismantle ? "bg-black text-white border-black" : "bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400"
+                        }`}
+                      >
+                        Dismantle at pick-up
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="chip-include-assembly"
+                        onClick={() => setIncludeAssembly(v => !v)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                          includeAssembly ? "bg-black text-white border-black" : "bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400"
+                        }`}
+                      >
+                        Assembly at drop-off
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1.5 block">Service Address *</Label>
+                    <Input
+                      data-testid="input-service-address"
+                      value={serviceAddress}
+                      onChange={e => setServiceAddress(e.target.value)}
+                      placeholder="Blk 123 Tampines St 86, #04-56, Singapore 520123"
+                      className="h-9 text-sm border-zinc-300"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1.5 block">Services</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {SERVICE_OPTIONS.map(s => (
+                        <button
+                          key={s}
+                          type="button"
+                          data-testid={`chip-service-${s.toLowerCase().replace(/\W/g, "-")}`}
+                          onClick={() => toggleService(s)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                            services.includes(s)
+                              ? "bg-black text-white border-black"
+                              : "bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400"
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Section>
+
+            {/* ── Schedule ── */}
             <Section icon={<Calendar className="w-4 h-4 text-zinc-500" />} title="Schedule">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -558,7 +781,7 @@ export function CreateJobModal({ open, onClose }: Props) {
               </div>
             </Section>
 
-            {/* Line items */}
+            {/* ── Items & Pricing ── */}
             <Section icon={<Package className="w-4 h-4 text-zinc-500" />} title="Items & Pricing">
               <div className="space-y-2">
                 {items.map((item, idx) => (
@@ -571,14 +794,13 @@ export function CreateJobModal({ open, onClose }: Props) {
                         data-testid={`input-item-description-${idx}`}
                         value={item.description}
                         onChange={e => updateItem(item.id, "description", e.target.value)}
-                        placeholder="e.g. IKEA Kallax shelf assembly"
+                        placeholder={isRelocation ? "e.g. 3-seater sofa relocation" : "e.g. IKEA Kallax shelf assembly"}
                         className={`h-9 text-sm border-zinc-300 ${item.aiGenerated ? "pl-8" : ""}`}
                       />
                     </div>
                     <Input
                       data-testid={`input-item-qty-${idx}`}
-                      type="number"
-                      min={1}
+                      type="number" min={1}
                       value={item.quantity}
                       onChange={e => updateItem(item.id, "quantity", parseInt(e.target.value) || 1)}
                       className="h-9 w-16 text-sm border-zinc-300 text-center"
@@ -587,9 +809,7 @@ export function CreateJobModal({ open, onClose }: Props) {
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400">$</span>
                       <Input
                         data-testid={`input-item-price-${idx}`}
-                        type="number"
-                        min={0}
-                        step={0.01}
+                        type="number" min={0} step={0.01}
                         value={item.unitPrice}
                         onChange={e => updateItem(item.id, "unitPrice", e.target.value)}
                         placeholder="0"
@@ -620,17 +840,13 @@ export function CreateJobModal({ open, onClose }: Props) {
                 <div>
                   <Label className="text-xs text-zinc-500 mb-1.5 block">
                     Total (S$)
-                    {calculatedTotal > 0 && (
-                      <span className="ml-1 text-zinc-400">— auto: ${calculatedTotal.toFixed(2)}</span>
-                    )}
+                    {calculatedTotal > 0 && <span className="ml-1 text-zinc-400">auto: ${calculatedTotal.toFixed(2)}</span>}
                   </Label>
                   <div className="relative">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400">$</span>
                     <Input
                       data-testid="input-total"
-                      type="number"
-                      min={0}
-                      step={0.01}
+                      type="number" min={0} step={0.01}
                       value={manualTotal}
                       onChange={e => setManualTotal(e.target.value)}
                       placeholder={calculatedTotal > 0 ? calculatedTotal.toFixed(2) : "0.00"}
@@ -638,16 +854,30 @@ export function CreateJobModal({ open, onClose }: Props) {
                     />
                   </div>
                 </div>
-                <div className="sm:col-span-2">
+                <div>
+                  <Label className="text-xs text-zinc-500 mb-1.5 block">Deposit Amount (S$)</Label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400">$</span>
+                    <Input
+                      data-testid="input-deposit-amount"
+                      type="number" min={0} step={0.01}
+                      value={depositAmountInput}
+                      onChange={e => setDepositAmountInput(e.target.value)}
+                      placeholder="0.00"
+                      className="h-9 pl-6 text-sm border-zinc-300"
+                    />
+                  </div>
+                </div>
+                <div>
                   <Label className="text-xs text-zinc-500 mb-1.5 block">Payment Status</Label>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-1.5 flex-wrap">
                     {PAYMENT_OPTIONS.map(opt => (
                       <button
                         key={opt.value}
                         type="button"
                         data-testid={`chip-payment-${opt.value}`}
                         onClick={() => setPaymentStatus(opt.value)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        className={`px-2.5 py-1.5 rounded-full text-xs font-medium border transition-all ${
                           paymentStatus === opt.value
                             ? "bg-black text-white border-black"
                             : "bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400"
@@ -661,7 +891,7 @@ export function CreateJobModal({ open, onClose }: Props) {
               </div>
             </Section>
 
-            {/* Assignment */}
+            {/* ── Staff Assignment ── */}
             <Section icon={<User className="w-4 h-4 text-zinc-500" />} title="Staff Assignment">
               <div>
                 <Label className="text-xs text-zinc-500 mb-1.5 block">Assign to (optional)</Label>
@@ -679,7 +909,7 @@ export function CreateJobModal({ open, onClose }: Props) {
               </div>
             </Section>
 
-            {/* Source & Notes */}
+            {/* ── Source & Notes ── */}
             <Section icon={<Clock className="w-4 h-4 text-zinc-500" />} title="Source & Notes">
               <div className="space-y-3">
                 <div>
@@ -708,69 +938,42 @@ export function CreateJobModal({ open, onClose }: Props) {
                     data-testid="input-notes"
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
-                    placeholder="e.g. Customer prefers morning, has lift access, 3rd floor..."
-                    rows={2}
+                    placeholder={isRelocation
+                      ? "e.g. Fragile antique furniture, wrap carefully. Customer will be present."
+                      : "e.g. Customer prefers morning, has lift access, 3rd floor..."}
                     className="text-sm border-zinc-300 resize-none"
+                    rows={3}
                   />
                 </div>
               </div>
             </Section>
 
-            {/* Footer actions */}
-            <div className="px-6 py-4 flex items-center justify-end gap-3 bg-zinc-50/50">
-              <Button
-                variant="outline"
-                data-testid="button-cancel-create-job"
+            {/* ── Footer ── */}
+            <div className="px-6 py-4 flex items-center justify-between gap-3 bg-zinc-50/60 rounded-b-xl">
+              <button
+                type="button"
                 onClick={handleClose}
-                className="h-9 px-4 text-sm"
+                className="text-sm text-zinc-500 hover:text-zinc-700 font-medium"
               >
                 Cancel
-              </Button>
+              </button>
               <Button
-                data-testid="button-submit-create-job"
+                data-testid="button-create-job"
                 onClick={handleSubmit}
                 disabled={createJob.isPending}
-                className="h-9 px-5 text-sm bg-black hover:bg-zinc-800 text-white"
+                className="bg-black hover:bg-zinc-800 text-white text-sm px-6 gap-2"
               >
-                {createJob.isPending ? "Creating…" : "Create Job"}
+                {createJob.isPending ? (
+                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Creating…</>
+                ) : (
+                  <><Plus className="w-4 h-4" /> Create {isRelocation ? "Relocation" : "Job"}</>
+                )}
               </Button>
             </div>
+
           </div>
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Strip the data URL prefix to get pure base64
-      const base64 = result.split(",")[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-function Section({
-  icon, title, children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="px-6 py-4">
-      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-        {icon} {title}
-      </p>
-      {children}
-    </div>
   );
 }
