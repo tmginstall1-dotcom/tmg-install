@@ -359,7 +359,7 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     if (transportFee > 0) surchargeLines.push(`• Transport fee — SGD $${transportFee.toFixed(0)}`);
 
     const calloutFee = session.isRelocation ? 0 : PricingConfig.callout.fee;
-    if (calloutFee > 0) surchargeLines.push(`• Site visit & coordination — SGD $${calloutFee.toFixed(0)}`);
+    if (calloutFee > 0) surchargeLines.push(`• Mobilisation & coordination — SGD $${calloutFee.toFixed(0)}`);
 
     const grandTotal = laborTotal + floorSurcharge + accessSurcharge + transportFee + calloutFee;
     const deposit = grandTotal * 0.5;
@@ -483,6 +483,7 @@ Typical item pricing (per item, SGD):
 - Chest of drawers / dresser: $65–80 install
 - Mattress disposal: $80–100
 - All prices per item; $60 mobilisation & coordination fee applies to all non-relocation jobs; no GST
+- Mobilisation & coordination fee explained: flat $60 on installation/dismantling jobs (not on relocation). Covers crew transport to site, dispatch logistics, and job coordination. It is a crew mobilisation charge — there is NO pre-visit or site inspection. The crew comes once on the job day only.
 
 Process / how it works:
 1. Customer tells us what they need → we prepare a confirmed quote
@@ -3244,8 +3245,8 @@ ${systemPrompt}` });
       const calloutFeeAdj = hasRelocation ? 0 : PricingConfig.callout.fee;
       if (calloutFeeAdj > 0) {
         aiParsedItems.push({
-          originalDescription: "Callout / Site Visit",
-          detectedName: "Callout / Site Visit",
+          originalDescription: "Mobilisation & Coordination",
+          detectedName: "Mobilisation & Coordination",
           serviceType: "surcharge",
           quantity: 1,
           unitPrice: calloutFeeAdj.toFixed(2),
@@ -5862,8 +5863,8 @@ Return ONLY valid JSON.`,
         const calloutFeeWA = session.isRelocation ? 0 : PricingConfig.callout.fee;
         if (calloutFeeWA > 0) {
           quoteItems.push({
-            originalDescription: "Callout / Site Visit",
-            detectedName: "Callout / Site Visit",
+            originalDescription: "Mobilisation & Coordination",
+            detectedName: "Mobilisation & Coordination",
             serviceType: "surcharge",
             quantity: 1,
             unitPrice: calloutFeeWA.toFixed(2),
@@ -5992,6 +5993,7 @@ Return ONLY valid JSON.`,
 COMPANY INFO:
 - Services: furniture installation, dismantling, and relocation across all of Singapore
 - Pricing: from SGD 80/item; $60 mobilisation & coordination fee on all non-relocation jobs; relocation adds transport fee
+- Mobilisation & coordination fee: a flat $60 added to all installation and dismantling jobs (not relocation). It covers the crew's transport to your location, crew dispatch logistics, and job coordination. It is essentially the crew mobilisation charge — NOT a pre-visit or site inspection fee. There is no separate pre-visit; the crew comes once on the job day.
 - Coverage: HDB flats, condos, landed property, commercial/offices — all of Singapore
 - Payment: 50% deposit (PayNow/bank transfer/card), 50% balance on job completion
 - Typical turnaround: quote within 1 business day, job booked after deposit confirmed
@@ -7247,7 +7249,7 @@ Respond directly — no JSON, just the message text.`,
     // ── Callout fee (non-relocation jobs) ────────────────────────────────────
     const calloutFeeAdmin = session.isRelocation ? 0 : PricingConfig.callout.fee;
     if (calloutFeeAdmin > 0) {
-      quoteItems.push({ originalDescription: "Callout / Site Visit", detectedName: "Callout / Site Visit", serviceType: "surcharge", quantity: 1, unitPrice: calloutFeeAdmin.toFixed(2), subtotal: calloutFeeAdmin.toFixed(2), catalogItemId: undefined });
+      quoteItems.push({ originalDescription: "Mobilisation & Coordination", detectedName: "Mobilisation & Coordination", serviceType: "surcharge", quantity: 1, unitPrice: calloutFeeAdmin.toFixed(2), subtotal: calloutFeeAdmin.toFixed(2), catalogItemId: undefined });
     }
 
     const laborTotalWithSurcharges = laborSubtotalAdmin + floorSurcharge + accessSurcharge;
