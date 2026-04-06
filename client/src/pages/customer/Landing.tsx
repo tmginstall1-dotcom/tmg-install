@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { PricingConfig } from "@shared/pricing";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
 import { useSEO } from "@/hooks/use-seo";
 import {
@@ -32,6 +32,7 @@ import {
   Users,
   Receipt,
   Globe,
+  ChevronDown
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -277,7 +278,7 @@ function MagneticButton({
     <motion.div
       ref={ref}
       /* flex on mobile → fills full width in flex-col; inline-flex on sm+ */
-      className={`flex sm:inline-flex ${className}`}
+      className={`flex sm:inline-flex w-full sm:w-auto ${className}`}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       animate={{ x: offset.x, y: offset.y }}
@@ -294,48 +295,48 @@ function TrustStripAnimated() {
   const c7 = useCountUp(7, 900);
 
   return (
-    <section className="border-b border-white/8 px-4 sm:px-6 lg:px-8 py-14 relative overflow-hidden">
+    <section className="border-b border-white/8 px-4 sm:px-6 lg:px-8 py-14 sm:py-20 relative overflow-hidden">
       {/* Subtle amber shimmer rule at top */}
       <div className="absolute top-0 left-8 right-8 amber-shimmer-line opacity-50" />
       {/* Subtle amber orb centre */}
       <div className="ambient-orb" style={{ left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: "600px", height: "200px", background: "radial-gradient(ellipse at 50% 50%, rgba(251,191,36,0.06) 0%, transparent 70%)" }} />
       <div className="max-w-6xl mx-auto relative">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 sm:gap-0 sm:divide-x sm:divide-white/10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 md:gap-0 md:divide-x md:divide-white/10">
           {/* 250+ */}
-          <div className="sm:px-8 first:pl-0 flex flex-col gap-1.5">
+          <div className="md:px-8 first:pl-0 flex flex-col gap-1.5 items-center md:items-start text-center md:text-left">
             <div className="flex items-baseline gap-1">
               <span ref={c250.ref} className="stat-display text-amber-gradient">{c250.count}</span>
               <span className="font-heading font-bold text-2xl leading-none text-amber-400/60">+</span>
             </div>
             <p className="text-xs font-bold text-white tracking-wide uppercase" style={{ letterSpacing: "0.06em" }}>Items in Catalog</p>
-            <p className="text-[11px] text-white/35 font-body">Fixed price, zero surprises</p>
+            <p className="text-[11px] text-white/40 font-body">Fixed price, zero surprises</p>
           </div>
           {/* 60s */}
-          <div className="sm:px-8 flex flex-col gap-1.5">
+          <div className="md:px-8 flex flex-col gap-1.5 items-center md:items-start text-center md:text-left">
             <div className="flex items-baseline gap-1">
               <span ref={c60.ref} className="stat-display text-amber-gradient">{c60.count}</span>
               <span className="font-heading font-bold text-xl leading-none text-amber-400/60">s</span>
             </div>
             <p className="text-xs font-bold text-white tracking-wide uppercase" style={{ letterSpacing: "0.06em" }}>Quote Time</p>
-            <p className="text-[11px] text-white/35 font-body">No calls, no waiting</p>
+            <p className="text-[11px] text-white/40 font-body">No calls, no waiting</p>
           </div>
           {/* 7× */}
-          <div className="sm:px-8 flex flex-col gap-1.5">
+          <div className="md:px-8 flex flex-col gap-1.5 items-center md:items-start text-center md:text-left">
             <div className="flex items-baseline gap-1">
               <span ref={c7.ref} className="stat-display text-amber-gradient">{c7.count}</span>
               <span className="font-heading font-bold text-xl leading-none text-amber-400/60">×/wk</span>
             </div>
             <p className="text-xs font-bold text-white tracking-wide uppercase" style={{ letterSpacing: "0.06em" }}>Days Available</p>
-            <p className="text-[11px] text-white/35 font-body">Weekends &amp; public holidays</p>
+            <p className="text-[11px] text-white/40 font-body">Weekends &amp; holidays</p>
           </div>
           {/* 5★ */}
-          <div className="sm:px-8 last:pr-0 flex flex-col gap-1.5">
+          <div className="md:px-8 last:pr-0 flex flex-col gap-1.5 items-center md:items-start text-center md:text-left">
             <div className="flex items-baseline gap-1">
               <span className="stat-display text-amber-gradient">5</span>
               <span className="font-heading font-bold text-2xl leading-none text-amber-400/60">★</span>
             </div>
             <p className="text-xs font-bold text-white tracking-wide uppercase" style={{ letterSpacing: "0.06em" }}>Google Rating</p>
-            <p className="text-[11px] text-white/35 font-body">ACRA Reg · UEN 202424156H</p>
+            <p className="text-[11px] text-white/40 font-body">ACRA Reg · UEN 202424156H</p>
           </div>
         </div>
       </div>
@@ -346,33 +347,38 @@ function TrustStripAnimated() {
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className={`border-b transition-colors duration-300 ${open ? "border-amber-400/20" : "border-white/10"}`}>
+    <div className={`border-b transition-colors duration-300 ${open ? "border-amber-400/30" : "border-white/10 hover:border-white/20"}`}>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between py-5 text-left group"
+        className="w-full flex items-start justify-between py-6 sm:py-8 text-left group outline-none"
         data-testid={`faq-toggle-${q.slice(0, 20).toLowerCase().replace(/\s+/g, "-")}`}
       >
-        <span className={`text-sm font-semibold pr-6 leading-snug transition-colors duration-200 ${open ? "text-white" : "text-white/75 group-hover:text-white"}`}>
+        <span className={`text-base sm:text-lg font-semibold pr-8 leading-snug transition-colors duration-200 ${open ? "text-amber-400" : "text-white/80 group-hover:text-white"}`}>
           {q}
         </span>
         <motion.span
-          className={`flex-shrink-0 w-7 h-7 flex items-center justify-center border transition-all duration-300 ${open ? "border-amber-400/50 bg-amber-400/12 rotate-0" : "border-white/15 group-hover:border-white/35"}`}
+          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-300 mt-0.5 ${open ? "bg-amber-400/10" : "bg-white/5 group-hover:bg-white/10"}`}
           animate={{ rotate: open ? 45 : 0 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
         >
-          {open ? <Minus className="w-3 h-3 text-amber-400" /> : <Plus className="w-3 h-3 text-white/55" />}
+          {open ? <Plus className="w-4 h-4 text-amber-400" /> : <Plus className="w-4 h-4 text-white/60" />}
         </motion.span>
       </button>
-      <motion.div
-        initial={false}
-        animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }}
-        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-        style={{ overflow: "hidden" }}
-      >
-        <div className="pb-6 pr-10">
-          <p className="font-body text-sm text-white/60 leading-relaxed">{a}</p>
-        </div>
-      </motion.div>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            style={{ overflow: "hidden" }}
+          >
+            <div className="pb-8 pr-12">
+              <p className="font-body text-base sm:text-lg text-white/60 leading-relaxed">{a}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -579,7 +585,7 @@ export default function Landing() {
       />
 
       {/* ═══════════════════════════ HERO ═══════════════════════════ */}
-      <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-24 pb-32 lg:pt-36 lg:pb-52">
+      <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-24 sm:pb-32 lg:pt-36 lg:pb-52">
         <div className="absolute inset-0 pointer-events-none select-none">
           {/* subtle vignette top */}
           <div className="absolute top-0 inset-x-0 h-40 opacity-60"
@@ -594,126 +600,125 @@ export default function Landing() {
             style={{ background: "linear-gradient(to bottom, transparent 0%, rgba(0,0,4,0.7) 100%)" }} />
         </div>
 
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
             {/* ── LEFT: Copy ── */}
-            <motion.div {...fadeUp}>
+            <motion.div {...fadeUp} className="max-w-xl mx-auto lg:mx-0 text-center lg:text-left">
               {/* Language toggle + Premium badge pill */}
-              <div className="flex items-center gap-3 mb-6 flex-wrap">
+              <div className="flex items-center justify-center lg:justify-start gap-3 mb-6 sm:mb-8 flex-wrap">
                 <div className="hero-badge-pill">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                  <Zap className="w-3 h-3 text-amber-400 flex-shrink-0" />
-                  <span className="text-[10px] font-black tracking-[0.16em] text-amber-300 uppercase">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-black tracking-[0.16em] text-amber-300 uppercase">
                     {t.badge}
                   </span>
                 </div>
                 <button
                   onClick={switchLang}
                   data-testid="button-lang-toggle"
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/20 bg-white/10 hover:bg-white/20 transition-colors text-[11px] font-bold text-white/80 hover:text-white backdrop-blur-sm"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/20 bg-white/10 hover:bg-white/20 transition-colors text-xs font-bold text-white/80 hover:text-white backdrop-blur-sm"
                   title={lang === "en" ? "切换到中文" : "Switch to English"}
                 >
-                  <Globe className="w-3 h-3" />
+                  <Globe className="w-3.5 h-3.5" />
                   {lang === "en" ? "中文" : "EN"}
                 </button>
               </div>
 
               {/* Amber accent line */}
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-[3px] bg-amber-400" />
-                <div className="w-3 h-[3px] bg-amber-400/40" />
+              <div className="hidden lg:flex items-center gap-3 mb-6">
+                <div className="w-12 h-1 bg-amber-400" />
+                <div className="w-4 h-1 bg-amber-400/40" />
               </div>
 
-              <h1 className="hero-title text-gradient-warm mb-7">
+              <h1 className="hero-title text-gradient-warm mb-6 sm:mb-8 tracking-tighter">
                 {lang === "cn"
                   ? <>{t.h1a}<br />{t.h1b}<br />{t.h1c}</>
                   : <>Installation,<br />Dismantling &amp;<br />Relocation.</>}
               </h1>
 
-              <p className="font-body text-base sm:text-lg text-white/55 mb-10 leading-relaxed max-w-md">
+              <p className="font-body text-base sm:text-xl text-white/70 mb-10 sm:mb-12 leading-relaxed max-w-lg mx-auto lg:mx-0">
                 {t.sub}
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-3">
-                <MagneticButton>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <MagneticButton className="w-full sm:w-auto">
                   <Link
                     href="/estimate"
                     data-testid="hero-cta-guided"
                     onClick={() => trackEvent("cta_click", "/", "hero_get_estimate")}
-                    className="group flex w-full sm:inline-flex items-center justify-center gap-2.5 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn"
+                    className="group flex w-full items-center justify-center gap-3 px-8 sm:px-10 py-5 sm:py-4 bg-amber-400 text-black font-black text-sm sm:text-xs uppercase tracking-[0.15em] hover:bg-amber-300 amber-glow-btn rounded-none"
                   >
-                    {t.cta1} <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+                    {t.cta1} <ArrowRight className="w-5 h-5 sm:w-4 sm:h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Link>
                 </MagneticButton>
-                <MagneticButton>
+                <MagneticButton className="w-full sm:w-auto">
                   <a
                     href={WHATSAPP}
                     target="_blank"
                     rel="noopener noreferrer"
                     data-testid="hero-cta-whatsapp"
                     onClick={() => trackEvent("cta_click", "/", "hero_whatsapp")}
-                    className="flex w-full sm:inline-flex items-center justify-center gap-2 px-8 py-4 border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/50 hover:bg-white/10 transition-all backdrop-blur-sm"
+                    className="flex w-full items-center justify-center gap-2 px-8 sm:px-10 py-5 sm:py-4 border-2 border-white/20 text-white font-black text-sm sm:text-xs uppercase tracking-[0.15em] hover:border-amber-400 hover:bg-amber-400/10 transition-all backdrop-blur-sm rounded-none"
                   >
-                    <MessageCircle className="w-4 h-4" /> {t.cta2}
+                    <MessageCircle className="w-5 h-5 sm:w-4 sm:h-4" /> {t.cta2}
                   </a>
                 </MagneticButton>
               </div>
 
               {/* ── Micro-trust line ── */}
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-4 mb-3">
+              <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-3 mt-8 mb-4">
                 {[
-                  "No calls required",
                   "Instant itemised quote",
-                  "Upfront pricing — no hidden fees",
+                  "Upfront pricing",
                 ].map(t => (
-                  <span key={t} className="flex items-center gap-1.5 text-xs text-white/40 font-body">
-                    <CheckCircle2 className="w-3 h-3 text-white/30 flex-shrink-0" />
+                  <span key={t} className="flex items-center gap-2 text-sm sm:text-xs text-white/50 font-body font-medium">
+                    <CheckCircle2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-amber-400/60 flex-shrink-0" />
                     {t}
                   </span>
                 ))}
               </div>
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-8">
-                <span className="flex items-center gap-1.5 text-xs text-white/35 font-body">
-                  <Shield className="w-3 h-3 text-white/25 flex-shrink-0" />
-                  ACRA Registered · UEN 202424156H
+              
+              <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-3 mb-10">
+                <span className="flex items-center gap-2 text-sm sm:text-xs text-white/50 font-body font-medium">
+                  <Shield className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-amber-400/60 flex-shrink-0" />
+                  ACRA Registered
                 </span>
-                <span className="flex items-center gap-1.5 text-xs text-white/35 font-body">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                  Online now · Typically replies in ~5 min
+                <span className="flex items-center gap-2 text-sm sm:text-xs text-white/50 font-body font-medium">
+                  <span className="w-2 h-2 sm:w-1.5 sm:h-1.5 rounded-full bg-green-400 flex-shrink-0 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
+                  Online now
                 </span>
               </div>
 
               {/* Trust row — desktop */}
-              <div className="hidden sm:flex flex-wrap gap-x-8 gap-y-3">
+              <div className="hidden sm:flex flex-wrap items-center gap-x-8 gap-y-3 pt-6 border-t border-white/10">
                 {[
-                  { icon: Building2, label: "HDB / Condo / Office / Commercial" },
-                  { icon: MapPin, label: "All Singapore Districts" },
-                  { icon: Clock, label: "Flexible Same-Week Scheduling" },
+                  { icon: Building2, label: "HDB / Condo / Commercial" },
+                  { icon: MapPin, label: "Island-wide" },
+                  { icon: Clock, label: "Same-Week Scheduling" },
                 ].map(({ icon: Icon, label }) => (
-                  <div key={label} className="flex items-center gap-2 text-sm text-white/45">
-                    <div className="w-1.5 h-1.5 bg-amber-400/70 flex-shrink-0" />
+                  <div key={label} className="flex items-center gap-2.5 text-sm font-medium text-white/60">
+                    <Icon className="w-4 h-4 text-amber-400/70" />
                     <span>{label}</span>
                   </div>
                 ))}
               </div>
 
               {/* Mobile stats strip */}
-              <div className="sm:hidden grid grid-cols-3 gap-3 pt-2">
+              <div className="sm:hidden grid grid-cols-3 gap-2 mt-2 border-t border-white/10 pt-8">
                 {[
                   { val: "250+", label: "Items" },
                   { val: "60s",  label: "Quote" },
-                  { val: "SG",   label: "Island-wide" },
+                  { val: "SG",   label: "Coverage" },
                 ].map(({ val, label }) => (
-                  <div key={label} className="border border-white/15 bg-white/5 p-3 text-center backdrop-blur-sm">
-                    <div className="font-heading font-bold text-2xl leading-none text-white mb-1">{val}</div>
-                    <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">{label}</div>
+                  <div key={label} className="bg-white/5 border border-white/10 p-4 text-center rounded-lg backdrop-blur-md">
+                    <div className="font-heading font-bold text-2xl text-white mb-1">{val}</div>
+                    <div className="text-[10px] font-bold text-amber-400/80 uppercase tracking-widest">{label}</div>
                   </div>
                 ))}
               </div>
 
               {/* Mobile hero photo */}
-              <div className="sm:hidden mt-6 relative overflow-hidden" style={{ aspectRatio: "16/9" }}>
+              <div className="sm:hidden mt-8 relative overflow-hidden rounded-xl border border-white/10" style={{ aspectRatio: "16/9" }}>
                 <img
                   src="/work/office-fitout.jpg"
                   alt="Office furniture installation by TMG Install"
@@ -722,10 +727,10 @@ export default function Landing() {
                   height="315"
                   className="absolute inset-0 w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-4">
-                  <span className="text-[9px] font-black tracking-[0.18em] uppercase text-white/45">Recent Work</span>
-                  <p className="text-sm font-bold text-white leading-tight">Office Fit-Out · CBD Commercial</p>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-5">
+                  <span className="inline-block px-2 py-1 bg-amber-400 text-black text-[9px] font-black tracking-[0.15em] uppercase mb-2">Recent Work</span>
+                  <p className="text-base font-bold text-white leading-tight">Office Fit-Out · CBD Commercial</p>
                 </div>
               </div>
             </motion.div>
@@ -735,51 +740,51 @@ export default function Landing() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.3 }}
-              className="hidden lg:flex flex-col gap-4 float-anim"
+              className="hidden lg:flex flex-col gap-6 float-anim"
             >
               {/* Main glass card */}
-              <div className="glass-card-premium relative overflow-hidden p-8">
+              <div className="glass-card-premium relative overflow-hidden p-10 rounded-2xl">
                 {/* Amber shimmer sweep across top */}
                 <div className="absolute top-0 left-0 right-0 amber-shimmer-line" />
                 {/* Amber corner accents */}
-                <div className="absolute top-0 left-0 w-24 h-[2px] bg-amber-400/70" />
-                <div className="absolute top-0 left-0 w-[2px] h-24 bg-amber-400/70" />
-                <div className="absolute bottom-0 right-0 w-24 h-[2px] bg-amber-400/25" />
-                <div className="absolute bottom-0 right-0 w-[2px] h-24 bg-amber-400/25" />
+                <div className="absolute top-0 left-0 w-32 h-1 bg-amber-400/80" />
+                <div className="absolute top-0 left-0 w-1 h-32 bg-amber-400/80" />
+                <div className="absolute bottom-0 right-0 w-32 h-1 bg-amber-400/30" />
+                <div className="absolute bottom-0 right-0 w-1 h-32 bg-amber-400/30" />
                 {/* Ambient amber orb inside card */}
-                <div className="absolute top-0 right-0 w-48 h-48 pointer-events-none" style={{ background: "radial-gradient(circle at 70% 20%, rgba(251,191,36,0.10) 0%, transparent 65%)" }} />
+                <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none" style={{ background: "radial-gradient(circle at 70% 20%, rgba(251,191,36,0.15) 0%, transparent 65%)" }} />
 
-                <div className="flex items-center gap-2 mb-8">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="text-[9px] font-black text-amber-400/80 tracking-[0.2em] uppercase">Live Pricing Engine</span>
+                <div className="flex items-center gap-3 mb-10">
+                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_rgba(251,191,36,0.8)]" />
+                  <span className="text-xs font-black text-amber-400 tracking-[0.25em] uppercase">Live Pricing Engine</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-px bg-white/8 mb-6">
+                <div className="grid grid-cols-2 gap-3 mb-8">
                   {[
                     { val: "250+", label: "Items in catalog", icon: Package },
                     { val: "60s",  label: "Quote turnaround", icon: Zap },
                     { val: "7×",   label: "Days a week",      icon: Clock },
                     { val: "5★",   label: "Customer rating",  icon: Star },
                   ].map(({ val, label, icon: Icon }) => (
-                    <div key={val} className="stat-card-highlight p-5 group hover:bg-amber-400/[0.12] transition-colors">
-                      <Icon className="w-3.5 h-3.5 text-amber-400/60 mb-3" />
-                      <p className="font-heading font-bold text-3xl text-amber-gradient leading-none mb-1">{val}</p>
-                      <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">{label}</p>
+                    <div key={val} className="stat-card-highlight p-6 rounded-xl bg-white/5 hover:bg-amber-400/10 transition-all border border-white/10 group">
+                      <Icon className="w-5 h-5 text-amber-400/70 mb-4 group-hover:scale-110 transition-transform" />
+                      <p className="font-heading font-bold text-4xl text-amber-gradient leading-none mb-2">{val}</p>
+                      <p className="text-[11px] text-white/50 font-bold uppercase tracking-widest">{label}</p>
                     </div>
                   ))}
                 </div>
 
-                <hr className="amber-rule mb-5" />
+                <hr className="border-white/10 mb-8" />
 
-                <div className="space-y-2.5">
+                <div className="space-y-4">
                   {[
                     "IKEA / flat-pack assembly",
                     "Wardrobe & bed frame installation",
                     "Office & commercial fit-outs",
                     "Full relocation D&R service",
                   ].map(item => (
-                    <div key={item} className="flex items-center gap-2.5 text-xs text-white/50 font-body">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400/55 flex-shrink-0" />
+                    <div key={item} className="flex items-center gap-3 text-sm text-white/70 font-medium">
+                      <CheckCircle2 className="w-5 h-5 text-amber-400 flex-shrink-0" />
                       {item}
                     </div>
                   ))}
@@ -790,13 +795,15 @@ export default function Landing() {
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "hero_glass_cta")}
-                className="group glass-card-premium gradient-border-card p-5 flex items-center justify-between hover:bg-white/[0.12] transition-all duration-300"
+                className="group glass-card-premium gradient-border-card p-6 rounded-xl flex items-center justify-between bg-white/5 hover:bg-amber-400/10 transition-all duration-300 cursor-pointer border border-white/10"
               >
                 <div>
-                  <p className="text-[9px] font-black text-white/35 tracking-[0.18em] uppercase mb-0.5">Ready to start?</p>
-                  <p className="text-sm font-bold text-white">Build your quote now →</p>
+                  <p className="text-[10px] font-black text-amber-400/80 tracking-[0.2em] uppercase mb-1">Ready to start?</p>
+                  <p className="text-lg font-bold text-white group-hover:text-amber-400 transition-colors">Build your quote now</p>
                 </div>
-                <ArrowRight className="w-5 h-5 text-white/30 group-hover:text-amber-400 group-hover:translate-x-1.5 transition-all duration-300" />
+                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-amber-400 transition-colors">
+                  <ArrowRight className="w-6 h-6 text-white group-hover:text-black transition-colors" />
+                </div>
               </Link>
             </motion.div>
           </div>
@@ -805,12 +812,12 @@ export default function Landing() {
         {/* ── Scroll to dismantle hint ── */}
         <div
           ref={scrollHintRef}
-          className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none select-none"
+          className="absolute bottom-8 sm:bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 pointer-events-none select-none z-20"
           style={{ opacity: 1, transition: "opacity 0.5s ease" }}
         >
-          <span className="text-[9px] font-black tracking-[0.22em] uppercase text-amber-400/60">scroll to dismantle</span>
+          <span className="text-[10px] font-black tracking-[0.25em] uppercase text-amber-400/80">scroll to explore</span>
           <motion.div
-            className="w-px h-8 bg-gradient-to-b from-amber-400/50 to-transparent"
+            className="w-px h-12 bg-gradient-to-b from-amber-400 to-transparent"
             animate={{ scaleY: [1, 0.4, 1] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
           />
@@ -820,13 +827,13 @@ export default function Landing() {
         <div
           ref={dismantleBadgeRef}
           data-testid="dismantle-badge"
-          className="absolute top-6 right-6 items-center gap-2 px-3 py-1.5 border border-amber-400/30 bg-black/50 backdrop-blur-md pointer-events-none select-none"
+          className="fixed top-24 right-4 sm:top-6 sm:right-6 items-center gap-2.5 px-4 py-2 border border-amber-400/40 bg-black/80 backdrop-blur-xl rounded-full shadow-lg shadow-amber-400/10 pointer-events-none select-none z-50"
           style={{ display: "none" }}
         >
-          <div className="animate-pulse w-1.5 h-1.5 rounded-full bg-amber-400" />
+          <div className="animate-pulse w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
           <span
             ref={dismantleBadgeTextRef}
-            className="text-[10px] font-black tracking-[0.15em] text-amber-400/80 uppercase"
+            className="text-xs font-black tracking-[0.2em] text-amber-400 uppercase"
           >
             dismantling 0%
           </span>
@@ -845,23 +852,23 @@ export default function Landing() {
           : [...marqueeItems, ...marqueeItems];
         const isLive = recentJobs.length > 0;
         return (
-          <div className="relative border-t border-b border-white/10 glass-marquee overflow-hidden py-3.5 select-none">
+          <div className="relative border-y border-white/10 glass-marquee overflow-hidden py-4 sm:py-5 select-none">
             {isLive && (
-              <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center px-3 glass-marquee border-r border-white/10">
-                <span className="flex items-center gap-1.5 text-[9px] font-black tracking-[0.18em] uppercase text-amber-400 whitespace-nowrap">
-                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
+              <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center px-4 sm:px-6 bg-black/80 backdrop-blur-md border-r border-white/10">
+                <span className="flex items-center gap-2 text-[10px] sm:text-xs font-black tracking-[0.2em] uppercase text-amber-400 whitespace-nowrap">
+                  <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
                   Live Jobs
                 </span>
               </div>
             )}
-            <div className={`marquee-track ${isLive ? "pl-24" : ""}`}>
+            <div className={`marquee-track ${isLive ? "pl-32 sm:pl-40" : ""}`}>
               {repeated.map((item, i) => (
-                <span key={i} className="flex items-center gap-3 px-5">
-                  <span className={`text-[10px] font-black tracking-[0.18em] ${isLive ? "normal-case" : "uppercase"} text-white/65 whitespace-nowrap`}>
+                <span key={i} className="flex items-center gap-4 px-6">
+                  <span className={`text-xs sm:text-sm font-bold tracking-[0.15em] ${isLive ? "normal-case text-white/80" : "uppercase text-white/60"} whitespace-nowrap`}>
                     {item}
                   </span>
                   {/* Diamond amber separator */}
-                  <span className="w-1 h-1 bg-amber-400/35 flex-shrink-0 rotate-45" />
+                  <span className="w-1.5 h-1.5 bg-amber-400/50 flex-shrink-0 rotate-45" />
                 </span>
               ))}
             </div>
@@ -873,88 +880,87 @@ export default function Landing() {
       <TrustStripAnimated />
 
       {/* ═══════════════════ HOW IT WORKS ════════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-20 border-b border-white/8 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(251,191,36,0.04) 0%, transparent 70%)" }} />
-        <div className="max-w-5xl mx-auto relative">
-          <motion.div {...fadeUpDelayed(0)} className="text-center mb-14">
-            <p className="section-eyebrow mb-3">Simple Process</p>
-            <h2 className="section-title text-gradient-warm">How it works</h2>
-            <p className="font-body text-sm text-white/45 mt-3 max-w-md mx-auto">From quote to completion — straightforward, transparent, and done right.</p>
+      <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(251,191,36,0.05) 0%, transparent 70%)" }} />
+        <div className="max-w-6xl mx-auto relative">
+          <motion.div {...fadeUpDelayed(0)} className="text-center mb-16 sm:mb-24">
+            <p className="section-eyebrow mb-4 text-xs">Simple Process</p>
+            <h2 className="section-title text-gradient-warm tracking-tight">How it works</h2>
+            <p className="font-body text-base sm:text-lg text-white/60 mt-4 max-w-2xl mx-auto">From quote to completion — straightforward, transparent, and done right.</p>
           </motion.div>
-          <div className="grid sm:grid-cols-3 gap-8 sm:gap-0 relative">
+          <div className="grid md:grid-cols-3 gap-12 md:gap-8 relative">
             {/* Connector line desktop */}
-            <div className="hidden sm:block absolute top-10 left-[calc(16.67%+20px)] right-[calc(16.67%+20px)] h-px bg-gradient-to-r from-amber-400/30 via-amber-400/60 to-amber-400/30" />
+            <div className="hidden md:block absolute top-12 left-[calc(16.67%+30px)] right-[calc(16.67%+30px)] h-px bg-gradient-to-r from-amber-400/20 via-amber-400/50 to-amber-400/20" />
             {[
               {
                 step: "01",
                 icon: FileText,
                 title: "Build your quote",
                 desc: "Pick items from our 250+ catalog, upload a photo, or paste your list. Get an instant itemised price — no calls needed.",
-                cta: null,
               },
               {
                 step: "02",
                 icon: CreditCard,
                 title: "Pay a small deposit",
                 desc: "Secure your slot with a 50% deposit via Stripe or PayNow. The remaining 50% is only due after the job is done.",
-                cta: null,
               },
               {
                 step: "03",
                 icon: CalendarDays,
                 title: "We show up & deliver",
                 desc: "Our team arrives at your chosen time, fully equipped. Track them live. Balance payment on completion.",
-                cta: null,
               },
             ].map(({ step, icon: Icon, title, desc }, i) => (
-              <motion.div key={step} {...fadeUpDelayed(i * 0.12)} className="flex flex-col items-center text-center sm:px-8 relative">
-                <div className="relative mb-6">
-                  <div className="w-20 h-20 border border-amber-400/30 bg-white/[0.04] flex items-center justify-center relative">
-                    <Icon className="w-8 h-8 text-amber-400/80" />
-                    <span className="absolute -top-2.5 -right-2.5 text-[10px] font-black bg-amber-400 text-black px-1.5 py-0.5 tracking-[0.06em]">{step}</span>
+              <motion.div key={step} {...fadeUpDelayed(i * 0.15)} className="flex flex-col items-center text-center relative bg-white/5 md:bg-transparent p-8 md:p-0 rounded-2xl md:rounded-none border border-white/10 md:border-none">
+                <div className="relative mb-8">
+                  <div className="w-24 h-24 rounded-full border-2 border-amber-400/30 bg-black/50 shadow-[0_0_30px_rgba(251,191,36,0.1)] flex items-center justify-center relative z-10">
+                    <Icon className="w-10 h-10 text-amber-400" />
+                    <div className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center text-black font-black text-xs shadow-lg shadow-amber-400/30">
+                      {step}
+                    </div>
                   </div>
                 </div>
-                <h3 className="font-heading font-bold text-lg text-white mb-2">{title}</h3>
-                <p className="font-body text-sm text-white/45 leading-relaxed">{desc}</p>
+                <h3 className="font-heading font-bold text-xl sm:text-2xl text-white mb-4">{title}</h3>
+                <p className="font-body text-base text-white/60 leading-relaxed max-w-sm">{desc}</p>
               </motion.div>
             ))}
           </div>
-          <motion.div {...fadeUpDelayed(0.36)} className="text-center mt-12">
+          <motion.div {...fadeUpDelayed(0.4)} className="text-center mt-16 sm:mt-24">
             <Link
               href="/estimate"
               onClick={() => trackEvent("cta_click", "/", "how_it_works_cta")}
-              className="group inline-flex items-center gap-2.5 px-8 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn"
+              className="group inline-flex items-center gap-3 px-10 py-5 bg-amber-400 text-black font-black text-sm uppercase tracking-[0.15em] hover:bg-amber-300 amber-glow-btn shadow-[0_0_40px_rgba(251,191,36,0.3)] w-full sm:w-auto justify-center"
             >
-              Get My Instant Quote <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+              Get My Instant Quote <ArrowRight className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
-            <p className="text-xs text-white/30 mt-3">No calls required · Takes about 2 minutes</p>
+            <p className="text-sm font-medium text-white/50 mt-5">No calls required · Takes about 2 minutes</p>
           </motion.div>
         </div>
       </section>
 
       {/* ════════════════════ WORK GALLERY ════════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-16 border-b border-white/8">
+      <section className="px-4 sm:px-6 lg:px-8 py-20 sm:py-28 border-b border-white/10">
         <div className="max-w-6xl mx-auto">
-          <motion.div {...fadeUpDelayed(0)} className="flex items-end justify-between gap-4 mb-8 flex-wrap">
+          <motion.div {...fadeUpDelayed(0)} className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-12 sm:mb-16">
             <div>
-              <p className="section-eyebrow mb-2">
+              <p className="section-eyebrow mb-3 text-xs">
                 Our Work
               </p>
-              <h2 className="section-title text-gradient-warm">Real jobs. Real results.</h2>
+              <h2 className="section-title text-gradient-warm tracking-tight">Real jobs. Real results.</h2>
             </div>
             <Link
               href="/estimate"
               onClick={() => trackEvent("cta_click", "/", "gallery_estimate")}
-              className="group inline-flex items-center gap-1.5 text-sm font-semibold text-white border-b border-white/25 pb-0.5 hover:border-white transition-colors whitespace-nowrap flex-shrink-0"
+              className="group inline-flex items-center gap-2 text-base font-bold text-amber-400 hover:text-amber-300 transition-colors whitespace-nowrap"
             >
-              Get your quote <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+              Get your quote <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
           </motion.div>
 
           {/* ── Desktop: editorial 2-tier layout ── */}
-          <div className="hidden sm:flex flex-col gap-px">
+          <div className="hidden sm:flex flex-col gap-2">
             {/* Row 1: featured wide + side */}
-            <div className="grid gap-px" style={{ gridTemplateColumns: "3fr 2fr" }}>
+            <div className="grid gap-2" style={{ gridTemplateColumns: "3fr 2fr" }}>
               {[
                 { src: "/work/office-fitout.jpg",          label: "Office Fit-Out",       sub: "Sit-stand workstations & overhead cabinets", tag: "Commercial",  w: 720, h: 405 },
                 { src: "/work/phone-booth-completed.jpg",  label: "Duo Phone Booth",      sub: "2-person acoustic pod · CBD office",          tag: "Completed",   w: 480, h: 270 },
@@ -962,7 +968,7 @@ export default function Landing() {
                 <motion.div
                   key={src}
                   {...(i === 0 ? fadeFromLeft(0) : fadeFromRight(0.06))}
-                  className="relative overflow-hidden bg-neutral-900 group"
+                  className="relative overflow-hidden bg-neutral-900 group rounded-xl border border-white/10"
                   style={{ aspectRatio: "16/9" }}
                 >
                   <img
@@ -973,19 +979,19 @@ export default function Landing() {
                     fetchPriority="high"
                     width={w}
                     height={h}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04] opacity-85 group-hover:opacity-100"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03] opacity-85 group-hover:opacity-100"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-6">
-                    <span className="inline-block text-[9px] font-black tracking-[0.2em] uppercase text-white/40 mb-1.5">{tag}</span>
-                    <p className="text-base font-bold text-white leading-tight mb-1">{label}</p>
-                    <p className="text-xs text-white/50 font-body">{sub}</p>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-8">
+                    <span className="inline-block px-3 py-1 bg-amber-400/20 text-amber-400 border border-amber-400/30 rounded-full text-[10px] font-black tracking-[0.15em] uppercase mb-3 backdrop-blur-md">{tag}</span>
+                    <p className="text-2xl font-bold text-white leading-tight mb-2">{label}</p>
+                    <p className="text-sm text-white/70 font-body">{sub}</p>
                   </div>
                 </motion.div>
               ))}
             </div>
             {/* Row 2: four equal thumbnails */}
-            <div className="grid grid-cols-4 gap-px">
+            <div className="grid grid-cols-4 gap-2">
               {[
                 { src: "/work/phone-booth-install.jpg", label: "Phone Booth Setup",    sub: "Framery install in progress · Tech fit-out", tag: "Commercial"  },
                 { src: "/work/bed-completed.jpg",       label: "Bed Frame Assembly",   sub: "IKEA bed with storage drawers · HDB condo",  tag: "Completed"   },
@@ -995,7 +1001,7 @@ export default function Landing() {
                 <motion.div
                   key={src}
                   {...fadeUpDelayed(0.12 + i * 0.06)}
-                  className="relative overflow-hidden bg-neutral-900 group aspect-square"
+                  className="relative overflow-hidden bg-neutral-900 group aspect-square rounded-xl border border-white/10"
                 >
                   <img
                     src={src}
@@ -1004,13 +1010,13 @@ export default function Landing() {
                     decoding="async"
                     width="280"
                     height="280"
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06] opacity-80 group-hover:opacity-100"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.05] opacity-80 group-hover:opacity-100"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <span className="inline-block text-[9px] font-black tracking-[0.18em] uppercase text-white/40 mb-1">{tag}</span>
-                    <p className="text-xs font-bold text-white leading-tight">{label}</p>
-                    <p className="text-[10px] text-white/45 font-body">{sub}</p>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-5">
+                    <span className="inline-block px-2 py-0.5 bg-black/50 text-white/80 border border-white/20 rounded-full text-[9px] font-bold tracking-[0.15em] uppercase mb-2 backdrop-blur-md">{tag}</span>
+                    <p className="text-base font-bold text-white leading-tight mb-1">{label}</p>
+                    <p className="text-xs text-white/60 font-body line-clamp-1">{sub}</p>
                   </div>
                 </motion.div>
               ))}
@@ -1019,7 +1025,7 @@ export default function Landing() {
 
           {/* ── Mobile: horizontal scroll strip ── */}
           <div className="sm:hidden -mx-4 px-4">
-            <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-none">
+            <div className="flex gap-4 overflow-x-auto pb-6 pt-2 snap-x snap-mandatory scrollbar-none">
               {[
                 { src: "/work/office-fitout.jpg",          label: "Office Fit-Out",       sub: "Workstations & overhead cabinets",            tag: "Commercial" },
                 { src: "/work/phone-booth-completed.jpg",  label: "Duo Phone Booth",      sub: "2-person acoustic pod · CBD office",          tag: "Completed"  },
@@ -1034,7 +1040,7 @@ export default function Landing() {
               ].map(({ src, label, sub, tag }, i) => (
                 <div
                   key={src}
-                  className="relative flex-shrink-0 w-56 overflow-hidden bg-neutral-900 snap-start aspect-[3/4] rounded-none"
+                  className="relative flex-shrink-0 w-[80vw] overflow-hidden bg-neutral-900 snap-center aspect-[4/5] rounded-2xl border border-white/10 shadow-xl"
                 >
                   <img
                     src={src}
@@ -1042,65 +1048,79 @@ export default function Landing() {
                     loading={i < 2 ? "eager" : "lazy"}
                     decoding={i < 2 ? "sync" : "async"}
                     fetchPriority={i === 0 ? "high" : "auto"}
-                    width="224"
-                    height="298"
-                    className="absolute inset-0 w-full h-full object-cover opacity-85"
+                    width="400"
+                    height="500"
+                    className="absolute inset-0 w-full h-full object-cover opacity-90"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-3">
-                    <span className="inline-block text-[9px] font-black tracking-[0.16em] uppercase text-white/45 mb-1">{tag}</span>
-                    <p className="text-xs font-bold text-white leading-tight mb-0.5">{label}</p>
-                    <p className="text-[10px] text-white/50 font-body">{sub}</p>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-6">
+                    <span className="inline-block px-3 py-1 bg-amber-400/20 text-amber-400 border border-amber-400/30 rounded-full text-[10px] font-black tracking-[0.15em] uppercase mb-3 backdrop-blur-md">{tag}</span>
+                    <p className="text-xl font-bold text-white leading-tight mb-2">{label}</p>
+                    <p className="text-sm text-white/70 font-body">{sub}</p>
                   </div>
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-white/25 font-body mt-2 text-center">← scroll to see more →</p>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
+              <p className="text-xs font-bold text-white/40 uppercase tracking-widest mx-2">Swipe</p>
+              <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ════════════════════ WHAT WE HANDLE ══════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-white/8">
+      <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10">
         <div className="max-w-6xl mx-auto">
-          <motion.div {...fadeUpDelayed(0)} className="mb-12">
-            <p className="section-eyebrow mb-3">
+          <motion.div {...fadeUpDelayed(0)} className="mb-16">
+            <p className="section-eyebrow mb-4 text-xs">
               Our Catalog
             </p>
-            <div className="flex items-end justify-between gap-4 flex-wrap">
-              <h2 className="section-title text-gradient-warm">What we handle.</h2>
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+              <h2 className="section-title text-gradient-warm tracking-tight">What we handle.</h2>
               <Link
                 href="/estimate"
-                className="group inline-flex items-center gap-1.5 text-sm font-semibold text-white border-b border-white/25 pb-0.5 hover:border-white transition-colors whitespace-nowrap"
+                className="group inline-flex items-center gap-2 text-base font-bold text-amber-400 hover:text-amber-300 transition-colors whitespace-nowrap"
               >
-                Browse full catalog <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                Browse full catalog <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </div>
           </motion.div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {SERVICES.map(({ icon: Icon, label, count }, i) => (
               <Link
                 key={label}
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", `service_card_${label.toLowerCase().replace(/\s+/g, "_")}`)}
+                className="block h-full"
               >
                 <motion.div {...(i % 2 === 0 ? fadeFromLeft(i * 0.05) : fadeFromRight(i * 0.05))} className="h-full">
-                  <TiltCard className="glass-card-light glass-card-amber-hover gradient-border-card p-7 group hover:bg-white/14 transition-all duration-300 cursor-pointer h-full relative overflow-hidden" intensity={13}>
+                  <TiltCard className="bg-white/5 border border-white/10 hover:border-amber-400/50 rounded-2xl p-8 group hover:bg-white/10 transition-all duration-300 cursor-pointer h-full relative overflow-hidden shadow-lg shadow-black/50" intensity={10}>
                     {/* Ghost number background */}
-                    <span className="service-num">{String(i + 1).padStart(2, "0")}</span>
-                    <div className="icon-box-amber mb-5 relative">
-                      <Icon className="w-4 h-4 text-amber-400/80 group-hover:text-amber-300 transition-colors" />
+                    <span className="absolute -bottom-4 right-2 font-heading font-bold text-8xl text-white/5 group-hover:text-amber-400/5 transition-colors duration-500 select-none pointer-events-none">{String(i + 1).padStart(2, "0")}</span>
+                    
+                    <div className="w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center mb-6 group-hover:bg-amber-400 group-hover:border-amber-400 transition-all duration-500 shadow-[0_0_20px_rgba(251,191,36,0.1)] group-hover:shadow-[0_0_30px_rgba(251,191,36,0.4)]">
+                      <Icon className="w-8 h-8 text-amber-400 group-hover:text-black transition-colors duration-500" />
                     </div>
-                    <p className="text-sm font-semibold text-white leading-snug mb-1.5 relative">
+                    
+                    <h3 className="text-xl font-bold text-white mb-2 relative z-10 group-hover:text-amber-300 transition-colors">
                       {label}
-                    </p>
-                    <p className="text-[11px] text-white/40 font-mono relative">
-                      {count} items
-                    </p>
-                    <p className="text-[10px] font-semibold text-white/30 group-hover:text-amber-400 mt-4 uppercase tracking-wide transition-colors flex items-center gap-1 relative">
-                      Get quote <ArrowRight className="w-2.5 h-2.5 transition-transform group-hover:translate-x-0.5" />
-                    </p>
+                    </h3>
+                    
+                    <div className="flex items-center justify-between mt-auto pt-6 relative z-10 border-t border-white/10">
+                      <p className="text-sm text-white/50 font-medium">
+                        {count} items
+                      </p>
+                      <p className="text-xs font-bold text-amber-400/70 group-hover:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                        Quote <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-1" />
+                      </p>
+                    </div>
                   </TiltCard>
                 </motion.div>
               </Link>
@@ -1111,523 +1131,376 @@ export default function Landing() {
 
 
       {/* ═══════════════════ BOOKING FLOW ══════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-28 border-t border-white/8">
+      <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-36 border-t border-white/10">
         <div className="max-w-6xl mx-auto">
 
           {/* Header */}
-          <motion.div {...fadeUpDelayed(0)} className="mb-16">
-            <p className="section-eyebrow mb-3">
+          <motion.div {...fadeUpDelayed(0)} className="mb-16 sm:mb-20">
+            <p className="section-eyebrow mb-4 text-xs">
               The Full Booking Flow
             </p>
-            <div className="flex items-end justify-between gap-4 flex-wrap">
-              <h2 className="section-title text-gradient-warm">From enquiry to job done.</h2>
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+              <h2 className="section-title text-gradient-warm tracking-tight">From enquiry<br/>to job done.</h2>
               <Link
                 href="/estimate"
-                className="group inline-flex items-center gap-1.5 text-sm font-semibold text-white border-b border-white/25 pb-0.5 hover:border-white transition-colors whitespace-nowrap"
+                className="group inline-flex items-center gap-3 px-8 py-4 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm font-bold text-white transition-all w-full sm:w-auto justify-center"
               >
-                Start now <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                Start now <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </div>
-            <p className="font-body text-sm text-white/50 mt-4 max-w-xl leading-relaxed">
+            <p className="font-body text-base sm:text-lg text-white/60 mt-6 max-w-2xl leading-relaxed">
               Four simple phases — from choosing your service to final payment. Every stage is transparent, online, and confirmed in writing.
             </p>
           </motion.div>
 
           {/* ── 4-Step TL;DR Summary Strip ── */}
-          <motion.div {...fadeUpDelayed(0.04)} className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/8 mb-14">
+          <motion.div {...fadeUpDelayed(0.04)} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-16 sm:mb-24">
             {[
               { step: "01", label: "Get Quote",     desc: "60-second estimate online", icon: FileText },
               { step: "02", label: "We Review",     desc: "Admin verifies & confirms",  icon: ScanSearch },
               { step: "03", label: "Pay Deposit",   desc: "Secure Stripe · 50% upfront", icon: CreditCard },
               { step: "04", label: "Job Done",      desc: "Crew on-site, balance after",  icon: CheckCircle2 },
             ].map(({ step, label, desc, icon: Icon }) => (
-              <div key={step} className="glass-card-light p-5 group hover:bg-white/15 transition-colors">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[9px] font-black tracking-[0.2em] text-white/30 uppercase" style={{ letterSpacing: "0.2em" }}>Step {step}</span>
-                  <div className="flex-1 h-px bg-white/8" />
-                  <Icon className="w-3.5 h-3.5 text-white/25" />
+              <div key={step} className="bg-white/5 border border-white/10 rounded-2xl p-6 group hover:bg-white/10 hover:border-amber-400/30 transition-all shadow-lg">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400 font-bold text-xs">
+                    {step}
+                  </div>
+                  <div className="flex-1 h-px bg-white/10" />
+                  <Icon className="w-5 h-5 text-white/30 group-hover:text-amber-400 transition-colors" />
                 </div>
-                <p className="font-heading font-bold text-white text-sm mb-1">{label}</p>
-                <p className="text-[11px] text-white/40 font-body leading-relaxed">{desc}</p>
+                <p className="font-heading font-bold text-white text-xl mb-2">{label}</p>
+                <p className="text-sm text-white/50 font-body leading-relaxed">{desc}</p>
               </div>
             ))}
           </motion.div>
 
           {/* ══════════ DESKTOP LAYOUT ══════════ */}
-          <div className="hidden lg:block space-y-0">
+          <div className="hidden lg:block space-y-16">
 
             {/* ── Phase 1: YOU DO ONLINE ── */}
-            <motion.div {...fadeUpDelayed(0.04)} className="flex items-center gap-3 mb-4">
-              <span className="text-[9px] font-black tracking-[0.2em] uppercase text-white/40 px-2.5 py-1 border border-white/10 bg-white/[0.04] flex-shrink-0">
-                Step 1–4 &nbsp;·&nbsp; You complete online
-              </span>
-              <div className="flex-1 h-px bg-white/10" />
-            </motion.div>
+            <div>
+              <motion.div {...fadeUpDelayed(0.04)} className="flex items-center gap-4 mb-8">
+                <span className="px-4 py-1.5 bg-amber-400 text-black text-xs font-black tracking-widest uppercase rounded-full">Phase 1</span>
+                <span className="text-xl font-bold text-white/80">You complete online</span>
+                <div className="flex-1 h-px bg-white/10 ml-4" />
+              </motion.div>
 
-            <div className="grid grid-cols-4 gap-px bg-white/8 mb-6">
-              {([
-                { n: "01", icon: ListChecks,  title: "Choose Your Service",   body: "Select installation, dismantling, or relocation — or any combination. Covers home, office, and commercial.",   tag: "Service type"    },
-                { n: "02", icon: MapPin,       title: "Enter Your Location",   body: "Your Singapore address. All HDB, condo, landed, shophouse, and commercial premises across every district.",     tag: "Island-wide"     },
-                { n: "03", icon: Package,      title: "Select Items",          body: "Pick from 250+ items — beds, wardrobes, workstations, gym equipment, blinds, appliances, and more.",            tag: "250+ catalog"    },
-                { n: "04", icon: CalendarDays, title: "Choose Date & Time",    body: "Select your preferred appointment window. Same-week slots are usually available — we confirm quickly.",          tag: "Same-week slots" },
-              ] as const).map(({ n, icon: Icon, title, body, tag }, i) => (
-                <motion.div key={n} {...fadeUpDelayed(0.06 + i * 0.07)} className="glass-card-light p-8 group hover:bg-white/15 transition-colors duration-300">
-                  <div className="flex items-start justify-between mb-6">
-                    <span className="font-heading font-bold text-[52px] leading-none text-white/[0.08] select-none group-hover:text-white/15 transition-colors">{n}</span>
-                    <div className="w-9 h-9 border border-white/15 flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-4 h-4 text-white/45" />
-                    </div>
-                  </div>
-                  <h3 className="card-title text-white mb-2">{title}</h3>
-                  <p className="font-body text-sm text-white/50 leading-relaxed mb-4">{body}</p>
-                  <span className="inline-flex text-[10px] font-semibold px-2.5 py-1 border border-white/12 text-white/35 tracking-wide">{tag}</span>
-                </motion.div>
-              ))}
+              <div className="grid grid-cols-4 gap-4">
+                {([
+                  { n: "01", icon: ListChecks,  title: "Choose Service",   body: "Select installation, dismantling, or relocation.",   tag: "Service type"    },
+                  { n: "02", icon: MapPin,       title: "Enter Location",   body: "Your Singapore address. All premises covered.",     tag: "Island-wide"     },
+                  { n: "03", icon: Package,      title: "Select Items",          body: "Pick from 250+ items — beds, wardrobes, desks.",            tag: "250+ catalog"    },
+                  { n: "04", icon: CalendarDays, title: "Choose Date",    body: "Select preferred window. Same-week usually available.",          tag: "Same-week" },
+                ] as const).map(({ n, icon: Icon, title, body, tag }, i) => (
+                  <motion.div key={n} {...fadeUpDelayed(0.06 + i * 0.07)} className="bg-white/5 border border-white/10 rounded-2xl p-8 group hover:bg-white/10 transition-all relative overflow-hidden">
+                    <div className="absolute -right-6 -top-6 text-[120px] font-heading font-bold text-white/5 group-hover:text-white/10 transition-colors pointer-events-none select-none">{n}</div>
+                    <Icon className="w-8 h-8 text-amber-400/80 mb-6 relative z-10" />
+                    <h3 className="text-xl font-bold text-white mb-3 relative z-10">{title}</h3>
+                    <p className="font-body text-sm text-white/60 leading-relaxed mb-6 relative z-10">{body}</p>
+                    <span className="inline-block px-3 py-1 bg-black/50 border border-white/10 rounded-full text-[10px] font-bold text-white/50 tracking-wider uppercase relative z-10">{tag}</span>
+                  </motion.div>
+                ))}
+              </div>
             </div>
 
             {/* ── Phase 2: WE PREPARE ── */}
-            <motion.div {...fadeUpDelayed(0.34)} className="flex items-center gap-3 mb-4">
-              <span className="text-[9px] font-black tracking-[0.2em] uppercase text-white/40 px-2.5 py-1 border border-white/10 bg-white/[0.04] flex-shrink-0">
-                Step 5–7 &nbsp;·&nbsp; We prepare your booking
-              </span>
-              <div className="flex-1 h-px bg-white/10" />
-            </motion.div>
-
-            <div className="grid grid-cols-3 gap-px bg-white/8 mb-6">
-              {([
-                {
-                  n: "05", icon: FileText,
-                  title: "Estimate Generated",
-                  body: "An itemised quote is produced instantly — every item priced individually. Transport, floor, and access surcharges are listed separately so there are no surprises.",
-                  tag: "Instant & itemised",
-                  dark: false,
-                },
-                {
-                  n: "06", icon: ScanSearch,
-                  title: "Admin Review & Approval",
-                  body: "Our team reviews your submission, verifies the scope of work, resolves any questions, and greenlights the job before sending payment details.",
-                  tag: "Team verified",
-                  dark: false,
-                },
-                {
-                  n: "07", icon: Mail,
-                  title: "Deposit Invoice — Pay via Stripe",
-                  body: "A deposit invoice is emailed to you with a secure Stripe payment link. Click to pay 50% online by card. Your time slot is held for 48 hours.",
-                  tag: "Secure · Stripe · 50% deposit",
-                  dark: false,
-                },
-              ] as const).map(({ n, icon: Icon, title, body, tag }, i) => (
-                <motion.div key={n} {...fadeUpDelayed(0.36 + i * 0.07)} className="glass-card-light p-8 group hover:bg-white/15 transition-colors duration-300">
-                  <div className="flex items-start justify-between mb-6">
-                    <span className="font-heading font-bold text-[52px] leading-none text-white/[0.08] select-none group-hover:text-white/15 transition-colors">{n}</span>
-                    <div className="w-9 h-9 border border-white/15 flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-4 h-4 text-white/50" />
-                    </div>
-                  </div>
-                  <h3 className="card-title text-white mb-2">{title}</h3>
-                  <p className="font-body text-sm text-white/50 leading-relaxed mb-4">{body}</p>
-                  <span className="inline-flex text-[10px] font-semibold px-2.5 py-1 border border-white/12 text-white/35 tracking-wide">{tag}</span>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* ── Phase 3: JOB DAY & COMPLETION ── */}
-            <motion.div {...fadeUpDelayed(0.6)} className="flex items-center gap-3 mb-4">
-              <span className="text-[9px] font-black tracking-[0.2em] uppercase text-white/50 px-2.5 py-1 border border-white/10 bg-white/[0.06] flex-shrink-0">
-                Step 8–10 &nbsp;·&nbsp; Job day & completion
-              </span>
-              <div className="flex-1 h-px bg-white/10" />
-            </motion.div>
-
-            <div className="grid grid-cols-3 gap-px bg-white/8">
-              {([
-                {
-                  n: "08", icon: CheckCircle2,
-                  title: "Booking Confirmed",
-                  body: "Once deposit clears, your booking is locked. You receive a confirmation email with your appointment date, time window, and job reference number.",
-                  tag: "Confirmed by email",
-                },
-                {
-                  n: "09", icon: Users,
-                  title: "Crew Arrives & Completes",
-                  body: "Our experienced team shows up at your door on time with all tools and equipment. Just direct us — we handle everything from start to finish.",
-                  tag: "Tools included",
-                },
-                {
-                  n: "10", icon: Receipt,
-                  title: "Final Payment — Pay via Stripe",
-                  body: "After the job is complete, a final invoice is emailed with a secure Stripe payment link. Pay the remaining 50% online by card. Receipt issued instantly.",
-                  tag: "Secure · Stripe · Balance due",
-                },
-              ] as const).map(({ n, icon: Icon, title, body, tag }, i) => (
-                <motion.div key={n} {...fadeUpDelayed(0.62 + i * 0.07)} className="glass-card-dark p-8 group hover:bg-black/55 transition-colors duration-300">
-                  <div className="flex items-start justify-between mb-6">
-                    <span className="font-heading font-bold text-[52px] leading-none text-amber-400/[0.12] select-none group-hover:text-amber-400/20 transition-colors">{n}</span>
-                    <div className="w-9 h-9 border border-amber-400/20 flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-4 h-4 text-amber-400/50" />
-                    </div>
-                  </div>
-                  <h3 className="card-title text-white mb-2">{title}</h3>
-                  <p className="font-body text-sm text-white/45 leading-relaxed mb-4">{body}</p>
-                  <span className="inline-flex text-[10px] font-semibold px-2.5 py-1 border border-amber-400/20 text-amber-400/50 tracking-wide">{tag}</span>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-
-          {/* ══════════ MOBILE LAYOUT ══════════ */}
-          <div className="lg:hidden">
-            <div className="relative pl-12">
-              <div className="absolute left-[19px] top-2 bottom-2 w-px bg-white/12" />
-
-              {([
-                { n: "01", icon: ListChecks,   title: "Choose Your Service",          body: "Installation, dismantling, or relocation — home, office, commercial.",                                                                    tag: "Service type",                    dark: false },
-                { n: "02", icon: MapPin,        title: "Enter Your Location",          body: "All Singapore districts — HDB, condo, landed, office, commercial.",                                                                         tag: "Island-wide",                     dark: false },
-                { n: "03", icon: Package,       title: "Select Items",                 body: "250+ item catalog — beds, wardrobes, workstations, gym equipment, and more.",                                                               tag: "250+ catalog",                    dark: false },
-                { n: "04", icon: CalendarDays,  title: "Choose Date & Time",           body: "Pick your preferred slot. Same-week availability most weeks.",                                                                              tag: "Same-week",                       dark: false },
-                { n: "05", icon: FileText,      title: "Estimate Generated",           body: "Instant itemised quote — every item and fee listed clearly.",                                                                               tag: "Instant & itemised",              dark: false },
-                { n: "06", icon: ScanSearch,    title: "Admin Review & Approval",      body: "Our team checks the scope and verifies everything before sending payment.",                                                                 tag: "Team verified",                   dark: false },
-                { n: "07", icon: Mail,          title: "Deposit Invoice via Email",    body: "Email with a secure Stripe payment link. Pay 50% online by card — slot held 48 hrs.",                                                      tag: "Stripe · 50% deposit",            dark: true  },
-                { n: "08", icon: CheckCircle2,  title: "Booking Confirmed",            body: "Deposit cleared — booking locked. Confirmation email with date, time, and job reference.",                                                  tag: "Confirmed by email",              dark: true  },
-                { n: "09", icon: Users,         title: "Crew Arrives & Completes",     body: "Team arrives on time with all tools. We handle everything — you just direct us.",                                                           tag: "Tools included",                  dark: true  },
-                { n: "10", icon: Receipt,       title: "Final Payment via Email",      body: "Job done — final invoice emailed with a Stripe link. Pay the remaining 50% online. Receipt issued instantly.",                              tag: "Stripe · Balance due",            dark: true  },
-              ] as const).map(({ n, icon: Icon, title, body, tag, dark }, i) => (
-                <motion.div key={n} {...fadeUpDelayed(i * 0.05)} className="relative flex gap-0 mb-5 last:mb-0">
-                  <div className={`absolute -left-12 top-0 w-9 h-9 border flex items-center justify-center flex-shrink-0 z-10 ${dark ? "bg-black/60 border-amber-400/20" : "glass-card-light border-white/15"}`}>
-                    <Icon className={`w-3.5 h-3.5 ${dark ? "text-amber-400/60" : "text-white/50"}`} />
-                  </div>
-                  <div className={`flex-1 p-4 border ${dark ? "glass-card-dark border-amber-400/10" : "glass-card-light border-white/10"}`}>
-                    <p className="text-[9px] font-bold uppercase tracking-widest mb-1 text-white/25" style={{ letterSpacing: "0.2em" }}>Step {n}</p>
-                    <h3 className="card-title mb-1.5 text-white">{title}</h3>
-                    <p className="font-body text-xs leading-relaxed mb-2.5 text-white/50">{body}</p>
-                    <span className={`inline-flex text-[10px] font-semibold px-2 py-0.5 border tracking-wide ${dark ? "border-amber-400/15 text-amber-400/45" : "border-white/12 text-white/35"}`}>{tag}</span>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-
-          {/* ── CTA ── */}
-          <motion.div {...fadeUpDelayed(0.8)} className="mt-14 pt-10 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div>
-              <p className="text-sm font-semibold text-white mb-1">Ready to begin?</p>
-              <p className="text-xs text-white/40 font-body">Use the online wizard or WhatsApp us — both generate your full estimate in under 60 seconds.</p>
-            </div>
-            <div className="flex gap-3 flex-shrink-0">
-              <Link
-                href="/estimate"
-                onClick={() => trackEvent("cta_click", "/", "booking_flow_estimate")}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
-              >
-                Get Estimate <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-              <a
-                href={WHATSAPP}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackEvent("cta_click", "/", "booking_flow_whatsapp")}
-                className="inline-flex items-center gap-2 px-6 py-3 border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-white/50 hover:bg-white/5 transition-all"
-              >
-                <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
-              </a>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════ WHY TMG INSTALL ═══════════════════ */}
-      <section className="glass-dark px-4 sm:px-6 lg:px-8 py-28">
-        <div className="max-w-6xl mx-auto">
-          <motion.div {...fadeUpDelayed(0)} className="mb-16">
-            <p className="section-eyebrow mb-3">
-              Why Choose Us
-            </p>
-            <h2 className="section-title text-gradient-warm">Built for every job.</h2>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/8">
-            {[
-              {
-                icon: Package,
-                title: "Fixed-Price Catalog",
-                body: "Every one of our 250+ items has a locked price. No negotiations, no variations — your neighbour pays the same rate you do.",
-              },
-              {
-                icon: Zap,
-                title: "No Callbacks Needed",
-                body: "Build your estimate online in 60 seconds. No phone tag, no site visit required just to get a number.",
-              },
-              {
-                icon: Truck,
-                title: "End-to-End Relocation",
-                body: "We dismantle, wrap, shift, and reinstall your furniture within the same unit, building, or across town.",
-              },
-              {
-                icon: MessageCircle,
-                title: "Direct Team Updates",
-                body: "WhatsApp updates straight from your assigned crew. No call centres, no chasing — just real communication.",
-              },
-            ].map(({ icon: Icon, title, body }, i) => (
-              <motion.div key={title} {...fadeUpDelayed(i * 0.08)} className="h-full">
-                <TiltCard className="glass-card-light glass-card-amber-hover gradient-border-card p-8 hover:bg-white/14 transition-all duration-300 group h-full relative overflow-hidden" intensity={5}>
-                  {/* Ghost index number */}
-                  <span
-                    className="absolute -bottom-3 -right-1 font-heading font-bold leading-none pointer-events-none select-none transition-colors duration-500 group-hover:text-amber-400/[0.09] text-white/[0.04]"
-                    style={{ fontSize: "clamp(76px,9vw,96px)", letterSpacing: "-0.04em" }}
-                  >
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <div className="icon-box-amber mb-7 relative">
-                    <Icon className="w-4 h-4 text-amber-400/70 group-hover:text-amber-400 transition-colors" />
-                  </div>
-                  <h3 className="card-title text-white mb-3 relative">{title}</h3>
-                  <p className="font-body text-sm text-white/50 leading-relaxed relative">{body}</p>
-                </TiltCard>
+              <motion.div {...fadeUpDelayed(0.34)} className="flex items-center gap-4 mb-8">
+                <span className="px-4 py-1.5 bg-white/20 text-white text-xs font-black tracking-widest uppercase rounded-full">Phase 2</span>
+                <span className="text-xl font-bold text-white/80">We prepare your booking</span>
+                <div className="flex-1 h-px bg-white/10 ml-4" />
               </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* ═══════════════════════ SOCIAL PROOF ══════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-white/8">
-        <div className="max-w-6xl mx-auto">
-          <motion.div {...fadeUpDelayed(0)}>
-            {/* Header row */}
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-12">
-              <div>
-                <p className="section-eyebrow mb-3">
-                  Customer Reviews
-                </p>
-                <h2 className="section-title text-gradient-warm">What our clients say.</h2>
-              </div>
-              {/* Google rating badge */}
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="flex gap-0.5">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-amber-500 text-amber-500" />
-                  ))}
-                </div>
-                <div>
-                  <p className="text-sm font-black text-white leading-tight">
-                    5.0 · Google Reviews
-                  </p>
-                  <p className="text-[11px] text-white/40 font-body">Verified on Google</p>
-                </div>
+              <div className="grid grid-cols-3 gap-4">
+                {([
+                  {
+                    n: "05", icon: FileText,
+                    title: "Admin Review",
+                    body: "Our team reviews your item list and verifies the auto-calculated price.",
+                    tag: "Manual check"
+                  },
+                  {
+                    n: "06", icon: Receipt,
+                    title: "Quote Approved",
+                    body: "You receive an official PDF quotation and a secure Stripe payment link.",
+                    tag: "Official quote"
+                  },
+                  {
+                    n: "07", icon: CreditCard,
+                    title: "Deposit Paid",
+                    body: "Pay 50% online to lock in your date. The job is now fully confirmed.",
+                    tag: "Stripe / PayNow"
+                  },
+                ]).map(({ n, icon: Icon, title, body, tag }, i) => (
+                  <motion.div key={n} {...fadeUpDelayed(0.36 + i * 0.07)} className="bg-white/5 border border-white/10 rounded-2xl p-8 group hover:bg-white/10 transition-all relative overflow-hidden">
+                    <div className="absolute -right-6 -top-6 text-[120px] font-heading font-bold text-white/5 group-hover:text-white/10 transition-colors pointer-events-none select-none">{n}</div>
+                    <Icon className="w-8 h-8 text-amber-400/80 mb-6 relative z-10" />
+                    <h3 className="text-xl font-bold text-white mb-3 relative z-10">{title}</h3>
+                    <p className="font-body text-sm text-white/60 leading-relaxed mb-6 relative z-10">{body}</p>
+                    <span className="inline-block px-3 py-1 bg-black/50 border border-white/10 rounded-full text-[10px] font-bold text-white/50 tracking-wider uppercase relative z-10">{tag}</span>
+                  </motion.div>
+                ))}
               </div>
             </div>
 
-            {/* Review cards — use API testimonials if available, else static fallback */}
-            {(() => {
-              const displayReviews = testimonials.length > 0 ? testimonials : STATIC_TESTIMONIALS;
-              return (
-              <div
-                className={`grid gap-5 mb-10 ${
-                  displayReviews.length === 1
-                    ? "grid-cols-1 max-w-xl"
-                    : displayReviews.length === 2
-                    ? "grid-cols-1 sm:grid-cols-2"
-                    : "grid-cols-1 md:grid-cols-3"
-                }`}
-              >
-                {displayReviews.map((r, i) => (
-                  <motion.div
-                    key={i}
-                    {...fadeUpDelayed(i * 0.08)}
-                    className="glass-card-premium glass-card-amber-hover gradient-border-card flex flex-col hover:bg-white/[0.13] transition-all duration-300 relative overflow-hidden group"
-                    data-testid={`review-card-${i}`}
-                  >
-                    {/* Amber shimmer top */}
-                    <div className="absolute top-0 left-0 right-0 amber-shimmer-line" />
-                    {/* Large decorative quotation mark */}
-                    <span className="quote-mark-deco">&ldquo;</span>
-                    <div className="p-7 pt-8 flex flex-col flex-1 relative z-10">
-                      {/* Stars */}
-                      <div className="flex gap-0.5 mb-5">
-                        {[...Array(r.stars)].map((_, j) => (
-                          <Star key={j} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                        ))}
-                      </div>
-                      {/* Text */}
-                      <p className="font-body text-sm text-white/70 leading-relaxed flex-1 mb-6">
-                        &ldquo;{r.text}&rdquo;
-                      </p>
-                      {/* Footer */}
-                      <div className="flex items-center justify-between pt-4 border-t border-white/12">
-                        <div>
-                          <p className="text-xs font-bold text-white">{r.name}</p>
-                          <p className="text-[11px] text-white/40 font-body">{r.loc} · {r.date}</p>
-                        </div>
-                        {/* Google G */}
-                        <svg width="20" height="20" viewBox="0 0 24 24" aria-label="Google" className="flex-shrink-0 opacity-80">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                        </svg>
-                      </div>
+            {/* ── Phase 3: JOB DAY ── */}
+            <div>
+              <motion.div {...fadeUpDelayed(0.54)} className="flex items-center gap-4 mb-8">
+                <span className="px-4 py-1.5 bg-amber-400 text-black text-xs font-black tracking-widest uppercase rounded-full">Phase 3</span>
+                <span className="text-xl font-bold text-white/80">Job day & completion</span>
+                <div className="flex-1 h-px bg-white/10 ml-4" />
+              </motion.div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {([
+                  {
+                    n: "08", icon: Truck,
+                    title: "Live Tracking & Arrival",
+                    body: "Get an SMS when the crew is en route. Track their live GPS location. The team arrives with tools, floor protection, and gets to work.",
+                    tag: "GPS Tracking"
+                  },
+                  {
+                    n: "09", icon: CheckCircle2,
+                    title: "Completion & Final 50%",
+                    body: "Inspect the work. Once satisfied, the crew generates a digital invoice and you pay the final 50% via card or PayNow.",
+                    tag: "Satisfaction guaranteed"
+                  },
+                ]).map(({ n, icon: Icon, title, body, tag }, i) => (
+                  <motion.div key={n} {...fadeUpDelayed(0.56 + i * 0.07)} className="bg-white/5 border border-white/10 rounded-2xl p-8 group hover:bg-white/10 transition-all relative overflow-hidden flex flex-col md:flex-row gap-8 items-start">
+                    <div className="absolute right-0 bottom-0 text-[180px] leading-none font-heading font-bold text-white/5 group-hover:text-white/10 transition-colors pointer-events-none select-none translate-x-1/4 translate-y-1/4">{n}</div>
+                    <div className="w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center flex-shrink-0 relative z-10 shadow-[0_0_20px_rgba(251,191,36,0.1)]">
+                      <Icon className="w-8 h-8 text-amber-400" />
+                    </div>
+                    <div className="relative z-10">
+                      <h3 className="text-2xl font-bold text-white mb-3">{title}</h3>
+                      <p className="font-body text-base text-white/60 leading-relaxed mb-6">{body}</p>
+                      <span className="inline-block px-3 py-1 bg-black/50 border border-white/10 rounded-full text-xs font-bold text-amber-400/80 tracking-wider uppercase">{tag}</span>
                     </div>
                   </motion.div>
                 ))}
               </div>
-              );
-            })()}
-
-            {/* CTA buttons */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <a
-                href={reviewConfig?.viewUrl || "https://g.page/r/Cd2v7iBjl_GKEBM"}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackEvent("cta_click", "/", "google_reviews_view")}
-                data-testid="btn-read-reviews"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
-              >
-                <Star className="w-3.5 h-3.5" /> Read on Google
-              </a>
-              <a
-                href={reviewConfig?.writeUrl || "https://g.page/r/Cd2v7iBjl_GKEBM/review"}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackEvent("cta_click", "/", "google_reviews_write")}
-                data-testid="btn-write-review"
-                className="group inline-flex items-center gap-2 px-6 py-3 border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-white/50 hover:bg-white/5 transition-all"
-              >
-                Write a Review <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-              </a>
             </div>
-          </motion.div>
+          </div>
+
+          {/* ══════════ MOBILE LAYOUT ══════════ */}
+          <div className="lg:hidden space-y-6">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="px-3 py-1 bg-amber-400 text-black text-[10px] font-black tracking-widest uppercase rounded-full">Phase 1</span>
+                <span className="text-sm font-bold text-white">You complete online</span>
+              </div>
+              <div className="space-y-6">
+                {([
+                  { n: "01", title: "Choose Service", body: "Install, dismantle, relocate." },
+                  { n: "02", title: "Enter Location", body: "All SG districts covered." },
+                  { n: "03", title: "Select Items",   body: "Pick from 250+ catalog." },
+                  { n: "04", title: "Choose Date",    body: "Select preferred window." },
+                ]).map(({ n, title, body }) => (
+                  <div key={n} className="flex gap-4 relative">
+                    <div className="w-px bg-white/10 absolute left-4 top-10 bottom-[-24px] last:hidden" />
+                    <div className="w-8 h-8 rounded-full bg-black border border-white/20 flex items-center justify-center text-[10px] font-bold text-white/70 flex-shrink-0 z-10">
+                      {n}
+                    </div>
+                    <div>
+                      <p className="font-bold text-white mb-1">{title}</p>
+                      <p className="text-sm text-white/50">{body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="px-3 py-1 bg-white/20 text-white text-[10px] font-black tracking-widest uppercase rounded-full">Phase 2</span>
+                <span className="text-sm font-bold text-white">We prepare booking</span>
+              </div>
+              <div className="space-y-6">
+                {([
+                  { n: "05", title: "Admin Review",   body: "Team verifies auto-price." },
+                  { n: "06", title: "Quote Approved", body: "Receive official PDF quote." },
+                  { n: "07", title: "Deposit Paid",   body: "Pay 50% to lock date." },
+                ]).map(({ n, title, body }) => (
+                  <div key={n} className="flex gap-4 relative">
+                    <div className="w-px bg-white/10 absolute left-4 top-10 bottom-[-24px] last:hidden" />
+                    <div className="w-8 h-8 rounded-full bg-black border border-white/20 flex items-center justify-center text-[10px] font-bold text-white/70 flex-shrink-0 z-10">
+                      {n}
+                    </div>
+                    <div>
+                      <p className="font-bold text-white mb-1">{title}</p>
+                      <p className="text-sm text-white/50">{body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="px-3 py-1 bg-amber-400 text-black text-[10px] font-black tracking-widest uppercase rounded-full">Phase 3</span>
+                <span className="text-sm font-bold text-white">Job day completion</span>
+              </div>
+              <div className="space-y-6">
+                {([
+                  { n: "08", title: "Arrival & Work", body: "Live GPS tracking of crew." },
+                  { n: "09", title: "Final 50%",      body: "Inspect & pay balance." },
+                ]).map(({ n, title, body }) => (
+                  <div key={n} className="flex gap-4 relative">
+                    <div className="w-px bg-white/10 absolute left-4 top-10 bottom-[-24px] last:hidden" />
+                    <div className="w-8 h-8 rounded-full bg-black border border-amber-400/50 text-amber-400 flex items-center justify-center text-[10px] font-bold flex-shrink-0 z-10 shadow-[0_0_10px_rgba(251,191,36,0.2)]">
+                      {n}
+                    </div>
+                    <div>
+                      <p className="font-bold text-white mb-1">{title}</p>
+                      <p className="text-sm text-white/50">{body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* ════════════════════ PRICING GUIDE ════════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-white/8">
+      <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-36 border-b border-white/10 bg-black/30 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto">
-          <motion.div {...fadeUpDelayed(0)} className="mb-10">
-            <p className="section-eyebrow mb-3">
+          <motion.div {...fadeUpDelayed(0)} className="mb-12 sm:mb-16">
+            <p className="section-eyebrow mb-4 text-xs">
               Transparent Pricing
             </p>
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <h2 className="section-title text-gradient-warm">
-                Install, dismantle<br className="hidden sm:block" /> or relocate — all priced upfront.
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+              <h2 className="section-title text-gradient-warm tracking-tight">
+                Install, dismantle<br className="hidden md:block" /> or relocate — priced upfront.
               </h2>
-              <p className="font-body text-sm text-white/50 max-w-sm leading-relaxed">
+              <p className="font-body text-base text-white/60 max-w-md leading-relaxed">
                 Fixed-price catalog of 250+ furniture items. Every service type priced individually per item — no guesswork, no surprise charges.
               </p>
             </div>
           </motion.div>
 
           {/* ── Mobile Tab Switcher ── */}
-          <div className="lg:hidden mb-5">
-            <div className="flex border border-white/12 glass-card-light">
+          <div className="lg:hidden mb-8">
+            <div className="flex bg-white/5 rounded-xl p-1 border border-white/10">
               {(["install", "dismantle", "relocate"] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setPricingTab(tab)}
-                  className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] transition-colors ${pricingTab === tab ? "bg-white/20 text-white" : "text-white/35 hover:text-white/60"}`}
+                  className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${pricingTab === tab ? "bg-amber-400 text-black shadow-md" : "text-white/50 hover:text-white/80"}`}
                 >
                   {tab === "install" ? "Install" : tab === "dismantle" ? "Dismantle" : "Relocate"}
                 </button>
               ))}
             </div>
+            
             {pricingTab === "relocate" && (
-              <div className="mt-3 space-y-2">
-                <div className="glass-card-light p-3 space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white">Carry Only — Transport &amp; Stairs</p>
-                  <p className="text-[10px] text-white/50 font-body">No per-item labor. You pay transport fee only.</p>
-                  <p className="text-[11px] font-semibold text-white">From <span className="text-amber-400">$58</span> <span className="text-white/40 font-normal">(≤3 km, 1 helper incl.)</span></p>
-                  <p className="text-[10px] text-white/40">+$0.50/km · Stairs: +$5/level (lift), +$15/level (no lift)</p>
+              <div className="mt-6 space-y-4">
+                <div className="bg-white/5 border border-white/10 rounded-xl p-5 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-white/30" />
+                  <p className="text-xs font-black uppercase tracking-widest text-white/80 mb-2">Carry Only — Transport & Stairs</p>
+                  <p className="text-sm text-white/60 font-body mb-4">No per-item labor. You pay transport fee only.</p>
+                  <p className="text-lg font-bold text-white mb-2">From <span className="text-amber-400">$58</span> <span className="text-xs text-white/50 font-normal ml-1">(≤3 km, 1 helper incl.)</span></p>
+                  <p className="text-xs text-white/40 font-medium">+$0.50/km · Stairs: +$5/level (lift), +$15/level (no lift)</p>
                 </div>
-                <div className="glass-card-dark p-3 space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white">Dismantle &amp; Reinstall — Full Service</p>
-                  <p className="text-[10px] text-white/55 font-body">Transport + dismantle at origin + reassemble at destination.</p>
-                  <p className="text-[11px] font-semibold text-white">From <span className="text-amber-400">$58</span> <span className="text-white/50 font-normal">+ D&amp;R labor per item below</span></p>
-                  <p className="text-[10px] text-white/45">+$0.50/km · 2-hour crew window · Overtime $30/30-min block</p>
+                <div className="bg-amber-400/5 border border-amber-400/20 rounded-xl p-5 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-amber-400" />
+                  <p className="text-xs font-black uppercase tracking-widest text-amber-400 mb-2">Dismantle & Reinstall — Full Service</p>
+                  <p className="text-sm text-white/70 font-body mb-4">Transport + dismantle at origin + reassemble at destination.</p>
+                  <p className="text-lg font-bold text-white mb-2">From <span className="text-amber-400">$58</span> <span className="text-xs text-amber-400/70 font-normal ml-1">+ D&R labor per item below</span></p>
+                  <p className="text-xs text-amber-400/50 font-medium">+$0.50/km · 2-hour crew window · Overtime applies</p>
                 </div>
               </div>
             )}
           </div>
 
           {/* ── Desktop: 3-Column Comparison Table ── */}
-          <motion.div {...fadeUpDelayed(0.08)} className="hidden lg:block glass-card-light overflow-hidden">
-            <div className="grid grid-cols-[2fr_1fr_1fr_1fr] border-b border-white/10 bg-white/5">
-              <div className="px-6 py-4">
-                <span className="text-[10px] font-semibold tracking-widest text-amber-400 uppercase" style={{ letterSpacing: "0.15em" }}>Furniture Item</span>
+          <motion.div {...fadeUpDelayed(0.08)} className="hidden lg:block bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="grid grid-cols-[2.5fr_1fr_1fr_1fr] bg-black/40 border-b border-white/10">
+              <div className="px-8 py-5">
+                <span className="text-xs font-black tracking-widest text-white/50 uppercase">Furniture Item</span>
               </div>
               {[
                 { label: "Installation",  sub: "Assemble & fix in place" },
                 { label: "Dismantling",   sub: "Take apart & remove" },
                 { label: "D&R Labor",     sub: "Dismantle + reinstall only", highlight: true },
               ].map(({ label, sub, highlight }) => (
-                <div key={label} className={`px-6 py-4 border-l border-white/8 ${highlight ? "bg-amber-400/10" : ""}`}>
-                  <p className={`text-[10px] font-black tracking-[0.12em] uppercase mb-0.5 ${highlight ? "text-amber-400" : "text-white"}`}>{label}</p>
-                  <p className={`text-[10px] font-body ${highlight ? "text-amber-400/50" : "text-white/35"}`}>{sub}</p>
+                <div key={label} className={`px-6 py-5 border-l border-white/10 ${highlight ? "bg-amber-400/10" : ""}`}>
+                  <p className={`text-xs font-black tracking-widest uppercase mb-1 ${highlight ? "text-amber-400" : "text-white"}`}>{label}</p>
+                  <p className={`text-[10px] font-body ${highlight ? "text-amber-400/70" : "text-white/50"}`}>{sub}</p>
                 </div>
               ))}
             </div>
-            {PRICING_SAMPLES.map(({ item, install, dismantle }, i) => (
-              <div
-                key={item}
-                className={`grid grid-cols-[2fr_1fr_1fr_1fr] border-b border-white/5 last:border-0 hover:bg-white/8 transition-colors ${i % 2 !== 0 ? "bg-white/[0.03]" : ""}`}
-              >
-                <div className="px-6 py-4 flex items-center">
-                  <span className="text-sm text-white font-medium">{item}</span>
+            
+            <div className="divide-y divide-white/5">
+              {PRICING_SAMPLES.map(({ item, install, dismantle }, i) => (
+                <div
+                  key={item}
+                  className={`grid grid-cols-[2.5fr_1fr_1fr_1fr] hover:bg-white/5 transition-colors ${i % 2 === 0 ? "bg-white/[0.02]" : ""}`}
+                >
+                  <div className="px-8 py-5 flex items-center">
+                    <span className="text-base text-white/90 font-medium">{item}</span>
+                  </div>
+                  <div className="px-6 py-5 border-l border-white/5 flex items-center">
+                    <span className="text-lg font-bold text-white">${install}</span>
+                  </div>
+                  <div className="px-6 py-5 border-l border-white/5 flex items-center">
+                    <span className="text-lg font-bold text-white">${dismantle}</span>
+                  </div>
+                  <div className="px-6 py-5 border-l border-white/5 flex items-center bg-amber-400/5">
+                    <span className="text-lg font-bold text-amber-400">${Math.round((install + dismantle) * (1 - PricingConfig.fallback.relocateDRDiscount))}</span>
+                  </div>
                 </div>
-                <div className="px-6 py-4 border-l border-white/5 flex items-center">
-                  <span className="text-sm font-semibold text-white">${install}</span>
-                </div>
-                <div className="px-6 py-4 border-l border-white/5 flex items-center">
-                  <span className="text-sm font-semibold text-white">${dismantle}</span>
-                </div>
-                <div className="px-6 py-4 border-l border-white/5 flex items-center bg-amber-400/[0.07]">
-                  <span className="text-sm font-bold text-amber-400">${Math.round((install + dismantle) * (1 - PricingConfig.fallback.relocateDRDiscount))}</span>
-                </div>
-              </div>
-            ))}
-            <div className="px-6 py-4 border-t border-white/8 bg-white/[0.03] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <p className="font-body text-xs text-white/35">
-                Install &amp; dismantle prices are per-item labor — a <strong className="text-white/45">$60 site visit fee</strong> applies once per job. D&amp;R Labor = (install + dismantle) × 60% — <strong className="text-white/45">40% bundle saving</strong>, no callout fee. Transport from $58 (≤3 km) + $0.50/km.
+              ))}
+            </div>
+            
+            <div className="px-8 py-6 bg-black/60 border-t border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <p className="font-body text-sm text-white/50 max-w-3xl leading-relaxed">
+                Install & dismantle prices are per-item labor — a <strong className="text-white/80">$60 site visit fee</strong> applies once per job. D&R Labor = (install + dismantle) × 60% — <strong className="text-amber-400/80">40% bundle saving</strong>, no callout fee. Transport from $58 (≤3 km) + $0.50/km.
               </p>
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "pricing_table_estimate")}
-                className="group flex-shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-400 text-black text-[10px] font-black uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
+                className="group flex-shrink-0 inline-flex items-center gap-3 px-8 py-4 bg-amber-400 text-black text-xs font-black uppercase tracking-widest hover:bg-amber-300 amber-glow-btn rounded-xl"
               >
-                Get Full Quote <ArrowRight className="w-3 h-3 transition-transform duration-300 group-hover:translate-x-1" />
+                Get Full Quote <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </div>
           </motion.div>
 
           {/* ── Mobile: Single Column by Tab ── */}
-          <motion.div {...fadeUpDelayed(0.08)} className="lg:hidden glass-card-light overflow-hidden">
-            {pricingTab === "relocate" ? (
-              PRICING_SAMPLES.map(({ item, install, dismantle }, i) => (
-                <div
-                  key={item}
-                  className={`flex items-center justify-between px-4 py-4 border-b border-white/5 last:border-0 ${i % 2 !== 0 ? "bg-white/[0.03]" : ""}`}
-                >
-                  <span className="text-sm text-white font-medium pr-4">{item}</span>
-                  <div className="text-right flex-shrink-0">
-                    <span className="text-sm font-bold text-amber-400">${Math.round((install + dismantle) * (1 - PricingConfig.fallback.relocateDRDiscount))}</span>
-                    <p className="text-[10px] text-white/35">D&amp;R labor (40% off)</p>
+          <motion.div {...fadeUpDelayed(0.08)} className="lg:hidden bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+            <div className="divide-y divide-white/10">
+              {pricingTab === "relocate" ? (
+                PRICING_SAMPLES.map(({ item, install, dismantle }, i) => (
+                  <div
+                    key={item}
+                    className={`flex items-center justify-between px-5 py-4 ${i % 2 === 0 ? "bg-white/[0.02]" : ""}`}
+                  >
+                    <span className="text-sm text-white/90 font-medium pr-4">{item}</span>
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-lg font-bold text-amber-400">${Math.round((install + dismantle) * (1 - PricingConfig.fallback.relocateDRDiscount))}</span>
+                      <p className="text-[10px] text-amber-400/60 uppercase tracking-wider mt-0.5">D&R labor (-40%)</p>
+                    </div>
                   </div>
-                </div>
-              ))
-            ) : (
-              PRICING_SAMPLES.map(({ item, install, dismantle }, i) => (
-                <div
-                  key={item}
-                  className={`flex items-center justify-between px-4 py-4 border-b border-white/5 last:border-0 ${i % 2 !== 0 ? "bg-white/[0.03]" : ""}`}
-                >
-                  <span className="text-sm text-white font-medium pr-4">{item}</span>
-                  <span className="text-sm font-bold text-white flex-shrink-0">
-                    ${pricingTab === "install" ? install : dismantle}
-                  </span>
-                </div>
-              ))
-            )}
-            <div className="px-4 py-4 border-t border-white/8 bg-white/[0.03]">
-              <p className="font-body text-xs text-white/35 mb-3">
+                ))
+              ) : (
+                PRICING_SAMPLES.map(({ item, install, dismantle }, i) => (
+                  <div
+                    key={item}
+                    className={`flex items-center justify-between px-5 py-4 ${i % 2 === 0 ? "bg-white/[0.02]" : ""}`}
+                  >
+                    <span className="text-sm text-white/90 font-medium pr-4">{item}</span>
+                    <span className="text-lg font-bold text-white flex-shrink-0">
+                      ${pricingTab === "install" ? install : dismantle}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+            
+            <div className="px-5 py-6 bg-black/40 border-t border-white/10">
+              <p className="font-body text-xs text-white/50 leading-relaxed mb-5">
                 {pricingTab === "relocate"
                   ? "D&R Labor = (install + dismantle) × 60%. Transport from $58 (≤3 km) + $0.50/km. No callout fee."
                   : "Per-item labor prices (SGD). A $60 site visit fee applies once per job. Transport & stair fees extra."}
@@ -1635,29 +1508,29 @@ export default function Landing() {
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "pricing_table_mobile_estimate")}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-400 text-black text-[10px] font-black uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
+                className="flex items-center justify-center gap-2 w-full py-4 bg-amber-400 text-black text-xs font-black uppercase tracking-widest hover:bg-amber-300 amber-glow-btn rounded-xl"
               >
-                Get Full Quote <ArrowRight className="w-3 h-3" />
+                Get Full Quote <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           </motion.div>
 
           {/* ── Relocation Pricing Breakdown ── */}
-          <motion.div {...fadeUpDelayed(0.16)} className="glass-card-light overflow-hidden">
-            <div className="px-6 py-5 border-b border-white/8 bg-white/5">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/45 mb-1">Relocation Pricing</p>
-              <p className="font-heading text-xl font-black uppercase tracking-[-0.01em] text-white">Two ways to relocate — you choose.</p>
+          <motion.div {...fadeUpDelayed(0.16)} className="mt-12 sm:mt-16 bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="px-6 sm:px-10 py-6 sm:py-8 border-b border-white/10 bg-black/20">
+              <p className="text-xs font-black uppercase tracking-widest text-amber-400 mb-2">Relocation Options</p>
+              <h3 className="font-heading text-2xl sm:text-3xl font-bold text-white">Two ways to move — you choose.</h3>
             </div>
-            <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-white/8">
+            
+            <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10">
               {/* Carry Only */}
-              <div className="p-6 space-y-5">
-                <div>
-                  <div className="inline-flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.12em] bg-white/10 px-2 py-1 text-white/70">Carry Only</span>
-                  </div>
-                  <p className="text-sm text-white/55 font-body">We transport your furniture as-is. No assembly or disassembly involved.</p>
+              <div className="p-6 sm:p-10 flex flex-col h-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+                <div className="mb-8">
+                  <span className="inline-block px-3 py-1 bg-white/10 text-white border border-white/20 rounded-full text-xs font-bold tracking-widest uppercase mb-4">Carry Only</span>
+                  <p className="text-base text-white/70 font-body leading-relaxed">We transport your furniture as-is. No assembly or disassembly involved.</p>
                 </div>
-                <div className="space-y-2">
+                
+                <div className="space-y-4 mb-10 flex-1">
                   {[
                     { label: "2.4m Van (Toyota Hiace)", val: "Included" },
                     { label: "1 helper", val: "Included" },
@@ -1667,28 +1540,33 @@ export default function Landing() {
                     { label: "Stairs (no lift)", val: "+$15/level" },
                     { label: "Per-item labor", val: "None" },
                   ].map(({ label, val }) => (
-                    <div key={label} className="flex items-center justify-between text-sm border-b border-white/6 pb-2 last:border-0">
-                      <span className="text-white/50">{label}</span>
-                      <span className="font-semibold text-white">{val}</span>
+                    <div key={label} className="flex items-center justify-between text-sm border-b border-white/10 pb-3 last:border-0">
+                      <span className="text-white/60">{label}</span>
+                      <span className="font-bold text-white">{val}</span>
                     </div>
                   ))}
                 </div>
-                <div className="bg-white/5 px-4 py-3">
-                  <p className="text-[10px] text-white/35 font-body mb-1">Example: 10 km, ground floor both ends</p>
-                  <p className="text-xl font-black text-amber-400">$61.50 <span className="text-sm font-normal text-white/40">total</span></p>
-                  <p className="text-[10px] text-white/30">$58 base + 7km × $0.50</p>
+                
+                <div className="bg-black/40 rounded-xl p-5 border border-white/10">
+                  <p className="text-xs text-white/50 font-medium mb-2 uppercase tracking-wider">Example: 10 km, ground floor both ends</p>
+                  <div className="flex items-end gap-3 mb-1">
+                    <p className="text-3xl font-black text-amber-400 leading-none">$61.50</p>
+                    <p className="text-sm font-medium text-white/40 pb-1">total</p>
+                  </div>
+                  <p className="text-xs text-white/40 font-body">$58 base + 7km × $0.50</p>
                 </div>
               </div>
+              
               {/* Dismantle & Reinstall */}
-              <div className="p-6 space-y-5 glass-card-dark text-white">
-                <div>
-                  <div className="inline-flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.12em] bg-amber-400/15 px-2 py-1 text-amber-400">Dismantle &amp; Reinstall</span>
-                    <span className="text-[10px] font-black uppercase tracking-[0.08em] text-white/45">Full Service</span>
-                  </div>
-                  <p className="text-sm text-white/55 font-body">We dismantle at origin, transport, and reassemble at destination.</p>
+              <div className="p-6 sm:p-10 flex flex-col h-full bg-amber-400/[0.02] hover:bg-amber-400/[0.04] transition-colors relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400/5 blur-3xl rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none" />
+                
+                <div className="mb-8 relative z-10">
+                  <span className="inline-block px-3 py-1 bg-amber-400 text-black rounded-full text-xs font-black tracking-widest uppercase mb-4 shadow-[0_0_15px_rgba(251,191,36,0.3)]">Full Service</span>
+                  <p className="text-base text-white/80 font-body leading-relaxed">We dismantle at origin, transport, and perfectly reassemble at destination.</p>
                 </div>
-                <div className="space-y-2">
+                
+                <div className="space-y-4 mb-10 flex-1 relative z-10">
                   {[
                     { label: "2.4m Van (Toyota Hiace)", val: "Included" },
                     { label: "1 helper", val: "Included" },
@@ -1696,31 +1574,36 @@ export default function Landing() {
                     { label: "Additional distance", val: "+$0.50/km" },
                     { label: "Stairs (with lift)", val: "+$5/level" },
                     { label: "Stairs (no lift)", val: "+$15/level" },
-                    { label: "Per-item D&R labor", val: "See table above" },
-                  ].map(({ label, val }) => (
-                    <div key={label} className="flex items-center justify-between text-sm border-b border-white/8 pb-2 last:border-0">
-                      <span className="text-white/50">{label}</span>
-                      <span className="font-semibold text-white">{val}</span>
+                    { label: "Per-item D&R labor", val: "See table above", highlight: true },
+                  ].map(({ label, val, highlight }) => (
+                    <div key={label} className={`flex items-center justify-between text-sm border-b border-white/10 pb-3 last:border-0 ${highlight ? "text-amber-400" : ""}`}>
+                      <span className={highlight ? "text-amber-400/80 font-medium" : "text-white/60"}>{label}</span>
+                      <span className={`font-bold ${highlight ? "text-amber-400" : "text-white"}`}>{val}</span>
                     </div>
                   ))}
                 </div>
-                <div className="bg-amber-400/8 px-4 py-3">
-                  <p className="text-[10px] text-white/35 font-body mb-1">Example: 10 km · 1 × Queen Bed Frame · ground floor</p>
-                  <p className="text-xl font-black text-amber-400">$145.50 <span className="text-sm font-normal text-white/40">total</span></p>
-                  <p className="text-[10px] text-white/30">$58 transport + $3.50 (7km extra) + $84 D&R labor ($140×60%)</p>
+                
+                <div className="bg-amber-400/10 rounded-xl p-5 border border-amber-400/20 relative z-10">
+                  <p className="text-xs text-amber-400/70 font-medium mb-2 uppercase tracking-wider">Example: 10 km · 1 × Queen Bed · ground floor</p>
+                  <div className="flex items-end gap-3 mb-1">
+                    <p className="text-3xl font-black text-amber-400 leading-none">$145.50</p>
+                    <p className="text-sm font-medium text-amber-400/50 pb-1">total</p>
+                  </div>
+                  <p className="text-xs text-amber-400/60 font-body">$58 transport + $3.50 (7km extra) + $84 D&R labor ($140×60%)</p>
                 </div>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-white/8 bg-white/[0.03] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <p className="font-body text-xs text-white/35">
-                Van $28 (first 3 km) + helper $30 = <strong className="text-white/45">$58 minimum</strong> · 2-hour crew window included · Overtime $30/30-min block (max $200) · No callout fee on relocation jobs.
+            
+            <div className="px-6 sm:px-10 py-6 sm:py-8 bg-black/60 border-t border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <p className="font-body text-sm text-white/50 leading-relaxed max-w-3xl">
+                Van $28 (first 3 km) + helper $30 = <strong className="text-white/80">$58 minimum</strong> · 2-hour crew window included · Overtime $30/30-min block (max $200) · No callout fee on relocation jobs.
               </p>
               <Link
                 href="/estimate"
                 onClick={() => trackEvent("cta_click", "/", "pricing_relocation_estimate")}
-                className="group flex-shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-400 text-black text-[10px] font-black uppercase tracking-[0.12em] hover:bg-amber-300 amber-glow-btn"
+                className="group flex-shrink-0 inline-flex items-center gap-3 px-8 py-4 bg-amber-400 text-black text-xs font-black uppercase tracking-widest hover:bg-amber-300 amber-glow-btn rounded-xl w-full md:w-auto justify-center"
               >
-                Get Relocation Quote <ArrowRight className="w-3 h-3 transition-transform duration-300 group-hover:translate-x-1" />
+                Get Relocation Quote <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </div>
           </motion.div>
@@ -1728,38 +1611,38 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════════ FAQ ═══════════════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 border-b border-white/8">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-[1fr_2fr] gap-16">
-            <motion.div {...fadeUpDelayed(0)}>
-              <p className="section-eyebrow mb-3">
-                FAQ
-              </p>
-              <h2 className="section-title text-gradient-warm mb-4">Common questions.</h2>
-              <p className="font-body text-sm text-white/50 leading-relaxed">
-                Can't find your answer? WhatsApp us — we reply fast.
-              </p>
-              <a
-                href={WHATSAPP}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 mt-6 text-sm font-semibold text-white border-b border-white/25 pb-0.5 hover:border-white transition-colors"
-              >
-                <MessageCircle className="w-4 h-4" /> Ask via WhatsApp
-              </a>
-            </motion.div>
+      <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10 bg-gradient-to-b from-black/20 to-black/60">
+        <div className="max-w-4xl mx-auto">
+          <motion.div {...fadeUpDelayed(0)} className="text-center mb-16">
+            <p className="section-eyebrow mb-4 text-xs">
+              FAQ
+            </p>
+            <h2 className="section-title text-gradient-warm mb-6 tracking-tight">Common questions.</h2>
+            <p className="font-body text-lg text-white/60 leading-relaxed mb-8">
+              Can't find your answer? WhatsApp us — we reply fast.
+            </p>
+            <a
+              href={WHATSAPP}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm font-bold text-white transition-all"
+            >
+              <MessageCircle className="w-5 h-5" /> Ask via WhatsApp
+            </a>
+          </motion.div>
 
-            <motion.div {...fadeUpDelayed(0.1)} className="border-t border-white/8">
+          <motion.div {...fadeUpDelayed(0.1)} className="bg-white/5 border border-white/10 rounded-2xl p-4 sm:p-8 backdrop-blur-sm shadow-2xl">
+            <div className="divide-y divide-white/10">
               {FAQS.map((faq) => (
                 <FAQItem key={faq.q} {...faq} />
               ))}
-            </motion.div>
-          </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
       {/* ═════════════════════ BOTTOM CTA BAND ═════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-36 relative overflow-hidden dot-grid-bg">
+      <section className="px-4 sm:px-6 lg:px-8 py-32 sm:py-48 relative overflow-hidden dot-grid-bg">
         {/* Ambient orbs */}
         <div className="ambient-orb" style={{ left: "-5%", top: "50%", transform: "translateY(-50%)", width: "700px", height: "580px", background: "radial-gradient(ellipse at 40% 50%, rgba(251,191,36,0.16) 0%, transparent 62%)" }} />
         <div className="ambient-orb" style={{ right: "-10%", top: "15%", width: "520px", height: "420px", background: "radial-gradient(ellipse at 60% 40%, rgba(99,102,241,0.07) 0%, transparent 65%)" }} />
@@ -1768,56 +1651,58 @@ export default function Landing() {
         {/* Large ghost "60" — decorative type element */}
         <div
           className="absolute right-8 top-1/2 -translate-y-1/2 font-heading font-bold leading-none text-white pointer-events-none select-none hidden lg:block"
-          style={{ fontSize: "clamp(180px,22vw,280px)", letterSpacing: "-0.05em", opacity: 0.025 }}
+          style={{ fontSize: "clamp(180px,22vw,320px)", letterSpacing: "-0.05em", opacity: 0.03 }}
         >
           60<span style={{ color: "rgba(251,191,36,0.9)" }}>s</span>
         </div>
 
-        <div className="max-w-6xl mx-auto relative">
-          <motion.div {...fadeUpDelayed(0)} className="max-w-2xl">
-            <p className="section-eyebrow mb-5">
+        <div className="max-w-6xl mx-auto relative z-10">
+          <motion.div {...fadeUpDelayed(0)} className="max-w-3xl text-center lg:text-left mx-auto lg:mx-0">
+            <p className="section-eyebrow mb-6 text-sm">
               Ready to start?
             </p>
-            <h2 className="section-title text-gradient-warm mb-7">
+            <h2 className="font-heading font-bold text-5xl sm:text-7xl text-gradient-warm mb-8 tracking-tighter leading-[0.95]">
               Get your quote<br />in under 60 seconds.
             </h2>
-            <p className="font-body text-base text-white/55 mb-12 max-w-md leading-relaxed">
+            <p className="font-body text-lg sm:text-xl text-white/70 mb-12 leading-relaxed max-w-2xl mx-auto lg:mx-0">
               No account needed. No phone calls. Select your items, confirm your address, and receive a full itemised quote with transport included.
             </p>
 
             {/* Amber rule above buttons */}
-            <hr className="amber-rule mb-10 max-w-xs" />
+            <div className="flex justify-center lg:justify-start mb-12">
+              <div className="w-24 h-1 bg-amber-400" />
+            </div>
 
-            <div className="flex flex-col sm:flex-row gap-4">
-              <MagneticButton>
+            <div className="flex flex-col sm:flex-row gap-5 justify-center lg:justify-start">
+              <MagneticButton className="w-full sm:w-auto">
                 <Link
                   href="/estimate"
                   data-testid="bottom-cta-estimate"
                   onClick={() => trackEvent("cta_click", "/", "bottom_get_estimate")}
-                  className="group flex w-full sm:inline-flex items-center justify-center gap-2.5 px-9 py-4 bg-amber-400 text-black font-black text-xs uppercase tracking-[0.14em] hover:bg-amber-300 amber-glow-btn"
+                  className="group flex w-full items-center justify-center gap-3 px-10 py-5 sm:py-4 bg-amber-400 text-black font-black text-sm sm:text-xs uppercase tracking-[0.15em] hover:bg-amber-300 amber-glow-btn rounded-xl"
                 >
-                  GET ESTIMATE <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+                  GET ESTIMATE <ArrowRight className="w-5 h-5 sm:w-4 sm:h-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </Link>
               </MagneticButton>
-              <MagneticButton>
+              <MagneticButton className="w-full sm:w-auto">
                 <a
                   href={WHATSAPP}
                   target="_blank"
                   rel="noopener noreferrer"
                   data-testid="bottom-cta-whatsapp"
                   onClick={() => trackEvent("cta_click", "/", "bottom_whatsapp")}
-                  className="flex w-full sm:inline-flex items-center justify-center gap-2 px-8 py-4 border border-white/20 text-white font-black text-xs uppercase tracking-[0.12em] hover:border-amber-400/40 hover:bg-white/10 transition-all"
+                  className="flex w-full items-center justify-center gap-3 px-10 py-5 sm:py-4 border-2 border-white/20 text-white font-black text-sm sm:text-xs uppercase tracking-[0.15em] hover:border-amber-400 hover:bg-amber-400/10 transition-all rounded-xl backdrop-blur-sm"
                 >
-                  <MessageCircle className="w-4 h-4" /> WHATSAPP US
+                  <MessageCircle className="w-5 h-5 sm:w-4 sm:h-4" /> WHATSAPP US
                 </a>
               </MagneticButton>
             </div>
 
             {/* Trust micro-row */}
-            <div className="flex flex-wrap gap-x-6 gap-y-2 mt-8">
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-8 gap-y-4 mt-12">
               {["No account needed", "Itemised quote", "Same-day reply"].map(t => (
-                <span key={t} className="flex items-center gap-1.5 text-xs text-white/35 font-body">
-                  <CheckCircle2 className="w-3 h-3 text-white/25" /> {t}
+                <span key={t} className="flex items-center gap-2 text-sm font-medium text-white/60 font-body">
+                  <CheckCircle2 className="w-4 h-4 text-amber-400/70" /> {t}
                 </span>
               ))}
             </div>
@@ -1826,141 +1711,97 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════════ FOOTER ═══════════════════════════ */}
-      <footer className="glass-footer text-white px-4 sm:px-6 lg:px-8 pt-16 pb-10">
+      <footer className="glass-footer border-t border-white/10 text-white px-4 sm:px-6 lg:px-8 pt-20 pb-12">
         <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-12 mb-14">
+          <div className="grid md:grid-cols-4 gap-12 sm:gap-16 mb-16">
             <div className="md:col-span-2">
-              <h3 className="brand-title text-white mb-4">TMG INSTALL</h3>
-              <p className="font-body text-white/35 text-sm leading-relaxed max-w-xs">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="w-3 h-3 bg-amber-400" />
+                <h3 className="font-heading font-bold text-2xl tracking-wide text-white">TMG INSTALL</h3>
+              </div>
+              <p className="font-body text-white/50 text-base leading-relaxed max-w-sm mb-6">
                 Professional furniture installation, dismantling, and relocation across all of Singapore —
                 HDB, condo, landed, office, and commercial. Transparent pricing, no hidden fees.
               </p>
-              <p className="font-body text-white/20 text-xs mt-3">
-                The Moving Guy Pte Ltd · UEN: 202424156H
-              </p>
-              <div className="flex gap-3 mt-6">
+              <div className="flex gap-4 mb-8">
                 <a
                   href={WHATSAPP}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 border border-white/15 text-white/60 text-xs font-medium hover:border-white/35 hover:text-white transition-all"
+                  className="inline-flex items-center gap-2 px-6 py-3 border border-white/20 rounded-xl text-white/80 text-sm font-bold hover:border-amber-400 hover:text-amber-400 hover:bg-amber-400/10 transition-all"
                 >
-                  <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                  <MessageCircle className="w-4 h-4" /> WhatsApp
                 </a>
                 <Link
                   href="/estimate"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black text-xs font-semibold hover:bg-white/90 transition-colors"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 rounded-xl text-white text-sm font-bold hover:bg-white/20 transition-colors"
                 >
                   Get Estimate
                 </Link>
               </div>
+              <p className="font-body text-white/30 text-xs font-medium">
+                The Moving Guy Pte Ltd · UEN: 202424156H
+              </p>
             </div>
 
             <div>
-              <h4 className="font-body font-semibold text-white/60 text-[10px] tracking-widest uppercase mb-5" style={{ letterSpacing: "0.18em" }}>
-                Contact
+              <h4 className="font-body font-bold text-white text-xs tracking-[0.2em] uppercase mb-6 flex items-center gap-2">
+                <span className="w-8 h-px bg-amber-400/50" /> Contact
               </h4>
-              <div className="space-y-3">
-                <p className="font-body text-sm">
-                  <span className="text-white/35">WhatsApp</span><br />
-                  <a href={WHATSAPP} className="text-white hover:text-white/70 transition-colors">+65 8088 0757</a>
-                </p>
-                <p className="font-body text-sm">
-                  <span className="text-white/35">Email</span><br />
-                  <a href="mailto:sales@tmginstall.com" className="text-white hover:text-white/70 transition-colors">sales@tmginstall.com</a>
-                </p>
-                <div className="flex gap-3 pt-1">
+              <div className="space-y-5">
+                <div>
+                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">WhatsApp</p>
+                  <a href={WHATSAPP} className="font-body text-base font-medium text-white hover:text-amber-400 transition-colors">+65 8088 0757</a>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Email</p>
+                  <a href="mailto:sales@tmginstall.com" className="font-body text-base font-medium text-white hover:text-amber-400 transition-colors">sales@tmginstall.com</a>
+                </div>
+                <div className="flex gap-4 pt-2">
                   <a
                     href="https://www.facebook.com/profile.php?id=61578445941712"
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="TMG Install on Facebook"
-                    className="w-8 h-8 border border-white/15 flex items-center justify-center text-white/40 hover:text-white hover:border-white/40 transition-all"
+                    className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:text-black hover:bg-amber-400 hover:border-amber-400 transition-all"
                   >
-                    <SiFacebook className="w-3.5 h-3.5" />
+                    <SiFacebook className="w-4 h-4" />
                   </a>
                   <a
                     href="https://www.instagram.com/tmginstall.sg/"
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="TMG Install on Instagram"
-                    className="w-8 h-8 border border-white/15 flex items-center justify-center text-white/40 hover:text-white hover:border-white/40 transition-all"
+                    className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:text-black hover:bg-amber-400 hover:border-amber-400 transition-all"
                   >
-                    <SiInstagram className="w-3.5 h-3.5" />
+                    <SiInstagram className="w-4 h-4" />
                   </a>
                 </div>
               </div>
             </div>
 
             <div>
-              <h4 className="font-body font-semibold text-white/60 text-[10px] tracking-widest uppercase mb-5" style={{ letterSpacing: "0.18em" }}>
-                Legal
+              <h4 className="font-body font-bold text-white text-xs tracking-[0.2em] uppercase mb-6 flex items-center gap-2">
+                <span className="w-8 h-px bg-amber-400/50" /> Legal
               </h4>
-              <div className="space-y-3">
-                <p><Link href="/privacy" className="font-body text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</Link></p>
-                <p><Link href="/terms" className="font-body text-sm text-white/50 hover:text-white transition-colors">Terms of Service</Link></p>
+              <div className="space-y-4 flex flex-col">
+                <Link href="/privacy" className="inline-flex font-body text-base font-medium text-white/60 hover:text-amber-400 transition-colors w-fit">Privacy Policy</Link>
+                <Link href="/terms" className="inline-flex font-body text-base font-medium text-white/60 hover:text-amber-400 transition-colors w-fit">Terms of Service</Link>
               </div>
             </div>
           </div>
 
-          <div className="border-t border-white/8 pt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <p className="font-body text-white/20 text-xs">
-              © {new Date().getFullYear()} The Moving Guy Pte Ltd · UEN: 202424156H · Singapore
+          <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-xs text-white/30 font-medium text-center md:text-left">
+              &copy; {new Date().getFullYear()} The Moving Guy Pte Ltd. All rights reserved.
             </p>
-            <a
-              href="https://www.google.com/search?q=TMG+Install+Singapore+reviews"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white/25 text-xs font-body hover:text-white/50 transition-colors"
-            >
-              Google Reviews →
-            </a>
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Systems Operational</span>
+            </div>
           </div>
         </div>
       </footer>
-
-      {/* ══════════════ STICKY MOBILE BOTTOM BAR ══════════════════ */}
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-40 sm:hidden transition-transform duration-300 ${
-          scrolled ? "translate-y-0" : "translate-y-full"
-        }`}
-      >
-        <div className="bg-black border-t border-white/10 px-4 py-3 flex items-center gap-3">
-          <Link
-            href="/estimate"
-            data-testid="sticky-cta-estimate"
-            onClick={() => trackEvent("cta_click", "/", "sticky_bar_estimate")}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-white text-black font-black text-xs uppercase tracking-[0.12em]"
-          >
-            GET ESTIMATE <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-          <a
-            href={WHATSAPP}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="sticky-cta-whatsapp"
-            onClick={() => trackEvent("cta_click", "/", "sticky_bar_whatsapp")}
-            className="flex items-center justify-center gap-2 px-5 py-3.5 border border-white/20 text-white flex-shrink-0"
-          >
-            <MessageCircle className="w-4 h-4" />
-          </a>
-        </div>
-      </div>
-
-      {/* ══════════════ FLOATING WHATSAPP BUTTON (desktop) ═════════ */}
-      <a
-        href={WHATSAPP}
-        target="_blank"
-        rel="noopener noreferrer"
-        data-testid="floating-whatsapp"
-        onClick={() => trackEvent("cta_click", "/", "floating_whatsapp")}
-        className={`fixed bottom-6 right-6 z-40 hidden sm:flex items-center gap-2.5 px-5 py-3 bg-[#25D366] text-white font-black text-xs uppercase tracking-wide shadow-[0_4px_24px_rgba(37,211,102,0.35)] hover:bg-[#1fb854] hover:shadow-[0_4px_28px_rgba(37,211,102,0.5)] transition-all duration-300 ${
-          scrolled ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3 pointer-events-none"
-        }`}
-      >
-        <MessageCircle className="w-4 h-4" />
-        WhatsApp Us
-      </a>
     </div>
   );
 }
