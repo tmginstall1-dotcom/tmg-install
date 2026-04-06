@@ -8,7 +8,7 @@ import {
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
   ClipboardList, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
-  Printer, Timer, QrCode,
+  Printer, Timer, QrCode, RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -72,6 +72,19 @@ export default function AdminQuoteDetail() {
     },
     onError: (err: any) => {
       toast({ title: "Delete Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const reopenJob = useMutation({
+    mutationFn: (reason?: string) =>
+      apiRequest("POST", `/api/admin/quotes/${id}/reopen`, { reason }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      toast({ title: "✅ Job Reopened", description: "Job is now active and visible to assigned staff." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to reopen", description: err.message, variant: "destructive" });
     },
   });
 
@@ -184,7 +197,7 @@ export default function AdminQuoteDetail() {
     );
   }
 
-  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'booked', 'assigned'].includes(quote.status);
+  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'booked', 'assigned', 'closed', 'final_paid'].includes(quote.status);
 
   const handleStartEdit = () => {
     setEditCustomer({
@@ -1138,10 +1151,34 @@ export default function AdminQuoteDetail() {
                 )}
 
                 {['closed', 'final_paid'].includes(quote.status) && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center">
-                    <BadgeCheck className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                    <p className="font-semibold text-emerald-800 text-sm">Case Closed</p>
-                    <p className="text-xs text-emerald-700 mt-1">Fully paid and completed</p>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <BadgeCheck className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-emerald-800 text-sm">Case Closed</p>
+                        <p className="text-xs text-emerald-700 mt-0.5">Fully paid — job marked complete</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-emerald-200">
+                      <p className="text-xs text-emerald-700 mb-2">Job not done yet? Reopen to reassign staff.</p>
+                      <button
+                        data-testid="button-reopen-job"
+                        disabled={reopenJob.isPending}
+                        onClick={() => {
+                          const reason = prompt("Reason for reopening (optional):");
+                          if (reason === null) return; // cancelled
+                          reopenJob.mutate(reason || undefined);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 h-8 px-3 rounded-lg bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-100 text-xs font-medium transition-colors disabled:opacity-50"
+                      >
+                        {reopenJob.isPending ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        )}
+                        Reopen Job
+                      </button>
+                    </div>
                   </div>
                 )}
 

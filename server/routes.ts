@@ -3987,6 +3987,36 @@ ${systemPrompt}` });
     }
   });
 
+  // Admin: Reopen a closed/paid job so it can be reassigned and actioned
+  app.post("/api/admin/quotes/:id/reopen", async (req, res) => {
+    try {
+      if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const existing = await storage.getQuote(id);
+      if (!existing) return res.status(404).json({ message: "Quote not found" });
+
+      const { reason } = z.object({ reason: z.string().optional() }).parse(req.body);
+
+      // Decide which status to restore: assigned if staff/team still set, else booked
+      const hasAssignment = !!(existing.assignedStaffId || (existing as any).assignedTeamId);
+      const newStatus = hasAssignment ? "assigned" : "booked";
+
+      const quote = await storage.updateQuoteStatus(id, newStatus, {
+        actorType: "admin",
+        note: reason?.trim() || "Job reopened by admin — work still required",
+      });
+
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      console.log(`[Reopen] Quote ${existing.referenceNo} reopened → ${newStatus}`);
+      res.json(quote);
+    } catch (err: any) {
+      console.error("[Reopen] error:", err);
+      res.status(500).json({ message: err?.message || "Failed to reopen job" });
+    }
+  });
+
   // Admin: Manual close
   app.post("/api/quotes/:id/close", async (req, res) => {
     try {
