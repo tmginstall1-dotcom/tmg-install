@@ -116,7 +116,7 @@ const PRICING_SAMPLES = [
 const FAQS = [
   {
     q: "How is the price calculated?",
-    a: "We use a fixed-price catalog of 250+ furniture items. Select exactly what needs to be installed, dismantled, or relocated and the total is generated instantly — no guesswork, no surprise charges.",
+    a: "We use a fixed-price catalog of 250+ furniture items. Installation and dismantling jobs include a one-time $60 site visit fee per appointment (covers crew dispatch), plus per-item labor from the catalog. Relocation jobs use transport pricing from $58 (first 3 km, 1 helper included) with no separate callout fee. Relocating furniture with dismantle & reinstall gets a 40% bundle discount — you pay 60% of the combined install + dismantle price. Everything is itemised in your quote — no guesswork, no surprise charges.",
   },
   {
     q: "Do you cover all of Singapore?",
@@ -1542,7 +1542,7 @@ export default function Landing() {
                   <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white">Dismantle &amp; Reinstall — Full Service</p>
                   <p className="text-[10px] text-white/55 font-body">Transport + dismantle at origin + reassemble at destination.</p>
                   <p className="text-[11px] font-semibold text-white">From <span className="text-amber-400">$58</span> <span className="text-white/50 font-normal">+ D&amp;R labor per item below</span></p>
-                  <p className="text-[10px] text-white/45">+$0.50/km · 90 min crew · Overtime $30/30-min block</p>
+                  <p className="text-[10px] text-white/45">+$0.50/km · 2-hour crew window · Overtime $30/30-min block</p>
                 </div>
               </div>
             )}
@@ -1586,7 +1586,7 @@ export default function Landing() {
             ))}
             <div className="px-6 py-4 border-t border-white/8 bg-white/[0.03] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <p className="font-body text-xs text-white/35">
-                D&amp;R Labor = 40% bundle discount applied (dismantle + reinstall, bundled with transport). Transport &amp; stair fees quoted separately.
+                Install &amp; dismantle prices are per-item labor — a <strong className="text-white/45">$60 site visit fee</strong> applies once per job. D&amp;R Labor = (install + dismantle) × 60% — <strong className="text-white/45">40% bundle saving</strong>, no callout fee. Transport from $58 (≤3 km) + $0.50/km.
               </p>
               <Link
                 href="/estimate"
@@ -1629,8 +1629,8 @@ export default function Landing() {
             <div className="px-4 py-4 border-t border-white/8 bg-white/[0.03]">
               <p className="font-body text-xs text-white/35 mb-3">
                 {pricingTab === "relocate"
-                  ? "D&R Labor shown. Transport from $58 (≤3km, 1 helper incl.) + $0.50/km. Carry Only = transport fee only."
-                  : "Sample prices per item (SGD). Transport & access fees extra."}
+                  ? "D&R Labor = (install + dismantle) × 60%. Transport from $58 (≤3 km) + $0.50/km. No callout fee."
+                  : "Per-item labor prices (SGD). A $60 site visit fee applies once per job. Transport & stair fees extra."}
               </p>
               <Link
                 href="/estimate"
@@ -1705,15 +1705,15 @@ export default function Landing() {
                   ))}
                 </div>
                 <div className="bg-amber-400/8 px-4 py-3">
-                  <p className="text-[10px] text-white/35 font-body mb-1">Example: 10 km, 1 × Queen Bed Frame, ground floor</p>
+                  <p className="text-[10px] text-white/35 font-body mb-1">Example: 10 km · 1 × Queen Bed Frame · ground floor</p>
                   <p className="text-xl font-black text-amber-400">$145.50 <span className="text-sm font-normal text-white/40">total</span></p>
-                  <p className="text-[10px] text-white/30">$58 base + 7km × $0.50 + $84 D&R labor (40% bundle discount)</p>
+                  <p className="text-[10px] text-white/30">$58 transport + $3.50 (7km extra) + $84 D&R labor ($140×60%)</p>
                 </div>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-white/8 bg-white/[0.03] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <p className="font-body text-xs text-white/35">
-                Van base $28 (first 3 km) + 1 helper $30 = $58 minimum · 120-min crew time included · Overtime $30/30-min block, capped at $200.
+                Van $28 (first 3 km) + helper $30 = <strong className="text-white/45">$58 minimum</strong> · 2-hour crew window included · Overtime $30/30-min block (max $200) · No callout fee on relocation jobs.
               </p>
               <Link
                 href="/estimate"
