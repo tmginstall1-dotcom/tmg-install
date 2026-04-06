@@ -646,13 +646,37 @@ export function finalPaymentEmail(quote: any, paymentLink: string): string {
     ) : ''}
 
     ${ctaBlock(
-      hasOvertime ? "Balance + overtime due now" : "Final balance due — 50%",
+      "Option 1 — Pay by Card (Stripe)",
       `$${totalDueNow.toFixed(2)}`,
-      "Pay Now &rarr;",
+      "Pay Securely &rarr;",
       paymentLink,
       "Secure payment via Stripe &nbsp;&middot;&nbsp; Your case closes automatically on payment confirmation.",
       "#15803d",
     )}
+
+    ${section("Option 2 — Pay via PayNow", `
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+        <tr>
+          <td align="center" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:24px 20px;">
+            <p style="${FONT}font-size:15px;font-weight:700;color:#111111;margin:0 0 4px;">PayNow Transfer</p>
+            <p style="${FONT}font-size:13px;color:#444444;margin:0 0 2px;">UEN: <strong>202424156H</strong></p>
+            <p style="${FONT}font-size:13px;color:#444444;margin:0 0 16px;">TMG Install by The Moving Guy Pte Ltd</p>
+            <table style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 20px;margin:0 auto 16px;">
+              <tr>
+                <td style="${FONT}font-size:13px;color:#166534;text-align:center;">
+                  Amount to transfer: <strong style="font-size:18px;">$${totalDueNow.toFixed(2)}</strong>
+                </td>
+              </tr>
+            </table>
+            <p style="${FONT}font-size:12px;color:#555555;margin:0;line-height:1.7;">
+              After transferring, please <strong>WhatsApp us at ${WHATSAPP_NUMBER}</strong><br>
+              with a <strong>screenshot of your payment receipt</strong>.<br>
+              <span style="color:#888888;">Our team will confirm once payment is verified.</span>
+            </p>
+          </td>
+        </tr>
+      </table>
+    `)}
 
     ${notice("info", `<strong>Not satisfied with the work?</strong> Please get in touch on WhatsApp before completing payment and we will address your concerns promptly. We stand behind the quality of our work.`)}
 

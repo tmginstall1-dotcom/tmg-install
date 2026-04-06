@@ -3906,8 +3906,10 @@ ${systemPrompt}` });
       }
 
       // WhatsApp fallback for chatbot customers (or if email failed)
+      // Also try customer.phone if no dedicated whatsapp phone stored
       if (!sendOk) {
-        const waPhone = normalizeSGPhone(quote.customerWhatsappPhone);
+        const rawWaPhone = quote.customerWhatsappPhone || quote.customer?.phone;
+        const waPhone = rawWaPhone ? normalizeSGPhone(rawWaPhone) : null;
         if (waPhone) {
           const waMsg =
             `💳 *Final Payment Due — ${quote.referenceNo}*\n\n` +
@@ -3915,8 +3917,8 @@ ${systemPrompt}` });
             (overtimeCharge > 0
               ? `Your final balance is *$${finalAmount.toFixed(2)}*, which includes the 50% balance ($${baseBalance.toFixed(2)}) plus an overtime charge ($${overtimeCharge.toFixed(2)}) for exceeding the 2-hour allowance.\n\n`
               : `Please pay the *outstanding balance of $${finalAmount.toFixed(2)}* to close your case.\n\n`) +
-            `${paymentLink}\n\n` +
-            `_Thank you for choosing TMG Install!_ 🙏`;
+            waPayNowBlock(finalAmount, paymentLink) +
+            `\n\n_Thank you for choosing TMG Install!_ 🙏`;
           const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
           sendOk = !!waSent;
           if (sendOk) {
@@ -6083,8 +6085,8 @@ Respond directly — no JSON, just the message text.`,
         channelTarget = quote.customer!.email;
         console.log(`[Deposit] Resent email to ${channelTarget} for ${quote.referenceNo}`);
       } else {
-        // No real email — send via WhatsApp
-        const rawPhone = quote.customerWhatsappPhone;
+        // No real email — send via WhatsApp (customerWhatsappPhone OR phone fallback)
+        const rawPhone = quote.customerWhatsappPhone || quote.customer?.phone;
         if (!rawPhone) {
           return res.status(400).json({ message: "No real email and no WhatsApp number found for this customer." });
         }
