@@ -1995,16 +1995,17 @@ function PayslipsTab() {
     startDate: format(today, "yyyy-MM-dd"),
   });
 
-  const { data: loans = [] } = useQuery<any[]>({
-    queryKey: ["/api/admin/staff-loans", filterUserId],
+  const { data: allLoans = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/staff-loans"],
     queryFn: async () => {
-      if (!filterUserId) return [];
-      const res = await fetch(`${API_BASE}/api/admin/staff-loans?userId=${filterUserId}`, { credentials: "include" });
+      const res = await fetch(`${API_BASE}/api/admin/staff-loans`, { credentials: "include" });
       return res.json();
     },
-    enabled: !!filterUserId,
     refetchInterval: 30_000,
   });
+  const loans = filterUserId
+    ? allLoans.filter((l: any) => l.userId === parseInt(filterUserId))
+    : [];
 
   const addLoanMut = useMutation({
     mutationFn: () => apiRequest("POST", "/api/admin/staff-loans", {
@@ -2411,7 +2412,7 @@ function PayslipsTab() {
       {printingPayslip && (
         <OfficialPayslip
           payslip={printingPayslip}
-          loans={loans.filter((l: any) => l.userId === printingPayslip.userId)}
+          loans={allLoans.filter((l: any) => l.userId === printingPayslip.userId)}
           onClose={() => setPrintingPayslip(null)}
         />
       )}
