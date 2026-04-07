@@ -865,13 +865,13 @@ export class DatabaseStorage implements IStorage {
       if (data.items.length > 0) {
         await db.insert(quoteItems).values(data.items.map(item => ({ ...item, quoteId: id })));
       }
-      // Recalculate totals
+      // Recalculate totals — deposit is always 50/50
       const subtotal = data.items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
       const existingQuote = await db.select().from(quotes).where(eq(quotes.id, id));
       const transportFee = Number(existingQuote[0]?.transportFee || 0);
       const total = subtotal + transportFee;
-      const depositAmount = (total * 0.30).toFixed(2);
-      const finalAmount = (total * 0.70).toFixed(2);
+      const depositAmount = (total * 0.50).toFixed(2);
+      const finalAmount = (total * 0.50).toFixed(2);
       await db.update(quotes).set({
         subtotal: subtotal.toFixed(2),
         total: total.toFixed(2),

@@ -3785,10 +3785,10 @@ ${systemPrompt}` });
       let description: string;
 
       if (type === "deposit") {
-        amount = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.3;
+        amount = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.5;
         description = `Deposit for ${quote.referenceNo} — TMG Install`;
       } else {
-        amount = parseFloat(quote.finalAmount || "0") || parseFloat(quote.total) * 0.7;
+        amount = parseFloat(quote.finalAmount || "0") || parseFloat(quote.total) * 0.5;
         description = `Final Payment for ${quote.referenceNo} — TMG Install`;
       }
 
