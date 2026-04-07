@@ -4942,11 +4942,15 @@ SUBMITTED QUOTE CONTEXT:
 
 RULES:
 1. Answer their follow-up question directly and helpfully.
-2. If they're asking whether a different item spec (e.g., "no mirror") changes the price — explain that pricing is based on the item type and service, and our team will confirm the exact quote. Reassure them it won't be drastically different.
-3. If they want to CHANGE something in their quote — tell them our team will be in touch to adjust, or they can say "change items/address/date" to update before the team contacts them.
-4. Do NOT start collecting new quote info. Do NOT re-ask their name/address.
-5. End with: "Reply *hi* whenever you're ready to start a new quote, or our team will be in touch shortly!"
-6. Keep under 80 words. Warm, friendly tone.`,
+2. If they want to ADD a service (e.g., "can include assembly?", "can add installation?", "add dismantle?"):
+   - Tell them yes, absolutely — our team can include that.
+   - Ask them to confirm by replying "YES add [service]" so we can update the quote, OR let them know our team will reach out to adjust.
+   - Do NOT restart the quote flow.
+3. If they're asking whether a different item spec changes the price — explain pricing is by item type/service and our team will confirm the exact quote.
+4. If they want to CHANGE address/date/items — tell them our team will be in touch to adjust.
+5. Do NOT start collecting new quote info. Do NOT re-ask their name/address.
+6. End warmly: "Our team will be in touch shortly to confirm everything! 😊"
+7. Keep under 100 words. Warm, professional tone.`,
               }, {
                 role: "user",
                 content: text,
@@ -6068,6 +6072,15 @@ CRITICAL for edit_items:
         const catalog = await storage.getCatalogItems();
 
         // ── Step 2: Parse items with OpenAI (same logic as web flow) ──────
+        const isRelocationJob = !!session.isRelocation;
+        // Build compact catalog block: only the service types relevant to this job
+        const relevantSvcTypes = isRelocationJob
+          ? ["relocate"]
+          : ["install", "dismantle", "dismantle_dispose", "dispose"];
+        const compactCatalog = catalog
+          .filter(c => relevantSvcTypes.includes(c.serviceType))
+          .map(c => `- ${c.name} | ${c.serviceType} | $${Number(c.basePrice).toFixed(0)}`)
+          .join("\n");
         let aiParsedItems: { detectedName: string; serviceType: string; quantity: number; estimatedUnitPrice: number; confidence: number }[] = [];
         try {
           const aiResponse = await openai.chat.completions.create({
@@ -6076,21 +6089,35 @@ CRITICAL for edit_items:
               {
                 role: "system",
                 content: `You are an AI assistant for TMG Install, a furniture installation company in Singapore.
-Extract furniture items and required services from the customer's description.
-Valid service types are: 'install', 'dismantle', 'relocate'.
+Extract furniture items and their service types from the customer's description.
 
-Our catalog includes these items (name — serviceType — price SGD):
-${catalog.map(c => `- ${c.name} (${c.serviceType}) $${c.basePrice}`).join("\n")}
+JOB TYPE: ${isRelocationJob ? "RELOCATION — the customer is moving furniture from one place to another." : "INSTALLATION / DISMANTLING / DISPOSAL job."}
 
-Try to match detected items to the catalog above. Use the catalog item name as detectedName when matched.
-For items not in the catalog, estimate a reasonable SGD unit price.
+${isRelocationJob ? `RELOCATION RULE (CRITICAL):
+- Use service_type = "relocate" for EVERY furniture item. This is an ALL-IN-ONE service (dismantle at origin + transport + reinstall at destination).
+- NEVER output both "dismantle" AND "relocate" for the same item. Use ONLY "relocate".
+- NEVER output "install" items for a relocation job.` : `SERVICE TYPES:
+- install: assembling / installing furniture
+- dismantle: taking apart only (no disposal)
+- dismantle_dispose: take apart AND haul away
+- dispose: haul away only (already dismantled)
+- If customer says "remove and throw": use dismantle_dispose`}
 
-Return a JSON object with an 'items' array. Each item should have:
-- 'detectedName': string (match catalog name exactly when possible, e.g. 'IKEA Pax Wardrobe')
-- 'serviceType': string ('install', 'dismantle', or 'relocate')
-- 'quantity': number
-- 'estimatedUnitPrice': number
-- 'confidence': number (0-100)
+CATALOG (match item names exactly when possible):
+${compactCatalog}
+
+Return a JSON object with an 'items' array. Each item must have:
+- 'detectedName': string — use the EXACT catalog name if matched (e.g. 'IKEA PAX Wardrobe (3-door)'), otherwise a short descriptive name
+- 'serviceType': string — must be one of the valid types above
+- 'quantity': number (default 1)
+- 'estimatedUnitPrice': number — use catalog price when matched, otherwise estimate
+- 'confidence': number (0–100)
+
+MATCHING TIPS:
+- "pax 2 door" → "IKEA PAX Wardrobe (2-door)"
+- "pax 3 door" or "pax wardrobe" → "IKEA PAX Wardrobe (3-door)"
+- "pax sliding" → "IKEA PAX Wardrobe (Sliding Doors)"
+- Use the catalog name exactly as shown.
 Return ONLY valid JSON.`,
               },
               { role: "user", content: itemsText },
@@ -6110,15 +6137,30 @@ Return ONLY valid JSON.`,
           aiParsedItems = [{ detectedName: itemsText.substring(0, 200), serviceType: "install", quantity: 1, estimatedUnitPrice: 0, confidence: 50 }];
         }
 
-        // ── Step 3: Match each item against the catalog (same as web flow) ─
+        // ── Step 3: Match each item against the catalog (best match wins) ─
+        const findBestCatalogMatch = (detectedName: string, serviceType: string) => {
+          const dn = detectedName.toLowerCase();
+          const candidates = catalog.filter(c => c.serviceType === serviceType);
+          // Score each candidate: exact name match > name-contains > word overlap
+          let best: typeof catalog[0] | undefined;
+          let bestScore = -1;
+          for (const c of candidates) {
+            const cn = c.name.toLowerCase();
+            let score = 0;
+            if (dn === cn) score = 100;
+            else if (dn.includes(cn) || cn.includes(dn)) score = 50 + cn.length;
+            else {
+              const words = dn.split(/\s+/).filter((w: string) => w.length > 3);
+              const hits = words.filter((w: string) => cn.includes(w)).length;
+              if (hits > 0) score = hits * 10;
+            }
+            if (score > bestScore) { bestScore = score; best = c; }
+          }
+          return bestScore > 0 ? best : undefined;
+        };
         let totalEstimate = 0;
         const quoteItems = aiParsedItems.map((item) => {
-          const matchedCatalogItem = catalog.find(c =>
-            c.serviceType === item.serviceType &&
-            (item.detectedName.toLowerCase().includes(c.name.toLowerCase()) ||
-             c.name.toLowerCase().includes(item.detectedName.toLowerCase()) ||
-             item.detectedName.toLowerCase().split(/\s+/).some((w: string) => w.length > 3 && c.name.toLowerCase().includes(w)))
-          );
+          const matchedCatalogItem = findBestCatalogMatch(item.detectedName, item.serviceType);
           const unitPrice = matchedCatalogItem ? Number(matchedCatalogItem.basePrice) : (item.estimatedUnitPrice || 0);
           const qty = item.quantity || 1;
           const subtotal = unitPrice * qty;
@@ -6283,7 +6325,7 @@ Return ONLY valid JSON.`,
           dismantle_dispose: "🗑️", surcharge: "📐", discount: "💚", adjustment: "➕",
         };
         const serviceLabel: Record<string, string> = {
-          install: "Install", dismantle: "Dismantle", relocate: "Relocate",
+          install: "Install", dismantle: "Dismantle", relocate: "Relocation (all-in-one)",
           dispose: "Dispose", dismantle_dispose: "Dismantle & Dispose",
           surcharge: "", discount: "Discount", adjustment: "",
         };
@@ -6303,6 +6345,9 @@ Return ONLY valid JSON.`,
         const totalLine = `💰 *Total: $${grandTotal.toFixed(2)}*`;
         const depositLine = `⬇️ *Deposit (50%): $${depositAmount}*`;
 
+        const relocationNote = session.isRelocation
+          ? `_ℹ️ Relocation price includes: dismantle at origin, transport, and reinstall at destination._\n\n`
+          : "";
         await sendBotMessage(from,
           `✅ *Quote Ready, ${name}!*\n\n` +
           `🔖 *Reference:* ${quote.referenceNo}\n` +
@@ -6316,9 +6361,10 @@ Return ONLY valid JSON.`,
           `${transportLine}` +
           `${totalLine}\n` +
           `${depositLine}\n\n` +
+          relocationNote +
           `To confirm your booking, please make the *50% deposit ($${depositAmount})* via PayNow/bank transfer — our team will send payment details shortly.\n\n` +
-          `Track your quote: ${APP_URL}/quotes/${quote.id}\n\n` +
-          `Thanks for choosing TMG Install! 🙏 Reply *hi* anytime for a new quote.`
+          `Need to add or change anything? Just reply here and we'll update your quote! 😊\n\n` +
+          `Track your quote: ${APP_URL}/quotes/${quote.id}`
         );
 
         // Notify admin
