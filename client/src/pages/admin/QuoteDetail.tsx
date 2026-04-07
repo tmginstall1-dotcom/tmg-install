@@ -21,6 +21,119 @@ function formatMoney(v: any) {
   return `$${Number(v || 0).toFixed(2)}`;
 }
 
+/** Determine which contact channels are available for a quote */
+function getContactChannels(quote: any) {
+  const email = quote?.customer?.email || "";
+  const hasRealEmail = !!email && !email.includes("@tmginstall.com");
+  const rawPhone = quote?.customerWhatsappPhone || quote?.customer?.phone || "";
+  const hasPhone = !!rawPhone;
+  return { hasRealEmail, hasPhone, email: hasRealEmail ? email : "", phone: rawPhone };
+}
+
+/**
+ * Standardised payment notification buttons.
+ * Renders Email / WhatsApp / Both buttons depending on available contact data.
+ * Falls back to a phone-entry form when no contact info is stored.
+ */
+function PaymentChannelButtons({
+  quote,
+  emailPending,
+  whatsappPending,
+  onEmail,
+  onWhatsApp,
+  compact = false,
+}: {
+  quote: any;
+  emailPending: boolean;
+  whatsappPending: boolean;
+  onEmail: () => void;
+  onWhatsApp: (phone?: string) => void;
+  compact?: boolean;
+}) {
+  const [phoneInput, setPhoneInput] = useState("");
+  const { hasRealEmail, hasPhone } = getContactChannels(quote);
+  const isPending = emailPending || whatsappPending;
+
+  const baseBtn = compact
+    ? "inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+    : "inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-colors disabled:opacity-50";
+
+  if (!hasRealEmail && !hasPhone) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-zinc-500">No contact info stored — enter a phone number to send via WhatsApp:</p>
+        <input
+          type="tel"
+          value={phoneInput}
+          onChange={e => setPhoneInput(e.target.value)}
+          placeholder="e.g. 91234567"
+          className="w-full h-9 px-3 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+        <button
+          onClick={() => phoneInput && onWhatsApp(phoneInput)}
+          disabled={isPending || !phoneInput.trim()}
+          className={`${baseBtn} w-full bg-emerald-600 hover:bg-emerald-700 text-white`}
+          data-testid="button-send-whatsapp-override"
+        >
+          <MessageCircle className="w-4 h-4" />
+          {whatsappPending ? "Sending…" : "Send WhatsApp Payment"}
+        </button>
+      </div>
+    );
+  }
+
+  if (hasRealEmail && hasPhone) {
+    return (
+      <div className="flex gap-2">
+        <button
+          onClick={onEmail}
+          disabled={isPending}
+          className={`${baseBtn} flex-1 bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50`}
+          data-testid="button-send-payment-email"
+        >
+          <Mail className="w-4 h-4" />
+          {emailPending ? "Sending…" : "Email"}
+        </button>
+        <button
+          onClick={() => onWhatsApp()}
+          disabled={isPending}
+          className={`${baseBtn} flex-1 bg-emerald-600 hover:bg-emerald-700 text-white`}
+          data-testid="button-send-payment-whatsapp"
+        >
+          <MessageCircle className="w-4 h-4" />
+          {whatsappPending ? "Sending…" : "WhatsApp"}
+        </button>
+      </div>
+    );
+  }
+
+  if (hasRealEmail) {
+    return (
+      <button
+        onClick={onEmail}
+        disabled={isPending}
+        className={`${baseBtn} w-full bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50`}
+        data-testid="button-send-payment-email"
+      >
+        <Mail className="w-4 h-4" />
+        {emailPending ? "Sending…" : "Send Payment Email"}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => onWhatsApp()}
+      disabled={isPending}
+      className={`${baseBtn} w-full bg-emerald-600 hover:bg-emerald-700 text-white`}
+      data-testid="button-send-payment-whatsapp"
+    >
+      <MessageCircle className="w-4 h-4" />
+      {whatsappPending ? "Sending…" : "Send WhatsApp Payment"}
+    </button>
+  );
+}
+
 export default function AdminQuoteDetail() {
   const params = useParams();
   const id = params.id!;
@@ -1069,11 +1182,13 @@ export default function AdminQuoteDetail() {
                       className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
                       <QrCode className="w-4 h-4" /> Mark PayNow Received
                     </button>
-                    <button onClick={() => resendDepositEmail.mutate()} disabled={resendDepositEmail.isPending}
-                      className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors disabled:opacity-50">
-                      <Mail className="w-4 h-4" />
-                      {resendDepositEmail.isPending ? "Sending…" : "Resend Payment Notification"}
-                    </button>
+                    <PaymentChannelButtons
+                      quote={quote}
+                      emailPending={resendDepositEmail.isPending}
+                      whatsappPending={sendWhatsAppPayment.isPending}
+                      onEmail={() => resendDepositEmail.mutate()}
+                      onWhatsApp={(phone) => sendWhatsAppPayment.mutate(phone)}
+                    />
                   </div>
                 )}
 
@@ -1149,14 +1264,13 @@ export default function AdminQuoteDetail() {
                     {!quote.depositPaidAt && (
                       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
                         <p className="text-xs font-semibold text-amber-800">Deposit not yet received</p>
-                        <button
-                          onClick={() => resendDepositEmail.mutate()}
-                          disabled={resendDepositEmail.isPending}
-                          data-testid="button-send-deposit-request"
-                          className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                          <Send className="w-4 h-4" />
-                          {resendDepositEmail.isPending ? "Sending…" : "Send Deposit Request (Stripe / PayNow)"}
-                        </button>
+                        <PaymentChannelButtons
+                          quote={quote}
+                          emailPending={resendDepositEmail.isPending}
+                          whatsappPending={sendWhatsAppPayment.isPending}
+                          onEmail={() => resendDepositEmail.mutate()}
+                          onWhatsApp={(phone) => sendWhatsAppPayment.mutate(phone)}
+                        />
                         <button
                           onClick={() => setShowPayNowConfirm(true)}
                           data-testid="button-mark-deposit-received"
@@ -1225,10 +1339,13 @@ export default function AdminQuoteDetail() {
                       className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors">
                       <QrCode className="w-4 h-4" /> Mark PayNow Payment Received
                     </button>
-                    <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
-                      className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors disabled:opacity-50">
-                      <Mail className="w-4 h-4" /> Resend Payment Request
-                    </button>
+                    <PaymentChannelButtons
+                      quote={quote}
+                      emailPending={requestFinalPayment.isPending}
+                      whatsappPending={sendWhatsAppPayment.isPending}
+                      onEmail={() => handleRequestFinalPayment()}
+                      onWhatsApp={(phone) => sendWhatsAppPayment.mutate(phone)}
+                    />
                   </div>
                 )}
 
@@ -1502,10 +1619,16 @@ export default function AdminQuoteDetail() {
                 className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors">
                 <QrCode className="w-4 h-4" /> PayNow Received
               </button>
-              <button onClick={() => resendDepositEmail.mutate()} disabled={resendDepositEmail.isPending}
-                className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl bg-white border border-zinc-200 text-zinc-700 text-sm font-medium transition-colors">
-                <Mail className="w-4 h-4" /> Resend
-              </button>
+              <div className="flex-1">
+                <PaymentChannelButtons
+                  quote={quote}
+                  emailPending={resendDepositEmail.isPending}
+                  whatsappPending={sendWhatsAppPayment.isPending}
+                  onEmail={() => resendDepositEmail.mutate()}
+                  onWhatsApp={(phone) => sendWhatsAppPayment.mutate(phone)}
+                  compact
+                />
+              </div>
             </div>
           </div>
         );
