@@ -1206,6 +1206,20 @@ STRICT RULES:
 - When correcting: update only the changed field, preserve all others
 - Keep tone warm, concise, conversational — 1–3 sentences per reply
 
+ADDRESS VALIDATION (STEP 3):
+- REJECT vague addresses like "here", "there", "this", "same", "home", "office", "my place", "above", "same as before" — do NOT store them. Instead reply: "Could you share the full address? Include the block/unit number so our team can plan the job. 😊"
+- A valid address must include a block number, street name, or unit number. A bare word like "Here" is never valid.
+- If customer says "same as first quote" or "same address" or references a previous address — ask them to confirm it in full.
+
+FLOOR VALIDATION (STEP 6):
+- floor_from must be a NUMBER. If customer says "this", "here", "same", "first", "above" or any non-numeric word for the floor — do NOT store it. Reply: "Which floor number exactly? E.g. 'Floor 5'. 😊"
+- If customer describes access instead of floor (e.g. "no steps", "ground level", "easy") when asked for floor — set floor_from=1 if they imply ground floor, otherwise ask for the floor number.
+
+ITEM DESCRIPTION RULES:
+- When writing items in the state, use ONLY what the customer described — do NOT add features they didn't mention (e.g., do NOT say "with built-in mirror" if the customer just said "wardrobe").
+- Use the customer's exact words: "• 1 wardrobe (dismantle)" not "• 1 wardrobe with built-in mirror (dismantle)".
+- Keep item descriptions short and factual.
+
 CONFIRMATION TRIGGER:
 When service_scope + customer_name + from_address + items + floor_from + lift_from are ALL non-null (PLUS to_address if is_relocation=true) AND special_remarks has been asked (may be null if customer replied 'none'), set transition_to_confirmation=true.
 preferred_date defaults to "Flexible" if never answered. customer_email may be null.
@@ -4884,19 +4898,64 @@ Respond with ONLY a JSON array (no prose, no markdown):
       let session = await storage.getWhatsAppSession(from);
       let state = session?.state ?? "start";
 
-      // ── Auto-reset completed sessions — wipe ALL collected data so returning ───
-      // customers always start fresh instead of carrying over old names/addresses.
+      // ── Submitted-state: smart follow-up vs. new-quote detection ──────────────
+      // Instead of blindly resetting, first check if the customer is asking about
+      // their submitted quote (correction, pricing question, clarification) vs.
+      // explicitly starting a new request. Only reset for clear new-quote triggers.
       if (state === "submitted") {
-        const freshFields = {
-          state: "start",
-          collectedName: null, collectedAddress: null, collectedItems: null,
-          collectedDate: null, floorLevel: null, hasLift: null, liftAccess: null,
-          isRelocation: null, previousItems: null, conversationHistory: null,
-          botPaused: false,
-        };
-        await storage.upsertWhatsAppSession(from, freshFields);
-        session = session ? { ...session, ...freshFields } : null;
-        state = "start";
+        const NEW_QUOTE_TRIGGER = /\b(new (quote|request|job|booking)|start (over|again|fresh)|hi|hello|another (quote|job)|book again|different (item|job|address))\b/i;
+        const isNewQuote = NEW_QUOTE_TRIGGER.test(text);
+        if (isNewQuote) {
+          // Clear session and fall through to start state
+          const freshFields = {
+            state: "start",
+            collectedName: null, collectedAddress: null, collectedItems: null,
+            collectedDate: null, floorLevel: null, hasLift: null, liftAccess: null,
+            isRelocation: null, previousItems: null, conversationHistory: null,
+            botPaused: false,
+          };
+          await storage.upsertWhatsAppSession(from, freshFields);
+          session = session ? { ...session, ...freshFields } : null;
+          state = "start";
+        } else {
+          // Customer is following up on their submitted quote — answer helpfully, then exit
+          try {
+            const followUpRes = await openai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 300,
+              messages: [{
+                role: "system",
+                content: `You are the WhatsApp assistant for TMG Install, a furniture installation company in Singapore. The customer has just submitted a quote and is sending a follow-up message — they are NOT starting a new quote yet.
+
+SUBMITTED QUOTE CONTEXT:
+- Customer name: ${session?.collectedName || "not captured"}
+- Address: ${session?.collectedAddress || "not captured"}
+- Items: ${session?.collectedItems || "not captured"}
+- Date/time: ${session?.collectedDate || "flexible"}
+
+RULES:
+1. Answer their follow-up question directly and helpfully.
+2. If they're asking whether a different item spec (e.g., "no mirror") changes the price — explain that pricing is based on the item type and service, and our team will confirm the exact quote. Reassure them it won't be drastically different.
+3. If they want to CHANGE something in their quote — tell them our team will be in touch to adjust, or they can say "change items/address/date" to update before the team contacts them.
+4. Do NOT start collecting new quote info. Do NOT re-ask their name/address.
+5. End with: "Reply *hi* whenever you're ready to start a new quote, or our team will be in touch shortly!"
+6. Keep under 80 words. Warm, friendly tone.`,
+              }, {
+                role: "user",
+                content: text,
+              }],
+            });
+            const followUpReply = followUpRes.choices[0]?.message?.content?.trim();
+            if (followUpReply) {
+              await sendBotMessage(from, followUpReply);
+              return;
+            }
+          } catch { /* fall through to hardcoded */ }
+          await sendBotMessage(from,
+            `Thanks for the note, ${session?.collectedName || "there"}! 😊 Your quote has been submitted and our team will review the details and be in touch shortly.\n\nIf you'd like to change anything, just let us know here and we'll pass it on.\n\nReply *hi* anytime to start a new quote!`
+          );
+          return;
+        }
       }
 
       // ── Load dynamic bot knowledge from DB (FAQ + business settings) ──────────
