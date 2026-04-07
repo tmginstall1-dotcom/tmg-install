@@ -4903,6 +4903,11 @@ Respond with ONLY a JSON array (no prose, no markdown):
       // their submitted quote (correction, pricing question, clarification) vs.
       // explicitly starting a new request. Only reset for clear new-quote triggers.
       if (state === "submitted") {
+        // Always respect admin takeover — do not reply if bot is paused
+        if (session?.botPaused) {
+          console.log(`[WhatsApp] Bot paused for ${from} (submitted state) — admin is handling`);
+          return;
+        }
         const NEW_QUOTE_TRIGGER = /\b(new (quote|request|job|booking)|start (over|again|fresh)|hi|hello|another (quote|job)|book again|different (item|job|address))\b/i;
         const isNewQuote = NEW_QUOTE_TRIGGER.test(text);
         if (isNewQuote) {
