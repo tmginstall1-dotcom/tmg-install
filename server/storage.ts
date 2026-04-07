@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
-  attendanceAmendments, leaveRequests, payslips, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
+  attendanceAmendments, leaveRequests, payslips, staffLoans, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
   receipts, faqEntries, cannedReplies, pricingCorrections, ggvJobs,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
@@ -9,6 +9,7 @@ import {
   type AttendanceAmendment, type AttendanceAmendmentWithUser,
   type LeaveRequest, type LeaveRequestWithUser,
   type Payslip, type PayslipWithUser,
+  type StaffLoan, type InsertStaffLoan,
   type GpsTrackPoint, type SiteEvent, type WhatsAppSession, type WhatsAppMessage,
   type Receipt, type ReceiptWithUser,
   type FaqEntry, type InsertFaqEntry, type CannedReply, type InsertCannedReply,
@@ -71,6 +72,12 @@ export interface IStorage {
   getPayslipsByUser(userId: number): Promise<Payslip[]>;
   getAllPayslips(userId?: number): Promise<PayslipWithUser[]>;
   deletePayslip(id: number): Promise<void>;
+
+  // Staff Loans
+  getStaffLoans(userId?: number): Promise<StaffLoan[]>;
+  createStaffLoan(data: InsertStaffLoan): Promise<StaffLoan>;
+  updateStaffLoan(id: number, data: Partial<InsertStaffLoan>): Promise<StaffLoan | undefined>;
+  deleteStaffLoan(id: number): Promise<void>;
 
   // Catalog
   getCatalogItems(search?: string): Promise<typeof catalogItems.$inferSelect[]>;
@@ -492,6 +499,27 @@ export class DatabaseStorage implements IStorage {
 
   async deletePayslip(id: number): Promise<void> {
     await db.delete(payslips).where(eq(payslips.id, id));
+  }
+
+  async getStaffLoans(userId?: number): Promise<StaffLoan[]> {
+    if (userId) {
+      return db.select().from(staffLoans).where(eq(staffLoans.userId, userId)).orderBy(desc(staffLoans.createdAt));
+    }
+    return db.select().from(staffLoans).orderBy(desc(staffLoans.createdAt));
+  }
+
+  async createStaffLoan(data: InsertStaffLoan): Promise<StaffLoan> {
+    const [created] = await db.insert(staffLoans).values(data).returning();
+    return created;
+  }
+
+  async updateStaffLoan(id: number, data: Partial<InsertStaffLoan>): Promise<StaffLoan | undefined> {
+    const [updated] = await db.update(staffLoans).set(data).where(eq(staffLoans.id, id)).returning();
+    return updated;
+  }
+
+  async deleteStaffLoan(id: number): Promise<void> {
+    await db.delete(staffLoans).where(eq(staffLoans.id, id));
   }
 
   async getQuotesForStaff(staffId: number): Promise<QuoteResponse[]> {

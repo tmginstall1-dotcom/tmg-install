@@ -124,9 +124,23 @@ export const payslips = pgTable("payslips", {
   overtimePay: numeric("overtime_pay").default("0"),
   mealAllowance: numeric("meal_allowance").default("0"),
   leaveDeduction: numeric("leave_deduction").default("0"),
+  loanDeduction: numeric("loan_deduction").default("0"),
   grossPay: numeric("gross_pay").default("0"),
   notes: text("notes"),
   generatedBy: integer("generated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Staff Loans
+export const staffLoans = pgTable("staff_loans", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  description: text("description").notNull(),
+  totalAmount: numeric("total_amount").notNull(),
+  monthlyRepayment: numeric("monthly_repayment").notNull(),
+  remainingBalance: numeric("remaining_balance").notNull(),
+  startDate: text("start_date").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -354,6 +368,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   attendanceLogs: many(attendanceLogs),
   leaveRequests: many(leaveRequests),
   payslips: many(payslips),
+  staffLoans: many(staffLoans),
 }));
 
 export const attendanceLogsRelations = relations(attendanceLogs, ({ one, many }) => ({
@@ -372,6 +387,10 @@ export const leaveRequestsRelations = relations(leaveRequests, ({ one }) => ({
 
 export const payslipsRelations = relations(payslips, ({ one }) => ({
   user: one(users, { fields: [payslips.userId], references: [users.id] }),
+}));
+
+export const staffLoansRelations = relations(staffLoans, ({ one }) => ({
+  user: one(users, { fields: [staffLoans.userId], references: [users.id] }),
 }));
 
 export const quotesRelations = relations(quotes, ({ one, many }) => ({
@@ -537,6 +556,11 @@ export const insertPayslipSchema = createInsertSchema(payslips).omit({ id: true,
 export type Payslip = typeof payslips.$inferSelect;
 export type InsertPayslip = z.infer<typeof insertPayslipSchema>;
 export type PayslipWithUser = Payslip & { user?: User };
+
+export const insertStaffLoanSchema = createInsertSchema(staffLoans).omit({ id: true, createdAt: true });
+export type StaffLoan = typeof staffLoans.$inferSelect;
+export type InsertStaffLoan = z.infer<typeof insertStaffLoanSchema>;
+export type StaffLoanWithUser = StaffLoan & { user?: User };
 
 // Job Completion Checklist — per-quote checklist items ticked off by staff on-site
 export const jobChecklists = pgTable("job_checklists", {

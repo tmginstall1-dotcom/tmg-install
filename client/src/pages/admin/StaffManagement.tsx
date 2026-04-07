@@ -7,7 +7,7 @@ import { format, differenceInMinutes, startOfMonth, endOfMonth, startOfWeek, end
 import {
   Plus, Trash2, Pencil, Check, X, Users, Clock, UserPlus, LogIn, LogOut,
   ChevronDown, ChevronUp, Calendar, FileText, Settings2, Loader2, AlertCircle, MapPin, Printer,
-  ArrowRight, DollarSign, ChevronLeft, ChevronRight, Navigation2, MoveRight, CircleDot
+  ArrowRight, DollarSign, ChevronLeft, ChevronRight, Navigation2, MoveRight, CircleDot, CreditCard
 } from "lucide-react";
 import OfficialPayslip from "@/components/OfficialPayslip";
 import GpsMap from "@/components/GpsMap";
@@ -1985,6 +1985,55 @@ function PayslipsTab() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [printingPayslip, setPrintingPayslip] = useState<any | null>(null);
 
+  // Loans state
+  const [showLoans, setShowLoans] = useState(false);
+  const [showAddLoan, setShowAddLoan] = useState(false);
+  const [loanForm, setLoanForm] = useState({
+    description: "",
+    totalAmount: "",
+    monthlyRepayment: "",
+    startDate: format(today, "yyyy-MM-dd"),
+  });
+
+  const { data: loans = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/staff-loans", filterUserId],
+    queryFn: async () => {
+      if (!filterUserId) return [];
+      const res = await fetch(`${API_BASE}/api/admin/staff-loans?userId=${filterUserId}`, { credentials: "include" });
+      return res.json();
+    },
+    enabled: !!filterUserId,
+    refetchInterval: 30_000,
+  });
+
+  const addLoanMut = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/staff-loans", {
+      userId: parseInt(filterUserId),
+      description: loanForm.description,
+      totalAmount: parseFloat(loanForm.totalAmount),
+      monthlyRepayment: parseFloat(loanForm.monthlyRepayment),
+      startDate: loanForm.startDate,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/staff-loans"] });
+      setShowAddLoan(false);
+      setLoanForm({ description: "", totalAmount: "", monthlyRepayment: "", startDate: format(today, "yyyy-MM-dd") });
+      toast({ title: "Loan recorded" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteLoanMut = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/staff-loans/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/staff-loans"] }); toast({ title: "Loan deleted" }); },
+  });
+
+  const toggleLoanActiveMut = useMutation({
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
+      apiRequest("PATCH", `/api/admin/staff-loans/${id}`, { isActive }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/staff-loans"] }); },
+  });
+
   const { data: payslips = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/payslips", filterUserId],
     queryFn: async () => {
@@ -2028,7 +2077,136 @@ function PayslipsTab() {
           data-testid="button-generate-payslip">
           <Plus className="w-4 h-4" /> Generate Payslip
         </button>
+        <button onClick={() => setShowLoans(!showLoans)}
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-50 text-zinc-700 text-sm font-medium transition-colors"
+          data-testid="button-toggle-loans">
+          <CreditCard className="w-4 h-4" /> Manage Loans
+        </button>
       </div>
+
+      {/* ── Staff Loans Panel ── */}
+      {showLoans && (
+        <div className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-zinc-500" />
+              <h3 className="text-sm font-semibold text-zinc-900">Staff Loans</h3>
+            </div>
+            {filterUserId && (
+              <button onClick={() => setShowAddLoan(!showAddLoan)}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-700 text-white text-xs font-medium transition-colors"
+                data-testid="button-add-loan">
+                <Plus className="w-3.5 h-3.5" /> Add Loan
+              </button>
+            )}
+          </div>
+
+          {!filterUserId ? (
+            <p className="text-sm text-zinc-400">Select a staff member above to view and manage their loans.</p>
+          ) : (
+            <>
+              {showAddLoan && (
+                <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 space-y-3">
+                  <h4 className="text-xs font-semibold text-zinc-700 uppercase tracking-wide">New Loan</h4>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-500 mb-1">Description / Purpose</label>
+                    <input type="text" value={loanForm.description} onChange={e => setLoanForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="e.g. Personal advance, Equipment loan"
+                      className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      data-testid="input-loan-description" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-500 mb-1">Total Loan Amount (S$)</label>
+                      <input type="number" min="0" step="0.01" value={loanForm.totalAmount} onChange={e => setLoanForm(f => ({ ...f, totalAmount: e.target.value }))}
+                        placeholder="0.00"
+                        className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        data-testid="input-loan-amount" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-500 mb-1">Monthly Repayment (S$)</label>
+                      <input type="number" min="0" step="0.01" value={loanForm.monthlyRepayment} onChange={e => setLoanForm(f => ({ ...f, monthlyRepayment: e.target.value }))}
+                        placeholder="0.00"
+                        className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        data-testid="input-loan-repayment" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-500 mb-1">Start Date</label>
+                    <input type="date" value={loanForm.startDate} onChange={e => setLoanForm(f => ({ ...f, startDate: e.target.value }))}
+                      className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      data-testid="input-loan-start-date" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => addLoanMut.mutate()}
+                      disabled={!loanForm.description || !loanForm.totalAmount || !loanForm.monthlyRepayment || addLoanMut.isPending}
+                      className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                      data-testid="button-confirm-add-loan">
+                      {addLoanMut.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : "Save Loan"}
+                    </button>
+                    <button onClick={() => setShowAddLoan(false)}
+                      className="inline-flex items-center h-9 px-4 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 text-sm font-medium transition-colors">Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {loans.length === 0 ? (
+                <p className="text-sm text-zinc-400">No loans recorded for this staff member.</p>
+              ) : (
+                <div className="space-y-2">
+                  {loans.map((loan: any) => {
+                    const remaining = parseFloat(loan.remainingBalance || "0");
+                    const total = parseFloat(loan.totalAmount || "0");
+                    const pct = total > 0 ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
+                    return (
+                      <div key={loan.id} data-testid={`loan-${loan.id}`}
+                        className={`border rounded-xl p-4 ${loan.isActive ? "border-zinc-200 bg-white" : "border-zinc-100 bg-zinc-50"}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-semibold text-sm text-zinc-900">{loan.description}</p>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${loan.isActive && remaining > 0 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                                {loan.isActive && remaining > 0 ? "Active" : "Settled"}
+                              </span>
+                            </div>
+                            <p className="text-xs text-zinc-500 mt-0.5">
+                              Started {loan.startDate} · S${parseFloat(loan.monthlyRepayment).toFixed(2)}/month repayment
+                            </p>
+                            <div className="mt-2.5 flex items-center gap-3">
+                              <div className="flex-1 bg-zinc-100 rounded-full h-1.5">
+                                <div className="bg-amber-500 h-1.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="text-xs font-mono font-bold text-zinc-700 shrink-0">
+                                S${remaining.toFixed(2)} / S${total.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button
+                              onClick={() => toggleLoanActiveMut.mutate({ id: loan.id, isActive: !loan.isActive })}
+                              className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors"
+                              title={loan.isActive ? "Mark as settled" : "Re-activate"}
+                              data-testid={`btn-toggle-loan-${loan.id}`}>
+                              {loan.isActive ? <Check className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              onClick={() => { if (confirm("Delete this loan record?")) deleteLoanMut.mutate(loan.id); }}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-zinc-400 hover:text-red-500 transition-colors"
+                              data-testid={`btn-delete-loan-${loan.id}`}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
 
       {showGenerate && (
         <div className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4">
@@ -2144,6 +2322,7 @@ function PayslipsTab() {
             const isMonthlyBased = parseFloat(ps.user?.monthlyRate || "0") > 0;
             const basicPay = parseFloat(ps.basicPay || "0");
             const mealAllowance = parseFloat(ps.mealAllowance || "0");
+            const loanDeduction = parseFloat(ps.loanDeduction || "0");
             const detailItems = isMonthlyBased
               ? [
                   { label: "Basic Salary", val: `S$${basicPay.toFixed(2)}` },
@@ -2153,6 +2332,7 @@ function PayslipsTab() {
                   { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}` },
                   ...(mealAllowance > 0 ? [{ label: "Meal Allowance", val: `S$${mealAllowance.toFixed(2)}` }] : []),
                   { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}` },
+                  ...(loanDeduction > 0 ? [{ label: "Loan Repayment", val: `-S$${loanDeduction.toFixed(2)}` }] : []),
                 ]
               : [
                   { label: "Regular Hours", val: `${parseFloat(ps.regularHours).toFixed(1)}h` },
@@ -2161,6 +2341,7 @@ function PayslipsTab() {
                   { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}` },
                   ...(mealAllowance > 0 ? [{ label: "Meal Allowance", val: `S$${mealAllowance.toFixed(2)}` }] : []),
                   { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}` },
+                  ...(loanDeduction > 0 ? [{ label: "Loan Repayment", val: `-S$${loanDeduction.toFixed(2)}` }] : []),
                 ];
             return (
               <div key={ps.id} className="bg-white border border-zinc-200 rounded-xl overflow-hidden">

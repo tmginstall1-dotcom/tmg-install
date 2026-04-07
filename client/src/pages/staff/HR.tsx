@@ -8,7 +8,7 @@ import {
   Clock, Calendar, FileText, ChevronDown, ChevronUp, Edit3, Check, X,
   Loader2, Printer, LogIn, LogOut, ChevronLeft, ChevronRight,
   AlertCircle, CheckCircle2, PlusCircle, TrendingDown, Heart, Briefcase,
-  Receipt, Upload, Trash2, ImageIcon,
+  Receipt, Upload, Trash2, ImageIcon, CreditCard,
 } from "lucide-react";
 import OfficialPayslip from "@/components/OfficialPayslip";
 
@@ -755,8 +755,10 @@ function LeaveTab({ userId }: { userId?: number }) {
 function PayslipsTab() {
   const { user } = useAuth();
   const { data: payslips = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/staff/payslips"], refetchInterval: 30_000 });
+  const { data: loans = [] } = useQuery<any[]>({ queryKey: ["/api/staff/loans"], refetchInterval: 60_000 });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [printingPayslip, setPrintingPayslip] = useState<any | null>(null);
+  const activeLoans = (loans as any[]).filter((l: any) => l.isActive && parseFloat(l.remainingBalance || "0") > 0);
 
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -775,11 +777,42 @@ function PayslipsTab() {
 
   return (
     <div className="space-y-3">
+      {/* Active Loan Balance Card */}
+      {activeLoans.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 space-y-2">
+          <div className="flex items-center gap-2 mb-1">
+            <CreditCard className="w-4 h-4 text-amber-600" />
+            <p className="text-xs font-black uppercase tracking-wide text-amber-700 dark:text-amber-400">Outstanding Loans</p>
+          </div>
+          {activeLoans.map((loan: any) => {
+            const remaining = parseFloat(loan.remainingBalance || "0");
+            const total = parseFloat(loan.totalAmount || "0");
+            const pct = total > 0 ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
+            return (
+              <div key={loan.id} className="bg-white dark:bg-amber-900/20 rounded-xl p-3 border border-amber-100 dark:border-amber-800">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">{loan.description}</p>
+                  <p className="text-sm font-mono font-bold text-amber-700 dark:text-amber-400">S${remaining.toFixed(2)}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-amber-100 dark:bg-amber-900 rounded-full h-1.5">
+                    <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-[10px] text-amber-600 font-medium shrink-0">S${remaining.toFixed(2)} of S${total.toFixed(2)} remaining</span>
+                </div>
+                <p className="text-[10px] text-amber-500 mt-1">S${parseFloat(loan.monthlyRepayment).toFixed(2)}/month deducted from payslip</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="space-y-2">
         {payslips.map((ps: any) => {
           const isOpen = expandedId === ps.id;
           const basicPay = parseFloat(ps.basicPay || "0");
           const mealAllowance = parseFloat(ps.mealAllowance || "0");
+          const loanDeduction = parseFloat(ps.loanDeduction || "0");
           const detailItems = ps.isMonthlyBased
             ? [
                 { label: "Basic Salary", val: `S$${basicPay.toFixed(2)}`, highlight: false },
@@ -789,6 +822,7 @@ function PayslipsTab() {
                 { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}`, highlight: false },
                 ...(mealAllowance > 0 ? [{ label: "Meal Allowance", val: `S$${mealAllowance.toFixed(2)}`, highlight: false }] : []),
                 { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}`, highlight: true, negative: true },
+                ...(loanDeduction > 0 ? [{ label: "Loan Repayment", val: `-S$${loanDeduction.toFixed(2)}`, highlight: true, negative: true }] : []),
               ]
             : [
                 { label: "Regular Hours", val: `${parseFloat(ps.regularHours).toFixed(1)}h`, highlight: false },
@@ -797,6 +831,7 @@ function PayslipsTab() {
                 { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}`, highlight: false },
                 ...(mealAllowance > 0 ? [{ label: "Meal Allowance", val: `S$${mealAllowance.toFixed(2)}`, highlight: false }] : []),
                 { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}`, highlight: true, negative: true },
+                ...(loanDeduction > 0 ? [{ label: "Loan Repayment", val: `-S$${loanDeduction.toFixed(2)}`, highlight: true, negative: true }] : []),
               ];
 
           return (

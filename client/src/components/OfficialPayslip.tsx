@@ -13,6 +13,7 @@ interface PayslipData {
   overtimePay: string;
   mealAllowance: string;
   leaveDeduction: string;
+  loanDeduction?: string;
   grossPay: string;
   notes?: string;
   createdAt?: string;
@@ -33,13 +34,14 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, onC
   const name     = staffName     || payslip.user?.name     || "—";
   const username = staffUsername || payslip.user?.username || "—";
 
-  const basic  = parseFloat(payslip.basicPay      || "0");
-  const regH   = parseFloat(payslip.regularHours  || "0");
-  const regP   = parseFloat(payslip.regularPay    || "0");
-  const otH    = parseFloat(payslip.overtimeHours || "0");
-  const otP    = parseFloat(payslip.overtimePay   || "0");
-  const meal   = parseFloat(payslip.mealAllowance || "0");
+  const basic  = parseFloat(payslip.basicPay       || "0");
+  const regH   = parseFloat(payslip.regularHours   || "0");
+  const regP   = parseFloat(payslip.regularPay     || "0");
+  const otH    = parseFloat(payslip.overtimeHours  || "0");
+  const otP    = parseFloat(payslip.overtimePay    || "0");
+  const meal   = parseFloat(payslip.mealAllowance  || "0");
   const leave  = parseFloat(payslip.leaveDeduction || "0");
+  const loan   = parseFloat(payslip.loanDeduction  || "0");
   const gross  = parseFloat(payslip.grossPay       || "0");
 
   const totalEarnings = basic + regP + otP + meal;
@@ -283,6 +285,11 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, onC
         <td>Unpaid Leave Deduction</td>
         <td class="amt">( ${sg(leave)} )</td>
       </tr>
+      ${loan > 0 ? `
+      <tr class="deduct-row">
+        <td>Loan Repayment</td>
+        <td class="amt">( ${sg(loan)} )</td>
+      </tr>` : ""}
     </tbody>
   </table>
 
@@ -444,6 +451,12 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, onC
                 <td className="py-2 text-black/60">Unpaid Leave Deduction</td>
                 <td className="py-2 text-right font-mono font-bold text-black/60">( {sg(leave)} )</td>
               </tr>
+              {loan > 0 && (
+                <tr className="border-b border-black/[0.05]">
+                  <td className="py-2 text-black/60">Loan Repayment</td>
+                  <td className="py-2 text-right font-mono font-bold text-black/60">( {sg(loan)} )</td>
+                </tr>
+              )}
             </tbody>
           </table>
 

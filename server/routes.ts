@@ -2557,6 +2557,18 @@ export async function registerRoutes(
       const leaveDeduction = unpaidDays * dailyRate;
       grossPay -= leaveDeduction;
 
+      // Fetch active loans and apply monthly repayments
+      const activeLoans = (await storage.getStaffLoans(userId)).filter(l => l.isActive && parseFloat(l.remainingBalance as string) > 0);
+      let loanDeduction = 0;
+      const loanRepayments: { id: number; amount: number; newBalance: number }[] = [];
+      for (const loan of activeLoans) {
+        const remaining = parseFloat(loan.remainingBalance as string);
+        const repay = Math.min(parseFloat(loan.monthlyRepayment as string), remaining);
+        loanDeduction += repay;
+        loanRepayments.push({ id: loan.id, amount: repay, newBalance: Math.max(0, remaining - repay) });
+      }
+      grossPay -= loanDeduction;
+
       const payslip = await storage.generatePayslip({
         userId,
         periodStart,
@@ -2568,10 +2580,20 @@ export async function registerRoutes(
         overtimePay: overtimePay.toFixed(2),
         mealAllowance: mealAllowance.toFixed(2),
         leaveDeduction: leaveDeduction.toFixed(2),
+        loanDeduction: loanDeduction.toFixed(2),
         grossPay: Math.max(0, grossPay).toFixed(2),
         notes,
         generatedBy: req.session.userId,
       });
+
+      // Update loan balances after payslip is saved
+      for (const { id, newBalance } of loanRepayments) {
+        await storage.updateStaffLoan(id, {
+          remainingBalance: newBalance.toFixed(2),
+          ...(newBalance <= 0 && { isActive: false }),
+        });
+      }
+
       res.json(payslip);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
@@ -2581,6 +2603,71 @@ export async function registerRoutes(
       await storage.deletePayslip(parseInt(req.params.id));
       res.json({ ok: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Staff Loans ────────────────────────────────────────────────────────────
+  app.get("/api/admin/staff-loans", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
+    const userId = req.query.userId ? parseInt(req.query.userId as string) : undefined;
+    const loans = await storage.getStaffLoans(userId);
+    res.json(loans);
+  });
+
+  app.post("/api/admin/staff-loans", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const { userId, description, totalAmount, monthlyRepayment, startDate } = z.object({
+        userId: z.number(),
+        description: z.string().min(1),
+        totalAmount: z.number().positive(),
+        monthlyRepayment: z.number().positive(),
+        startDate: z.string(),
+      }).parse(req.body);
+      const loan = await storage.createStaffLoan({
+        userId,
+        description,
+        totalAmount: String(totalAmount),
+        monthlyRepayment: String(monthlyRepayment),
+        remainingBalance: String(totalAmount),
+        startDate,
+        isActive: true,
+      });
+      res.json(loan);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.patch("/api/admin/staff-loans/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const { description, monthlyRepayment, remainingBalance, isActive } = z.object({
+        description: z.string().min(1).optional(),
+        monthlyRepayment: z.number().positive().optional(),
+        remainingBalance: z.number().min(0).optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const updated = await storage.updateStaffLoan(parseInt(req.params.id), {
+        ...(description !== undefined && { description }),
+        ...(monthlyRepayment !== undefined && { monthlyRepayment: String(monthlyRepayment) }),
+        ...(remainingBalance !== undefined && { remainingBalance: String(remainingBalance) }),
+        ...(isActive !== undefined && { isActive }),
+      });
+      res.json(updated);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.delete("/api/admin/staff-loans/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      await storage.deleteStaffLoan(parseInt(req.params.id));
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Staff can view their own loans
+  app.get("/api/staff/loans", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const loans = await storage.getStaffLoans(req.session.userId);
+    res.json(loans);
   });
 
   // ── Staff Receipts ────────────────────────────────────────────────────────
