@@ -468,9 +468,11 @@ Typical item pricing (per item, SGD):
 - Double bed frame: $75 install, $55 dismantle
 - Queen bed frame: $80 install, $60 dismantle
 - King bed frame: $100 install, $80 dismantle
-- IKEA PAX wardrobe: $160 install, $110 dismantle
-- Sliding door wardrobe (2-door): $120 install, $85 dismantle
-- Sliding door wardrobe (3-door): $160 install, $110 dismantle
+- IKEA PAX Wardrobe (2-door): $130 install, $90 dismantle, $120 dismantle & dispose, $148 relocate
+- IKEA PAX Wardrobe (3-door): $160 install, $110 dismantle, $140 dismantle & dispose, $162 relocate
+- IKEA PAX Wardrobe (Sliding Doors): $180 install, $120 dismantle, $165 dismantle & dispose, $195 relocate
+- Sliding door wardrobe (2-door, non-PAX): $120 install, $85 dismantle
+- Sliding door wardrobe (3-door, non-PAX): $160 install, $110 dismantle
 - Hinged door wardrobe (4-door): $150 install, $110 dismantle
 - 4-door or custom wardrobe: $180–300
 - Dining table: $80 install
