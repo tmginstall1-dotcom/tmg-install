@@ -918,6 +918,7 @@ function PayslipsTab() {
           payslip={printingPayslip}
           staffName={user?.name}
           staffUsername={user?.username}
+          loans={loans as any[]}
           onClose={() => setPrintingPayslip(null)}
         />
       )}

@@ -21,14 +21,24 @@ interface PayslipData {
   user?: { name: string; username: string; monthlyRate?: string };
 }
 
+interface LoanInfo {
+  id: number;
+  description: string;
+  totalAmount: string;
+  monthlyRepayment: string;
+  remainingBalance: string;
+  isActive: boolean;
+}
+
 interface Props {
   payslip: PayslipData;
   staffName?: string;
   staffUsername?: string;
+  loans?: LoanInfo[];
   onClose: () => void;
 }
 
-export default function OfficialPayslip({ payslip, staffName, staffUsername, onClose }: Props) {
+export default function OfficialPayslip({ payslip, staffName, staffUsername, loans = [], onClose }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
 
   const name     = staffName     || payslip.user?.name     || "—";
@@ -190,6 +200,14 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, onC
   .sig-block .sig-line { border-bottom: 1.5px solid #000; height: 36px; margin-bottom: 6px; }
   .sig-block .sig-label { font-size: 7.5pt; color: #888; letter-spacing: 0.5px; }
 
+  /* ── LOAN STATEMENT ── */
+  .loan-table { width: 100%; border-collapse: collapse; margin-top: 0; }
+  .loan-table th { font-size: 7pt; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; color: #888; padding: 5px 0; border-bottom: 1px solid #e0e0e0; text-align: left; }
+  .loan-table th.r { text-align: right; }
+  .loan-table td { font-size: 9.5pt; padding: 6px 0; border-bottom: 1px solid #f4f4f4; }
+  .loan-table td.r { text-align: right; font-family: 'Courier New', monospace; font-weight: 700; }
+  .loan-settled { color: #22c55e; font-weight: 900; font-size: 8pt; letter-spacing: 1px; text-transform: uppercase; }
+
   /* ── FOOTER ── */
   .footer {
     display: flex;
@@ -300,6 +318,33 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, onC
   </div>
 
   ${payslip.notes ? `<div class="notes-box"><strong>Notes:</strong> ${payslip.notes}</div>` : ""}
+
+  ${loans.length > 0 ? `
+  <!-- Loan Account Statement -->
+  <div class="sec-label" style="margin-top:20px;">Loan Account Statement</div>
+  <table class="loan-table">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th class="r">Original Loan</th>
+        <th class="r">Repayment / mth</th>
+        <th class="r">Outstanding Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${loans.map(l => {
+        const rem = parseFloat(l.remainingBalance || "0");
+        const tot = parseFloat(l.totalAmount || "0");
+        const rep = parseFloat(l.monthlyRepayment || "0");
+        return `<tr>
+          <td>${l.description}</td>
+          <td class="r">${sg(tot)}</td>
+          <td class="r">${rep > 0 ? sg(rep) : "—"}</td>
+          <td class="r">${rem <= 0 ? '<span class="loan-settled">Settled</span>' : sg(rem)}</td>
+        </tr>`;
+      }).join("")}
+    </tbody>
+  </table>` : ""}
 
   <!-- Signatures -->
   <div class="sig-grid">
@@ -469,6 +514,43 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, onC
           {payslip.notes && (
             <div className="mt-4 border border-black/[0.1] px-4 py-3 text-xs text-black/60">
               <span className="font-bold text-black">Notes: </span>{payslip.notes}
+            </div>
+          )}
+
+          {/* Loan Account Statement */}
+          {loans.length > 0 && (
+            <div className="mt-5">
+              <p className="text-[8px] font-black uppercase tracking-[3px] text-black/35 pt-3.5 pb-2 border-b-[1.5px] border-black">
+                Loan Account Statement
+              </p>
+              <table className="w-full text-sm mt-0">
+                <thead>
+                  <tr>
+                    {["Description", "Original Loan", "Repayment / mth", "Outstanding Balance"].map(h => (
+                      <th key={h} className="text-left text-[7px] font-black uppercase tracking-[1.5px] text-black/35 py-1.5 border-b border-black/10 last:text-right">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loans.map(l => {
+                    const rem = parseFloat(l.remainingBalance || "0");
+                    const tot = parseFloat(l.totalAmount || "0");
+                    const rep = parseFloat(l.monthlyRepayment || "0");
+                    return (
+                      <tr key={l.id} className="border-b border-black/[0.04]">
+                        <td className="py-1.5 text-black/70">{l.description}</td>
+                        <td className="py-1.5 font-mono font-bold text-right">{sg(tot)}</td>
+                        <td className="py-1.5 font-mono font-bold text-right">{rep > 0 ? sg(rep) : "—"}</td>
+                        <td className="py-1.5 font-mono font-bold text-right">
+                          {rem <= 0
+                            ? <span className="text-green-600 text-[10px] font-black tracking-wide uppercase">Settled</span>
+                            : sg(rem)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
 

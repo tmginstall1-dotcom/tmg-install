@@ -2411,6 +2411,7 @@ function PayslipsTab() {
       {printingPayslip && (
         <OfficialPayslip
           payslip={printingPayslip}
+          loans={loans.filter((l: any) => l.userId === printingPayslip.userId)}
           onClose={() => setPrintingPayslip(null)}
         />
       )}
