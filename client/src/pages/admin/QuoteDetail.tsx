@@ -713,28 +713,38 @@ export default function AdminQuoteDetail() {
                       <span className="text-xs text-zinc-500">Created</span>
                       <span className="text-sm text-zinc-900">{format(new Date(quote.createdAt), "MMM d, yyyy h:mm a")}</span>
                     </div>
-                    {(quote.preferredDate || quote.scheduledAt) && (
-                      <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
-                        <span className="text-xs text-zinc-500">{quote.scheduledAt ? "Scheduled" : "Requested"}</span>
-                        <span className="text-sm text-zinc-900 font-medium">
-                          {quote.scheduledAt
-                            ? format(new Date(quote.scheduledAt), "EEE, MMM d, yyyy")
-                            : (() => {
-                                try {
-                                  return format(new Date(quote.preferredDate + "T12:00:00"), "EEE, MMM d, yyyy");
-                                } catch {
-                                  return quote.preferredDate;
-                                }
-                              })()
-                          }
-                          {(quote.timeWindow || quote.preferredTimeWindow) && (
-                            <span className="ml-1.5 text-xs font-normal text-zinc-500">
-                              · {quote.scheduledAt ? quote.timeWindow : quote.preferredTimeWindow}
+                    {(quote.preferredDate || quote.scheduledAt) && (() => {
+                      const tw = quote.scheduledAt ? quote.timeWindow : quote.preferredTimeWindow;
+                      const twLabel = tw === "09:00-12:00" ? "Morning (9 AM–12 PM)"
+                        : tw === "13:00-17:00" ? "Afternoon (1–5 PM)" : tw ?? null;
+                      const dateLabel = quote.scheduledAt
+                        ? format(new Date(quote.scheduledAt), "EEE, MMM d, yyyy")
+                        : (() => {
+                            try { return format(new Date(quote.preferredDate + "T12:00:00"), "EEE, MMM d, yyyy"); }
+                            catch { return quote.preferredDate; }
+                          })();
+                      const isFlexible = !quote.scheduledAt && quote.preferredDate?.toLowerCase() === "flexible";
+                      return (
+                        <div className="grid grid-cols-[100px_1fr] gap-2 items-start">
+                          <span className="text-xs text-zinc-500 mt-0.5">{quote.scheduledAt ? "Scheduled" : "Requested"}</span>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-sm text-zinc-900 font-medium flex items-center gap-1.5">
+                              {isFlexible
+                                ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">Flexible Date</span>
+                                : dateLabel}
                             </span>
-                          )}
-                        </span>
-                      </div>
-                    )}
+                            {twLabel && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold w-fit bg-blue-50 text-blue-700 border border-blue-200">
+                                <Clock className="w-3 h-3" /> {twLabel}
+                              </span>
+                            )}
+                            {isFlexible && !twLabel && (
+                              <span className="text-xs text-zinc-400 italic">No time preference specified</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   
                   <div className="space-y-4">

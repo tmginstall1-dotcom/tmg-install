@@ -1187,7 +1187,7 @@ STEP 3 → from_address: Job address (origin for relocations). "What's the addre
 STEP 4 → to_address: ONLY if is_relocation=true — ask destination address. Otherwise skip.
 STEP 5 → items: Full furniture list with service per item. e.g. "• 1 wall mirror (relocate)\n• 1 shoe cabinet (install)"
 STEP 6 → floor_from + lift_from + access_difficulty: Ask "Which floor is the unit, and is there a lift?" — capture floor number and yes/no lift. Then ask access: "How easy is access? Easy / Moderate / Difficult?"
-STEP 7 → preferred_date + preferred_time_window: "When would you prefer? We have morning (9am–12pm) or afternoon (1pm–5pm) slots." If "flexible"/"anytime" → preferred_date="Flexible", preferred_date_iso=null, preferred_time_window=null.
+STEP 7 → preferred_date + preferred_time_window: "When would you prefer? We have morning (9am–12pm) or afternoon (1pm–5pm) slots." If "flexible"/"anytime" on the DATE → preferred_date="Flexible", preferred_date_iso=null. But STILL ask and capture their preferred time window (morning or afternoon) — even flexible customers should pick a slot. If they truly don't mind either slot, then preferred_time_window=null. If they say "afternoon"/"1-5pm"/"pm" → preferred_time_window="13:00-17:00". If they say "morning"/"9am"/"am" → preferred_time_window="09:00-12:00".
 STEP 8 → special_remarks: Always ask: "Any special notes for our team? E.g. wall mounting needed, drilling, fragile items, parking notes. Reply 'none' to skip." If customer says 'none', 'no', 'skip', or 'nothing' → set special_remarks=null. Otherwise store verbatim. NEVER skip asking this step.
 STEP 9 → customer_email: "Your email address for the quote confirmation? (Reply 'skip' if you prefer not to.)" If "skip" → null.
 

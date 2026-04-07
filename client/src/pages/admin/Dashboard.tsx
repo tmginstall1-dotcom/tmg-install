@@ -39,12 +39,28 @@ function greeting() {
 }
 
 function dateLabel(quote: any): string {
-  const raw = quote.scheduledAt || quote.preferredDate;
-  if (!raw) return format(new Date(quote.createdAt), "d MMM");
-  const d = quote.scheduledAt ? new Date(quote.scheduledAt) : new Date(raw + "T12:00:00");
-  if (isToday(d)) return "Today";
-  if (isTomorrow(d)) return "Tomorrow";
-  return format(d, "d MMM");
+  if (quote.scheduledAt) {
+    const d = new Date(quote.scheduledAt);
+    if (isToday(d)) return "Today";
+    if (isTomorrow(d)) return "Tomorrow";
+    return format(d, "d MMM");
+  }
+  if (quote.preferredDate) {
+    if (quote.preferredDate.toLowerCase() === "flexible") {
+      const tw = quote.preferredTimeWindow;
+      if (tw === "13:00-17:00") return "Flexible · Afternoon";
+      if (tw === "09:00-12:00") return "Flexible · Morning";
+      return "Flexible";
+    }
+    try {
+      const d = new Date(quote.preferredDate + "T12:00:00");
+      if (isNaN(d.getTime())) return quote.preferredDate;
+      if (isToday(d)) return "Today";
+      if (isTomorrow(d)) return "Tomorrow";
+      return format(d, "d MMM");
+    } catch { return quote.preferredDate; }
+  }
+  return format(new Date(quote.createdAt), "d MMM");
 }
 
 function QuoteRow({ quote, compact = false }: { quote: any; compact?: boolean }) {
