@@ -2620,7 +2620,7 @@ export async function registerRoutes(
         userId: z.number(),
         description: z.string().min(1),
         totalAmount: z.number().positive(),
-        monthlyRepayment: z.number().positive(),
+        monthlyRepayment: z.number().min(0),
         startDate: z.string(),
       }).parse(req.body);
       const loan = await storage.createStaffLoan({
@@ -2641,7 +2641,7 @@ export async function registerRoutes(
     try {
       const { description, monthlyRepayment, remainingBalance, isActive } = z.object({
         description: z.string().min(1).optional(),
-        monthlyRepayment: z.number().positive().optional(),
+        monthlyRepayment: z.number().min(0).optional(),
         remainingBalance: z.number().min(0).optional(),
         isActive: z.boolean().optional(),
       }).parse(req.body);
