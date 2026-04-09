@@ -1227,9 +1227,17 @@ STRICT RULES:
 - NEVER overwrite a field with null unless customer explicitly removes it
 - If a customer answers multiple steps in one message, capture ALL of them and skip to the next gap
 - Relocation: from_address and to_address are DIFFERENT addresses — never confuse them
-- If customer mentions moving / relocation, set is_relocation=true and service_scope="relocate"
+- If customer mentions moving / relocating / shifting, IMMEDIATELY set is_relocation=true and service_scope="relocate"
+- If customer says "shift to X", "moving to X", "relocating to X", "new office at X" — the new location is the TO address, not the FROM address
 - When correcting: update only the changed field, preserve all others
 - Keep tone warm, concise, conversational — 1–3 sentences per reply
+
+COMMERCIAL / B2B PROJECTS:
+- If the customer identifies as a company (Pte Ltd, company name, "our office", "our company", "we are relocating our office") — acknowledge the commercial context warmly.
+- For large office moves (workstations, office furniture, multiple items implied), ALWAYS ask for the quantity of items before completing the items step. e.g. "How many workstations/items are involved?"
+- If items text has generic terms without quantity (e.g. "workstations", "office furniture") — ask for clarification: "Approximately how many workstations/desks will be involved? This helps us give you an accurate quote."
+- For commercial relocation projects, the items field should include specific quantities. e.g. "• 20 office workstations (relocate)"
+- NEVER assume quantity=1 for commercial/office projects — always confirm the count.
 
 ADDRESS VALIDATION (STEP 3):
 - REJECT vague addresses like "here", "there", "this", "same", "home", "office", "my place", "above", "same as before" — do NOT store them. Instead reply: "Could you share the full address? Include the block/unit number so our team can plan the job. 😊"
@@ -5538,27 +5546,37 @@ COMMAND RULES:
 - change_*: customer explicitly asks to correct/edit something already collected
 - change_remarks: customer wants to add/change special notes (condo rules, parking, fragile items)
 - help: asking what they can do or how this works
-- pricing: asking about price/cost for a specific or general furniture item or service
-- faq: general question about TMG Install (timing, payment, areas, GST, tools, etc.) NOT about item pricing
+- pricing: customer EXPLICITLY asks about price/cost with words like "how much", "what's the price", "price for", "cost for", "how much does it cost", "price check", "quote for X" — WITHOUT providing other context. NOT descriptions of what they need to do.
+- faq: general question about TMG Install (timing, payment, areas, GST, tools, site survey, site visit, etc.) NOT about item pricing
 - progress: customer asks what info has been collected so far ("what have you got?", "what do you have?", "summary so far", "what did I give you?", "what have we done?")
 - escalate: customer explicitly asks for a human/agent/staff/manager ("talk to human", "real person", "agent please", "need staff")
 - farewell: customer says goodbye, thank you, will update later, ok thanks, coming back later, talk later, or any variation of a polite exit — even mid-flow
-- none: a direct answer to the current question — DO NOT override a direct reply
+- none: a direct answer to the current question, a description of their job/needs, or any statement about what they need done — DO NOT override a direct reply
 
 CRITICAL — Do NOT classify as command if customer is directly answering the current question:
-- state=collecting → floor/lift answers, addresses, item lists, dates, "none", "skip", emails, or any factual reply → none (the active collection flow handles all of these)
+- state=collecting → floor/lift answers, addresses, item lists, dates, "none", "skip", emails, OR descriptions of their job/work scope → ALWAYS none. The collection flow handles all of these.
 - state=awaiting_floor → floor numbers, lift/no-lift answers → none
 - state=awaiting_access → 1/2/3, easy/moderate/hard → none
 - state=awaiting_date → dates, times, "anytime", "flexible" → none
-- state=awaiting_items → furniture names or descriptions → none
+- state=awaiting_items → furniture names, item descriptions, or scope of work → none
 - state=awaiting_to_address → addresses → none
 - state=awaiting_remarks → any text (notes, email, "none", "skip") → none
+
+PRICING vs NONE — CRITICAL DISTINCTION:
+- "how much for a sofa relocation?" → pricing (explicit price question)
+- "we need to relocate 20 office workstations" → NONE (describing their job, not asking price)
+- "we need dismantle workstation and install in new office" → NONE (describing scope of work)
+- "what is the cost for wardrobe dismantling?" → pricing (explicit price question)
+- "our office is moving to Woodlands" → NONE (relocation context, not a price question)
+- "can you help us shift the furniture?" → NONE (scope description)
 
 FAQ ANSWER STYLE — answer briefly and directly, then stop. Examples:
 - "Yes, we do dismantling and reassembly. Which item do you need help with?"
 - "We cover all of Singapore — HDB, condo, landed, and commercial."
 - "No GST — all our prices are nett."
 - "50% deposit to confirm, balance on the day of job."
+- "We don't conduct pre-visit site surveys, but if you share the item list and some photos, our team can put together an accurate quote for your office. For larger commercial projects, we can also arrange a call to discuss the scope. 😊"
+- "We handle office relocations regularly — workstations, desks, partitions, storage units and more. Could you share roughly how many items and some photos so we can prepare a detailed quote?"
 If the case is unusual or complex, say the team will review and follow up.`
               },
               ...historyMessages(conversationHistory),
@@ -5662,6 +5680,19 @@ If the case is unusual or complex, say the team will review and follow up.`
               }
 
               if (resolvedPricingItem) {
+                // Detect commercial/office items — for these, we need quantity before quoting
+                const isCommercialItem = /workstation|cubicle|office desk|office partition|panel partition|office furniture|l-shaped desk|standing desk|sit.stand/i.test(resolvedPricingItem);
+                const isLargeProject = resolvedPricingItems.length > 5 || isCommercialItem;
+                if (isLargeProject && resolvedPricingItems.length === 0) {
+                  // For commercial items with unknown quantity, ask scope before pricing
+                  await sendBotMessage(from,
+                    `Great question! For *${resolvedPricingItem}* ${serviceLabel ? serviceLabel : "work"}, pricing depends on the quantity and scope involved.\n\n` +
+                    `Could you share:\n• How many units/items are involved?\n• Photos of the items if possible — our team can give you a precise quote from there.\n\n` +
+                    `For office and commercial projects, we work with detailed scope to ensure accurate pricing. 😊\n\n${continuePrompt}`
+                  );
+                  return;
+                }
+
                 // Build estimate using the new quantity-aware engine
                 const displayItem = resolvedPricingItems.length > 0
                   ? buildScanDisplayLabel(resolvedPricingItems)
