@@ -8,7 +8,7 @@
 // --------------------------------------------------------------------------
 export const PricingConfig = {
   callout: {
-    fee: 60,   // SGD — applied to every non-relocation job (replaces the old $180 minimum)
+    fee: 39.90,   // SGD — applied to every non-relocation job (replaces the old $180 minimum)
   },
   fallback: {
     dismantleMultiplier: 0.6,        // dismantle       = install * 0.6 when no catalog entry
