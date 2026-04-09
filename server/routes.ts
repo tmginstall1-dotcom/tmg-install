@@ -264,6 +264,11 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
 
     const drPct = PricingConfig.fallback.relocateDRDiscount; // 0.40
 
+    // Determine carry-only vs full D&R mode from structured state
+    const estStructuredState = (session as any).structuredState ? (() => { try { return JSON.parse((session as any).structuredState); } catch { return null; } })() : null;
+    const estRelocateMode: string | null = estStructuredState?.relocation_mode || null;
+    const estIsCarryOnly = !!(session as any).isRelocation && estRelocateMode === "carry";
+
     for (const item of aiParsed) {
       const matched = findCatalogEntry(item.detectedName, item.serviceType);
 
@@ -286,9 +291,11 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
       }
 
       let unitPrice: number;
-      // For relocation items: use same formula as web wizard — (install + dismantle) × (1 − drPct)
-      // This gives the bundled full-service rate, matching what customers see on the website.
-      if (item.serviceType === 'relocate') {
+      if (item.serviceType === 'relocate' && estIsCarryOnly) {
+        // Carry-only: no per-item labor — only transport fee applies
+        unitPrice = 0;
+      } else if (item.serviceType === 'relocate') {
+        // Full D&R relocation: (install + dismantle) × (1 − drPct)
         const installEntry   = findCatalogEntry(item.detectedName, 'install');
         const dismantleEntry = findCatalogEntry(item.detectedName, 'dismantle');
         if (installEntry && dismantleEntry) {
@@ -390,7 +397,11 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
       msg += `Lift access confirmed — no floor surcharge applied.\n\n`;
     }
     if (session.isRelocation) {
-      msg += `_Relocation includes 90 mins crew time. Additional charges apply after._\n\n`;
+      if (estIsCarryOnly) {
+        msg += `_Carry-only relocation: furniture is moved as-is (no dismantle/reinstall). Transport fee covers crew and vehicle._\n\n`;
+      } else {
+        msg += `_Full-service relocation: dismantle at origin + transport + reinstall at destination._\n\n`;
+      }
     }
     if (hasTBCItems) {
       msg += `_Note: Some items require manual pricing — our team will confirm the final amount._\n\n`;
@@ -460,7 +471,9 @@ Services:
 1. ASSEMBLY / INSTALLATION — flat-pack furniture (IKEA, Taobao, self-purchased), gym equipment, TV brackets, shelving. From $80/item.
 2. DISMANTLING — safe disassembly for moving, renovation, or disposal. From $60/item.
 3. DISPOSAL — haul-away of unwanted furniture. From $80/item. Dismantle + dispose bundle saves money.
-4. RELOCATION — all-in-one service: dismantle at origin, transport, reinstall at destination. From $180 (varies by distance & volume).
+4. RELOCATION — two service levels:
+   • *Carry Only* — move furniture as-is, no dismantle/reinstall needed (e.g. sofas, dining tables, mattresses). Just transport fee applies — starts from $38.
+   • *Full Service (D&R)* — dismantle at origin + transport + reinstall at destination (e.g. wardrobes, bed frames, shelving). From $120 + transport (varies by distance & volume).
 
 Typical item pricing (per item, SGD):
 - Single bed frame: $60 install, $45 dismantle
@@ -1007,6 +1020,7 @@ const DEFAULT_STRUCTURED_STATE = {
   service_scope: null as string | null,
   is_relocation: false,
   distance_km: null as number | null,
+  relocation_mode: null as string | null, // "carry" = carry-only (no dismantle/reinstall), "full" = full D&R service
 };
 
 function parseStructuredState(session: any): typeof DEFAULT_STRUCTURED_STATE {
@@ -1177,7 +1191,9 @@ ${photoItemsText ? `\nPHOTO SCAN: Customer sent a photo. Detected items merged i
 SERVICES:
 - install: furniture assembly/installation
 - dismantle: take apart only, no move
-- relocate: dismantle at origin + transport + reinstall at destination (is_relocation=true)
+- relocate: move furniture from one address to another (is_relocation=true). Two modes:
+    • relocation_mode="carry"  — just carry and move as-is; no dismantle/reinstall (e.g. sofa, table, bed that doesn't need assembly)
+    • relocation_mode="full"   — full service: dismantle at origin + transport + reassemble at destination (e.g. wardrobe, bed frame with bolts, shelving)
 - dispose: haul away and dispose
 - dismantle_dispose: dismantle + dispose bundle
 - mixed: multiple service types in one job
@@ -1188,6 +1204,13 @@ STEP 2 → customer_name: Ask their full name for the quote.
 STEP 3 → from_address: Job address (origin for relocations). "What's the address? Include block/unit."
 STEP 4 → to_address: ONLY if is_relocation=true — ask destination address. Otherwise skip.
 STEP 5 → items: Full furniture list with service per item. e.g. "• 1 wall mirror (relocate)\n• 1 shoe cabinet (install)"
+STEP 5.5 → relocation_mode: ONLY if is_relocation=true AND relocation_mode is null. Ask clearly:
+    "Does any of the furniture need to be *dismantled and reassembled* at the new location, or will everything be *carried as-is*?
+    • *Full service* — dismantle, move, and reinstall (wardrobes, bed frames, shelving)
+    • *Carry only* — move as-is, no assembly needed (sofas, dining tables, mattresses)"
+    Set relocation_mode="full" if customer says full/dismantle/reassemble/reinstall/yes dismantle.
+    Set relocation_mode="carry" if customer says carry/no assembly/as-is/just move/just carry.
+    If the items make it obvious (sofa, table → usually carry; wardrobe, bed frame → usually full), you may suggest the likely option and confirm: "For a sofa, carry only is usually sufficient — does that sound right? 😊"
 STEP 6 → floor_from + lift_from + access_difficulty: Ask "Which floor is the unit, and is there a lift?" — capture floor number and yes/no lift. Then ask access: "How easy is access? Easy / Moderate / Difficult?"
 STEP 7 → preferred_date + preferred_time_window: "When would you prefer? We have morning (9am–12pm) or afternoon (1pm–5pm) slots." If "flexible"/"anytime" on the DATE → preferred_date="Flexible", preferred_date_iso=null. But STILL ask and capture their preferred time window (morning or afternoon) — even flexible customers should pick a slot. If they truly don't mind either slot, then preferred_time_window=null. If they say "afternoon"/"1-5pm"/"pm" → preferred_time_window="13:00-17:00". If they say "morning"/"9am"/"am" → preferred_time_window="09:00-12:00".
 STEP 8 → special_remarks: Always ask: "Any special notes for our team? E.g. wall mounting needed, drilling, fragile items, parking notes. Reply 'none' to skip." If customer says 'none', 'no', 'skip', or 'nothing' → set special_remarks=null. Otherwise store verbatim. NEVER skip asking this step.
@@ -1223,7 +1246,7 @@ ITEM DESCRIPTION RULES:
 - Keep item descriptions short and factual.
 
 CONFIRMATION TRIGGER:
-When service_scope + customer_name + from_address + items + floor_from + lift_from are ALL non-null (PLUS to_address if is_relocation=true) AND special_remarks has been asked (may be null if customer replied 'none'), set transition_to_confirmation=true.
+When service_scope + customer_name + from_address + items + floor_from + lift_from are ALL non-null (PLUS to_address + relocation_mode if is_relocation=true) AND special_remarks has been asked (may be null if customer replied 'none'), set transition_to_confirmation=true.
 preferred_date defaults to "Flexible" if never answered. customer_email may be null.
 
 CONVERSATION HISTORY:
@@ -1250,14 +1273,15 @@ Return ONLY valid JSON:
     "special_remarks": "verbatim customer text or null",
     "customer_email": "email string or null",
     "is_relocation": true/false,
-    "distance_km": number or null
+    "distance_km": number or null,
+    "relocation_mode": "carry"/"full" or null
   },
   "reply": "your message to the customer",
   "transition_to_confirmation": false
 }
 
 WHEN transition_to_confirmation=true, "reply" MUST be this FULL SUMMARY (substitute real values):
-"Here's a summary of your request:\n\n🔧 *Service:* [e.g. Relocation / Installation / Dismantling]\n👤 *Name:* [customer_name]\n📍 *From:* [from_address]\n📍 *To:* [to_address — include ONLY if is_relocation]\n🛋️ *Items:*\n[items bullet list]\n🏢 *Floor:* [floor_from] ([lift_from ? 'with lift' : 'no lift'])\n🚪 *Access:* [Easy / Moderate / Difficult]\n📅 *Requested slot:* [preferred_date or 'Flexible'][' — Morning (9am–12pm)' or ' — Afternoon (1pm–5pm)' if time_window set]\n📝 *Notes:* [special_remarks or 'None']\n📧 *Email:* [customer_email or 'Not provided']\n\nShall I send this to our team? Reply *YES* to submit.\n\n_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, *change access*, *change remarks*, or *change email*._"`,
+"Here's a summary of your request:\n\n🔧 *Service:* [e.g. Relocation — Carry Only / Relocation — Full Service / Installation / Dismantling]\n👤 *Name:* [customer_name]\n📍 *From:* [from_address]\n📍 *To:* [to_address — include ONLY if is_relocation]\n🛋️ *Items:*\n[items bullet list]\n🏢 *Floor:* [floor_from] ([lift_from ? 'with lift' : 'no lift'])\n🚪 *Access:* [Easy / Moderate / Difficult]\n📅 *Requested slot:* [preferred_date or 'Flexible'][' — Morning (9am–12pm)' or ' — Afternoon (1pm–5pm)' if time_window set]\n📝 *Notes:* [special_remarks or 'None']\n📧 *Email:* [customer_email or 'Not provided']\n\nShall I send this to our team? Reply *YES* to submit.\n\n_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, *change access*, *change remarks*, or *change email*._"`,
       }],
     });
     orchResult = JSON.parse(orchRes.choices[0]?.message?.content || "{}");
@@ -6073,9 +6097,16 @@ CRITICAL for edit_items:
 
         // ── Step 2: Parse items with OpenAI (same logic as web flow) ──────
         const isRelocationJob = !!session.isRelocation;
-        // Build compact catalog block: only the service types relevant to this job
+
+        // Get carry-only vs full D&R mode from structured state
+        const parsedStructuredStateWA = session.structuredState ? (() => { try { return JSON.parse(session.structuredState); } catch { return null; } })() : null;
+        const relocateModeWA: "carry" | "full" | null = parsedStructuredStateWA?.relocation_mode || null;
+        const isCarryOnly = isRelocationJob && relocateModeWA === "carry";
+        const isFullDR = isRelocationJob && relocateModeWA === "full";
+
+        // Build compact catalog block: include both install+dismantle (for D&R formula) plus relocate for carry-only reference
         const relevantSvcTypes = isRelocationJob
-          ? ["relocate"]
+          ? ["relocate", "install", "dismantle"]
           : ["install", "dismantle", "dismantle_dispose", "dispose"];
         const compactCatalog = catalog
           .filter(c => relevantSvcTypes.includes(c.serviceType))
@@ -6091,12 +6122,13 @@ CRITICAL for edit_items:
                 content: `You are an AI assistant for TMG Install, a furniture installation company in Singapore.
 Extract furniture items and their service types from the customer's description.
 
-JOB TYPE: ${isRelocationJob ? "RELOCATION — the customer is moving furniture from one place to another." : "INSTALLATION / DISMANTLING / DISPOSAL job."}
+JOB TYPE: ${isRelocationJob ? `RELOCATION — the customer is moving furniture from one place to another. Mode: ${isCarryOnly ? "CARRY ONLY (no dismantle/reinstall)" : isFullDR ? "FULL SERVICE (dismantle + carry + reinstall)" : "RELOCATION"}` : "INSTALLATION / DISMANTLING / DISPOSAL job."}
 
 ${isRelocationJob ? `RELOCATION RULE (CRITICAL):
-- Use service_type = "relocate" for EVERY furniture item. This is an ALL-IN-ONE service (dismantle at origin + transport + reinstall at destination).
+- Use service_type = "relocate" for EVERY furniture item.
 - NEVER output both "dismantle" AND "relocate" for the same item. Use ONLY "relocate".
-- NEVER output "install" items for a relocation job.` : `SERVICE TYPES:
+- NEVER output "install" items for a relocation job.
+${isCarryOnly ? `- MODE: CARRY ONLY — set estimatedUnitPrice = 0 for every item (no labor charge; only transport fee applies).` : isFullDR ? `- MODE: FULL SERVICE D&R — estimate the price as (install catalog price + dismantle catalog price) × 0.60 for each item.` : ""}` : `SERVICE TYPES:
 - install: assembling / installing furniture
 - dismantle: taking apart only (no disposal)
 - dismantle_dispose: take apart AND haul away
@@ -6110,7 +6142,7 @@ Return a JSON object with an 'items' array. Each item must have:
 - 'detectedName': string — use the EXACT catalog name if matched (e.g. 'IKEA PAX Wardrobe (3-door)'), otherwise a short descriptive name
 - 'serviceType': string — must be one of the valid types above
 - 'quantity': number (default 1)
-- 'estimatedUnitPrice': number — use catalog price when matched, otherwise estimate
+- 'estimatedUnitPrice': number — ${isCarryOnly ? "ALWAYS 0 for carry-only mode" : "use catalog price when matched, otherwise estimate"}
 - 'confidence': number (0–100)
 
 MATCHING TIPS:
@@ -6134,7 +6166,7 @@ Return ONLY valid JSON.`,
 
         // Fallback: create one raw item if parsing returned nothing
         if (!aiParsedItems.length) {
-          aiParsedItems = [{ detectedName: itemsText.substring(0, 200), serviceType: "install", quantity: 1, estimatedUnitPrice: 0, confidence: 50 }];
+          aiParsedItems = [{ detectedName: itemsText.substring(0, 200), serviceType: isRelocationJob ? "relocate" : "install", quantity: 1, estimatedUnitPrice: 0, confidence: 50 }];
         }
 
         // ── Step 3: Match each item against the catalog (best match wins) ─
@@ -6158,10 +6190,33 @@ Return ONLY valid JSON.`,
           }
           return bestScore > 0 ? best : undefined;
         };
+
+        // Helper: compute full D&R price for an item using (install + dismantle) × 0.60
+        const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount; // 0.60
+        const computeFullDRPrice = (detectedName: string, fallbackEstimate: number): number => {
+          const installEntry = findBestCatalogMatch(detectedName, "install");
+          const dismantleEntry = findBestCatalogMatch(detectedName, "dismantle");
+          if (installEntry && dismantleEntry) {
+            return Math.round((Number(installEntry.basePrice) + Number(dismantleEntry.basePrice)) * drDiscount * 100) / 100;
+          } else if (installEntry) {
+            return Math.round(Number(installEntry.basePrice) * 1.5 * drDiscount * 100) / 100; // fallback: 1.5× install
+          }
+          return Math.round(fallbackEstimate * drDiscount * 100) / 100;
+        };
+
         let totalEstimate = 0;
         const quoteItems = aiParsedItems.map((item) => {
           const matchedCatalogItem = findBestCatalogMatch(item.detectedName, item.serviceType);
-          const unitPrice = matchedCatalogItem ? Number(matchedCatalogItem.basePrice) : (item.estimatedUnitPrice || 0);
+          let unitPrice: number;
+          if (isCarryOnly && item.serviceType === "relocate") {
+            // Carry only: no per-item labor charge, only transport fee will apply
+            unitPrice = 0;
+          } else if (isFullDR && item.serviceType === "relocate") {
+            // Full D&R: (install + dismantle) × 0.60
+            unitPrice = computeFullDRPrice(item.detectedName, item.estimatedUnitPrice || 0);
+          } else {
+            unitPrice = matchedCatalogItem ? Number(matchedCatalogItem.basePrice) : (item.estimatedUnitPrice || 0);
+          }
           const qty = item.quantity || 1;
           const subtotal = unitPrice * qty;
           totalEstimate += subtotal;
@@ -6324,8 +6379,9 @@ Return ONLY valid JSON.`,
           install: "🔧", dismantle: "🔨", relocate: "🚛", dispose: "🗑️",
           dismantle_dispose: "🗑️", surcharge: "📐", discount: "💚", adjustment: "➕",
         };
+        const relocateLabelWA = isCarryOnly ? "Carry Only" : isFullDR ? "Full Service (D&R)" : "Relocation (all-in-one)";
         const serviceLabel: Record<string, string> = {
-          install: "Install", dismantle: "Dismantle", relocate: "Relocation (all-in-one)",
+          install: "Install", dismantle: "Dismantle", relocate: relocateLabelWA,
           dispose: "Dispose", dismantle_dispose: "Dismantle & Dispose",
           surcharge: "", discount: "Discount", adjustment: "",
         };
@@ -6346,7 +6402,11 @@ Return ONLY valid JSON.`,
         const depositLine = `⬇️ *Deposit (50%): $${depositAmount}*`;
 
         const relocationNote = session.isRelocation
-          ? `_ℹ️ Relocation price includes: dismantle at origin, transport, and reinstall at destination._\n\n`
+          ? isCarryOnly
+            ? `_ℹ️ Carry-only relocation: furniture is moved as-is (no dismantle/reinstall). Transport fee covers crew and vehicle._\n\n`
+            : isFullDR
+              ? `_ℹ️ Full service relocation: dismantle at origin + transport + reinstall at destination._\n\n`
+              : `_ℹ️ Relocation price includes transport. Crew will confirm assembly scope on arrival._\n\n`
           : "";
         await sendBotMessage(from,
           `✅ *Quote Ready, ${name}!*\n\n` +
