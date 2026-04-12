@@ -310,6 +310,15 @@ export default function AdminQuoteDetail() {
     );
   }
 
+  // Effective 50/50 split — falls back when stored amounts are 0 (e.g. manually created jobs)
+  const quoteTotal = parseFloat(quote.total || "0");
+  const effectiveDeposit = parseFloat(quote.depositAmount || "0") > 0
+    ? parseFloat(quote.depositAmount!)
+    : quoteTotal * 0.5;
+  const effectiveFinal = parseFloat(quote.finalAmount || "0") > 0
+    ? parseFloat(quote.finalAmount!)
+    : quoteTotal * 0.5;
+
   const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'booked', 'assigned', 'closed', 'final_paid'].includes(quote.status);
 
   const handleStartEdit = () => {
@@ -454,9 +463,9 @@ export default function AdminQuoteDetail() {
 
     const isFullyPaid = !!(q.finalPaidAt) || q.paymentStatus === "paid_in_full";
     const isDepositPaid = !!(q.depositPaidAt) || q.paymentStatus === "deposit_paid";
-    const depositAmt = Number(q.depositAmount || 0);
     const totalAmt = Number(q.total || 0);
-    const balanceAmt = Math.max(0, totalAmt - depositAmt);
+    const depositAmt = Number(q.depositAmount || 0) > 0 ? Number(q.depositAmount) : totalAmt * 0.5;
+    const balanceAmt = Number(q.finalAmount || 0) > 0 ? Number(q.finalAmount) : totalAmt * 0.5;
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -1156,7 +1165,7 @@ export default function AdminQuoteDetail() {
                   <div className="space-y-3">
                     <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-center">
                       <p className="font-semibold text-orange-800">Awaiting Deposit</p>
-                      <p className="text-orange-700 mt-0.5">{formatMoney(quote.depositAmount)}</p>
+                      <p className="text-orange-700 mt-0.5">{formatMoney(effectiveDeposit)}</p>
                     </div>
                     {/* PayNow QR reference for admin */}
                     <div className="border border-zinc-200 rounded-lg p-3 space-y-2 bg-zinc-50">
@@ -1171,7 +1180,7 @@ export default function AdminQuoteDetail() {
                         <div className="text-xs text-zinc-600 space-y-0.5">
                           <p><span className="font-semibold">UEN:</span> 202424156H</p>
                           <p><span className="font-semibold">Name:</span> TMG Install by The Moving Guy Pte Ltd</p>
-                          <p className="text-emerald-700 font-semibold">Amount: {formatMoney(quote.depositAmount)}</p>
+                          <p className="text-emerald-700 font-semibold">Amount: {formatMoney(effectiveDeposit)}</p>
                           <p className="text-zinc-400 mt-1 leading-tight">Customer should WhatsApp receipt screenshot after transfer</p>
                         </div>
                       </div>
@@ -1331,7 +1340,7 @@ export default function AdminQuoteDetail() {
                   <div className="space-y-3">
                     <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-center">
                       <p className="font-semibold text-orange-800">Awaiting Final Payment</p>
-                      <p className="text-orange-700 mt-0.5">{formatMoney(quote.finalAmount)}</p>
+                      <p className="text-orange-700 mt-0.5">{formatMoney(effectiveFinal)}</p>
                     </div>
                     <button
                       onClick={() => setShowFinalPayConfirm(true)}
@@ -1415,7 +1424,7 @@ export default function AdminQuoteDetail() {
                     <span className={`text-sm font-medium ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Deposit (50%)</span>
                   </div>
                   <span className={`text-sm font-semibold tabular-nums ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-900'}`}>
-                    {formatMoney(quote.depositAmount)}
+                    {formatMoney(effectiveDeposit)}
                   </span>
                 </div>
                 
@@ -1427,7 +1436,7 @@ export default function AdminQuoteDetail() {
                     <span className={`text-sm font-medium ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Balance (50%)</span>
                   </div>
                   <span className={`text-sm font-semibold tabular-nums ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-900'}`}>
-                    {formatMoney(quote.finalAmount)}
+                    {formatMoney(effectiveFinal)}
                   </span>
                 </div>
 
@@ -1655,7 +1664,7 @@ export default function AdminQuoteDetail() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-500">Deposit Amount</span>
-                  <span className="font-bold text-emerald-700">{formatMoney(quote?.depositAmount)}</span>
+                  <span className="font-bold text-emerald-700">{formatMoney(effectiveDeposit)}</span>
                 </div>
               </div>
               <div>
@@ -1718,12 +1727,12 @@ export default function AdminQuoteDetail() {
                 {quote?.depositPaidAt && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Deposit Paid</span>
-                    <span className="text-emerald-700 font-medium">{formatMoney(quote.depositAmount)} ✓</span>
+                    <span className="text-emerald-700 font-medium">{formatMoney(effectiveDeposit)} ✓</span>
                   </div>
                 )}
                 <div className="flex justify-between border-t border-zinc-200 pt-1 mt-1">
                   <span className="text-zinc-700 font-semibold">Balance Due</span>
-                  <span className="font-bold text-emerald-700 text-base">{formatMoney(quote?.finalAmount || quote?.total)}</span>
+                  <span className="font-bold text-emerald-700 text-base">{formatMoney(effectiveFinal)}</span>
                 </div>
               </div>
               <div>

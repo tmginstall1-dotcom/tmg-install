@@ -3499,7 +3499,13 @@ ${systemPrompt}` });
           notes:               body.notes || undefined,
           subtotal:            subtotal.toFixed(2),
           total:               grandTotal.toFixed(2),
-          depositAmount:       body.depositAmount || "0",
+          // Always store 50/50 split — use admin override if provided, else auto-compute
+          depositAmount:       parseFloat(body.depositAmount || "0") > 0
+                                 ? body.depositAmount
+                                 : (grandTotal * 0.50).toFixed(2),
+          finalAmount:         parseFloat(body.depositAmount || "0") > 0
+                                 ? (grandTotal - parseFloat(body.depositAmount)).toFixed(2)
+                                 : (grandTotal * 0.50).toFixed(2),
           paymentStatus:       body.paymentStatus === "paid_in_full" ? "paid_in_full" : body.paymentStatus === "deposit_paid" ? "deposit_paid" : "unpaid",
           requiresManualReview: false,
           promoCode:           appliedPromoCode || undefined,
@@ -4286,7 +4292,11 @@ ${systemPrompt}` });
         return res.status(404).json({ message: "Quote not found" });
       }
 
-      const baseBalance = parseFloat(quote.finalAmount || "0") || parseFloat(quote.total);
+      // If finalAmount not explicitly set, default to 50% of total (policy)
+      const totalAmt = parseFloat(quote.total || "0");
+      const baseBalance = parseFloat(quote.finalAmount || "0") > 0
+        ? parseFloat(quote.finalAmount!)
+        : totalAmt * 0.5;
       const overtimeCharge = parseFloat((quote as any).additionalCharge || "0");
       const finalAmount = baseBalance + overtimeCharge;
       const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
@@ -6617,21 +6627,25 @@ Respond directly — no JSON, just the message text.`,
       // Normalise: strip non-digits, add SG country code if bare 8-digit local number
       const phone = normalizeSGPhone(rawPhone);
 
-      const depositAmount = String(quote.depositAmount || "0");
+      // Use stored depositAmount; if missing/zero fall back to 50% of total (policy)
+      const effectiveDeposit = parseFloat(quote.depositAmount || "0") > 0
+        ? parseFloat(quote.depositAmount!)
+        : parseFloat(quote.total || "0") * 0.5;
+      const depositAmountStr = effectiveDeposit.toFixed(2);
 
       // Generate Stripe payment link if available, else fall back to quote status page
       let paymentLink = `${APP_URL}/quotes/${id}`;
-      if (stripe && parseFloat(depositAmount) > 0) {
+      if (stripe && effectiveDeposit > 0) {
         const link = await createStripePaymentLink(
           `Deposit for ${quote.referenceNo}`,
-          parseFloat(depositAmount),
+          effectiveDeposit,
           { quoteId: String(id), type: "deposit" },
           `${APP_URL}/quotes/${id}`
         );
         if (link) paymentLink = link;
       }
 
-      await sendWhatsAppPaymentLink(phone, quote.referenceNo, depositAmount, paymentLink, {
+      await sendWhatsAppPaymentLink(phone, quote.referenceNo, depositAmountStr, paymentLink, {
         customerName: (quote as any).customer?.name || undefined,
         preferredDate: (quote as any).preferredDate || undefined,
         preferredTimeWindow: (quote as any).preferredTimeWindow || undefined,
