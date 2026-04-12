@@ -4874,6 +4874,10 @@ Respond with ONLY a JSON array (no prose, no markdown):
         m.interactive?.button_reply?.title ||
         m.interactive?.list_reply?.title ||
         m.button?.text ||
+        // Reactions: store the emoji so the admin can see what the customer reacted
+        (m.type === 'reaction' && m.reaction?.emoji ? `[Reaction: ${m.reaction.emoji}]` : "") ||
+        // Order messages
+        (m.type === 'order' ? `[Order: ${m.order?.product_items?.length || 0} item(s)]` : "") ||
         ""
       ).trim();
 
@@ -4886,8 +4890,10 @@ Respond with ONLY a JSON array (no prose, no markdown):
         msg.type === 'audio'    ? '[Voice note]' :
         msg.type === 'sticker'  ? '[Sticker]'  :
         msg.type === 'document' ? '[Document]' :
-        msg.type === 'location' ? '[Location]' :
-        msg.type === 'contacts' ? '[Contact]'  :
+        msg.type === 'location' ? '[Location sent]' :
+        msg.type === 'contacts' ? '[Contact shared]'  :
+        msg.type === 'reaction' ? `[Reaction: ${msg.reaction?.emoji || '👍'}]` :
+        msg.type === 'unsupported' ? '[Unsupported message type — open WhatsApp to view]' :
         '[Message]';
 
       // ── Log inbound message for admin conversations view ─────────────────────
@@ -4928,6 +4934,13 @@ Respond with ONLY a JSON array (no prose, no markdown):
       // Include captions and interactive reply text so all message types are processed
       const text: string = extractText(msg);
       const textLower = text.toLowerCase();
+
+      // ── Skip bot processing for non-conversational message types ─────────────
+      // Reactions, stickers are passive signals — do not reply, just log.
+      if (msgType === 'reaction' || msgType === 'sticker') {
+        console.log(`[WhatsApp] Skipping bot reply for ${msgType} from +${from}`);
+        return;
+      }
 
       let session = await storage.getWhatsAppSession(from);
       let state = session?.state ?? "start";

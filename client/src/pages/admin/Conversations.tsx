@@ -6,6 +6,7 @@ import {
   CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
   TriangleAlert, AlertCircle, ChevronDown, Paperclip, Smile,
   Download, Music, File, StickyNote, Plus, RotateCcw, ListChecks, Trash2, Copy,
+  Mic, MessageSquare,
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
@@ -296,6 +297,16 @@ function MessageBubble({
   // Detect legacy [Document] body (no mediaUrl stored — old messages before fix)
   const isLegacyDoc = !msg.mediaUrl && (msg.body?.startsWith("[Document") ?? false);
 
+  // Detect special message types from body labels
+  const reactionMatch = msg.body?.match(/^\[Reaction:\s*(.+)\]$/);
+  const isReaction    = !!reactionMatch;
+  const reactionEmoji = reactionMatch?.[1] || "👍";
+  const isVoiceNote   = !msg.mediaUrl && msg.body === "[Voice note]";
+  const isStickerMsg  = !msg.mediaUrl && msg.body === "[Sticker]";
+  const isLocationMsg = !msg.mediaUrl && msg.body === "[Location sent]";
+  const isContactMsg  = !msg.mediaUrl && msg.body === "[Contact shared]";
+  const isUnsupported = !msg.mediaUrl && (msg.body === "[Message]" || msg.body?.startsWith("[Unsupported"));
+
   // mediaUrl stores the WhatsApp media ID — route it through our proxy endpoint.
   // Fall back to body if it happens to be a direct URL (legacy support).
   const mediaSrc = msg.mediaUrl
@@ -457,6 +468,60 @@ function MessageBubble({
                 <p className={`text-[11px] mt-0.5 ${isOut ? "opacity-60" : "text-gray-400"}`}>
                   Open WhatsApp to view
                 </p>
+              </div>
+            </div>
+
+          ) : isReaction ? (
+            /* Reaction bubble — large emoji pill */
+            <div className={`flex items-center gap-2 px-3 py-1.5 ${radius} bg-white/80 border border-black/8 shadow-sm`}>
+              <span className="text-2xl leading-none">{reactionEmoji}</span>
+              <span className="text-[11px] text-gray-400 italic">Reaction</span>
+            </div>
+
+          ) : isVoiceNote ? (
+            /* Voice note — no media stored, prompt to open WhatsApp */
+            <div className={`flex items-center gap-3 px-4 py-3 ${radius} ${bubbleStyle} min-w-[180px]`}>
+              <Mic className="w-4 h-4 flex-shrink-0 text-[#25D366]" />
+              <div>
+                <p className="text-sm font-semibold">Voice message</p>
+                <p className={`text-[11px] mt-0.5 ${isOut ? "opacity-60" : "text-gray-400"}`}>Open WhatsApp to listen</p>
+              </div>
+            </div>
+
+          ) : isStickerMsg ? (
+            /* Sticker label */
+            <div className={`flex items-center gap-2 px-3.5 py-2 ${radius} ${bubbleStyle}`}>
+              <span className="text-xl">🎭</span>
+              <span className="text-sm italic opacity-60">Sticker</span>
+            </div>
+
+          ) : isLocationMsg ? (
+            /* Location shared */
+            <div className={`flex items-center gap-3 px-4 py-3 ${radius} ${bubbleStyle} min-w-[180px]`}>
+              <MapPin className="w-4 h-4 flex-shrink-0 text-red-500" />
+              <div>
+                <p className="text-sm font-semibold">Location shared</p>
+                <p className={`text-[11px] mt-0.5 ${isOut ? "opacity-60" : "text-gray-400"}`}>Open WhatsApp to view</p>
+              </div>
+            </div>
+
+          ) : isContactMsg ? (
+            /* Contact shared */
+            <div className={`flex items-center gap-3 px-4 py-3 ${radius} ${bubbleStyle} min-w-[180px]`}>
+              <User className="w-4 h-4 flex-shrink-0 text-blue-500" />
+              <div>
+                <p className="text-sm font-semibold">Contact shared</p>
+                <p className={`text-[11px] mt-0.5 ${isOut ? "opacity-60" : "text-gray-400"}`}>Open WhatsApp to view</p>
+              </div>
+            </div>
+
+          ) : isUnsupported ? (
+            /* Unknown / unsupported message type */
+            <div className={`flex items-center gap-3 px-4 py-3 ${radius} ${bubbleStyle} min-w-[180px] opacity-70`}>
+              <MessageSquare className="w-4 h-4 flex-shrink-0 text-gray-400" />
+              <div>
+                <p className="text-sm italic text-gray-500">Message not displayable here</p>
+                <p className={`text-[11px] mt-0.5 text-gray-400`}>Open WhatsApp to view</p>
               </div>
             </div>
 
