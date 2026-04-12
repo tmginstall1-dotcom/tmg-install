@@ -352,7 +352,10 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     const hasLift = session.hasLift ?? true;
     const floorsAbove = Math.max(0, floorLevel - 1);
     const floorSurcharge = floorsAbove * (hasLift ? PricingConfig.floor.perFloorWithLift : PricingConfig.floor.perFloorNoLift);
-    if (floorSurcharge > 0) surchargeLines.push(`• Floor surcharge (Floor ${floorLevel}, no lift) — SGD $${floorSurcharge.toFixed(0)}`);
+    if (floorSurcharge > 0) {
+      const liftLabel = hasLift ? `with lift` : `no lift`;
+      surchargeLines.push(`• Floor surcharge (Floor ${floorLevel}, ${liftLabel}) — SGD $${floorSurcharge.toFixed(0)}`);
+    }
 
     // Access surcharge
     const access = session.accessDifficulty ?? "easy";
@@ -389,12 +392,14 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     msg += `─────────────────────────────\n\n`;
     msg += `This is a fixed price — no surprises on the day. ✅\n\n`;
     // Floor surcharge outcome statement
-    if (!session.hasLift && (session.floorLevel ?? 1) > 1) {
-      const floorLvl = session.floorLevel ?? 1;
-      const surchargeAmt = floorLvl <= 3 ? 20 : floorLvl <= 6 ? 40 : 60;
-      msg += `Floor surcharge of SGD $${surchargeAmt} applied — no lift access at this building.\n\n`;
+    if (floorSurcharge > 0) {
+      if (!hasLift) {
+        msg += `Floor surcharge of SGD $${floorSurcharge.toFixed(0)} applied — no lift access at this building.\n\n`;
+      } else {
+        msg += `Floor surcharge of SGD $${floorSurcharge.toFixed(0)} applied — lift access, $5/floor for ${floorsAbove} floor(s).\n\n`;
+      }
     } else {
-      msg += `Lift access confirmed — no floor surcharge applied.\n\n`;
+      msg += `Ground floor unit — no floor surcharge applied.\n\n`;
     }
     if (session.isRelocation) {
       if (estIsCarryOnly) {
@@ -441,12 +446,11 @@ BEFORE GIVING ANY PRICE — always collect in this order:
 3. Furniture items (if not already stated)
 Only after collecting all three should you generate a confirmed quote.
 
-FLOOR SURCHARGE RULES (apply automatically):
-- Lift available → No surcharge. State: "Lift access confirmed — no floor surcharge."
-- No lift, floors 1–3 → Add SGD $20
-- No lift, floors 4–6 → Add SGD $40
-- No lift, floor 7 and above → Add SGD $60
-Always explicitly state the surcharge outcome. Never leave it as TBC.
+FLOOR SURCHARGE RULES (apply automatically — per floor above ground):
+- Ground floor (floor 1): No surcharge regardless of lift.
+- With lift: SGD $5 per floor above ground. Example: floor 5 with lift = 4 × $5 = $20.
+- No lift: SGD $15 per floor above ground. Example: floor 3 no lift = 2 × $15 = $30.
+Always calculate and state the exact surcharge. Never leave it as TBC.
 
 HANDLING OBJECTIONS:
 - If price is too high: Reply with exactly this:
@@ -1021,6 +1025,9 @@ const DEFAULT_STRUCTURED_STATE = {
   is_relocation: false,
   distance_km: null as number | null,
   relocation_mode: null as string | null, // "carry" = carry-only (no dismantle/reinstall), "full" = full D&R service
+  promo_code: null as string | null,       // applied promo code (e.g. "TMG50"); null = not asked or skipped
+  promo_discount: null as number | null,   // validated discount amount in SGD
+  promo_asked: false,                      // true once the promo step has been presented
 };
 
 function parseStructuredState(session: any): typeof DEFAULT_STRUCTURED_STATE {
@@ -1066,6 +1073,7 @@ function syncStateToFlatFields(st: typeof DEFAULT_STRUCTURED_STATE): Record<stri
   if (st.special_remarks) f.specialRemarks = st.special_remarks;
   f.isRelocation = st.is_relocation;
   if (st.distance_km != null) f.distanceKm = String(st.distance_km);
+  // promo fields are kept only in structuredState JSON, not flat session columns
   return f;
 }
 
@@ -1215,6 +1223,7 @@ STEP 6 → floor_from + lift_from + access_difficulty: Ask "Which floor is the u
 STEP 7 → preferred_date + preferred_time_window: "When would you prefer? We have morning (9am–12pm) or afternoon (1pm–5pm) slots." If "flexible"/"anytime" on the DATE → preferred_date="Flexible", preferred_date_iso=null. But STILL ask and capture their preferred time window (morning or afternoon) — even flexible customers should pick a slot. If they truly don't mind either slot, then preferred_time_window=null. If they say "afternoon"/"1-5pm"/"pm" → preferred_time_window="13:00-17:00". If they say "morning"/"9am"/"am" → preferred_time_window="09:00-12:00".
 STEP 8 → special_remarks: Always ask: "Any special notes for our team? E.g. wall mounting needed, drilling, fragile items, parking notes. Reply 'none' to skip." If customer says 'none', 'no', 'skip', or 'nothing' → set special_remarks=null. Otherwise store verbatim. NEVER skip asking this step.
 STEP 9 → customer_email: "Your email address for the quote confirmation? (Reply 'skip' if you prefer not to.)" If "skip" → null.
+STEP 10 → promo_code (ONLY if promo_asked=false): Ask exactly: "Do you have a promo code? Reply with your code or type *none* to skip." Set promo_asked=true. If customer replies 'none'/'no'/'skip' → set promo_code=null. Otherwise store their code uppercased exactly as typed. NOTE: promo_discount will be set by the server after validation — leave it null in state. If promo_asked is already true, skip this step regardless of whether promo_code is set.
 
 CONTEXT HANDLING:
 - If the conversation history shows a greeting/FAQ/pricing exchange just happened and the customer is now saying what they need (e.g. "I need relocation", "Yes I want a quote"), extract any details from their message and move to the NEXT missing step — do NOT re-greet.
@@ -1254,8 +1263,8 @@ ITEM DESCRIPTION RULES:
 - Keep item descriptions short and factual.
 
 CONFIRMATION TRIGGER:
-When service_scope + customer_name + from_address + items + floor_from + lift_from are ALL non-null (PLUS to_address + relocation_mode if is_relocation=true) AND special_remarks has been asked (may be null if customer replied 'none'), set transition_to_confirmation=true.
-preferred_date defaults to "Flexible" if never answered. customer_email may be null.
+When service_scope + customer_name + from_address + items + floor_from + lift_from are ALL non-null (PLUS to_address + relocation_mode if is_relocation=true) AND special_remarks has been asked (may be null if customer replied 'none') AND promo_asked=true, set transition_to_confirmation=true.
+preferred_date defaults to "Flexible" if never answered. customer_email may be null. promo_code may be null if customer skipped.
 
 CONVERSATION HISTORY:
 ${historyContext || "(first exchange)"}
@@ -1282,14 +1291,17 @@ Return ONLY valid JSON:
     "customer_email": "email string or null",
     "is_relocation": true/false,
     "distance_km": number or null,
-    "relocation_mode": "carry"/"full" or null
+    "relocation_mode": "carry"/"full" or null,
+    "promo_code": "UPPERCASE-CODE or null",
+    "promo_discount": null,
+    "promo_asked": true/false
   },
   "reply": "your message to the customer",
   "transition_to_confirmation": false
 }
 
 WHEN transition_to_confirmation=true, "reply" MUST be this FULL SUMMARY (substitute real values):
-"Here's a summary of your request:\n\n🔧 *Service:* [e.g. Relocation — Carry Only / Relocation — Full Service / Installation / Dismantling]\n👤 *Name:* [customer_name]\n📍 *From:* [from_address]\n📍 *To:* [to_address — include ONLY if is_relocation]\n🛋️ *Items:*\n[items bullet list]\n🏢 *Floor:* [floor_from] ([lift_from ? 'with lift' : 'no lift'])\n🚪 *Access:* [Easy / Moderate / Difficult]\n📅 *Requested slot:* [preferred_date or 'Flexible'][' — Morning (9am–12pm)' or ' — Afternoon (1pm–5pm)' if time_window set]\n📝 *Notes:* [special_remarks or 'None']\n📧 *Email:* [customer_email or 'Not provided']\n\nShall I send this to our team? Reply *YES* to submit.\n\n_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, *change access*, *change remarks*, or *change email*._"`,
+"Here's a summary of your request:\n\n🔧 *Service:* [e.g. Relocation — Carry Only / Relocation — Full Service / Installation / Dismantling]\n👤 *Name:* [customer_name]\n📍 *From:* [from_address]\n📍 *To:* [to_address — include ONLY if is_relocation]\n🛋️ *Items:*\n[items bullet list]\n🏢 *Floor:* [floor_from] ([lift_from ? 'with lift' : 'no lift'])\n🚪 *Access:* [Easy / Moderate / Difficult]\n📅 *Requested slot:* [preferred_date or 'Flexible'][' — Morning (9am–12pm)' or ' — Afternoon (1pm–5pm)' if time_window set]\n📝 *Notes:* [special_remarks or 'None']\n📧 *Email:* [customer_email or 'Not provided']\n🏷️ *Promo code:* [promo_code or 'None']\n\nShall I send this to our team? Reply *YES* to submit.\n\n_Need to fix anything? Type *change name*, *change address*, *change items*, *change date*, *change floor*, *change access*, *change remarks*, *change email*, or *change promo*._"`,
       }],
     });
     orchResult = JSON.parse(orchRes.choices[0]?.message?.content || "{}");
@@ -6128,6 +6140,14 @@ CRITICAL for edit_items:
               await storage.upsertWhatsAppSession(from, { state: "collecting", structuredState: JSON.stringify(richSessEmConf), collectedEmail: null });
               await sendBotMessage(from, `${ci.reply || "No problem!"} What email address should we send the quote to? 📧\n\n_Reply *skip* if you prefer not to._`);
               return;
+            } else if (ci.action === "change_promo") {
+              const richSessPromoConf = parseStructuredState(session);
+              richSessPromoConf.promo_code = null;
+              richSessPromoConf.promo_discount = null;
+              richSessPromoConf.promo_asked = false;
+              await storage.upsertWhatsAppSession(from, { state: "collecting", structuredState: JSON.stringify(richSessPromoConf) });
+              await sendBotMessage(from, `${ci.reply || "Sure!"} What is your promo code? 🏷️\n\n_Reply *none* to skip._`);
+              return;
             } else if (ci.action === "redo_items") {
               // Complete redo — keep existing list in previousItems so user can reference it
               await storage.upsertWhatsAppSession(from, {
@@ -6428,8 +6448,43 @@ Return ONLY valid JSON.`,
         }
 
         const laborTotalWithSurcharges = laborSubtotalWA + floorSurcharge + accessSurcharge;
-        const grandTotal = laborSubtotalWA + floorSurcharge + accessSurcharge + transportFee + calloutFeeWA;
+        const grandTotalBeforePromo = laborSubtotalWA + floorSurcharge + accessSurcharge + transportFee + calloutFeeWA;
         // ─────────────────────────────────────────────────────────────────────
+
+        // Promo code: validate + apply if customer provided one
+        const waStructuredState = parsedStructuredStateWA;
+        const waPromoCode: string | null = waStructuredState?.promo_code ? waStructuredState.promo_code.trim().toUpperCase() : null;
+        let promoDiscountWA = 0;
+        if (waPromoCode) {
+          try {
+            const promoRows = await db.select().from(promoCodes)
+              .where(eq(promoCodes.code, waPromoCode)).limit(1);
+            const pr = promoRows[0];
+            const minOrder = parseFloat(pr?.minOrderAmount ?? "0") || 0;
+            const meetsMinOrder = minOrder === 0 || grandTotalBeforePromo >= minOrder;
+            if (promoRows.length && pr.active && pr.usesCount < pr.maxUses && meetsMinOrder) {
+              promoDiscountWA = parseFloat(pr.discountAmount) || 0;
+              if (promoDiscountWA > 0) {
+                // Add discount line item
+                quoteItems.push({
+                  originalDescription: `Promo Code: ${waPromoCode}`,
+                  detectedName: `Promo Code: ${waPromoCode}`,
+                  serviceType: "discount",
+                  quantity: 1,
+                  unitPrice: (-promoDiscountWA).toFixed(2),
+                  subtotal: (-promoDiscountWA).toFixed(2),
+                  catalogItemId: undefined,
+                });
+                // Decrement usage count
+                await db.update(promoCodes)
+                  .set({ usesCount: (promoRows[0].usesCount || 0) + 1 })
+                  .where(eq(promoCodes.code, waPromoCode));
+              }
+            }
+          } catch { /* ignore — promo optional */ }
+        }
+
+        const grandTotal = Math.max(0, grandTotalBeforePromo - promoDiscountWA);
 
         const depositAmount = (grandTotal * 0.50).toFixed(2);
         const finalAmount = (grandTotal * 0.50).toFixed(2);
@@ -6439,6 +6494,7 @@ Return ONLY valid JSON.`,
         if (session.preferredDate && !session.preferredDateIso) noteParts.push(`Preferred date (flexible): ${session.preferredDate}`);
         else if (session.preferredDate && session.preferredDateIso) noteParts.push(`Preferred date: ${session.preferredDate}`);
         if (session.specialRemarks) noteParts.push(`Customer notes: ${session.specialRemarks}`);
+        if (waPromoCode && promoDiscountWA > 0) noteParts.push(`Promo code applied: ${waPromoCode} (-$${promoDiscountWA.toFixed(2)})`);
         const combinedNotes = noteParts.length > 0 ? noteParts.join("\n") : null;
 
         const customerEmail = session.collectedEmail && session.collectedEmail.includes("@")
@@ -6471,6 +6527,12 @@ Return ONLY valid JSON.`,
             preferredDate: session.preferredDateIso || null,
             preferredTimeWindow: session.preferredTimeWindow || null,
             notes: combinedNotes,
+            // Promo code discount (if applied)
+            ...(waPromoCode && promoDiscountWA > 0 ? {
+              promoCode: waPromoCode,
+              promoDiscount: promoDiscountWA.toFixed(2),
+              discount: promoDiscountWA.toFixed(2),
+            } : {}),
           } as any,
           quoteItems as any
         );
@@ -6499,7 +6561,8 @@ Return ONLY valid JSON.`,
         });
 
         const breakdownLines = lineItems.join("\n");
-        const subtotalLine = `Subtotal: *$${laborTotalWithSurcharges.toFixed(2)}*`;
+        const subtotalLine = `Subtotal: *$${grandTotalBeforePromo.toFixed(2)}*`;
+        const promoLine = promoDiscountWA > 0 ? `🏷️ Promo (${waPromoCode}): *-$${promoDiscountWA.toFixed(2)}*\n` : "";
         const transportLine = transportFee > 0 ? `🚛 Transport: *$${transportFee.toFixed(2)}*\n` : "";
         const totalLine = `💰 *Total: $${grandTotal.toFixed(2)}*`;
         const depositLine = `⬇️ *Deposit (50%): $${depositAmount}*`;
@@ -6521,6 +6584,7 @@ Return ONLY valid JSON.`,
           `${breakdownLines}\n` +
           `─────────────────\n` +
           `${subtotalLine}\n` +
+          `${promoLine}` +
           `${transportLine}` +
           `${totalLine}\n` +
           `${depositLine}\n\n` +
