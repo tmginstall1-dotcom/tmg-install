@@ -172,17 +172,16 @@ export default function AdminDashboard() {
 
   const newQuotes       = quotes.filter((q: any) => ["submitted", "under_review"].includes(q.status));
   const awaitingDeposit = quotes.filter((q: any) =>
-    ["deposit_requested", "approved"].includes(q.status) ||
-    (q.status === "deposit_paid" && !q.scheduledAt)
+    ["deposit_requested", "approved"].includes(q.status)
   );
-  const upcomingBooked  = quotes.filter((q: any) => ["booked", "assigned"].includes(q.status));
+  const upcomingBooked  = quotes.filter((q: any) => ["booked", "assigned", "deposit_paid"].includes(q.status));
   const activeJobs      = quotes.filter((q: any) => q.status === "in_progress");
   const awaitingPayment = quotes.filter((q: any) => ["completed", "final_payment_requested"].includes(q.status));
   const recentlyClosed  = quotes.filter((q: any) => ["closed", "final_paid"].includes(q.status)).slice(0, 5);
 
   const todayJobs = useMemo(() => {
     return (quotes as any[]).filter((q: any) => {
-      if (!["booked", "assigned", "in_progress"].includes(q.status)) return false;
+      if (!["booked", "assigned", "in_progress", "deposit_paid"].includes(q.status)) return false;
       const raw = q.scheduledAt || q.preferredDate;
       if (!raw) return false;
       const d = q.scheduledAt ? new Date(q.scheduledAt) : new Date(raw + "T12:00:00");

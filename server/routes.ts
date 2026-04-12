@@ -3552,7 +3552,7 @@ ${systemPrompt}` });
   app.get("/api/quotes/schedule", async (req, res) => {
     try {
       const pending = await storage.getQuotesByStatuses(['booking_requested']);
-      const confirmed = await storage.getQuotesByStatuses(['booked', 'assigned', 'in_progress']);
+      const confirmed = await storage.getQuotesByStatuses(['booked', 'assigned', 'in_progress', 'deposit_paid']);
       res.json({ pending, confirmed });
     } catch (err) {
       res.status(500).json({ message: "Internal error" });
@@ -4236,8 +4236,8 @@ ${systemPrompt}` });
       const existing = await storage.getQuote(id);
       if (!existing) return res.status(404).json({ message: "Quote not found" });
 
-      // Allow editing before deposit is paid, plus admin-created booked/assigned jobs
-      const editableStatuses = ['submitted', 'under_review', 'approved', 'deposit_requested', 'booked', 'assigned'];
+      // Allow editing before and after deposit is paid, plus admin-created booked/assigned jobs
+      const editableStatuses = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booked', 'assigned'];
       if (!editableStatuses.includes(existing.status)) {
         return res.status(400).json({ message: "Quote cannot be edited in its current status" });
       }
@@ -8256,7 +8256,7 @@ Respond directly — no JSON, just the message text.`,
         status: quotesTable.status,
       }).from(quotesTable)
         .where(and(
-          inArray(quotesTable.status, ["booked", "assigned"]),
+          inArray(quotesTable.status, ["booked", "assigned", "deposit_paid"]),
           isNull(quotesTable.dayBeforeReminderAt),
           gte(quotesTable.scheduledAt, tomorrowStart),
           lte(quotesTable.scheduledAt, tomorrowEnd),

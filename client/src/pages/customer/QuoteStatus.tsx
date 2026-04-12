@@ -430,7 +430,7 @@ export default function QuoteStatus() {
               )}
 
               {/* Confirmed appointment */}
-              {quote.scheduledAt && ["booked", "assigned", "in_progress", "completed", "final_payment_requested"].includes(quote.status) && (
+              {quote.scheduledAt && ["deposit_paid", "booked", "assigned", "in_progress", "completed", "final_payment_requested"].includes(quote.status) && (
                 <div className="mx-6 mb-5 border border-black/12 bg-black/[0.025] p-4">
                   <p className="text-[10px] font-semibold tracking-widest uppercase text-black/40 mb-3" style={{ letterSpacing: "0.15em" }}>
                     Confirmed Appointment
@@ -674,7 +674,7 @@ export default function QuoteStatus() {
               )}
 
               {/* Confirmed booking */}
-              {["booked", "assigned", "in_progress"].includes(quote.status) && quote.scheduledAt && (
+              {["deposit_paid", "booked", "assigned", "in_progress"].includes(quote.status) && quote.scheduledAt && (
                 <div className="px-6 pb-6 border-t border-white/10 pt-5">
                   <p className="text-xs text-white/40 mb-3 uppercase tracking-widest" style={{ letterSpacing: "0.15em" }}>Confirmed</p>
                   <p className="font-bold text-sm flex items-center gap-2">

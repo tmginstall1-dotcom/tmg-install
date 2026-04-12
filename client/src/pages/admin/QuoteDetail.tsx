@@ -319,7 +319,7 @@ export default function AdminQuoteDetail() {
     ? parseFloat(quote.finalAmount!)
     : quoteTotal * 0.5;
 
-  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'booked', 'assigned', 'closed', 'final_paid'].includes(quote.status);
+  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booked', 'assigned', 'closed', 'final_paid'].includes(quote.status);
 
   const handleStartEdit = () => {
     setEditCustomer({
@@ -1213,7 +1213,7 @@ export default function AdminQuoteDetail() {
                   </div>
                 )}
 
-                {['booked', 'assigned'].includes(quote.status) && (
+                {['deposit_paid', 'booked', 'assigned'].includes(quote.status) && (
                   <div className="space-y-4">
                     {quote.scheduledAt && (
                       <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-sm">
@@ -1611,7 +1611,7 @@ export default function AdminQuoteDetail() {
             </button>
           </div>
         );
-        if (['booked', 'assigned', 'in_progress', 'completed'].includes(s)) return (
+        if (['deposit_paid', 'booked', 'assigned', 'in_progress', 'completed'].includes(s)) return (
           <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
             <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
               className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">

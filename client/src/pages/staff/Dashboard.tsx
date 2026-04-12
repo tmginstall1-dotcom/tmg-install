@@ -110,7 +110,7 @@ export default function StaffDashboard() {
   }, [!!activeSession, activeNow.length, user?.id]);
 
   const upcoming = allJobs
-    .filter((q: any) => ["booked", "assigned"].includes(q.status))
+    .filter((q: any) => ["booked", "assigned", "deposit_paid"].includes(q.status))
     .sort((a: any, b: any) => {
       const da = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
       const db = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
