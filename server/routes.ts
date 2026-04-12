@@ -3413,6 +3413,8 @@ ${systemPrompt}` });
         depositAmount:    z.string().optional().default("0"),
         paymentStatus:    z.enum(["unpaid", "deposit_paid", "paid_in_full"]).optional().default("unpaid"),
         sourceChannel:    z.string().optional().default("whatsapp"),
+        promoCode:        z.string().optional().nullable(),
+        promoDiscount:    z.string().optional().default("0"),
         items:            z.array(z.object({
           description: z.string().min(1),
           quantity:    z.number().int().positive().default(1),
@@ -3433,10 +3435,47 @@ ${systemPrompt}` });
       const subtotal = body.items.reduce((sum, item) => {
         return sum + (item.quantity * parseFloat(item.unitPrice || "0"));
       }, 0);
-      const total = parseFloat(body.total || "0") || subtotal;
+
+      // Validate + apply promo code server-side
+      let promoDiscountAmt = parseFloat(body.promoDiscount || "0") || 0;
+      let appliedPromoCode: string | null = body.promoCode?.trim().toUpperCase() || null;
+      if (appliedPromoCode) {
+        const promoRows = await db.select().from(promoCodes)
+          .where(eq(promoCodes.code, appliedPromoCode)).limit(1);
+        if (!promoRows.length || !promoRows[0].active || promoRows[0].usesCount >= promoRows[0].maxUses) {
+          // Invalid or exhausted — silently clear
+          appliedPromoCode = null;
+          promoDiscountAmt = 0;
+        } else {
+          // Trust the discount amount sent from client (already validated there)
+          promoDiscountAmt = parseFloat(promoRows[0].discountAmount) || promoDiscountAmt;
+        }
+      }
+
+      const grandTotal = parseFloat(body.total || "0") || Math.max(0, subtotal - promoDiscountAmt);
 
       // Use real email if provided, otherwise use placeholder for WA-only customers
       const customerEmail = body.customerEmail?.trim() || `${phone}@tmginstall.com`;
+
+      // Build items — include promo line if applicable
+      const allItems = [
+        ...body.items.map(item => ({
+          originalDescription: item.description,
+          serviceType:         "manual" as const,
+          quantity:            item.quantity,
+          unitPrice:           item.unitPrice,
+          subtotal:            (item.quantity * parseFloat(item.unitPrice || "0")).toFixed(2),
+          remark:              item.remark || null,
+        })),
+        ...(promoDiscountAmt > 0 && appliedPromoCode ? [{
+          originalDescription: `Promo Discount (${appliedPromoCode})`,
+          serviceType:         "discount" as const,
+          quantity:            1,
+          unitPrice:           (-promoDiscountAmt).toFixed(2),
+          subtotal:            (-promoDiscountAmt).toFixed(2),
+          remark:              null,
+        }] : []),
+      ];
 
       const quote = await storage.createQuote(
         {
@@ -3459,20 +3498,30 @@ ${systemPrompt}` });
           assignedStaffId:     body.assignedStaffId || undefined,
           notes:               body.notes || undefined,
           subtotal:            subtotal.toFixed(2),
-          total:               total.toFixed(2),
+          total:               grandTotal.toFixed(2),
           depositAmount:       body.depositAmount || "0",
           paymentStatus:       body.paymentStatus === "paid_in_full" ? "paid_in_full" : body.paymentStatus === "deposit_paid" ? "deposit_paid" : "unpaid",
           requiresManualReview: false,
+          promoCode:           appliedPromoCode || undefined,
+          promoDiscount:       promoDiscountAmt > 0 ? promoDiscountAmt.toFixed(2) : "0",
         },
-        body.items.map(item => ({
-          originalDescription: item.description,
-          serviceType:         "manual",
-          quantity:            item.quantity,
-          unitPrice:           item.unitPrice,
-          subtotal:            (item.quantity * parseFloat(item.unitPrice || "0")).toFixed(2),
-          remark:              item.remark || null,
-        }))
+        allItems
       );
+
+      // Decrement promo code usage count
+      if (appliedPromoCode) {
+        try {
+          const promoRows = await db.select().from(promoCodes)
+            .where(eq(promoCodes.code, appliedPromoCode)).limit(1);
+          if (promoRows.length) {
+            await db.update(promoCodes)
+              .set({ usesCount: promoRows[0].usesCount + 1 })
+              .where(eq(promoCodes.id, promoRows[0].id));
+          }
+        } catch (promoErr) {
+          console.error("Promo decrement error (manual job):", promoErr);
+        }
+      }
 
       res.json(quote);
     } catch (err) {
