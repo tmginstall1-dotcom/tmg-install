@@ -169,7 +169,7 @@ export function CreateJobModal({ open, onClose }: Props) {
     setPromoStatus("checking");
     setPromoMessage("");
     try {
-      const res = await apiRequest("POST", "/api/validate-promo", { code });
+      const res = await apiRequest("POST", "/api/promo/validate", { code });
       const data = await res.json();
       if (data.valid) {
         setPromoCode(code);
