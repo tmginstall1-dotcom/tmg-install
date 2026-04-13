@@ -117,8 +117,8 @@ export default function AIApprovalQueue() {
           const meta = DECISION_META[confirmState.decision];
           const Icon = meta.Icon;
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="w-full max-w-md bg-[#131929] border border-white/15 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-4 bg-black/60 backdrop-blur-sm">
+              <div className="w-full max-w-md bg-[#131929] border border-white/15 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                 <div className="px-5 py-4 border-b border-white/5 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
                     <ShieldAlert className="w-4 h-4 text-amber-400" />
@@ -128,7 +128,7 @@ export default function AIApprovalQueue() {
                     <p className="text-xs text-slate-500 mt-0.5">This will be recorded in the audit log</p>
                   </div>
                 </div>
-                <div className="px-5 py-4 space-y-3">
+                <div className="px-5 py-4 space-y-3 overflow-y-auto">
                   <p className="text-sm text-slate-300">
                     You are about to{" "}
                     <span className={`font-bold ${
@@ -138,9 +138,9 @@ export default function AIApprovalQueue() {
                     this AI recommendation:
                   </p>
                   <div className="p-3 bg-black/20 border border-white/5 rounded-xl">
-                    <p className="text-sm font-medium text-white leading-snug">{confirmState.title}</p>
+                    <p className="text-sm font-medium text-white leading-snug break-words">{confirmState.title}</p>
                     {confirmState.note && (
-                      <p className="text-xs text-slate-400 mt-1.5 italic">Note: "{confirmState.note}"</p>
+                      <p className="text-xs text-slate-400 mt-1.5 italic break-words">Note: "{confirmState.note}"</p>
                     )}
                   </div>
                   {confirmState.decision === "approved" && (
@@ -150,7 +150,7 @@ export default function AIApprovalQueue() {
                     </div>
                   )}
                 </div>
-                <div className="px-5 py-4 border-t border-white/5 flex gap-2 justify-end">
+                <div className="px-5 py-4 border-t border-white/5 flex flex-wrap gap-2 justify-end shrink-0">
                   <button
                     onClick={() => setConfirmState(null)}
                     data-testid="confirm-cancel"
@@ -174,14 +174,16 @@ export default function AIApprovalQueue() {
         })()}
 
         {/* Filter Tabs */}
-        <div className="flex gap-1 bg-black/20 rounded-xl p-1 w-fit">
-          {["pending", "approved", "rejected", "deferred"].map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)}
-              data-testid={`filter-${s}`}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
-                statusFilter === s ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"
-              }`}>{s}</button>
-          ))}
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-1">
+          <div className="flex gap-1 bg-black/20 rounded-xl p-1 w-max sm:w-fit">
+            {["pending", "approved", "rejected", "deferred"].map(s => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                data-testid={`filter-${s}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors whitespace-nowrap ${
+                  statusFilter === s ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"
+                }`}>{s}</button>
+            ))}
+          </div>
         </div>
 
         {isLoading ? (
@@ -269,7 +271,7 @@ export default function AIApprovalQueue() {
                       data-testid={`note-${item.id}`}
                       className="w-full h-8 px-3 bg-black/20 border border-white/10 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => requestConfirm(item, "approved")}
                         data-testid={`approve-${item.id}`}

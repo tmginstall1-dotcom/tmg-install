@@ -181,15 +181,15 @@ export default function AIHub() {
 
         {/* Kill Switch Banner */}
         {killSwitch && (
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30">
-            <ZapOff className="w-5 h-5 text-red-400 shrink-0" />
-            <div className="flex-1">
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+            <ZapOff className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-red-300">Master Kill Switch is ACTIVE</p>
-              <p className="text-xs text-red-400/80 mt-0.5">All AI automations are currently disabled. Manual review only.</p>
+              <p className="text-xs text-red-400/80 mt-0.5">All AI automations are disabled. Manual review only.</p>
             </div>
             <button
               onClick={() => toggleFlag.mutate({ key: "ai_master_kill_switch", value: false })}
-              className="text-xs font-semibold text-red-300 hover:text-red-200 bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/30 hover:border-red-500/50 transition-colors"
+              className="shrink-0 text-xs font-semibold text-red-300 hover:text-red-200 bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/30 hover:border-red-500/50 transition-colors"
             >
               Deactivate
             </button>
@@ -210,7 +210,7 @@ export default function AIHub() {
                 <p className="text-xs text-slate-500 mt-0.5 truncate">{lastLog.summary}</p>
               )}
             </div>
-            <div className="shrink-0 text-right">
+            <div className="shrink-0 text-right hidden sm:block">
               <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
                 {lastLog.actor === "ai_agent" ? <Bot className="w-3 h-3" /> : <User className="w-3 h-3" />}
                 <span>{lastLog.actor ?? "system"}</span>

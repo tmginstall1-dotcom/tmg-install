@@ -69,22 +69,24 @@ export default function AISitePanel() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <Link href="/admin/ai">
-            <button className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          </Link>
-          <Globe className="w-6 h-6 text-emerald-400" />
-          <div>
-            <h1 className="text-xl font-bold text-white">Site Health</h1>
-            <p className="text-xs text-slate-500">CRO · SEO · Speed · Trust · Copy analysis</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link href="/admin/ai">
+              <button className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors shrink-0">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            </Link>
+            <Globe className="w-6 h-6 text-emerald-400 shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-white">Site Health</h1>
+              <p className="text-xs text-slate-500">CRO · SEO · Speed · Trust · Copy analysis</p>
+            </div>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:ml-auto shrink-0">
             <select
               value={selectedAuditType}
               onChange={e => setSelectedAuditType(e.target.value as any)}
-              className="h-9 px-3 bg-black/20 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
+              className="flex-1 sm:flex-none h-9 px-3 bg-black/20 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
             >
               <option value="full">Full Audit</option>
               <option value="cro">CRO Only</option>
@@ -95,7 +97,7 @@ export default function AISitePanel() {
               onClick={() => runAudit.mutate(selectedAuditType)}
               data-testid="button-run-audit"
               disabled={runAudit.isPending || isRunning}
-              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0"
             >
               {isRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
               {isRunning ? "Running…" : "Run Audit"}

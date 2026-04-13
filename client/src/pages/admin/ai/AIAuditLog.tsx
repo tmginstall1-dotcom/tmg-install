@@ -61,14 +61,16 @@ export default function AIAuditLog() {
         </div>
 
         {/* Module Filter */}
-        <div className="flex gap-1 bg-black/20 rounded-xl p-1 w-fit">
-          {modules.map(m => (
-            <button key={m} onClick={() => setModuleFilter(m)}
-              data-testid={`module-filter-${m}`}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
-                moduleFilter === m ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"
-              }`}>{m}</button>
-          ))}
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-1">
+          <div className="flex gap-1 bg-black/20 rounded-xl p-1 w-max sm:w-fit">
+            {modules.map(m => (
+              <button key={m} onClick={() => setModuleFilter(m)}
+                data-testid={`module-filter-${m}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors whitespace-nowrap ${
+                  moduleFilter === m ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"
+                }`}>{m}</button>
+            ))}
+          </div>
         </div>
 
         {/* Log Entries */}

@@ -79,18 +79,20 @@ export default function AIAdsPanel() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <Link href="/admin/ai">
-            <button className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          </Link>
-          <TrendingUp className="w-6 h-6 text-blue-400" />
-          <div>
-            <h1 className="text-xl font-bold text-white">Ads Intelligence</h1>
-            <p className="text-xs text-slate-500">Attribution funnel · Performance data · AI recommendations</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link href="/admin/ai">
+              <button className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors shrink-0">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            </Link>
+            <TrendingUp className="w-6 h-6 text-blue-400 shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-white">Ads Intelligence</h1>
+              <p className="text-xs text-slate-500 truncate">Attribution funnel · Performance data · AI recommendations</p>
+            </div>
           </div>
-          <div className="ml-auto flex gap-2">
+          <div className="flex gap-2 sm:ml-auto shrink-0">
             <button
               onClick={() => setShowAddForm(!showAddForm)}
               data-testid="button-add-snapshot"

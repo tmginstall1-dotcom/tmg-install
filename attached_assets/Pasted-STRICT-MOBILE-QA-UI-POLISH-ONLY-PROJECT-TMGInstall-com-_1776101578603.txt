@@ -1,0 +1,143 @@
+STRICT MOBILE QA + UI POLISH ONLY
+
+PROJECT:
+TMGInstall.com live production system
+Scope limited to AI Ops admin UI only
+
+CRITICAL RULES:
+- DO NOT touch backend
+- DO NOT touch database schema
+- DO NOT touch API routes
+- DO NOT touch live customer workflow
+- DO NOT touch booking logic
+- DO NOT touch payment logic
+- DO NOT touch quote logic
+- DO NOT touch WhatsApp logic
+- DO NOT touch admin business logic
+- DO NOT touch staff workflow
+- DO NOT refactor unrelated components
+- DO NOT make desktop redesign changes unless required for responsive consistency
+- ONLY perform mobile QA fixes and UI polish for the AI Ops frontend screens
+
+STRICT SCOPE:
+Only work on these frontend files if needed:
+- client/src/pages/admin/ai/AIHub.tsx
+- client/src/pages/admin/ai/AIAdsPanel.tsx
+- client/src/pages/admin/ai/AISitePanel.tsx
+- client/src/pages/admin/ai/AIApprovalQueue.tsx
+- client/src/pages/admin/ai/AIAuditLog.tsx
+
+You may also touch only the minimum shared styling/utilities directly required for these screens, but DO NOT modify unrelated layout or navigation behaviour.
+
+PRIMARY GOAL:
+Make the AI Ops admin screens feel polished, readable, and safe on mobile devices without changing functionality.
+
+MOBILE QA CHECKLIST:
+Test and fix the following on narrow mobile widths first:
+- 320px
+- 360px
+- 375px
+- 390px
+- 414px
+
+Also verify tablet widths:
+- 768px
+- 820px
+
+REQUIRED FIXES / QA TARGETS:
+
+1. GENERAL MOBILE LAYOUT
+- No horizontal overflow
+- No clipped cards
+- No clipped badges
+- No overlapping text
+- No buttons going off-screen
+- No dialog content exceeding viewport
+- No sticky headers or sections hiding content
+- Safe spacing on iPhone-sized screens
+- Touch targets must feel usable on mobile
+
+2. AIHUB.TSX
+- Ensure the last AI action card renders cleanly on mobile
+- Ensure status badges do not overlap titles or icons
+- Ensure module cards stack cleanly and keep consistent spacing
+- Ensure feature flag rows wrap properly on narrow widths
+- Ensure the ? help panel opens cleanly with no overflow
+- Ensure the help panel content is readable and collapses cleanly
+- Ensure the kill-switch banner is readable and buttons do not wrap awkwardly
+- Keep the hierarchy premium and clean, not cramped
+
+3. AIAPPROVALQUEUE.TSX
+- Ensure tabs are mobile-friendly and do not overflow
+- If needed, make tabs scroll horizontally or stack elegantly
+- Ensure each approval card is readable on mobile
+- Ensure note fields, status labels, and action buttons fit correctly
+- Ensure confirmation dialog is fully mobile-safe:
+  - centered
+  - padded
+  - scrollable if content is tall
+  - buttons always reachable
+  - no content hidden behind viewport edge
+- Ensure long titles and long notes wrap gracefully
+
+4. AIADSPANEL.TSX
+- Ensure manual entry forms are mobile-friendly
+- Ensure inputs and labels align properly on small screens
+- Ensure recommendation cards do not overflow
+- Ensure tables or metric groupings collapse into stacked mobile sections if needed
+- Preserve readability and clean spacing
+
+5. AISITEPANEL.TSX
+- Ensure audit controls fit on mobile
+- Ensure audit result chips and category chips wrap cleanly
+- Ensure prioritised findings list is readable
+- Ensure no badge or chip collisions
+- Keep summary sections easy to scan on phone screens
+
+6. AIAUDITLOG.TSX
+- Ensure filters stack well on mobile
+- Ensure expandable detail rows are readable
+- Ensure timestamps, actors, and action labels wrap cleanly
+- Avoid dense compressed rows on phone screens
+
+UI POLISH RULES:
+- Keep the existing visual design direction
+- Do not redesign the system
+- Only improve spacing, wrapping, alignment, stacking, sizing, and readability
+- Preserve all current functionality
+- Preserve all labels and core copy unless a tiny wording adjustment is required for fit
+- Prefer simple responsive fixes over large component rewrites
+- Prefer additive utility class fixes over structural churn
+- Preserve accessibility and keyboard usability
+
+DESIRED UX STANDARD:
+The AI Ops area should feel like a polished production admin interface on mobile:
+- clean spacing
+- clear hierarchy
+- no cramped controls
+- readable cards
+- safe dialogs
+- professional feel
+
+BEFORE MAKING CHANGES:
+1. Inspect the 5 AI Ops pages on mobile widths
+2. List exact issues found per page
+3. State exact files you plan to modify
+4. Confirm no backend or workflow logic will be touched
+
+IMPLEMENTATION RULE:
+- Make only the minimum necessary UI changes
+- No unrelated cleanup
+- No opportunistic refactors
+- No new features
+- No behaviour changes beyond responsive usability improvements
+
+AFTER CHANGES:
+Return exactly:
+1. Exact files modified
+2. Exact mobile issues found
+3. Exact fixes applied
+4. Confirmation that no backend, schema, routes, or live workflow logic were touched
+5. Any remaining minor UI limitations, if any
+
+Proceed in strict mobile QA + UI polish mode only.
