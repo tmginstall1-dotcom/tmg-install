@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { logAttributionEvent, registerAiRoutes } from "./ai-routes";
 import { api } from "@shared/routes";
 import { initVapid, getVapidPublicKey, addSubscription, removeSubscription, sendPushToAdmins } from "./push";
 import { z } from "zod";
@@ -3733,6 +3734,11 @@ ${systemPrompt}` });
       
       if (!quote) return res.status(404).json({ message: "Quote not found" });
 
+      // T005: Fire-and-forget attribution hook (non-blocking)
+      if (input.status === "booked" && quote.referenceNo) {
+        logAttributionEvent(quote.id, quote.referenceNo, "booking_confirmed", parseFloat(quote.total ?? "0"), undefined, { trigger: "admin" }).catch(() => {});
+      }
+
       // Send push notification when a job is assigned to staff
       if (input.assignedStaffId) {
         const tokens = await storage.getFcmTokensByUserIds([input.assignedStaffId]);
@@ -3947,6 +3953,12 @@ ${systemPrompt}` });
       const quote = await storage.updateQuotePayment(id, type as "deposit" | "final", amountPaid);
 
       if (!quote || !quote.customer) return res.status(200).json({ status: "ok" });
+
+      // T005: Fire-and-forget attribution hook (Stripe payment)
+      if (!alreadyProcessedByWebhook && quote.referenceNo) {
+        const evtType = type === "deposit" ? "deposit_paid" : "final_paid";
+        logAttributionEvent(quote.id, quote.referenceNo, evtType, parseFloat(quote.total ?? "0"), undefined, { channel: "stripe" }).catch(() => {});
+      }
 
       if (!alreadyProcessedByWebhook) {
         const hasRealEmailVp = quote.customer.email &&
@@ -6837,6 +6849,11 @@ Respond directly — no JSON, just the message text.`,
         { actorType: "admin", note: `PayNow deposit received${note ? ` — ${note}` : ""}` },
       );
 
+      // T005: Fire-and-forget attribution hook
+      if (updated.referenceNo) {
+        logAttributionEvent(updated.id, updated.referenceNo, "deposit_paid", parseFloat(updated.total ?? "0"), undefined, { channel: "paynow" }).catch(() => {});
+      }
+
       // Same post-payment notifications as Stripe flow
       const hasRealEmailPn = updated.customer.email &&
         !updated.customer.email.endsWith("@tmginstall.com") &&
@@ -6886,6 +6903,11 @@ Respond directly — no JSON, just the message text.`,
       // Mark final paid → auto-closes quote
       const updated = await storage.updateQuotePayment(id, "final", finalAmt);
       if (!updated || !updated.customer) return res.json({ ok: true });
+
+      // T005: Fire-and-forget attribution hook
+      if (updated.referenceNo) {
+        logAttributionEvent(updated.id, updated.referenceNo, "final_paid", parseFloat(updated.total ?? "0"), undefined, { channel: "paynow" }).catch(() => {});
+      }
 
       if (note) {
         await db.insert(jobUpdates).values({
@@ -8458,6 +8480,9 @@ Return ONLY valid JSON:
     await storage.deleteGGVJob(id);
     return res.json({ ok: true });
   });
+
+  // ── AI Operations Layer ────────────────────────────────────────────────────
+  registerAiRoutes(app);
 
   return httpServer;
 }

@@ -1,0 +1,373 @@
+PROJECT: TMGInstall.com
+GOAL: Build AI ads agents + AI site improvement agents that increase sales WITHOUT touching or breaking the current live workflow.
+
+CRITICAL CONTEXT:
+TMGInstall.com is already a live production site.
+The current live website, booking flow, payment flow, admin flow, staff flow, quote flow, and customer-facing business logic must remain intact.
+This is a STRICT CHANGE-CONTROL build.
+The AI system must be added as a sidecar layer, not a replacement.
+
+NON-NEGOTIABLE RULES:
+1. DO NOT replace or rewrite the existing live customer workflow.
+2. DO NOT modify existing booking logic.
+3. DO NOT modify existing payment logic.
+4. DO NOT modify existing admin workflow.
+5. DO NOT modify existing staff workflow.
+6. DO NOT rename, delete, or repurpose any existing routes, database tables, functions, environment variables, or production logic.
+7. DO NOT remove or break any current integrations.
+8. DO NOT make broad refactors.
+9. DO NOT touch unrelated pages, components, styles, database structures, or APIs.
+10. Every new feature must be isolated, reversible, and behind feature flags.
+11. If any AI module is disabled, the live site must continue to run exactly as before.
+12. All high-risk actions must require manual approval.
+13. Low-risk automated actions must be tightly limited and fully logged.
+14. No silent changes. No hidden modifications. No drift.
+
+BUILD APPROACH:
+Create a separate AI operations layer for:
+A. Ads agents
+B. Site improvement agents
+
+This must be implemented as NEW isolated modules, NEW routes, NEW services, NEW tables where needed, and NEW admin views.
+Reuse existing production data only in safe read mode unless explicitly writing to newly created AI tables or logging tables.
+Do not couple AI modules directly into existing critical production flows.
+
+PRIMARY OBJECTIVES:
+1. Improve Google Ads and Meta Ads performance with AI analysis, guarded recommendations, and tightly limited automation.
+2. Improve website conversion rate, usability, trust, speed, SEO structure, and landing-page effectiveness WITHOUT altering the live workflow.
+3. Protect the live production system at all times.
+
+========================================
+PART 1 — ADS AGENTS
+========================================
+
+BUILD THESE ADS AGENTS:
+
+1. Attribution Agent
+Purpose:
+- Capture and unify lead attribution across Google Ads, Meta Ads, website forms, WhatsApp leads, quotes, deposit-paid, booking-confirmed, and final-paid events.
+Requirements:
+- Read current tracking where available.
+- Add new attribution logging in isolated tables/services.
+- Preserve existing tracking.
+- Map every lead/case to source, campaign, ad set/ad group, ad, keyword/search term, landing page, and timestamps where available.
+- Store conversion ladder events:
+  lead_submitted
+  qualified_lead
+  quote_sent
+  deposit_paid
+  booking_confirmed
+  final_paid
+
+2. Ads Analyst Agent
+Purpose:
+- Continuously analyze Google Ads and Meta Ads performance.
+Requirements:
+- Read campaign, ad group/ad set, ad, keyword/search term, spend, clicks, CTR, CPC, conversions, cost per lead, cost per qualified lead, cost per deposit, and final-paid value where available.
+- Produce daily and weekly recommendations:
+  cut
+  keep
+  scale
+  test
+  fix-tracking
+- Rank wasted spend sources and best-performing sources.
+- Never execute risky changes automatically.
+
+3. Search Term / Waste Cutter Agent
+Purpose:
+- Reduce wasted spend safely.
+Requirements:
+- Identify clearly irrelevant search terms and propose negatives.
+- Identify non-performing ads/campaigns after enough data threshold.
+- Allowed auto-actions only if below strict guardrails:
+  a. add low-risk negative keywords
+  b. pause obvious waste only after threshold rules are met
+- Anything ambiguous must require approval.
+- Never pause top-converting assets automatically.
+
+4. Creative Testing Agent
+Purpose:
+- Generate controlled ad copy and creative test suggestions.
+Requirements:
+- Generate Google headlines/descriptions and Meta primary text/hook/CTA variations.
+- Use only approved TMGInstall messaging style.
+- No fake claims.
+- No pricing claims unless sourced from approved business rules.
+- Route all new creative suggestions to approval queue before publishing.
+
+5. Budget Guardrail Agent
+Purpose:
+- Make safe budget decisions.
+Requirements:
+- Allow small budget reallocation suggestions only.
+- Do not auto-launch campaigns.
+- Do not auto-increase any campaign budget by more than 10% without approval.
+- Do not auto-change account-level settings.
+- Do not auto-change targeting broadly.
+- Do not auto-enable new placements or campaign types without approval.
+
+ADS AGENT RULES:
+- Optimize for deposit-paid CPA first.
+- Optimize for qualified lead CPA second.
+- Optimize for final-paid value third.
+- Do NOT optimize only for raw leads.
+- Every ads action must be written to an audit log.
+- Every recommendation must show reason, source data, confidence, and expected effect.
+
+========================================
+PART 2 — SITE IMPROVEMENT AGENTS
+========================================
+
+BUILD THESE SITE IMPROVEMENT AGENTS:
+
+1. CRO Agent
+Purpose:
+- Improve conversion rate safely.
+Requirements:
+- Analyze CTAs, page sections, trust signals, form friction, WhatsApp button placement, service clarity, and contact visibility.
+- Produce suggestions and preview diffs.
+- Do NOT auto-publish changes to critical production pages.
+- All copy/layout changes to important pages must require approval.
+
+2. Landing Page Agent
+Purpose:
+- Improve service landing page performance safely.
+Requirements:
+- Suggest or create NEW isolated landing pages or DRAFT variants for ad traffic.
+- Do not replace existing live core pages.
+- Prefer additive new campaign landing pages over rewriting existing production pages.
+- Support pages for services such as installation, dismantling, relocation, office moving, and urgent manpower where relevant.
+- Every page must use approved TMGInstall brand tone and service accuracy.
+
+3. SEO Structure Agent
+Purpose:
+- Improve search visibility without risking live flow.
+Requirements:
+- Analyze headings, internal links, metadata, service page structure, FAQs, schema opportunities, and content gaps.
+- Suggest improvements in review mode first.
+- Do not break existing routes or indexed production URLs.
+- Do not rename live URLs without approval.
+
+4. Site Speed / Technical Health Agent
+Purpose:
+- Improve performance safely.
+Requirements:
+- Audit oversized assets, render-blocking resources, layout shifts, slow scripts, image inefficiencies, and mobile performance.
+- Apply only low-risk optimizations automatically when strictly isolated and reversible.
+- Never remove scripts or assets used by current booking, payment, tracking, admin, or staff workflow.
+
+5. QA / Regression Agent
+Purpose:
+- Protect the live site.
+Requirements:
+- After every approved site-related change, test:
+  a. homepage loads
+  b. service pages load
+  c. quote/contact forms still work
+  d. WhatsApp buttons still work
+  e. booking flow still works
+  f. payment flow still works
+  g. core admin pages still load
+  h. mobile layout is not broken
+- Block publish if regression is detected.
+
+SITE AGENT RULES:
+- Default mode = analyze, propose, preview, stage, approve, publish.
+- Do NOT auto-publish critical changes.
+- Any change touching key lead-generation pages must require approval.
+- Any change touching shared layout, navigation, forms, booking, payment, or tracking must require approval.
+- Prefer new isolated pages/components/modules over editing core production files.
+
+========================================
+PART 3 — LIVE WORKFLOW PROTECTION
+========================================
+
+ABSOLUTE PROTECTION LIST:
+DO NOT TOUCH unless explicitly approved:
+- existing booking logic
+- existing payment logic
+- existing quote acceptance logic
+- existing staff workflow
+- existing admin booking/staff workflow
+- existing live customer account logic
+- existing public routes that currently drive production conversions
+- existing production database tables used by live workflow
+- existing payment integrations
+- existing WhatsApp/live contact links unless only adding safe tracking wrappers with zero behavioural change
+
+SAFE IMPLEMENTATION PATTERN:
+- Add new routes under isolated namespaces such as:
+  /api/ai/*
+  /admin/ai/*
+  /internal/ai/*
+- Add new AI-specific tables only.
+- Add feature flags for every AI capability.
+- Add a master kill switch for all AI automations.
+- Add separate audit logs.
+- Add separate approval queue.
+- Add separate action history.
+- Add separate regression results log.
+
+FEATURE FLAGS REQUIRED:
+- ai_ads_enabled
+- ai_ads_auto_low_risk_enabled
+- ai_site_audit_enabled
+- ai_site_preview_enabled
+- ai_site_publish_enabled
+- ai_master_kill_switch
+
+Default settings:
+- ai_ads_enabled = true only after build validation
+- ai_ads_auto_low_risk_enabled = false initially
+- ai_site_audit_enabled = true
+- ai_site_preview_enabled = true
+- ai_site_publish_enabled = false initially
+- ai_master_kill_switch = available at all times
+
+========================================
+PART 4 — ADMIN / OPERATOR INTERFACE
+========================================
+
+BUILD NEW INTERNAL SCREENS ONLY:
+
+1. AI Ads Dashboard
+Show:
+- Google spend
+- Meta spend
+- leads
+- qualified leads
+- quotes sent
+- deposits paid
+- bookings confirmed
+- final paid
+- deposit CPA by source/campaign/ad
+- wasted spend list
+- negative keyword suggestions
+- campaign cut/keep/scale recommendations
+- pending approvals
+- action history
+
+2. AI Site Dashboard
+Show:
+- page health score
+- CRO opportunities
+- speed issues
+- trust/UX issues
+- landing page suggestions
+- SEO structure issues
+- draft preview changes
+- regression test results
+- pending approvals
+- publish history
+
+3. Approval Queue
+Show:
+- proposed ads changes
+- proposed site changes
+- risk level
+- reason
+- confidence
+- impact estimate
+- approve / reject / defer actions
+
+4. Audit Log
+Show:
+- every AI recommendation
+- every auto-action
+- every approval
+- every rejection
+- every regression result
+- every publish event
+- rollback history
+
+========================================
+PART 5 — DATA / TABLES
+========================================
+
+CREATE ONLY NEW TABLES AS NEEDED.
+DO NOT ALTER EXISTING PRODUCTION TABLES UNLESS STRICTLY NECESSARY AND EXPLICITLY JUSTIFIED.
+
+Suggested new tables:
+- ai_feature_flags
+- ai_ads_snapshots
+- ai_ad_recommendations
+- ai_ad_actions
+- ai_attribution_events
+- ai_site_audits
+- ai_site_recommendations
+- ai_site_draft_changes
+- ai_approval_queue
+- ai_regression_runs
+- ai_audit_log
+
+If a relation to existing entities is needed, use safe foreign keys or soft references without changing existing core logic.
+
+========================================
+PART 6 — EXECUTION SAFETY
+========================================
+
+LOW-RISK AUTO-ACTIONS ALLOWED:
+- save analytics snapshots
+- generate recommendations
+- queue negative keyword suggestions
+- queue creative test drafts
+- run site audits
+- generate page improvement previews
+- run regression tests
+- mark suspected waste sources
+
+APPROVAL-ONLY ACTIONS:
+- launch new campaigns
+- increase budgets beyond 10%
+- pause major campaigns
+- edit live landing pages
+- change form structure
+- change page layout on core money pages
+- edit production navigation
+- touch booking/payment/admin/staff logic
+- publish site changes
+- replace ad copy in live campaigns
+- apply structural SEO changes to live URLs
+
+ROLLBACK REQUIREMENT:
+Every applied change must be reversible.
+Provide exact rollback steps or automated rollback capability.
+Never create one-way destructive updates.
+
+========================================
+PART 7 — OUTPUT REQUIREMENTS
+========================================
+
+Before making changes:
+1. inspect the current codebase
+2. identify all live workflows and production-critical paths
+3. list exactly what is in scope
+4. list exactly what is out of scope
+5. list exact files proposed to change
+6. list exact new files to create
+7. list exact new tables to create
+8. confirm how live workflow will remain protected
+
+Then implement in small controlled steps.
+
+AT THE END, OUTPUT:
+1. Exact files created
+2. Exact files modified
+3. Exact routes created
+4. Exact tables created
+5. Exact feature flags created
+6. Exact guardrails implemented
+7. Exact actions intentionally NOT taken to protect live workflow
+8. Regression test results
+9. Remaining risks or manual follow-ups
+
+FINAL QUALITY STANDARD:
+This must feel like a production-safe enterprise AI operations layer added beside a live revenue-generating site.
+No messy changes.
+No unrelated edits.
+No broken workflow.
+No broad refactor.
+No guessing.
+No drift.
+
+Proceed in strict change-control mode.

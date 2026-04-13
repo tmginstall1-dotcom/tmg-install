@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, numeric, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, numeric, index, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -637,3 +637,152 @@ export type QuoteResponse = Quote & {
   assignedStaff?: User;
   assignedTeam?: Team & { members?: User[] };
 };
+
+// ─── AI OPERATIONS LAYER ────────────────────────────────────────────────────
+// All tables below are isolated from the live workflow and only used by the
+// AI ops sidecar (ads agents + site agents). Disabling AI modules has zero
+// effect on the existing booking/payment/admin/staff flows.
+
+// Feature flags — master switches for every AI capability
+export const aiFeatureFlags = pgTable("ai_feature_flags", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  value: boolean("value").notNull().default(false),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: text("updated_by"),
+});
+export type AiFeatureFlag = typeof aiFeatureFlags.$inferSelect;
+
+// Attribution events — full conversion funnel logging
+export const aiAttributionEvents = pgTable("ai_attribution_events", {
+  id: serial("id").primaryKey(),
+  quoteId: integer("quote_id"),
+  referenceNo: text("reference_no"),
+  eventType: text("event_type").notNull(), // lead_submitted | deposit_paid | booking_confirmed | final_paid | quote_sent
+  source: text("source"),                  // google_ads | meta_ads | organic | whatsapp | direct | referral
+  utmSource: text("utm_source"),
+  utmMedium: text("utm_medium"),
+  utmCampaign: text("utm_campaign"),
+  utmContent: text("utm_content"),
+  utmTerm: text("utm_term"),
+  landingPage: text("landing_page"),
+  quoteValue: numeric("quote_value", { precision: 10, scale: 2 }),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AiAttributionEvent = typeof aiAttributionEvents.$inferSelect;
+
+// Ads snapshots — manual or API-sourced performance data (Google / Meta)
+export const aiAdsSnapshots = pgTable("ai_ads_snapshots", {
+  id: serial("id").primaryKey(),
+  platform: text("platform").notNull(),         // google | meta
+  snapshotDate: text("snapshot_date").notNull(), // YYYY-MM-DD
+  campaignId: text("campaign_id"),
+  campaignName: text("campaign_name"),
+  adSetId: text("ad_set_id"),
+  adSetName: text("ad_set_name"),
+  adId: text("ad_id"),
+  adName: text("ad_name"),
+  keyword: text("keyword"),
+  matchType: text("match_type"),
+  spend: numeric("spend", { precision: 10, scale: 2 }),
+  impressions: integer("impressions"),
+  clicks: integer("clicks"),
+  conversions: numeric("conversions", { precision: 10, scale: 2 }),
+  conversionValue: numeric("conversion_value", { precision: 10, scale: 2 }),
+  ctr: numeric("ctr", { precision: 10, scale: 4 }),
+  cpc: numeric("cpc", { precision: 10, scale: 4 }),
+  cpl: numeric("cpl", { precision: 10, scale: 4 }),
+  qualityScore: integer("quality_score"),
+  rawData: jsonb("raw_data"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AiAdsSnapshot = typeof aiAdsSnapshots.$inferSelect;
+
+// Ads recommendations — AI-generated action recommendations
+export const aiAdRecommendations = pgTable("ai_ad_recommendations", {
+  id: serial("id").primaryKey(),
+  platform: text("platform"),                     // google | meta | both
+  action: text("action").notNull(),               // cut | keep | scale | test | fix-tracking | pause | negate
+  riskLevel: text("risk_level").notNull(),        // low | medium | high
+  targetType: text("target_type"),                // campaign | ad_group | ad | keyword
+  targetId: text("target_id"),
+  targetName: text("target_name"),
+  reason: text("reason"),
+  sourceData: jsonb("source_data"),
+  confidence: numeric("confidence", { precision: 5, scale: 2 }),
+  expectedEffect: text("expected_effect"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected | applied | deferred
+  approvedBy: text("approved_by"),
+  approvedAt: timestamp("approved_at"),
+  appliedAt: timestamp("applied_at"),
+  rollbackInfo: text("rollback_info"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AiAdRecommendation = typeof aiAdRecommendations.$inferSelect;
+
+// Site audits — CRO / SEO / Speed / QA audit runs
+export const aiSiteAudits = pgTable("ai_site_audits", {
+  id: serial("id").primaryKey(),
+  auditType: text("audit_type").notNull(),  // cro | seo | speed | full
+  status: text("status").notNull().default("running"),  // running | complete | failed
+  score: integer("score"),                  // 0–100
+  summary: text("summary"),
+  findings: jsonb("findings"),
+  triggeredBy: text("triggered_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+export type AiSiteAudit = typeof aiSiteAudits.$inferSelect;
+
+// Site recommendations — CRO / SEO / copy / layout suggestions
+export const aiSiteRecommendations = pgTable("ai_site_recommendations", {
+  id: serial("id").primaryKey(),
+  auditId: integer("audit_id"),
+  category: text("category").notNull(),   // cro | seo | speed | trust | copy | layout
+  priority: text("priority").notNull(),   // critical | high | medium | low
+  page: text("page"),
+  title: text("title").notNull(),
+  description: text("description"),
+  suggestedChange: text("suggested_change"),
+  riskLevel: text("risk_level").notNull().default("low"),
+  status: text("status").notNull().default("open"), // open | approved | rejected | applied | deferred
+  approvedBy: text("approved_by"),
+  appliedAt: timestamp("applied_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AiSiteRecommendation = typeof aiSiteRecommendations.$inferSelect;
+
+// Approval queue — all AI-proposed actions awaiting human review
+export const aiApprovalQueue = pgTable("ai_approval_queue", {
+  id: serial("id").primaryKey(),
+  queueType: text("queue_type").notNull(), // ads_change | site_change | creative | budget | negative_keyword
+  title: text("title").notNull(),
+  description: text("description"),
+  riskLevel: text("risk_level").notNull(), // low | medium | high
+  confidence: numeric("confidence", { precision: 5, scale: 2 }),
+  expectedImpact: text("expected_impact"),
+  proposedAction: jsonb("proposed_action"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected | deferred
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNote: text("review_note"),
+  refType: text("ref_type"),   // ad_recommendation | site_recommendation
+  refId: integer("ref_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+});
+export type AiApprovalItem = typeof aiApprovalQueue.$inferSelect;
+
+// Audit log — immutable record of every AI action (recommendations, approvals, etc.)
+export const aiAuditLog = pgTable("ai_audit_log", {
+  id: serial("id").primaryKey(),
+  actionType: text("action_type").notNull(), // recommendation_generated | action_approved | action_rejected | action_applied | audit_run | publish_event | rollback | flag_changed
+  actor: text("actor"),                       // "ai_agent" | admin username
+  module: text("module"),                     // ads | site | attribution | flags
+  summary: text("summary"),
+  detail: jsonb("detail"),
+  outcome: text("outcome"),                   // success | failed | skipped
+  createdAt: timestamp("created_at").defaultNow(),
+});

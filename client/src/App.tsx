@@ -34,6 +34,11 @@ const AdminReceipts = lazy(() => import("@/pages/admin/Receipts"));
 const AdminFaqManager = lazy(() => import("@/pages/admin/FaqManager"));
 const AdminSeoPanel = lazy(() => import("@/pages/admin/SeoPanel"));
 const AdminGGVJobs = lazy(() => import("@/pages/admin/GGVJobs"));
+const AdminAIHub = lazy(() => import("@/pages/admin/ai/AIHub"));
+const AdminAIAds = lazy(() => import("@/pages/admin/ai/AIAdsPanel"));
+const AdminAISite = lazy(() => import("@/pages/admin/ai/AISitePanel"));
+const AdminAIApprovals = lazy(() => import("@/pages/admin/ai/AIApprovalQueue"));
+const AdminAIAudit = lazy(() => import("@/pages/admin/ai/AIAuditLog"));
 const StaffDashboard = lazy(() => import("@/pages/staff/Dashboard"));
 const StaffJobDetail = lazy(() => import("@/pages/staff/JobDetail"));
 const StaffHR = lazy(() => import("@/pages/staff/HR"));
@@ -166,6 +171,21 @@ function Router() {
           </Route>
           <Route path="/admin/ggv-jobs">
             {() => <AdminRoute component={AdminGGVJobs} />}
+          </Route>
+          <Route path="/admin/ai">
+            {() => <AdminRoute component={AdminAIHub} />}
+          </Route>
+          <Route path="/admin/ai/ads">
+            {() => <AdminRoute component={AdminAIAds} />}
+          </Route>
+          <Route path="/admin/ai/site">
+            {() => <AdminRoute component={AdminAISite} />}
+          </Route>
+          <Route path="/admin/ai/approvals">
+            {() => <AdminRoute component={AdminAIApprovals} />}
+          </Route>
+          <Route path="/admin/ai/audit">
+            {() => <AdminRoute component={AdminAIAudit} />}
           </Route>
 
           <Route path="/staff">

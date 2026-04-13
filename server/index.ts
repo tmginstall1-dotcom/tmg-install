@@ -232,6 +232,147 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
       UPDATE users SET clock_in_time = '07:25' WHERE username = 'tmg_nkb' AND clock_in_time IS NULL;
     `));
 
+    // ── AI Operations Layer tables ────────────────────────────────────────────
+    await withRetry(() => pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_feature_flags (
+        id SERIAL PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        value BOOLEAN NOT NULL DEFAULT FALSE,
+        description TEXT,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        updated_by TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_attribution_events (
+        id SERIAL PRIMARY KEY,
+        quote_id INTEGER,
+        reference_no TEXT,
+        event_type TEXT NOT NULL,
+        source TEXT,
+        utm_source TEXT,
+        utm_medium TEXT,
+        utm_campaign TEXT,
+        utm_content TEXT,
+        utm_term TEXT,
+        landing_page TEXT,
+        quote_value NUMERIC(10,2),
+        metadata JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_ads_snapshots (
+        id SERIAL PRIMARY KEY,
+        platform TEXT NOT NULL,
+        snapshot_date TEXT NOT NULL,
+        campaign_id TEXT,
+        campaign_name TEXT,
+        ad_set_id TEXT,
+        ad_set_name TEXT,
+        ad_id TEXT,
+        ad_name TEXT,
+        keyword TEXT,
+        match_type TEXT,
+        spend NUMERIC(10,2),
+        impressions INTEGER,
+        clicks INTEGER,
+        conversions NUMERIC(10,2),
+        conversion_value NUMERIC(10,2),
+        ctr NUMERIC(10,4),
+        cpc NUMERIC(10,4),
+        cpl NUMERIC(10,4),
+        quality_score INTEGER,
+        raw_data JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_ad_recommendations (
+        id SERIAL PRIMARY KEY,
+        platform TEXT,
+        action TEXT NOT NULL,
+        risk_level TEXT NOT NULL,
+        target_type TEXT,
+        target_id TEXT,
+        target_name TEXT,
+        reason TEXT,
+        source_data JSONB,
+        confidence NUMERIC(5,2),
+        expected_effect TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        approved_by TEXT,
+        approved_at TIMESTAMP,
+        applied_at TIMESTAMP,
+        rollback_info TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_site_audits (
+        id SERIAL PRIMARY KEY,
+        audit_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'running',
+        score INTEGER,
+        summary TEXT,
+        findings JSONB,
+        triggered_by TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        completed_at TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_site_recommendations (
+        id SERIAL PRIMARY KEY,
+        audit_id INTEGER,
+        category TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        page TEXT,
+        title TEXT NOT NULL,
+        description TEXT,
+        suggested_change TEXT,
+        risk_level TEXT NOT NULL DEFAULT 'low',
+        status TEXT NOT NULL DEFAULT 'open',
+        approved_by TEXT,
+        applied_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_approval_queue (
+        id SERIAL PRIMARY KEY,
+        queue_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        risk_level TEXT NOT NULL,
+        confidence NUMERIC(5,2),
+        expected_impact TEXT,
+        proposed_action JSONB,
+        status TEXT NOT NULL DEFAULT 'pending',
+        reviewed_by TEXT,
+        reviewed_at TIMESTAMP,
+        review_note TEXT,
+        ref_type TEXT,
+        ref_id INTEGER,
+        created_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_audit_log (
+        id SERIAL PRIMARY KEY,
+        action_type TEXT NOT NULL,
+        actor TEXT,
+        module TEXT,
+        summary TEXT,
+        detail JSONB,
+        outcome TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      INSERT INTO ai_feature_flags (key, value, description) VALUES
+        ('ai_master_kill_switch',         FALSE, 'Master kill switch — disables ALL AI automations when TRUE'),
+        ('ai_ads_enabled',                FALSE, 'Enable AI ads analysis and recommendations'),
+        ('ai_ads_auto_low_risk_enabled',  FALSE, 'Allow AI to auto-apply low-risk ads actions (negatives, minor pauses)'),
+        ('ai_site_audit_enabled',         TRUE,  'Enable AI site audits (CRO, SEO, Speed analysis)'),
+        ('ai_site_preview_enabled',       TRUE,  'Enable AI site change previews'),
+        ('ai_site_publish_enabled',       FALSE, 'Allow AI to publish approved site changes')
+      ON CONFLICT (key) DO NOTHING;
+    `));
+
     console.log("[startup] DB schema ready, TMG50 seeded.");
     await pool.end();
   } catch (e: any) {

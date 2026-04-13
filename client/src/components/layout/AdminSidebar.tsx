@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Calendar, MessageCircle, Users, Receipt,
   BarChart2, FileDown, Settings, HelpCircle, LogOut,
-  AlertCircle, Smartphone, X, Share, MoreHorizontal, Search, Truck,
+  AlertCircle, Smartphone, X, Share, MoreHorizontal, Search, Truck, Bot,
 } from "lucide-react";
 import { useAdminManifest, useAdminInstallPrompt } from "@/hooks/use-admin-pwa";
 
@@ -132,6 +132,7 @@ export function AdminSidebar() {
 
         <SectionLabel>Growth</SectionLabel>
         <NavItem href="/admin/seo"           icon={Search}          label="SEO"         active={isActive("/admin/seo")} />
+        <NavItem href="/admin/ai"            icon={Bot}             label="AI Ops"      active={isActive("/admin/ai")} />
 
         <SectionLabel>System</SectionLabel>
         <NavItem href="/admin/faq"           icon={HelpCircle}      label="FAQ Manager" active={isActive("/admin/faq")} />
