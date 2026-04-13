@@ -3527,6 +3527,11 @@ ${systemPrompt}` });
         allItems
       );
 
+      // T005: Fire-and-forget lead_submitted attribution event
+      if (quote?.referenceNo) {
+        logAttributionEvent(quote.id, quote.referenceNo, "lead_submitted", parseFloat(quote.total ?? "0"), quote.sourceChannel ?? undefined).catch(() => {});
+      }
+
       // Decrement promo code usage count
       if (appliedPromoCode) {
         try {
@@ -3679,6 +3684,11 @@ ${systemPrompt}` });
         },
         aiParsedItems
       );
+
+      // T005: Fire-and-forget lead_submitted attribution event
+      if (quote?.referenceNo) {
+        logAttributionEvent(quote.id, quote.referenceNo, "lead_submitted", parseFloat(quote.total ?? "0"), quote.sourceChannel ?? undefined).catch(() => {});
+      }
 
       // Alert admin on new estimate submission (awaited so it completes before response)
       try {
@@ -4809,6 +4819,11 @@ Respond with ONLY a JSON array (no prose, no markdown):
         },
         allItems
       );
+
+      // T005: Fire-and-forget lead_submitted attribution event
+      if (quote?.referenceNo) {
+        logAttributionEvent(quote.id, quote.referenceNo, "lead_submitted", parseFloat(quote.total ?? "0"), quote.sourceChannel ?? undefined).catch(() => {});
+      }
 
       // Decrement promo code usage count if one was applied
       if (input.promoCode?.trim()) {
@@ -6549,6 +6564,11 @@ Return ONLY valid JSON.`,
           quoteItems as any
         );
 
+        // T005: Fire-and-forget lead_submitted attribution event
+        if (quote?.referenceNo) {
+          logAttributionEvent(quote.id, quote.referenceNo, "lead_submitted", parseFloat(quote.total ?? "0"), "whatsapp").catch(() => {});
+        }
+
         await storage.deleteWhatsAppSession(from);
 
         // ── Build itemised quote breakdown for WhatsApp confirmation ─────────
@@ -7934,6 +7954,11 @@ Respond directly — no JSON, just the message text.`,
       } as any,
       quoteItems as any
     );
+
+    // T005: Fire-and-forget lead_submitted attribution event
+    if (quote?.referenceNo) {
+      logAttributionEvent(quote.id, quote.referenceNo, "lead_submitted", parseFloat(quote.total ?? "0"), "whatsapp").catch(() => {});
+    }
 
     // Mark session as submitted but keep botPaused so admin stays in control
     await storage.upsertWhatsAppSession(phone, { state: "submitted" });

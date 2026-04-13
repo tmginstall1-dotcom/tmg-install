@@ -24,11 +24,28 @@ import {
   customers,
 } from "@shared/schema";
 import { z } from "zod";
-import { openai } from "./replit_integrations/audio/client";
+import { storage } from "./storage";
 
-// ── Auth guard (admin only) ──────────────────────────────────────────────────
-function requireAdmin(req: Request, res: Response, next: () => void) {
-  if (!(req.session as any)?.userId) return res.status(401).json({ message: "Unauthorized" });
+// ── Lazy OpenAI client — never crashes server startup if key is missing ───────
+let _openai: any = null;
+function getOpenAI() {
+  if (_openai) return _openai;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { openai } = require("./replit_integrations/audio/client");
+    _openai = openai;
+    return _openai;
+  } catch {
+    throw new Error("AI integration client unavailable. Check AI_INTEGRATIONS_OPENAI_API_KEY.");
+  }
+}
+
+// ── Auth guard (admin only — full role check, mirrors existing admin routes) ──
+async function requireAdmin(req: Request, res: Response, next: () => void) {
+  const userId = (req.session as any)?.userId;
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
+  const user = await storage.getUserById(userId);
+  if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
   next();
 }
 
@@ -303,7 +320,7 @@ Generate 3-6 specific, actionable recommendations. For each recommendation, retu
 
 Return ONLY a JSON array of recommendations. No explanations outside the JSON.`;
 
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
@@ -449,7 +466,7 @@ For EACH finding, return a JSON object:
 
 Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findings": [...array of finding objects...]}`;
 
-          const completion = await openai.chat.completions.create({
+          const completion = await getOpenAI().chat.completions.create({
             model: "gpt-4o-mini",
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" },
@@ -563,6 +580,10 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
   /** POST /api/ai/approvals/:id/review — approve / reject / defer */
   app.post("/api/ai/approvals/:id/review", requireAdmin, async (req: Request, res: Response) => {
     try {
+      // Kill switch blocks write actions; reads (GET /approvals) and flag changes are always allowed
+      const killSwitch = await getFlag("ai_master_kill_switch");
+      if (killSwitch) return res.status(503).json({ message: "AI master kill switch is active. Approval actions are disabled." });
+
       const id = parseInt(req.params.id);
       const { decision, note } = z.object({
         decision: z.enum(["approved", "rejected", "deferred"]),

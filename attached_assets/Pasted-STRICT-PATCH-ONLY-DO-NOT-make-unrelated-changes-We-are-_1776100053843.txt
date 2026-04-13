@@ -1,0 +1,80 @@
+STRICT PATCH ONLY. DO NOT make unrelated changes.
+
+We are keeping the current AI Ops build, but you must fix the remaining production gaps without touching the live workflow.
+
+CRITICAL RULES:
+- Do NOT modify existing booking logic
+- Do NOT modify existing payment logic
+- Do NOT modify existing public site workflow
+- Do NOT refactor unrelated files
+- Do NOT change UI styling except where strictly required for this patch
+- Only fix the listed issues below
+- Keep all changes minimal, isolated, and reversible
+
+PATCH SCOPE:
+
+1. FIX ADMIN AUTH ON ALL /api/ai/* ROUTES
+Current problem:
+- server/ai-routes.ts requireAdmin only checks req.session?.userId
+- This is not sufficient
+Required fix:
+- Make AI routes use the same real admin-role verification standard as protected admin routes in server/routes.ts
+- Verify user exists
+- Verify user.role === "admin"
+- Return proper unauthorized/forbidden response if not admin
+- Do not weaken existing auth anywhere else
+
+2. ENFORCE ai_master_kill_switch ON APPROVAL REVIEW ROUTE
+Current problem:
+- POST /api/ai/approvals/:id/review is not gated by the master kill switch
+Required fix:
+- If ai_master_kill_switch is TRUE, block approval review actions that change approval status
+- Return 503 with clear message
+- Preserve the ability to read approvals while kill switch is on
+- Preserve the ability to change feature flags so the kill switch can still be turned off
+
+3. IMPLEMENT lead_submitted ATTRIBUTION EVENT
+Current problem:
+- lead_submitted is not written to ai_attribution_events
+Required fix:
+- Add a non-blocking fire-and-forget lead_submitted event at the true quote/job creation point(s)
+- Only add at real customer/admin quote creation points that represent a new lead
+- Do NOT add duplicate firing on updates/edits
+- Do NOT alter existing quote creation logic or return values
+- Use .catch(() => {}) style non-blocking behaviour
+- If reference number is required, guard safely
+
+4. REDUCE STARTUP RISK IN ai-routes.ts
+Current problem:
+- AI integration dependency is still initialized at module import time
+Required fix:
+- Avoid hard failure at module import if AI integration env is missing
+- Make AI-dependent routes fail gracefully at request time instead of crashing full server startup
+- Do NOT break existing working AI routes when env is present
+- Keep change minimal
+
+5. RUN AND REPORT REAL REGRESSION CHECKS
+After patching, verify and report:
+- homepage/public endpoints
+- quote submission path
+- admin quote list
+- booking status update path
+- manual PayNow deposit path
+- manual PayNow final payment path
+- AI endpoints auth as non-admin
+- AI endpoints auth as admin
+- desktop sidebar AI nav
+- mobile bottom nav AI entry
+
+OUTPUT REQUIRED:
+Return exactly:
+1. Exact files modified
+2. Exact code sections changed
+3. Exact auth fix applied
+4. Exact kill switch fix applied
+5. Exact lead_submitted hook location(s)
+6. Exact startup-risk fix applied
+7. Regression verification results
+8. Remaining known gaps, if any
+
+Do not make any other changes.
