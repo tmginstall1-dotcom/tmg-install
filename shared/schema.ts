@@ -677,6 +677,7 @@ export type AiAttributionEvent = typeof aiAttributionEvents.$inferSelect;
 export const aiAdsSnapshots = pgTable("ai_ads_snapshots", {
   id: serial("id").primaryKey(),
   platform: text("platform").notNull(),         // google | meta
+  source: text("source").notNull().default("manual"), // manual | google_ads_api | meta_ads_api
   snapshotDate: text("snapshot_date").notNull(), // YYYY-MM-DD
   campaignId: text("campaign_id"),
   campaignName: text("campaign_name"),
@@ -786,3 +787,59 @@ export const aiAuditLog = pgTable("ai_audit_log", {
   outcome: text("outcome"),                   // success | failed | skipped
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ── Phase 2: Live Data Connectors ────────────────────────────────────────────
+
+// Connector configs — one row per connector, tracks sync state
+export const aiConnectorConfigs = pgTable("ai_connector_configs", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),           // google_ads | meta_ads | search_console | pagespeed
+  enabled: boolean("enabled").notNull().default(false),
+  lastSyncAt: timestamp("last_sync_at"),
+  lastSyncStatus: text("last_sync_status").notNull().default("never"), // never | running | success | error
+  syncError: text("sync_error"),
+  accountId: text("account_id"),
+  extraConfig: jsonb("extra_config"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type AiConnectorConfig = typeof aiConnectorConfigs.$inferSelect;
+
+// Search Console data — keyword/page performance from Google Search Console API
+export const aiSearchConsoleData = pgTable("ai_search_console_data", {
+  id: serial("id").primaryKey(),
+  syncId: text("sync_id"),
+  date: text("date").notNull(),
+  query: text("query"),
+  page: text("page"),
+  country: text("country"),
+  device: text("device"),
+  clicks: integer("clicks").notNull().default(0),
+  impressions: integer("impressions").notNull().default(0),
+  ctr: numeric("ctr", { precision: 10, scale: 4 }),
+  position: numeric("position", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  gscSyncIdx: index("ai_gsc_sync_id_idx").on(t.syncId),
+  gscClicksIdx: index("ai_gsc_clicks_idx").on(t.clicks),
+}));
+export type AiSearchConsoleRow = typeof aiSearchConsoleData.$inferSelect;
+
+// PageSpeed data — CWV and performance scores from PageSpeed Insights API
+export const aiPagespeedData = pgTable("ai_pagespeed_data", {
+  id: serial("id").primaryKey(),
+  url: text("url").notNull(),
+  strategy: text("strategy").notNull().default("mobile"), // mobile | desktop
+  performanceScore: integer("performance_score"),
+  accessibilityScore: integer("accessibility_score"),
+  seoScore: integer("seo_score"),
+  bestPracticesScore: integer("best_practices_score"),
+  fcpMs: integer("fcp_ms"),
+  lcpMs: integer("lcp_ms"),
+  clsScore: numeric("cls_score", { precision: 10, scale: 4 }),
+  ttfbMs: integer("ttfb_ms"),
+  rawAudits: jsonb("raw_audits"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  psStrategyIdx: index("ai_pagespeed_strategy_idx").on(t.strategy, t.createdAt),
+}));
+export type AiPagespeedRow = typeof aiPagespeedData.$inferSelect;

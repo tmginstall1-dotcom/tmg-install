@@ -5,7 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   Bot, TrendingUp, Globe, CheckSquare, ScrollText,
   Zap, ZapOff, ToggleLeft, ToggleRight, AlertTriangle,
-  ArrowRight, Shield, HelpCircle, X, Clock, User, Check
+  ArrowRight, Shield, HelpCircle, X, Clock, User, Check, Database
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -27,6 +27,12 @@ function siteStatus(flags: Record<string, boolean>): ModuleStatus {
   if (!flags["ai_site_audit_enabled"] && !flags["ai_site_preview_enabled"]) return "off";
   if (!flags["ai_site_publish_enabled"]) return "preview";
   return "active";
+}
+function connectorStatus(flags: Record<string, boolean>): ModuleStatus {
+  const anyLive = flags["ai_google_ads_sync_enabled"] || flags["ai_meta_ads_sync_enabled"] || flags["ai_search_console_enabled"];
+  if (!flags["ai_pagespeed_enabled"] && !anyLive) return "off";
+  if (anyLive) return "active";
+  return "preview";
 }
 
 // ── Flag help text ────────────────────────────────────────────────────────────
@@ -55,6 +61,26 @@ const FLAG_HELP: Record<string, { what: string; effect: string; safe: string }> 
     what: "Permits AI-approved site change recommendations to be published to the live site.",
     effect: "Once enabled, approved changes from the approval queue can be applied automatically to the live site. This directly affects what customers see.",
     safe: "High risk. Only enable after thoroughly reviewing the approval queue and with a rollback plan ready.",
+  },
+  ai_pagespeed_enabled: {
+    what: "Enables on-demand PageSpeed Insights checks for TMGInstall.com via Google's API.",
+    effect: "Fetches Lighthouse performance, SEO, accessibility, and best-practices scores. Results are stored and surfaced in Site Health and the Connectors page.",
+    safe: "Read-only. Safe to enable. No credentials required — uses the public API endpoint.",
+  },
+  ai_google_ads_sync_enabled: {
+    what: "Enables live data pull from Google Ads API into the AI ads snapshots table.",
+    effect: "Imports campaign and ad group spend, clicks, conversions per day. Replaces the date range on each sync. Credentials required in Replit Secrets.",
+    safe: "Read-only import. Safe once credentials are set. Does not modify any Google Ads campaigns.",
+  },
+  ai_meta_ads_sync_enabled: {
+    what: "Enables live data pull from Meta Marketing API into the AI ads snapshots table.",
+    effect: "Imports campaign/adset spend, impressions, lead actions per day. Credentials required in Replit Secrets.",
+    safe: "Read-only import. Safe once credentials are set. Does not modify any Meta campaigns.",
+  },
+  ai_search_console_enabled: {
+    what: "Enables live data pull from Google Search Console for TMGInstall.com.",
+    effect: "Imports top search queries with clicks, impressions, CTR, and average position for the last 28 days. Credentials required in Replit Secrets.",
+    safe: "Read-only import. Safe once credentials are set.",
   },
 };
 
@@ -144,14 +170,27 @@ export default function AIHub() {
       iconColor: "text-slate-400",
       status: "active" as ModuleStatus,
     },
+    {
+      href: "/admin/ai/connectors",
+      icon: Database,
+      label: "Data Connectors",
+      description: "Google Ads API · Meta Ads API · Search Console · PageSpeed Insights",
+      color: "from-violet-500/10 to-purple-500/10 border-violet-500/20",
+      iconColor: "text-violet-400",
+      status: connectorStatus(flags),
+    },
   ];
 
   const featureFlags = [
-    { key: "ai_ads_enabled",               label: "Ads Analysis",             risk: "low" },
-    { key: "ai_ads_auto_low_risk_enabled", label: "Auto Low-Risk Ads Actions", risk: "medium" },
-    { key: "ai_site_audit_enabled",        label: "Site Audits",              risk: "low" },
-    { key: "ai_site_preview_enabled",      label: "Site Previews",            risk: "low" },
-    { key: "ai_site_publish_enabled",      label: "Auto-Publish Changes",     risk: "high" },
+    { key: "ai_ads_enabled",                label: "Ads Analysis",              risk: "low" },
+    { key: "ai_ads_auto_low_risk_enabled",  label: "Auto Low-Risk Ads Actions", risk: "medium" },
+    { key: "ai_site_audit_enabled",         label: "Site Audits",               risk: "low" },
+    { key: "ai_site_preview_enabled",       label: "Site Previews",             risk: "low" },
+    { key: "ai_site_publish_enabled",       label: "Auto-Publish Changes",      risk: "high" },
+    { key: "ai_pagespeed_enabled",          label: "PageSpeed Checks",          risk: "low" },
+    { key: "ai_google_ads_sync_enabled",    label: "Google Ads Live Sync",      risk: "low" },
+    { key: "ai_meta_ads_sync_enabled",      label: "Meta Ads Live Sync",        risk: "low" },
+    { key: "ai_search_console_enabled",     label: "Search Console Sync",       risk: "low" },
   ];
 
   const lastLog = recentLogs[0];

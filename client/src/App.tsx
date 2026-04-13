@@ -39,6 +39,7 @@ const AdminAIAds = lazy(() => import("@/pages/admin/ai/AIAdsPanel"));
 const AdminAISite = lazy(() => import("@/pages/admin/ai/AISitePanel"));
 const AdminAIApprovals = lazy(() => import("@/pages/admin/ai/AIApprovalQueue"));
 const AdminAIAudit = lazy(() => import("@/pages/admin/ai/AIAuditLog"));
+const AdminAIConnectors = lazy(() => import("@/pages/admin/ai/AIConnectors"));
 const StaffDashboard = lazy(() => import("@/pages/staff/Dashboard"));
 const StaffJobDetail = lazy(() => import("@/pages/staff/JobDetail"));
 const StaffHR = lazy(() => import("@/pages/staff/HR"));
@@ -186,6 +187,9 @@ function Router() {
           </Route>
           <Route path="/admin/ai/audit">
             {() => <AdminRoute component={AdminAIAudit} />}
+          </Route>
+          <Route path="/admin/ai/connectors">
+            {() => <AdminRoute component={AdminAIConnectors} />}
           </Route>
 
           <Route path="/staff">

@@ -5,7 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   TrendingUp, Plus, Cpu, RefreshCw, ChevronLeft,
   Target, AlertTriangle, TrendingDown, ArrowUp,
-  DollarSign, MousePointerClick, Users, Zap
+  DollarSign, MousePointerClick, Users, Zap, Database, ExternalLink
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,6 +20,43 @@ const ACTION_ICONS: Record<string, any> = {
   test: Cpu, pause: AlertTriangle, negate: AlertTriangle,
   "fix-tracking": RefreshCw,
 };
+
+function ConnectorSyncBanner() {
+  const { data: connectors } = useQuery<Record<string, any>>({
+    queryKey: ["/api/ai/connectors/status"],
+  });
+  if (!connectors) return null;
+  const gads = connectors["google_ads"];
+  const meta = connectors["meta_ads"];
+  const hasAnyData = (gads?.rowCount ?? 0) > 0 || (meta?.rowCount ?? 0) > 0;
+  const hasAnyError = gads?.lastSyncStatus === "error" || meta?.lastSyncStatus === "error";
+  if (!gads && !meta) return null;
+
+  const pill = (label: string, cfg: any) => {
+    if (!cfg) return null;
+    const color = cfg.lastSyncStatus === "success" ? "border-emerald-500/20 text-emerald-400"
+      : cfg.lastSyncStatus === "error" ? "border-red-500/20 text-red-400"
+      : "border-white/10 text-slate-400";
+    return (
+      <span key={label} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-medium ${color}`}>
+        <Database className="w-3 h-3" />
+        {label} · {cfg.rowCount ?? 0} rows
+        {cfg.lastSyncStatus === "error" && <AlertTriangle className="w-3 h-3 text-red-400" />}
+      </span>
+    );
+  };
+
+  return (
+    <div className={`flex flex-wrap items-center gap-2 px-4 py-3 rounded-xl border ${hasAnyError ? "bg-red-500/5 border-red-500/15" : hasAnyData ? "bg-emerald-500/5 border-emerald-500/15" : "bg-white/3 border-white/8"}`}>
+      <span className="text-[11px] text-slate-500 font-medium mr-1">Live API data:</span>
+      {pill("Google Ads", gads)}
+      {pill("Meta Ads", meta)}
+      <Link href="/admin/ai/connectors" className="ml-auto flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors shrink-0">
+        <ExternalLink className="w-3 h-3" /> Manage connectors
+      </Link>
+    </div>
+  );
+}
 
 export default function AIAdsPanel() {
   const { toast } = useToast();
@@ -111,7 +148,8 @@ export default function AIAdsPanel() {
           </div>
         </div>
 
-        {/* Add Snapshot Form */}
+        {/* Live Connector Sync Banner */}
+        <ConnectorSyncBanner />
         {showAddForm && (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
             <h3 className="text-sm font-semibold text-white">Add Ads Performance Data</h3>

@@ -5,7 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   Globe, ChevronLeft, Play, CheckCircle2, Clock,
   AlertTriangle, TrendingUp, Search, Zap, Shield,
-  FileText, Layout, RefreshCw
+  FileText, Layout, RefreshCw, Gauge, ExternalLink
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,6 +25,58 @@ const CATEGORY_COLORS: Record<string, string> = {
   cro: "text-blue-400", seo: "text-green-400", speed: "text-yellow-400",
   trust: "text-violet-400", copy: "text-pink-400", layout: "text-cyan-400",
 };
+
+function PageSpeedMini() {
+  const { data: ps } = useQuery<{ mobile: any; desktop: any }>({
+    queryKey: ["/api/ai/pagespeed/data"],
+  });
+  if (!ps?.mobile && !ps?.desktop) return null;
+
+  const scoreColor = (s: number | null) =>
+    s == null ? "text-slate-500" : s >= 90 ? "text-emerald-400" : s >= 50 ? "text-amber-400" : "text-red-400";
+
+  const mini = (label: string, data: any) => {
+    if (!data) return null;
+    return (
+      <div key={label} className="flex items-center gap-3">
+        <span className="text-[11px] text-slate-500 font-medium w-14 shrink-0">{label}</span>
+        {[["Perf", data.performanceScore], ["SEO", data.seoScore], ["A11y", data.accessibilityScore]].map(([l, s]) => (
+          <span key={l as string} className="flex items-center gap-1">
+            <span className="text-[10px] text-slate-600">{l}</span>
+            <span className={`text-xs font-bold ${scoreColor(s as number | null)}`}>{s ?? "—"}</span>
+          </span>
+        ))}
+        {data.lcpMs != null && (
+          <span className="flex items-center gap-1">
+            <span className="text-[10px] text-slate-600">LCP</span>
+            <span className={`text-xs font-bold ${data.lcpMs <= 2500 ? "text-emerald-400" : "text-amber-400"}`}>{(data.lcpMs / 1000).toFixed(1)}s</span>
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="px-4 py-3 rounded-xl bg-amber-500/5 border border-amber-500/15 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Gauge className="w-3.5 h-3.5 text-amber-400" />
+          <span className="text-[11px] font-semibold text-amber-400">PageSpeed Insights</span>
+          {ps.mobile?.createdAt && (
+            <span className="text-[10px] text-slate-600">
+              · {new Date(ps.mobile.createdAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" })}
+            </span>
+          )}
+        </div>
+        <Link href="/admin/ai/connectors" className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
+          <ExternalLink className="w-3 h-3" /> Details
+        </Link>
+      </div>
+      {mini("Mobile", ps.mobile)}
+      {mini("Desktop", ps.desktop)}
+    </div>
+  );
+}
 
 export default function AISitePanel() {
   const { toast } = useToast();
@@ -104,6 +156,9 @@ export default function AISitePanel() {
             </button>
           </div>
         </div>
+
+        {/* PageSpeed Mini-Panel */}
+        <PageSpeedMini />
 
         {/* Latest Audit Result */}
         {latestAudit && (

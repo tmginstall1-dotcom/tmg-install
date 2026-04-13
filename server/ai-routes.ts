@@ -20,11 +20,15 @@ import {
   aiSiteRecommendations,
   aiApprovalQueue,
   aiAuditLog,
+  aiConnectorConfigs,
+  aiSearchConsoleData,
+  aiPagespeedData,
   quotes,
   customers,
 } from "@shared/schema";
 import { z } from "zod";
 import { storage } from "./storage";
+import { count, lt } from "drizzle-orm";
 
 // ── Lazy OpenAI client — never crashes server startup if key is missing ───────
 let _openai: any = null;
@@ -90,6 +94,51 @@ export async function logAttributionEvent(
       metadata,
     });
   } catch { /* non-fatal — never break live flow */ }
+}
+
+// ── Phase 2: Connector credential checks & helpers ────────────────────────────
+
+function gadsCredsCheck() {
+  const needed: Record<string, string | undefined> = {
+    GOOGLE_ADS_DEVELOPER_TOKEN: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+    GOOGLE_ADS_CUSTOMER_ID: process.env.GOOGLE_ADS_CUSTOMER_ID,
+    GOOGLE_ADS_CLIENT_ID: process.env.GOOGLE_ADS_CLIENT_ID,
+    GOOGLE_ADS_CLIENT_SECRET: process.env.GOOGLE_ADS_CLIENT_SECRET,
+    GOOGLE_ADS_REFRESH_TOKEN: process.env.GOOGLE_ADS_REFRESH_TOKEN,
+  };
+  return Object.entries(needed).filter(([, v]) => !v).map(([k]) => k);
+}
+function metaCredsCheck() {
+  return ([
+    !process.env.META_ACCESS_TOKEN ? "META_ACCESS_TOKEN" : null,
+    !process.env.META_AD_ACCOUNT_ID ? "META_AD_ACCOUNT_ID" : null,
+  ] as (string | null)[]).filter(Boolean) as string[];
+}
+function gscCredsCheck() {
+  return ([
+    !process.env.GSC_CLIENT_ID ? "GSC_CLIENT_ID" : null,
+    !process.env.GSC_CLIENT_SECRET ? "GSC_CLIENT_SECRET" : null,
+    !process.env.GSC_REFRESH_TOKEN ? "GSC_REFRESH_TOKEN" : null,
+  ] as (string | null)[]).filter(Boolean) as string[];
+}
+
+async function googleAccessToken(clientId: string, clientSecret: string, refreshToken: string): Promise<string> {
+  const r = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: "refresh_token" }).toString(),
+  });
+  const j: any = await r.json();
+  if (!j.access_token) throw new Error(`OAuth error: ${j.error ?? "unknown"}`);
+  return j.access_token as string;
+}
+
+async function setConnectorSync(name: string, status: "running" | "success" | "error", error?: string) {
+  try {
+    await db.update(aiConnectorConfigs)
+      .set({ lastSyncAt: status !== "running" ? new Date() : undefined, lastSyncStatus: status, syncError: error ?? null, updatedAt: new Date() })
+      .where(eq(aiConnectorConfigs.name, name));
+  } catch { /* non-fatal */ }
 }
 
 export function registerAiRoutes(app: Express) {
@@ -676,5 +725,359 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       console.error("[AI summary]", err);
       res.status(500).json({ message: "DB error" });
     }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // CONNECTORS — status, sync triggers
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /** GET /api/ai/connectors/status — returns configured state + row counts */
+  app.get("/api/ai/connectors/status", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const configs = await db.select().from(aiConnectorConfigs);
+
+      const [gAdsCount] = await db.select({ n: sql<number>`count(*)` }).from(aiAdsSnapshots).where(eq(aiAdsSnapshots.source, "google_ads_api"));
+      const [mAdsCount] = await db.select({ n: sql<number>`count(*)` }).from(aiAdsSnapshots).where(eq(aiAdsSnapshots.source, "meta_ads_api"));
+      const [gscCount] = await db.select({ n: sql<number>`count(*)` }).from(aiSearchConsoleData);
+      const [psCount]  = await db.select({ n: sql<number>`count(*)` }).from(aiPagespeedData);
+
+      const rowCounts: Record<string, number> = {
+        google_ads: parseInt(String(gAdsCount?.n ?? 0)),
+        meta_ads: parseInt(String(mAdsCount?.n ?? 0)),
+        search_console: parseInt(String(gscCount?.n ?? 0)),
+        pagespeed: parseInt(String(psCount?.n ?? 0)),
+      };
+
+      const missingMap: Record<string, string[]> = {
+        google_ads: gadsCredsCheck(),
+        meta_ads: metaCredsCheck(),
+        search_console: gscCredsCheck(),
+        pagespeed: [],
+      };
+
+      const result: Record<string, any> = {};
+      for (const cfg of configs) {
+        result[cfg.name] = {
+          ...cfg,
+          configured: missingMap[cfg.name]?.length === 0,
+          missing: missingMap[cfg.name] ?? [],
+          rowCount: rowCounts[cfg.name] ?? 0,
+        };
+      }
+
+      res.json(result);
+    } catch { res.status(500).json({ message: "DB error" }); }
+  });
+
+  /** POST /api/ai/connectors/google-ads/sync */
+  app.post("/api/ai/connectors/google-ads/sync", requireAdmin, async (_req: Request, res: Response) => {
+    const missing = gadsCredsCheck();
+    if (missing.length) return res.status(400).json({ error: "not_configured", missing });
+
+    const killSwitch = await getFlag("ai_master_kill_switch");
+    const enabled = await getFlag("ai_google_ads_sync_enabled");
+    if (killSwitch) return res.status(503).json({ message: "Kill switch active." });
+    if (!enabled) return res.status(503).json({ message: "Google Ads sync is disabled. Enable ai_google_ads_sync_enabled flag." });
+
+    await setConnectorSync("google_ads", "running");
+    try {
+      const { GOOGLE_ADS_CLIENT_ID: cid, GOOGLE_ADS_CLIENT_SECRET: cs, GOOGLE_ADS_REFRESH_TOKEN: rt,
+              GOOGLE_ADS_DEVELOPER_TOKEN: dt, GOOGLE_ADS_CUSTOMER_ID: customerId } = process.env;
+      const accessToken = await googleAccessToken(cid!, cs!, rt!);
+      const cleanId = customerId!.replace(/-/g, "");
+      const thirtyAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const today = new Date().toISOString().split("T")[0];
+
+      const gaqlRes = await fetch(`https://googleads.googleapis.com/v18/customers/${cleanId}/googleAds:search`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${accessToken}`, "developer-token": dt!, "Content-Type": "application/json" },
+        body: JSON.stringify({ query: `SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value, metrics.ctr, metrics.average_cpc, segments.date FROM campaign WHERE segments.date BETWEEN '${thirtyAgo}' AND '${today}' AND campaign.status = 'ENABLED' ORDER BY segments.date DESC LIMIT 1000` }),
+      });
+      const gaqlData: any = await gaqlRes.json();
+      if (gaqlData.error) throw new Error(gaqlData.error.message ?? "Google Ads API error");
+
+      // Remove stale API rows then insert fresh
+      await db.delete(aiAdsSnapshots).where(and(eq(aiAdsSnapshots.source, "google_ads_api"), gte(aiAdsSnapshots.snapshotDate, thirtyAgo)));
+      let inserted = 0;
+      for (const row of (gaqlData.results ?? [])) {
+        const spend = (parseInt(row.metrics?.costMicros ?? "0") / 1_000_000);
+        const clicks = parseInt(String(row.metrics?.clicks ?? "0"));
+        const impressions = parseInt(String(row.metrics?.impressions ?? "0"));
+        const conversions = parseFloat(String(row.metrics?.conversions ?? "0"));
+        const cpc = clicks > 0 ? spend / clicks : 0;
+        await db.insert(aiAdsSnapshots).values({
+          platform: "google", source: "google_ads_api",
+          snapshotDate: row.segments?.date ?? today,
+          campaignId: String(row.campaign?.id ?? ""),
+          campaignName: row.campaign?.name,
+          adSetId: String(row.adGroup?.id ?? ""),
+          adSetName: row.adGroup?.name,
+          spend: spend.toFixed(2) as any,
+          impressions, clicks,
+          conversions: conversions.toFixed(2) as any,
+          ctr: (parseFloat(String(row.metrics?.ctr ?? "0")) * 100).toFixed(4) as any,
+          cpc: cpc.toFixed(4) as any,
+          cpl: conversions > 0 ? (spend / conversions).toFixed(4) as any : "0",
+          rawData: row as any,
+        });
+        inserted++;
+      }
+      await setConnectorSync("google_ads", "success");
+      await logAiAction("connector_sync", "admin", "ads", `Google Ads sync — ${inserted} rows imported`, { inserted });
+      res.json({ success: true, inserted });
+    } catch (err: any) {
+      await setConnectorSync("google_ads", "error", err.message);
+      res.status(500).json({ message: err.message ?? "Sync failed" });
+    }
+  });
+
+  /** POST /api/ai/connectors/meta-ads/sync */
+  app.post("/api/ai/connectors/meta-ads/sync", requireAdmin, async (_req: Request, res: Response) => {
+    const missing = metaCredsCheck();
+    if (missing.length) return res.status(400).json({ error: "not_configured", missing });
+
+    const killSwitch = await getFlag("ai_master_kill_switch");
+    const enabled = await getFlag("ai_meta_ads_sync_enabled");
+    if (killSwitch) return res.status(503).json({ message: "Kill switch active." });
+    if (!enabled) return res.status(503).json({ message: "Meta Ads sync is disabled. Enable ai_meta_ads_sync_enabled flag." });
+
+    await setConnectorSync("meta_ads", "running");
+    try {
+      const { META_ACCESS_TOKEN: token, META_AD_ACCOUNT_ID: accountId } = process.env;
+      const params = new URLSearchParams({
+        access_token: token!,
+        fields: "campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,actions,action_values,date_start,date_stop",
+        date_preset: "last_30d",
+        level: "adset",
+        time_increment: "1",
+        limit: "500",
+      });
+      const metaRes = await fetch(`https://graph.facebook.com/v20.0/act_${accountId}/insights?${params}`);
+      const metaData: any = await metaRes.json();
+      if (metaData.error) throw new Error(metaData.error.message ?? "Meta API error");
+
+      const thirtyAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      await db.delete(aiAdsSnapshots).where(and(eq(aiAdsSnapshots.source, "meta_ads_api"), gte(aiAdsSnapshots.snapshotDate, thirtyAgo)));
+      let inserted = 0;
+      for (const row of (metaData.data ?? [])) {
+        const spend = parseFloat(row.spend ?? "0");
+        const clicks = parseInt(String(row.clicks ?? "0"));
+        const impressions = parseInt(String(row.impressions ?? "0"));
+        const leadsAction = row.actions?.find((a: any) => ["lead", "onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead"].includes(a.action_type));
+        const conversions = parseFloat(leadsAction?.value ?? "0");
+        const convValue = row.action_values?.find((a: any) => a.action_type === leadsAction?.action_type)?.value ?? "0";
+        const ctr = impressions > 0 ? (clicks / impressions * 100).toFixed(4) : "0";
+        const cpc = clicks > 0 ? (spend / clicks).toFixed(4) : "0";
+        const cpl = conversions > 0 ? (spend / conversions).toFixed(4) : "0";
+        await db.insert(aiAdsSnapshots).values({
+          platform: "meta", source: "meta_ads_api",
+          snapshotDate: row.date_start,
+          campaignId: row.campaign_id, campaignName: row.campaign_name,
+          adSetId: row.adset_id, adSetName: row.adset_name,
+          spend: spend.toFixed(2) as any, impressions, clicks,
+          conversions: conversions.toFixed(2) as any, conversionValue: parseFloat(convValue).toFixed(2) as any,
+          ctr: ctr as any, cpc: cpc as any, cpl: cpl as any,
+          rawData: row as any,
+        });
+        inserted++;
+      }
+      await setConnectorSync("meta_ads", "success");
+      await logAiAction("connector_sync", "admin", "ads", `Meta Ads sync — ${inserted} rows imported`, { inserted });
+      res.json({ success: true, inserted });
+    } catch (err: any) {
+      await setConnectorSync("meta_ads", "error", err.message);
+      res.status(500).json({ message: err.message ?? "Sync failed" });
+    }
+  });
+
+  /** POST /api/ai/connectors/search-console/sync */
+  app.post("/api/ai/connectors/search-console/sync", requireAdmin, async (_req: Request, res: Response) => {
+    const missing = gscCredsCheck();
+    if (missing.length) return res.status(400).json({ error: "not_configured", missing });
+
+    const killSwitch = await getFlag("ai_master_kill_switch");
+    const enabled = await getFlag("ai_search_console_enabled");
+    if (killSwitch) return res.status(503).json({ message: "Kill switch active." });
+    if (!enabled) return res.status(503).json({ message: "Search Console sync is disabled. Enable ai_search_console_enabled flag." });
+
+    await setConnectorSync("search_console", "running");
+    try {
+      const { GSC_CLIENT_ID: cid, GSC_CLIENT_SECRET: cs, GSC_REFRESH_TOKEN: rt } = process.env;
+      const siteUrl = process.env.GSC_SITE_URL ?? "https://www.tmginstall.com/";
+      const accessToken = await googleAccessToken(cid!, cs!, rt!);
+      const endDate = new Date().toISOString().split("T")[0];
+      const startDate = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const syncId = `${startDate}__${endDate}`;
+
+      const gscRes = await fetch(
+        `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+        {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ startDate, endDate, dimensions: ["query", "page", "country", "device"], rowLimit: 1000 }),
+        },
+      );
+      const gscData: any = await gscRes.json();
+      if (gscData.error) throw new Error(gscData.error.message ?? "Search Console API error");
+
+      // Clear previous sync then insert fresh
+      await db.delete(aiSearchConsoleData).where(eq(aiSearchConsoleData.syncId, syncId));
+      let inserted = 0;
+      for (const row of (gscData.rows ?? [])) {
+        await db.insert(aiSearchConsoleData).values({
+          syncId, date: endDate,
+          query: row.keys?.[0], page: row.keys?.[1],
+          country: row.keys?.[2], device: row.keys?.[3],
+          clicks: row.clicks ?? 0, impressions: row.impressions ?? 0,
+          ctr: (row.ctr != null ? (row.ctr * 100).toFixed(4) : "0") as any,
+          position: row.position != null ? parseFloat(row.position.toFixed(2)) as any : null,
+        });
+        inserted++;
+      }
+      await setConnectorSync("search_console", "success");
+      await logAiAction("connector_sync", "admin", "attribution", `Search Console sync — ${inserted} queries imported`, { inserted, syncId });
+      res.json({ success: true, inserted, syncId, startDate, endDate });
+    } catch (err: any) {
+      await setConnectorSync("search_console", "error", err.message);
+      res.status(500).json({ message: err.message ?? "Sync failed" });
+    }
+  });
+
+  /** POST /api/ai/connectors/pagespeed/sync — no credentials required */
+  app.post("/api/ai/connectors/pagespeed/sync", requireAdmin, async (_req: Request, res: Response) => {
+    const killSwitch = await getFlag("ai_master_kill_switch");
+    const enabled = await getFlag("ai_pagespeed_enabled");
+    if (killSwitch) return res.status(503).json({ message: "Kill switch active." });
+    if (!enabled) return res.status(503).json({ message: "PageSpeed sync disabled. Enable ai_pagespeed_enabled flag." });
+
+    await setConnectorSync("pagespeed", "running");
+    try {
+      const apiKey = process.env.GOOGLE_API_KEY ?? "";
+      const targetUrl = process.env.PAGESPEED_TARGET_URL ?? "https://www.tmginstall.com";
+      const results: any[] = [];
+
+      for (const strategy of ["mobile", "desktop"] as const) {
+        const qs = new URLSearchParams({ url: targetUrl, strategy });
+        if (apiKey) qs.set("key", apiKey);
+        const psRes = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${qs}`);
+        const psData: any = await psRes.json();
+        if (psData.error) { results.push({ strategy, error: psData.error.message }); continue; }
+
+        const cats = psData.lighthouseResult?.categories ?? {};
+        const audits = psData.lighthouseResult?.audits ?? {};
+        const score = (key: string) => cats[key]?.score != null ? Math.round(cats[key].score * 100) : null;
+        const auditMs = (key: string) => audits[key]?.numericValue ? Math.round(audits[key].numericValue) : null;
+
+        await db.insert(aiPagespeedData).values({
+          url: targetUrl, strategy,
+          performanceScore: score("performance"),
+          accessibilityScore: score("accessibility"),
+          seoScore: score("seo"),
+          bestPracticesScore: score("best-practices"),
+          fcpMs: auditMs("first-contentful-paint"),
+          lcpMs: auditMs("largest-contentful-paint"),
+          clsScore: audits["cumulative-layout-shift"]?.numericValue != null
+            ? parseFloat(audits["cumulative-layout-shift"].numericValue.toFixed(4)) as any : null,
+          ttfbMs: auditMs("server-response-time"),
+          rawAudits: {
+            tbt: audits["total-blocking-time"]?.numericValue,
+            tti: audits["interactive"]?.numericValue,
+            si: audits["speed-index"]?.numericValue,
+          } as any,
+        });
+        results.push({ strategy, performanceScore: score("performance"), seoScore: score("seo") });
+      }
+
+      await setConnectorSync("pagespeed", "success");
+      await logAiAction("connector_sync", "admin", "site", `PageSpeed sync — mobile+desktop scored`, { results });
+      res.json({ success: true, results });
+    } catch (err: any) {
+      await setConnectorSync("pagespeed", "error", err.message);
+      res.status(500).json({ message: err.message ?? "Sync failed" });
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SEARCH CONSOLE DATA
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /** GET /api/ai/search-console/data — paginated query rows */
+  app.get("/api/ai/search-console/data", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const limit = Math.min(parseInt((req.query.limit as string) ?? "100"), 500);
+      const rows = await db.select().from(aiSearchConsoleData)
+        .orderBy(desc(aiSearchConsoleData.clicks))
+        .limit(limit);
+      res.json(rows);
+    } catch { res.status(500).json({ message: "DB error" }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // PAGESPEED DATA
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /** GET /api/ai/pagespeed/data — latest scores per strategy */
+  app.get("/api/ai/pagespeed/data", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const mobile = await db.select().from(aiPagespeedData)
+        .where(eq(aiPagespeedData.strategy, "mobile"))
+        .orderBy(desc(aiPagespeedData.createdAt)).limit(1);
+      const desktop = await db.select().from(aiPagespeedData)
+        .where(eq(aiPagespeedData.strategy, "desktop"))
+        .orderBy(desc(aiPagespeedData.createdAt)).limit(1);
+      const history = await db.select().from(aiPagespeedData)
+        .orderBy(desc(aiPagespeedData.createdAt)).limit(20);
+      res.json({ mobile: mobile[0] ?? null, desktop: desktop[0] ?? null, history });
+    } catch { res.status(500).json({ message: "DB error" }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ATTRIBUTION JOURNEY (per-quote conversion path)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /** GET /api/ai/attribution/journey/:referenceNo */
+  app.get("/api/ai/attribution/journey/:referenceNo", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { referenceNo } = req.params;
+      const [quote] = await db.select({
+        id: quotes.id, referenceNo: quotes.referenceNo, status: quotes.status,
+        total: quotes.total, sourceChannel: quotes.sourceChannel,
+        createdAt: quotes.createdAt, depositPaidAt: quotes.depositPaidAt,
+        finalPaidAt: quotes.finalPaidAt, scheduledAt: quotes.scheduledAt,
+      }).from(quotes).where(eq(quotes.referenceNo, referenceNo)).limit(1);
+
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+
+      const events = await db.select().from(aiAttributionEvents)
+        .where(eq(aiAttributionEvents.referenceNo, referenceNo))
+        .orderBy(aiAttributionEvents.createdAt);
+
+      // Build timeline deltas
+      const firstEvent = events[0];
+      const depositEvent = events.find(e => e.eventType === "deposit_paid");
+      const finalEvent = events.find(e => e.eventType === "final_paid");
+
+      const msDiff = (a: Date | null | undefined, b: Date | null | undefined) => {
+        if (!a || !b) return null;
+        const diff = new Date(b).getTime() - new Date(a).getTime();
+        const h = Math.floor(diff / 3600000);
+        return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
+      };
+
+      res.json({
+        referenceNo,
+        quote,
+        events,
+        timeline: {
+          source: firstEvent?.source ?? quote.sourceChannel ?? "unknown",
+          leadToDeposit: msDiff(quote.createdAt, quote.depositPaidAt),
+          depositToBooking: msDiff(quote.depositPaidAt, quote.scheduledAt),
+          bookingToFinal: msDiff(quote.scheduledAt, quote.finalPaidAt),
+          utmSource: firstEvent?.utmSource,
+          utmMedium: firstEvent?.utmMedium,
+          utmCampaign: firstEvent?.utmCampaign,
+        },
+      });
+    } catch { res.status(500).json({ message: "DB error" }); }
   });
 }
