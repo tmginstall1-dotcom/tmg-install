@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  CheckSquare, ChevronLeft, CheckCircle2, XCircle,
-  Clock, AlertTriangle, Check, X, Pause
+  CheckSquare, ChevronLeft, Clock, AlertTriangle,
+  Check, X, Pause, ShieldAlert
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -19,12 +19,41 @@ const TYPE_LABELS: Record<string, string> = {
   creative: "Creative Test", budget: "Budget", negative_keyword: "Negative Keyword",
 };
 
+interface ConfirmState {
+  id: number;
+  decision: "approved" | "rejected" | "deferred";
+  note?: string;
+  title: string;
+}
+
+const DECISION_META: Record<string, { label: string; color: string; borderColor: string; Icon: any }> = {
+  approved: {
+    label: "Approve",
+    color: "bg-emerald-600/30 text-emerald-200 border-emerald-500/50",
+    borderColor: "border-emerald-500/30",
+    Icon: Check,
+  },
+  rejected: {
+    label: "Reject",
+    color: "bg-red-600/30 text-red-200 border-red-500/50",
+    borderColor: "border-red-500/30",
+    Icon: X,
+  },
+  deferred: {
+    label: "Defer",
+    color: "bg-slate-600/30 text-slate-200 border-slate-500/50",
+    borderColor: "border-slate-500/30",
+    Icon: Pause,
+  },
+};
+
 export default function AIApprovalQueue() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("pending");
   const [reviewNote, setReviewNote] = useState<Record<number, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/ai/approvals", statusFilter],
@@ -40,13 +69,25 @@ export default function AIApprovalQueue() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["/api/ai/approvals"] });
       qc.invalidateQueries({ queryKey: ["/api/ai/summary"] });
+      setConfirmState(null);
       toast({ title: vars.decision === "approved" ? "Approved" : vars.decision === "rejected" ? "Rejected" : "Deferred" });
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: any) => {
+      setConfirmState(null);
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
   });
 
   const pendingItems = items.filter((i: any) => i.status === "pending");
-  const otherItems = items.filter((i: any) => i.status !== "pending");
+
+  function requestConfirm(item: any, decision: "approved" | "rejected" | "deferred") {
+    setConfirmState({ id: item.id, decision, note: reviewNote[item.id], title: item.title });
+  }
+
+  function executeConfirmed() {
+    if (!confirmState) return;
+    review.mutate({ id: confirmState.id, decision: confirmState.decision, note: confirmState.note });
+  }
 
   return (
     <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#0B0F19]">
@@ -71,9 +112,70 @@ export default function AIApprovalQueue() {
           )}
         </div>
 
+        {/* Confirmation Dialog */}
+        {confirmState && (() => {
+          const meta = DECISION_META[confirmState.decision];
+          const Icon = meta.Icon;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="w-full max-w-md bg-[#131929] border border-white/15 rounded-2xl shadow-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/5 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                    <ShieldAlert className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">Confirm Action</p>
+                    <p className="text-xs text-slate-500 mt-0.5">This will be recorded in the audit log</p>
+                  </div>
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                  <p className="text-sm text-slate-300">
+                    You are about to{" "}
+                    <span className={`font-bold ${
+                      confirmState.decision === "approved" ? "text-emerald-400" :
+                      confirmState.decision === "rejected" ? "text-red-400" : "text-slate-300"
+                    }`}>{confirmState.decision}</span>{" "}
+                    this AI recommendation:
+                  </p>
+                  <div className="p-3 bg-black/20 border border-white/5 rounded-xl">
+                    <p className="text-sm font-medium text-white leading-snug">{confirmState.title}</p>
+                    {confirmState.note && (
+                      <p className="text-xs text-slate-400 mt-1.5 italic">Note: "{confirmState.note}"</p>
+                    )}
+                  </div>
+                  {confirmState.decision === "approved" && (
+                    <div className="flex items-start gap-2 p-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-lg">
+                      <AlertTriangle className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-emerald-300">Approving will queue this action for execution. Ensure you've reviewed the proposed action details above.</p>
+                    </div>
+                  )}
+                </div>
+                <div className="px-5 py-4 border-t border-white/5 flex gap-2 justify-end">
+                  <button
+                    onClick={() => setConfirmState(null)}
+                    data-testid="confirm-cancel"
+                    className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 text-sm rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={executeConfirmed}
+                    data-testid="confirm-execute"
+                    disabled={review.isPending}
+                    className={`flex items-center gap-1.5 px-4 py-2 border text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 ${meta.color}`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {review.isPending ? "Processing…" : `Confirm ${meta.label}`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Filter Tabs */}
         <div className="flex gap-1 bg-black/20 rounded-xl p-1 w-fit">
-          {["pending","approved","rejected","deferred"].map(s => (
+          {["pending", "approved", "rejected", "deferred"].map(s => (
             <button key={s} onClick={() => setStatusFilter(s)}
               data-testid={`filter-${s}`}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
@@ -91,7 +193,9 @@ export default function AIApprovalQueue() {
             <CheckSquare className="w-10 h-10 text-slate-600 mx-auto mb-3" />
             <p className="text-slate-400 font-medium">No {statusFilter} items</p>
             <p className="text-sm text-slate-600 mt-1">
-              {statusFilter === "pending" ? "Run an AI audit or ads analysis to generate recommendations." : `No ${statusFilter} items in the queue.`}
+              {statusFilter === "pending"
+                ? "Run an AI audit or ads analysis to generate recommendations."
+                : `No ${statusFilter} items in the queue.`}
             </p>
           </div>
         ) : (
@@ -161,12 +265,13 @@ export default function AIApprovalQueue() {
                       type="text"
                       placeholder="Optional review note…"
                       value={reviewNote[item.id] ?? ""}
-                      onChange={e => setReviewNote(n => ({...n, [item.id]: e.target.value}))}
+                      onChange={e => setReviewNote(n => ({ ...n, [item.id]: e.target.value }))}
+                      data-testid={`note-${item.id}`}
                       className="w-full h-8 px-3 bg-black/20 border border-white/10 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <div className="flex gap-2">
                       <button
-                        onClick={() => review.mutate({ id: item.id, decision: "approved", note: reviewNote[item.id] })}
+                        onClick={() => requestConfirm(item, "approved")}
                         data-testid={`approve-${item.id}`}
                         disabled={review.isPending}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 text-emerald-300 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
@@ -174,7 +279,7 @@ export default function AIApprovalQueue() {
                         <Check className="w-3.5 h-3.5" /> Approve
                       </button>
                       <button
-                        onClick={() => review.mutate({ id: item.id, decision: "deferred", note: reviewNote[item.id] })}
+                        onClick={() => requestConfirm(item, "deferred")}
                         data-testid={`defer-${item.id}`}
                         disabled={review.isPending}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
@@ -182,7 +287,7 @@ export default function AIApprovalQueue() {
                         <Pause className="w-3.5 h-3.5" /> Defer
                       </button>
                       <button
-                        onClick={() => review.mutate({ id: item.id, decision: "rejected", note: reviewNote[item.id] })}
+                        onClick={() => requestConfirm(item, "rejected")}
                         data-testid={`reject-${item.id}`}
                         disabled={review.isPending}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/10 hover:bg-red-600/20 border border-red-500/20 text-red-400 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
@@ -190,6 +295,10 @@ export default function AIApprovalQueue() {
                         <X className="w-3.5 h-3.5" /> Reject
                       </button>
                     </div>
+                    <p className="text-[10px] text-slate-600 flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3" />
+                      A confirmation dialog will appear before any action is applied.
+                    </p>
                   </div>
                 )}
               </div>
