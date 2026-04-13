@@ -334,7 +334,7 @@ export default function AdminQuoteDetail() {
       transportFee: quote.transportFee || '0',
       notes: quote.notes || '',
     });
-    setEditItems((quote.items || []).map((item: any) => ({
+    setEditItems((quote.items || []).filter((item: any) => item.serviceType !== 'discount').map((item: any) => ({
       catalogItemId: item.catalogItemId,
       originalDescription: item.detectedName || item.originalDescription,
       detectedName: item.detectedName || item.originalDescription,
@@ -452,7 +452,8 @@ export default function AdminQuoteDetail() {
 
   const editSubtotal = editItems.reduce((sum, i) => sum + Number(i.unitPrice) * Number(i.quantity), 0);
   const editTransport = Number(editQuoteData.transportFee || 0);
-  const editTotal = editSubtotal + editTransport;
+  const editPromoDiscount = Number(quote?.promoDiscount || 0);
+  const editTotal = Math.max(0, editSubtotal - editPromoDiscount + editTransport);
 
   const handlePrintQuote = () => {
     const q = quote;
@@ -986,6 +987,12 @@ export default function AdminQuoteDetail() {
                         <span className="text-zinc-500">Subtotal</span>
                         <span className="font-medium text-zinc-900">${editSubtotal.toFixed(2)}</span>
                       </div>
+                      {editPromoDiscount > 0 && (
+                        <div className="flex justify-between sm:justify-end gap-6 text-sm mb-1.5">
+                          <span className="text-zinc-500">Promo ({quote?.promoCode})</span>
+                          <span className="font-medium text-green-700">−${editPromoDiscount.toFixed(2)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between sm:justify-end gap-6 text-sm mb-3">
                         <span className="text-zinc-500">Transport</span>
                         <span className="font-medium text-zinc-900">${editTransport.toFixed(2)}</span>

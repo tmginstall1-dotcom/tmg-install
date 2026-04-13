@@ -860,16 +860,37 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (data.items !== undefined) {
-      // Replace all items
-      await db.delete(quoteItems).where(eq(quoteItems.quoteId, id));
-      if (data.items.length > 0) {
-        await db.insert(quoteItems).values(data.items.map(item => ({ ...item, quoteId: id })));
-      }
-      // Recalculate totals — deposit is always 50/50
-      const subtotal = data.items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+      // Fetch current quote for promo and transport
       const existingQuote = await db.select().from(quotes).where(eq(quotes.id, id));
-      const transportFee = Number(existingQuote[0]?.transportFee || 0);
-      const total = subtotal + transportFee;
+      const transportFee = Number(
+        data.quoteUpdates?.transportFee ?? existingQuote[0]?.transportFee ?? 0
+      );
+      const promoDiscount = Number(existingQuote[0]?.promoDiscount || 0);
+
+      // Separate regular items from discount line items
+      const regularItems = data.items.filter(item => item.serviceType !== 'discount');
+      const discountLineItems: typeof data.items = promoDiscount > 0 && existingQuote[0]?.promoCode
+        ? [{
+            originalDescription: `Promo Code: ${existingQuote[0].promoCode}`,
+            detectedName: `Promo Code: ${existingQuote[0].promoCode}`,
+            serviceType: 'discount' as const,
+            quantity: 1,
+            unitPrice: (-promoDiscount).toFixed(2),
+            subtotal: (-promoDiscount).toFixed(2),
+            catalogItemId: null,
+          }]
+        : [];
+
+      // Replace all items (regular + preserved discount line)
+      await db.delete(quoteItems).where(eq(quoteItems.quoteId, id));
+      const allItems = [...regularItems, ...discountLineItems];
+      if (allItems.length > 0) {
+        await db.insert(quoteItems).values(allItems.map(item => ({ ...item, quoteId: id })));
+      }
+
+      // Recalculate totals — subtotal = regular items only; promo applied to total
+      const subtotal = regularItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+      const total = Math.max(0, subtotal - promoDiscount + transportFee);
       const depositAmount = (total * 0.50).toFixed(2);
       const finalAmount = (total * 0.50).toFixed(2);
       await db.update(quotes).set({
