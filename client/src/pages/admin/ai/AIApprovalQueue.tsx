@@ -7,6 +7,7 @@ import {
   Check, X, Pause, ShieldAlert, ChevronDown, ChevronUp,
   Database, FileText, RotateCcw, ScrollText, Zap,
   Target, TrendingDown, ArrowUp, Cpu, Globe, Search,
+  PlayCircle, Copy, CheckCheck, XCircle, Timer,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -254,6 +255,130 @@ function AuditTrailSection({ auditTrail }: { auditTrail?: any[] }) {
   );
 }
 
+function ExecutionResultSection({ executionResult, executionStatus, executedAt, executedBy }: {
+  executionResult?: any; executionStatus?: string | null; executedAt?: string | null; executedBy?: string | null;
+}) {
+  const [copied, setCopied] = useState(false);
+  if (!executionResult && executionStatus !== "execution_failed") return null;
+
+  if (executionStatus === "execution_failed") {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <XCircle className="w-3.5 h-3.5 text-red-400" />
+          <span className="text-[11px] font-bold uppercase text-red-400 tracking-wider">Execution Failed</span>
+        </div>
+        <div className="flex items-start gap-2 p-3 bg-red-500/5 border border-red-500/15 rounded-lg">
+          <p className="text-[11px] text-red-300 leading-relaxed">The last execution attempt failed. Retry by clicking Execute again.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const r = executionResult;
+
+  function copyToClipboard() {
+    if (!r.deliverable) return;
+    navigator.clipboard.writeText(r.deliverable).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const TYPE_LABELS: Record<string, string> = {
+    negative_keywords_export: "Negative Keywords Export",
+    ad_copy_spec: "Ad Copy Spec (RSA)",
+    landing_page_brief: "Landing Page Brief",
+    cro_copy_brief: "CRO Copy Brief",
+    ads_change_spec: "Ads Change Spec",
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+        <span className="text-[11px] font-bold uppercase text-emerald-400 tracking-wider">Execution Result</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold">
+          {TYPE_LABELS[r.type] ?? r.type}
+        </span>
+        <span className="ml-auto text-[10px] text-slate-600 flex items-center gap-1">
+          <Timer className="w-3 h-3" />
+          {executedBy} · {executedAt ? new Date(executedAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" }) : ""}
+        </span>
+      </div>
+
+      {/* Key stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {r.platform && (
+          <div className="px-3 py-2 bg-black/20 rounded-lg border border-white/5">
+            <p className="text-[10px] text-slate-600">Platform</p>
+            <p className="text-xs font-semibold text-slate-300 mt-0.5">{r.platform}</p>
+          </div>
+        )}
+        {r.estimatedTime && (
+          <div className="px-3 py-2 bg-black/20 rounded-lg border border-white/5">
+            <p className="text-[10px] text-slate-600">Est. Time</p>
+            <p className="text-xs font-semibold text-slate-300 mt-0.5">{r.estimatedTime}</p>
+          </div>
+        )}
+        {r.negativeCount != null && (
+          <div className="px-3 py-2 bg-black/20 rounded-lg border border-white/5">
+            <p className="text-[10px] text-slate-600">Keywords</p>
+            <p className="text-xs font-semibold text-slate-300 mt-0.5">{r.negativeCount}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Deliverable output */}
+      {r.deliverable && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-slate-600 font-semibold uppercase">Deliverable — Copy and implement manually</p>
+            <button
+              onClick={copyToClipboard}
+              data-testid={`copy-deliverable-${executedBy}`}
+              className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              {copied ? <><CheckCheck className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
+            </button>
+          </div>
+          <pre className="p-3 bg-black/30 border border-white/5 rounded-lg text-[11px] text-slate-300 overflow-x-auto whitespace-pre-wrap leading-relaxed font-mono">
+            {r.deliverable}
+          </pre>
+        </div>
+      )}
+
+      {/* Implementation steps */}
+      {r.implementationSteps?.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] text-slate-600 font-semibold uppercase">Implementation Steps</p>
+          <div className="space-y-1">
+            {r.implementationSteps.map((step: string, i: number) => (
+              <div key={i} className="flex items-start gap-2 px-3 py-1.5 bg-black/10 rounded-lg border border-white/5">
+                <div className="w-4 h-4 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-[9px] text-blue-400 font-bold">{i + 1}</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">{step.replace(/^\d+\.\s*/, "")}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Rollback note */}
+      {r.rollbackNote && (
+        <div className="flex items-start gap-2 p-2.5 bg-slate-500/5 border border-slate-500/15 rounded-lg">
+          <RotateCcw className="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0" />
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            <strong className="text-slate-500">Rollback:</strong> {r.rollbackNote}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LinkedRecSection({ linkedRec, refType }: { linkedRec?: any; refType?: string | null }) {
   if (!linkedRec) return null;
   return (
@@ -305,6 +430,13 @@ function DetailPanel({ item }: { item: any }) {
 
   return (
     <div className="space-y-4 pt-1">
+      {/* Execution result is always shown first if the item has been executed */}
+      <ExecutionResultSection
+        executionResult={item.executionResult}
+        executionStatus={item.executionStatus}
+        executedAt={item.executedAt}
+        executedBy={item.executedBy}
+      />
       <EvidenceSection sourceData={evidence} />
       <ProposedActionSection proposedAction={proposedAction} queueType={item.queueType} />
       <RollbackSection rollbackPath={item.rollbackPath} linkedRec={linkedRec} />
@@ -312,7 +444,7 @@ function DetailPanel({ item }: { item: any }) {
       <AuditTrailSection auditTrail={auditTrail} />
 
       {/* Fallback: show raw JSON if no structured view matched */}
-      {!proposedAction && !evidence && !linkedRec && (
+      {!proposedAction && !evidence && !linkedRec && !item.executionResult && (
         <p className="text-[11px] text-slate-600 italic">No detail data available for this item.</p>
       )}
     </div>
@@ -350,6 +482,16 @@ export default function AIApprovalQueue() {
       setConfirmState(null);
       toast({ title: "Error", description: err.message, variant: "destructive" });
     },
+  });
+
+  const execute = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/ai/approvals/${id}/execute`, {}),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["/api/ai/approvals"] });
+      qc.invalidateQueries({ queryKey: ["/api/ai/approvals", id, "detail"] });
+      toast({ title: "Execution complete", description: "Deliverable generated. Expand the item to view and copy the implementation spec." });
+    },
+    onError: (err: any) => toast({ title: "Execution failed", description: err.message, variant: "destructive" }),
   });
 
   const generateActions = useMutation({
@@ -512,9 +654,18 @@ export default function AIApprovalQueue() {
             {items.map((item: any) => {
               const TypeIcon = TYPE_ICONS[item.queueType] ?? CheckSquare;
               const isExpanded = expandedId === item.id;
+              const isApprovedUnexecuted = item.status === "approved" && !item.executionStatus;
+              const isExecuted = item.executionStatus === "executed";
+              const isExecutionFailed = item.executionStatus === "execution_failed";
               return (
                 <div key={item.id} data-testid={`approval-item-${item.id}`}
-                  className={`bg-white/5 border rounded-xl overflow-hidden transition-all ${item.status === "pending" ? "border-white/10" : "border-white/5 opacity-70"}`}>
+                  className={`bg-white/5 border rounded-xl overflow-hidden transition-all ${
+                    item.status === "pending" ? "border-white/10"
+                    : isApprovedUnexecuted ? "border-emerald-500/20"
+                    : isExecuted ? "border-emerald-500/10 opacity-75"
+                    : isExecutionFailed ? "border-red-500/15"
+                    : "border-white/5 opacity-70"
+                  }`}>
 
                   <div className="p-4">
                     <div className="flex items-start gap-3">
@@ -538,6 +689,21 @@ export default function AIApprovalQueue() {
                               : item.status === "rejected" ? "text-red-400 bg-red-500/10 border-red-500/20"
                               : "text-slate-400 bg-slate-500/10 border-slate-500/20"}`}>
                               {item.status}
+                            </span>
+                          )}
+                          {isExecuted && (
+                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-teal-400 bg-teal-500/10 border-teal-500/20 flex items-center gap-1">
+                              <CheckCheck className="w-2.5 h-2.5" /> Executed
+                            </span>
+                          )}
+                          {isExecutionFailed && (
+                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-red-400 bg-red-500/10 border-red-500/15 flex items-center gap-1">
+                              <XCircle className="w-2.5 h-2.5" /> Exec Failed
+                            </span>
+                          )}
+                          {isApprovedUnexecuted && (
+                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-amber-400 bg-amber-500/10 border-amber-500/20 flex items-center gap-1">
+                              <Timer className="w-2.5 h-2.5" /> Awaiting Execution
                             </span>
                           )}
                         </div>
@@ -601,6 +767,52 @@ export default function AIApprovalQueue() {
                       <p className="text-[10px] text-slate-600 flex items-center gap-1">
                         <ShieldAlert className="w-3 h-3" />
                         A confirmation dialog will appear. Approving does not execute live platform changes.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Execute section — approved items awaiting execution or retry after failure */}
+                  {item.status === "approved" && (isApprovedUnexecuted || isExecutionFailed) && (
+                    <div className={`border-t px-4 py-3 space-y-2 ${isExecutionFailed ? "border-red-500/15 bg-red-500/5" : "border-emerald-500/10 bg-emerald-500/5"}`}>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-white">
+                            {isExecutionFailed ? "Execution failed — retry to regenerate deliverable" : "Ready to execute — generate implementation deliverable"}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                            Clicking Execute generates a formatted spec (CSV / brief / ad copy) for your team to implement manually.
+                            No automated changes will be made to any live system.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => execute.mutate(item.id)}
+                          disabled={execute.isPending}
+                          data-testid={`execute-${item.id}`}
+                          className={`flex items-center gap-1.5 px-3 py-2 border text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0 ${
+                            isExecutionFailed
+                              ? "bg-red-600/20 hover:bg-red-600/40 border-red-500/30 text-red-300"
+                              : "bg-emerald-600/20 hover:bg-emerald-600/40 border-emerald-500/30 text-emerald-300"
+                          }`}
+                        >
+                          <PlayCircle className="w-3.5 h-3.5" />
+                          {execute.isPending ? "Executing…" : isExecutionFailed ? "Retry Execute" : "Execute"}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-600 flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3" />
+                        Execution is logged to the audit trail with actor, timestamp, and full deliverable content.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Execution complete footer */}
+                  {isExecuted && (
+                    <div className="border-t border-teal-500/10 px-4 py-2.5 bg-teal-500/5 flex items-center gap-2">
+                      <CheckCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                      <p className="text-[11px] text-teal-400">
+                        Executed by <strong>{item.executedBy}</strong> on{" "}
+                        {item.executedAt ? new Date(item.executedAt).toLocaleString("en-SG", { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                        {" "}· Expand to view and copy the deliverable
                       </p>
                     </div>
                   )}

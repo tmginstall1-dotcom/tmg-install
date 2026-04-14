@@ -196,6 +196,7 @@ export default function AIHub() {
     { key: "ai_google_ads_sync_enabled",    label: "Google Ads Live Sync",      risk: "low" },
     { key: "ai_meta_ads_sync_enabled",      label: "Meta Ads Live Sync",        risk: "low" },
     { key: "ai_search_console_enabled",     label: "Search Console Sync",       risk: "low" },
+    { key: "ai_scheduler_enabled",          label: "Sync Scheduler",             risk: "low" },
   ];
 
   const lastLog = recentLogs[0];

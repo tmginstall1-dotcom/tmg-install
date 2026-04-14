@@ -772,6 +772,11 @@ export const aiApprovalQueue = pgTable("ai_approval_queue", {
   refType: text("ref_type"),   // ad_recommendation | site_recommendation
   refId: integer("ref_id"),
   rollbackPath: text("rollback_path"),  // Human-readable rollback instructions
+  // Phase 5: manual execution tracking
+  executionStatus: text("execution_status"),  // null | "executed" | "execution_failed"
+  executedAt: timestamp("executed_at"),
+  executedBy: text("executed_by"),
+  executionResult: jsonb("execution_result"), // Structured deliverable output
   createdAt: timestamp("created_at").defaultNow(),
   expiresAt: timestamp("expires_at"),
 });
