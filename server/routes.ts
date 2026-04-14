@@ -3045,12 +3045,15 @@ Category rules:
       let stripeType: string;
 
       if (isFinal) {
+        // Balance = total minus deposit already paid (never charge the full total again)
+        const totalAmt = parseFloat(quote.total || "0");
+        const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
         const baseBalance = parseFloat(quote.finalAmount || "0") > 0
           ? parseFloat(quote.finalAmount!)
-          : parseFloat(quote.total || "0") * 0.5;
+          : Math.max(0, totalAmt - depositPaid);
         const overtime = parseFloat((quote as any).additionalCharge || "0");
         amount = baseBalance + overtime;
-        description = `Final Payment for ${quote.referenceNo} — TMG Install`;
+        description = `Balance Payment for ${quote.referenceNo} — TMG Install`;
         stripeType = "final";
       } else {
         amount = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total || "0") * 0.5;
@@ -3975,8 +3978,13 @@ ${systemPrompt}` });
         amount = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.5;
         description = `Deposit for ${quote.referenceNo} — TMG Install`;
       } else {
-        amount = parseFloat(quote.finalAmount || "0") || parseFloat(quote.total) * 0.5;
-        description = `Final Payment for ${quote.referenceNo} — TMG Install`;
+        const totalFinal = parseFloat(quote.total || "0");
+        const depositFinal = parseFloat(quote.depositAmount || "0") || totalFinal * 0.5;
+        amount = parseFloat(quote.finalAmount || "0") > 0
+          ? parseFloat(quote.finalAmount!)
+          : Math.max(0, totalFinal - depositFinal);
+        amount += parseFloat((quote as any).additionalCharge || "0");
+        description = `Balance Payment for ${quote.referenceNo} — TMG Install`;
       }
 
       const stripeUrl = await createStripePaymentLink(
@@ -4382,11 +4390,12 @@ ${systemPrompt}` });
         return res.status(404).json({ message: "Quote not found" });
       }
 
-      // If finalAmount not explicitly set, default to 50% of total (policy)
+      // Balance = total minus deposit already paid (never charge the full total again)
       const totalAmt = parseFloat(quote.total || "0");
+      const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
       const baseBalance = parseFloat(quote.finalAmount || "0") > 0
         ? parseFloat(quote.finalAmount!)
-        : totalAmt * 0.5;
+        : Math.max(0, totalAmt - depositPaid);
       const overtimeCharge = parseFloat((quote as any).additionalCharge || "0");
       const finalAmount = baseBalance + overtimeCharge;
       const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
@@ -7034,7 +7043,11 @@ Respond directly — no JSON, just the message text.`,
 
       const { note } = z.object({ note: z.string().optional() }).parse(req.body);
       const overtimeCharge = parseFloat((quote as any).additionalCharge || "0");
-      const baseBalance = parseFloat(quote.finalAmount || "0") || parseFloat(quote.total || "0");
+      const quoteTotal = parseFloat(quote.total || "0");
+      const depositPaid = parseFloat(quote.depositAmount || "0") || quoteTotal * 0.5;
+      const baseBalance = parseFloat(quote.finalAmount || "0") > 0
+        ? parseFloat(quote.finalAmount!)
+        : Math.max(0, quoteTotal - depositPaid);
       const finalAmt = (baseBalance + overtimeCharge).toFixed(2);
 
       // Mark final paid → auto-closes quote
