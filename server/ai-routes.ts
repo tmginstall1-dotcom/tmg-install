@@ -785,9 +785,9 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       ];
 
       // ── 1. NEGATIVE KEYWORD ACTIONS ──────────────────────────────────────────
-      // Source: Google Ads campaigns with > $30 spend, 0 conversions over 30 days
+      // Source: all Google Ads snapshots (API or manually entered) within 30 days
       const adRows = await db.select().from(aiAdsSnapshots)
-        .where(and(gte(aiAdsSnapshots.snapshotDate, thirtyAgo), eq(aiAdsSnapshots.source, "google_ads_api")))
+        .where(gte(aiAdsSnapshots.snapshotDate, thirtyAgo))
         .orderBy(desc(aiAdsSnapshots.snapshotDate));
 
       // Aggregate by campaign
@@ -968,10 +968,11 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
         },
       ];
 
-      // Only insert CRO suggestions if PageSpeed data exists (signals site analysis has run)
+      // Always generate CRO suggestions — they are based on industry best practices,
+      // not on live PageSpeed data (PageSpeed enriches them but is not required)
       const [psCheck] = await db.select({ id: aiPagespeedData.id }).from(aiPagespeedData).limit(1);
-      if (psCheck) {
-        for (const sug of CRO_COPY_SUGGESTIONS) {
+      const croSource = psCheck ? "pagespeed_insights" : "cro_best_practices";
+      for (const sug of CRO_COPY_SUGGESTIONS) {
           if (await siteRecExists(sug.title)) { results.skipped++; continue; }
           const rollbackPath = "Discard the copy changes. The original page copy is unchanged until manually implemented by a developer or content editor. No automated site changes are applied.";
 
@@ -989,15 +990,14 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
             proposedAction: {
               action: "update_page_copy", category: "copy", priority: sug.priority,
               suggestedChange: sug.suggestedChange,
-              evidence: { source: "cro_best_practices", analysisSource: "phase4_actions" },
+              evidence: { source: croSource, analysisSource: "phase4_actions" },
               instructions: "Review the suggested copy. If approved, pass to your web developer or content editor to implement. No automated site changes are made.",
             } as any,
             rollbackPath,
             refType: "site_recommendation", refId: saved.id,
             expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           });
-          results.croSuggestions++;
-        }
+        results.croSuggestions++;
       }
 
       await logAiAction("recommendation_generated", actor, "actions",
