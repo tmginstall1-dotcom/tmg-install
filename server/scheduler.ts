@@ -32,7 +32,13 @@ import {
   coreMetaAdsSync,
   coreSearchConsoleSync,
   corePageSpeedSync,
+  recoverStaleRunningStates,
 } from "./connector-sync";
+
+// ── Singleton guard ────────────────────────────────────────────────────────────
+// Prevents duplicate timers if startScheduler() is called more than once per
+// process (e.g. accidental double-import or future code change).
+let _schedulerStarted = false;
 
 // ── Schedule intervals ─────────────────────────────────────────────────────────
 export const SCHEDULE_INTERVALS: Record<string, number> = {
@@ -124,6 +130,10 @@ async function runScheduledSync(
 
 function runStartupCheck() {
   setTimeout(async () => {
+    // Step 1: Recover any connectors stuck in "running" from a previous crash.
+    // Must run before due-check so isSyncRunning() does not falsely block.
+    await recoverStaleRunningStates();
+    // Step 2: Run each connector if overdue.
     console.log("[scheduler] Running startup due-check for all connectors");
     await runScheduledSync("google_ads",     coreGoogleAdsSync,     gadsCredsCheck);
     await runScheduledSync("meta_ads",       coreMetaAdsSync,       metaCredsCheck);
@@ -135,6 +145,11 @@ function runStartupCheck() {
 // ── Exported entry point ───────────────────────────────────────────────────────
 
 export function startScheduler() {
+  if (_schedulerStarted) {
+    console.warn("[scheduler] startScheduler() called more than once — ignoring duplicate call.");
+    return;
+  }
+  _schedulerStarted = true;
   console.log("[scheduler] Connector sync scheduler initialized");
 
   // Startup check after 90 s

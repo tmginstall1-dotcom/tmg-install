@@ -131,6 +131,41 @@ export function gscCredsCheck(): string[] {
   ] as (string | null)[]).filter(Boolean) as string[];
 }
 
+// ── Stale running-state recovery ─────────────────────────────────────────────
+// Called once at startup (before the 90s due-check). If the previous process
+// crashed mid-sync, the DB status can be left as "running" indefinitely,
+// blocking all future scheduled syncs via the isSyncRunning() guard.
+// Any connector stuck in "running" for more than STALE_RUNNING_MS is reset
+// to "error" with a descriptive message so the next scheduled run proceeds.
+
+const STALE_RUNNING_MS = 10 * 60 * 1000; // 10 minutes
+
+export async function recoverStaleRunningStates(): Promise<void> {
+  try {
+    const configs = await db.select().from(aiConnectorConfigs);
+    const threshold = new Date(Date.now() - STALE_RUNNING_MS);
+    for (const cfg of configs) {
+      if (cfg.lastSyncStatus === "running") {
+        const updatedAt = cfg.updatedAt ? new Date(cfg.updatedAt) : null;
+        const isStuck = !updatedAt || updatedAt < threshold;
+        if (isStuck) {
+          console.warn(`[scheduler] Recovering stale running state for connector: ${cfg.name}`);
+          await db.update(aiConnectorConfigs)
+            .set({
+              lastSyncStatus: "error",
+              syncError: "Sync interrupted — process restarted or crashed mid-run.",
+              updatedAt: new Date(),
+            })
+            .where(eq(aiConnectorConfigs.name, cfg.name));
+        }
+      }
+    }
+  } catch (err: any) {
+    // Non-fatal — scheduler will still run, and isSyncRunning checks are the last defence
+    console.warn("[scheduler] recoverStaleRunningStates failed (non-fatal):", err.message);
+  }
+}
+
 // ── Core sync functions ────────────────────────────────────────────────────────
 // These are called by the scheduler. Route handlers have their own copies.
 

@@ -1,0 +1,85 @@
+STRICT SCHEDULER VERIFICATION + HARDENING ONLY
+
+We are keeping the new Phase 3 scheduler build, but before enabling ai_scheduler_enabled in production, do a strict scheduler verification and minimal hardening pass.
+
+CRITICAL RULES:
+- Do NOT touch booking logic
+- Do NOT touch payment logic
+- Do NOT touch quote logic
+- Do NOT touch live customer workflow
+- Do NOT refactor unrelated files
+- Do NOT add new broad features
+- Only verify and harden the scheduler layer
+
+VERIFY THESE EXACT ITEMS:
+
+1. SCHEDULER STARTUP SAFETY
+Report:
+- exact file where scheduler starts
+- whether scheduler can be initialized more than once in the same process
+- whether hot reload / restart can create duplicate timers
+- whether there is a singleton guard
+- whether scheduler can run when ai_scheduler_enabled = FALSE
+
+2. JOB GATING
+For each scheduled connector job, report:
+- exact interval
+- exact feature flag required
+- whether ai_master_kill_switch is checked
+- whether connector-specific flag is checked
+- whether missing credentials are handled gracefully
+- whether stale "running" states can block future runs forever
+
+3. DUPLICATE / OVERLAP PROTECTION
+Report:
+- whether the same job can run twice at once
+- whether manual sync + scheduled sync can collide
+- whether restart during a run can leave bad state
+- whether a crash can leave status stuck as running
+- what prevents duplicate imports
+
+4. FAILURE HANDLING
+For each job, report:
+- what happens on timeout
+- what happens on partial API failure
+- what happens on invalid credentials
+- what happens on zero rows returned
+- whether last failure reason is stored
+- whether stale-data warning becomes visible correctly
+
+5. DATA INTEGRITY
+Verify:
+- repeated scheduled runs do not create duplicate rows
+- transactional delete+insert still applies under scheduler path
+- PageSpeed pruning still works under scheduler path
+- recommendation generation does not mutate live workflow tables
+
+6. UI STATUS ACCURACY
+Verify:
+- connector cards show correct stale status
+- nextSyncAt is accurate
+- scheduler panel shows correct enabled/disabled state
+- Analyze Now works without needing scheduler enabled
+- stale warnings appear after failed sync / no sync / old sync
+
+MINIMAL HARDENING PATCHES ALLOWED:
+Only apply changes if needed for:
+- singleton timer guard
+- stale running-state recovery
+- accurate last-run / last-failure status
+- overlap prevention between manual and scheduled runs
+- safe disable behaviour when ai_scheduler_enabled is FALSE
+
+DO NOT:
+- redesign UI
+- add new connectors
+- add autonomous ad changes
+- add site auto-publish
+- touch live workflow
+
+OUTPUT REQUIRED:
+1. Exact files modified
+2. Exact scheduler issues found
+3. Exact hardening fixes applied
+4. Exact remaining limitations
+5. Confirmation that live workflow was untouched
