@@ -7,6 +7,7 @@ import {
   RefreshCw, CheckCircle2, AlertCircle, Clock, Database,
   ChevronDown, ChevronUp, Zap, CalendarClock, Play,
   AlertTriangle, Cpu, ArrowRight,
+  Rocket, FlaskConical, ShieldOff, Shield, ToggleLeft, ToggleRight, KeyRound, XCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -24,6 +25,11 @@ type ConnectorStatus = {
   scheduleIntervalHours: number;
   nextSyncAt: string | null;
   schedulerEnabled: boolean;
+  // Execution fields (Phase 7)
+  executionEnabled: boolean;
+  executionTestMode: boolean;
+  executionReady: boolean;
+  missingExecCreds: string[];
 };
 
 type ScheduleJob = {
@@ -78,6 +84,8 @@ const CONNECTOR_DEFS = [
     flagKey: "ai_google_ads_sync_enabled",
     credentials: ["GOOGLE_ADS_DEVELOPER_TOKEN", "GOOGLE_ADS_CUSTOMER_ID", "GOOGLE_ADS_CLIENT_ID", "GOOGLE_ADS_CLIENT_SECRET", "GOOGLE_ADS_REFRESH_TOKEN"],
     syncNote: "After sync, data is visible in Ads Intelligence.",
+    supportsExecution: true,
+    execFlagKey: "ai_google_ads_execution_enabled",
   },
   {
     key: "meta_ads",
@@ -89,6 +97,8 @@ const CONNECTOR_DEFS = [
     flagKey: "ai_meta_ads_sync_enabled",
     credentials: ["META_ACCESS_TOKEN", "META_AD_ACCOUNT_ID"],
     syncNote: "META_APP_ID + META_APP_SECRET are already configured.",
+    supportsExecution: true,
+    execFlagKey: "ai_meta_ads_execution_enabled",
   },
   {
     key: "search_console",
@@ -202,6 +212,19 @@ export default function AIConnectors() {
       });
     },
     onError: (err: any) => toast({ title: "Analysis failed", description: err.message ?? "Unknown error", variant: "destructive" }),
+  });
+
+  const execConfig = useMutation({
+    mutationFn: ({ name, body }: { name: string; body: { executionEnabled?: boolean; testMode?: boolean } }) =>
+      apiRequest("PATCH", `/api/ai/connectors/${name}/execution-config`, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["/api/ai/connectors/status"] });
+      const label = "executionEnabled" in vars.body
+        ? (vars.body.executionEnabled ? "Execution enabled" : "Execution disabled")
+        : (vars.body.testMode ? "Test mode enabled" : "Live mode enabled");
+      toast({ title: label, description: `Updated for ${vars.name}.` });
+    },
+    onError: (err: any) => toast({ title: "Update failed", description: err.message, variant: "destructive" }),
   });
 
   const toggleExpand = (key: string) => setExpanded(p => ({ ...p, [key]: !p[key] }));
@@ -356,6 +379,98 @@ export default function AIConnectors() {
                   {/* Note for ready connectors */}
                   {def.credentials.length === 0 && def.syncNote && (
                     <p className="text-[11px] text-slate-600">{def.syncNote}</p>
+                  )}
+
+                  {/* ── Execution Readiness Panel (Google Ads + Meta only) ── */}
+                  {(def as any).supportsExecution && (
+                    <div className="mt-1 border-t border-white/5 pt-3 space-y-2.5">
+                      {/* Section header + overall status badge */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Rocket className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                        <span className="text-[11px] font-bold uppercase text-violet-400 tracking-wider">Platform Execution</span>
+                        {cfg?.executionReady ? (
+                          cfg?.executionTestMode ? (
+                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-blue-400 bg-blue-500/10 border-blue-500/20">
+                              <FlaskConical className="w-2.5 h-2.5" /> Test Mode
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-emerald-400 bg-emerald-500/10 border-emerald-500/20">
+                              <Shield className="w-2.5 h-2.5" /> Live
+                            </span>
+                          )
+                        ) : (
+                          <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-slate-500 bg-slate-500/10 border-slate-500/20">
+                            <ShieldOff className="w-2.5 h-2.5" /> OFF
+                          </span>
+                        )}
+                      </div>
+
+                      {/* execution_enabled toggle */}
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => execConfig.mutate({ name: def.key, body: { executionEnabled: !cfg?.executionEnabled } })}
+                          disabled={execConfig.isPending}
+                          data-testid={`exec-toggle-${def.key}`}
+                          className="flex items-center gap-2 text-[11px] text-slate-300 hover:text-white transition-colors disabled:opacity-50"
+                        >
+                          {cfg?.executionEnabled
+                            ? <ToggleRight className="w-5 h-5 text-violet-400" />
+                            : <ToggleLeft className="w-5 h-5 text-slate-600" />
+                          }
+                          {cfg?.executionEnabled ? "Execution ON" : "Execution OFF"}
+                        </button>
+                        <span className="text-[10px] text-slate-600">·</span>
+                        {/* test_mode toggle — only visible when execution enabled */}
+                        {cfg?.executionEnabled && (
+                          <button
+                            onClick={() => execConfig.mutate({ name: def.key, body: { testMode: !cfg?.executionTestMode } })}
+                            disabled={execConfig.isPending}
+                            data-testid={`testmode-toggle-${def.key}`}
+                            className="flex items-center gap-2 text-[11px] text-slate-300 hover:text-white transition-colors disabled:opacity-50"
+                          >
+                            {cfg?.executionTestMode
+                              ? <FlaskConical className="w-3.5 h-3.5 text-blue-400" />
+                              : <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                            }
+                            {cfg?.executionTestMode ? "Test Mode (dry run)" : "Live Mode"}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Missing exec creds warning */}
+                      {(cfg?.missingExecCreds?.length ?? 0) > 0 && (
+                        <div className="flex items-start gap-2 p-2.5 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                          <KeyRound className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+                          <div className="space-y-1 min-w-0">
+                            <p className="text-[11px] text-amber-300/90 leading-relaxed">Execution requires these secrets:</p>
+                            {cfg?.missingExecCreds.map((k: string) => (
+                              <code key={k} className="block text-[10px] font-mono text-amber-400/80">{k}</code>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Global flag reminder */}
+                      {!(flags[(def as any).execFlagKey]) && (
+                        <div className="flex items-start gap-2">
+                          <XCircle className="w-3 h-3 text-slate-600 mt-0.5 shrink-0" />
+                          <p className="text-[10px] text-slate-600">
+                            Also enable <code className="font-mono">{(def as any).execFlagKey}</code> in AI Hub to allow execution.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Live mode safety warning */}
+                      {cfg?.executionEnabled && !cfg?.executionTestMode && (
+                        <div className="flex items-start gap-2 p-2.5 bg-red-500/5 border border-red-500/20 rounded-lg">
+                          <Shield className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                          <p className="text-[11px] text-red-300/90 leading-relaxed">
+                            <strong>Live mode active.</strong> "Push to Platform" will make real API calls.
+                            Budget increases are capped at +10%. Verify carefully before approving.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* Sync Button */}

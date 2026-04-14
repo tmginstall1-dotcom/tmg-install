@@ -849,3 +849,29 @@ export const aiPagespeedData = pgTable("ai_pagespeed_data", {
   psStrategyIdx: index("ai_pagespeed_strategy_idx").on(t.strategy, t.createdAt),
 }));
 export type AiPagespeedRow = typeof aiPagespeedData.$inferSelect;
+
+// ── Phase 7: Platform Execution Records ──────────────────────────────────────
+// Stores the result of every attempt to push an approved action to Google Ads
+// or Meta Ads. One row per platform execution attempt. Completely isolated from
+// the live booking/payment/customer workflow.
+
+export const aiPlatformExecutions = pgTable("ai_platform_executions", {
+  id: serial("id").primaryKey(),
+  approvalQueueId: integer("approval_queue_id").notNull(),
+  recommendationId: integer("recommendation_id"),
+  platform: text("platform").notNull(),           // google_ads | meta_ads
+  actionType: text("action_type").notNull(),      // negative_keyword_add | pause_ad | enable_ad | pause_adset | enable_adset | adjust_budget | export_only
+  targetObjectIds: jsonb("target_object_ids"),    // { campaignId, adGroupId, adId, adSetId, budgetId, … }
+  proposedChange: jsonb("proposed_change"),       // What we intended to do
+  executedChange: jsonb("executed_change"),       // What was actually sent / confirmed
+  actor: text("actor").notNull().default("system"),
+  resultStatus: text("result_status").notNull().default("pending"), // success | failed | test_mode | export_only | missing_ids
+  platformResponseSummary: text("platform_response_summary"),
+  platformResponseRaw: jsonb("platform_response_raw"),
+  rollbackPath: text("rollback_path"),            // Human-readable recovery path
+  rollbackPayload: jsonb("rollback_payload"),     // Exact API payload to reverse the change
+  errorMessage: text("error_message"),
+  testMode: boolean("test_mode").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AiPlatformExecution = typeof aiPlatformExecutions.$inferSelect;

@@ -1,0 +1,194 @@
+STRICT NEXT PHASE ONLY
+
+PROJECT:
+TMGInstall.com AI Ops system
+
+GOAL:
+Enable the AI agent to push more sales by managing Google Ads and Meta Ads after human approval.
+The AI agent must be able to prepare, approve-gate, and then execute safe ad account changes.
+This phase must NOT touch the live customer workflow.
+
+CRITICAL RULES:
+- Do NOT touch booking logic
+- Do NOT touch payment logic
+- Do NOT touch quote logic
+- Do NOT touch live customer workflow
+- Do NOT change customer-facing pricing logic
+- Do NOT auto-execute anything without explicit approval unless already covered by the existing auto-execute-on-approval model for allowed action types
+- Do NOT allow uncontrolled ad spend changes
+- Do NOT allow uncontrolled campaign launches
+- Do NOT weaken existing auth, flags, kill switch, or audit logging
+- Every action must be logged, reviewable, and reversible where possible
+
+PRIMARY OUTCOME:
+After the AI agent generates ad-management actions, I should only need to approve them.
+Once approved, the system should be able to execute supported changes on Google Ads and Meta Ads safely and log the exact result.
+
+IN SCOPE:
+1. Google Ads execution layer for approved actions
+2. Meta Ads execution layer for approved actions
+3. Account mapping / connector config for execution targets
+4. Action-type guardrails and hard caps
+5. Execution result logging
+6. Rollback-path logging
+7. Approval Queue UI support for ad-platform execution results
+8. Audit trail linkage from recommendation -> approval -> execution -> platform response
+
+SUPPORTED ACTION TYPES FOR THIS PHASE:
+GOOGLE ADS
+- add negative keywords
+- pause ad groups or ads
+- enable paused ads or ad groups
+- create ad copy drafts / responsive search ad draft payloads
+- small budget adjustments with strict cap
+- label / tag actions for tracking
+- export push-ready payloads where direct mutation is not yet safe
+
+META ADS
+- pause ads or ad sets
+- enable paused ads or ad sets
+- create ad copy / creative draft payloads
+- small budget adjustments with strict cap
+- duplicate draft-ready ad variants
+- label / annotate actions for tracking
+- export push-ready payloads where direct mutation is not yet safe
+
+OUT OF SCOPE:
+- automatic large budget increases
+- broad targeting changes
+- bid strategy overhaul
+- campaign launches without explicit approval
+- editing billing or account permissions
+- live website publishing
+- booking/payment/customer workflow changes
+- WhatsApp bot upgrade
+- unrelated refactors
+
+HARD SAFETY RULES:
+1. All ad-platform executions must respect:
+   - ai_master_kill_switch
+   - ai_ads_enabled
+   - ai_auto_execute_enabled
+   - platform-specific execution flags added in this phase
+2. Budget changes:
+   - never exceed 10 percent increase in one execution without a separate high-risk approval path
+   - never reduce or increase shared budgets blindly without clear target mapping
+3. Never pause top-performing campaigns automatically
+4. Never mutate account-level settings
+5. Never mutate billing, payment profiles, or permissions
+6. Never write to live workflow tables beyond existing AI/audit/action structures unless strictly required
+7. If platform execution fails, mark failed, store exact response, keep rollback/result trail
+
+REQUIRED ACTION STATE MODEL:
+Each ad action must clearly move through:
+- suggested
+- ready_for_approval
+- approved
+- executing
+- executed
+- failed
+- rolled_back
+
+EXECUTION MODEL:
+- Recommendation generated from live data
+- Approval item created
+- Admin approves
+- System auto-executes approved action only for supported safe action types
+- Execution result persisted
+- Audit log written
+- UI shows executed / failed / rollback state
+
+DATABASE / DATA REQUIREMENTS:
+Reuse existing structures where possible.
+Add only minimal new tables/columns if needed, such as:
+- platform account mappings
+- execution target identifiers
+- external platform response payload storage
+- rollback metadata
+- per-platform execution status
+Do NOT create messy duplicate systems if existing approval queue / audit log can be extended cleanly.
+
+CONNECTOR / ACCOUNT CONFIG REQUIREMENTS:
+Add clean configuration support for:
+- Google Ads customer/account target
+- Meta Ads account target
+- any required IDs needed to safely push approved actions
+Show missing configuration clearly in admin UI and fail gracefully.
+
+EXECUTION DETAIL REQUIREMENTS:
+For every executed ad action, persist:
+- platform
+- action type
+- target object id(s)
+- exact proposed change
+- exact executed change
+- actor (admin/system)
+- timestamp
+- result status
+- raw platform response summary
+- rollbackPath
+- linked recommendation id
+- linked approval item id
+- linked audit trail records
+
+ROLLBACK RULES:
+Where true rollback is possible, store exact rollback instructions or payload.
+Where full rollback is not safely possible, store a human-readable recovery path.
+Rollback state must be visible in approval detail UI.
+
+UI REQUIREMENTS:
+Update only the AI Ops admin UI as needed.
+Required UI upgrades:
+1. Approval Queue
+   - show platform badge (Google Ads / Meta Ads)
+   - show execution target info
+   - show executed / failed / rolled_back states
+   - show platform response summary
+   - show rollback path clearly
+2. Ads Panel
+   - show whether actions are draft-only, push-ready, or platform-executed
+   - show evidence + confidence + source data
+3. Connectors / Config area
+   - show execution readiness per platform
+   - show missing account config or missing secrets clearly
+
+ENV / SECRET REQUIREMENTS:
+Return exact secrets required for Google Ads execution and Meta Ads execution.
+Do not assume they already exist.
+Fail gracefully at request time if missing.
+Do not break server startup if missing.
+
+IMPLEMENTATION STRATEGY:
+Build this in the safest order:
+1. Google Ads negative keyword execution
+2. Meta pause/enable execution
+3. ad copy draft execution payloads
+4. capped budget adjustment execution
+Keep everything else as structured draft output if direct mutation is not yet safe enough.
+
+RESPONSE / OUTPUT REQUIRED:
+Before making changes:
+1. inspect existing approval, execution, connector, audit, and ads code paths
+2. list exact files you will modify
+3. list exact new routes you will add
+4. list exact tables/columns you will add
+5. confirm how live workflow stays untouched
+
+After implementation, return exactly:
+1. Exact files changed
+2. Exact new routes
+3. Exact new tables/columns
+4. Exact platform action types supported
+5. Exact guardrails implemented
+6. Exact flags used
+7. Exact secrets/env required
+8. Exact execution flow
+9. Exact rollback flow
+10. Exact confirmation that live workflow was untouched
+
+FINAL STANDARD:
+This must turn the existing AI Ops system into an approval-first ad-operations executor for Google Ads and Meta Ads.
+No messy changes.
+No drift.
+No unrelated edits.
+No weakening of safety controls.

@@ -23,9 +23,16 @@ import {
   aiConnectorConfigs,
   aiSearchConsoleData,
   aiPagespeedData,
+  aiPlatformExecutions,
   quotes,
   customers,
 } from "@shared/schema";
+import {
+  executePlatformAction,
+  gadsExecCredsCheck,
+  metaExecCredsCheck,
+  type PlatformExecutionResult,
+} from "./ad-executor";
 import { z } from "zod";
 import { storage } from "./storage";
 
@@ -1067,6 +1074,158 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
   });
 
   // ════════════════════════════════════════════════════════════════════════════
+  // PHASE 7: AD PLATFORM EXECUTION — Push approved actions to Google Ads / Meta
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * POST /api/ai/approvals/:id/platform-execute
+   *
+   * SAFETY CONTRACT:
+   *   - Only runs on items with status = "approved" AND executionStatus = "executed"
+   *     (deliverable must exist first — deliverable is a separate prerequisite step)
+   *   - Requires ai_master_kill_switch = false
+   *   - Requires platform-specific flag: ai_google_ads_execution_enabled / ai_meta_ads_execution_enabled
+   *   - test_mode = ai_platform_execution_test_mode flag value (defaults true = dry run)
+   *   - Budget changes hard-capped at +10% per execution (enforced in ad-executor.ts)
+   *   - Never touches booking/payment/quote/customer tables
+   *   - All executions persisted in ai_platform_executions + ai_audit_log
+   *   - executionResult in aiApprovalQueue is updated with platformExecution sub-object
+   */
+  app.post("/api/ai/approvals/:id/platform-execute", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const killSwitch = await getFlag("ai_master_kill_switch");
+      if (killSwitch) return res.status(503).json({ message: "AI master kill switch is active. Platform execution is disabled." });
+
+      const id = parseInt(req.params.id);
+      const actor = (req as any).user?.username || "admin";
+
+      // Load item
+      const [item] = await db.select().from(aiApprovalQueue).where(eq(aiApprovalQueue.id, id)).limit(1);
+      if (!item) return res.status(404).json({ message: "Approval item not found." });
+      if (item.status !== "approved") {
+        return res.status(400).json({ message: `Cannot platform-execute: item status is "${item.status}". Only approved items can be pushed to the platform.` });
+      }
+
+      const pa = (item.proposedAction as any) ?? {};
+      const platformRaw = (pa.platform as string | undefined)?.toLowerCase() ?? "";
+      const isGoogle = platformRaw === "google" || platformRaw === "google_ads" || item.queueType === "negative_keyword";
+      const isMeta   = platformRaw === "meta" || platformRaw === "meta_ads";
+
+      // Check platform-specific execution flag
+      if (isGoogle) {
+        const gadsExecEnabled = await getFlag("ai_google_ads_execution_enabled");
+        if (!gadsExecEnabled) {
+          return res.status(403).json({
+            message: "Google Ads execution is disabled. Enable 'ai_google_ads_execution_enabled' in AI Hub → Feature Flags to allow platform pushes.",
+            flagKey: "ai_google_ads_execution_enabled",
+          });
+        }
+      } else if (isMeta) {
+        const metaExecEnabled = await getFlag("ai_meta_ads_execution_enabled");
+        if (!metaExecEnabled) {
+          return res.status(403).json({
+            message: "Meta Ads execution is disabled. Enable 'ai_meta_ads_execution_enabled' in AI Hub → Feature Flags to allow platform pushes.",
+            flagKey: "ai_meta_ads_execution_enabled",
+          });
+        }
+      }
+
+      // Determine test mode from flag
+      const testMode = await getFlag("ai_platform_execution_test_mode");
+
+      // Execute platform action
+      const execResult: PlatformExecutionResult = await executePlatformAction(item, actor, testMode);
+
+      // Persist execution record
+      const [persisted] = await db.insert(aiPlatformExecutions).values({
+        approvalQueueId:         item.id,
+        recommendationId:        item.refId ?? undefined,
+        platform:                execResult.platform,
+        actionType:              execResult.actionType,
+        targetObjectIds:         execResult.targetObjectIds as any,
+        proposedChange:          execResult.proposedChange as any,
+        executedChange:          execResult.executedChange as any,
+        actor,
+        resultStatus:            execResult.resultStatus,
+        platformResponseSummary: execResult.platformResponseSummary,
+        platformResponseRaw:     execResult.platformResponseRaw as any ?? null,
+        rollbackPath:            execResult.rollbackPath,
+        rollbackPayload:         execResult.rollbackPayload as any ?? null,
+        errorMessage:            execResult.errorMessage ?? null,
+        testMode:                execResult.testMode,
+      }).returning({ id: aiPlatformExecutions.id });
+
+      // Update the approval queue item executionResult with platform execution reference
+      const existing = (item.executionResult as any) ?? {};
+      await db.update(aiApprovalQueue)
+        .set({
+          executionResult: {
+            ...existing,
+            platformExecution: {
+              id:                persisted?.id,
+              platform:          execResult.platform,
+              actionType:        execResult.actionType,
+              resultStatus:      execResult.resultStatus,
+              summary:           execResult.platformResponseSummary,
+              rollbackPath:      execResult.rollbackPath,
+              testMode:          execResult.testMode,
+              errorMessage:      execResult.errorMessage,
+              executedAt:        new Date().toISOString(),
+              actor,
+            },
+          } as any,
+        })
+        .where(eq(aiApprovalQueue.id, id));
+
+      // Audit log
+      await logAiAction(
+        "platform_executed",
+        actor,
+        isGoogle ? "ads" : "ads",
+        `PLATFORM-EXECUTED [${execResult.resultStatus.toUpperCase()}]: ${item.title} → ${execResult.platform} / ${execResult.actionType}`,
+        {
+          approvalId: id,
+          platformExecutionId: persisted?.id,
+          platform: execResult.platform,
+          actionType: execResult.actionType,
+          resultStatus: execResult.resultStatus,
+          testMode: execResult.testMode,
+          summary: execResult.platformResponseSummary,
+          refType: item.refType,
+          refId: item.refId,
+          actor,
+        },
+        execResult.resultStatus === "failed" ? "failed" : "success",
+      );
+
+      res.json({
+        success: true,
+        platformExecutionId: persisted?.id,
+        resultStatus:        execResult.resultStatus,
+        summary:             execResult.platformResponseSummary,
+        testMode:            execResult.testMode,
+        rollbackPath:        execResult.rollbackPath,
+        errorMessage:        execResult.errorMessage,
+      });
+    } catch (err: any) {
+      console.error("[platform-execute]", err);
+      res.status(500).json({ message: err.message ?? "Platform execution failed" });
+    }
+  });
+
+  /** GET /api/ai/platform-executions — list all platform execution records */
+  app.get("/api/ai/platform-executions", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const limit = Math.min(parseInt(String(req.query.limit ?? "50")), 200);
+      const rows = await db.select()
+        .from(aiPlatformExecutions)
+        .orderBy(desc(aiPlatformExecutions.createdAt))
+        .limit(limit);
+      res.json(rows);
+    } catch { res.status(500).json({ message: "DB error" }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
   // ════════════════════════════════════════════════════════════════════════════
   // PHASE 4 ACTION GENERATOR — Rules-based, approval-only, no live mutations
   // ════════════════════════════════════════════════════════════════════════════
@@ -1447,6 +1606,25 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
 
       const schedulerEnabled = await getFlag("ai_scheduler_enabled");
 
+      // Execution readiness — which connectors support live platform pushes
+      const [gadsExecEnabled, metaExecEnabled, testModeEnabled] = await Promise.all([
+        getFlag("ai_google_ads_execution_enabled"),
+        getFlag("ai_meta_ads_execution_enabled"),
+        getFlag("ai_platform_execution_test_mode"),
+      ]);
+      const execEnabled: Record<string, boolean> = {
+        google_ads: gadsExecEnabled,
+        meta_ads:   metaExecEnabled,
+        search_console: false,
+        pagespeed:  false,
+      };
+      const execMissingCreds: Record<string, string[]> = {
+        google_ads:     gadsExecCredsCheck(),
+        meta_ads:       metaExecCredsCheck(),
+        search_console: [],
+        pagespeed:      [],
+      };
+
       const result: Record<string, any> = {};
       for (const cfg of configs) {
         const rowCount = rowCounts[cfg.name] ?? 0;
@@ -1471,21 +1649,72 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
           ? new Date(new Date(lastAt).getTime() + schedHrs * 3_600_000).toISOString()
           : null;
 
+        const execReady = execEnabled[cfg.name] && execMissingCreds[cfg.name]?.length === 0;
+
         result[cfg.name] = {
           ...cfg,
-          configured: missingMap[cfg.name]?.length === 0,
-          missing: missingMap[cfg.name] ?? [],
+          configured:           missingMap[cfg.name]?.length === 0,
+          missing:              missingMap[cfg.name] ?? [],
           rowCount,
           isStale,
           staleReason,
           scheduleIntervalHours: schedHrs,
           nextSyncAt,
           schedulerEnabled,
+          // Phase 7: Execution readiness
+          executionEnabled:     execEnabled[cfg.name] ?? false,
+          executionTestMode:    testModeEnabled,
+          executionReady:       execReady ?? false,
+          missingExecCreds:     execMissingCreds[cfg.name] ?? [],
         };
       }
 
       res.json(result);
     } catch { res.status(500).json({ message: "DB error" }); }
+  });
+
+  /** PATCH /api/ai/connectors/:name/execution-config — toggle execution_enabled or test_mode */
+  app.patch("/api/ai/connectors/:name/execution-config", requireAdmin, async (req: Request, res: Response) => {
+    const { name } = req.params;
+    const VALID_NAMES = ["google_ads", "meta_ads"] as const;
+    type ValidName = typeof VALID_NAMES[number];
+    if (!VALID_NAMES.includes(name as ValidName)) {
+      return res.status(400).json({ message: `Connector "${name}" does not support execution config.` });
+    }
+
+    const { executionEnabled, testMode } = req.body as { executionEnabled?: boolean; testMode?: boolean };
+    if (executionEnabled === undefined && testMode === undefined) {
+      return res.status(400).json({ message: "Provide at least one of: executionEnabled, testMode." });
+    }
+
+    try {
+      // Map connector name → flag key
+      const enabledFlagKey = name === "google_ads" ? "ai_google_ads_execution_enabled" : "ai_meta_ads_execution_enabled";
+      const testModeFlagKey = "ai_platform_execution_test_mode";
+
+      if (executionEnabled !== undefined) {
+        await db
+          .insert(aiFeatureFlags)
+          .values({ key: enabledFlagKey, value: executionEnabled, description: `Execution enabled for ${name}` })
+          .onConflictDoUpdate({ target: aiFeatureFlags.key, set: { value: executionEnabled, updatedAt: new Date() } });
+
+        await logAiAction("admin", "execution_config_toggle", { connector: name, executionEnabled });
+      }
+
+      if (testMode !== undefined) {
+        await db
+          .insert(aiFeatureFlags)
+          .values({ key: testModeFlagKey, value: testMode, description: "Platform execution test mode (dry run when true)" })
+          .onConflictDoUpdate({ target: aiFeatureFlags.key, set: { value: testMode, updatedAt: new Date() } });
+
+        await logAiAction("admin", "execution_config_toggle", { connector: name, testMode });
+      }
+
+      res.json({ success: true, connector: name, executionEnabled, testMode });
+    } catch (err: any) {
+      console.error("[execution-config]", err);
+      res.status(500).json({ message: "DB error" });
+    }
   });
 
   /** POST /api/ai/connectors/google-ads/sync */

@@ -8,6 +8,7 @@ import {
   Database, FileText, RotateCcw, ScrollText, Zap,
   Target, TrendingDown, ArrowUp, Cpu, Globe, Search,
   PlayCircle, Copy, CheckCheck, XCircle, Timer, Loader2, BotIcon,
+  Rocket, FlaskConical, Send, BadgeAlert,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -379,6 +380,92 @@ function ExecutionResultSection({ executionResult, executionStatus, executedAt, 
   );
 }
 
+function PlatformExecutionSection({ platformExecution }: { platformExecution?: any }) {
+  const [rawOpen, setRawOpen] = useState(false);
+  if (!platformExecution) return null;
+  const pe = platformExecution;
+
+  const STATUS_META: Record<string, { label: string; color: string; Icon: any }> = {
+    success:      { label: "Live — Success",   color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", Icon: CheckCheck },
+    test_mode:    { label: "Test Mode (dry run)", color: "text-blue-400 bg-blue-500/10 border-blue-500/20",     Icon: FlaskConical },
+    export_only:  { label: "Export Only",      color: "text-amber-400 bg-amber-500/10 border-amber-500/20",     Icon: FileText },
+    failed:       { label: "Failed",           color: "text-red-400 bg-red-500/10 border-red-500/20",           Icon: XCircle },
+    missing_ids:  { label: "Missing IDs",      color: "text-orange-400 bg-orange-500/10 border-orange-500/20", Icon: BadgeAlert },
+  };
+
+  const sm = STATUS_META[pe.resultStatus] ?? STATUS_META["export_only"];
+  const StatusIcon = sm.Icon;
+  const PLATFORM_LABEL: Record<string, string> = {
+    google_ads: "Google Ads",
+    meta_ads:   "Meta Ads",
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Rocket className="w-3.5 h-3.5 text-violet-400" />
+        <span className="text-[11px] font-bold uppercase text-violet-400 tracking-wider">Platform Execution</span>
+        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border flex items-center gap-1 ${sm.color}`}>
+          <StatusIcon className="w-2.5 h-2.5" />
+          {sm.label}
+        </span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 border border-slate-500/20 text-slate-400 font-semibold">
+          {PLATFORM_LABEL[pe.platform] ?? pe.platform}
+        </span>
+        {pe.testMode && (
+          <span className="flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">
+            <FlaskConical className="w-2.5 h-2.5" /> Dry run
+          </span>
+        )}
+        <span className="ml-auto text-[10px] text-slate-600 flex items-center gap-1">
+          <Timer className="w-3 h-3" />
+          {pe.actor} · {pe.executedAt ? new Date(pe.executedAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" }) : ""}
+        </span>
+      </div>
+
+      {/* Summary */}
+      <div className={`p-3 rounded-lg border ${pe.resultStatus === "failed" || pe.resultStatus === "missing_ids" ? "bg-red-500/5 border-red-500/15" : pe.resultStatus === "success" ? "bg-emerald-500/5 border-emerald-500/15" : pe.resultStatus === "test_mode" ? "bg-blue-500/5 border-blue-500/15" : "bg-slate-500/5 border-slate-500/15"}`}>
+        <p className="text-[11px] leading-relaxed text-slate-300">{pe.summary}</p>
+      </div>
+
+      {/* Error */}
+      {pe.errorMessage && (
+        <div className="flex items-start gap-2 p-2.5 bg-red-500/5 border border-red-500/15 rounded-lg">
+          <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+          <p className="text-[11px] text-red-300 leading-relaxed">{pe.errorMessage}</p>
+        </div>
+      )}
+
+      {/* Rollback path */}
+      {pe.rollbackPath && pe.rollbackPath !== "No changes made." && pe.rollbackPath !== "No changes made — export only." && (
+        <div className="flex items-start gap-2 p-2.5 bg-slate-500/5 border border-slate-500/15 rounded-lg">
+          <RotateCcw className="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-[10px] font-bold uppercase text-slate-600 mb-1">Rollback Path</p>
+            <p className="text-[11px] text-slate-400 leading-relaxed">{pe.rollbackPath}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Test mode payload toggle */}
+      {pe.resultStatus === "test_mode" && (
+        <button
+          onClick={() => setRawOpen(!rawOpen)}
+          className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
+        >
+          {rawOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {rawOpen ? "Hide" : "Show"} dry-run payload
+        </button>
+      )}
+      {rawOpen && pe.resultStatus === "test_mode" && (
+        <pre className="p-3 bg-black/30 border border-white/5 rounded-lg text-[10px] text-slate-400 overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
+          {JSON.stringify(pe, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 function LinkedRecSection({ linkedRec, refType }: { linkedRec?: any; refType?: string | null }) {
   if (!linkedRec) return null;
   return (
@@ -437,6 +524,8 @@ function DetailPanel({ item }: { item: any }) {
         executedAt={item.executedAt}
         executedBy={item.executedBy}
       />
+      {/* Platform execution result — shown if Push to Platform was clicked */}
+      <PlatformExecutionSection platformExecution={item.executionResult?.platformExecution} />
       <EvidenceSection sourceData={evidence} />
       <ProposedActionSection proposedAction={proposedAction} queueType={item.queueType} />
       <RollbackSection rollbackPath={item.rollbackPath} linkedRec={linkedRec} />
@@ -492,6 +581,26 @@ export default function AIApprovalQueue() {
       toast({ title: "Execution complete", description: "Deliverable generated. Expand the item to view and copy the implementation spec." });
     },
     onError: (err: any) => toast({ title: "Execution failed", description: err.message, variant: "destructive" }),
+  });
+
+  const platformExecute = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/ai/approvals/${id}/platform-execute`, {}),
+    onSuccess: (data: any, id) => {
+      qc.invalidateQueries({ queryKey: ["/api/ai/approvals"] });
+      qc.invalidateQueries({ queryKey: ["/api/ai/approvals", id, "detail"] });
+      const testMode = data?.testMode;
+      const status = data?.resultStatus ?? "unknown";
+      if (status === "success") {
+        toast({ title: "Pushed to platform", description: data?.summary ?? "Change sent to the ad platform." });
+      } else if (testMode) {
+        toast({ title: "Test mode — dry run complete", description: "No live API call made. Expand to view the generated payload." });
+      } else if (status === "failed" || status === "missing_ids") {
+        toast({ title: "Platform push failed", description: data?.summary ?? data?.errorMessage, variant: "destructive" });
+      } else {
+        toast({ title: "Platform push complete", description: data?.summary ?? "Done." });
+      }
+    },
+    onError: (err: any) => toast({ title: "Platform push failed", description: err.message, variant: "destructive" }),
   });
 
   const generateActions = useMutation({
@@ -662,6 +771,15 @@ export default function AIApprovalQueue() {
               const isExecuting = item.executionStatus === "executing";
               const isExecuted = item.executionStatus === "executed";
               const isExecutionFailed = item.executionStatus === "execution_failed";
+
+              // Platform detection for "Push to Platform" button
+              const pa = (item.proposedAction as any) ?? {};
+              const pRaw = (pa.platform ?? "").toLowerCase();
+              const isGoogleItem = pRaw === "google" || pRaw === "google_ads" || item.queueType === "negative_keyword";
+              const isMetaItem   = pRaw === "meta" || pRaw === "meta_ads";
+              const isPlatformItem = isGoogleItem || isMetaItem;
+              const platformLabel = isGoogleItem ? "Google Ads" : isMetaItem ? "Meta Ads" : null;
+              const hasPlatformExec = !!(item.executionResult as any)?.platformExecution;
               return (
                 <div key={item.id} data-testid={`approval-item-${item.id}`}
                   className={`bg-white/5 border rounded-xl overflow-hidden transition-all ${
@@ -683,6 +801,11 @@ export default function AIApprovalQueue() {
                           <span className="text-[10px] font-bold uppercase text-slate-500 bg-black/20 px-1.5 py-0.5 rounded">
                             {TYPE_LABELS[item.queueType] ?? item.queueType}
                           </span>
+                          {platformLabel && (
+                            <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border flex items-center gap-1 ${isGoogleItem ? "text-blue-400 bg-blue-500/10 border-blue-500/20" : "text-purple-400 bg-purple-500/10 border-purple-500/20"}`}>
+                              {isGoogleItem ? "Google Ads" : "Meta Ads"}
+                            </span>
+                          )}
                           <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${RISK_COLORS[item.riskLevel ?? "medium"]}`}>
                             {item.riskLevel} risk
                           </span>
@@ -826,19 +949,55 @@ export default function AIApprovalQueue() {
 
                   {/* Execution complete footer */}
                   {isExecuted && (
-                    <div className="border-t border-teal-500/10 px-4 py-2.5 bg-teal-500/5 flex items-center gap-2">
-                      {item.executionResult?.autoExecuted
-                        ? <BotIcon className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                        : <CheckCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                      }
-                      <p className="text-[11px] text-teal-400">
+                    <div className="border-t border-teal-500/10 px-4 py-3 bg-teal-500/5 space-y-2">
+                      <div className="flex items-center gap-2">
                         {item.executionResult?.autoExecuted
-                          ? <><strong>Auto-executed after approval</strong> · </>
-                          : <><strong>Manually executed</strong> by {item.executedBy} · </>
+                          ? <BotIcon className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                          : <CheckCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
                         }
-                        {item.executedAt ? new Date(item.executedAt).toLocaleString("en-SG", { dateStyle: "medium", timeStyle: "short" }) : "—"}
-                        {" "}· Expand to view and copy the deliverable
-                      </p>
+                        <p className="text-[11px] text-teal-400 flex-1">
+                          {item.executionResult?.autoExecuted
+                            ? <><strong>Auto-executed after approval</strong> · </>
+                            : <><strong>Manually executed</strong> by {item.executedBy} · </>
+                          }
+                          {item.executedAt ? new Date(item.executedAt).toLocaleString("en-SG", { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                          {" "}· Expand to view and copy the deliverable
+                        </p>
+                      </div>
+                      {/* Push to Platform button — appears for ad items after deliverable is generated */}
+                      {isPlatformItem && (
+                        <div className={`flex flex-wrap items-center gap-2 pt-1 border-t ${hasPlatformExec ? "border-violet-500/10" : "border-teal-500/10"}`}>
+                          {hasPlatformExec ? (
+                            <div className="flex items-center gap-1.5 text-[10px] text-violet-400">
+                              <Rocket className="w-3 h-3" />
+                              <span>
+                                Platform {(item.executionResult as any)?.platformExecution?.testMode ? "dry-run" : "push"} recorded
+                                {" "}({(item.executionResult as any)?.platformExecution?.resultStatus})
+                                · Expand to view result
+                              </span>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[10px] text-slate-500">
+                                  Push this approved action directly to {platformLabel} API (test mode by default — no live changes until test mode is disabled).
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => platformExecute.mutate(item.id)}
+                                disabled={platformExecute.isPending}
+                                data-testid={`platform-execute-${item.id}`}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 text-violet-300 text-[11px] font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                              >
+                                {platformExecute.isPending
+                                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Pushing…</>
+                                  : <><Send className="w-3 h-3" /> Push to {platformLabel}</>
+                                }
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

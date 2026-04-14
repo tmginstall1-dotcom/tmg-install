@@ -92,6 +92,21 @@ const FLAG_HELP: Record<string, { what: string; effect: string; safe: string }> 
     effect: "Deliverable is generated and saved the moment you click Approve — no need to click Execute separately. Works for site_change, creative, negative_keyword, and landing_page types only. Does NOT call any live API or modify any ad account or site.",
     safe: "Medium risk label — the deliverable is generated automatically, but no live changes are made. Disable if you prefer to review first and execute manually.",
   },
+  ai_google_ads_execution_enabled: {
+    what: "Allows the 'Push to Platform' button in the Approval Queue to send approved actions directly to the Google Ads API.",
+    effect: "When ON, clicking 'Push to Platform' on an approved Google Ads action will call the live Google Ads REST API to apply the change (e.g. add negative keywords, pause/enable ads, adjust budgets). Credentials must be configured in Secrets. Budget increases are hard-capped at +10% per execution.",
+    safe: "High risk. Enable only after verifying Google Ads credentials are correct and test mode is working as expected. Always enable ai_platform_execution_test_mode first and verify the dry-run output before going live.",
+  },
+  ai_meta_ads_execution_enabled: {
+    what: "Allows the 'Push to Platform' button in the Approval Queue to send approved actions directly to the Meta Ads API.",
+    effect: "When ON, clicking 'Push to Platform' on an approved Meta Ads action will call the live Meta Graph API to apply the change (e.g. pause/enable ads or adsets, adjust budgets). Credentials must be configured in Secrets. Budget increases are hard-capped at +10% per execution.",
+    safe: "High risk. Enable only after verifying Meta credentials are correct and test mode is working as expected. Always enable ai_platform_execution_test_mode first and verify the dry-run output before going live.",
+  },
+  ai_platform_execution_test_mode: {
+    what: "Test mode for all platform executions. When ON, the full API payload is generated and logged, but the actual API call is NOT sent to Google Ads or Meta.",
+    effect: "Every 'Push to Platform' click generates and logs the exact payload that would be sent, shows you the target IDs, budget changes, and rollback instructions — but no live change is made. Turn OFF to send real API calls.",
+    safe: "Safe when ON (dry run). This is the default. Turn OFF only when you are ready to push real changes to live ad accounts.",
+  },
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -201,8 +216,11 @@ export default function AIHub() {
     { key: "ai_google_ads_sync_enabled",    label: "Google Ads Live Sync",      risk: "low" },
     { key: "ai_meta_ads_sync_enabled",      label: "Meta Ads Live Sync",        risk: "low" },
     { key: "ai_search_console_enabled",     label: "Search Console Sync",       risk: "low" },
-    { key: "ai_scheduler_enabled",          label: "Sync Scheduler",             risk: "low" },
-    { key: "ai_auto_execute_enabled",       label: "Auto-Execute on Approval",   risk: "medium" },
+    { key: "ai_scheduler_enabled",                label: "Sync Scheduler",                risk: "low" },
+    { key: "ai_auto_execute_enabled",             label: "Auto-Execute on Approval",      risk: "medium" },
+    { key: "ai_google_ads_execution_enabled",     label: "Google Ads Live Push",          risk: "high" },
+    { key: "ai_meta_ads_execution_enabled",       label: "Meta Ads Live Push",            risk: "high" },
+    { key: "ai_platform_execution_test_mode",     label: "Platform Execution Test Mode",  risk: "low" },
   ];
 
   const lastLog = recentLogs[0];

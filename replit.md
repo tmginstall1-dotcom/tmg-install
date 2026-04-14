@@ -54,6 +54,16 @@ Always provide full file contents when editing any code file — never partial s
 - **Seeding**: `server/seed.ts` runs on every startup (idempotent rounds). 11 rounds total: Rounds 1–9 seed catalog items; Round 10 adds dispose/dismantle_dispose coverage; Round 11 (SG-MARKET-R1, April 2026) applies market-calibrated price corrections based on 2025 Singapore competitor research (Airtasker, ITB, LocalHandymanSG, Kaodim).
 - **Booking Rules**: Enforces rules for customer booking requests, admin confirmations, and reschedule limitations.
 
+### AI Ops — Phase 7: Ad Platform Execution Layer
+- **`server/ad-executor.ts`**: Execution engine for Google Ads (negative keywords, pause/enable ad/adgroup, budget adjust +10% cap) and Meta Ads (pause/enable ad/adset, budget adjust). Test mode generates full payload without live API call. Export-only path for unsupported/missing-ID items.
+- **`ai_platform_executions` table**: Full audit trail per execution — platform, action type, target IDs, result status, rollback path, test mode flag, error message, actor.
+- **3 execution flags**: `ai_google_ads_execution_enabled`, `ai_meta_ads_execution_enabled`, `ai_platform_execution_test_mode` (defaults: false, false, true).
+- **API routes**: `POST /api/ai/approvals/:id/platform-execute`, `GET /api/ai/platform-executions`, `PATCH /api/ai/connectors/:name/execution-config` (toggle execution_enabled/test_mode per connector).
+- **AIApprovalQueue.tsx**: Platform badge (Google Ads/Meta Ads) on ad items; "Push to Platform" button in execution-complete footer (violet, with Rocket/Send icons); `PlatformExecutionSection` in expanded detail panel showing result status, summary, rollback path, dry-run payload.
+- **AIConnectors.tsx**: "Platform Execution" section per connector card (google_ads, meta_ads only) — execution toggle, test-mode toggle, missing-creds warning, live-mode safety warning, status badge (OFF/Test Mode/Live).
+- **AIHub.tsx**: 3 new feature flag entries for the execution flags.
+- **Safety**: Kill switch always respected. Per-platform flag + connector execution_enabled must both be ON. Budget cap +10% max. Test mode default=true (no live calls unless deliberately disabled).
+
 ### Promo Campaign System
 - **`promo_codes` table**: Stores discount codes with `code`, `discount_amount`, `max_uses`, `uses_count`, and `active` fields.
 - **Announcement bar**: Scrolling amber ticker bar at the very top of all customer pages (above the navbar). Dismissable per session via `sessionStorage`. Auto-hides when slots are exhausted.
