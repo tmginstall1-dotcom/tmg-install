@@ -10,7 +10,7 @@
 
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { eq, desc, and, gte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, sql, count, lt, inArray } from "drizzle-orm";
 import {
   aiFeatureFlags,
   aiAttributionEvents,
@@ -28,7 +28,6 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { storage } from "./storage";
-import { count, lt } from "drizzle-orm";
 
 // ── Lazy OpenAI client — never crashes server startup if key is missing ───────
 let _openai: any = null;
@@ -123,11 +122,11 @@ function gscCredsCheck() {
 }
 
 async function googleAccessToken(clientId: string, clientSecret: string, refreshToken: string): Promise<string> {
-  const r = await fetch("https://oauth2.googleapis.com/token", {
+  const r = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: "refresh_token" }).toString(),
-  });
+  }, 15_000);
   const j: any = await r.json();
   if (!j.access_token) throw new Error(`OAuth error: ${j.error ?? "unknown"}`);
   return j.access_token as string;
@@ -139,6 +138,32 @@ async function setConnectorSync(name: string, status: "running" | "success" | "e
       .set({ lastSyncAt: status !== "running" ? new Date() : undefined, lastSyncStatus: status, syncError: error ?? null, updatedAt: new Date() })
       .where(eq(aiConnectorConfigs.name, name));
   } catch { /* non-fatal */ }
+}
+
+/** Returns true if connector is already syncing (concurrent sync guard). */
+async function isSyncRunning(name: string): Promise<boolean> {
+  try {
+    const [cfg] = await db.select({ status: aiConnectorConfigs.lastSyncStatus })
+      .from(aiConnectorConfigs).where(eq(aiConnectorConfigs.name, name)).limit(1);
+    return cfg?.status === "running";
+  } catch { return false; }
+}
+
+/**
+ * fetch() wrapper with a hard timeout (default 30 s).
+ * Throws if the request takes longer than timeoutMs.
+ */
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 30_000): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } catch (err: any) {
+    if (err?.name === "AbortError") throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function registerAiRoutes(app: Express) {
@@ -771,13 +796,19 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
 
   /** POST /api/ai/connectors/google-ads/sync */
   app.post("/api/ai/connectors/google-ads/sync", requireAdmin, async (_req: Request, res: Response) => {
-    const missing = gadsCredsCheck();
-    if (missing.length) return res.status(400).json({ error: "not_configured", missing });
-
+    // Kill-switch and flag are checked FIRST — they override everything including missing creds
     const killSwitch = await getFlag("ai_master_kill_switch");
     const enabled = await getFlag("ai_google_ads_sync_enabled");
     if (killSwitch) return res.status(503).json({ message: "Kill switch active." });
     if (!enabled) return res.status(503).json({ message: "Google Ads sync is disabled. Enable ai_google_ads_sync_enabled flag." });
+
+    const missing = gadsCredsCheck();
+    if (missing.length) return res.status(400).json({ error: "not_configured", missing });
+
+    // ── Concurrent sync guard ─────────────────────────────────────────────────
+    if (await isSyncRunning("google_ads")) {
+      return res.status(409).json({ message: "A Google Ads sync is already in progress. Please wait." });
+    }
 
     await setConnectorSync("google_ads", "running");
     try {
@@ -788,40 +819,47 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       const thirtyAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       const today = new Date().toISOString().split("T")[0];
 
-      const gaqlRes = await fetch(`https://googleads.googleapis.com/v18/customers/${cleanId}/googleAds:search`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${accessToken}`, "developer-token": dt!, "Content-Type": "application/json" },
-        body: JSON.stringify({ query: `SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value, metrics.ctr, metrics.average_cpc, segments.date FROM campaign WHERE segments.date BETWEEN '${thirtyAgo}' AND '${today}' AND campaign.status = 'ENABLED' ORDER BY segments.date DESC LIMIT 1000` }),
-      });
+      // ── External API call with 30 s timeout ──────────────────────────────────
+      const gaqlRes = await fetchWithTimeout(
+        `https://googleads.googleapis.com/v18/customers/${cleanId}/googleAds:search`,
+        {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${accessToken}`, "developer-token": dt!, "Content-Type": "application/json" },
+          body: JSON.stringify({ query: `SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value, metrics.ctr, metrics.average_cpc, segments.date FROM campaign WHERE segments.date BETWEEN '${thirtyAgo}' AND '${today}' AND campaign.status = 'ENABLED' ORDER BY segments.date DESC LIMIT 1000` }),
+        },
+      );
       const gaqlData: any = await gaqlRes.json();
       if (gaqlData.error) throw new Error(gaqlData.error.message ?? "Google Ads API error");
 
-      // Remove stale API rows then insert fresh
-      await db.delete(aiAdsSnapshots).where(and(eq(aiAdsSnapshots.source, "google_ads_api"), gte(aiAdsSnapshots.snapshotDate, thirtyAgo)));
+      // ── Atomic delete + insert inside a single transaction ───────────────────
       let inserted = 0;
-      for (const row of (gaqlData.results ?? [])) {
-        const spend = (parseInt(row.metrics?.costMicros ?? "0") / 1_000_000);
-        const clicks = parseInt(String(row.metrics?.clicks ?? "0"));
-        const impressions = parseInt(String(row.metrics?.impressions ?? "0"));
-        const conversions = parseFloat(String(row.metrics?.conversions ?? "0"));
-        const cpc = clicks > 0 ? spend / clicks : 0;
-        await db.insert(aiAdsSnapshots).values({
-          platform: "google", source: "google_ads_api",
-          snapshotDate: row.segments?.date ?? today,
-          campaignId: String(row.campaign?.id ?? ""),
-          campaignName: row.campaign?.name,
-          adSetId: String(row.adGroup?.id ?? ""),
-          adSetName: row.adGroup?.name,
-          spend: spend.toFixed(2) as any,
-          impressions, clicks,
-          conversions: conversions.toFixed(2) as any,
-          ctr: (parseFloat(String(row.metrics?.ctr ?? "0")) * 100).toFixed(4) as any,
-          cpc: cpc.toFixed(4) as any,
-          cpl: conversions > 0 ? (spend / conversions).toFixed(4) as any : "0",
-          rawData: row as any,
-        });
-        inserted++;
-      }
+      const rows = gaqlData.results ?? [];
+      await db.transaction(async (tx) => {
+        await tx.delete(aiAdsSnapshots).where(and(eq(aiAdsSnapshots.source, "google_ads_api"), gte(aiAdsSnapshots.snapshotDate, thirtyAgo)));
+        for (const row of rows) {
+          const spend = (parseInt(row.metrics?.costMicros ?? "0") / 1_000_000);
+          const clicks = parseInt(String(row.metrics?.clicks ?? "0"));
+          const impressions = parseInt(String(row.metrics?.impressions ?? "0"));
+          const conversions = parseFloat(String(row.metrics?.conversions ?? "0"));
+          const cpc = clicks > 0 ? spend / clicks : 0;
+          await tx.insert(aiAdsSnapshots).values({
+            platform: "google", source: "google_ads_api",
+            snapshotDate: row.segments?.date ?? today,
+            campaignId: String(row.campaign?.id ?? ""),
+            campaignName: row.campaign?.name,
+            adSetId: String(row.adGroup?.id ?? ""),
+            adSetName: row.adGroup?.name,
+            spend: spend.toFixed(2) as any,
+            impressions, clicks,
+            conversions: conversions.toFixed(2) as any,
+            ctr: (parseFloat(String(row.metrics?.ctr ?? "0")) * 100).toFixed(4) as any,
+            cpc: cpc.toFixed(4) as any,
+            cpl: conversions > 0 ? (spend / conversions).toFixed(4) as any : "0",
+            rawData: row as any,
+          });
+          inserted++;
+        }
+      });
       await setConnectorSync("google_ads", "success");
       await logAiAction("connector_sync", "admin", "ads", `Google Ads sync — ${inserted} rows imported`, { inserted });
       res.json({ success: true, inserted });
@@ -833,13 +871,18 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
 
   /** POST /api/ai/connectors/meta-ads/sync */
   app.post("/api/ai/connectors/meta-ads/sync", requireAdmin, async (_req: Request, res: Response) => {
-    const missing = metaCredsCheck();
-    if (missing.length) return res.status(400).json({ error: "not_configured", missing });
-
     const killSwitch = await getFlag("ai_master_kill_switch");
     const enabled = await getFlag("ai_meta_ads_sync_enabled");
     if (killSwitch) return res.status(503).json({ message: "Kill switch active." });
     if (!enabled) return res.status(503).json({ message: "Meta Ads sync is disabled. Enable ai_meta_ads_sync_enabled flag." });
+
+    const missing = metaCredsCheck();
+    if (missing.length) return res.status(400).json({ error: "not_configured", missing });
+
+    // ── Concurrent sync guard ─────────────────────────────────────────────────
+    if (await isSyncRunning("meta_ads")) {
+      return res.status(409).json({ message: "A Meta Ads sync is already in progress. Please wait." });
+    }
 
     await setConnectorSync("meta_ads", "running");
     try {
@@ -852,35 +895,42 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
         time_increment: "1",
         limit: "500",
       });
-      const metaRes = await fetch(`https://graph.facebook.com/v20.0/act_${accountId}/insights?${params}`);
+      // ── External API call with 30 s timeout ──────────────────────────────────
+      const metaRes = await fetchWithTimeout(
+        `https://graph.facebook.com/v20.0/act_${accountId}/insights?${params}`,
+      );
       const metaData: any = await metaRes.json();
       if (metaData.error) throw new Error(metaData.error.message ?? "Meta API error");
 
+      // ── Atomic delete + insert inside a single transaction ───────────────────
       const thirtyAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-      await db.delete(aiAdsSnapshots).where(and(eq(aiAdsSnapshots.source, "meta_ads_api"), gte(aiAdsSnapshots.snapshotDate, thirtyAgo)));
       let inserted = 0;
-      for (const row of (metaData.data ?? [])) {
-        const spend = parseFloat(row.spend ?? "0");
-        const clicks = parseInt(String(row.clicks ?? "0"));
-        const impressions = parseInt(String(row.impressions ?? "0"));
-        const leadsAction = row.actions?.find((a: any) => ["lead", "onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead"].includes(a.action_type));
-        const conversions = parseFloat(leadsAction?.value ?? "0");
-        const convValue = row.action_values?.find((a: any) => a.action_type === leadsAction?.action_type)?.value ?? "0";
-        const ctr = impressions > 0 ? (clicks / impressions * 100).toFixed(4) : "0";
-        const cpc = clicks > 0 ? (spend / clicks).toFixed(4) : "0";
-        const cpl = conversions > 0 ? (spend / conversions).toFixed(4) : "0";
-        await db.insert(aiAdsSnapshots).values({
-          platform: "meta", source: "meta_ads_api",
-          snapshotDate: row.date_start,
-          campaignId: row.campaign_id, campaignName: row.campaign_name,
-          adSetId: row.adset_id, adSetName: row.adset_name,
-          spend: spend.toFixed(2) as any, impressions, clicks,
-          conversions: conversions.toFixed(2) as any, conversionValue: parseFloat(convValue).toFixed(2) as any,
-          ctr: ctr as any, cpc: cpc as any, cpl: cpl as any,
-          rawData: row as any,
-        });
-        inserted++;
-      }
+      const rows = metaData.data ?? [];
+      await db.transaction(async (tx) => {
+        await tx.delete(aiAdsSnapshots).where(and(eq(aiAdsSnapshots.source, "meta_ads_api"), gte(aiAdsSnapshots.snapshotDate, thirtyAgo)));
+        for (const row of rows) {
+          const spend = parseFloat(row.spend ?? "0");
+          const clicks = parseInt(String(row.clicks ?? "0"));
+          const impressions = parseInt(String(row.impressions ?? "0"));
+          const leadsAction = row.actions?.find((a: any) => ["lead", "onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead"].includes(a.action_type));
+          const conversions = parseFloat(leadsAction?.value ?? "0");
+          const convValue = row.action_values?.find((a: any) => a.action_type === leadsAction?.action_type)?.value ?? "0";
+          const ctr = impressions > 0 ? (clicks / impressions * 100).toFixed(4) : "0";
+          const cpc = clicks > 0 ? (spend / clicks).toFixed(4) : "0";
+          const cpl = conversions > 0 ? (spend / conversions).toFixed(4) : "0";
+          await tx.insert(aiAdsSnapshots).values({
+            platform: "meta", source: "meta_ads_api",
+            snapshotDate: row.date_start,
+            campaignId: row.campaign_id, campaignName: row.campaign_name,
+            adSetId: row.adset_id, adSetName: row.adset_name,
+            spend: spend.toFixed(2) as any, impressions, clicks,
+            conversions: conversions.toFixed(2) as any, conversionValue: parseFloat(convValue).toFixed(2) as any,
+            ctr: ctr as any, cpc: cpc as any, cpl: cpl as any,
+            rawData: row as any,
+          });
+          inserted++;
+        }
+      });
       await setConnectorSync("meta_ads", "success");
       await logAiAction("connector_sync", "admin", "ads", `Meta Ads sync — ${inserted} rows imported`, { inserted });
       res.json({ success: true, inserted });
@@ -892,13 +942,18 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
 
   /** POST /api/ai/connectors/search-console/sync */
   app.post("/api/ai/connectors/search-console/sync", requireAdmin, async (_req: Request, res: Response) => {
-    const missing = gscCredsCheck();
-    if (missing.length) return res.status(400).json({ error: "not_configured", missing });
-
     const killSwitch = await getFlag("ai_master_kill_switch");
     const enabled = await getFlag("ai_search_console_enabled");
     if (killSwitch) return res.status(503).json({ message: "Kill switch active." });
     if (!enabled) return res.status(503).json({ message: "Search Console sync is disabled. Enable ai_search_console_enabled flag." });
+
+    const missing = gscCredsCheck();
+    if (missing.length) return res.status(400).json({ error: "not_configured", missing });
+
+    // ── Concurrent sync guard ─────────────────────────────────────────────────
+    if (await isSyncRunning("search_console")) {
+      return res.status(409).json({ message: "A Search Console sync is already in progress. Please wait." });
+    }
 
     await setConnectorSync("search_console", "running");
     try {
@@ -909,7 +964,8 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       const startDate = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       const syncId = `${startDate}__${endDate}`;
 
-      const gscRes = await fetch(
+      // ── External API call with 30 s timeout ──────────────────────────────────
+      const gscRes = await fetchWithTimeout(
         `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
         {
           method: "POST",
@@ -920,20 +976,23 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       const gscData: any = await gscRes.json();
       if (gscData.error) throw new Error(gscData.error.message ?? "Search Console API error");
 
-      // Clear previous sync then insert fresh
-      await db.delete(aiSearchConsoleData).where(eq(aiSearchConsoleData.syncId, syncId));
+      // ── Atomic delete + insert inside a single transaction ───────────────────
       let inserted = 0;
-      for (const row of (gscData.rows ?? [])) {
-        await db.insert(aiSearchConsoleData).values({
-          syncId, date: endDate,
-          query: row.keys?.[0], page: row.keys?.[1],
-          country: row.keys?.[2], device: row.keys?.[3],
-          clicks: row.clicks ?? 0, impressions: row.impressions ?? 0,
-          ctr: (row.ctr != null ? (row.ctr * 100).toFixed(4) : "0") as any,
-          position: row.position != null ? parseFloat(row.position.toFixed(2)) as any : null,
-        });
-        inserted++;
-      }
+      const rows = gscData.rows ?? [];
+      await db.transaction(async (tx) => {
+        await tx.delete(aiSearchConsoleData).where(eq(aiSearchConsoleData.syncId, syncId));
+        for (const row of rows) {
+          await tx.insert(aiSearchConsoleData).values({
+            syncId, date: endDate,
+            query: row.keys?.[0], page: row.keys?.[1],
+            country: row.keys?.[2], device: row.keys?.[3],
+            clicks: row.clicks ?? 0, impressions: row.impressions ?? 0,
+            ctr: (row.ctr != null ? (row.ctr * 100).toFixed(4) : "0") as any,
+            position: row.position != null ? parseFloat(row.position.toFixed(2)) as any : null,
+          });
+          inserted++;
+        }
+      });
       await setConnectorSync("search_console", "success");
       await logAiAction("connector_sync", "admin", "attribution", `Search Console sync — ${inserted} queries imported`, { inserted, syncId });
       res.json({ success: true, inserted, syncId, startDate, endDate });
@@ -950,6 +1009,11 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
     if (killSwitch) return res.status(503).json({ message: "Kill switch active." });
     if (!enabled) return res.status(503).json({ message: "PageSpeed sync disabled. Enable ai_pagespeed_enabled flag." });
 
+    // ── Concurrent sync guard ─────────────────────────────────────────────────
+    if (await isSyncRunning("pagespeed")) {
+      return res.status(409).json({ message: "A PageSpeed sync is already in progress. Please wait." });
+    }
+
     await setConnectorSync("pagespeed", "running");
     try {
       const apiKey = process.env.GOOGLE_API_KEY ?? "";
@@ -959,7 +1023,12 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       for (const strategy of ["mobile", "desktop"] as const) {
         const qs = new URLSearchParams({ url: targetUrl, strategy });
         if (apiKey) qs.set("key", apiKey);
-        const psRes = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${qs}`);
+        // ── Per-strategy fetch with 45 s timeout (PageSpeed can be slow) ────────
+        const psRes = await fetchWithTimeout(
+          `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${qs}`,
+          {},
+          45_000,
+        );
         const psData: any = await psRes.json();
         if (psData.error) { results.push({ strategy, error: psData.error.message }); continue; }
 
@@ -986,6 +1055,19 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
           } as any,
         });
         results.push({ strategy, performanceScore: score("performance"), seoScore: score("seo") });
+      }
+
+      // ── Prune: keep only the 10 most recent rows per strategy ────────────────
+      for (const strat of ["mobile", "desktop"] as const) {
+        const allForStrat = await db
+          .select({ id: aiPagespeedData.id })
+          .from(aiPagespeedData)
+          .where(eq(aiPagespeedData.strategy, strat))
+          .orderBy(desc(aiPagespeedData.createdAt));
+        const toDelete = allForStrat.slice(10).map(r => r.id);
+        if (toDelete.length > 0) {
+          await db.delete(aiPagespeedData).where(inArray(aiPagespeedData.id, toDelete));
+        }
       }
 
       await setConnectorSync("pagespeed", "success");

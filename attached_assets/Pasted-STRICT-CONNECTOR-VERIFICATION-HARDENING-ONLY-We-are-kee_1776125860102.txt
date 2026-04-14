@@ -1,0 +1,85 @@
+STRICT CONNECTOR VERIFICATION + HARDENING ONLY
+
+We are keeping the new Live Data Connectors phase, but before relying on it in normal operations, perform a strict safety verification and minimal hardening pass.
+
+CRITICAL RULES:
+- Do NOT touch booking logic
+- Do NOT touch payment logic
+- Do NOT touch quote logic
+- Do NOT touch live customer workflow
+- Do NOT refactor unrelated files
+- Do NOT add broad new features
+- Only verify and harden the connector layer
+
+VERIFY THESE EXACT ITEMS:
+
+1. ROUTE GUARDS
+For every new route added in this phase, report:
+- exact path
+- admin auth status
+- feature flag check status
+- ai_master_kill_switch check status
+- whether it is read-only or mutating
+
+2. FEATURE FLAGS
+Return:
+- exact new connector-related flags
+- default values
+- where each is enforced in code
+- whether any connector route can run while its flag is disabled
+
+3. SECRET HANDLING
+For each connector (Google Ads, Meta Ads, Search Console, PageSpeed):
+- exact required secrets/env vars
+- what happens when missing
+- whether server startup is affected
+- whether failure is graceful at request time
+- exact error returned to admin UI
+
+4. DATA SAFETY
+For each sync route:
+- whether it is idempotent
+- whether it deletes existing data before insert
+- whether inserts are transactional
+- whether partial failure can leave tables in a bad state
+- whether duplicate rows are possible
+- what unique constraints or safeguards exist
+
+5. API ROBUSTNESS
+For each connector:
+- pagination handling
+- timeout handling
+- rate-limit handling
+- invalid credential handling
+- partial response handling
+- retry behaviour, if any
+
+6. FRONTEND SAFETY
+Verify:
+- Connectors page loads cleanly
+- missing secret states render safely
+- quota-limited PageSpeed state renders safely
+- sync buttons do not break layout on mobile
+- no frontend crashes when a connector returns error
+
+MINIMAL HARDENING PATCHES ALLOWED:
+Only apply changes if needed for:
+- missing kill-switch checks
+- missing feature-flag enforcement
+- graceful missing-secret handling
+- preventing duplicate/bad partial imports
+- protecting existing data during failed sync
+
+DO NOT:
+- redesign UI
+- add automation scheduling yet
+- add new connectors
+- change live workflow
+- change unrelated AI Ops features
+
+OUTPUT REQUIRED:
+1. Exact files modified
+2. Exact issues found
+3. Exact hardening fixes applied
+4. Exact remaining limitations not fixed
+5. Confirmation that live workflow was untouched
