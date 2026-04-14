@@ -365,20 +365,19 @@ export async function sendWhatsAppPaymentLink(
 
   const msg =
     `${name}\n\n` +
-    `This is a friendly reminder from *TMG Install* regarding your quote *${referenceNo}*.\n\n` +
+    `Friendly reminder from *TMG Install* — your quote *${referenceNo}* is approved and your deposit is due.\n\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
-    `💰 *Deposit Required: S$${depositAmount}*\n` +
+    `💰 *50% Deposit Required: S$${depositAmount}*\n` +
     `${slotLine}` +
-    `Your slot is held — but only until the deposit is received.\n\n` +
-    `Choose your preferred payment method:\n\n` +
-    `💳 *Option 1 — Pay by Card:*\n` +
+    `Your slot is reserved once we receive the deposit.\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `💳 *Pay by Card* (instant confirmation):\n` +
     `👉 ${paymentLink}\n\n` +
-    `🏦 *Option 2 — PayNow Transfer:*\n` +
+    `🏦 *PayNow Transfer:*\n` +
     `UEN: *202424156H* (TMG Install)\n` +
-    `Amount: *S$${depositAmount}*\n\n` +
-    `After PayNow, please *send a screenshot* of your receipt here. We'll confirm once verified. ✅\n\n` +
-    `━━━━━━━━━━━━━━━━━━━━\n` +
-    `_Need help? Reply to this message or call us. Min. notice 48h for rescheduling._`;
+    `Amount: *S$${depositAmount}*\n` +
+    `→ Screenshot your PayNow receipt and send it here. We'll confirm within the hour. ✅\n\n` +
+    `_Need help? Reply here or call us. 48h notice needed for rescheduling._`;
 
   await sendWhatsAppMessage(to, msg);
 }
