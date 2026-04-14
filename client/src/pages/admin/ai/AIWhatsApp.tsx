@@ -93,13 +93,22 @@ function ConversationRow({ conv, onRefresh }: { conv: any; onRefresh: () => void
   return (
     <div className="border border-white/10 bg-white/[0.02] rounded-none" data-testid={`conv-row-${conv.phone}`}>
       <button
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
+        className="w-full flex flex-col px-4 py-3 text-left hover:bg-white/5 transition-colors gap-1.5"
         onClick={() => setExpanded(!expanded)}
       >
-        <Phone className="w-4 h-4 text-white/40 flex-shrink-0" />
-        <span className="font-mono text-sm text-white/80 flex-shrink-0">+{conv.phone}</span>
-        <span className="text-white/40 text-xs flex-shrink-0">{conv.collectedName || "—"}</span>
-        <div className="flex items-center gap-2 ml-auto flex-wrap justify-end">
+        {/* Row 1: phone + name + chevron */}
+        <div className="flex items-center gap-2 w-full">
+          <Phone className="w-4 h-4 text-white/40 flex-shrink-0" />
+          <span className="font-mono text-sm text-white/80 flex-shrink-0">+{conv.phone}</span>
+          {conv.collectedName && (
+            <span className="text-white/40 text-xs truncate">{conv.collectedName}</span>
+          )}
+          <span className="ml-auto flex-shrink-0">
+            {expanded ? <ChevronUp className="w-4 h-4 text-white/30" /> : <ChevronDown className="w-4 h-4 text-white/30" />}
+          </span>
+        </div>
+        {/* Row 2: badges */}
+        <div className="flex items-center gap-2 flex-wrap pl-6">
           <WindowBadge open={windowOpen} />
           <OwnerBadge ownership={ownership} />
           <StateBadge state={aiState} />
@@ -108,7 +117,6 @@ function ConversationRow({ conv, onRefresh }: { conv: any; onRefresh: () => void
               {confidence}% conf
             </span>
           )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-white/30" /> : <ChevronDown className="w-4 h-4 text-white/30" />}
         </div>
       </button>
 
@@ -275,7 +283,7 @@ export default function AIWhatsApp() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data: flagsData, isLoading: flagsLoading } = useQuery<{ flags: Array<{ key: string; value: boolean; description: string }> }>({
+  const { data: allFlags = [], isLoading: flagsLoading } = useQuery<Array<{ key: string; value: boolean; description: string }>>({
     queryKey: ["/api/ai/flags"],
   });
 
@@ -285,15 +293,14 @@ export default function AIWhatsApp() {
 
   const toggleFlag = useMutation({
     mutationFn: ({ key, value }: { key: string; value: boolean }) =>
-      apiRequest("POST", "/api/ai/flags", { key, value }),
+      apiRequest("PATCH", `/api/ai/flags/${key}`, { value }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/ai/flags"] }); },
     onError: () => toast({ title: "Failed to update flag", variant: "destructive" }),
   });
 
-  const flags = flagsData?.flags ?? [];
-  const waFlags = flags.filter(f => f.key.startsWith("ai_whatsapp"));
+  const waFlags = allFlags.filter(f => f.key.startsWith("ai_whatsapp"));
   const conversations = convsData?.conversations ?? [];
-  const agentEnabled = flags.find(f => f.key === "ai_whatsapp_agent_enabled")?.value ?? false;
+  const agentEnabled = allFlags.find(f => f.key === "ai_whatsapp_agent_enabled")?.value ?? false;
 
   const stateBreakdown = conversations.reduce<Record<string, number>>((acc, c) => {
     const s = c.aiState || "new_lead";
@@ -309,20 +316,20 @@ export default function AIWhatsApp() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-500/10 border border-emerald-500/20">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 flex-shrink-0">
             <MessageCircle className="w-5 h-5 text-emerald-400" />
           </div>
-          <div>
-            <h2 className="text-lg font-bold text-white">WhatsApp AI Sales Agent</h2>
-            <p className="text-xs text-white/40">Lead qualification · Fact extraction · Follow-up · Handoff</p>
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-white leading-tight">WhatsApp AI Agent</h2>
+            <p className="text-xs text-white/40 mt-0.5">Qualification · Handoff · Follow-up</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`flex items-center gap-1.5 px-2 py-1 border text-xs font-bold ${agentEnabled ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "text-slate-400 bg-slate-500/10 border-slate-500/20"}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${agentEnabled ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
-            {agentEnabled ? "AGENT ACTIVE" : "AGENT OFF"}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className={`flex items-center gap-1.5 px-2 py-1 border text-[11px] font-bold whitespace-nowrap ${agentEnabled ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "text-slate-400 bg-slate-500/10 border-slate-500/20"}`}>
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${agentEnabled ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
+            {agentEnabled ? "ACTIVE" : "OFF"}
           </div>
           <button
             onClick={() => refetch()}
@@ -364,26 +371,29 @@ export default function AIWhatsApp() {
           ) : waFlags.length === 0 ? (
             <p className="px-4 py-3 text-sm text-white/30">No WhatsApp flags found</p>
           ) : (
-            waFlags.map(flag => (
-              <div key={flag.key} className="px-4 py-3 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-xs font-mono text-white/60">{flag.key}</p>
-                  <p className="text-xs text-white/30 mt-0.5 truncate">{flag.description}</p>
+            waFlags.map(flag => {
+              const shortKey = flag.key.replace("ai_whatsapp_", "").replace(/_/g, " ");
+              return (
+                <div key={flag.key} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-white/70 capitalize">{shortKey}</p>
+                    <p className="text-[11px] font-mono text-white/25 mt-0.5 truncate">{flag.key}</p>
+                  </div>
+                  <button
+                    data-testid={`toggle-${flag.key}`}
+                    onClick={() => toggleFlag.mutate({ key: flag.key, value: !flag.value })}
+                    disabled={toggleFlag.isPending}
+                    className={`flex-shrink-0 w-12 py-1 text-xs font-bold border transition-colors text-center ${
+                      flag.value
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10"
+                        : "bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20"
+                    }`}
+                  >
+                    {flag.value ? "ON" : "OFF"}
+                  </button>
                 </div>
-                <button
-                  data-testid={`toggle-${flag.key}`}
-                  onClick={() => toggleFlag.mutate({ key: flag.key, value: !flag.value })}
-                  disabled={toggleFlag.isPending}
-                  className={`flex-shrink-0 px-3 py-1 text-xs font-bold border transition-colors ${
-                    flag.value
-                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10"
-                      : "bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20"
-                  }`}
-                >
-                  {flag.value ? "ON" : "OFF"}
-                </button>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
