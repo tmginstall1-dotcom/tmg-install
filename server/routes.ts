@@ -6872,13 +6872,13 @@ Respond directly — no JSON, just the message text.`,
       const quote = await storage.getQuote(id);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
 
-      await db.update(quotes).set({
+      await db.update(quotesTable).set({
         depositPaidAt: null,
         paymentStatus: "unpaid",
         status: "deposit_requested",
-      }).where(eq(quotes.id, id));
+      }).where(eq(quotesTable.id, id));
 
-      await db.insert(jobUpdates).values({
+      await db.insert(jobUpdatesTable).values({
         quoteId: id,
         statusChange: "deposit_requested",
         actorType: "admin",
