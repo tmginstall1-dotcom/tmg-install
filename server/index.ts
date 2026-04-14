@@ -364,13 +364,99 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
       );
 
       INSERT INTO ai_feature_flags (key, value, description) VALUES
-        ('ai_master_kill_switch',         FALSE, 'Master kill switch — disables ALL AI automations when TRUE'),
-        ('ai_ads_enabled',                FALSE, 'Enable AI ads analysis and recommendations'),
-        ('ai_ads_auto_low_risk_enabled',  FALSE, 'Allow AI to auto-apply low-risk ads actions (negatives, minor pauses)'),
-        ('ai_site_audit_enabled',         TRUE,  'Enable AI site audits (CRO, SEO, Speed analysis)'),
-        ('ai_site_preview_enabled',       TRUE,  'Enable AI site change previews'),
-        ('ai_site_publish_enabled',       FALSE, 'Allow AI to publish approved site changes')
+        ('ai_master_kill_switch',              FALSE, 'Master kill switch — disables ALL AI automations when TRUE'),
+        ('ai_ads_enabled',                     FALSE, 'Enable AI ads analysis and recommendations'),
+        ('ai_ads_auto_low_risk_enabled',       FALSE, 'Allow AI to auto-apply low-risk ads actions (negatives, minor pauses)'),
+        ('ai_site_audit_enabled',              TRUE,  'Enable AI site audits (CRO, SEO, Speed analysis)'),
+        ('ai_site_preview_enabled',            TRUE,  'Enable AI site change previews'),
+        ('ai_site_publish_enabled',            FALSE, 'Allow AI to publish approved site changes'),
+        ('ai_google_ads_sync_enabled',         FALSE, 'Enable Google Ads API live sync — pulls campaign/adgroup data into ai_ads_snapshots'),
+        ('ai_meta_ads_sync_enabled',           FALSE, 'Enable Meta Ads API live sync — pulls campaign/adset data into ai_ads_snapshots'),
+        ('ai_search_console_enabled',          FALSE, 'Enable Google Search Console sync — pulls keyword/page performance'),
+        ('ai_pagespeed_enabled',               FALSE, 'Enable PageSpeed Insights sync — pulls CWV and Lighthouse scores'),
+        ('ai_scheduler_enabled',               FALSE, 'Enable automatic scheduled connector syncs'),
+        ('ai_auto_execute_enabled',            FALSE, 'Allow AI to auto-execute approved actions on platforms'),
+        ('ai_google_ads_execution_enabled',    FALSE, 'Enable live push of approved actions to Google Ads API'),
+        ('ai_meta_ads_execution_enabled',      FALSE, 'Enable live push of approved actions to Meta Ads API'),
+        ('ai_platform_execution_test_mode',    TRUE,  'When ON all platform pushes are dry-run only — no live API calls')
       ON CONFLICT (key) DO NOTHING;
+    `));
+
+    // ── Phase 6-8: Connector configs, execution records, search console, pagespeed ──
+    await withRetry(() => pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_connector_configs (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        last_sync_at TIMESTAMP,
+        last_sync_status TEXT NOT NULL DEFAULT 'never',
+        sync_error TEXT,
+        account_id TEXT,
+        extra_config JSONB,
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      INSERT INTO ai_connector_configs (name, enabled, last_sync_status) VALUES
+        ('google_ads',     FALSE, 'never'),
+        ('meta_ads',       FALSE, 'never'),
+        ('search_console', FALSE, 'never'),
+        ('pagespeed',      FALSE, 'never')
+      ON CONFLICT (name) DO NOTHING;
+
+      CREATE TABLE IF NOT EXISTS ai_search_console_data (
+        id SERIAL PRIMARY KEY,
+        sync_id TEXT,
+        date TEXT NOT NULL,
+        query TEXT,
+        page TEXT,
+        country TEXT,
+        device TEXT,
+        clicks INTEGER NOT NULL DEFAULT 0,
+        impressions INTEGER NOT NULL DEFAULT 0,
+        ctr NUMERIC(10,4),
+        position NUMERIC(10,2),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_pagespeed_data (
+        id SERIAL PRIMARY KEY,
+        url TEXT NOT NULL,
+        strategy TEXT NOT NULL DEFAULT 'mobile',
+        performance_score INTEGER,
+        accessibility_score INTEGER,
+        seo_score INTEGER,
+        best_practices_score INTEGER,
+        fcp_ms INTEGER,
+        lcp_ms INTEGER,
+        cls_score NUMERIC(10,4),
+        ttfb_ms INTEGER,
+        raw_audits JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_platform_executions (
+        id SERIAL PRIMARY KEY,
+        approval_queue_id INTEGER NOT NULL,
+        recommendation_id INTEGER,
+        platform TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        target_object_ids JSONB,
+        proposed_change JSONB,
+        executed_change JSONB,
+        actor TEXT NOT NULL DEFAULT 'system',
+        result_status TEXT NOT NULL DEFAULT 'pending',
+        platform_response_summary TEXT,
+        platform_response_raw JSONB,
+        rollback_path TEXT,
+        rollback_payload JSONB,
+        error_message TEXT,
+        test_mode BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      ALTER TABLE ai_approval_queue ADD COLUMN IF NOT EXISTS execution_status TEXT DEFAULT 'pending';
+      ALTER TABLE ai_approval_queue ADD COLUMN IF NOT EXISTS execution_result JSONB;
+      ALTER TABLE ai_approval_queue ADD COLUMN IF NOT EXISTS executed_at TIMESTAMP;
     `));
 
     console.log("[startup] DB schema ready, TMG50 seeded.");
