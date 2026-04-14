@@ -58,6 +58,11 @@ function PaymentChannelButtons({
     ? "inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
     : "inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-colors disabled:opacity-50";
 
+  // If deposit is already paid, the WA button sends the FINAL payment message
+  const depositAlreadyPaid = !!quote?.depositPaidAt;
+  const waLabel = depositAlreadyPaid ? "Send Final Payment" : "Send WhatsApp Payment";
+  const waLabelShort = depositAlreadyPaid ? "Final Payment" : "WhatsApp";
+
   if (!hasRealEmail && !hasPhone) {
     return (
       <div className="space-y-2">
@@ -76,7 +81,7 @@ function PaymentChannelButtons({
           data-testid="button-send-whatsapp-override"
         >
           <MessageCircle className="w-4 h-4" />
-          {whatsappPending ? "Sending…" : "Send WhatsApp Payment"}
+          {whatsappPending ? "Sending…" : waLabel}
         </button>
       </div>
     );
@@ -101,7 +106,7 @@ function PaymentChannelButtons({
           data-testid="button-send-payment-whatsapp"
         >
           <MessageCircle className="w-4 h-4" />
-          {whatsappPending ? "Sending…" : "WhatsApp"}
+          {whatsappPending ? "Sending…" : waLabelShort}
         </button>
       </div>
     );
@@ -129,7 +134,7 @@ function PaymentChannelButtons({
       data-testid="button-send-payment-whatsapp"
     >
       <MessageCircle className="w-4 h-4" />
-      {whatsappPending ? "Sending…" : "Send WhatsApp Payment"}
+      {whatsappPending ? "Sending…" : waLabel}
     </button>
   );
 }
@@ -216,9 +221,18 @@ export default function AdminQuoteDetail() {
   const sendWhatsAppPayment = useMutation({
     mutationFn: (phone?: string) =>
       apiRequest("POST", `/api/admin/quotes/${id}/send-whatsapp-payment`, phone ? { phone } : undefined),
-    onSuccess: () => {
+    onSuccess: async (res) => {
       setWaSentAt(new Date());
-      toast({ title: "✅ WhatsApp Sent", description: "Payment reminder sent to customer." });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", parseInt(id)] });
+      let data: any = {};
+      try { data = await res.clone().json(); } catch {}
+      const isFinal = data?.type === "final";
+      toast({
+        title: "✅ WhatsApp Sent",
+        description: isFinal
+          ? "Final payment reminder sent to customer."
+          : "Deposit payment reminder sent to customer.",
+      });
     },
     onError: (err: any) => {
       let reason = err?.message || "Could not send WhatsApp message.";

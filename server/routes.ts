@@ -6785,6 +6785,8 @@ Respond directly — no JSON, just the message text.`,
   });
 
   // ── Admin: Send Payment Link via WhatsApp ─────────────────────────────────
+  // Smart route: sends DEPOSIT message if deposit not yet paid,
+  //              sends FINAL PAYMENT message if deposit is already paid.
   app.post("/api/admin/quotes/:id/send-whatsapp-payment", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
     const id = parseInt(req.params.id);
@@ -6801,24 +6803,42 @@ Respond directly — no JSON, just the message text.`,
 
       // Normalise: strip non-digits, add SG country code if bare 8-digit local number
       const phone = normalizeSGPhone(rawPhone);
+      const customerName = (quote as any).customer?.name || "there";
+      const totalAmt = parseFloat(quote.total || "0");
 
-      // Use stored depositAmount; if missing/zero fall back to 50% of total (policy)
+      // ── Route A: Deposit already paid → send FINAL PAYMENT message ──────────
+      if (quote.depositPaidAt) {
+        const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
+        const finalAmount = parseFloat(quote.finalAmount || "0") > 0
+          ? parseFloat(quote.finalAmount!)
+          : Math.max(0, totalAmt - depositPaid);
+
+        const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}?type=final`;
+        const waMsg =
+          `Hi *${customerName}* 👋\n\n` +
+          `Your installation for *${quote.referenceNo}* is now complete. Thank you for choosing TMG Install! 🙏\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `💳 *Balance Due: S$${finalAmount.toFixed(2)}*\n` +
+          `_(50% balance payment — deposit already received)_\n` +
+          `Please clear the balance to close your job.\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n\n` +
+          waPayBlock(finalAmount, shortPayUrl) +
+          `\n\n_We hope to serve you again. Reply here if you need help._`;
+
+        await sendWhatsAppMessage(phone, waMsg);
+        console.log(`[WhatsApp] Final payment message sent to +${phone} for ${quote.referenceNo}`);
+        return res.json({
+          message: `Final payment reminder sent via WhatsApp to +${phone}`,
+          phone,
+          type: "final",
+        });
+      }
+
+      // ── Route B: Deposit not yet paid → send DEPOSIT message ────────────────
       const effectiveDeposit = parseFloat(quote.depositAmount || "0") > 0
         ? parseFloat(quote.depositAmount!)
-        : parseFloat(quote.total || "0") * 0.5;
+        : totalAmt * 0.5;
       const depositAmountStr = effectiveDeposit.toFixed(2);
-
-      // Generate Stripe payment link if available, else fall back to quote status page
-      let paymentLink = `${APP_URL}/quotes/${id}`;
-      if (stripe && effectiveDeposit > 0) {
-        const link = await createStripePaymentLink(
-          `Deposit for ${quote.referenceNo}`,
-          effectiveDeposit,
-          { quoteId: String(id), type: "deposit" },
-          `${APP_URL}/quotes/${id}`
-        );
-        if (link) paymentLink = link;
-      }
 
       // Use short URL in WhatsApp — cleaner than raw 200-char Stripe URL
       const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
@@ -6828,7 +6848,8 @@ Respond directly — no JSON, just the message text.`,
         preferredTimeWindow: (quote as any).preferredTimeWindow || undefined,
       });
 
-      res.json({ message: "Payment reminder sent via WhatsApp", phone });
+      console.log(`[WhatsApp] Deposit payment message sent to +${phone} for ${quote.referenceNo}`);
+      res.json({ message: "Deposit reminder sent via WhatsApp", phone, type: "deposit" });
     } catch (err: any) {
       console.error("[WhatsApp] Send payment link error:", err);
       // Surface the actual Meta API reason (e.g. token expired, 24h window, etc.)
