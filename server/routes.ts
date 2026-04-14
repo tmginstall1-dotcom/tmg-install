@@ -52,14 +52,15 @@ function normalizeSGPhone(raw: string | null | undefined): string {
 }
 
 // Build the full payment options block for WhatsApp deposit messages
-function waPayNowBlock(depositAmt: number, stripeLink: string): string {
+// shortPayUrl should be a clean short URL like https://tmginstall.com/pay/TMG-XXXX
+function waPayNowBlock(depositAmt: number, shortPayUrl: string): string {
   return (
-    `💳 *Option 1 — Pay by Card (Stripe):*\n` +
-    `${stripeLink}\n\n` +
+    `💳 *Option 1 — Pay by Card:*\n` +
+    `👉 ${shortPayUrl}\n\n` +
     `🏦 *Option 2 — PayNow Transfer:*\n` +
-    `UEN: *202424156H* (TMG Install by The Moving Guy Pte Ltd)\n` +
-    `Amount: *$${depositAmt.toFixed(2)}*\n\n` +
-    `After PayNow transfer, please *reply here with a screenshot* of your payment receipt. Our team will confirm your booking once verified. ✅`
+    `UEN: *202424156H* (TMG Install)\n` +
+    `Amount: *S$${depositAmt.toFixed(2)}*\n\n` +
+    `After PayNow, please *send a screenshot* of your receipt here. We'll confirm once verified. ✅`
   );
 }
 
@@ -3026,6 +3027,30 @@ Category rules:
     }
   });
 
+  // ── Short payment link redirect (/pay/TMG-XXXX → fresh Stripe session) ──────
+  // This keeps WhatsApp messages clean (short URL instead of raw 200-char Stripe URL)
+  app.get("/pay/:ref", async (req, res) => {
+    try {
+      const refNo = req.params.ref.toUpperCase();
+      const [quote] = await db.select().from(quotesTable).where(eq(quotesTable.referenceNo, refNo)).limit(1);
+      if (!quote) return res.redirect(`${APP_URL}/quotes`);
+
+      const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total || "0") * 0.5;
+      const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+      const stripeUrl = await createStripePaymentLink(
+        `Deposit for ${quote.referenceNo} — TMG Install`,
+        depositAmt,
+        { quoteId: String(quote.id), type: "deposit", referenceNo: quote.referenceNo },
+        quotePageUrl
+      );
+      if (!stripeUrl) return res.redirect(quotePageUrl);
+      res.redirect(stripeUrl);
+    } catch (err) {
+      console.error("[PayRedirect] Error:", err);
+      res.redirect(APP_URL);
+    }
+  });
+
   // ── Public job tracker (no auth) ────────────────────────────────────────────
   app.get("/api/public/track/:referenceNo", async (req, res) => {
     try {
@@ -3823,11 +3848,12 @@ ${systemPrompt}` });
         const rawWaPhone2 = quote.customerWhatsappPhone || quote.customer?.phone;
         const waPhone2 = rawWaPhone2 ? normalizeSGPhone(rawWaPhone2) : null;
         if (waPhone2 && !hasRealEmail) {
+          const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
           const waMsg =
             `💰 *Deposit Invoice — ${quote.referenceNo}*\n\n` +
             `Hi ${quote.customer.name || "there"}! Your quote has been approved.\n\n` +
-            `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* via one of the options below to confirm your slot:\n\n` +
-            waPayNowBlock(depositAmt, paymentLink) +
+            `Please pay the *50% deposit of S$${depositAmt.toFixed(2)}* via one of the options below to confirm your slot:\n\n` +
+            waPayNowBlock(depositAmt, shortPayUrl) +
             `\n\n_Your slot is held for 48 hours._`;
           const waSent = await sendWhatsAppMessage(waPhone2, waMsg).catch(() => false);
           if (waSent) {
@@ -4375,13 +4401,14 @@ ${systemPrompt}` });
         const rawWaPhone = quote.customerWhatsappPhone || quote.customer?.phone;
         const waPhone = rawWaPhone ? normalizeSGPhone(rawWaPhone) : null;
         if (waPhone) {
+          const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
           const waMsg =
             `💳 *Final Payment Due — ${quote.referenceNo}*\n\n` +
             `Hi ${quote.customer.name || "there"}! Your job is complete.\n\n` +
             (overtimeCharge > 0
-              ? `Your final balance is *$${finalAmount.toFixed(2)}*, which includes the 50% balance ($${baseBalance.toFixed(2)}) plus an overtime charge ($${overtimeCharge.toFixed(2)}) for exceeding the 2-hour allowance.\n\n`
-              : `Please pay the *outstanding balance of $${finalAmount.toFixed(2)}* to close your case.\n\n`) +
-            waPayNowBlock(finalAmount, paymentLink) +
+              ? `Your final balance is *S$${finalAmount.toFixed(2)}*, which includes the 50% balance (S$${baseBalance.toFixed(2)}) plus an overtime charge (S$${overtimeCharge.toFixed(2)}) for exceeding the 2-hour allowance.\n\n`
+              : `Please pay the *outstanding balance of S$${finalAmount.toFixed(2)}* to close your case.\n\n`) +
+            waPayNowBlock(finalAmount, shortPayUrl) +
             `\n\n_Thank you for choosing TMG Install!_ 🙏`;
           const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
           sendOk = !!waSent;
@@ -6758,7 +6785,9 @@ Respond directly — no JSON, just the message text.`,
         if (link) paymentLink = link;
       }
 
-      await sendWhatsAppPaymentLink(phone, quote.referenceNo, depositAmountStr, paymentLink, {
+      // Use short URL in WhatsApp — cleaner than raw 200-char Stripe URL
+      const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
+      await sendWhatsAppPaymentLink(phone, quote.referenceNo, depositAmountStr, shortPayUrl, {
         customerName: (quote as any).customer?.name || undefined,
         preferredDate: (quote as any).preferredDate || undefined,
         preferredTimeWindow: (quote as any).preferredTimeWindow || undefined,
@@ -6835,11 +6864,12 @@ Respond directly — no JSON, just the message text.`,
           return res.status(400).json({ message: "No real email and no WhatsApp number found for this customer." });
         }
         const waPhone = normalizeSGPhone(rawPhone);
+        const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
         const waMsg =
           `💰 *Deposit Invoice — ${quote.referenceNo}*\n\n` +
           `Hi ${quote.customer?.name || "there"}! Your quote has been approved.\n\n` +
-          `Please pay the *50% deposit of $${depositAmt.toFixed(2)}* via one of the options below to confirm your slot:\n\n` +
-          waPayNowBlock(depositAmt, paymentLink) +
+          `Please pay the *50% deposit of S$${depositAmt.toFixed(2)}* via one of the options below to confirm your slot:\n\n` +
+          waPayNowBlock(depositAmt, shortPayUrl) +
           `\n\n_Your slot is held for 48 hours._`;
         const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
         if (!waSent) {

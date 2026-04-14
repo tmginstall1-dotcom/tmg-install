@@ -371,12 +371,12 @@ export async function sendWhatsAppPaymentLink(
     `${slotLine}` +
     `Your slot is held — but only until the deposit is received.\n\n` +
     `Choose your preferred payment method:\n\n` +
-    `💳 *Option 1 — Pay by Card (Stripe):*\n` +
-    `${paymentLink}\n\n` +
+    `💳 *Option 1 — Pay by Card:*\n` +
+    `👉 ${paymentLink}\n\n` +
     `🏦 *Option 2 — PayNow Transfer:*\n` +
-    `UEN: *202424156H* (TMG Install by The Moving Guy Pte Ltd)\n` +
+    `UEN: *202424156H* (TMG Install)\n` +
     `Amount: *S$${depositAmount}*\n\n` +
-    `After PayNow transfer, please *reply here with a screenshot* of your payment receipt. Our team will confirm your booking once verified.\n\n` +
+    `After PayNow, please *send a screenshot* of your receipt here. We'll confirm once verified. ✅\n\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `_Need help? Reply to this message or call us. Min. notice 48h for rescheduling._`;
 
