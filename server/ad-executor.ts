@@ -63,6 +63,50 @@ export function metaExecCredsCheck(): string[] {
   ] as (string | null)[]).filter(Boolean) as string[];
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// PILOT SAFETY FENCE — Phase 8 controlled live pilot
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * PILOT_LIVE_SAFE_ACTION_TYPES: Only these action types are permitted to make
+ * real API calls in live mode. Everything else is forced to dry-run or export-only
+ * regardless of the testMode flag value.
+ *
+ * Current pilot scope (v1):
+ *   Google Ads: negative keyword adds, pause/enable individual ad or ad group
+ *   Meta Ads:   pause/enable individual ad or ad set
+ *
+ * NOT in pilot scope (forces dry-run):
+ *   Budget adjustments (both platforms) — too high blast radius
+ *   Campaign-level actions — require additional review
+ *   Creative launches — require separate compliance review
+ *   Label, targeting, bidding changes — out of scope
+ */
+const PILOT_LIVE_SAFE_ACTION_TYPES = new Set([
+  "negative_keyword_add",  // Google Ads: add negative keywords to a campaign
+  "pause_ad",              // Google Ads + Meta Ads: pause a single ad
+  "enable_ad",             // Google Ads + Meta Ads: enable/unpause a single ad
+  "pause_ad_group",        // Google Ads: pause an ad group
+  "enable_ad_group",       // Google Ads: enable an ad group
+  "pause_adset",           // Meta Ads: pause an ad set
+  "enable_adset",          // Meta Ads: enable an ad set
+]);
+
+/** Build a pilot-fence dry-run result for budget actions (safe — generates payload but makes no API call). */
+function buildBudgetFencedResult(
+  base: PlatformExecutionResult,
+): PlatformExecutionResult {
+  return {
+    ...base,
+    resultStatus: "test_mode",
+    testMode: true,
+    platformResponseSummary:
+      `[PILOT FENCE — dry run only] ${base.platformResponseSummary} ` +
+      `Budget adjustments are locked to dry-run mode in the current pilot. ` +
+      `Review the payload, then apply manually in the platform dashboard.`,
+  };
+}
+
 // ── Budget cap guard ───────────────────────────────────────────────────────────
 const MAX_BUDGET_INCREASE_PCT = 10;
 
@@ -779,14 +823,18 @@ export async function executePlatformAction(
     }
 
     if (action === "adjust_budget" || action === "scale" || action === "cut") {
-      const missing = gadsExecCredsCheck();
-      if (missing.length > 0 && !testMode) {
-        return { platform: "google_ads", actionType: "adjust_budget", targetObjectIds: {}, proposedChange: pa, executedChange: {}, resultStatus: "failed", platformResponseSummary: `Missing creds: ${missing.join(", ")}`, rollbackPath: "No changes made.", errorMessage: `Missing: ${missing.join(", ")}`, testMode };
+      // ── PILOT FENCE: budget adjustments are locked to dry-run mode ────────────
+      // Even when testMode=false (connector live mode), budget changes generate a
+      // full payload but never make a live API call. This prevents uncontrolled
+      // ad spend changes during the Phase 8 pilot.
+      const fencedBase = await executeGoogleAdsBudgetAdjust(pa, item, true /* always dry-run */);
+      if (!testMode) {
+        return buildBudgetFencedResult(fencedBase);
       }
-      return executeGoogleAdsBudgetAdjust(pa, item, testMode);
+      return fencedBase;
     }
 
-    // Everything else → export only
+    // Everything else → export only (unsupported Google Ads action type)
     return buildExportOnlyResult(pa, item, "google_ads", testMode);
   }
 
@@ -811,13 +859,15 @@ export async function executePlatformAction(
     }
 
     if (action === "adjust_budget" || action === "scale" || action === "cut") {
-      const missing = metaExecCredsCheck();
-      if (missing.length > 0 && !testMode) {
-        return { platform: "meta_ads", actionType: "adjust_budget", targetObjectIds: {}, proposedChange: pa, executedChange: {}, resultStatus: "failed", platformResponseSummary: `Missing Meta creds: ${missing.join(", ")}`, rollbackPath: "No changes made.", errorMessage: `Missing: ${missing.join(", ")}`, testMode };
+      // ── PILOT FENCE: budget adjustments are locked to dry-run mode ────────────
+      const fencedBase = await executeMetaBudgetAdjust(pa, item, true /* always dry-run */);
+      if (!testMode) {
+        return buildBudgetFencedResult(fencedBase);
       }
-      return executeMetaBudgetAdjust(pa, item, testMode);
+      return fencedBase;
     }
 
+    // Everything else → export only (unsupported Meta action type)
     return buildExportOnlyResult(pa, item, "meta_ads", testMode);
   }
 

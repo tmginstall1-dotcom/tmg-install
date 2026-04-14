@@ -386,11 +386,11 @@ function PlatformExecutionSection({ platformExecution }: { platformExecution?: a
   const pe = platformExecution;
 
   const STATUS_META: Record<string, { label: string; color: string; Icon: any }> = {
-    success:      { label: "Live — Success",   color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", Icon: CheckCheck },
-    test_mode:    { label: "Test Mode (dry run)", color: "text-blue-400 bg-blue-500/10 border-blue-500/20",     Icon: FlaskConical },
-    export_only:  { label: "Export Only",      color: "text-amber-400 bg-amber-500/10 border-amber-500/20",     Icon: FileText },
-    failed:       { label: "Failed",           color: "text-red-400 bg-red-500/10 border-red-500/20",           Icon: XCircle },
-    missing_ids:  { label: "Missing IDs",      color: "text-orange-400 bg-orange-500/10 border-orange-500/20", Icon: BadgeAlert },
+    success:      { label: "Live Push Succeeded",        color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", Icon: CheckCheck },
+    test_mode:    { label: "Dry Run Complete",           color: "text-blue-400 bg-blue-500/10 border-blue-500/20",         Icon: FlaskConical },
+    export_only:  { label: "Export Only — apply manually", color: "text-amber-400 bg-amber-500/10 border-amber-500/20",   Icon: FileText },
+    failed:       { label: "Live Push Failed",           color: "text-red-400 bg-red-500/10 border-red-500/20",           Icon: XCircle },
+    missing_ids:  { label: "Missing Target IDs",         color: "text-orange-400 bg-orange-500/10 border-orange-500/20", Icon: BadgeAlert },
   };
 
   const sm = STATUS_META[pe.resultStatus] ?? STATUS_META["export_only"];
@@ -447,17 +447,27 @@ function PlatformExecutionSection({ platformExecution }: { platformExecution?: a
         </div>
       )}
 
-      {/* Test mode payload toggle */}
-      {pe.resultStatus === "test_mode" && (
-        <button
-          onClick={() => setRawOpen(!rawOpen)}
-          className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
-        >
-          {rawOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          {rawOpen ? "Hide" : "Show"} dry-run payload
-        </button>
-      )}
-      {rawOpen && pe.resultStatus === "test_mode" && (
+      {/* Execution receipt row */}
+      <div className="flex items-center gap-3 flex-wrap text-[10px] text-slate-600 font-mono">
+        {pe.id && <span>#{pe.id}</span>}
+        {pe.id && <span className="text-slate-700">·</span>}
+        <span className="text-slate-500 font-sans">{pe.actionType ?? pe.action_type ?? "—"}</span>
+        {pe.pilotFence && (
+          <span className="text-amber-600 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase font-sans">
+            Pilot Fence
+          </span>
+        )}
+      </div>
+
+      {/* Raw response / payload toggle — available for all statuses */}
+      <button
+        onClick={() => setRawOpen(!rawOpen)}
+        className={`flex items-center gap-1 text-[10px] hover:opacity-80 transition-opacity ${pe.resultStatus === "test_mode" ? "text-blue-400" : pe.resultStatus === "success" ? "text-emerald-400" : pe.resultStatus === "failed" ? "text-red-400" : "text-slate-500"}`}
+      >
+        {rawOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        {rawOpen ? "Hide" : "Show"} {pe.resultStatus === "test_mode" ? "dry-run payload" : pe.resultStatus === "success" ? "platform receipt" : "response details"}
+      </button>
+      {rawOpen && (
         <pre className="p-3 bg-black/30 border border-white/5 rounded-lg text-[10px] text-slate-400 overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
           {JSON.stringify(pe, null, 2)}
         </pre>
@@ -591,16 +601,29 @@ export default function AIApprovalQueue() {
       const testMode = data?.testMode;
       const status = data?.resultStatus ?? "unknown";
       if (status === "success") {
-        toast({ title: "Pushed to platform", description: data?.summary ?? "Change sent to the ad platform." });
-      } else if (testMode) {
-        toast({ title: "Test mode — dry run complete", description: "No live API call made. Expand to view the generated payload." });
+        toast({ title: "Live push succeeded", description: data?.summary ?? "Change sent to the ad platform." });
+      } else if (testMode || status === "test_mode") {
+        toast({ title: "Dry run complete", description: "No live API call made. Expand the item to view the payload." });
       } else if (status === "failed" || status === "missing_ids") {
         toast({ title: "Platform push failed", description: data?.summary ?? data?.errorMessage, variant: "destructive" });
+      } else if (status === "export_only") {
+        toast({ title: "Export only — apply manually", description: data?.summary ?? "This action type requires manual application. The payload is in the detail panel." });
       } else {
         toast({ title: "Platform push complete", description: data?.summary ?? "Done." });
       }
     },
-    onError: (err: any) => toast({ title: "Platform push failed", description: err.message, variant: "destructive" }),
+    onError: (err: any) => {
+      if (err?.message?.includes("already been pushed") || err?.message?.includes("already been")) {
+        toast({ title: "Already pushed", description: "This action was already pushed. Expand the item to view the existing result." });
+      } else {
+        toast({ title: "Platform push failed", description: err.message, variant: "destructive" });
+      }
+    },
+  });
+
+  const { data: connectorStatus } = useQuery<Record<string, any>>({
+    queryKey: ["/api/ai/connectors/status"],
+    staleTime: 30_000,
   });
 
   const generateActions = useMutation({
@@ -780,6 +803,13 @@ export default function AIApprovalQueue() {
               const isPlatformItem = isGoogleItem || isMetaItem;
               const platformLabel = isGoogleItem ? "Google Ads" : isMetaItem ? "Meta Ads" : null;
               const hasPlatformExec = !!(item.executionResult as any)?.platformExecution;
+
+              // Determine if next push will be live or dry-run from connector status
+              const connKey = isGoogleItem ? "google_ads" : isMetaItem ? "meta_ads" : null;
+              const connStat = connKey ? connectorStatus?.[connKey] : null;
+              const pushWillBeLive = connStat
+                ? (connStat.executionEnabled && !connStat.executionTestMode)
+                : false;
               return (
                 <div key={item.id} data-testid={`approval-item-${item.id}`}
                   className={`bg-white/5 border rounded-xl overflow-hidden transition-all ${
@@ -971,27 +1001,42 @@ export default function AIApprovalQueue() {
                             <div className="flex items-center gap-1.5 text-[10px] text-violet-400">
                               <Rocket className="w-3 h-3" />
                               <span>
-                                Platform {(item.executionResult as any)?.platformExecution?.testMode ? "dry-run" : "push"} recorded
-                                {" "}({(item.executionResult as any)?.platformExecution?.resultStatus})
-                                · Expand to view result
+                                Platform {(item.executionResult as any)?.platformExecution?.testMode ? "dry-run" : "live push"} recorded
+                                {" "}· <span className={`font-semibold ${(item.executionResult as any)?.platformExecution?.resultStatus === "success" ? "text-emerald-400" : (item.executionResult as any)?.platformExecution?.resultStatus === "test_mode" ? "text-blue-400" : (item.executionResult as any)?.platformExecution?.resultStatus === "failed" ? "text-red-400" : "text-amber-400"}`}>{(item.executionResult as any)?.platformExecution?.resultStatus === "success" ? "Succeeded" : (item.executionResult as any)?.platformExecution?.resultStatus === "test_mode" ? "Dry Run Complete" : (item.executionResult as any)?.platformExecution?.resultStatus === "failed" ? "Failed" : (item.executionResult as any)?.platformExecution?.resultStatus}</span>
+                                {" "}· Expand to view receipt
                               </span>
                             </div>
                           ) : (
                             <>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[10px] text-slate-500">
-                                  Push this approved action directly to {platformLabel} API (test mode by default — no live changes until test mode is disabled).
-                                </p>
+                              <div className="flex-1 min-w-0 space-y-1">
+                                {/* Readiness indicator */}
+                                {pushWillBeLive ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                                    <p className="text-[10px] text-red-400 font-semibold">Ready to push LIVE — this will make a real API call</p>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                    <p className="text-[10px] text-blue-400">Ready — dry run mode · no live changes</p>
+                                  </div>
+                                )}
                               </div>
                               <button
                                 onClick={() => platformExecute.mutate(item.id)}
                                 disabled={platformExecute.isPending}
                                 data-testid={`platform-execute-${item.id}`}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 text-violet-300 text-[11px] font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                                className={`flex items-center gap-1.5 px-3 py-1.5 border text-[11px] font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0 ${
+                                  pushWillBeLive
+                                    ? "bg-red-600/20 hover:bg-red-600/40 border-red-500/30 text-red-300"
+                                    : "bg-violet-600/20 hover:bg-violet-600/40 border-violet-500/30 text-violet-300"
+                                }`}
                               >
                                 {platformExecute.isPending
                                   ? <><Loader2 className="w-3 h-3 animate-spin" /> Pushing…</>
-                                  : <><Send className="w-3 h-3" /> Push to {platformLabel}</>
+                                  : pushWillBeLive
+                                    ? <><Send className="w-3 h-3" /> Push LIVE to {platformLabel}</>
+                                    : <><FlaskConical className="w-3 h-3" /> Dry Run — {platformLabel}</>
                                 }
                               </button>
                             </>

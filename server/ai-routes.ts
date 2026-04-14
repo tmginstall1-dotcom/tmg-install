@@ -1093,17 +1093,40 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
    */
   app.post("/api/ai/approvals/:id/platform-execute", requireAdmin, async (req: Request, res: Response) => {
     try {
+      // ── Gate 1: Master kill switch ─────────────────────────────────────────
       const killSwitch = await getFlag("ai_master_kill_switch");
       if (killSwitch) return res.status(503).json({ message: "AI master kill switch is active. Platform execution is disabled." });
 
       const id = parseInt(req.params.id);
       const actor = (req as any).user?.username || "admin";
 
-      // Load item
+      // ── Gate 2: Load and validate the approval item ────────────────────────
       const [item] = await db.select().from(aiApprovalQueue).where(eq(aiApprovalQueue.id, id)).limit(1);
       if (!item) return res.status(404).json({ message: "Approval item not found." });
       if (item.status !== "approved") {
         return res.status(400).json({ message: `Cannot platform-execute: item status is "${item.status}". Only approved items can be pushed to the platform.` });
+      }
+
+      // ── Gate 3: Idempotency check — block duplicate pushes ─────────────────
+      // Each approval item may only be pushed to the platform once.
+      const [existingExec] = await db
+        .select({ id: aiPlatformExecutions.id, resultStatus: aiPlatformExecutions.resultStatus, platform: aiPlatformExecutions.platform, actionType: aiPlatformExecutions.actionType, createdAt: aiPlatformExecutions.createdAt })
+        .from(aiPlatformExecutions)
+        .where(eq(aiPlatformExecutions.approvalQueueId, id))
+        .limit(1);
+
+      if (existingExec) {
+        return res.status(409).json({
+          message: `This action has already been pushed to the platform (execution #${existingExec.id}, status: ${existingExec.resultStatus}). Expand the item to view the existing result. Each approved action may only be pushed once.`,
+          alreadyPushed: true,
+          existingExecution: {
+            id: existingExec.id,
+            resultStatus: existingExec.resultStatus,
+            platform: existingExec.platform,
+            actionType: existingExec.actionType,
+            createdAt: existingExec.createdAt,
+          },
+        });
       }
 
       const pa = (item.proposedAction as any) ?? {};
@@ -1111,7 +1134,7 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       const isGoogle = platformRaw === "google" || platformRaw === "google_ads" || item.queueType === "negative_keyword";
       const isMeta   = platformRaw === "meta" || platformRaw === "meta_ads";
 
-      // Check platform-specific execution flag
+      // ── Gate 4: Platform-specific execution flag ───────────────────────────
       if (isGoogle) {
         const gadsExecEnabled = await getFlag("ai_google_ads_execution_enabled");
         if (!gadsExecEnabled) {
@@ -1130,8 +1153,28 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
         }
       }
 
-      // Determine test mode from flag
+      // ── Gate 5: Determine test mode from flag ──────────────────────────────
       const testMode = await getFlag("ai_platform_execution_test_mode");
+
+      // ── Gate 6: Additional live-mode safety flags ──────────────────────────
+      // When testMode=false (live execution), two extra AI system flags must also
+      // be ON. This adds a double-confirm requirement before any live API call.
+      if (!testMode) {
+        const adsEnabled = await getFlag("ai_ads_enabled");
+        if (!adsEnabled) {
+          return res.status(403).json({
+            message: "Live execution requires 'ai_ads_enabled' to be ON. Enable it in AI Hub → Feature Flags.",
+            flagKey: "ai_ads_enabled",
+          });
+        }
+        const autoExecEnabled = await getFlag("ai_auto_execute_enabled");
+        if (!autoExecEnabled) {
+          return res.status(403).json({
+            message: "Live execution requires 'ai_auto_execute_enabled' to be ON. Enable it in AI Hub → Feature Flags.",
+            flagKey: "ai_auto_execute_enabled",
+          });
+        }
+      }
 
       // Execute platform action
       const execResult: PlatformExecutionResult = await executePlatformAction(item, actor, testMode);
