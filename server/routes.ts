@@ -6863,6 +6863,36 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── Admin: Reset deposit so a new payment link can be sent ───────────────
+  app.post("/api/admin/quotes/:id/reset-deposit", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    try {
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+
+      await db.update(quotes).set({
+        depositPaidAt: null,
+        paymentStatus: "unpaid",
+        status: "deposit_requested",
+      }).where(eq(quotes.id, id));
+
+      await db.insert(jobUpdates).values({
+        quoteId: id,
+        statusChange: "deposit_requested",
+        actorType: "admin",
+        note: `Deposit status reset by admin — previous test payment cleared. New link to be sent.`,
+      });
+
+      console.log(`[Admin] Deposit reset for ${quote.referenceNo} by admin`);
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("[Admin] Reset deposit error:", err);
+      res.status(500).json({ message: err?.message || "Failed to reset deposit" });
+    }
+  });
+
   // ── Admin: Mark PayNow / manual deposit as received ───────────────────────
   app.post("/api/admin/quotes/:id/mark-paynow-paid", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });

@@ -227,6 +227,18 @@ export default function AdminQuoteDetail() {
     },
   });
 
+  const resetDeposit = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/admin/quotes/${id}/reset-deposit`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", id] });
+      toast({ title: "Deposit reset", description: "Status reset to deposit requested. You can now resend the payment link." });
+    },
+    onError: () => toast({ title: "Reset failed", variant: "destructive" }),
+  });
+
   const resendDepositEmail = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/admin/quotes/${id}/resend-deposit-email`);
@@ -1292,6 +1304,21 @@ export default function AdminQuoteDetail() {
                           data-testid="button-mark-deposit-received"
                           className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-amber-300 text-amber-800 hover:bg-amber-50 text-sm font-medium transition-colors">
                           <QrCode className="w-4 h-4" /> Mark Deposit Received (PayNow)
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Re-collect deposit — for cases where previous payment needs to be reset (e.g. test mode) */}
+                    {quote.depositPaidAt && (
+                      <div className="border border-zinc-200 rounded-lg p-3 space-y-2">
+                        <p className="text-xs font-semibold text-zinc-500">Need to re-collect deposit?</p>
+                        <p className="text-xs text-zinc-400">Use this if the previous payment was a test or failed. This will reset the deposit status and let you send a new payment link.</p>
+                        <button
+                          data-testid="button-reset-deposit"
+                          onClick={() => resetDeposit.mutate()}
+                          disabled={resetDeposit.isPending}
+                          className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors disabled:opacity-50">
+                          {resetDeposit.isPending ? "Resetting…" : "↺ Reset & Re-send Deposit Link"}
                         </button>
                       </div>
                     )}
