@@ -378,7 +378,12 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
         ('ai_auto_execute_enabled',            FALSE, 'Allow AI to auto-execute approved actions on platforms'),
         ('ai_google_ads_execution_enabled',    FALSE, 'Enable live push of approved actions to Google Ads API'),
         ('ai_meta_ads_execution_enabled',      FALSE, 'Enable live push of approved actions to Meta Ads API'),
-        ('ai_platform_execution_test_mode',    TRUE,  'When ON all platform pushes are dry-run only — no live API calls')
+        ('ai_platform_execution_test_mode',    TRUE,  'When ON all platform pushes are dry-run only — no live API calls'),
+        ('ai_whatsapp_agent_enabled',          FALSE, 'Enable WhatsApp AI sales agent — intercepts inbound messages for lead qualification'),
+        ('ai_whatsapp_followups_enabled',      FALSE, 'Enable AI-scheduled follow-up messages (missing info, quote, deposit, booking, stale)'),
+        ('ai_whatsapp_auto_qualify_enabled',   TRUE,  'Allow AI to send qualifying replies automatically inside the 24-hr window'),
+        ('ai_whatsapp_template_mode_enabled',  TRUE,  'Allow template-style messages outside the 24-hr window when permitted'),
+        ('ai_whatsapp_handoff_required_on_low_confidence', TRUE, 'Force human handoff when AI confidence score drops below 0.3')
       ON CONFLICT (key) DO NOTHING;
     `));
 

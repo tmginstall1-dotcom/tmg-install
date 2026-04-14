@@ -1,0 +1,666 @@
+/**
+ * WhatsApp AI Sales Agent — Phase 9
+ *
+ * This module is a layer ABOVE the existing WhatsApp transport.
+ * It does NOT replace the legacy bot flow.
+ * When ai_whatsapp_agent_enabled = true, this module intercepts inbound
+ * messages first. If it handles the message it returns { handled: true }.
+ * If disabled or unhandled, the legacy bot continues as before.
+ *
+ * SAFETY RULES:
+ * - Respects ai_master_kill_switch
+ * - Respects ai_whatsapp_agent_enabled
+ * - Never modifies booking/payment/quote logic
+ * - All sends use existing sendBotMessage transport
+ * - All actions logged to ai_audit_log
+ * - Fails gracefully — never crashes the webhook handler
+ */
+
+import { db } from "./db";
+import { eq, and, lte, desc } from "drizzle-orm";
+import {
+  aiFeatureFlags,
+  aiAuditLog,
+  aiWhatsappFollowups,
+  aiWhatsappHandoffs,
+  whatsappSessions,
+} from "@shared/schema";
+import { sendBotMessage } from "./whatsapp";
+import { storage } from "./storage";
+import { openai } from "./replit_integrations/audio/client";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type AiConvState =
+  | "new_lead"
+  | "qualifying"
+  | "waiting_for_customer"
+  | "quote_ready"
+  | "human_review_required"
+  | "quote_sent"
+  | "deposit_pending"
+  | "booking_pending"
+  | "completed"
+  | "stale_reactivation_candidate"
+  | "blocked_outside_window";
+
+export interface CaseFacts {
+  serviceType?: "installation" | "dismantling" | "relocation" | "office_fitout" | "unknown";
+  customerName?: string;
+  phone?: string;
+  sourceChannel?: string;
+  jobAddress?: string;
+  floorLevel?: number;
+  hasLift?: boolean;
+  homeOrOffice?: "home" | "office" | "commercial" | "unknown";
+  itemTypes?: string[];
+  quantity?: number;
+  urgency?: "asap" | "this_week" | "this_month" | "flexible";
+  preferredDate?: string;
+  photosPresent?: boolean;
+  specialNotes?: string;
+  toAddress?: string;
+  confidenceLevel?: number;
+}
+
+const REQUIRED_FACTS: (keyof CaseFacts)[] = [
+  "serviceType",
+  "jobAddress",
+  "homeOrOffice",
+  "itemTypes",
+  "floorLevel",
+  "hasLift",
+  "preferredDate",
+];
+
+const HANDOFF_TRIGGERS = /\b(refund|complaint|scam|useless|ridiculous|angry|cheating|threatening|speak to (a )?human|talk to (a )?person|manager|escalate|legal|sue|lawyer|dispute)\b/i;
+const CUSTOM_PRICING_TRIGGERS = /\b(special (rate|price|deal|discount)|negotiate|can you do better|cheaper|give me|best price)\b/i;
+const UNSUPPORTED_TRIGGERS = /\b(deliver|shipping|courier|lorry|moving company|buy furniture|sell furniture|repair|fix|warranty|insurance)\b/i;
+
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
+async function getFlag(key: string): Promise<boolean> {
+  try {
+    const rows = await db.select().from(aiFeatureFlags).where(eq(aiFeatureFlags.key, key)).limit(1);
+    return rows[0]?.value ?? false;
+  } catch { return false; }
+}
+
+async function logAudit(
+  actionType: string,
+  actor: string,
+  summary: string,
+  detail?: Record<string, unknown>,
+) {
+  try {
+    await db.insert(aiAuditLog).values({
+      actionType,
+      actor,
+      module: "whatsapp_agent",
+      summary,
+      detail,
+      outcome: "success",
+    });
+  } catch { /* non-fatal */ }
+}
+
+function parseFacts(raw: string | null | undefined): CaseFacts {
+  try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+}
+
+function parseMissing(raw: string | null | undefined): string[] {
+  try { return raw ? JSON.parse(raw) : []; } catch { return []; }
+}
+
+// ── 24-Hour Window Check ──────────────────────────────────────────────────────
+// WhatsApp policy: businesses may only send free-form messages within 24 hours
+// of the last customer-initiated message. Outside this window, only approved
+// message templates are allowed.
+export function check24hrWindow(lastInboundAt: Date | null | undefined): boolean {
+  if (!lastInboundAt) return false;
+  const elapsed = Date.now() - new Date(lastInboundAt).getTime();
+  return elapsed < 24 * 60 * 60 * 1000;
+}
+
+// ── Fact Extraction ───────────────────────────────────────────────────────────
+async function extractFacts(
+  text: string,
+  history: Array<{ role: string; content: string }>,
+  currentFacts: CaseFacts,
+): Promise<{ facts: CaseFacts; confidence: number }> {
+  try {
+    const historyText = history.slice(-6).map(h => `${h.role}: ${h.content}`).join("\n");
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 600,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are a fact extractor for TMG Install, a Singapore furniture installation company.
+Extract structured facts from the customer's message and return a JSON object.
+Only update fields where the new message provides information — keep existing values for fields not mentioned.
+
+SERVICES: installation, dismantling, relocation, office_fitout
+CURRENT KNOWN FACTS: ${JSON.stringify(currentFacts)}
+CONVERSATION HISTORY:
+${historyText}
+
+Return ONLY a JSON object with these optional fields:
+{
+  "serviceType": "installation"|"dismantling"|"relocation"|"office_fitout"|"unknown",
+  "customerName": string,
+  "jobAddress": string,
+  "floorLevel": number,
+  "hasLift": boolean,
+  "homeOrOffice": "home"|"office"|"commercial"|"unknown",
+  "itemTypes": string[],
+  "quantity": number,
+  "urgency": "asap"|"this_week"|"this_month"|"flexible",
+  "preferredDate": string,
+  "photosPresent": boolean,
+  "specialNotes": string,
+  "toAddress": string,
+  "confidenceLevel": number (0.0-1.0 how confident you are about serviceType)
+}
+Only include fields where you have new/updated information.`,
+        },
+        { role: "user", content: text },
+      ],
+    });
+
+    const raw = res.choices[0]?.message?.content ?? "{}";
+    const extracted = JSON.parse(raw) as Partial<CaseFacts>;
+    const merged: CaseFacts = { ...currentFacts, ...extracted };
+    const confidence = typeof extracted.confidenceLevel === "number"
+      ? extracted.confidenceLevel
+      : (currentFacts.confidenceLevel ?? 0.5);
+    return { facts: merged, confidence };
+  } catch {
+    return { facts: currentFacts, confidence: currentFacts.confidenceLevel ?? 0.5 };
+  }
+}
+
+// ── Missing Facts Check ───────────────────────────────────────────────────────
+function computeMissingFacts(facts: CaseFacts): string[] {
+  const missing: string[] = [];
+  if (!facts.serviceType || facts.serviceType === "unknown") missing.push("serviceType");
+  if (!facts.jobAddress) missing.push("jobAddress");
+  if (!facts.homeOrOffice || facts.homeOrOffice === "unknown") missing.push("homeOrOffice");
+  if (!facts.itemTypes || facts.itemTypes.length === 0) missing.push("itemTypes");
+  if (facts.floorLevel === undefined) missing.push("floorLevel");
+  if (facts.hasLift === undefined) missing.push("hasLift");
+  if (!facts.preferredDate) missing.push("preferredDate");
+  if (facts.serviceType === "relocation" && !facts.toAddress) missing.push("toAddress");
+  return missing;
+}
+
+function isQuoteReady(facts: CaseFacts): boolean {
+  const missing = computeMissingFacts(facts);
+  // Quote ready if we have core facts — date is optional (can be flexible)
+  const blocking = missing.filter(f => f !== "preferredDate");
+  return blocking.length === 0;
+}
+
+// ── Handoff Detection ─────────────────────────────────────────────────────────
+interface HandoffCheck {
+  required: boolean;
+  reason: string;
+}
+
+async function shouldHandoff(
+  text: string,
+  facts: CaseFacts,
+  confidence: number,
+): Promise<HandoffCheck> {
+  if (HANDOFF_TRIGGERS.test(text)) {
+    return { required: true, reason: "frustrated" };
+  }
+  if (CUSTOM_PRICING_TRIGGERS.test(text)) {
+    return { required: true, reason: "custom_pricing" };
+  }
+  if (UNSUPPORTED_TRIGGERS.test(text)) {
+    return { required: true, reason: "unsupported_service" };
+  }
+  const lowConfFlag = await getFlag("ai_whatsapp_handoff_required_on_low_confidence");
+  if (lowConfFlag && confidence < 0.3) {
+    return { required: true, reason: "low_confidence" };
+  }
+  return { required: false, reason: "" };
+}
+
+// ── Sales Reply Generation ────────────────────────────────────────────────────
+async function generateSalesReply(params: {
+  from: string;
+  text: string;
+  facts: CaseFacts;
+  missingFacts: string[];
+  aiState: AiConvState;
+  history: Array<{ role: string; content: string }>;
+  windowOpen: boolean;
+}): Promise<string> {
+  const { text, facts, missingFacts, aiState, history, windowOpen } = params;
+
+  if (!windowOpen) {
+    return "Hi! Thanks for reaching out. Our team will get back to you shortly. For urgent matters, please call us directly.";
+  }
+
+  const nextMissing = missingFacts[0];
+  const historyContext = history.slice(-6).map(h => `${h.role}: ${h.content}`).join("\n");
+
+  const questionMap: Record<string, string> = {
+    serviceType: "Could you let me know what service you need? (e.g. furniture installation, dismantling, or relocation)",
+    jobAddress: "What's the address or area of the job? (e.g. Tampines, Bishan, Raffles Place)",
+    homeOrOffice: "Is this for a home or an office / commercial space?",
+    itemTypes: "What furniture or items need to be handled? (e.g. wardrobe, bed frame, office desks)",
+    floorLevel: "Which floor is the property on?",
+    hasLift: "Is there a lift available at the property?",
+    preferredDate: "Do you have a preferred date, or are you flexible on timing?",
+    toAddress: "What's the destination address? (for the relocation drop-off)",
+  };
+
+  try {
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 200,
+      messages: [
+        {
+          role: "system",
+          content: `You are the AI sales assistant for TMG Install, a professional furniture installation company in Singapore.
+Your job is to qualify leads and help push them toward a quote and booking.
+
+RULES:
+- Be concise, warm, and sales-oriented
+- Ask ONLY the single most important missing piece of information
+- Never ask multiple questions at once
+- Never invent pricing
+- Never promise slots that aren't confirmed
+- Keep under 80 words
+- Use plain conversational language, no markdown
+- End with a clear single question
+
+KNOWN FACTS: ${JSON.stringify(facts)}
+CURRENT STATE: ${aiState}
+NEXT MISSING FACT: ${nextMissing || "none — all facts collected"}
+SUGGESTED QUESTION: ${nextMissing ? questionMap[nextMissing] || `What is your ${nextMissing}?` : "Push toward quote/booking"}
+
+CONVERSATION HISTORY:
+${historyContext}`,
+        },
+        { role: "user", content: text },
+      ],
+    });
+
+    return res.choices[0]?.message?.content?.trim() ||
+      (nextMissing ? questionMap[nextMissing] : "Thanks! Our team will prepare your quote and be in touch shortly.");
+  } catch {
+    return nextMissing
+      ? questionMap[nextMissing] || "Could you share a bit more about what you need?"
+      : "Thanks for the details! Our team will review and be in touch with your quote shortly.";
+  }
+}
+
+// ── Quote Ready Message ───────────────────────────────────────────────────────
+function buildQuoteReadyMessage(facts: CaseFacts): string {
+  const name = facts.customerName ? `Hi *${facts.customerName}*!` : "Hi!";
+  const items = facts.itemTypes?.join(", ") || "your items";
+  const addr = facts.jobAddress || "your address";
+  const date = facts.preferredDate || "a date that suits you";
+
+  return (
+    `${name} Great news — we have everything we need to prepare your quote! 🎉\n\n` +
+    `Here's what we've noted:\n` +
+    `• Service: ${facts.serviceType || "installation"}\n` +
+    `• Items: ${items}\n` +
+    `• Address: ${addr}\n` +
+    `• Date: ${date}\n\n` +
+    `Our team will review and send your quote shortly. Is there anything else you'd like us to know?`
+  );
+}
+
+// ── Handoff Message ───────────────────────────────────────────────────────────
+function buildHandoffMessage(reason: string): string {
+  const msgs: Record<string, string> = {
+    frustrated: "I'm sorry for any inconvenience. Let me connect you with our team directly — someone will be with you shortly.",
+    custom_pricing: "For special pricing requests, our team can discuss that with you directly. We'll be in touch shortly.",
+    unsupported_service: "That sounds like something our specialist team should handle. Let me pass this on — someone will be in touch shortly.",
+    low_confidence: "Thanks for the details! This sounds like a job our team should review directly. We'll be in touch shortly.",
+    unknown: "Our team will take over from here and be in touch shortly.",
+  };
+  return msgs[reason] || msgs.unknown;
+}
+
+// ── Schedule Follow-up ────────────────────────────────────────────────────────
+export async function scheduleFollowUp(
+  phone: string,
+  followupType: string,
+  delayMs: number,
+  messagePreview?: string,
+): Promise<void> {
+  try {
+    const scheduledAt = new Date(Date.now() + delayMs);
+    await db.insert(aiWhatsappFollowups).values({
+      phone,
+      followupType,
+      scheduledAt,
+      status: "pending",
+      messagePreview: messagePreview?.slice(0, 200),
+    });
+    await storage.upsertWhatsAppSession(phone, { followupScheduled: true } as any);
+  } catch (err) {
+    console.error("[WhatsApp Agent] Failed to schedule follow-up:", err);
+  }
+}
+
+// ── Run Follow-up Scheduler ───────────────────────────────────────────────────
+// Called periodically (every 5 min) from a scheduler. Sends due follow-ups.
+export async function runFollowUpScheduler(): Promise<void> {
+  const kill = await getFlag("ai_master_kill_switch");
+  const enabled = await getFlag("ai_whatsapp_followups_enabled");
+  if (kill || !enabled) return;
+
+  try {
+    const due = await db
+      .select()
+      .from(aiWhatsappFollowups)
+      .where(and(
+        eq(aiWhatsappFollowups.status, "pending"),
+        lte(aiWhatsappFollowups.scheduledAt, new Date()),
+      ))
+      .limit(20);
+
+    for (const followup of due) {
+      try {
+        const session = await storage.getWhatsAppSession(followup.phone);
+        if (!session) {
+          await db.update(aiWhatsappFollowups)
+            .set({ status: "skipped", skipReason: "no_session" })
+            .where(eq(aiWhatsappFollowups.id, followup.id));
+          continue;
+        }
+
+        // Check window
+        const windowOpen = check24hrWindow(session.lastInboundAt);
+
+        // Skip if bot is paused (human is handling)
+        if (session.botPaused || session.aiOwnership === "human") {
+          await db.update(aiWhatsappFollowups)
+            .set({ status: "skipped", skipReason: "human_ownership" })
+            .where(eq(aiWhatsappFollowups.id, followup.id));
+          continue;
+        }
+
+        // Outside window — only template-mode allowed
+        const templateMode = await getFlag("ai_whatsapp_template_mode_enabled");
+        if (!windowOpen && !templateMode) {
+          await db.update(aiWhatsappFollowups)
+            .set({ status: "skipped", skipReason: "outside_window_template_disabled" })
+            .where(eq(aiWhatsappFollowups.id, followup.id));
+          continue;
+        }
+
+        const messages: Record<string, string> = {
+          missing_info: "Hi! Just following up — we still need a few details to prepare your quote. What furniture items need to be installed, and what's your preferred date?",
+          quote_reminder: "Hi! Just checking in — did you get a chance to review your quote? Happy to answer any questions before you decide. 😊",
+          deposit_reminder: "Hi! A friendly reminder — your slot is still on hold. Please complete your deposit to confirm the booking. Let us know if you need any help!",
+          booking_reminder: "Hi! We're ready to confirm your booking — just let us know if everything looks good or if you have any questions.",
+          stale_reactivation: "Hi! We noticed we haven't heard from you in a while. If you're still looking for furniture installation in Singapore, we'd love to help. Just reply here to get started!",
+        };
+
+        const msg = followup.messagePreview || messages[followup.followupType] || messages.missing_info;
+        await sendBotMessage(followup.phone, msg);
+
+        await db.update(aiWhatsappFollowups)
+          .set({ status: "sent", sentAt: new Date() })
+          .where(eq(aiWhatsappFollowups.id, followup.id));
+
+        await logAudit("followup_sent", "ai_scheduler", `Follow-up sent: ${followup.followupType} to +${followup.phone}`);
+      } catch (err) {
+        console.error(`[WhatsApp Agent] Follow-up send failed for ${followup.phone}:`, err);
+        await db.update(aiWhatsappFollowups)
+          .set({ status: "skipped", skipReason: "send_error" })
+          .where(eq(aiWhatsappFollowups.id, followup.id))
+          .catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.error("[WhatsApp Agent] Scheduler error:", err);
+  }
+}
+
+// ── Main Entry Point ──────────────────────────────────────────────────────────
+// Called from the webhook handler in routes.ts after dedup + logging.
+// Returns true if message was handled by the AI agent (skip legacy bot).
+// Returns false if the AI agent is disabled or cannot handle (fall through).
+export async function processWithAIAgent(params: {
+  from: string;
+  text: string;
+  msgType: string;
+  msg: any;
+  session: any;
+}): Promise<boolean> {
+  const { from, text, session } = params;
+
+  try {
+    // ── 1. Feature flag checks ───────────────────────────────────────────────
+    const kill = await getFlag("ai_master_kill_switch");
+    const agentEnabled = await getFlag("ai_whatsapp_agent_enabled");
+    if (kill || !agentEnabled) return false;
+
+    // ── 2. Respect existing admin takeover (botPaused) ──────────────────────
+    if (session?.botPaused) return false;
+
+    // ── 3. If AI ownership is 'human', skip ─────────────────────────────────
+    if (session?.aiOwnership === "human") return false;
+
+    // ── 4. Update last inbound + window status ───────────────────────────────
+    const now = new Date();
+    const windowOpen = true; // Just received a message — window is open
+    await storage.upsertWhatsAppSession(from, {
+      lastInboundAt: now,
+      windowOpen: true,
+      templateModeOnly: false,
+      followupScheduled: false,
+    } as any);
+
+    // ── 5. Load current facts + state ────────────────────────────────────────
+    const currentFacts = parseFacts(session?.caseFacts);
+    const currentMissing = parseMissing(session?.missingFacts);
+    const currentAiState: AiConvState = (session?.aiState as AiConvState) || "new_lead";
+
+    // ── 6. Load conversation history ─────────────────────────────────────────
+    let history: Array<{ role: string; content: string }> = [];
+    try {
+      history = session?.conversationHistory ? JSON.parse(session.conversationHistory) : [];
+    } catch { history = []; }
+
+    // ── 7. Skip if message is empty / non-text (reactions handled by legacy bot) ─
+    if (!text && params.msgType !== "image") return false;
+
+    // ── 8. Extract facts from this message ───────────────────────────────────
+    const { facts, confidence } = await extractFacts(text, history, currentFacts);
+    const missingFacts = computeMissingFacts(facts);
+    const quoteReady = isQuoteReady(facts);
+
+    // ── 9. Check for handoff conditions ──────────────────────────────────────
+    const handoffCheck = await shouldHandoff(text, facts, confidence);
+    if (handoffCheck.required) {
+      const handoffMsg = buildHandoffMessage(handoffCheck.reason);
+      await sendBotMessage(from, handoffMsg);
+
+      // Record handoff
+      await db.insert(aiWhatsappHandoffs).values({
+        phone: from,
+        reason: handoffCheck.reason,
+        handedBy: "ai",
+        notes: `Confidence: ${confidence}, Message: ${text.slice(0, 200)}`,
+      });
+
+      // Update session to human ownership
+      await storage.upsertWhatsAppSession(from, {
+        aiState: "human_review_required",
+        aiOwnership: "human",
+        handoffReason: handoffCheck.reason,
+        botPaused: true,
+        botPausedAt: now,
+        caseFacts: JSON.stringify(facts),
+        missingFacts: JSON.stringify(missingFacts),
+        confidenceScore: confidence.toString(),
+      } as any);
+
+      await logAudit("handoff_triggered", "ai_agent", `Handoff to human: reason=${handoffCheck.reason}`, {
+        phone: from, reason: handoffCheck.reason, confidence,
+      });
+
+      return true;
+    }
+
+    // ── 10. Determine new AI state ────────────────────────────────────────────
+    let newAiState: AiConvState = currentAiState;
+    if (currentAiState === "new_lead" || currentAiState === "waiting_for_customer") {
+      newAiState = missingFacts.length > 0 ? "qualifying" : "quote_ready";
+    } else if (currentAiState === "qualifying") {
+      newAiState = quoteReady ? "quote_ready" : "qualifying";
+    }
+
+    // ── 11. Generate reply ────────────────────────────────────────────────────
+    let reply: string;
+    const autoQualify = await getFlag("ai_whatsapp_auto_qualify_enabled");
+
+    if (!autoQualify) return false; // Fall through to legacy bot
+
+    if (quoteReady && currentAiState !== "quote_ready") {
+      reply = buildQuoteReadyMessage(facts);
+      newAiState = "quote_ready";
+    } else {
+      reply = await generateSalesReply({
+        from,
+        text,
+        facts,
+        missingFacts,
+        aiState: newAiState,
+        history,
+        windowOpen,
+      });
+    }
+
+    // ── 12. Send reply ────────────────────────────────────────────────────────
+    await sendBotMessage(from, reply);
+
+    // ── 13. Update history ────────────────────────────────────────────────────
+    const updatedHistory = [
+      ...history,
+      { role: "user", content: text },
+      { role: "assistant", content: reply },
+    ].slice(-16);
+
+    // ── 14. Persist updated session state ─────────────────────────────────────
+    await storage.upsertWhatsAppSession(from, {
+      aiState: newAiState,
+      aiOwnership: "ai",
+      caseFacts: JSON.stringify(facts),
+      missingFacts: JSON.stringify(missingFacts),
+      confidenceScore: confidence.toString(),
+      conversationHistory: JSON.stringify(updatedHistory),
+      updatedAt: now,
+    } as any);
+
+    // ── 15. Schedule follow-up if qualifying and no followup yet ──────────────
+    const followupsEnabled = await getFlag("ai_whatsapp_followups_enabled");
+    if (followupsEnabled && !session?.followupScheduled && newAiState === "qualifying") {
+      const delay30min = 30 * 60 * 1000;
+      await scheduleFollowUp(from, "missing_info", delay30min, undefined);
+    }
+    if (followupsEnabled && !session?.followupScheduled && newAiState === "quote_ready") {
+      const delay10min = 10 * 60 * 1000;
+      await scheduleFollowUp(from, "quote_reminder", delay10min, undefined);
+    }
+
+    // ── 16. Audit log ─────────────────────────────────────────────────────────
+    await logAudit("ai_reply_sent", "ai_agent", `AI reply sent to +${from} [state: ${newAiState}]`, {
+      phone: from,
+      aiState: newAiState,
+      missingFacts,
+      confidence,
+      replyPreview: reply.slice(0, 100),
+    });
+
+    return true;
+  } catch (err) {
+    console.error("[WhatsApp Agent] processWithAIAgent error:", err);
+    return false; // Fall through to legacy bot on any error
+  }
+}
+
+// ── Admin API helpers (called from routes) ────────────────────────────────────
+
+export async function getAiConversations(limit = 50) {
+  try {
+    const rows = await db
+      .select()
+      .from(whatsappSessions)
+      .orderBy(desc(whatsappSessions.updatedAt))
+      .limit(limit);
+    return rows;
+  } catch { return []; }
+}
+
+export async function getAiConversationDetail(phone: string) {
+  try {
+    const [session] = await db
+      .select()
+      .from(whatsappSessions)
+      .where(eq(whatsappSessions.phone, phone))
+      .limit(1);
+
+    const handoffs = await db
+      .select()
+      .from(aiWhatsappHandoffs)
+      .where(eq(aiWhatsappHandoffs.phone, phone))
+      .orderBy(desc(aiWhatsappHandoffs.handedAt))
+      .limit(10);
+
+    const followups = await db
+      .select()
+      .from(aiWhatsappFollowups)
+      .where(eq(aiWhatsappFollowups.phone, phone))
+      .orderBy(desc(aiWhatsappFollowups.createdAt))
+      .limit(10);
+
+    return { session, handoffs, followups };
+  } catch { return null; }
+}
+
+export async function handoffToHuman(phone: string, reason: string, actor: string): Promise<void> {
+  const now = new Date();
+  await db.insert(aiWhatsappHandoffs).values({
+    phone,
+    reason,
+    handedBy: actor,
+    notes: "Manual handoff by admin",
+  });
+  await storage.upsertWhatsAppSession(phone, {
+    aiOwnership: "human",
+    aiState: "human_review_required",
+    handoffReason: reason,
+    botPaused: true,
+    botPausedAt: now,
+  } as any);
+  await logAudit("manual_handoff", actor, `Manual handoff to human for +${phone}`, { phone, reason });
+}
+
+export async function resumeAiOwnership(phone: string, actor: string): Promise<void> {
+  const now = new Date();
+  await db
+    .update(aiWhatsappHandoffs)
+    .set({ resumedAt: now, resumedBy: actor })
+    .where(and(eq(aiWhatsappHandoffs.phone, phone)));
+
+  await storage.upsertWhatsAppSession(phone, {
+    aiOwnership: "ai",
+    aiState: "qualifying",
+    handoffReason: null,
+    botPaused: false,
+  } as any);
+  await logAudit("ai_resumed", actor, `AI ownership resumed for +${phone}`, { phone });
+}

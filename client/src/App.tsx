@@ -40,6 +40,7 @@ const AdminAISite = lazy(() => import("@/pages/admin/ai/AISitePanel"));
 const AdminAIApprovals = lazy(() => import("@/pages/admin/ai/AIApprovalQueue"));
 const AdminAIAudit = lazy(() => import("@/pages/admin/ai/AIAuditLog"));
 const AdminAIConnectors = lazy(() => import("@/pages/admin/ai/AIConnectors"));
+const AdminAIWhatsApp = lazy(() => import("@/pages/admin/ai/AIWhatsApp"));
 const StaffDashboard = lazy(() => import("@/pages/staff/Dashboard"));
 const StaffJobDetail = lazy(() => import("@/pages/staff/JobDetail"));
 const StaffHR = lazy(() => import("@/pages/staff/HR"));
@@ -190,6 +191,9 @@ function Router() {
           </Route>
           <Route path="/admin/ai/connectors">
             {() => <AdminRoute component={AdminAIConnectors} />}
+          </Route>
+          <Route path="/admin/ai/whatsapp">
+            {() => <AdminRoute component={AdminAIWhatsApp} />}
           </Route>
 
           <Route path="/staff">

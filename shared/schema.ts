@@ -245,6 +245,28 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   botPaused: boolean("bot_paused").default(false),
   botPausedAt: timestamp("bot_paused_at"),
 
+  // ── AI Sales Agent fields (Phase 9) ──────────────────────────────────────
+  // AI conversation state machine (separate from legacy bot state)
+  aiState: text("ai_state").default("new_lead"),
+  // 'ai' | 'human' — who currently owns this conversation
+  aiOwnership: text("ai_ownership").default("ai"),
+  // Timestamp of last inbound message — used to check 24-hr window
+  lastInboundAt: timestamp("last_inbound_at"),
+  // Whether the Meta 24-hour customer service window is currently open
+  windowOpen: boolean("window_open").default(true),
+  // Whether this conversation is restricted to template-only outbound messages
+  templateModeOnly: boolean("template_mode_only").default(false),
+  // AI confidence score (0.0 – 1.0) for current intent classification
+  confidenceScore: numeric("confidence_score", { precision: 4, scale: 2 }),
+  // JSON: structured extracted facts (service type, address, items, etc.)
+  caseFacts: text("case_facts"),
+  // JSON: list of fact keys still missing before quote is ready
+  missingFacts: text("missing_facts"),
+  // Why this conversation was handed off to human
+  handoffReason: text("handoff_reason"),
+  // Whether a follow-up is already scheduled (prevents double-scheduling)
+  followupScheduled: boolean("followup_scheduled").default(false),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -875,3 +897,35 @@ export const aiPlatformExecutions = pgTable("ai_platform_executions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type AiPlatformExecution = typeof aiPlatformExecutions.$inferSelect;
+
+// ── Phase 9: WhatsApp AI Sales Agent ─────────────────────────────────────────
+
+export const aiWhatsappFollowups = pgTable("ai_whatsapp_followups", {
+  id: serial("id").primaryKey(),
+  phone: text("phone").notNull(),
+  followupType: text("followup_type").notNull(), // missing_info | quote_reminder | deposit_reminder | booking_reminder | stale_reactivation
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  sentAt: timestamp("sent_at"),
+  status: text("status").notNull().default("pending"), // pending | sent | skipped | cancelled
+  messagePreview: text("message_preview"),
+  skipReason: text("skip_reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  followupPhoneIdx: index("ai_whatsapp_followups_phone_idx").on(t.phone),
+  followupStatusIdx: index("ai_whatsapp_followups_status_idx").on(t.status, t.scheduledAt),
+}));
+export type AiWhatsappFollowup = typeof aiWhatsappFollowups.$inferSelect;
+
+export const aiWhatsappHandoffs = pgTable("ai_whatsapp_handoffs", {
+  id: serial("id").primaryKey(),
+  phone: text("phone").notNull(),
+  reason: text("reason").notNull(),        // low_confidence | frustrated | custom_pricing | dispute | unsupported_service | unknown
+  handedAt: timestamp("handed_at").defaultNow(),
+  handedBy: text("handed_by").default("ai"), // 'ai' | 'admin:<user>'
+  notes: text("notes"),
+  resumedAt: timestamp("resumed_at"),       // null = still with human
+  resumedBy: text("resumed_by"),
+}, (t) => ({
+  handoffPhoneIdx: index("ai_whatsapp_handoffs_phone_idx").on(t.phone),
+}));
+export type AiWhatsappHandoff = typeof aiWhatsappHandoffs.$inferSelect;

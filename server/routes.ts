@@ -27,6 +27,7 @@ import {
   ADMIN_EMAIL
 } from "./email";
 import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN, sendWhatsAppImageMessage, sendWhatsAppDocumentMessage } from "./whatsapp";
+import { processWithAIAgent, getAiConversations, getAiConversationDetail, handoffToHuman, resumeAiOwnership, runFollowUpScheduler } from "./whatsapp-agent";
 import multer from "multer";
 import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
@@ -5112,6 +5113,16 @@ RULES:
         }
       }
 
+      // ── AI Sales Agent intercept (Phase 9) ────────────────────────────────────
+      // processWithAIAgent returns true if it handled the message.
+      // If it returns false (disabled, error, or non-qualifying), the legacy bot continues.
+      try {
+        const agentHandled = await processWithAIAgent({ from, text, msgType, msg, session });
+        if (agentHandled) return;
+      } catch (agentErr) {
+        console.error("[WhatsApp] AI agent error (falling through to legacy bot):", agentErr);
+      }
+
       // ── Load dynamic bot knowledge from DB (FAQ + business settings) ──────────
       const botKnowledge = await buildBotKnowledge();
       const DYNAMIC_FAQ = botKnowledge.faqBlock;
@@ -8021,6 +8032,60 @@ Respond directly — no JSON, just the message text.`,
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // ── WHATSAPP AI AGENT ADMIN ROUTES (Phase 9) ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  app.get("/api/admin/ai/whatsapp/conversations", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const conversations = await getAiConversations(100);
+      res.json({ conversations });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/ai/whatsapp/conversations/:phone", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const detail = await getAiConversationDetail(req.params.phone);
+      if (!detail) return res.status(404).json({ message: "Conversation not found" });
+      res.json(detail);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/ai/whatsapp/conversations/:phone/handoff", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const { reason } = req.body;
+    try {
+      await handoffToHuman(req.params.phone, reason || "manual_admin", `admin:${user.username}`);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/ai/whatsapp/conversations/:phone/resume-ai", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      await resumeAiOwnership(req.params.phone, `admin:${user.username}`);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // ── JOB COMPLETION CHECKLIST ─────────────────────────────────────────────
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -8347,6 +8412,10 @@ Respond directly — no JSON, just the message text.`,
   setInterval(runDayBeforeReminders, 60 * 60 * 1000);
   // Also run once at startup (after 30s delay so server is fully ready)
   setTimeout(runDayBeforeReminders, 30_000);
+
+  // WhatsApp AI Agent follow-up scheduler — runs every 5 minutes
+  setInterval(runFollowUpScheduler, 5 * 60 * 1000);
+  setTimeout(runFollowUpScheduler, 60_000);
 
   // Admin toggle for reminders
   app.post("/api/admin/settings/wa-reminders", async (req, res) => {

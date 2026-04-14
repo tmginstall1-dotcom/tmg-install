@@ -5,7 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   Bot, TrendingUp, Globe, CheckSquare, ScrollText,
   Zap, ZapOff, ToggleLeft, ToggleRight, AlertTriangle,
-  ArrowRight, Shield, HelpCircle, X, Clock, User, Check, Database
+  ArrowRight, Shield, HelpCircle, X, Clock, User, Check, Database, MessageCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -204,6 +204,15 @@ export default function AIHub() {
       iconColor: "text-violet-400",
       status: connectorStatus(flags),
     },
+    {
+      href: "/admin/ai/whatsapp",
+      icon: MessageCircle,
+      label: "WhatsApp AI Agent",
+      description: "AI lead qualification · Fact extraction · Follow-up · Handoff",
+      color: "from-emerald-500/10 to-green-500/10 border-emerald-500/20",
+      iconColor: "text-emerald-400",
+      status: (flags["ai_whatsapp_agent_enabled"] ? "active" : "off") as ModuleStatus,
+    },
   ];
 
   const featureFlags = [
@@ -221,6 +230,11 @@ export default function AIHub() {
     { key: "ai_google_ads_execution_enabled",     label: "Google Ads Live Push",          risk: "high" },
     { key: "ai_meta_ads_execution_enabled",       label: "Meta Ads Live Push",            risk: "high" },
     { key: "ai_platform_execution_test_mode",     label: "Platform Execution Test Mode",  risk: "low" },
+    { key: "ai_whatsapp_agent_enabled",                        label: "WhatsApp AI Agent",              risk: "medium" },
+    { key: "ai_whatsapp_followups_enabled",                    label: "WhatsApp Auto Follow-ups",       risk: "medium" },
+    { key: "ai_whatsapp_auto_qualify_enabled",                 label: "WhatsApp Auto Qualify",          risk: "low" },
+    { key: "ai_whatsapp_template_mode_enabled",                label: "WhatsApp Template Mode",         risk: "low" },
+    { key: "ai_whatsapp_handoff_required_on_low_confidence",   label: "WhatsApp Low-Confidence Handoff",risk: "low" },
   ];
 
   const lastLog = recentLogs[0];

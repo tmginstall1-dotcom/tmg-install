@@ -1,0 +1,253 @@
+STRICT NEXT PHASE ONLY
+
+PROJECT:
+TMGInstall.com AI Ops system + existing WhatsApp bot
+
+GOAL:
+Upgrade the current WhatsApp bot into an approval-safe AI sales agent that helps push more sales.
+The AI agent must qualify leads, ask missing questions, prepare quote-ready case data, follow up correctly, and push customers into the existing TMGInstall workflow.
+Do NOT rewrite or break the live website workflow.
+
+CRITICAL RULES:
+- Do NOT touch booking logic
+- Do NOT touch payment logic
+- Do NOT touch quote pricing logic
+- Do NOT touch live customer workflow
+- Do NOT break the existing WhatsApp transport/provider integration
+- Do NOT replace the current bot transport layer unless strictly necessary
+- Do NOT remove existing working webhook handling
+- Do NOT refactor unrelated systems
+- Do NOT auto-send risky messages outside policy rules
+- Every AI action must be logged, reviewable, and reversible where possible
+
+CURRENT FOUNDATION TO REUSE:
+- existing AI Ops approval system
+- existing audit log
+- existing approval queue
+- existing AI execution framework
+- existing connector/config patterns
+- existing feature-flag and kill-switch patterns
+
+PRIMARY OUTCOME:
+The WhatsApp bot becomes an AI sales agent that:
+1. receives inbound WhatsApp leads
+2. understands service intent
+3. asks only the next missing question
+4. extracts structured job facts
+5. prepares quote-ready case data
+6. follows up correctly
+7. escalates difficult or low-confidence cases
+8. pushes the customer into the existing deposit/booking flow without replacing it
+
+WHATSAPP PLATFORM RULES TO IMPLEMENT:
+- Respect the 24-hour customer service window
+- Inside the 24-hour window, allow normal free-form AI replies
+- Outside the 24-hour window, only allow approved template-message flows
+- Support interactive-style reply patterns where useful for qualification
+- Keep message policy handling explicit in code and visible in logs/admin UI
+
+STRICT SCOPE:
+Build the WhatsApp AI sales layer only.
+Do NOT build unrelated website redesign.
+Do NOT rebuild the existing AI ads/site system.
+Do NOT touch live booking/payment internals.
+
+IN SCOPE:
+1. WhatsApp AI conversation state engine
+2. Structured lead qualification for TMGInstall services
+3. AI fact extraction from messages and images already supported by the current bot flow
+4. Quote-ready case preparation
+5. Follow-up logic
+6. Human handoff / escalation
+7. Admin inbox / conversation review UI only if minimal updates are needed
+8. Approval-safe message templates / message mode selection logic
+9. Audit trail for every AI reply, escalation, follow-up, and handoff
+10. Tight reuse of the existing AI action/execution patterns where sensible
+
+TARGET SALES BEHAVIOUR:
+The AI sales agent must help sell TMGInstall services better by handling:
+- furniture installation
+- dismantling
+- relocation
+- office vs home jobs
+- urgency / preferred timing
+- stairs / lift / access
+- address / area
+- furniture type / quantity
+- photo requests when needed
+- quote readiness determination
+- deposit follow-up prompts
+- booking follow-up prompts
+- reactivation of stale leads where policy allows
+
+REQUIRED CONVERSATION MODEL:
+For each lead, the AI agent must maintain:
+- contact identity
+- conversation state
+- case state
+- extracted facts
+- missing facts
+- confidence score
+- ownership state (AI vs human)
+- last inbound timestamp
+- whether the 24-hour service window is open
+- whether only template-allowed messaging is permitted
+- next recommended action
+
+CONVERSATION STATES:
+At minimum support:
+- new_lead
+- qualifying
+- waiting_for_customer
+- quote_ready
+- human_review_required
+- quote_sent
+- deposit_pending
+- booking_pending
+- completed
+- stale_reactivation_candidate
+- blocked_outside_window
+
+FACT EXTRACTION REQUIREMENTS:
+Extract and store structured facts such as:
+- service type
+- customer name
+- phone
+- source channel
+- job address
+- floor / lift status
+- home or office
+- item types
+- quantity
+- urgency
+- preferred date
+- photos present / missing
+- special handling notes
+- confidence level
+
+SALES AGENT RULES:
+- Ask only the next most important missing question
+- Do not ask everything at once
+- Be concise, helpful, and sales-oriented
+- Use TMGInstall-specific service knowledge
+- Never invent pricing rules
+- Never promise unavailable slots
+- Escalate unusual jobs, angry customers, refund/dispute issues, and low-confidence classification
+- Push qualified leads toward quote readiness quickly
+- Push quote-ready leads toward deposit and booking via the existing workflow
+- Keep the tone professional and conversion-focused
+
+FOLLOW-UP RULES:
+Build safe follow-up logic for:
+- missing info reminders
+- quote reminder
+- deposit reminder
+- booking reminder
+- stale lead reactivation
+All follow-ups must:
+- respect the 24-hour window
+- switch to template-mode only when required
+- be logged
+- be suppressible by human takeover or kill switch
+
+HUMAN HANDOFF REQUIREMENTS:
+Add explicit handoff when:
+- confidence is low
+- customer is frustrated
+- customer requests custom pricing or exception
+- customer dispute/refund issue appears
+- customer asks for something outside supported service rules
+- AI cannot safely determine next step
+
+REQUIRED DATA / TABLES:
+Reuse existing structures where possible.
+Add only minimal new tables/columns if needed, such as:
+- ai_whatsapp_conversations
+- ai_whatsapp_messages
+- ai_whatsapp_case_facts
+- ai_whatsapp_followups
+- ai_whatsapp_templates
+- ai_whatsapp_handoffs
+- ai_whatsapp_state_log
+Only add what is actually necessary.
+Do NOT create messy duplicates if an existing AI/audit structure can be extended cleanly.
+
+ROUTES / BACKEND REQUIREMENTS:
+Add only minimal routes needed, for example:
+- webhook ingest enhancement routes if needed
+- AI conversation/process route(s)
+- follow-up scheduler hooks
+- human handoff actions
+- conversation detail / status endpoints
+- template eligibility checks
+Do NOT break existing webhook routes.
+Do NOT remove existing working paths.
+
+APPROVAL / EXECUTION MODEL:
+This WhatsApp AI phase should be approval-safe, but not approval-blocked for basic qualifying replies.
+Use this rule:
+- low-risk qualification replies inside the 24-hour window can be AI-driven automatically
+- high-risk replies or special cases must hand off to human
+- outbound reactivation or outside-window messaging must obey template constraints and existing safety controls
+- all follow-up automations must respect kill switch and feature flags
+
+FEATURE FLAGS REQUIRED:
+Add minimal new flags, for example:
+- ai_whatsapp_agent_enabled
+- ai_whatsapp_followups_enabled
+- ai_whatsapp_auto_qualify_enabled
+- ai_whatsapp_template_mode_enabled
+- ai_whatsapp_handoff_required_on_low_confidence
+Default everything safely.
+
+ADMIN UI REQUIREMENTS:
+Only minimal UI upgrades if needed:
+1. show WhatsApp AI agent status / flags
+2. show conversation state
+3. show AI vs human ownership
+4. show extracted facts / missing facts
+5. show handoff reason
+6. show 24-hour window status / template-only status
+7. show audit trail of replies and follow-ups
+
+SAFETY REQUIREMENTS:
+- Respect ai_master_kill_switch
+- Respect WhatsApp-specific feature flags
+- If disabled, the old working WhatsApp flow must continue safely
+- Missing credentials/config must fail gracefully
+- No server startup crash if WhatsApp AI config is incomplete
+- No changes to customer-facing site workflow
+- All AI-generated messages, follow-ups, escalations, and handoffs must be logged
+
+TRANSPORT LAYER RULE:
+Preserve the existing WhatsApp provider integration.
+Implement the AI sales logic as a layer above the current transport.
+If the current transport is WhatsApp Cloud API, preserve webhook/message send mechanics.
+If the current transport is another provider, keep provider-specific send/receive code isolated and add an adapter layer if needed.
+Do NOT rebuild transport unnecessarily.
+
+OUTPUT REQUIRED BEFORE CHANGES:
+1. inspect the current WhatsApp bot/webhook/provider code
+2. list exact files you will modify
+3. list exact new routes you will add
+4. list exact tables/columns you will add
+5. confirm how live workflow stays untouched
+
+OUTPUT REQUIRED AFTER IMPLEMENTATION:
+1. Exact files changed
+2. Exact new routes
+3. Exact new tables/columns
+4. Exact feature flags added
+5. Exact conversation state model implemented
+6. Exact handoff/escalation rules implemented
+7. Exact follow-up rules implemented
+8. Exact WhatsApp policy/window handling implemented
+9. Exact confirmation that live workflow was untouched
+
+FINAL STANDARD:
+This must upgrade the current WhatsApp bot into a real AI sales agent for TMGInstall.
+No messy changes.
+No unrelated edits.
+No drift.
+No weakening of safety controls.
+No breaking of the live site workflow.
