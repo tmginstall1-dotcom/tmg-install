@@ -5,7 +5,8 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   TrendingUp, Plus, Cpu, RefreshCw, ChevronLeft,
   Target, AlertTriangle, TrendingDown, ArrowUp,
-  DollarSign, MousePointerClick, Users, Zap, Database, ExternalLink
+  DollarSign, MousePointerClick, Users, Zap, Database, ExternalLink,
+  ListChecks,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -92,6 +93,21 @@ export default function AIAdsPanel() {
     onError: (err: any) => toast({ title: "Analysis failed", description: err.message, variant: "destructive" }),
   });
 
+  const generateActions = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/ai/actions/generate", {}),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/ai/ads/recommendations"] });
+      const total = data?.total ?? 0;
+      toast({
+        title: total > 0 ? `${total} approval-ready action${total !== 1 ? "s" : ""} created` : "No new actions generated",
+        description: total > 0
+          ? `${data.negKeywords ?? 0} neg-kw · ${data.copyTests ?? 0} copy tests · ${data.landingPages ?? 0} landing pages · ${data.croSuggestions ?? 0} CRO`
+          : "All action types already have pending items.",
+      });
+    },
+    onError: (err: any) => toast({ title: "Generation failed", description: err.message, variant: "destructive" }),
+  });
+
   const funnelData = funnel?.funnel ?? {};
   const byChannel = funnel?.byChannel ?? {};
 
@@ -129,13 +145,22 @@ export default function AIAdsPanel() {
               <p className="text-xs text-slate-500 truncate">Attribution funnel · Performance data · AI recommendations</p>
             </div>
           </div>
-          <div className="flex gap-2 sm:ml-auto shrink-0">
+          <div className="flex flex-wrap gap-2 sm:ml-auto shrink-0">
             <button
               onClick={() => setShowAddForm(!showAddForm)}
               data-testid="button-add-snapshot"
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm font-medium text-slate-300 hover:bg-white/10 transition-colors"
             >
               <Plus className="w-4 h-4" /> Add Data
+            </button>
+            <button
+              onClick={() => generateActions.mutate()}
+              data-testid="button-generate-actions-ads"
+              disabled={generateActions.isPending}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+            >
+              <ListChecks className="w-4 h-4" />
+              {generateActions.isPending ? "Generating…" : "Generate Actions"}
             </button>
             <button
               onClick={() => analyze.mutate()}

@@ -771,6 +771,7 @@ export const aiApprovalQueue = pgTable("ai_approval_queue", {
   reviewNote: text("review_note"),
   refType: text("ref_type"),   // ad_recommendation | site_recommendation
   refId: integer("ref_id"),
+  rollbackPath: text("rollback_path"),  // Human-readable rollback instructions
   createdAt: timestamp("created_at").defaultNow(),
   expiresAt: timestamp("expires_at"),
 });
