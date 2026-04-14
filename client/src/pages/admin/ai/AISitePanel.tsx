@@ -249,6 +249,11 @@ export default function AISitePanel() {
                         <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${PRIORITY_COLORS[rec.priority] ?? ""}`}>{rec.priority}</span>
                         <span className="text-[10px] uppercase text-slate-500 font-semibold">{rec.category}</span>
                         {rec.page && <span className="text-[10px] text-slate-600 font-mono">{rec.page}</span>}
+                        {!rec.page && (rec.category === "speed" || rec.category === "seo") && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-violet-500/10 border-violet-500/20 text-violet-400 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" /> Live API
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm font-semibold text-white leading-tight">{rec.title}</p>
                       {rec.description && <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{rec.description}</p>}

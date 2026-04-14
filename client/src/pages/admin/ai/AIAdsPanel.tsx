@@ -257,6 +257,11 @@ export default function AIAdsPanel() {
                         <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${RISK_COLORS[rec.riskLevel ?? "medium"]}`}>{rec.action}</span>
                         <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border ${RISK_COLORS[rec.riskLevel ?? "medium"]}`}>{rec.riskLevel} risk</span>
                         {rec.platform && <span className="text-[10px] text-slate-500 uppercase">{rec.platform}</span>}
+                        {(rec.sourceData as any)?.analysisSource === "connector_rules" && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-violet-500/10 border-violet-500/20 text-violet-400 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" /> Live API
+                          </span>
+                        )}
                       </div>
                       {rec.targetName && <p className="text-sm font-medium text-white">{rec.targetName}</p>}
                       {rec.reason && <p className="text-xs text-slate-400 mt-1 leading-relaxed">{rec.reason}</p>}

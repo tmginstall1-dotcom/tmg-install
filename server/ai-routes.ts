@@ -780,13 +780,53 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
         pagespeed: [],
       };
 
+      // ── Staleness thresholds: schedule window + 1h grace ─────────────────────
+      const STALE_MS: Record<string, number> = {
+        google_ads:     7  * 60 * 60 * 1000, // 6h schedule + 1h
+        meta_ads:       7  * 60 * 60 * 1000,
+        search_console: 25 * 60 * 60 * 1000, // 24h schedule + 1h
+        pagespeed:      25 * 60 * 60 * 1000,
+      };
+      const SCHEDULE_HRS: Record<string, number> = {
+        google_ads: 6, meta_ads: 6, search_console: 24, pagespeed: 24,
+      };
+
+      const schedulerEnabled = await getFlag("ai_scheduler_enabled");
+
       const result: Record<string, any> = {};
       for (const cfg of configs) {
+        const rowCount = rowCounts[cfg.name] ?? 0;
+        const lastAt = cfg.lastSyncAt;
+        const staleMs = STALE_MS[cfg.name] ?? Infinity;
+        const schedHrs = SCHEDULE_HRS[cfg.name] ?? 0;
+
+        let isStale = false;
+        let staleReason: string | null = null;
+
+        if (cfg.lastSyncStatus === "never" || !lastAt) {
+          isStale = true; staleReason = "never_synced";
+        } else if (cfg.lastSyncStatus === "error") {
+          isStale = true; staleReason = "last_sync_failed";
+        } else if (lastAt && Date.now() - new Date(lastAt).getTime() > staleMs) {
+          isStale = true; staleReason = "overdue";
+        } else if (rowCount === 0 && cfg.lastSyncStatus === "success") {
+          isStale = true; staleReason = "zero_rows";
+        }
+
+        const nextSyncAt = lastAt && schedHrs > 0
+          ? new Date(new Date(lastAt).getTime() + schedHrs * 3_600_000).toISOString()
+          : null;
+
         result[cfg.name] = {
           ...cfg,
           configured: missingMap[cfg.name]?.length === 0,
           missing: missingMap[cfg.name] ?? [],
-          rowCount: rowCounts[cfg.name] ?? 0,
+          rowCount,
+          isStale,
+          staleReason,
+          scheduleIntervalHours: schedHrs,
+          nextSyncAt,
+          schedulerEnabled,
         };
       }
 
@@ -1076,6 +1116,310 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
     } catch (err: any) {
       await setConnectorSync("pagespeed", "error", err.message);
       res.status(500).json({ message: err.message ?? "Sync failed" });
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // CONNECTOR SCHEDULER STATUS
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /** GET /api/ai/connectors/schedule — scheduler status + next run times */
+  app.get("/api/ai/connectors/schedule", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const schedulerEnabled = await getFlag("ai_scheduler_enabled");
+      const configs = await db.select().from(aiConnectorConfigs);
+
+      const SCHED_HRS: Record<string, number> = {
+        google_ads: 6, meta_ads: 6, search_console: 24, pagespeed: 24,
+      };
+      const SCHED_FLAGS: Record<string, string> = {
+        google_ads: "ai_google_ads_sync_enabled",
+        meta_ads: "ai_meta_ads_sync_enabled",
+        search_console: "ai_search_console_enabled",
+        pagespeed: "ai_pagespeed_enabled",
+      };
+
+      const jobs = await Promise.all(configs.map(async (cfg) => {
+        const intervalHours = SCHED_HRS[cfg.name] ?? 0;
+        const intervalMs = intervalHours * 3_600_000;
+        const lastAt = cfg.lastSyncAt;
+        const nextSyncAt = lastAt && intervalMs > 0
+          ? new Date(new Date(lastAt).getTime() + intervalMs).toISOString()
+          : null;
+        const isOverdue = !lastAt || Date.now() - new Date(lastAt).getTime() >= intervalMs;
+        const flagEnabled = await getFlag(SCHED_FLAGS[cfg.name] ?? "");
+        return {
+          name: cfg.name,
+          intervalHours,
+          lastSyncAt: lastAt,
+          lastSyncStatus: cfg.lastSyncStatus,
+          nextSyncAt,
+          isOverdue,
+          flagEnabled,
+        };
+      }));
+
+      res.json({ schedulerEnabled, jobs });
+    } catch { res.status(500).json({ message: "DB error" }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // CONNECTOR ANALYZE — Rules-based signals from API-imported data
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * POST /api/ai/connectors/analyze
+   *
+   * Generates deterministic (no OpenAI) recommendations from live-imported data:
+   *   - Ads waste / fatigue / scale signals  → ai_ad_recommendations (status=pending)
+   *   - GSC keyword opportunities            → ai_site_recommendations (status=open)
+   *   - PageSpeed / Core Web Vitals signals  → ai_site_recommendations (status=open)
+   *
+   * Deduplicates: will not insert a duplicate pending/open rec for the same
+   * campaign+action or same title that already exists.
+   *
+   * Safety: respects kill-switch. Writes only to ai_* tables.
+   */
+  app.post("/api/ai/connectors/analyze", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const killSwitch = await getFlag("ai_master_kill_switch");
+      if (killSwitch) return res.status(503).json({ message: "Kill switch active." });
+
+      const results = { adsSignals: 0, gscSignals: 0, speedSignals: 0, skipped: 0 };
+
+      // ── ADS ANALYSIS (API-synced rows only) ──────────────────────────────────
+      const thirtyAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const adsRows = await db.select().from(aiAdsSnapshots)
+        .where(and(
+          gte(aiAdsSnapshots.snapshotDate, thirtyAgo),
+          inArray(aiAdsSnapshots.source, ["google_ads_api", "meta_ads_api"]),
+        ))
+        .orderBy(desc(aiAdsSnapshots.snapshotDate));
+
+      // Group by platform + campaign name
+      const campaignMap: Record<string, typeof adsRows> = {};
+      for (const row of adsRows) {
+        const key = `${row.platform}||${row.campaignName ?? "unknown"}`;
+        (campaignMap[key] ??= []).push(row);
+      }
+
+      for (const [key, rows] of Object.entries(campaignMap)) {
+        const [platform, campaignName] = key.split("||");
+        const totalSpend = rows.reduce((s, r) => s + parseFloat(r.spend ?? "0"), 0);
+        const totalClicks = rows.reduce((s, r) => s + (r.clicks ?? 0), 0);
+        const totalConversions = rows.reduce((s, r) => s + parseFloat(r.conversions ?? "0"), 0);
+        const totalImpr = rows.reduce((s, r) => s + (r.impressions ?? 0), 0);
+        const avgCTR = totalImpr > 0 ? (totalClicks / totalImpr) * 100 : 0;
+        const avgCPC = totalClicks > 0 ? totalSpend / totalClicks : 0;
+        const avgCPL = totalConversions > 0 ? totalSpend / totalConversions : 0;
+        const evidence = {
+          totalSpend: +totalSpend.toFixed(2),
+          totalClicks,
+          totalConversions: +totalConversions.toFixed(2),
+          avgCTR: +avgCTR.toFixed(2),
+          avgCPC: +avgCPC.toFixed(2),
+          avgCPL: +avgCPL.toFixed(2),
+          source: rows[0]?.source,
+          days: rows.length,
+          analysisSource: "connector_rules",
+        };
+        if (totalSpend === 0) continue;
+
+        type AdAction = "cut" | "keep" | "scale" | "test" | "pause" | "negate";
+        let action: AdAction | null = null;
+        let riskLevel = "medium";
+        let reason = "";
+        let expectedEffect = "";
+        let confidence = "72.00";
+
+        // Rule 1: High spend + zero conversions → waste signal
+        if (totalSpend > 100 && totalConversions < 1) {
+          action = "cut"; riskLevel = "high"; confidence = "85.00";
+          reason = `Campaign spent SGD ${totalSpend.toFixed(2)} over ${rows.length} days with 0 conversions. Clear waste signal from API data.`;
+          expectedEffect = "Stop budget drain. Reallocate to converting campaigns.";
+        }
+        // Rule 2: CTR < 0.5% — fatigue / poor targeting
+        else if (avgCTR < 0.5 && totalSpend > 50) {
+          action = "test"; riskLevel = "medium"; confidence = "72.00";
+          reason = `Avg CTR ${avgCTR.toFixed(2)}% is below 0.5%. Ad creative or audience may be fatigued (API data, last ${rows.length} days).`;
+          expectedEffect = "Fresh creative or audience test could lift CTR by 1–2%.";
+        }
+        // Rule 3: Good CTR + good conv rate + CPL < SGD 200 → scale
+        else if (avgCTR > 2 && totalConversions >= 2 && avgCPL < 200 && avgCPL > 0) {
+          action = "scale"; riskLevel = "low"; confidence = "78.00";
+          reason = `Strong: CTR ${avgCTR.toFixed(2)}%, CPL SGD ${avgCPL.toFixed(2)}, ${totalConversions.toFixed(0)} conversions over ${rows.length} days. Scale candidate.`;
+          expectedEffect = "10–20% budget increase should proportionally scale lead volume.";
+        }
+        // Rule 4: CPC > SGD 8 + low conversions
+        else if (avgCPC > 8 && totalConversions < 2 && totalSpend > 80) {
+          action = "pause"; riskLevel = "high"; confidence = "80.00";
+          reason = `High CPC SGD ${avgCPC.toFixed(2)} with only ${totalConversions.toFixed(0)} conversions and SGD ${totalSpend.toFixed(2)} spend. Poor efficiency.`;
+          expectedEffect = "Pause to audit keywords and match types before re-enabling.";
+        }
+
+        if (!action) continue;
+
+        // Dedup: skip if pending rec with same campaign+action already exists
+        const existing = await db.select({ id: aiAdRecommendations.id })
+          .from(aiAdRecommendations)
+          .where(and(
+            eq(aiAdRecommendations.targetName, campaignName),
+            eq(aiAdRecommendations.action, action),
+            eq(aiAdRecommendations.status, "pending"),
+          )).limit(1);
+
+        if (existing.length > 0) { results.skipped++; continue; }
+
+        await db.insert(aiAdRecommendations).values({
+          platform, action, riskLevel,
+          targetType: "campaign", targetName: campaignName,
+          reason, sourceData: evidence as any, confidence: confidence as any,
+          expectedEffect, status: "pending",
+        });
+        results.adsSignals++;
+
+        // Auto-queue medium/high risk items for approval
+        if (riskLevel !== "low") {
+          await db.insert(aiApprovalQueue).values({
+            queueType: "ads_change",
+            title: `${action.toUpperCase()}: ${campaignName}`,
+            description: reason,
+            riskLevel,
+            confidence: confidence as any,
+            expectedImpact: expectedEffect,
+            proposedAction: evidence as any,
+            refType: "ad_recommendation",
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          });
+        }
+      }
+
+      // ── GSC KEYWORD OPPORTUNITY ANALYSIS ─────────────────────────────────────
+      const gscRows = await db.select().from(aiSearchConsoleData)
+        .orderBy(desc(aiSearchConsoleData.clicks)).limit(500);
+
+      for (const row of gscRows) {
+        const pos = parseFloat(String(row.position ?? "99"));
+        const ctr = parseFloat(String(row.ctr ?? "0"));
+        const impr = row.impressions ?? 0;
+        const query = row.query ?? "(not set)";
+
+        let title = "";
+        let description = "";
+        let suggestedChange = "";
+        let priority = "medium";
+
+        // Rule 1: Position 4-10 + high impressions → near page 1 opportunity
+        if (pos >= 4 && pos <= 10 && impr > 100) {
+          priority = "high";
+          title = `Near-page-1 keyword: "${query}"`;
+          description = `Position ${pos.toFixed(1)} with ${impr} impressions in last 28 days. Content optimization could push to top 3.`;
+          suggestedChange = `Expand content around "${query}" — add FAQ sections, service detail copy, or a dedicated landing page.`;
+        }
+        // Rule 2: Position 1-3 + CTR < 2% → meta description opportunity
+        else if (pos <= 3 && ctr < 2 && impr > 50) {
+          priority = "medium";
+          title = `Low CTR in top position: "${query}"`;
+          description = `Position ${pos.toFixed(1)} but only ${ctr.toFixed(1)}% CTR with ${impr} impressions. Meta description may not be compelling.`;
+          suggestedChange = `Improve title tag and meta description for pages ranking for "${query}" to increase click-through.`;
+        }
+
+        if (!title) continue;
+
+        // Dedup by title
+        const existingRec = await db.select({ id: aiSiteRecommendations.id })
+          .from(aiSiteRecommendations)
+          .where(and(
+            eq(aiSiteRecommendations.title, title),
+            eq(aiSiteRecommendations.status, "open"),
+          )).limit(1);
+        if (existingRec.length > 0) { results.skipped++; continue; }
+
+        await db.insert(aiSiteRecommendations).values({
+          category: "seo", priority, title, description, suggestedChange,
+          riskLevel: "low", status: "open",
+        });
+        results.gscSignals++;
+      }
+
+      // ── PAGESPEED / CORE WEB VITALS ANALYSIS ─────────────────────────────────
+      for (const strategy of ["mobile", "desktop"] as const) {
+        const [ps] = await db.select().from(aiPagespeedData)
+          .where(eq(aiPagespeedData.strategy, strategy))
+          .orderBy(desc(aiPagespeedData.createdAt)).limit(1);
+        if (!ps) continue;
+
+        const checks = [
+          {
+            cond: ps.performanceScore != null && ps.performanceScore < 50,
+            priority: "critical",
+            title: `Critical performance score (${strategy}): ${ps.performanceScore}/100`,
+            description: `${strategy} Lighthouse performance score is critically low. Impacts both user experience and Google rankings.`,
+            suggestedChange: "Audit Core Web Vitals — common causes: render-blocking JS, unoptimized images, large layout shifts.",
+          },
+          {
+            cond: ps.performanceScore != null && ps.performanceScore >= 50 && ps.performanceScore < 70,
+            priority: "high",
+            title: `Below-average performance (${strategy}): ${ps.performanceScore}/100`,
+            description: `${strategy} performance is below Google's "good" threshold (90+). May hurt SEO and conversions.`,
+            suggestedChange: "Focus on LCP and FID — compress images, defer non-critical JS, add caching headers.",
+          },
+          {
+            cond: ps.lcpMs != null && ps.lcpMs > 4000,
+            priority: "high",
+            title: `Slow LCP (${strategy}): ${ps.lcpMs != null ? (ps.lcpMs / 1000).toFixed(1) : "—"}s`,
+            description: `Largest Contentful Paint exceeds 4s on ${strategy}. Google considers >4s "poor".`,
+            suggestedChange: "Optimize hero image — use WebP, add preload <link>, defer non-critical scripts above the fold.",
+          },
+          {
+            cond: ps.clsScore != null && parseFloat(String(ps.clsScore)) > 0.25,
+            priority: "high",
+            title: `High layout shift (${strategy}): CLS ${parseFloat(String(ps.clsScore ?? "0")).toFixed(3)}`,
+            description: `CLS ${parseFloat(String(ps.clsScore ?? "0")).toFixed(3)} on ${strategy} exceeds the 0.25 "poor" threshold. Elements jump during load.`,
+            suggestedChange: "Add explicit width/height to images and ads. Reserve space for dynamic banners/widgets.",
+          },
+          {
+            cond: ps.ttfbMs != null && ps.ttfbMs > 1800,
+            priority: "medium",
+            title: `Slow server response (${strategy}): TTFB ${ps.ttfbMs}ms`,
+            description: `Time to First Byte of ${ps.ttfbMs}ms on ${strategy} is above the 1800ms "poor" threshold.`,
+            suggestedChange: "Add caching (CDN or server-side), reduce database query time, or upgrade hosting plan.",
+          },
+        ];
+
+        for (const check of checks) {
+          if (!check.cond) continue;
+
+          const existingRec = await db.select({ id: aiSiteRecommendations.id })
+            .from(aiSiteRecommendations)
+            .where(and(
+              eq(aiSiteRecommendations.title, check.title),
+              eq(aiSiteRecommendations.status, "open"),
+            )).limit(1);
+          if (existingRec.length > 0) { results.skipped++; continue; }
+
+          await db.insert(aiSiteRecommendations).values({
+            category: "speed", priority: check.priority,
+            title: check.title, description: check.description,
+            suggestedChange: check.suggestedChange,
+            riskLevel: "low", status: "open",
+          });
+          results.speedSignals++;
+        }
+      }
+
+      await logAiAction("connector_analyze", "admin", "connectors",
+        `Connector analyze — ${results.adsSignals} ads, ${results.gscSignals} GSC, ${results.speedSignals} speed signals`,
+        results as any);
+
+      res.json({
+        success: true,
+        ...results,
+        total: results.adsSignals + results.gscSignals + results.speedSignals,
+      });
+    } catch (err: any) {
+      console.error("[connector analyze]", err);
+      res.status(500).json({ message: err.message ?? "Analysis failed" });
     }
   });
 

@@ -82,6 +82,11 @@ const FLAG_HELP: Record<string, { what: string; effect: string; safe: string }> 
     effect: "Imports top search queries with clicks, impressions, CTR, and average position for the last 28 days. Credentials required in Replit Secrets.",
     safe: "Read-only import. Safe once credentials are set.",
   },
+  ai_scheduler_enabled: {
+    what: "Enables the background scheduler that automatically syncs connectors on a fixed schedule (Google Ads & Meta every 6h, Search Console & PageSpeed every 24h).",
+    effect: "Syncs run silently in the background. Each connector also requires its own individual flag to be ON. If the master kill-switch is active, no syncs run regardless.",
+    safe: "Safe to enable. All syncs are read-only imports — no ad platform changes are made. Disable at any time to pause all scheduled syncs.",
+  },
 };
 
 const ACTION_LABELS: Record<string, string> = {

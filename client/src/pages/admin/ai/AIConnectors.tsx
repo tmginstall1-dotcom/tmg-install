@@ -5,7 +5,8 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   ChevronLeft, TrendingUp, BarChart3, Search, Gauge,
   RefreshCw, CheckCircle2, AlertCircle, Clock, Database,
-  ChevronDown, ChevronUp, Zap,
+  ChevronDown, ChevronUp, Zap, CalendarClock, Play,
+  AlertTriangle, Cpu, ArrowRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -18,6 +19,26 @@ type ConnectorStatus = {
   configured: boolean;
   missing: string[];
   rowCount: number;
+  isStale: boolean;
+  staleReason: string | null;
+  scheduleIntervalHours: number;
+  nextSyncAt: string | null;
+  schedulerEnabled: boolean;
+};
+
+type ScheduleJob = {
+  name: string;
+  intervalHours: number;
+  lastSyncAt: string | null;
+  lastSyncStatus: string;
+  nextSyncAt: string | null;
+  isOverdue: boolean;
+  flagEnabled: boolean;
+};
+
+type ScheduleInfo = {
+  schedulerEnabled: boolean;
+  jobs: ScheduleJob[];
 };
 
 type PageSpeedRow = {
@@ -142,12 +163,18 @@ export default function AIConnectors() {
   const { data: rawFlags = [] } = useQuery<any[]>({ queryKey: ["/api/ai/flags"] });
   const flags = rawFlags.reduce((acc: Record<string, boolean>, f: any) => { acc[f.key] = f.value; return acc; }, {});
 
+  const { data: scheduleData } = useQuery<ScheduleInfo>({
+    queryKey: ["/api/ai/connectors/schedule"],
+    refetchInterval: 60_000,
+  });
+
   const sync = useMutation({
     mutationFn: (name: string) => apiRequest("POST", `/api/ai/connectors/${name}/sync`, {}),
     onMutate: (name) => setSyncingName(name),
     onSettled: () => {
       setSyncingName(null);
       qc.invalidateQueries({ queryKey: ["/api/ai/connectors/status"] });
+      qc.invalidateQueries({ queryKey: ["/api/ai/connectors/schedule"] });
       qc.invalidateQueries({ queryKey: ["/api/ai/pagespeed/data"] });
       qc.invalidateQueries({ queryKey: ["/api/ai/search-console/data"] });
       qc.invalidateQueries({ queryKey: ["/api/ai/ads/snapshots"] });
@@ -159,6 +186,22 @@ export default function AIConnectors() {
       toast({ title: "Sync complete", description: msg });
     },
     onError: (err: any) => toast({ title: "Sync failed", description: err.message ?? "Unknown error", variant: "destructive" }),
+  });
+
+  const analyze = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/ai/connectors/analyze", {}),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/ai/ads/recommendations"] });
+      qc.invalidateQueries({ queryKey: ["/api/ai/site/recommendations"] });
+      const total = data?.total ?? 0;
+      toast({
+        title: total > 0 ? `Analysis complete — ${total} signal${total !== 1 ? "s" : ""} generated` : "Analysis complete — no new signals",
+        description: total > 0
+          ? `${data.adsSignals ?? 0} ads · ${data.gscSignals ?? 0} GSC · ${data.speedSignals ?? 0} speed (${data.skipped ?? 0} dupes skipped)`
+          : "All existing signals are still pending — no duplicates were created.",
+      });
+    },
+    onError: (err: any) => toast({ title: "Analysis failed", description: err.message ?? "Unknown error", variant: "destructive" }),
   });
 
   const toggleExpand = (key: string) => setExpanded(p => ({ ...p, [key]: !p[key] }));
@@ -181,9 +224,20 @@ export default function AIConnectors() {
               <p className="text-xs text-slate-500 truncate">Live API feeds — Google Ads · Meta · Search Console · PageSpeed</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 sm:ml-auto shrink-0">
-            <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-            <span className="text-xs font-semibold text-violet-400">Read-only imports</span>
+          <div className="flex items-center gap-2 sm:ml-auto shrink-0">
+            <button
+              onClick={() => analyze.mutate()}
+              disabled={analyze.isPending}
+              data-testid="button-analyze-connectors"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+            >
+              <Cpu className="w-4 h-4" />
+              {analyze.isPending ? "Analyzing…" : "Analyze Now"}
+            </button>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 shrink-0">
+              <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+              <span className="text-xs font-semibold text-violet-400">Read-only imports</span>
+            </div>
           </div>
         </div>
 
@@ -247,6 +301,27 @@ export default function AIConnectors() {
                     )}
                   </div>
 
+                  {/* Stale data warning */}
+                  {cfg?.isStale && cfg.configured && (
+                    <div className="flex items-start gap-2 p-2.5 bg-amber-500/8 border border-amber-500/20 rounded-lg">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+                      <p className="text-[11px] text-amber-300/90 leading-relaxed">
+                        {cfg.staleReason === "never_synced" && "No data yet — run Sync Now to fetch your first import."}
+                        {cfg.staleReason === "last_sync_failed" && "Last sync failed. Data may be outdated — retry below."}
+                        {cfg.staleReason === "overdue" && `Data overdue — last synced ${timeAgo(cfg.lastSyncAt ?? null)}.${cfg.schedulerEnabled ? " Scheduler will auto-retry." : " Enable the scheduler or sync manually."}`}
+                        {cfg.staleReason === "zero_rows" && "Sync succeeded but returned 0 rows. Check credentials and API response."}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Next sync info (when scheduler on + fresh data) */}
+                  {cfg?.nextSyncAt && !cfg.isStale && cfg.schedulerEnabled && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                      <CalendarClock className="w-3 h-3" />
+                      Next auto-sync {new Date(cfg.nextSyncAt) < new Date() ? "imminent" : `~${timeAgo(cfg.nextSyncAt)}`}
+                    </div>
+                  )}
+
                   {/* Sync error */}
                   {cfg?.syncError && cfg.lastSyncStatus === "error" && (
                     <div className="p-2.5 bg-red-500/5 border border-red-500/15 rounded-lg">
@@ -302,6 +377,77 @@ export default function AIConnectors() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Scheduler Status Panel */}
+        {scheduleData && (
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <CalendarClock className="w-5 h-5 text-violet-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <h2 className="text-sm font-bold text-white">Sync Scheduler</h2>
+                <p className="text-xs text-slate-500">Automatic background syncs</p>
+              </div>
+              {scheduleData.schedulerEnabled ? (
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 shrink-0">
+                  <Play className="w-2.5 h-2.5" /> Active
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-slate-500/15 border border-slate-500/25 text-slate-400 shrink-0">
+                  <Zap className="w-2.5 h-2.5" /> Disabled
+                </span>
+              )}
+            </div>
+
+            {!scheduleData.schedulerEnabled && (
+              <div className="flex items-start gap-2 p-3 bg-slate-500/8 border border-slate-500/15 rounded-lg">
+                <AlertTriangle className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Automatic syncs are disabled. Enable <code className="font-mono text-violet-400">ai_scheduler_enabled</code> in AI Hub &gt; Feature Flags to activate background syncing.
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {scheduleData.jobs.map(job => {
+                const labels: Record<string, string> = {
+                  google_ads: "Google Ads", meta_ads: "Meta Ads",
+                  search_console: "Search Console", pagespeed: "PageSpeed",
+                };
+                const isPast = job.nextSyncAt ? new Date(job.nextSyncAt) < new Date() : true;
+                return (
+                  <div key={job.name} className="flex items-center justify-between gap-2 px-4 py-3 bg-black/20 rounded-xl border border-white/5">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-300 truncate">{labels[job.name] ?? job.name}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Every {job.intervalHours}h
+                        {job.flagEnabled ? "" : " · flag off"}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {job.nextSyncAt && scheduleData.schedulerEnabled && job.flagEnabled ? (
+                        <p className={`text-[11px] font-semibold ${isPast ? "text-amber-400" : "text-emerald-400"}`}>
+                          {isPast ? "Overdue" : timeAgo(job.nextSyncAt)}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-600">—</p>
+                      )}
+                      <p className="text-[10px] text-slate-600 mt-0.5">
+                        {job.lastSyncStatus === "success" ? "Last OK" : job.lastSyncStatus === "error" ? "Last failed" : "Never synced"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <ArrowRight className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+              <p className="text-[11px] text-slate-500">
+                After syncing, click <span className="text-violet-400 font-semibold">Analyze Now</span> to generate AI recommendations from the latest data.
+              </p>
+            </div>
           </div>
         )}
 

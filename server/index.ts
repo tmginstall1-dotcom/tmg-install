@@ -410,6 +410,14 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
 
   await registerRoutes(httpServer, app);
 
+  // ── AI Connector Sync Scheduler ───────────────────────────────────────────
+  try {
+    const { startScheduler } = await import("./scheduler");
+    startScheduler();
+  } catch (e: any) {
+    console.warn("[startup] Scheduler init warning (non-fatal):", e?.message || e);
+  }
+
   // Auto-refresh WhatsApp token on startup, then every 6 days
   refreshTokenIfNeeded().catch(e => console.error("[WhatsApp] Startup token refresh error:", e));
   setInterval(() => {
