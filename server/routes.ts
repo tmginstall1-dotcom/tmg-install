@@ -3045,14 +3045,12 @@ Category rules:
       let stripeType: string;
 
       if (isFinal) {
-        // Balance = total minus deposit already paid (never charge the full total again)
+        // Balance = total minus deposit already paid (fixed-price installation, no overtime)
         const totalAmt = parseFloat(quote.total || "0");
         const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-        const baseBalance = parseFloat(quote.finalAmount || "0") > 0
+        amount = parseFloat(quote.finalAmount || "0") > 0
           ? parseFloat(quote.finalAmount!)
           : Math.max(0, totalAmt - depositPaid);
-        const overtime = parseFloat((quote as any).additionalCharge || "0");
-        amount = baseBalance + overtime;
         description = `Balance Payment for ${quote.referenceNo} — TMG Install`;
         stripeType = "final";
       } else {
@@ -3983,7 +3981,6 @@ ${systemPrompt}` });
         amount = parseFloat(quote.finalAmount || "0") > 0
           ? parseFloat(quote.finalAmount!)
           : Math.max(0, totalFinal - depositFinal);
-        amount += parseFloat((quote as any).additionalCharge || "0");
         description = `Balance Payment for ${quote.referenceNo} — TMG Install`;
       }
 
@@ -4391,16 +4388,15 @@ ${systemPrompt}` });
       }
 
       // Balance = total minus deposit already paid (never charge the full total again)
+      // Fixed-price installation — balance is simply total minus deposit paid, no overtime
       const totalAmt = parseFloat(quote.total || "0");
       const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-      const baseBalance = parseFloat(quote.finalAmount || "0") > 0
+      const finalAmount = parseFloat(quote.finalAmount || "0") > 0
         ? parseFloat(quote.finalAmount!)
         : Math.max(0, totalAmt - depositPaid);
-      const overtimeCharge = parseFloat((quote as any).additionalCharge || "0");
-      const finalAmount = baseBalance + overtimeCharge;
       const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
       const stripeUrl = await createStripePaymentLink(
-        `Final Payment for ${quote.referenceNo} — TMG Install`,
+        `Balance Payment for ${quote.referenceNo} — TMG Install`,
         finalAmount,
         { quoteId: String(quote.id), type: "final", referenceNo: quote.referenceNo },
         quotePageUrl
@@ -4439,15 +4435,12 @@ ${systemPrompt}` });
         const waPhone = rawWaPhone ? normalizeSGPhone(rawWaPhone) : null;
         if (waPhone) {
           const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}?type=final`;
-          const balanceLine = overtimeCharge > 0
-            ? `💳 *Balance Due: S$${finalAmount.toFixed(2)}*\n` +
-              `_(50% balance S$${baseBalance.toFixed(2)} + overtime charge S$${overtimeCharge.toFixed(2)})_`
-            : `💳 *Balance Due: S$${finalAmount.toFixed(2)}*`;
           const waMsg =
             `Hi *${quote.customer.name || "there"}* 👋\n\n` +
             `Your installation for *${quote.referenceNo}* is now complete. Thank you for choosing TMG Install! 🙏\n\n` +
             `━━━━━━━━━━━━━━━━━━━━\n` +
-            `${balanceLine}\n` +
+            `💳 *Balance Due: S$${finalAmount.toFixed(2)}*\n` +
+            `_(50% balance payment — deposit already received)_\n` +
             `Please clear the balance to close your job.\n` +
             `━━━━━━━━━━━━━━━━━━━━\n\n` +
             waPayBlock(finalAmount, shortPayUrl) +
@@ -7042,13 +7035,12 @@ Respond directly — no JSON, just the message text.`,
       if (quote.finalPaidAt) return res.status(409).json({ message: "Final payment already collected" });
 
       const { note } = z.object({ note: z.string().optional() }).parse(req.body);
-      const overtimeCharge = parseFloat((quote as any).additionalCharge || "0");
       const quoteTotal = parseFloat(quote.total || "0");
       const depositPaid = parseFloat(quote.depositAmount || "0") || quoteTotal * 0.5;
       const baseBalance = parseFloat(quote.finalAmount || "0") > 0
         ? parseFloat(quote.finalAmount!)
         : Math.max(0, quoteTotal - depositPaid);
-      const finalAmt = (baseBalance + overtimeCharge).toFixed(2);
+      const finalAmt = baseBalance.toFixed(2);
 
       // Mark final paid → auto-closes quote
       const updated = await storage.updateQuotePayment(id, "final", finalAmt);
@@ -7092,12 +7084,14 @@ Respond directly — no JSON, just the message text.`,
         `Hi ${name}! Thank you for your payment.`,
         ``,
         ...(itemLines ? [`*Items:*`, itemLines, ``] : []),
-        `Subtotal: $${subtotal.toFixed(2)}`,
-        ...(transport > 0 ? [`Transport: $${transport.toFixed(2)}`] : []),
-        ...(overtimeCharge > 0 ? [`Overtime: $${overtimeCharge.toFixed(2)}`] : []),
+        `Subtotal: S$${subtotal.toFixed(2)}`,
+        ...(transport > 0 ? [`Transport: S$${transport.toFixed(2)}`] : []),
         `─────────────────`,
-        `*Total: $${totalAmt.toFixed(2)}*`,
-        ...(deposit > 0 ? [`Deposit paid: $${deposit.toFixed(2)}`, `Balance paid: $${(totalAmt - deposit).toFixed(2)}`] : []),
+        `*Total: S$${totalAmt.toFixed(2)}*`,
+        ...(deposit > 0 ? [
+          `Deposit paid: S$${deposit.toFixed(2)}`,
+          `Balance paid: S$${(totalAmt - deposit).toFixed(2)}`,
+        ] : []),
         ``,
         `✅ *FULLY PAID — CASE CLOSED*`,
         `Thank you for choosing *TMG Install*! 🙏`,
