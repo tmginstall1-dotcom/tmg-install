@@ -36,6 +36,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 
 import { calcTransportFee, calcOvertimeCharge, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable } from "@shared/schema";
+import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable } from "@shared/schema";
 import { eq, and, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
@@ -4948,7 +4949,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
       // ── Deduplicate: Meta sometimes retries the same webhook event ────────────
       const wamid: string = msg.id || "";
       if (wamid && processedWamids.has(wamid)) {
-        console.log(`[WhatsApp] Duplicate webhook ignored for wamid=${wamid}`);
+        console.log(`[WhatsApp] [corr:${wamid.slice(0,12)}] duplicate webhook ignored (in-memory dedup)`);
         return;
       }
       if (wamid) {
@@ -4958,6 +4959,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
           if (first) processedWamids.delete(first);
         }
       }
+      console.log(`[WhatsApp] [corr:${wamid.slice(0,12)}] inbound received (from=****${from.slice(-4)}, type=${msg.type || "text"})`);
 
       // ── Mark as read immediately — shows double blue ticks to customer ────────
       markAsRead(msg.id).catch(() => {});
@@ -5117,10 +5119,14 @@ RULES:
       // processWithAIAgent returns true if it handled the message.
       // If it returns false (disabled, error, or non-qualifying), the legacy bot continues.
       try {
-        const agentHandled = await processWithAIAgent({ from, text, msgType, msg, session });
-        if (agentHandled) return;
+        const agentHandled = await processWithAIAgent({ from, text, msgType, msg, session, correlationId: wamid });
+        if (agentHandled) {
+          console.log(`[WhatsApp] [corr:${wamid.slice(0,12)}] AI agent handled — legacy bot skipped`);
+          return;
+        }
+        console.log(`[WhatsApp] [corr:${wamid.slice(0,12)}] AI agent returned false — falling through to legacy bot`);
       } catch (agentErr) {
-        console.error("[WhatsApp] AI agent error (falling through to legacy bot):", agentErr);
+        console.error(`[WhatsApp] [corr:${wamid.slice(0,12)}] AI agent error (falling through to legacy bot):`, agentErr);
       }
 
       // ── Load dynamic bot knowledge from DB (FAQ + business settings) ──────────
@@ -8080,6 +8086,78 @@ Respond directly — no JSON, just the message text.`,
     try {
       await resumeAiOwnership(req.params.phone, `admin:${user.username}`);
       res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── WhatsApp AI Diagnostics (read-only, admin-only) ──────────────────────
+  app.get("/api/admin/ai/whatsapp/diagnostics", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const [
+        pendingFollowups,
+        openHandoffs,
+        aiOwnedSessions,
+        humanOwnedSessions,
+        duplicateSkipped,
+        windowBlocked,
+        lastProcessed,
+        recentEvents,
+      ] = await Promise.all([
+        db.select({ count: drizzleSql<number>`count(*)::int` })
+          .from(aiWaFollowupsTable)
+          .where(eq(aiWaFollowupsTable.status, "pending"))
+          .then(r => r[0]?.count ?? 0),
+        db.select({ count: drizzleSql<number>`count(*)::int` })
+          .from(aiWaHandoffsTable)
+          .where(isNull(aiWaHandoffsTable.resumedAt))
+          .then(r => r[0]?.count ?? 0),
+        db.select({ count: drizzleSql<number>`count(*)::int` })
+          .from(whatsappSessionsTable)
+          .where(drizzleSql`ai_ownership = 'ai'`)
+          .then(r => r[0]?.count ?? 0),
+        db.select({ count: drizzleSql<number>`count(*)::int` })
+          .from(whatsappSessionsTable)
+          .where(drizzleSql`ai_ownership = 'human'`)
+          .then(r => r[0]?.count ?? 0),
+        db.select({ count: drizzleSql<number>`count(*)::int` })
+          .from(aiAuditLogTable)
+          .where(and(eq(aiAuditLogTable.module, "whatsapp_agent"), eq(aiAuditLogTable.actionType, "ai_duplicate_skipped")))
+          .then(r => r[0]?.count ?? 0),
+        db.select({ count: drizzleSql<number>`count(*)::int` })
+          .from(aiAuditLogTable)
+          .where(and(eq(aiAuditLogTable.module, "whatsapp_agent"), eq(aiAuditLogTable.actionType, "ai_window_blocked")))
+          .then(r => r[0]?.count ?? 0),
+        db.select({ createdAt: aiAuditLogTable.createdAt })
+          .from(aiAuditLogTable)
+          .where(eq(aiAuditLogTable.module, "whatsapp_agent"))
+          .orderBy(desc(aiAuditLogTable.createdAt))
+          .limit(1)
+          .then(r => r[0]?.createdAt ?? null),
+        db.select({
+          id: aiAuditLogTable.id,
+          actionType: aiAuditLogTable.actionType,
+          summary: aiAuditLogTable.summary,
+          createdAt: aiAuditLogTable.createdAt,
+        })
+          .from(aiAuditLogTable)
+          .where(eq(aiAuditLogTable.module, "whatsapp_agent"))
+          .orderBy(desc(aiAuditLogTable.createdAt))
+          .limit(10),
+      ]);
+      res.json({
+        pendingFollowups,
+        openHandoffs,
+        aiOwnedSessions,
+        humanOwnedSessions,
+        duplicateSkipped,
+        windowBlocked,
+        lastProcessedEvent: lastProcessed,
+        recentEvents,
+      });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

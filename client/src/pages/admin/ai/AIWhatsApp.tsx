@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   MessageCircle, User, Bot, AlertTriangle, Clock,
   CheckCircle2, XCircle, ArrowRight, RefreshCw,
-  Shield, Zap, ChevronDown, ChevronUp, Phone
+  Shield, Zap, ChevronDown, ChevronUp, Phone, Activity
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -184,6 +184,93 @@ function ConversationRow({ conv, onRefresh }: { conv: any; onRefresh: () => void
   );
 }
 
+// ── Diagnostics Panel ─────────────────────────────────────────────────────────
+function DiagnosticsPanel() {
+  const { data, isLoading, refetch } = useQuery<{
+    pendingFollowups: number;
+    openHandoffs: number;
+    aiOwnedSessions: number;
+    humanOwnedSessions: number;
+    duplicateSkipped: number;
+    windowBlocked: number;
+    lastProcessedEvent: string | null;
+    recentEvents: Array<{ id: number; actionType: string; summary: string; createdAt: string }>;
+  }>({
+    queryKey: ["/api/admin/ai/whatsapp/diagnostics"],
+    refetchInterval: 30000,
+  });
+
+  const stats = [
+    { label: "Pending Follow-ups", value: data?.pendingFollowups ?? "—", warn: (data?.pendingFollowups ?? 0) > 10 },
+    { label: "Open Handoffs",       value: data?.openHandoffs ?? "—",     warn: (data?.openHandoffs ?? 0) > 0 },
+    { label: "AI Owned",            value: data?.aiOwnedSessions ?? "—",  warn: false },
+    { label: "Human Owned",         value: data?.humanOwnedSessions ?? "—", warn: (data?.humanOwnedSessions ?? 0) > 0 },
+    { label: "Duplicates Skipped",  value: data?.duplicateSkipped ?? "—", warn: false },
+    { label: "Window Blocked",      value: data?.windowBlocked ?? "—",    warn: false },
+  ];
+
+  const ACTION_COLORS: Record<string, string> = {
+    ai_reply_sent: "text-emerald-400",
+    handoff_triggered: "text-amber-400",
+    manual_handoff: "text-amber-400",
+    manual_resume: "text-violet-400",
+    ai_duplicate_skipped: "text-slate-400",
+    ai_window_blocked: "text-rose-400",
+    followup_sent: "text-blue-400",
+  };
+
+  return (
+    <div className="border border-white/10 bg-white/[0.02]">
+      <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2">
+        <Activity className="w-4 h-4 text-white/40" />
+        <h3 className="text-sm font-bold text-white/70">System Diagnostics</h3>
+        <span className="ml-auto text-xs text-white/20 italic">read-only · auto-refreshes 30s</span>
+        <button onClick={() => refetch()} className="p-1 hover:bg-white/5" data-testid="btn-refresh-diagnostics">
+          <RefreshCw className="w-3 h-3 text-white/30" />
+        </button>
+      </div>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-white/5">
+        {stats.map(({ label, value, warn }) => (
+          <div key={label} className="bg-[#0f1117] px-3 py-2">
+            <p className="text-[9px] text-white/30 uppercase tracking-wider">{label}</p>
+            <p className={`text-lg font-black mt-0.5 ${warn ? "text-amber-400" : "text-white/70"}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Last processed event */}
+      {data?.lastProcessedEvent && (
+        <div className="px-4 py-2 border-t border-white/5 text-xs text-white/30">
+          Last event: <span className="text-white/50">{new Date(data.lastProcessedEvent).toLocaleString("en-SG")}</span>
+        </div>
+      )}
+
+      {/* Recent events */}
+      {isLoading ? (
+        <p className="px-4 py-3 text-xs text-white/20">Loading diagnostics…</p>
+      ) : (data?.recentEvents ?? []).length === 0 ? (
+        <p className="px-4 py-3 text-xs text-white/20 text-center">No events yet — agent has not been active.</p>
+      ) : (
+        <div className="divide-y divide-white/[0.03]">
+          {(data?.recentEvents ?? []).map(ev => (
+            <div key={ev.id} className="px-4 py-2 flex items-start gap-3">
+              <span className={`text-[10px] font-mono font-bold flex-shrink-0 mt-0.5 ${ACTION_COLORS[ev.actionType] ?? "text-white/40"}`}>
+                {ev.actionType}
+              </span>
+              <span className="text-xs text-white/40 truncate">{ev.summary}</span>
+              <span className="ml-auto text-[10px] text-white/20 flex-shrink-0">
+                {new Date(ev.createdAt).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AIWhatsApp() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -329,6 +416,9 @@ export default function AIWhatsApp() {
           </div>
         )}
       </div>
+
+      {/* Diagnostics */}
+      <DiagnosticsPanel />
 
       {/* Policy reminder */}
       <div className="border border-amber-500/20 bg-amber-500/5 px-4 py-3 flex items-start gap-3">

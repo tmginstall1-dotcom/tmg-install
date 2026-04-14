@@ -17,7 +17,7 @@
  */
 
 import { db } from "./db";
-import { eq, and, lte, desc } from "drizzle-orm";
+import { eq, and, lte, desc, sql as drizzleSql } from "drizzle-orm";
 import {
   aiFeatureFlags,
   aiAuditLog,
@@ -79,6 +79,12 @@ const UNSUPPORTED_TRIGGERS = /\b(deliver|shipping|courier|lorry|moving company|b
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
+/** Mask a phone number to last 4 digits for safe logging */
+function maskPhone(phone: string): string {
+  if (!phone || phone.length <= 4) return "****";
+  return `****${phone.slice(-4)}`;
+}
+
 async function getFlag(key: string): Promise<boolean> {
   try {
     const rows = await db.select().from(aiFeatureFlags).where(eq(aiFeatureFlags.key, key)).limit(1);
@@ -98,10 +104,33 @@ async function logAudit(
       actor,
       module: "whatsapp_agent",
       summary,
-      detail,
+      detail: detail ?? {},
       outcome: "success",
     });
   } catch { /* non-fatal */ }
+}
+
+/**
+ * Persistent DB idempotency check.
+ * Queries ai_audit_log for a prior handled event with this correlationId (wamid).
+ * Survives process restarts — the in-memory dedup set does not.
+ */
+async function checkDuplicateByCorrelationId(correlationId: string): Promise<boolean> {
+  if (!correlationId) return false;
+  try {
+    const rows = await db
+      .select({ id: aiAuditLog.id })
+      .from(aiAuditLog)
+      .where(
+        and(
+          eq(aiAuditLog.module, "whatsapp_agent"),
+          drizzleSql`${aiAuditLog.detail}->>'correlationId' = ${correlationId}`,
+          drizzleSql`${aiAuditLog.actionType} IN ('ai_reply_sent','ai_duplicate_skipped','handoff_triggered')`,
+        )
+      )
+      .limit(1);
+    return rows.length > 0;
+  } catch { return false; }
 }
 
 function parseFacts(raw: string | null | undefined): CaseFacts {
@@ -393,9 +422,13 @@ export async function runFollowUpScheduler(): Promise<void> {
         // Outside window — only template-mode allowed
         const templateMode = await getFlag("ai_whatsapp_template_mode_enabled");
         if (!windowOpen && !templateMode) {
+          console.log(`[WA-Agent] [scheduler] 24hr window blocked — skipping follow-up for ${maskPhone(followup.phone)} (type=${followup.followupType})`);
           await db.update(aiWhatsappFollowups)
             .set({ status: "skipped", skipReason: "outside_window_template_disabled" })
             .where(eq(aiWhatsappFollowups.id, followup.id));
+          await logAudit("ai_window_blocked", "ai_scheduler", `24hr window blocked: follow-up skipped for ${maskPhone(followup.phone)}`, {
+            phone: maskPhone(followup.phone), followupType: followup.followupType,
+          });
           continue;
         }
 
@@ -438,20 +471,48 @@ export async function processWithAIAgent(params: {
   msgType: string;
   msg: any;
   session: any;
+  correlationId?: string; // wamid from webhook — used for idempotency + structured logs
 }): Promise<boolean> {
-  const { from, text, session } = params;
+  const { from, text, session, correlationId = "" } = params;
+  const corrTag = correlationId ? `[corr:${correlationId.slice(0, 12)}]` : "[corr:none]";
+  const masked = maskPhone(from);
 
   try {
     // ── 1. Feature flag checks ───────────────────────────────────────────────
     const kill = await getFlag("ai_master_kill_switch");
     const agentEnabled = await getFlag("ai_whatsapp_agent_enabled");
-    if (kill || !agentEnabled) return false;
+    if (kill || !agentEnabled) {
+      console.log(`[WA-Agent] ${corrTag} agent disabled — falling through to legacy bot (phone=${masked})`);
+      return false;
+    }
+
+    // ── 1b. Persistent idempotency guard (survives restarts) ─────────────────
+    // The in-memory wamid set in routes.ts handles same-process dedup.
+    // This DB check catches cross-restart replays for the AI agent path.
+    if (correlationId) {
+      const isDuplicate = await checkDuplicateByCorrelationId(correlationId);
+      if (isDuplicate) {
+        console.log(`[WA-Agent] ${corrTag} DUPLICATE — already processed, skipping (phone=${masked})`);
+        await logAudit("ai_duplicate_skipped", "ai_agent", `Duplicate inbound skipped: ${masked}`, {
+          correlationId, phone: masked,
+        });
+        return true; // Return true so legacy bot also skips this duplicate
+      }
+    }
+
+    console.log(`[WA-Agent] ${corrTag} intercept start (phone=${masked}, type=${params.msgType})`);
 
     // ── 2. Respect existing admin takeover (botPaused) ──────────────────────
-    if (session?.botPaused) return false;
+    if (session?.botPaused) {
+      console.log(`[WA-Agent] ${corrTag} bot paused — human handling (phone=${masked})`);
+      return false;
+    }
 
     // ── 3. If AI ownership is 'human', skip ─────────────────────────────────
-    if (session?.aiOwnership === "human") return false;
+    if (session?.aiOwnership === "human") {
+      console.log(`[WA-Agent] ${corrTag} human ownership — skipping AI (phone=${masked})`);
+      return false;
+    }
 
     // ── 4. Update last inbound + window status ───────────────────────────────
     const now = new Date();
@@ -508,8 +569,9 @@ export async function processWithAIAgent(params: {
         confidenceScore: confidence.toString(),
       } as any);
 
+      console.log(`[WA-Agent] ${corrTag} handoff triggered: reason=${handoffCheck.reason} (phone=${masked})`);
       await logAudit("handoff_triggered", "ai_agent", `Handoff to human: reason=${handoffCheck.reason}`, {
-        phone: from, reason: handoffCheck.reason, confidence,
+        correlationId, phone: masked, reason: handoffCheck.reason, confidence,
       });
 
       return true;
@@ -577,8 +639,10 @@ export async function processWithAIAgent(params: {
     }
 
     // ── 16. Audit log ─────────────────────────────────────────────────────────
-    await logAudit("ai_reply_sent", "ai_agent", `AI reply sent to +${from} [state: ${newAiState}]`, {
-      phone: from,
+    console.log(`[WA-Agent] ${corrTag} reply sent [state:${newAiState}, conf:${confidence.toFixed(2)}] (phone=${masked})`);
+    await logAudit("ai_reply_sent", "ai_agent", `AI reply sent [state:${newAiState}]`, {
+      correlationId,
+      phone: masked,
       aiState: newAiState,
       missingFacts,
       confidence,
@@ -587,7 +651,7 @@ export async function processWithAIAgent(params: {
 
     return true;
   } catch (err) {
-    console.error("[WhatsApp Agent] processWithAIAgent error:", err);
+    console.error(`[WA-Agent] ${corrTag} unhandled error — falling through to legacy bot (phone=${masked}):`, err);
     return false; // Fall through to legacy bot on any error
   }
 }

@@ -1,0 +1,201 @@
+STRICT CHANGE-CONTROL MODE
+
+Objective:
+Build a Phase 9 verification harness + rollback package for the new WhatsApp AI agent WITHOUT changing live business behavior, pricing, quote logic, legacy bot logic, public pages, or unrelated admin modules.
+
+This is a verification/safety phase only.
+
+NON-NEGOTIABLE SCOPE RULES
+- DO NOT change existing customer-facing WhatsApp behavior unless required only for idempotency or logging safety.
+- DO NOT change quote generation logic.
+- DO NOT change existing admin auth model.
+- DO NOT change public website routes.
+- DO NOT refactor unrelated files.
+- DO NOT rename existing tables, columns, routes, flags, or components.
+- DO NOT remove legacy fallback behavior.
+- DO NOT enable the AI agent by default.
+- DO NOT silently change env var names.
+- KEEP all existing runtime behavior identical when ai_whatsapp_agent_enabled = false.
+
+ALLOWED WORK
+- Add verification scripts
+- Add automated tests
+- Add read-only diagnostics
+- Add idempotency guard if missing
+- Add structured logs / correlation IDs
+- Add rollback SQL / rollback runbook
+- Add minimal indexes only if directly required for safety/performance
+- Add minimal admin diagnostics UI only if read-only and inside the existing WhatsApp AI admin page
+
+DELIVERABLES REQUIRED
+
+T1 — Inbound idempotency safety
+Goal:
+Prevent duplicate webhook deliveries from double-processing the same inbound WhatsApp event.
+
+Requirements:
+- Inspect the current webhook payload shape and existing session/message persistence.
+- Add a deterministic idempotency key for inbound events.
+- Before processing the AI intercept or legacy bot, check whether the inbound event was already processed.
+- On duplicates:
+  - do not create duplicate follow-ups
+  - do not create duplicate handoffs
+  - do not send duplicate replies
+  - log that the event was skipped as duplicate
+- Use the smallest safe change possible.
+- Reuse existing tables if there is already a suitable message/event log.
+- Only add a new table if absolutely necessary and no safe existing storage exists.
+
+Acceptance:
+- Replaying the same inbound payload twice results in exactly one processing outcome.
+
+T2 — Structured logging with correlation IDs
+Goal:
+Make every WhatsApp event traceable across webhook, agent, follow-up scheduling, handoff, and admin actions.
+
+Requirements:
+- Generate or extract one correlation ID per inbound WhatsApp event.
+- Include this correlation ID in all logs for:
+  - webhook receipt
+  - AI intercept start/end
+  - handoff creation
+  - follow-up creation
+  - follow-up execution
+  - resume AI action
+  - manual handoff action
+  - duplicate skip
+  - 24-hour window blocked send
+  - fallback to legacy bot
+- Keep log format compact and machine-readable.
+- Do not leak secrets or full personal data in logs.
+- Mask phone numbers except last 4 digits where practical.
+
+Acceptance:
+- A single inbound event can be followed end-to-end in logs using one correlation ID.
+
+T3 — Automated verification suite
+Goal:
+Add a repeatable verification suite for Phase 9 critical paths.
+
+Create:
+- One automated integration-style test file for the WhatsApp AI system
+- One executable verification script for local/manual verification that prints a readable pass/fail summary
+
+Test cases required:
+1. AI disabled => legacy path unchanged
+2. AI enabled + handleable lead => AI path processes successfully
+3. AI enabled + handoff condition => handoff created and AI stops responding
+4. Resume AI => ownership/state returns to AI cleanly
+5. Outside 24-hour window => outbound blocked safely and logged
+6. Duplicate inbound webhook => second delivery skipped
+7. Follow-up scheduling idempotency => duplicate schedule attempts do not create duplicate pending work
+8. Non-admin access to new admin APIs => denied
+9. Admin access to new admin APIs => allowed
+
+Hard requirements:
+- Tests must not depend on live third-party WhatsApp calls.
+- Mock external network calls safely.
+- Do not require production secrets to run tests.
+- Keep tests isolated and deterministic.
+- Use existing test tooling if already in repo.
+- If no usable test framework exists, add the smallest conventional option already compatible with the stack.
+
+Verification script requirements:
+- Provide a single command to run the Phase 9 verification
+- Output a clean summary table/list with PASS / FAIL
+- Exit non-zero on failure
+
+Acceptance:
+- A developer can run one command and see whether Phase 9 is safe to enable.
+
+T4 — Read-only diagnostics panel in /admin/ai/whatsapp
+Goal:
+Give admins a safety view without altering business workflows.
+
+Add only the following read-only diagnostics to the existing WhatsApp AI admin page:
+- last processed event timestamp
+- duplicate events skipped count
+- 24-hour blocked count
+- pending follow-ups count
+- open handoffs count
+- AI-owned conversations count
+- human-owned conversations count
+- last 10 system events/log summaries (sanitized, no secrets)
+
+Requirements:
+- This is diagnostics only.
+- Do not bloat or redesign the whole page.
+- Keep existing UI intact.
+- Do not add risky destructive actions.
+
+Acceptance:
+- Admin can quickly see whether the agent is healthy and whether duplicate/out-of-window protections are working.
+
+T5 — Rollback package
+Goal:
+Create a safe rollback path that can be executed immediately if problems appear after enabling.
+
+Create:
+1. A rollback checklist document
+2. A rollback SQL file if needed
+3. A rollback flag-disable path
+4. A concise operator runbook
+
+Rollback must cover:
+- immediate disable of AI via feature flag(s)
+- confirmation that legacy bot continues working
+- pausing follow-up execution
+- preserving conversation history
+- preserving handoff history
+- avoiding destructive schema rollback unless absolutely necessary
+- how to verify recovery after rollback
+
+Important:
+- Prefer operational rollback via flags over destructive schema rollback.
+- Do not drop tables in the primary rollback path.
+- Schema removal should be documented only as an optional cleanup step, not the emergency rollback step.
+
+FILES / OUTPUTS EXPECTED
+Use existing project conventions, but target output like this:
+- server/tests/whatsapp-agent.phase9.spec.ts   (or equivalent test path)
+- scripts/verify-whatsapp-ai.ts                (or equivalent executable verification script)
+- docs/whatsapp-ai-phase9-rollback.md
+- docs/whatsapp-ai-phase9-verification.md
+- any minimal helper/logger/idempotency file(s) needed
+- minimal updates to existing webhook/agent/admin files only where required
+
+ADMIN API SECURITY CHECK
+Verify server-side authorization on all new WhatsApp AI admin routes:
+- conversation listing
+- manual handoff
+- resume AI
+- follow-up queries
+Must be enforced on the backend, not only in the frontend.
+
+DO NOT
+- do not change quote schema logic
+- do not change quote UI
+- do not change customer auth
+- do not add unrelated dashboards
+- do not refactor the AI hub
+- do not enable flags by default
+- do not modify unrelated schedulers
+- do not alter legacy message text/content unless absolutely required for duplicate prevention
+- do not produce placeholder docs; make them operationally usable
+
+FINAL RESPONSE FORMAT REQUIRED
+When finished, return:
+1. Exact files changed
+2. Exact routes changed
+3. Exact DB changes made
+4. Exact command(s) to run verification
+5. Exact rollback steps
+6. Confirmation of what was intentionally left untouched
+7. Any risks still remaining
+
+QUALITY BAR
+This must feel production-safe, minimal-scope, and operator-friendly.
+No drift.
+No unrelated cleanup.
+No broad refactor.
+No silent behavior changes.
