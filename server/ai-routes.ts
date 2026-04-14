@@ -166,6 +166,268 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   }
 }
 
+// ── Phase 6: Allowed types for auto-execution on approval ────────────────────
+// These types generate structured deliverables ONLY — never call live APIs.
+const AUTO_EXECUTE_TYPES = new Set(["negative_keyword", "creative", "site_change", "landing_page"]);
+
+type ApprovalItem = typeof aiApprovalQueue.$inferSelect;
+
+/**
+ * buildAndPersistExecution — shared core for both manual execute route and
+ * approval-triggered auto-execution. Generates the structured deliverable,
+ * persists it, marks the linked rec as applied, and writes the audit log.
+ * NEVER calls Google Ads, Meta, or modifies the live site.
+ */
+async function buildAndPersistExecution(
+  item: ApprovalItem,
+  actor: string,
+  autoExecuted: boolean,
+): Promise<any> {
+  const pa = item.proposedAction as any ?? {};
+  const now = new Date().toISOString();
+
+  let executionResult: any;
+
+  if (item.queueType === "negative_keyword") {
+    const keywords: Array<{ term: string; matchType: string }> = pa.negativeKeywords ?? [];
+    const csvRows = ["Keyword,Match Type", ...keywords.map((k: any) => `${k.term},${k.matchType}`)];
+    executionResult = {
+      type: "negative_keywords_export",
+      title: item.title,
+      campaignName: pa.campaignName ?? "N/A",
+      negativeCount: keywords.length,
+      csvContent: csvRows.join("\n"),
+      deliverable: csvRows.join("\n"),
+      implementationSteps: [
+        "1. Log in to Google Ads (ads.google.com)",
+        `2. Navigate to: Campaigns → "${pa.campaignName ?? "[campaign name]"}"`,
+        "3. In the left menu, click Keywords → Negative keywords",
+        "4. Click the blue ＋ button → Add negative keywords",
+        "5. Select 'Add to campaign' level",
+        "6. Paste the keyword list from the CSV above, one keyword per line",
+        "7. Set match type to 'Broad' for general terms, 'Exact' for high-risk terms",
+        "8. Click Save",
+        "9. Monitor impressions over the next 48–72 hours for traffic impact",
+      ],
+      estimatedTime: "5–10 minutes",
+      platform: "Google Ads",
+      rollbackNote: item.rollbackPath ?? "Remove the negative keywords from the same Negative Keywords tab to restore original targeting.",
+      generatedAt: now,
+      generatedBy: actor,
+    };
+
+  } else if (item.queueType === "creative") {
+    const headlines: string[] = pa.headlines ?? [];
+    const descriptions: string[] = pa.descriptions ?? [];
+    const formattedSpec = [
+      `=== RESPONSIVE SEARCH AD SPEC ===`,
+      `Campaign: ${pa.campaignName ?? "N/A"}`,
+      ``,
+      `HEADLINES (add all — Google rotates automatically):`,
+      ...headlines.map((h: string, i: number) => `  H${i + 1}: ${h}`),
+      ``,
+      `DESCRIPTIONS (add all — Google rotates automatically):`,
+      ...descriptions.map((d: string, i: number) => `  D${i + 1}: ${d}`),
+      ``,
+      `CHARACTER LIMITS: Headlines ≤ 30 chars · Descriptions ≤ 90 chars`,
+      `Verify all headlines are within limit before saving.`,
+    ].join("\n");
+    executionResult = {
+      type: "ad_copy_spec",
+      title: item.title,
+      campaignName: pa.campaignName ?? "N/A",
+      headlines,
+      descriptions,
+      deliverable: formattedSpec,
+      implementationSteps: [
+        "1. Log in to Google Ads (ads.google.com)",
+        `2. Navigate to: Campaigns → "${pa.campaignName ?? "[campaign]"}" → Ads`,
+        "3. Click ＋ New ad → Responsive search ad",
+        "4. Copy headlines from the spec above into headline fields 1–3 (and optionally 4–5)",
+        "5. Copy descriptions from the spec above into description fields 1–2",
+        "6. Set the Final URL to the campaign's existing landing page",
+        "7. Preview the ad — verify all combinations look professional",
+        "8. Set display path if desired",
+        "9. Save as a DRAFT first — do not set to 'Enabled' until reviewed",
+        "10. After 7 days, compare CTR of new ad vs existing ads in the Ad Variations report",
+      ],
+      estimatedTime: "10–15 minutes",
+      platform: "Google Ads",
+      rollbackNote: item.rollbackPath ?? "Pause or delete the new ad variation before it collects significant impressions.",
+      generatedAt: now,
+      generatedBy: actor,
+    };
+
+  } else if (item.queueType === "site_change") {
+    const isLandingPage = pa.action === "update_landing_page" || !!pa.suggestedChanges;
+
+    if (isLandingPage) {
+      const sc = pa.suggestedChanges ?? {};
+      const brief = [
+        `=== LANDING PAGE OPTIMISATION BRIEF ===`,
+        `Target Page : ${pa.targetPage ?? "N/A"}`,
+        `Target Query: ${pa.targetQuery ?? "N/A"}`,
+        `Current Pos : ${pa.currentPosition ?? "N/A"} · CTR: ${pa.currentCTR ?? "N/A"}%`,
+        ``,
+        `PROPOSED CHANGES:`,
+        sc.titleTag        ? `  Title Tag    : ${sc.titleTag}` : null,
+        sc.metaDescription ? `  Meta Desc    : ${sc.metaDescription}` : null,
+        sc.h1Suggestion    ? `  H1 Heading   : ${sc.h1Suggestion}` : null,
+        sc.ctaText         ? `  CTA Button   : ${sc.ctaText}` : null,
+        ``,
+        `PRIORITY: High — organic traffic opportunity`,
+      ].filter(Boolean).join("\n");
+      executionResult = {
+        type: "landing_page_brief",
+        title: item.title,
+        targetPage: pa.targetPage ?? "N/A",
+        targetQuery: pa.targetQuery ?? "N/A",
+        proposedChanges: sc,
+        deliverable: brief,
+        implementationSteps: [
+          "1. Share this brief with your web developer or content editor",
+          "2. Open the target page in your CMS or code editor",
+          `3. Update the <title> tag to: "${sc.titleTag ?? "[see brief]"}"`,
+          `4. Update the meta description to: "${sc.metaDescription ?? "[see brief]"}"`,
+          `5. Update or add an H1 tag: "${sc.h1Suggestion ?? "[see brief]"}"`,
+          "6. Add or update the primary CTA button text and placement",
+          "7. Deploy to staging — check with Google Search Console URL Inspection",
+          "8. Publish to production",
+          "9. Monitor CTR in Search Console for this query over 14–21 days",
+        ],
+        estimatedTime: "30–60 minutes (developer + content editor)",
+        platform: "Website / CMS",
+        rollbackNote: item.rollbackPath ?? "Revert the page in your version control system (git revert) or restore the previous CMS version. No database changes are involved.",
+        generatedAt: now,
+        generatedBy: actor,
+      };
+    } else {
+      const suggestedChange = pa.suggestedChange ?? item.description ?? "See proposed action details.";
+      const copySpec = [
+        `=== CRO COPY CHANGE SPEC ===`,
+        `Action  : ${item.title}`,
+        `Priority: ${pa.priority ?? "medium"}`,
+        ``,
+        `PROPOSED COPY CHANGE:`,
+        suggestedChange,
+        ``,
+        `IMPLEMENTATION CHECKLIST:`,
+        `  [ ] Identify the exact location on the page`,
+        `  [ ] Create a staging copy`,
+        `  [ ] Implement the change on staging`,
+        `  [ ] QA on mobile (320px), tablet (768px), desktop (1280px)`,
+        `  [ ] Deploy to production`,
+        `  [ ] Note the publish date for A/B analysis`,
+      ].join("\n");
+      executionResult = {
+        type: "cro_copy_brief",
+        title: item.title,
+        priority: pa.priority ?? "medium",
+        deliverable: copySpec,
+        suggestedChange,
+        implementationSteps: [
+          "1. Identify the exact location on the live page where this change applies",
+          "2. Create a staging branch or duplicate the page in your CMS",
+          "3. Apply the copy change exactly as written in the spec above",
+          "4. QA the page at mobile (320px), tablet (768px), and desktop (1280px) breakpoints",
+          "5. Check that the new copy does not break any layout constraints",
+          "6. Get sign-off from the business owner if required",
+          "7. Deploy to production",
+          "8. Record the publish date — measure conversion impact after 14–21 days",
+        ],
+        estimatedTime: "2–4 hours (developer + designer)",
+        platform: "Website / CMS",
+        rollbackNote: item.rollbackPath ?? "Revert the page to its previous state via version control or CMS version history.",
+        generatedAt: now,
+        generatedBy: actor,
+      };
+    }
+
+  } else {
+    const action = pa.action ?? item.queueType;
+    const target = pa.campaignName ?? pa.targetName ?? "N/A";
+    const spec = [
+      `=== ADS CHANGE SPEC ===`,
+      `Action  : ${action?.toUpperCase()}`,
+      `Platform: ${pa.platform ?? "N/A"}`,
+      `Target  : ${target}`,
+      ``,
+      `REASON: ${item.description ?? "See recommendation record."}`,
+      ``,
+      `EXPECTED IMPACT: ${item.expectedImpact ?? "See recommendation record."}`,
+    ].join("\n");
+    executionResult = {
+      type: "ads_change_spec",
+      title: item.title,
+      action,
+      target,
+      platform: pa.platform ?? "N/A",
+      deliverable: spec,
+      implementationSteps: [
+        `1. Log in to your ads platform (${pa.platform === "meta" ? "Meta Ads Manager" : "Google Ads"})`,
+        `2. Navigate to the campaign or ad set: "${target}"`,
+        `3. Apply the action: ${action?.toUpperCase()}`,
+        "4. Confirm the change and note the timestamp",
+        "5. Set a reminder to review performance in 7 days",
+      ],
+      estimatedTime: "5–15 minutes",
+      platform: pa.platform === "meta" ? "Meta Ads Manager" : "Google Ads",
+      rollbackNote: item.rollbackPath ?? "Reverse the specific change (re-enable paused campaign, revert budget, etc.) in the ads platform.",
+      generatedAt: now,
+      generatedBy: actor,
+    };
+  }
+
+  // Tag execution mode for UI display
+  executionResult.autoExecuted = autoExecuted;
+
+  // ── Persist ──────────────────────────────────────────────────────────────
+  await db.update(aiApprovalQueue)
+    .set({
+      executionStatus: "executed",
+      executedAt: new Date(),
+      executedBy: actor,
+      executionResult: executionResult as any,
+    })
+    .where(eq(aiApprovalQueue.id, item.id));
+
+  // Mark linked recommendation as "applied"
+  if (item.refType === "ad_recommendation" && item.refId) {
+    await db.update(aiAdRecommendations)
+      .set({ status: "applied", appliedAt: new Date() })
+      .where(eq(aiAdRecommendations.id, item.refId));
+  }
+  if (item.refType === "site_recommendation" && item.refId) {
+    await db.update(aiSiteRecommendations)
+      .set({ status: "applied", appliedAt: new Date(), approvedBy: actor })
+      .where(eq(aiSiteRecommendations.id, item.refId));
+  }
+
+  // ── Audit log ────────────────────────────────────────────────────────────
+  await logAiAction(
+    "action_executed",
+    actor,
+    item.queueType?.startsWith("site") || item.queueType === "site_change" ? "site" : "ads",
+    `${autoExecuted ? "AUTO-EXECUTED" : "EXECUTED"}: ${item.title}`,
+    {
+      approvalId: item.id,
+      queueType: item.queueType,
+      executionType: executionResult.type,
+      autoExecuted,
+      refType: item.refType,
+      refId: item.refId,
+      actor,
+      deliverableLength: executionResult.deliverable?.length ?? 0,
+      implementationSteps: executionResult.implementationSteps?.length ?? 0,
+      estimatedTime: executionResult.estimatedTime,
+      platform: executionResult.platform,
+      rollbackNote: executionResult.rollbackNote,
+    },
+  );
+
+  return executionResult;
+}
+
 export function registerAiRoutes(app: Express) {
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -690,7 +952,27 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
         { id, decision, note, refType: item?.refType, refId: item?.refId, queueType: item?.queueType },
       );
 
-      res.json({ success: true, decision });
+      // ── Phase 6: Auto-execute on approval for safe action types ──────────────
+      let autoExecResult: any = null;
+      if (decision === "approved" && item && AUTO_EXECUTE_TYPES.has(item.queueType ?? "")) {
+        const autoExecEnabled = await getFlag("ai_auto_execute_enabled");
+        if (autoExecEnabled) {
+          // Mark as executing before starting (enables retry detection if server crashes)
+          await db.update(aiApprovalQueue)
+            .set({ executionStatus: "executing" })
+            .where(eq(aiApprovalQueue.id, id));
+          try {
+            autoExecResult = await buildAndPersistExecution(item, actor, true);
+          } catch (execErr: any) {
+            // Execution failed — still return approved, but surface the failure
+            await db.update(aiApprovalQueue)
+              .set({ executionStatus: "execution_failed", executionResult: { error: String(execErr) } as any })
+              .where(eq(aiApprovalQueue.id, id));
+          }
+        }
+      }
+
+      res.json({ success: true, decision, autoExecuted: !!autoExecResult, executionResult: autoExecResult });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       res.status(500).json({ message: "DB error" });
@@ -766,257 +1048,14 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       const [item] = await db.select().from(aiApprovalQueue).where(eq(aiApprovalQueue.id, id)).limit(1);
       if (!item) return res.status(404).json({ message: "Approval item not found." });
       if (item.status !== "approved") return res.status(400).json({ message: `Cannot execute: item status is "${item.status}". Only approved items can be executed.` });
-      if (item.executionStatus === "executed") return res.status(400).json({ message: "This item has already been executed. Check the execution result in the detail panel." });
-
-      const pa = item.proposedAction as any ?? {};
-      const now = new Date().toISOString();
-
-      // ── Deliverable generators ─────────────────────────────────────────────
-
-      let executionResult: any;
-
-      if (item.queueType === "negative_keyword") {
-        // Generate formatted negative keyword export + Google Ads instructions
-        const keywords: Array<{ term: string; matchType: string }> = pa.negativeKeywords ?? [];
-        const csvRows = ["Keyword,Match Type", ...keywords.map((k: any) => `${k.term},${k.matchType}`)];
-        executionResult = {
-          type: "negative_keywords_export",
-          title: item.title,
-          campaignName: pa.campaignName ?? "N/A",
-          negativeCount: keywords.length,
-          csvContent: csvRows.join("\n"),
-          deliverable: csvRows.join("\n"),
-          implementationSteps: [
-            "1. Log in to Google Ads (ads.google.com)",
-            `2. Navigate to: Campaigns → "${pa.campaignName ?? "[campaign name]"}"`,
-            "3. In the left menu, click Keywords → Negative keywords",
-            "4. Click the blue ＋ button → Add negative keywords",
-            "5. Select 'Add to campaign' level",
-            "6. Paste the keyword list from the CSV above, one keyword per line",
-            "7. Set match type to 'Broad' for general terms, 'Exact' for high-risk terms",
-            "8. Click Save",
-            "9. Monitor impressions over the next 48–72 hours for traffic impact",
-          ],
-          estimatedTime: "5–10 minutes",
-          platform: "Google Ads",
-          rollbackNote: item.rollbackPath ?? "Remove the negative keywords from the same Negative Keywords tab to restore original targeting.",
-          generatedAt: now,
-          generatedBy: actor,
-        };
-
-      } else if (item.queueType === "creative") {
-        // Generate formatted Responsive Search Ad spec
-        const headlines: string[] = pa.headlines ?? [];
-        const descriptions: string[] = pa.descriptions ?? [];
-        const formattedSpec = [
-          `=== RESPONSIVE SEARCH AD SPEC ===`,
-          `Campaign: ${pa.campaignName ?? "N/A"}`,
-          ``,
-          `HEADLINES (add all — Google rotates automatically):`,
-          ...headlines.map((h: string, i: number) => `  H${i + 1}: ${h}`),
-          ``,
-          `DESCRIPTIONS (add all — Google rotates automatically):`,
-          ...descriptions.map((d: string, i: number) => `  D${i + 1}: ${d}`),
-          ``,
-          `CHARACTER LIMITS: Headlines ≤ 30 chars · Descriptions ≤ 90 chars`,
-          `Verify all headlines are within limit before saving.`,
-        ].join("\n");
-        executionResult = {
-          type: "ad_copy_spec",
-          title: item.title,
-          campaignName: pa.campaignName ?? "N/A",
-          headlines,
-          descriptions,
-          deliverable: formattedSpec,
-          implementationSteps: [
-            "1. Log in to Google Ads (ads.google.com)",
-            `2. Navigate to: Campaigns → "${pa.campaignName ?? "[campaign]"}" → Ads`,
-            "3. Click ＋ New ad → Responsive search ad",
-            "4. Copy headlines from the spec above into headline fields 1–3 (and optionally 4–5)",
-            "5. Copy descriptions from the spec above into description fields 1–2",
-            "6. Set the Final URL to the campaign's existing landing page",
-            "7. Preview the ad — verify all combinations look professional",
-            "8. Set display path if desired",
-            "9. Save as a DRAFT first — do not set to 'Enabled' until reviewed",
-            "10. After 7 days, compare CTR of new ad vs existing ads in the Ad Variations report",
-          ],
-          estimatedTime: "10–15 minutes",
-          platform: "Google Ads",
-          rollbackNote: item.rollbackPath ?? "Pause or delete the new ad variation before it collects significant impressions.",
-          generatedAt: now,
-          generatedBy: actor,
-        };
-
-      } else if (item.queueType === "site_change") {
-        const isLandingPage = pa.action === "update_landing_page" || !!pa.suggestedChanges;
-
-        if (isLandingPage) {
-          // Landing page brief
-          const sc = pa.suggestedChanges ?? {};
-          const brief = [
-            `=== LANDING PAGE OPTIMISATION BRIEF ===`,
-            `Target Page : ${pa.targetPage ?? "N/A"}`,
-            `Target Query: ${pa.targetQuery ?? "N/A"}`,
-            `Current Pos : ${pa.currentPosition ?? "N/A"} · CTR: ${pa.currentCTR ?? "N/A"}%`,
-            ``,
-            `PROPOSED CHANGES:`,
-            sc.titleTag       ? `  Title Tag    : ${sc.titleTag}` : null,
-            sc.metaDescription ? `  Meta Desc    : ${sc.metaDescription}` : null,
-            sc.h1Suggestion   ? `  H1 Heading   : ${sc.h1Suggestion}` : null,
-            sc.ctaText        ? `  CTA Button   : ${sc.ctaText}` : null,
-            ``,
-            `PRIORITY: High — organic traffic opportunity`,
-          ].filter(Boolean).join("\n");
-          executionResult = {
-            type: "landing_page_brief",
-            title: item.title,
-            targetPage: pa.targetPage ?? "N/A",
-            targetQuery: pa.targetQuery ?? "N/A",
-            proposedChanges: sc,
-            deliverable: brief,
-            implementationSteps: [
-              "1. Share this brief with your web developer or content editor",
-              "2. Open the target page in your CMS or code editor",
-              `3. Update the <title> tag to: "${sc.titleTag ?? "[see brief]"}"`,
-              `4. Update the meta description to: "${sc.metaDescription ?? "[see brief]"}"`,
-              `5. Update or add an H1 tag: "${sc.h1Suggestion ?? "[see brief]"}"`,
-              "6. Add or update the primary CTA button text and placement",
-              "7. Deploy to staging — check with Google Search Console URL Inspection",
-              "8. Publish to production",
-              "9. Monitor CTR in Search Console for this query over 14–21 days",
-            ],
-            estimatedTime: "30–60 minutes (developer + content editor)",
-            platform: "Website / CMS",
-            rollbackNote: item.rollbackPath ?? "Revert the page in your version control system (git revert) or restore the previous CMS version. No database changes are involved.",
-            generatedAt: now,
-            generatedBy: actor,
-          };
-        } else {
-          // CRO copy change spec
-          const suggestedChange = pa.suggestedChange ?? item.description ?? "See proposed action details.";
-          const copySpec = [
-            `=== CRO COPY CHANGE SPEC ===`,
-            `Action  : ${item.title}`,
-            `Priority: ${pa.priority ?? "medium"}`,
-            ``,
-            `PROPOSED COPY CHANGE:`,
-            suggestedChange,
-            ``,
-            `IMPLEMENTATION CHECKLIST:`,
-            `  [ ] Identify the exact location on the page`,
-            `  [ ] Create a staging copy`,
-            `  [ ] Implement the change on staging`,
-            `  [ ] QA on mobile (320px), tablet (768px), desktop (1280px)`,
-            `  [ ] Deploy to production`,
-            `  [ ] Note the publish date for A/B analysis`,
-          ].join("\n");
-          executionResult = {
-            type: "cro_copy_brief",
-            title: item.title,
-            priority: pa.priority ?? "medium",
-            deliverable: copySpec,
-            suggestedChange,
-            implementationSteps: [
-              "1. Identify the exact location on the live page where this change applies",
-              "2. Create a staging branch or duplicate the page in your CMS",
-              "3. Apply the copy change exactly as written in the spec above",
-              "4. QA the page at mobile (320px), tablet (768px), and desktop (1280px) breakpoints",
-              "5. Check that the new copy does not break any layout constraints",
-              "6. Get sign-off from the business owner if required",
-              "7. Deploy to production",
-              "8. Record the publish date — measure conversion impact after 14–21 days",
-            ],
-            estimatedTime: "2–4 hours (developer + designer)",
-            platform: "Website / CMS",
-            rollbackNote: item.rollbackPath ?? "Revert the page to its previous state via version control or CMS version history.",
-            generatedAt: now,
-            generatedBy: actor,
-          };
-        }
-
-      } else {
-        // Generic ads_change spec (cut / scale / pause / keep)
-        const action = pa.action ?? item.queueType;
-        const target = pa.campaignName ?? pa.targetName ?? "N/A";
-        const spec = [
-          `=== ADS CHANGE SPEC ===`,
-          `Action  : ${action?.toUpperCase()}`,
-          `Platform: ${pa.platform ?? "N/A"}`,
-          `Target  : ${target}`,
-          ``,
-          `REASON: ${item.description ?? "See recommendation record."}`,
-          ``,
-          `EXPECTED IMPACT: ${item.expectedImpact ?? "See recommendation record."}`,
-        ].join("\n");
-        executionResult = {
-          type: "ads_change_spec",
-          title: item.title,
-          action,
-          target,
-          platform: pa.platform ?? "N/A",
-          deliverable: spec,
-          implementationSteps: [
-            `1. Log in to your ads platform (${pa.platform === "meta" ? "Meta Ads Manager" : "Google Ads"})`,
-            `2. Navigate to the campaign or ad set: "${target}"`,
-            `3. Apply the action: ${action?.toUpperCase()}`,
-            "4. Confirm the change and note the timestamp",
-            "5. Set a reminder to review performance in 7 days",
-          ],
-          estimatedTime: "5–15 minutes",
-          platform: pa.platform === "meta" ? "Meta Ads Manager" : "Google Ads",
-          rollbackNote: item.rollbackPath ?? "Reverse the specific change (re-enable paused campaign, revert budget, etc.) in the ads platform.",
-          generatedAt: now,
-          generatedBy: actor,
-        };
+      if (item.executionStatus === "executed" || item.executionStatus === "executing") {
+        return res.status(400).json({ message: "This item has already been executed (or is currently executing). Check the execution result in the detail panel." });
       }
 
-      // ── Persist execution result ─────────────────────────────────────────────
-      await db.update(aiApprovalQueue)
-        .set({
-          executionStatus: "executed",
-          executedAt: new Date(),
-          executedBy: actor,
-          executionResult: executionResult as any,
-        })
-        .where(eq(aiApprovalQueue.id, id));
-
-      // Also mark the linked recommendation as "applied"
-      if (item.refType === "ad_recommendation" && item.refId) {
-        await db.update(aiAdRecommendations)
-          .set({ status: "applied", appliedAt: new Date() })
-          .where(eq(aiAdRecommendations.id, item.refId));
-      }
-      if (item.refType === "site_recommendation" && item.refId) {
-        await db.update(aiSiteRecommendations)
-          .set({ status: "applied", appliedAt: new Date(), approvedBy: actor })
-          .where(eq(aiSiteRecommendations.id, item.refId));
-      }
-
-      // ── Audit log — immutable execution record ────────────────────────────────
-      await logAiAction(
-        "action_executed",
-        actor,
-        item.queueType?.startsWith("site") || item.queueType === "site_change" ? "site" : "ads",
-        `EXECUTED: ${item.title}`,
-        {
-          approvalId: id,
-          queueType: item.queueType,
-          executionType: executionResult.type,
-          refType: item.refType,
-          refId: item.refId,
-          actor,
-          deliverableLength: executionResult.deliverable?.length ?? 0,
-          implementationSteps: executionResult.implementationSteps?.length ?? 0,
-          estimatedTime: executionResult.estimatedTime,
-          platform: executionResult.platform,
-          rollbackNote: executionResult.rollbackNote,
-        },
-      );
-
+      const executionResult = await buildAndPersistExecution(item, actor, false);
       res.json({ success: true, executionResult });
     } catch (err: any) {
       const id = parseInt(req.params.id);
-      // Best-effort: mark as failed
       try {
         await db.update(aiApprovalQueue)
           .set({ executionStatus: "execution_failed" })
@@ -1027,6 +1066,7 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
     }
   });
 
+  // ════════════════════════════════════════════════════════════════════════════
   // ════════════════════════════════════════════════════════════════════════════
   // PHASE 4 ACTION GENERATOR — Rules-based, approval-only, no live mutations
   // ════════════════════════════════════════════════════════════════════════════

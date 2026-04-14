@@ -7,7 +7,7 @@ import {
   Check, X, Pause, ShieldAlert, ChevronDown, ChevronUp,
   Database, FileText, RotateCcw, ScrollText, Zap,
   Target, TrendingDown, ArrowUp, Cpu, Globe, Search,
-  PlayCircle, Copy, CheckCheck, XCircle, Timer,
+  PlayCircle, Copy, CheckCheck, XCircle, Timer, Loader2, BotIcon,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -586,8 +586,11 @@ export default function AIApprovalQueue() {
                   </div>
                   {confirmState.decision === "approved" && (
                     <div className="flex items-start gap-2 p-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-lg">
-                      <AlertTriangle className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      <p className="text-xs text-emerald-300">Approving records this decision. No live platform changes are made until manually executed by your team.</p>
+                      <BotIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-emerald-300">
+                        Approving will <strong>immediately generate an implementation deliverable</strong> (CRO brief, ad copy spec, or keyword export) for your team to implement manually.
+                        No live platform changes are made automatically.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -619,11 +622,12 @@ export default function AIApprovalQueue() {
           </div>
         </div>
 
-        {/* Info banner — no auto-execution reminder */}
-        <div className="flex items-start gap-2 px-4 py-3 bg-slate-500/5 border border-slate-500/10 rounded-xl">
-          <ShieldAlert className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            All actions are <strong className="text-slate-400">approval-only</strong>. Approving an item records your decision and routes it for manual execution by your team. No automated changes are made to Google Ads, Meta, or the live site.
+        {/* Info banner — auto-execution note */}
+        <div className="flex items-start gap-2 px-4 py-3 bg-violet-500/5 border border-violet-500/10 rounded-xl">
+          <BotIcon className="w-4 h-4 text-violet-400 mt-0.5 shrink-0" />
+          <p className="text-[11px] text-violet-300/80 leading-relaxed">
+            <strong className="text-violet-300">Auto-execution enabled.</strong> Approving a CRO, ad copy, negative keyword, or landing page action immediately generates a structured deliverable for your team to implement manually.
+            No changes are made to Google Ads, Meta, or the live site automatically.
           </p>
         </div>
 
@@ -655,12 +659,14 @@ export default function AIApprovalQueue() {
               const TypeIcon = TYPE_ICONS[item.queueType] ?? CheckSquare;
               const isExpanded = expandedId === item.id;
               const isApprovedUnexecuted = item.status === "approved" && !item.executionStatus;
+              const isExecuting = item.executionStatus === "executing";
               const isExecuted = item.executionStatus === "executed";
               const isExecutionFailed = item.executionStatus === "execution_failed";
               return (
                 <div key={item.id} data-testid={`approval-item-${item.id}`}
                   className={`bg-white/5 border rounded-xl overflow-hidden transition-all ${
                     item.status === "pending" ? "border-white/10"
+                    : isExecuting ? "border-blue-500/30"
                     : isApprovedUnexecuted ? "border-emerald-500/20"
                     : isExecuted ? "border-emerald-500/10 opacity-75"
                     : isExecutionFailed ? "border-red-500/15"
@@ -699,6 +705,11 @@ export default function AIApprovalQueue() {
                           {isExecutionFailed && (
                             <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-red-400 bg-red-500/10 border-red-500/15 flex items-center gap-1">
                               <XCircle className="w-2.5 h-2.5" /> Exec Failed
+                            </span>
+                          )}
+                          {isExecuting && (
+                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-blue-400 bg-blue-500/10 border-blue-500/20 flex items-center gap-1">
+                              <Loader2 className="w-2.5 h-2.5 animate-spin" /> Executing…
                             </span>
                           )}
                           {isApprovedUnexecuted && (
@@ -771,8 +782,16 @@ export default function AIApprovalQueue() {
                     </div>
                   )}
 
+                  {/* Executing in-progress banner */}
+                  {isExecuting && (
+                    <div className="border-t border-blue-500/20 px-4 py-3 bg-blue-500/5 flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 text-blue-400 shrink-0 animate-spin" />
+                      <p className="text-[11px] text-blue-400">Generating implementation deliverable… Refresh in a moment.</p>
+                    </div>
+                  )}
+
                   {/* Execute section — approved items awaiting execution or retry after failure */}
-                  {item.status === "approved" && (isApprovedUnexecuted || isExecutionFailed) && (
+                  {item.status === "approved" && !isExecuting && (isApprovedUnexecuted || isExecutionFailed) && (
                     <div className={`border-t px-4 py-3 space-y-2 ${isExecutionFailed ? "border-red-500/15 bg-red-500/5" : "border-emerald-500/10 bg-emerald-500/5"}`}>
                       <div className="flex flex-wrap items-center gap-3">
                         <div className="flex-1 min-w-0">
@@ -808,9 +827,15 @@ export default function AIApprovalQueue() {
                   {/* Execution complete footer */}
                   {isExecuted && (
                     <div className="border-t border-teal-500/10 px-4 py-2.5 bg-teal-500/5 flex items-center gap-2">
-                      <CheckCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                      {item.executionResult?.autoExecuted
+                        ? <BotIcon className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                        : <CheckCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                      }
                       <p className="text-[11px] text-teal-400">
-                        Executed by <strong>{item.executedBy}</strong> on{" "}
+                        {item.executionResult?.autoExecuted
+                          ? <><strong>Auto-executed after approval</strong> · </>
+                          : <><strong>Manually executed</strong> by {item.executedBy} · </>
+                        }
                         {item.executedAt ? new Date(item.executedAt).toLocaleString("en-SG", { dateStyle: "medium", timeStyle: "short" }) : "—"}
                         {" "}· Expand to view and copy the deliverable
                       </p>

@@ -87,6 +87,11 @@ const FLAG_HELP: Record<string, { what: string; effect: string; safe: string }> 
     effect: "Syncs run silently in the background. Each connector also requires its own individual flag to be ON. If the master kill-switch is active, no syncs run regardless.",
     safe: "Safe to enable. All syncs are read-only imports — no ad platform changes are made. Disable at any time to pause all scheduled syncs.",
   },
+  ai_auto_execute_enabled: {
+    what: "When an approval queue item is approved, immediately generate the implementation deliverable (CRO brief, ad copy spec, negative keyword CSV, or landing page brief).",
+    effect: "Deliverable is generated and saved the moment you click Approve — no need to click Execute separately. Works for site_change, creative, negative_keyword, and landing_page types only. Does NOT call any live API or modify any ad account or site.",
+    safe: "Medium risk label — the deliverable is generated automatically, but no live changes are made. Disable if you prefer to review first and execute manually.",
+  },
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -197,6 +202,7 @@ export default function AIHub() {
     { key: "ai_meta_ads_sync_enabled",      label: "Meta Ads Live Sync",        risk: "low" },
     { key: "ai_search_console_enabled",     label: "Search Console Sync",       risk: "low" },
     { key: "ai_scheduler_enabled",          label: "Sync Scheduler",             risk: "low" },
+    { key: "ai_auto_execute_enabled",       label: "Auto-Execute on Approval",   risk: "medium" },
   ];
 
   const lastLog = recentLogs[0];

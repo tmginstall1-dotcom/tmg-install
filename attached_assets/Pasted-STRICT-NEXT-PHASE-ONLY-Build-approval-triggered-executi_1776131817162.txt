@@ -1,0 +1,72 @@
+STRICT NEXT PHASE ONLY
+
+Build approval-triggered execution for the existing AI Ops system on TMGInstall.com.
+
+GOAL:
+After human approval, the AI agent should automatically execute the approved action.
+The human should only need to approve, reject, or roll back.
+Do NOT introduce uncontrolled automation.
+
+CRITICAL RULES:
+- Do NOT touch booking logic
+- Do NOT touch payment logic
+- Do NOT touch quote logic
+- Do NOT touch live customer workflow
+- Do NOT auto-publish live site changes yet
+- Do NOT make uncontrolled ad account changes
+- Every execution must be logged and reversible
+- Every execution must respect ai_master_kill_switch and relevant feature flags
+
+REQUIRED BEHAVIOUR:
+When an approval item is approved:
+1. change state to approved
+2. immediately trigger execution automatically for allowed action types
+3. update state to executing
+4. write execution result
+5. mark executed or failed
+6. log audit trail
+7. preserve rollback path
+
+IN SCOPE:
+1. Auto-execute on approval for:
+   - CRO copy update drafts
+   - landing page draft actions
+   - ad copy draft actions
+   - negative keyword prepared actions
+2. Clear allowed-action-type guardrails
+3. Execution failure handling and retry-safe behaviour
+4. Approval queue UI updates to show:
+   - auto-executed after approval
+   - executing
+   - executed
+   - failed
+   - rollback available
+5. Audit log linkage from approval -> execution -> result
+6. Optional retry action for failed executions only
+
+OUT OF SCOPE:
+- live booking/payment/customer workflow changes
+- direct uncontrolled ad budget changes
+- automatic live site publishing
+- unrelated refactors
+
+REQUIREMENTS:
+- Reuse existing approval queue, execute route, and audit log where possible
+- Add only minimal new tables/routes/columns if needed
+- Every execution must show:
+  - exact approved action
+  - exact execution target
+  - execution result
+  - timestamp
+  - actor/system
+  - rollback path
+- Auto-execution must happen only after explicit human approval
+- Preserve the current live workflow completely
+
+OUTPUT:
+1. Exact files changed
+2. Exact new routes
+3. Exact new tables/columns
+4. Exact approval-triggered execution flow
+5. Exact rollback flow
+6. Exact confirmation that live workflow was untouched

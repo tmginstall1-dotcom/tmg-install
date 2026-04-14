@@ -70,8 +70,9 @@ export function AdminBottomNav() {
   const dashBadge = quotes.filter(q => ["submitted", "under_review", "completed", "final_payment_requested"].includes(q.status)).length;
   const schedBadge = quotes.filter(q => ["deposit_paid", "booked"].includes(q.status)).length;
   const staffBadge = (pendingAmendments as any[]).length + (pendingLeave as any[]).length;
-  const waBadge = (convos as any[]).reduce((s: number, c: any) => s + (c.unreadCount || 0), 0) +
-    (convos as any[]).filter((c: any) => c.botPaused).length;
+  const safeConvos = (convos ?? []) as any[];
+  const waBadge = safeConvos.reduce((s: number, c: any) => s + (c.unreadCount || 0), 0) +
+    safeConvos.filter((c: any) => c.botPaused).length;
   const receiptsBadge = (pendingReceipts as any[]).length;
   const moreBadge = receiptsBadge;
 
