@@ -179,7 +179,7 @@ export default function AIConnectors() {
   });
 
   const sync = useMutation({
-    mutationFn: (name: string) => apiRequest("POST", `/api/ai/connectors/${name}/sync`, {}),
+    mutationFn: (name: string) => apiRequest("POST", `/api/ai/connectors/${name.replace(/_/g, '-')}/sync`, {}),
     onMutate: (name) => setSyncingName(name),
     onSettled: () => {
       setSyncingName(null);
