@@ -81,6 +81,7 @@ type PnlData = {
     profit: number;
   }[];
   expensesByCategory: { category: string; amount: number }[];
+  filter: { from: string | null; to: string | null };
 };
 
 /* ─── Constants ──────────────────────────────────────────────────────────────── */
@@ -1024,11 +1025,67 @@ const CAT_COLORS: Record<string, string> = {
   other:     "#94a3b8",
 };
 
+// ── P&L date presets ─────────────────────────────────────────────────────────
+type PnlPreset = "this_month" | "last_month" | "last3" | "last6" | "this_year" | "all_time" | "custom";
+
+function getPnlRange(preset: PnlPreset, customFrom: string, customTo: string): { from: string | null; to: string | null } {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  if (preset === "this_month") {
+    return { from: `${yyyy}-${mm}-01`, to: `${yyyy}-${mm}-${dd}` };
+  }
+  if (preset === "last_month") {
+    const d = new Date(yyyy, now.getMonth() - 1, 1);
+    const lastDay = new Date(yyyy, now.getMonth(), 0).getDate();
+    const m2 = String(d.getMonth() + 1).padStart(2, "0");
+    return { from: `${d.getFullYear()}-${m2}-01`, to: `${d.getFullYear()}-${m2}-${lastDay}` };
+  }
+  if (preset === "last3") {
+    const d = new Date(yyyy, now.getMonth() - 2, 1);
+    const m2 = String(d.getMonth() + 1).padStart(2, "0");
+    return { from: `${d.getFullYear()}-${m2}-01`, to: `${yyyy}-${mm}-${dd}` };
+  }
+  if (preset === "last6") {
+    const d = new Date(yyyy, now.getMonth() - 5, 1);
+    const m2 = String(d.getMonth() + 1).padStart(2, "0");
+    return { from: `${d.getFullYear()}-${m2}-01`, to: `${yyyy}-${mm}-${dd}` };
+  }
+  if (preset === "this_year") {
+    return { from: `${yyyy}-01-01`, to: `${yyyy}-${mm}-${dd}` };
+  }
+  if (preset === "custom") {
+    return { from: customFrom || null, to: customTo || null };
+  }
+  return { from: null, to: null }; // all_time
+}
+
+const PRESET_LABELS: Record<PnlPreset, string> = {
+  this_month: "This Month",
+  last_month: "Last Month",
+  last3:      "Last 3 Mo",
+  last6:      "Last 6 Mo",
+  this_year:  "This Year",
+  all_time:   "All Time",
+  custom:     "Custom",
+};
+
 function PnLTab() {
+  const [preset, setPreset] = useState<PnlPreset>("last6");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const { from, to } = getPnlRange(preset, customFrom, customTo);
+
+  const qkSuffix = from ? `${from}__${to || ""}` : "all";
   const { data, isLoading } = useQuery<PnlData>({
-    queryKey: ["/api/admin/analytics/pnl"],
+    queryKey: ["/api/admin/analytics/pnl", qkSuffix],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/admin/analytics/pnl`, { credentials: "include" });
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to)   params.set("to",   to);
+      const qs = params.toString();
+      const res = await fetch(`${API_BASE}/api/admin/analytics/pnl${qs ? `?${qs}` : ""}`, { credentials: "include" });
       return res.json();
     },
     refetchInterval: 120_000,
@@ -1048,6 +1105,7 @@ function PnLTab() {
     netProfit, profitMargin, jobCount, avgJobRevenue,
     pendingExpenses, monthlyTrend, expensesByCategory,
   } = data;
+  const periodLabel = from ? `${from} → ${to || "today"}` : "All Time";
 
   const profitable = netProfit >= 0;
   const maxCatAmount = expensesByCategory[0]?.amount ?? 1;
@@ -1055,9 +1113,52 @@ function PnLTab() {
   return (
     <div className="space-y-6">
 
+      {/* ── Date Range Filter Bar ── */}
+      <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(PRESET_LABELS) as PnlPreset[]).map(p => (
+            <button
+              key={p}
+              onClick={() => setPreset(p)}
+              data-testid={`pnl-preset-${p}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                preset === p
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+              }`}
+            >
+              {PRESET_LABELS[p]}
+            </button>
+          ))}
+        </div>
+        {preset === "custom" && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <label className="text-xs text-zinc-500 font-medium">From</label>
+            <input
+              type="date"
+              value={customFrom}
+              onChange={e => setCustomFrom(e.target.value)}
+              data-testid="pnl-custom-from"
+              className="h-8 px-2 text-xs border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <label className="text-xs text-zinc-500 font-medium">To</label>
+            <input
+              type="date"
+              value={customTo}
+              onChange={e => setCustomTo(e.target.value)}
+              data-testid="pnl-custom-to"
+              className="h-8 px-2 text-xs border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        )}
+        <p className="text-[11px] text-zinc-400">
+          Showing: <span className="font-semibold text-zinc-600">{periodLabel}</span>
+        </p>
+      </div>
+
       {/* ── Row 1: Revenue KPIs ── */}
       <div>
-        <SectionTitle>Revenue — All Time</SectionTitle>
+        <SectionTitle>Revenue — {PRESET_LABELS[preset]}</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <KpiCard label="Total Revenue" value={fmtSGD(totalRevenue)}
             sub="TMG jobs + GGV combined" icon={Wallet} color="text-emerald-500" />
@@ -1070,7 +1171,7 @@ function PnLTab() {
 
       {/* ── Row 2: Expense KPIs ── */}
       <div>
-        <SectionTitle>Expenses — All Time</SectionTitle>
+        <SectionTitle>Expenses — {PRESET_LABELS[preset]}</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <KpiCard label="Total Expenses" value={fmtSGD(totalExpenses)}
             sub="Salary + approved claims" icon={Receipt} color="text-red-500" />

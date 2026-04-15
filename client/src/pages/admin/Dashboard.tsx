@@ -3,12 +3,13 @@ import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { CreateJobModal } from "@/components/admin/CreateJobModal";
 import { format, isToday, isTomorrow, startOfWeek, subWeeks } from "date-fns";
 import { useState, useMemo } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
   ClipboardList, DollarSign, CalendarCheck, Zap, AlertCircle, Trash2,
-  ChevronRight, Search, X, Loader2, TrendingUp, BellRing,
+  ChevronRight, Search, X, Loader2, TrendingUp, BellRing, Plus,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -63,6 +64,26 @@ function dateLabel(quote: any): string {
   return format(new Date(quote.createdAt), "d MMM");
 }
 
+const CHANNEL_BADGE: Record<string, { label: string; cls: string }> = {
+  web:      { label: "🌐 Web",     cls: "bg-blue-50 text-blue-600 border-blue-100" },
+  whatsapp: { label: "💬 WA",      cls: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+  phone:    { label: "📞 Call",    cls: "bg-purple-50 text-purple-700 border-purple-100" },
+  ikea:     { label: "🛋 IKEA",    cls: "bg-orange-50 text-orange-700 border-orange-100" },
+  referral: { label: "🤝 Ref",     cls: "bg-teal-50 text-teal-700 border-teal-100" },
+  walk_in:  { label: "🚶 Walk-in", cls: "bg-zinc-50 text-zinc-500 border-zinc-200" },
+  other:    { label: "⚡ Other",   cls: "bg-zinc-50 text-zinc-500 border-zinc-200" },
+};
+
+function ChannelBadge({ channel }: { channel?: string }) {
+  const ch = channel || "web";
+  const cfg = CHANNEL_BADGE[ch] || { label: ch, cls: "bg-zinc-50 text-zinc-500 border-zinc-200" };
+  return (
+    <span className={`inline-flex items-center h-5 px-1.5 rounded text-[10px] font-bold border tracking-wide shrink-0 ${cfg.cls}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
 function QuoteRow({ quote, compact = false }: { quote: any; compact?: boolean }) {
   const [, navigate] = useLocation();
   return (
@@ -75,16 +96,17 @@ function QuoteRow({ quote, compact = false }: { quote: any; compact?: boolean })
         {initials(quote.customer?.name)}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
           <p className="text-[15px] font-bold text-slate-900 truncate leading-tight">
             {quote.customer?.name || "Unknown"}
           </p>
           <StatusBadge status={quote.status} />
+          <ChannelBadge channel={quote.sourceChannel} />
         </div>
         {!compact && (
           <p className="text-[13px] text-slate-500 truncate mt-1.5 font-medium">
             <span className="text-slate-400 font-mono tracking-tight mr-1.5">{quote.referenceNo}</span>
-            {quote.serviceAddress || "No address"}
+            {quote.serviceAddress || quote.pickupAddress || "No address"}
           </p>
         )}
       </div>
@@ -156,6 +178,7 @@ export default function AdminDashboard() {
   const { data: allQuotes, isLoading } = useQuotes();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [search, setSearch] = useState("");
+  const [showNewJob, setShowNewJob] = useState(false);
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
@@ -256,15 +279,26 @@ export default function AdminDashboard() {
               <p className="text-[13px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
               <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">{greeting()}</h1>
             </div>
-            <div className="flex items-center gap-6 sm:pt-0.5">
-              <div className="text-right">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Collected</p>
-                <p className="text-2xl font-black text-slate-900 tabular-nums leading-none tracking-tight">{formatMoney(totalRevenue)}</p>
-              </div>
-              <div className="w-px h-12 bg-slate-200" />
-              <div className="text-right">
-                <p className="text-[11px] font-bold text-blue-500/70 uppercase tracking-widest mb-1.5">Pipeline</p>
-                <p className="text-2xl font-black text-blue-600 tabular-nums leading-none tracking-tight">{formatMoney(pipelineValue)}</p>
+            <div className="flex items-center gap-4 sm:pt-0.5 flex-wrap">
+              {/* Quick New Job button */}
+              <button
+                onClick={() => setShowNewJob(true)}
+                data-testid="button-new-job"
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-bold transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                New Job
+              </button>
+              <div className="flex items-center gap-6">
+                <div className="text-right">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Collected</p>
+                  <p className="text-2xl font-black text-slate-900 tabular-nums leading-none tracking-tight">{formatMoney(totalRevenue)}</p>
+                </div>
+                <div className="w-px h-12 bg-slate-200" />
+                <div className="text-right">
+                  <p className="text-[11px] font-bold text-blue-500/70 uppercase tracking-widest mb-1.5">Pipeline</p>
+                  <p className="text-2xl font-black text-blue-600 tabular-nums leading-none tracking-tight">{formatMoney(pipelineValue)}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -498,6 +532,9 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* Quick New Job modal */}
+      <CreateJobModal open={showNewJob} onClose={() => setShowNewJob(false)} />
     </div>
   );
 }

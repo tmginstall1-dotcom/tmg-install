@@ -2071,7 +2071,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // ── P&L Analytics ──────────────────────────────────────────────────────────
+  // ── P&L Analytics (supports ?from=YYYY-MM-DD&to=YYYY-MM-DD for date range) ──
   app.get("/api/admin/analytics/pnl", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     const caller = await storage.getUserById(req.session.userId);
@@ -2079,33 +2079,46 @@ export async function registerRoutes(
     try {
       const DONE_STATUSES = ["completed", "final_payment_requested", "final_paid", "closed"];
       const now = new Date();
-      const sixMonthsAgo = new Date(now);
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-      sixMonthsAgo.setDate(1);
 
-      // ── TMG Revenue: all completed/paid/closed quotes ────────────────────────
+      // ── Date range: optional ?from=&to= params ───────────────────────────────
+      const fromParam = req.query.from as string | undefined;
+      const toParam   = req.query.to   as string | undefined;
+      const rangeFrom: Date | null = fromParam ? new Date(fromParam + "T00:00:00") : null;
+      const rangeTo:   Date | null = toParam   ? new Date(toParam   + "T23:59:59") : null;
+      // For monthly trend display window: default to last 6 months if no range given
+      const trendFrom = rangeFrom ?? (() => { const d = new Date(now); d.setMonth(d.getMonth() - 5); d.setDate(1); return d; })();
+      const trendTo   = rangeTo ?? now;
+      const trendFromKey = `${trendFrom.getFullYear()}-${String(trendFrom.getMonth() + 1).padStart(2, "0")}`;
+      const trendToKey   = `${trendTo.getFullYear()}-${String(trendTo.getMonth() + 1).padStart(2, "0")}`;
+
+      const inRange = (d: Date | null | undefined): boolean => {
+        if (!d) return !rangeFrom; // no date: include only if no filter
+        if (rangeFrom && d < rangeFrom) return false;
+        if (rangeTo   && d > rangeTo)   return false;
+        return true;
+      };
+
+      // ── TMG Revenue: completed/paid/closed quotes ────────────────────────────
       const allQuotes = await db.select({
         id: quotesTable.id, status: quotesTable.status,
         total: quotesTable.total, scheduledAt: quotesTable.scheduledAt,
         createdAt: quotesTable.createdAt,
       }).from(quotesTable);
 
-      const doneQuotes = allQuotes.filter(q => DONE_STATUSES.includes(q.status));
+      const doneQuotes = allQuotes.filter(q =>
+        DONE_STATUSES.includes(q.status) && inRange(q.scheduledAt || q.createdAt)
+      );
       const tmgRevenue = doneQuotes.reduce((s, q) => s + parseFloat(q.total || "0"), 0);
 
-      // Monthly TMG revenue
       const monthlyTmgRevMap: Record<string, number> = {};
       for (const q of doneQuotes) {
         const d = q.scheduledAt || q.createdAt;
-        if (!d || d < sixMonthsAgo) continue;
+        if (!d) continue;
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
         monthlyTmgRevMap[key] = (monthlyTmgRevMap[key] || 0) + parseFloat(q.total || "0");
       }
 
-      // ── GGV Revenue: actualPrice + delivery fee from all GGV jobs ─────────────
-      // Delivery jobs are identified by jobNo starting with "S".
-      // These earn an additional flat delivery fee of $23.80 per trip,
-      // matching the effectiveActual() logic used on the GGV Jobs UI page.
+      // ── GGV Revenue ──────────────────────────────────────────────────────────
       const GGV_DELIVERY_FEE = 23.80;
       const allGGVJobs = await db.select({
         id: ggvJobsTable.id, date: ggvJobsTable.date,
@@ -2121,24 +2134,23 @@ export async function registerRoutes(
         return (isNaN(base) ? 0 : base) + fee;
       };
 
-      const ggvRevenue      = allGGVJobs.reduce((s, j) => s + ggvEffective(j), 0);
-      const ggvListedTotal  = allGGVJobs.reduce((s, j) => s + parseFloat(j.listedPrice || "0"), 0);
-      const ggvDeductionTotal = allGGVJobs.reduce((s, j) => s + parseFloat(j.deduction || "0"), 0);
-      const ggvJobCount = allGGVJobs.length;
+      const filteredGGV = allGGVJobs.filter(j => inRange(j.date ? new Date(j.date) : null));
+      const ggvRevenue        = filteredGGV.reduce((s, j) => s + ggvEffective(j), 0);
+      const ggvListedTotal    = filteredGGV.reduce((s, j) => s + parseFloat(j.listedPrice || "0"), 0);
+      const ggvDeductionTotal = filteredGGV.reduce((s, j) => s + parseFloat(j.deduction  || "0"), 0);
+      const ggvJobCount = filteredGGV.length;
 
-      // Monthly GGV revenue (same effective formula)
       const monthlyGGVRevMap: Record<string, number> = {};
-      for (const j of allGGVJobs) {
+      for (const j of filteredGGV) {
         if (!j.date) continue;
         const d = new Date(j.date);
-        if (d < sixMonthsAgo) continue;
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
         monthlyGGVRevMap[key] = (monthlyGGVRevMap[key] || 0) + ggvEffective(j);
       }
 
       const totalRevenue = tmgRevenue + ggvRevenue;
 
-      // ── Staff Salary Cost: actual hours × rates from attendance logs ─────────
+      // ── Staff Salary Cost ────────────────────────────────────────────────────
       const staffList = await storage.getStaffMembers() as any[];
       const allAttLogs = await db.select({
         userId: attendanceLogs.userId,
@@ -2146,52 +2158,42 @@ export async function registerRoutes(
         clockOutAt: attendanceLogs.clockOutAt,
       }).from(attendanceLogs);
 
-      // Build salary cost map per month
       const monthlySalaryMap: Record<string, number> = {};
       let totalSalaryCost = 0;
 
-      // ── Staff classification ──────────────────────────────────────────────────
-      // A staff member is treated as "monthly salaried" when they have a monthly
-      // rate > 0 (regardless of the payType field).  This prevents the common
-      // data-entry mistake of leaving payType='hourly' while a monthly salary
-      // has been entered, which would otherwise produce a $0 salary cost.
       const monthlyStaff = staffList.filter((s: any) => parseFloat(s.monthlyRate || "0") > 0);
       const hourlyStaff  = staffList.filter((s: any) =>
         parseFloat(s.monthlyRate || "0") === 0 && parseFloat(s.hourlyRate || "0") > 0);
 
-      // Hourly staff: calculate from actual attendance logs
       for (const s of hourlyStaff) {
-        const myLogs = allAttLogs.filter(l => l.userId === s.id && l.clockInAt && l.clockOutAt);
+        const myLogs = allAttLogs.filter(l =>
+          l.userId === s.id && l.clockInAt && l.clockOutAt && inRange(l.clockInAt)
+        );
         for (const log of myLogs) {
           const hrs = (log.clockOutAt!.getTime() - log.clockInAt!.getTime()) / 3600000;
-          const regularHrs = Math.min(hrs, 8);
-          const overtimeHrs = Math.max(0, hrs - 8);
-          const cost = regularHrs * parseFloat(s.hourlyRate || "0")
-                     + overtimeHrs * parseFloat(s.overtimeRate || s.hourlyRate || "0");
+          const cost = Math.min(hrs, 8) * parseFloat(s.hourlyRate || "0")
+                     + Math.max(0, hrs - 8) * parseFloat(s.overtimeRate || s.hourlyRate || "0");
           totalSalaryCost += cost;
           const key = `${log.clockInAt!.getFullYear()}-${String(log.clockInAt!.getMonth() + 1).padStart(2, "0")}`;
           monthlySalaryMap[key] = (monthlySalaryMap[key] || 0) + cost;
         }
       }
 
-      // Monthly-rate staff: prorate based on employment start date to now.
-      // The current (partial) month is prorated by days elapsed ÷ days in month.
-      // If no start_date is recorded, we default to the 1st of the current month
-      // to avoid accumulating phantom salary for unknown prior months.
       for (const s of monthlyStaff) {
         const rate = parseFloat(s.monthlyRate || "0");
         if (rate === 0) continue;
-        // Default: current month only (safe fallback when start_date is missing)
         const startDate = s.startDate
           ? new Date(s.startDate)
           : new Date(now.getFullYear(), now.getMonth(), 1);
-        const cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-        while (cur <= now) {
+        // iterate month by month within the filter range
+        const iterFrom = rangeFrom && startDate < rangeFrom ? new Date(rangeFrom.getFullYear(), rangeFrom.getMonth(), 1) : new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        const iterTo   = rangeTo ?? now;
+        const cur = new Date(iterFrom);
+        while (cur <= iterTo) {
           const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`;
-          const isCurrentMonth =
-            cur.getFullYear() === now.getFullYear() && cur.getMonth() === now.getMonth();
-          // Prorate the current month: only charge salary for days worked so far
-          const monthCost = isCurrentMonth
+          const isLastMonth = cur.getFullYear() === iterTo.getFullYear() && cur.getMonth() === iterTo.getMonth();
+          const isCurrentCalMonth = cur.getFullYear() === now.getFullYear() && cur.getMonth() === now.getMonth();
+          const monthCost = (isLastMonth && isCurrentCalMonth)
             ? rate * (now.getDate() / new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate())
             : rate;
           monthlySalaryMap[key] = (monthlySalaryMap[key] || 0) + monthCost;
@@ -2202,14 +2204,15 @@ export async function registerRoutes(
 
       // ── Expenses: approved receipts ──────────────────────────────────────────
       const allReceipts = await storage.getAllReceipts();
-      const approvedReceipts = (allReceipts as any[]).filter((r: any) => r.status === "approved");
+      const approvedReceipts = (allReceipts as any[]).filter((r: any) =>
+        r.status === "approved" && inRange(r.receiptDate ? new Date(r.receiptDate) : null)
+      );
       const totalReceiptExpenses = approvedReceipts.reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
 
       const monthlyReceiptExpMap: Record<string, number> = {};
-      for (const r of approvedReceipts as any[]) {
+      for (const r of approvedReceipts) {
         if (!r.receiptDate) continue;
         const d = new Date(r.receiptDate);
-        if (d < sixMonthsAgo) continue;
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
         monthlyReceiptExpMap[key] = (monthlyReceiptExpMap[key] || 0) + parseFloat(r.amount || "0");
       }
@@ -2218,76 +2221,64 @@ export async function registerRoutes(
       const netProfit = totalRevenue - totalExpenses;
       const profitMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100 * 10) / 10 : 0;
 
-      // ── Monthly trend (last 6 months) ────────────────────────────────────────
+      // ── Monthly trend: all months within trend window ─────────────────────────
       const allMonths = Array.from(new Set([
         ...Object.keys(monthlyTmgRevMap),
         ...Object.keys(monthlyGGVRevMap),
         ...Object.keys(monthlyReceiptExpMap),
-        ...Object.keys(monthlySalaryMap).filter(k => k >= sixMonthsAgo.toISOString().slice(0, 7)),
-      ])).sort();
+        ...Object.keys(monthlySalaryMap),
+      ])).filter(k => k >= trendFromKey && k <= trendToKey).sort();
 
       const monthlyTrend = allMonths.map(key => {
-        const tmgRev = Math.round(monthlyTmgRevMap[key] || 0);
-        const ggvRev = Math.round(monthlyGGVRevMap[key] || 0);
+        const tmgRev  = Math.round(monthlyTmgRevMap[key]     || 0);
+        const ggvRev  = Math.round(monthlyGGVRevMap[key]     || 0);
         const receipts = Math.round(monthlyReceiptExpMap[key] || 0);
-        const salary = Math.round(monthlySalaryMap[key] || 0);
-        const revenue = tmgRev + ggvRev;
+        const salary  = Math.round(monthlySalaryMap[key]     || 0);
+        const revenue  = tmgRev + ggvRev;
         const expenses = receipts + salary;
         return {
           month: key,
           label: new Date(key + "-01").toLocaleDateString("en-SG", { month: "short", year: "2-digit" }),
-          revenue,
-          tmgRevenue: tmgRev,
-          ggvRevenue: ggvRev,
-          expenses,
-          receiptsExpense: receipts,
-          salaryExpense: salary,
+          revenue, tmgRevenue: tmgRev, ggvRevenue: ggvRev,
+          expenses, receiptsExpense: receipts, salaryExpense: salary,
           profit: revenue - expenses,
         };
       });
 
-      // ── Expense breakdown by category (receipts + salary) ────────────────────
+      // ── Expense breakdown by category ─────────────────────────────────────────
       const catMap: Record<string, number> = {};
-      for (const r of approvedReceipts as any[]) {
+      for (const r of approvedReceipts) {
         const cat = r.category || "other";
         catMap[cat] = (catMap[cat] || 0) + parseFloat(r.amount || "0");
       }
-      if (totalSalaryCost > 0) {
-        catMap["staff_salary"] = (catMap["staff_salary"] || 0) + totalSalaryCost;
-      }
+      if (totalSalaryCost > 0) catMap["staff_salary"] = (catMap["staff_salary"] || 0) + totalSalaryCost;
       const expensesByCategory = Object.entries(catMap)
         .map(([category, amount]) => ({ category, amount: Math.round(amount * 100) / 100 }))
         .sort((a, b) => b.amount - a.amount);
 
-      // ── Misc KPIs ────────────────────────────────────────────────────────────
       const jobCount = doneQuotes.length;
       const avgJobRevenue = jobCount > 0 ? Math.round(tmgRevenue / jobCount) : 0;
-
       const pendingExpenses = (allReceipts as any[])
         .filter((r: any) => r.status === "pending")
         .reduce((s: number, r: any) => s + parseFloat(r.amount || "0"), 0);
 
       res.json({
-        // Revenue
         totalRevenue:    Math.round(totalRevenue    * 100) / 100,
         tmgRevenue:      Math.round(tmgRevenue      * 100) / 100,
         ggvRevenue:      Math.round(ggvRevenue      * 100) / 100,
         ggvListedTotal:  Math.round(ggvListedTotal  * 100) / 100,
         ggvDeductionTotal: Math.round(ggvDeductionTotal * 100) / 100,
-        ggvJobCount,
-        jobCount,
-        avgJobRevenue,
-        // Expenses
+        ggvJobCount, jobCount, avgJobRevenue,
         totalExpenses:        Math.round(totalExpenses        * 100) / 100,
         totalReceiptExpenses: Math.round(totalReceiptExpenses * 100) / 100,
         totalSalaryCost:      Math.round(totalSalaryCost      * 100) / 100,
         pendingExpenses:      Math.round(pendingExpenses       * 100) / 100,
-        // Profit
         netProfit:     Math.round(netProfit     * 100) / 100,
         profitMargin,
-        // Charts
         monthlyTrend,
         expensesByCategory,
+        // Echo back the active filter so the UI can display it
+        filter: { from: fromParam || null, to: toParam || null },
       });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
