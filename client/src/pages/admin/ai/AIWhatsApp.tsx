@@ -350,7 +350,8 @@ export default function AIWhatsApp() {
   });
 
   return (
-    <div className="space-y-5 max-w-4xl mx-auto">
+    <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#0B0F19]">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-5">
 
       {/* ── Header ────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3">
@@ -481,6 +482,7 @@ export default function AIWhatsApp() {
         </div>
       </div>
 
+    </div>
     </div>
   );
 }
