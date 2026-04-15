@@ -107,6 +107,31 @@ const FLAG_HELP: Record<string, { what: string; effect: string; safe: string }> 
     effect: "Every 'Push to Platform' click generates and logs the exact payload that would be sent, shows you the target IDs, budget changes, and rollback instructions — but no live change is made. Turn OFF to send real API calls.",
     safe: "Safe when ON (dry run). This is the default. Turn OFF only when you are ready to push real changes to live ad accounts.",
   },
+  ai_whatsapp_agent_enabled: {
+    what: "Enables the AI Sales Agent layer for inbound WhatsApp messages. When ON, the agent intercepts each message, extracts lead facts with GPT-4o, and asks qualifying questions automatically.",
+    effect: "Inbound messages are processed by the AI first. If the agent handles the message it replies immediately; if it cannot handle or is uncertain it falls through to the legacy bot. No booking, payment, or existing job logic is affected.",
+    safe: "Medium risk. Safe to enable — the agent never modifies quotes or payments. Turn on the master kill switch at any time to disable all AI instantly.",
+  },
+  ai_whatsapp_followups_enabled: {
+    what: "Enables scheduled follow-up messages sent by the AI when a lead goes quiet — e.g. after 30 minutes with missing info, or 10 minutes after a quote is ready.",
+    effect: "The follow-up scheduler runs every 5 minutes and sends the next due message. Follow-ups respect the 24-hr customer window and skip conversations owned by humans.",
+    safe: "Medium risk. Follow-ups are sent only within the Meta 24-hr window unless template mode is also enabled. Start with this OFF while you verify the agent is qualifying correctly.",
+  },
+  ai_whatsapp_auto_qualify_enabled: {
+    what: "Allows the AI to automatically send its qualifying question reply inside the 24-hr customer window, without waiting for a human to review.",
+    effect: "Each inbound message triggers fact extraction and an immediate AI reply asking for the next missing piece of information. If OFF, the agent still extracts facts but does not reply — falling through to the legacy bot.",
+    safe: "Low risk. Replies are polite, single-question messages. The agent never invents pricing or confirms bookings.",
+  },
+  ai_whatsapp_template_mode_enabled: {
+    what: "Allows sending pre-approved template-style outbound messages outside the 24-hr customer window — e.g. stale reactivation pings.",
+    effect: "When enabled, the follow-up scheduler may send a short reactivation message to leads that have gone stale. Only applies when the 24-hr window is closed and a follow-up is due.",
+    safe: "Low risk. Reactivation messages are brief and non-intrusive. Disable if you prefer to never contact leads outside the 24-hr window.",
+  },
+  ai_whatsapp_handoff_required_on_low_confidence: {
+    what: "Forces the AI to hand the conversation to a human when its confidence score drops below 30% — meaning it cannot determine what service the customer needs.",
+    effect: "When confidence is low, the AI sends a polite handover message and sets the conversation to human ownership. The admin sees it flagged in the WhatsApp AI Agent page.",
+    safe: "Low risk. Recommended to keep ON — prevents the AI from guessing and annoying confused customers. Human takeover is always recoverable via the admin panel.",
+  },
 };
 
 const ACTION_LABELS: Record<string, string> = {

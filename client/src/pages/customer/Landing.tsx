@@ -1617,6 +1617,72 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ═══════════════════ CUSTOMER REVIEWS ══════════════════════ */}
+      <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10">
+        <div className="max-w-6xl mx-auto">
+          <motion.div {...fadeUpDelayed(0)} className="text-center mb-14">
+            <p className="section-eyebrow mb-4 text-xs">Customer Reviews</p>
+            <h2 className="section-title text-gradient-warm tracking-tight mb-4">
+              What our clients say.
+            </h2>
+            <div className="flex items-center justify-center gap-1 mb-3">
+              {[1,2,3,4,5].map(i => (
+                <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />
+              ))}
+              <span className="ml-2 text-sm font-bold text-white/60">5.0 average across all reviews</span>
+            </div>
+            <p className="font-body text-base text-white/50">
+              Real customers, real jobs — HDB, condo, commercial, island-wide.
+            </p>
+          </motion.div>
+
+          <motion.div {...fadeUpDelayed(0.06)} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {(testimonials.length > 0 ? testimonials : STATIC_TESTIMONIALS).map((r, i) => (
+              <div
+                key={i}
+                className="bg-white/5 border border-white/10 hover:border-amber-400/30 rounded-2xl p-6 flex flex-col gap-4 transition-all hover:bg-white/[0.08] shadow-lg"
+              >
+                {/* Stars */}
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: r.stars }).map((_, si) => (
+                    <Star key={si} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  ))}
+                </div>
+                {/* Review text */}
+                <p className="font-body text-sm text-white/75 leading-relaxed flex-1">
+                  &ldquo;{r.text}&rdquo;
+                </p>
+                {/* Customer info */}
+                <div className="pt-3 border-t border-white/10 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-white">{r.name}</p>
+                    <p className="text-xs text-white/40 font-medium">{r.loc} · {r.date}</p>
+                  </div>
+                  <div className="w-9 h-9 rounded-full bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400 font-black text-sm">
+                    {r.name.charAt(0)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </motion.div>
+
+          {/* Google review link */}
+          {reviewConfig?.writeUrl && (
+            <motion.div {...fadeUpDelayed(0.1)} className="text-center mt-10">
+              <a
+                href={reviewConfig.writeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 hover:border-amber-400/40 hover:bg-white/10 rounded-xl text-sm font-bold text-white/70 hover:text-white transition-all"
+              >
+                <Star className="w-4 h-4 text-amber-400" />
+                Leave a Google Review
+              </a>
+            </motion.div>
+          )}
+        </div>
+      </section>
+
       {/* ════════════════════════ FAQ ═══════════════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10 bg-gradient-to-b from-black/20 to-black/60">
         <div className="max-w-4xl mx-auto">
@@ -1676,8 +1742,24 @@ export default function Landing() {
             </p>
 
             {/* Amber rule above buttons */}
-            <div className="flex justify-center lg:justify-start mb-12">
+            <div className="flex justify-center lg:justify-start mb-8">
               <div className="w-24 h-1 bg-amber-400" />
+            </div>
+
+            {/* ── 100% Satisfaction Guarantee badge ── */}
+            <div className="flex justify-center lg:justify-start mb-8">
+              <div
+                data-testid="guarantee-badge"
+                className="inline-flex items-center gap-3 px-5 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 backdrop-blur-sm"
+              >
+                <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+                  <Shield className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-emerald-300">100% Satisfaction Guarantee</p>
+                  <p className="text-xs text-emerald-400/70 font-body">We return at no charge if anything is not right.</p>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-5 justify-center lg:justify-start">
