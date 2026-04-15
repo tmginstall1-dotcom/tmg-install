@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { logAttributionEvent, registerAiRoutes } from "./ai-routes";
+import { servicesHubPage, ikeaAssemblyPage, wardrobeInstallationPage, bedAssemblyPage, furnitureDismantlingPage, officeFurniturePage, furnitureRelocationPage } from "./seo-pages";
 import { api } from "@shared/routes";
 import { initVapid, getVapidPublicKey, addSubscription, removeSubscription, sendPushToAdmins } from "./push";
 import { z } from "zod";
@@ -1480,6 +1481,15 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // ── SEO Service Landing Pages (SSR — served before React SPA) ───────────────
+  app.get("/services", (_req, res) => res.status(200).set("Content-Type", "text/html").end(servicesHubPage()));
+  app.get("/services/ikea-assembly-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(ikeaAssemblyPage()));
+  app.get("/services/wardrobe-installation-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(wardrobeInstallationPage()));
+  app.get("/services/bed-assembly-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(bedAssemblyPage()));
+  app.get("/services/furniture-dismantling-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(furnitureDismantlingPage()));
+  app.get("/services/office-furniture-installation-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(officeFurniturePage()));
+  app.get("/services/furniture-relocation-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(furnitureRelocationPage()));
 
   // -- Stripe Webhook (must be before any body-parsing middleware for this route) --
   app.post("/api/webhooks/stripe", async (req, res) => {

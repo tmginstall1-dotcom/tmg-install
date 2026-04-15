@@ -6,28 +6,77 @@
 
   <url>
     <loc>https://tmginstall.com/</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-15</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
 
   <url>
+    <loc>https://tmginstall.com/services</loc>
+    <lastmod>2026-04-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <url>
+    <loc>https://tmginstall.com/services/ikea-assembly-singapore</loc>
+    <lastmod>2026-04-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://tmginstall.com/services/wardrobe-installation-singapore</loc>
+    <lastmod>2026-04-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://tmginstall.com/services/bed-assembly-singapore</loc>
+    <lastmod>2026-04-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://tmginstall.com/services/furniture-dismantling-singapore</loc>
+    <lastmod>2026-04-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
+    <loc>https://tmginstall.com/services/office-furniture-installation-singapore</loc>
+    <lastmod>2026-04-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
+    <loc>https://tmginstall.com/services/furniture-relocation-singapore</loc>
+    <lastmod>2026-04-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
     <loc>https://tmginstall.com/estimate</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <url>
     <loc>https://tmginstall.com/terms</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-15</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
 
   <url>
     <loc>https://tmginstall.com/privacy</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-15</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
