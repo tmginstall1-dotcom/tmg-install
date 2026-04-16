@@ -34,6 +34,7 @@ const AdminReceipts = lazy(() => import("@/pages/admin/Receipts"));
 const AdminFaqManager = lazy(() => import("@/pages/admin/FaqManager"));
 const AdminSeoPanel = lazy(() => import("@/pages/admin/SeoPanel"));
 const AdminGGVJobs = lazy(() => import("@/pages/admin/GGVJobs"));
+const AdminSubcontractors = lazy(() => import("@/pages/admin/Subcontractors"));
 const AdminAIHub = lazy(() => import("@/pages/admin/ai/AIHub"));
 const AdminAIAds = lazy(() => import("@/pages/admin/ai/AIAdsPanel"));
 const AdminAISite = lazy(() => import("@/pages/admin/ai/AISitePanel"));
@@ -173,6 +174,9 @@ function Router() {
           </Route>
           <Route path="/admin/ggv-jobs">
             {() => <AdminRoute component={AdminGGVJobs} />}
+          </Route>
+          <Route path="/admin/subcontractors">
+            {() => <AdminRoute component={AdminSubcontractors} />}
           </Route>
           <Route path="/admin/ai">
             {() => <AdminRoute component={AdminAIHub} />}

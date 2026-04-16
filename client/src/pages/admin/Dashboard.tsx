@@ -1,5 +1,5 @@
 import { useQuotes } from "@/hooks/use-quotes";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -220,6 +220,11 @@ export default function AdminDashboard() {
     .filter((q: any) => !["closed", "cancelled", "final_paid"].includes(q.status))
     .reduce((sum: number, q: any) => sum + Number(q.total || 0), 0);
 
+  const { data: subSummary } = useQuery<any>({
+    queryKey: ["/api/admin/subcontracts/summary"],
+  });
+  const netProfit = totalRevenue - Number(subSummary?.totalSubCosts || 0);
+
   // Build 12-week revenue trend from closed/final_paid quotes
   const revenueChartData = useMemo(() => {
     const weeks: { week: string; revenue: number; jobs: number }[] = [];
@@ -299,6 +304,17 @@ export default function AdminDashboard() {
                   <p className="text-[11px] font-bold text-blue-500/70 uppercase tracking-widest mb-1.5">Pipeline</p>
                   <p className="text-2xl font-black text-blue-600 tabular-nums leading-none tracking-tight">{formatMoney(pipelineValue)}</p>
                 </div>
+                {subSummary?.totalSubCosts > 0 && (
+                  <>
+                    <div className="w-px h-12 bg-slate-200" />
+                    <div className="text-right" data-testid="stat-net-profit">
+                      <p className="text-[11px] font-bold text-emerald-500/80 uppercase tracking-widest mb-1.5">Net Profit</p>
+                      <p className={`text-2xl font-black tabular-nums leading-none tracking-tight ${netProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                        {formatMoney(netProfit)}
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

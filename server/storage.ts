@@ -15,6 +15,9 @@ import {
   type FaqEntry, type InsertFaqEntry, type CannedReply, type InsertCannedReply,
   type PricingCorrection, type InsertPricingCorrection,
   type GGVJob, type InsertGGVJob,
+  subcontractors, jobSubcontracts,
+  type Subcontractor, type InsertSubcontractor,
+  type JobSubcontract, type InsertJobSubcontract,
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 
@@ -176,6 +179,27 @@ export interface IStorage {
     topPages: { page: string; count: number }[];
     utmCampaigns: { campaign: string; source: string; count: number }[];
     recent: SiteEvent[];
+  }>;
+
+  // Subcontractors
+  getSubcontractors(): Promise<Subcontractor[]>;
+  getSubcontractorById(id: number): Promise<Subcontractor | undefined>;
+  createSubcontractor(data: InsertSubcontractor): Promise<Subcontractor>;
+  updateSubcontractor(id: number, data: Partial<InsertSubcontractor>): Promise<Subcontractor | undefined>;
+  deleteSubcontractor(id: number): Promise<void>;
+
+  // Job Subcontracts
+  getJobSubcontracts(quoteId: number): Promise<(JobSubcontract & { subcontractor: Subcontractor })[]>;
+  getSubcontractorJobs(subcontractorId: number): Promise<(JobSubcontract & { quoteRef: string; customerName: string | null; scheduledAt: Date | null; quoteTotal: string | null })[]>;
+  assignSubcontract(data: InsertJobSubcontract): Promise<JobSubcontract>;
+  updateJobSubcontract(id: number, data: Partial<Pick<JobSubcontract, 'agreedCost' | 'paymentStatus' | 'paidAt' | 'notes'>>): Promise<JobSubcontract | undefined>;
+  deleteJobSubcontract(id: number): Promise<void>;
+  getSubcontractSummary(): Promise<{
+    totalRevenue: number;
+    totalSubCosts: number;
+    netProfit: number;
+    totalUnpaid: number;
+    payables: { subcontractorId: number; name: string; company: string | null; unpaidCount: number; unpaidTotal: number }[];
   }>;
 }
 
@@ -1699,6 +1723,150 @@ export class DatabaseStorage implements IStorage {
 
   async deletePricingCorrection(id: number): Promise<void> {
     await db.delete(pricingCorrections).where(eq(pricingCorrections.id, id));
+  }
+
+  // ── Subcontractors ─────────────────────────────────────────────────────────
+  async getSubcontractors(): Promise<Subcontractor[]> {
+    return db.select().from(subcontractors).orderBy(subcontractors.name);
+  }
+
+  async getSubcontractorById(id: number): Promise<Subcontractor | undefined> {
+    const [row] = await db.select().from(subcontractors).where(eq(subcontractors.id, id));
+    return row;
+  }
+
+  async createSubcontractor(data: InsertSubcontractor): Promise<Subcontractor> {
+    const [row] = await db.insert(subcontractors).values(data).returning();
+    return row;
+  }
+
+  async updateSubcontractor(id: number, data: Partial<InsertSubcontractor>): Promise<Subcontractor | undefined> {
+    const [row] = await db.update(subcontractors).set(data).where(eq(subcontractors.id, id)).returning();
+    return row;
+  }
+
+  async deleteSubcontractor(id: number): Promise<void> {
+    await db.delete(subcontractors).where(eq(subcontractors.id, id));
+  }
+
+  // ── Job Subcontracts ───────────────────────────────────────────────────────
+  async getJobSubcontracts(quoteId: number): Promise<(JobSubcontract & { subcontractor: Subcontractor })[]> {
+    const rows = await db.execute(sql`
+      SELECT js.*, row_to_json(s) as subcontractor
+      FROM job_subcontracts js
+      JOIN subcontractors s ON s.id = js.subcontractor_id
+      WHERE js.quote_id = ${quoteId}
+      ORDER BY js.created_at
+    `);
+    return (rows.rows as any[]).map(r => ({
+      id: r.id,
+      quoteId: r.quote_id,
+      subcontractorId: r.subcontractor_id,
+      agreedCost: r.agreed_cost,
+      paymentStatus: r.payment_status,
+      paidAt: r.paid_at,
+      notes: r.notes,
+      createdAt: r.created_at,
+      subcontractor: r.subcontractor,
+    }));
+  }
+
+  async getSubcontractorJobs(subcontractorId: number): Promise<(JobSubcontract & { quoteRef: string; customerName: string | null; scheduledAt: Date | null; quoteTotal: string | null })[]> {
+    const rows = await db.execute(sql`
+      SELECT js.*, q.reference_no as quote_ref, c.name as customer_name, q.scheduled_at, q.total as quote_total
+      FROM job_subcontracts js
+      JOIN quotes q ON q.id = js.quote_id
+      LEFT JOIN customers c ON c.id = q.customer_id
+      WHERE js.subcontractor_id = ${subcontractorId}
+      ORDER BY js.created_at DESC
+    `);
+    return (rows.rows as any[]).map(r => ({
+      id: r.id,
+      quoteId: r.quote_id,
+      subcontractorId: r.subcontractor_id,
+      agreedCost: r.agreed_cost,
+      paymentStatus: r.payment_status,
+      paidAt: r.paid_at,
+      notes: r.notes,
+      createdAt: r.created_at,
+      quoteRef: r.quote_ref,
+      customerName: r.customer_name ?? null,
+      scheduledAt: r.scheduled_at ? new Date(r.scheduled_at) : null,
+      quoteTotal: r.quote_total ?? null,
+    }));
+  }
+
+  async assignSubcontract(data: InsertJobSubcontract): Promise<JobSubcontract> {
+    const [row] = await db.insert(jobSubcontracts).values(data).returning();
+    return row;
+  }
+
+  async updateJobSubcontract(id: number, data: Partial<Pick<JobSubcontract, 'agreedCost' | 'paymentStatus' | 'paidAt' | 'notes'>>): Promise<JobSubcontract | undefined> {
+    const [row] = await db.update(jobSubcontracts).set(data).where(eq(jobSubcontracts.id, id)).returning();
+    return row;
+  }
+
+  async deleteJobSubcontract(id: number): Promise<void> {
+    await db.delete(jobSubcontracts).where(eq(jobSubcontracts.id, id));
+  }
+
+  async getSubcontractSummary(): Promise<{
+    totalRevenue: number;
+    totalSubCosts: number;
+    netProfit: number;
+    totalUnpaid: number;
+    payables: { subcontractorId: number; name: string; company: string | null; unpaidCount: number; unpaidTotal: number }[];
+  }> {
+    // Total revenue = sum of paid quotes (deposit_paid + paid_in_full)
+    const revenueRows = await db.execute(sql`
+      SELECT COALESCE(SUM(
+        CASE WHEN payment_status = 'paid_in_full' THEN COALESCE(total::numeric, 0)
+             WHEN payment_status IN ('deposit_paid', 'final_pending') THEN COALESCE(deposit_amount::numeric, 0)
+             ELSE 0 END
+      ), 0) as total_revenue
+      FROM quotes
+      WHERE status NOT IN ('cancelled', 'new', 'sent')
+    `);
+    const totalRevenue = Number((revenueRows.rows[0] as any)?.total_revenue ?? 0);
+
+    // Total sub costs
+    const costsRows = await db.execute(sql`
+      SELECT
+        COALESCE(SUM(agreed_cost::numeric), 0) as total_costs,
+        COALESCE(SUM(CASE WHEN payment_status = 'unpaid' THEN agreed_cost::numeric ELSE 0 END), 0) as total_unpaid
+      FROM job_subcontracts
+    `);
+    const totalSubCosts = Number((costsRows.rows[0] as any)?.total_costs ?? 0);
+    const totalUnpaid = Number((costsRows.rows[0] as any)?.total_unpaid ?? 0);
+
+    // Per-sub payables
+    const payableRows = await db.execute(sql`
+      SELECT
+        s.id as subcontractor_id,
+        s.name,
+        s.company,
+        COUNT(js.id)::int as unpaid_count,
+        COALESCE(SUM(js.agreed_cost::numeric), 0) as unpaid_total
+      FROM subcontractors s
+      JOIN job_subcontracts js ON js.subcontractor_id = s.id AND js.payment_status = 'unpaid'
+      GROUP BY s.id, s.name, s.company
+      HAVING COALESCE(SUM(js.agreed_cost::numeric), 0) > 0
+      ORDER BY unpaid_total DESC
+    `);
+
+    return {
+      totalRevenue,
+      totalSubCosts,
+      netProfit: totalRevenue - totalSubCosts,
+      totalUnpaid,
+      payables: (payableRows.rows as any[]).map(r => ({
+        subcontractorId: Number(r.subcontractor_id),
+        name: r.name,
+        company: r.company ?? null,
+        unpaidCount: Number(r.unpaid_count),
+        unpaidTotal: Number(r.unpaid_total),
+      })),
+    };
   }
 }
 

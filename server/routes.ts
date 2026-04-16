@@ -8857,6 +8857,119 @@ Return ONLY valid JSON:
     return res.json({ ok: true });
   });
 
+  // ── Subcontractors ────────────────────────────────────────────────────────
+  // GET /api/admin/subcontractors — list all subcontractors
+  app.get("/api/admin/subcontractors", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const subs = await storage.getSubcontractors();
+    return res.json(subs);
+  });
+
+  // POST /api/admin/subcontractors — create subcontractor
+  app.post("/api/admin/subcontractors", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const { name, phone, email, company, notes } = req.body as any;
+    if (!name?.trim()) return res.status(400).json({ message: "Name is required" });
+    const sub = await storage.createSubcontractor({ name: name.trim(), phone: phone || null, email: email || null, company: company || null, notes: notes || null });
+    return res.json(sub);
+  });
+
+  // PATCH /api/admin/subcontractors/:id — update subcontractor
+  app.patch("/api/admin/subcontractors/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = Number(req.params.id);
+    const { name, phone, email, company, notes } = req.body as any;
+    const sub = await storage.updateSubcontractor(id, { name, phone, email, company, notes });
+    if (!sub) return res.status(404).json({ message: "Not found" });
+    return res.json(sub);
+  });
+
+  // DELETE /api/admin/subcontractors/:id — delete subcontractor
+  app.delete("/api/admin/subcontractors/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = Number(req.params.id);
+    await storage.deleteSubcontractor(id);
+    return res.json({ ok: true });
+  });
+
+  // GET /api/admin/subcontractors/:id/jobs — jobs for a specific sub
+  app.get("/api/admin/subcontractors/:id/jobs", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = Number(req.params.id);
+    const jobs = await storage.getSubcontractorJobs(id);
+    return res.json(jobs);
+  });
+
+  // GET /api/admin/subcontracts/summary — profit & payables overview
+  app.get("/api/admin/subcontracts/summary", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const summary = await storage.getSubcontractSummary();
+    return res.json(summary);
+  });
+
+  // GET /api/admin/quotes/:id/subcontracts — get subcontracts for a quote
+  app.get("/api/admin/quotes/:id/subcontracts", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const quoteId = Number(req.params.id);
+    const subs = await storage.getJobSubcontracts(quoteId);
+    return res.json(subs);
+  });
+
+  // POST /api/admin/quotes/:id/subcontracts — assign subcontractor to a job
+  app.post("/api/admin/quotes/:id/subcontracts", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const quoteId = Number(req.params.id);
+    const { subcontractorId, agreedCost, notes } = req.body as any;
+    if (!subcontractorId || !agreedCost) return res.status(400).json({ message: "subcontractorId and agreedCost are required" });
+    const record = await storage.assignSubcontract({ quoteId, subcontractorId: Number(subcontractorId), agreedCost: String(agreedCost), notes: notes || null, paymentStatus: 'unpaid', paidAt: null });
+    return res.json(record);
+  });
+
+  // PATCH /api/admin/subcontracts/:id — update subcontract (cost, status, notes)
+  app.patch("/api/admin/subcontracts/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = Number(req.params.id);
+    const { agreedCost, paymentStatus, notes } = req.body as any;
+    const updates: any = {};
+    if (agreedCost !== undefined) updates.agreedCost = String(agreedCost);
+    if (paymentStatus !== undefined) {
+      updates.paymentStatus = paymentStatus;
+      updates.paidAt = paymentStatus === 'paid' ? new Date() : null;
+    }
+    if (notes !== undefined) updates.notes = notes;
+    const record = await storage.updateJobSubcontract(id, updates);
+    if (!record) return res.status(404).json({ message: "Not found" });
+    return res.json(record);
+  });
+
+  // DELETE /api/admin/subcontracts/:id — remove subcontract assignment
+  app.delete("/api/admin/subcontracts/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = Number(req.params.id);
+    await storage.deleteJobSubcontract(id);
+    return res.json({ ok: true });
+  });
+
   // ── AI Operations Layer ────────────────────────────────────────────────────
   registerAiRoutes(app);
 

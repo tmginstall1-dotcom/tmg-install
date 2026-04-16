@@ -8,7 +8,7 @@ import {
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
   ClipboardList, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
-  Printer, Timer, QrCode, RotateCcw,
+  Printer, Timer, QrCode, RotateCcw, Handshake,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -275,6 +275,53 @@ export default function AdminQuoteDetail() {
       let reason = err?.message || "Could not send payment notification.";
       try { reason = JSON.parse(reason.replace(/^\d+:\s*/, "")).message || reason; } catch {}
       toast({ title: "Failed to send", description: reason, variant: "destructive" });
+    },
+  });
+
+  // ── Subcontract state ──────────────────────────────────────────────────────
+  const [showSubForm, setShowSubForm] = useState(false);
+  const [subForm, setSubForm] = useState({ subcontractorId: "", agreedCost: "", notes: "" });
+
+  const { data: subcontracts = [], refetch: refetchSubcontracts } = useQuery<any[]>({
+    queryKey: [`/api/admin/quotes/${id}/subcontracts`],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/quotes/${id}/subcontracts`, { credentials: "include" });
+      return res.json();
+    },
+    enabled: !!id,
+  });
+
+  const { data: allSubs = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/subcontractors"],
+  });
+
+  const assignSubMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", `/api/admin/quotes/${id}/subcontracts`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/admin/quotes/${id}/subcontracts`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/subcontracts/summary"] });
+      setShowSubForm(false);
+      setSubForm({ subcontractorId: "", agreedCost: "", notes: "" });
+      toast({ title: "Subcontractor assigned" });
+    },
+    onError: () => toast({ title: "Failed to assign", variant: "destructive" }),
+  });
+
+  const markSubPaidMutation = useMutation({
+    mutationFn: ({ scId, paid }: { scId: number; paid: boolean }) =>
+      apiRequest("PATCH", `/api/admin/subcontracts/${scId}`, { paymentStatus: paid ? "paid" : "unpaid" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/admin/quotes/${id}/subcontracts`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/subcontracts/summary"] });
+    },
+  });
+
+  const removeSubMutation = useMutation({
+    mutationFn: (scId: number) => apiRequest("DELETE", `/api/admin/subcontracts/${scId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/admin/quotes/${id}/subcontracts`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/subcontracts/summary"] });
+      toast({ title: "Removed" });
     },
   });
 
@@ -1158,6 +1205,150 @@ export default function AdminQuoteDetail() {
                 <p className="text-sm text-amber-900 whitespace-pre-wrap leading-relaxed">{quote.notes}</p>
               </div>
             )}
+
+            {/* ── Subcontractors ─────────────────────────────────────────────── */}
+            <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+              <div className="flex items-center justify-between px-5 py-3.5 bg-zinc-50 border-b border-zinc-200">
+                <h3 className="text-xs font-semibold text-zinc-600 uppercase tracking-wider flex items-center gap-2">
+                  <Handshake className="w-3.5 h-3.5" /> Subcontractors
+                </h3>
+                <button
+                  data-testid="button-add-subcontract"
+                  onClick={() => setShowSubForm(v => !v)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Assign
+                </button>
+              </div>
+
+              {/* Add Form */}
+              {showSubForm && (
+                <div className="px-5 py-4 bg-blue-50 border-b border-blue-100 space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-zinc-600 mb-1 block">Subcontractor</label>
+                    <select
+                      data-testid="select-subcontractor"
+                      value={subForm.subcontractorId}
+                      onChange={e => setSubForm(f => ({ ...f, subcontractorId: e.target.value }))}
+                      className="w-full text-sm border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select subcontractor…</option>
+                      {(allSubs as any[]).map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name} {s.company ? `(${s.company})` : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-zinc-600 mb-1 block">Agreed Cost (SGD)</label>
+                    <input
+                      data-testid="input-subcontract-cost"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={subForm.agreedCost}
+                      onChange={e => setSubForm(f => ({ ...f, agreedCost: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full text-sm border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-zinc-600 mb-1 block">Notes (optional)</label>
+                    <input
+                      data-testid="input-subcontract-notes"
+                      type="text"
+                      value={subForm.notes}
+                      onChange={e => setSubForm(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="e.g. Labour only, supply excluded"
+                      className="w-full text-sm border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      data-testid="button-confirm-subcontract"
+                      onClick={() => {
+                        if (!subForm.subcontractorId || !subForm.agreedCost) return;
+                        assignSubMutation.mutate({
+                          subcontractorId: parseInt(subForm.subcontractorId),
+                          agreedCost: parseFloat(subForm.agreedCost),
+                          notes: subForm.notes || undefined,
+                        });
+                      }}
+                      disabled={assignSubMutation.isPending || !subForm.subcontractorId || !subForm.agreedCost}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+                    >
+                      {assignSubMutation.isPending ? "Saving…" : "Confirm"}
+                    </button>
+                    <button
+                      data-testid="button-cancel-subcontract"
+                      onClick={() => { setShowSubForm(false); setSubForm({ subcontractorId: "", agreedCost: "", notes: "" }); }}
+                      className="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Subcontract List */}
+              <div className="divide-y divide-zinc-100">
+                {(subcontracts as any[]).length === 0 ? (
+                  <p className="text-xs text-zinc-400 px-5 py-4 text-center">No subcontractors assigned to this job.</p>
+                ) : (
+                  (subcontracts as any[]).map((sc: any) => (
+                    <div key={sc.id} data-testid={`row-subcontract-${sc.id}`} className="flex items-center gap-3 px-5 py-3.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-zinc-900 truncate">{sc.subcontractor?.name || "—"}</p>
+                        {sc.notes && <p className="text-xs text-zinc-400 truncate">{sc.notes}</p>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-semibold text-zinc-900">${Number(sc.agreedCost).toFixed(2)}</p>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          sc.paymentStatus === "paid"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}>
+                          {sc.paymentStatus === "paid" ? "Paid" : "Unpaid"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          data-testid={`button-toggle-subpaid-${sc.id}`}
+                          title={sc.paymentStatus === "paid" ? "Mark unpaid" : "Mark paid"}
+                          onClick={() => markSubPaidMutation.mutate({ scId: sc.id, paid: sc.paymentStatus !== "paid" })}
+                          disabled={markSubPaidMutation.isPending}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          data-testid={`button-remove-subcontract-${sc.id}`}
+                          title="Remove"
+                          onClick={() => { if (confirm("Remove this subcontractor from the job?")) removeSubMutation.mutate(sc.id); }}
+                          disabled={removeSubMutation.isPending}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Cost summary */}
+              {(subcontracts as any[]).length > 0 && (() => {
+                const totalSubCost = (subcontracts as any[]).reduce((s: number, sc: any) => s + Number(sc.agreedCost), 0);
+                const jobTotal = Number(quote.totalAmount || 0);
+                const net = jobTotal - totalSubCost;
+                return (
+                  <div className="px-5 py-3 bg-zinc-50 border-t border-zinc-200 flex items-center justify-between text-xs text-zinc-500">
+                    <span>Sub costs: <strong className="text-zinc-800">${totalSubCost.toFixed(2)}</strong></span>
+                    <span>Net profit: <strong className={net >= 0 ? "text-emerald-700" : "text-red-600"}>${net.toFixed(2)}</strong></span>
+                  </div>
+                );
+              })()}
+            </div>
             
           </div>
           

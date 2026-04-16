@@ -929,3 +929,35 @@ export const aiWhatsappHandoffs = pgTable("ai_whatsapp_handoffs", {
   handoffPhoneIdx: index("ai_whatsapp_handoffs_phone_idx").on(t.phone),
 }));
 export type AiWhatsappHandoff = typeof aiWhatsappHandoffs.$inferSelect;
+
+// ── Subcontractors ─────────────────────────────────────────────────────────
+export const subcontractors = pgTable("subcontractors", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  company: text("company"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSubcontractorSchema = createInsertSchema(subcontractors).omit({ id: true, createdAt: true });
+export type InsertSubcontractor = z.infer<typeof insertSubcontractorSchema>;
+export type Subcontractor = typeof subcontractors.$inferSelect;
+
+// ── Job Subcontracts (links a quote to a subcontractor with cost) ──────────
+export const jobSubcontracts = pgTable("job_subcontracts", {
+  id: serial("id").primaryKey(),
+  quoteId: integer("quote_id").references(() => quotes.id).notNull(),
+  subcontractorId: integer("subcontractor_id").references(() => subcontractors.id).notNull(),
+  agreedCost: numeric("agreed_cost").notNull(),         // what TMG pays the sub
+  paymentStatus: text("payment_status").notNull().default("unpaid"), // 'unpaid' | 'paid'
+  paidAt: timestamp("paid_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  jobSubcontractQuoteIdx: index("job_subcontracts_quote_idx").on(t.quoteId),
+  jobSubcontractSubIdx: index("job_subcontracts_sub_idx").on(t.subcontractorId),
+}));
+export const insertJobSubcontractSchema = createInsertSchema(jobSubcontracts).omit({ id: true, createdAt: true });
+export type InsertJobSubcontract = z.infer<typeof insertJobSubcontractSchema>;
+export type JobSubcontract = typeof jobSubcontracts.$inferSelect;

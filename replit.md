@@ -8,6 +8,7 @@ Key capabilities include:
 - **Customer Portal**: A 5-step estimate wizard, quote status tracking, deposit and final payment processing, appointment confirmation, and OTP-based customer login portal at `/portal`.
 - **Admin Dashboard**: Tools for reviewing and approving quotes, managing bookings, scheduling staff, handling payments, and a live 12-week revenue trend area chart.
 - **Staff Mobile App**: Viewing assigned jobs, GPS check-in/check-out with photo evidence, and a 7-item job completion checklist for in-progress jobs.
+- **Subcontractor Management**: Full CRUD for subcontractors at `/admin/subcontractors`. Assign subcontractors to any job from the QuoteDetail view with agreed costs. Track payment status (paid/unpaid), view per-subcontractor job history, and see profit/payables summary cards. Net profit (revenue minus sub costs) is surfaced on the Dashboard and QuoteDetail.
 - **Automation**: Day-before WhatsApp reminder scheduler (hourly), loyalty discount for returning customers (5%), both toggleable from Admin Settings.
 - **PayNow QR**: Customer-facing PayNow QR code shown alongside Stripe button when deposit is due.
 - **Language Toggle**: EN/CN switch on the landing page (hero text, CTA labels, persistent to localStorage).
