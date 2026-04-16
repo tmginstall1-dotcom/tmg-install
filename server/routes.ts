@@ -6747,6 +6747,16 @@ Return ONLY valid JSON.`,
               ? `_ℹ️ Full service relocation: dismantle at origin + transport + reinstall at destination._\n\n`
               : `_ℹ️ Relocation price includes transport. Crew will confirm assembly scope on arrival._\n\n`
           : "";
+
+        // Bundle upsell — only for install-only, non-relocation quotes
+        const hasInstallItems = (quoteItems as any[]).some(qi => qi.serviceType === "install");
+        const hasDismantleItems = (quoteItems as any[]).some(qi =>
+          qi.serviceType === "dismantle" || qi.serviceType === "dismantle_dispose" || qi.serviceType === "relocate"
+        );
+        const bundleUpsellNote = hasInstallItems && !hasDismantleItems && !session.isRelocation
+          ? `💡 *Save 40%:* Need to clear old furniture too? Add *Dismantling* to your order and save 40% on the dismantle cost vs booking separately. Just reply "add dismantling" to update your quote!\n\n`
+          : "";
+
         await sendBotMessage(from,
           `✅ *Quote Ready, ${name}!*\n\n` +
           `🔖 *Reference:* ${quote.referenceNo}\n` +
@@ -6762,8 +6772,13 @@ Return ONLY valid JSON.`,
           `${totalLine}\n` +
           `${depositLine}\n\n` +
           relocationNote +
-          `To confirm your booking, please make the *50% deposit ($${depositAmount})* via PayNow/bank transfer — our team will send payment details shortly.\n\n` +
-          `Need to add or change anything? Just reply here and we'll update your quote! 😊\n\n` +
+          bundleUpsellNote +
+          `📋 *What happens next:*\n` +
+          `1️⃣ Send your 50% deposit to lock in your slot\n` +
+          `2️⃣ We confirm your booking & send a reminder\n` +
+          `3️⃣ Our crew arrives on the day — all done! 🎉\n\n` +
+          `💳 *Pay deposit now:* Our team will send the PayNow / card link shortly.\n\n` +
+          `Need to add or change anything? Just reply here! 😊\n\n` +
           `Track your quote: ${APP_URL}/quotes/${quote.id}`
         );
 

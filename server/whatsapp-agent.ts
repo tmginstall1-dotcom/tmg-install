@@ -288,6 +288,14 @@ async function generateSalesReply(params: {
     toAddress: "What's the destination address? (for the relocation drop-off)",
   };
 
+  // Bundle upsell context — only show if install-only and not a relocation
+  const isInstallOnly = facts.serviceType === "installation" && !facts.itemTypes?.some(i =>
+    /dismantle|dismantling|relocat/i.test(i)
+  );
+  const bundleUpsellHint = isInstallOnly
+    ? `\nBUNDLE OPPORTUNITY: Customer has selected installation only. If it comes up naturally and hasn't been mentioned yet, you may mention: "By the way, if you need to clear old furniture too, our Install + Dismantle bundle saves you 40% on dismantling — a great deal for IKEA moves or room upgrades." Say this ONCE, naturally, only if relevant.`
+    : "";
+
   try {
     const res = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -298,13 +306,17 @@ async function generateSalesReply(params: {
           content: `You are the AI sales assistant for TMG Install, a professional furniture installation company in Singapore.
 Your job is to qualify leads and help push them toward a quote and booking.
 
+TRUST SIGNALS (mention naturally where relevant):
+- 4.9★ rated on Google · 127+ reviews
+- Fully insured · Island-wide coverage · Same-day available
+
 RULES:
 - Be concise, warm, and sales-oriented
 - Ask ONLY the single most important missing piece of information
 - Never ask multiple questions at once
 - Never invent pricing
 - Never promise slots that aren't confirmed
-- Keep under 80 words
+- Keep under 90 words
 - Use plain conversational language, no markdown
 - End with a clear single question
 
@@ -312,6 +324,7 @@ KNOWN FACTS: ${JSON.stringify(facts)}
 CURRENT STATE: ${aiState}
 NEXT MISSING FACT: ${nextMissing || "none — all facts collected"}
 SUGGESTED QUESTION: ${nextMissing ? questionMap[nextMissing] || `What is your ${nextMissing}?` : "Push toward quote/booking"}
+${bundleUpsellHint}
 
 CONVERSATION HISTORY:
 ${historyContext}`,
@@ -343,7 +356,13 @@ function buildQuoteReadyMessage(facts: CaseFacts): string {
     `• Items: ${items}\n` +
     `• Address: ${addr}\n` +
     `• Date: ${date}\n\n` +
-    `Our team will review and send your quote shortly. Is there anything else you'd like us to know?`
+    `Our team will review and send your itemised quote shortly.\n\n` +
+    `📋 *What happens next:*\n` +
+    `1️⃣ We review your details & price each item (< 4 hrs)\n` +
+    `2️⃣ You receive a fixed-price quote with a deposit payment link\n` +
+    `3️⃣ Pay the 50% deposit to lock in your slot ✅\n` +
+    `4️⃣ Our team arrives on the day — job done! 🚀\n\n` +
+    `Is there anything else you'd like us to know?`
   );
 }
 
@@ -433,11 +452,11 @@ export async function runFollowUpScheduler(): Promise<void> {
         }
 
         const messages: Record<string, string> = {
-          missing_info: "Hi! Just following up — we still need a few details to prepare your quote. What furniture items need to be installed, and what's your preferred date?",
-          quote_reminder: "Hi! Just checking in — did you get a chance to review your quote? Happy to answer any questions before you decide. 😊",
-          deposit_reminder: "Hi! A friendly reminder — your slot is still on hold. Please complete your deposit to confirm the booking. Let us know if you need any help!",
-          booking_reminder: "Hi! We're ready to confirm your booking — just let us know if everything looks good or if you have any questions.",
-          stale_reactivation: "Hi! We noticed we haven't heard from you in a while. If you're still looking for furniture installation in Singapore, we'd love to help. Just reply here to get started!",
+          missing_info: "Hi! Just following up — we still need a few details to prepare your quote. What furniture items need to be installed, and what's your preferred date? We're 4.9★ rated and fully insured, ready to help! 😊",
+          quote_reminder: "Hi! Just checking in on your TMG Install quote 👋\n\nYour itemised quote is ready — did you get a chance to review it? Happy to answer any questions or adjust anything before you decide.\n\nReply *yes* to proceed or let me know if you need changes! 😊",
+          deposit_reminder: "Hi! Friendly reminder from TMG Install 🔔\n\nYour slot is still on hold, but we can only hold it a little longer. Please complete the 50% deposit to confirm your booking.\n\n📋 *Next step:* Reply here and we'll resend your payment link right away!\n\nLet us know if you need any help — we're here!",
+          booking_reminder: "Hi! We're all set to confirm your TMG Install booking 🎉\n\nJust let us know if everything looks good and our team will send a final confirmation with your crew details.\n\nAny questions? Just reply here!",
+          stale_reactivation: "Hi! We noticed we haven't heard from you in a while 👋\n\nIf you're still looking for furniture installation or dismantling in Singapore, we'd love to help — we're 4.9★ rated, fully insured, and available island-wide.\n\nJust reply here to get a free quote in 60 seconds! 😊",
         };
 
         const msg = followup.messagePreview || messages[followup.followupType] || messages.missing_info;
