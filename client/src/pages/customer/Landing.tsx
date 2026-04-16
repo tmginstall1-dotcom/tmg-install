@@ -1683,6 +1683,40 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ══════════════════ SERVICE AREAS ═══════════════════════════ */}
+      <section className="px-4 sm:px-6 lg:px-8 py-20 sm:py-28 border-b border-white/10 bg-black/20">
+        <div className="max-w-5xl mx-auto">
+          <motion.div {...fadeUpDelayed(0)} className="text-center mb-12">
+            <p className="section-eyebrow mb-4 text-xs">Coverage</p>
+            <h2 className="section-title text-gradient-warm mb-4 tracking-tight">Island-wide. Every estate.</h2>
+            <p className="font-body text-base text-white/50 max-w-xl mx-auto">
+              We serve all HDB towns, condominiums, and landed properties across Singapore — no travel surcharge.
+            </p>
+          </motion.div>
+          <motion.div {...fadeUpDelayed(0.1)} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+            {[
+              "Ang Mo Kio","Bedok","Bishan","Bukit Batok","Bukit Merah",
+              "Bukit Panjang","Bukit Timah","Choa Chu Kang","Clementi","Geylang",
+              "Hougang","Jurong East","Jurong West","Kallang","Pasir Ris",
+              "Punggol","Queenstown","Sembawang","Sengkang","Serangoon",
+              "Tampines","Toa Payoh","Woodlands","Yishun","CBD / Raffles Place",
+              "Novena","Orchard","Sentosa","Tanjong Pagar","Jurong Lake District",
+            ].map((area) => (
+              <div
+                key={area}
+                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/8 rounded-xl px-3 py-2.5 transition-colors"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                <span className="text-xs font-medium text-white/70">{area}</span>
+              </div>
+            ))}
+          </motion.div>
+          <motion.p {...fadeUpDelayed(0.2)} className="text-center text-xs text-white/30 mt-6">
+            Including all HDB blocks, private condominiums, and landed properties. Same pricing island-wide.
+          </motion.p>
+        </div>
+      </section>
+
       {/* ════════════════════════ FAQ ═══════════════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10 bg-gradient-to-b from-black/20 to-black/60">
         <div className="max-w-4xl mx-auto">
@@ -1899,7 +1933,7 @@ export default function Landing() {
         rel="noopener noreferrer"
         data-testid="floating-whatsapp-btn"
         onClick={() => trackEvent("cta_click", "/", "floating_whatsapp")}
-        className="fixed bottom-6 right-5 z-50 flex md:hidden items-center justify-center w-14 h-14 rounded-full shadow-xl bg-[#25D366] hover:bg-[#20bd5c] active:scale-95 transition-all"
+        className="fixed bottom-6 right-5 z-50 flex items-center justify-center w-14 h-14 rounded-full shadow-xl bg-[#25D366] hover:bg-[#20bd5c] active:scale-95 transition-all"
         aria-label="Chat on WhatsApp"
       >
         <svg viewBox="0 0 24 24" fill="white" className="w-7 h-7">

@@ -805,6 +805,337 @@ export function furnitureRelocationPage(): string {
   return shell({ title, description, canonical, schema, body, breadcrumb: "Furniture Relocation" });
 }
 
+/* ── TV Mounting ─────────────────────────────────────────────────────────────── */
+export function tvMountingPage(): string {
+  const title = "TV Mounting Singapore | Wall Mount Installation — From $80 | TMG Install";
+  const description = "Professional TV wall mounting in Singapore. All wall types including HDB concrete, timber stud, plasterboard. Cable concealment, gallery brackets, 65\"-85\" TVs. Instant quote.";
+  const canonical = `${DOMAIN}/services/tv-mounting-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "TV Mounting Singapore",
+      "serviceType": "TV Wall Mounting",
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": { "@type": "Offer", "priceCurrency": "SGD", "price": "80" },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How much does TV mounting cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "TV wall mounting in Singapore starts from $80 for a standard fixed bracket. Tilting brackets start from $100, full-motion/articulating arms from $130. Cable concealment (in-wall or cable duct) is an add-on from $40. Get an instant itemised quote at tmginstall.com/estimate." } },
+        { "@type": "Question", "name": "Can you mount a TV on HDB concrete walls?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we mount TVs on all wall types including HDB reinforced concrete, brick, timber stud, and plasterboard/drywall. We use the correct anchors and fixings for each wall type to ensure maximum safety." } },
+        { "@type": "Question", "name": "Do you hide the cables after mounting?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. We offer cable management solutions including surface cable ducts (raceways) and in-wall cable concealment. In-wall concealment gives a completely clean look with no visible cables." } },
+        { "@type": "Question", "name": "What size TVs do you mount?", "acceptedAnswer": { "@type": "Answer", "text": "We mount all TV sizes from 32\" to 85\"+. For very large TVs (75\"+) we always recommend a full-motion or heavy-duty fixed bracket for maximum stability." } },
+        { "@type": "Question", "name": "Is the bracket included in the price?", "acceptedAnswer": { "@type": "Answer", "text": "Our pricing is for labour only. You can supply your own bracket or we can supply one — just let us know when you request a quote and we'll add the bracket cost." } },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "TV Mounting Singapore", "item": canonical },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">TV Mounting Singapore</div>
+    <h1>Professional <em>TV Wall Mounting</em><br/>in Singapore</h1>
+    <p class="hero-desc">All wall types, all TV sizes, cable management included. Fixed, tilting, and full-motion mounts — safely installed by experienced professionals.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+
+    <div class="section">
+      <h2>TV Mounting Services</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">📺</div><h3>Fixed Bracket Mount</h3><p>Flat against the wall — ideal for TVs viewed straight-on. Clean, low-profile look. Most popular for living rooms and bedrooms.</p></div>
+        <div class="service-card"><div class="service-card-icon">📐</div><h3>Tilting Bracket</h3><p>Angle the TV downward — great for high wall mounts in bedrooms or above fireplaces. Reduces neck strain.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔄</div><h3>Full-Motion / Articulating Arm</h3><p>Extend, swivel and tilt freely. Perfect for corner installations or rooms where the viewing angle changes.</p></div>
+        <div class="service-card"><div class="service-card-icon">🧱</div><h3>All Wall Types</h3><p>HDB concrete, brick, timber stud, plasterboard / drywall — we use the correct fixings for every wall type.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔌</div><h3>Cable Management</h3><p>Surface cable ducts or in-wall cable concealment for a completely clean, wire-free finish.</p></div>
+        <div class="service-card"><div class="service-card-icon">🖥️</div><h3>Large Format TVs</h3><p>65", 75", 85"+ TVs mounted safely with heavy-duty brackets and concrete anchors where required.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Pricing Guide</h2>
+      <p>Labour pricing per TV. Brackets can be supplied or you can provide your own. <a href="${CTA_URL}" style="color:#3b82f6;font-weight:600;">Get an instant quote</a> for your exact setup.</p>
+      <div class="pricing-table">
+        <div class="pricing-row"><span class="pricing-item">Fixed Bracket — up to 55"</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Fixed Bracket — 56" to 75"</span><span class="pricing-price">from $100</span></div>
+        <div class="pricing-row"><span class="pricing-item">Fixed Bracket — 76"+ / Heavy Duty</span><span class="pricing-price">from $130</span></div>
+        <div class="pricing-row"><span class="pricing-item">Tilting Bracket (any size)</span><span class="pricing-price">from $100</span></div>
+        <div class="pricing-row"><span class="pricing-item">Full-Motion / Articulating Arm</span><span class="pricing-price">from $130</span></div>
+        <div class="pricing-row"><span class="pricing-item">Cable Duct / Raceway Management</span><span class="pricing-price">from $40</span></div>
+        <div class="pricing-row"><span class="pricing-item">In-Wall Cable Concealment</span><span class="pricing-price">from $120</span></div>
+        <div class="pricing-row"><span class="pricing-item">Soundbar Mounting (below TV)</span><span class="pricing-price">from $50</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Why TMG Install for TV Mounting?</h2>
+      <h3>Wall Type Expertise</h3>
+      <p>Singapore homes include HDB concrete walls, timber stud partitions, and plasterboard feature walls. We correctly identify your wall type and use the appropriate anchors — chemical anchors for concrete, stud-mounted hardware for timber, and toggle bolts for plasterboard. This is critical for safety, especially for large heavy TVs.</p>
+      <h3>Weight-Rated Every Time</h3>
+      <p>Every bracket and anchor we use is rated well above your TV's weight. We do not improvise. If a wall is unsuitable for a heavy TV, we'll tell you and suggest the correct solution before starting work.</p>
+      <h3>No Mess, No Dust Left Behind</h3>
+      <p>We vacuum all drilling dust and clean the area before leaving. Your TV is up, your wall is clean, your cables are managed.</p>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">How much does TV mounting cost in Singapore?</div><div class="faq-a">TV wall mounting starts from $80 for a standard fixed bracket. Tilting mounts from $100, full-motion articulating arms from $130. Cable concealment is an add-on. Get an itemised quote at tmginstall.com/estimate.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you mount a TV on HDB concrete walls?</div><div class="faq-a">Yes — we drill and anchor into HDB reinforced concrete using the correct chemical or mechanical anchors. We cover all wall types: concrete, brick, timber stud, and plasterboard.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you hide the cables after mounting?</div><div class="faq-a">Yes. We offer surface cable ducts (raceways) that neatly conceal cables along the wall, or in-wall cable management for a completely clean look with no visible wiring.</div></div>
+      <div class="faq-item"><div class="faq-q">Is the TV bracket included in the price?</div><div class="faq-a">Our quoted price is for labour. You can supply your own bracket or we can supply one — just mention it when you request a quote and we'll add it to your itemised price.</div></div>
+      <div class="faq-item"><div class="faq-q">How long does TV mounting take?</div><div class="faq-a">A standard fixed bracket installation takes 30–45 minutes. Add 20–30 minutes for cable management. We're done and cleaning up within an hour in most cases.</div></div>
+      <div class="faq-item"><div class="faq-q">Is same-day TV mounting available in Singapore?</div><div class="faq-a">Yes, subject to availability. Book early and select your preferred time slot — we offer morning, afternoon and evening appointments island-wide.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>Get Your TV Mounted Today</h2>
+        <p>Instant quote, no phone call needed. Choose your date and we'll be there.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "TV Mounting Singapore" });
+}
+
+/* ── Sofa Assembly ───────────────────────────────────────────────────────────── */
+export function sofaAssemblyPage(): string {
+  const title = "Sofa Assembly Singapore | Sectional & Modular Sofa Installation — TMG Install";
+  const description = "Professional sofa assembly in Singapore. Sectional sofas, modular seating, sofa beds, L-shaped and U-shaped lounges. All brands — IKEA, Castlery, HipVan, courts, and more. Instant quote.";
+  const canonical = `${DOMAIN}/services/sofa-assembly-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "Sofa Assembly Singapore",
+      "serviceType": "Furniture Assembly",
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": { "@type": "Offer", "priceCurrency": "SGD", "price": "60" },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How much does sofa assembly cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "Sofa assembly in Singapore starts from $60 for a simple 2-seater. Sectional and modular sofas with multiple modules typically cost $100–$200 depending on configuration. Get an instant itemised quote at tmginstall.com/estimate." } },
+        { "@type": "Question", "name": "Do you assemble sectional and modular sofas?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — sectional sofas are our most common sofa job. We assemble all configurations including L-shape, U-shape, chaise, and modular systems. We connect all sections, attach legs, and ensure the seating is level and stable." } },
+        { "@type": "Question", "name": "Which sofa brands do you assemble?", "acceptedAnswer": { "@type": "Answer", "text": "We assemble all brands including IKEA (KIVIK, SÖDERHAMN, GRONLID), Castlery, HipVan, Comfort Design, Harvey Norman, Courts, Cellini, Commune, and more." } },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "Sofa Assembly Singapore", "item": canonical },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Sofa Assembly Singapore</div>
+    <h1>Professional <em>Sofa Assembly</em><br/>in Singapore</h1>
+    <p class="hero-desc">Sectional sofas, modular seating, sofa beds and all living room furniture assembled correctly. All brands, island-wide, same-day available.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+
+    <div class="section">
+      <h2>What We Assemble</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">🛋️</div><h3>Sectional Sofas</h3><p>L-shape, U-shape, chaise configurations — all sections connected, legs attached, fully level and stable.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔲</div><h3>Modular Seating</h3><p>IKEA SÖDERHAMN, Castlery modular ranges, and all multi-module configurations assembled and arranged to your layout.</p></div>
+        <div class="service-card"><div class="service-card-icon">🛏️</div><h3>Sofa Beds</h3><p>All sofa-bed mechanisms — pull-out, click-clack, and sleeper configurations. We test the mechanism and ensure smooth operation.</p></div>
+        <div class="service-card"><div class="service-card-icon">🪑</div><h3>Accent Chairs & Recliners</h3><p>Armchairs, accent chairs, recliner sofas and swivel chairs assembled correctly.</p></div>
+        <div class="service-card"><div class="service-card-icon">📦</div><h3>All Brands</h3><p>IKEA, Castlery, HipVan, Harvey Norman, Courts, Comfort Design, Cellini, Commune, and any other brand.</p></div>
+        <div class="service-card"><div class="service-card-icon">📍</div><h3>Placement & Arrangement</h3><p>We place the sofa exactly where you want it, arrange all sections, and remove all packaging.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Pricing Guide</h2>
+      <div class="pricing-table">
+        <div class="pricing-row"><span class="pricing-item">2-Seater / 3-Seater Sofa</span><span class="pricing-price">from $60</span></div>
+        <div class="pricing-row"><span class="pricing-item">L-Shape Sectional Sofa</span><span class="pricing-price">from $100</span></div>
+        <div class="pricing-row"><span class="pricing-item">U-Shape Sectional Sofa</span><span class="pricing-price">from $150</span></div>
+        <div class="pricing-row"><span class="pricing-item">Modular Sofa (4+ modules)</span><span class="pricing-price">from $120</span></div>
+        <div class="pricing-row"><span class="pricing-item">Sofa Bed</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Accent Chair / Recliner</span><span class="pricing-price">from $50</span></div>
+        <div class="pricing-row"><span class="pricing-item">IKEA KIVIK / SÖDERHAMN</span><span class="pricing-price">from $80</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Why Choose TMG Install?</h2>
+      <h3>Sectional Sofa Specialists</h3>
+      <p>Sectional sofas are deceptively complex — modules need to align perfectly, connectors must engage correctly, and legs need to be evenly balanced. Our team knows exactly how to handle multi-module systems for every major brand.</p>
+      <h3>Packaging Removal Included</h3>
+      <p>We break down and remove all cardboard and plastic packaging. Your living room is clean and ready to enjoy when we leave.</p>
+      <h3>Upfront Pricing, No Surprises</h3>
+      <p>The price you see when you get a quote is the price you pay. No hourly rates, no "it took longer than expected" charges.</p>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">How much does sofa assembly cost in Singapore?</div><div class="faq-a">Sofa assembly starts from $60 for a standard sofa. Sectional and L-shaped sofas are $100–$150. Large U-shaped configurations or modular systems with many modules start from $150. Get an instant quote at tmginstall.com/estimate.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you assemble IKEA sofas?</div><div class="faq-a">Yes — we assemble all IKEA sofa ranges including KIVIK, SÖDERHAMN, GRONLID, EKTORP, KLIPPAN, FRIHETEN sofa-bed, and the full VALLENTUNA modular system.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you assemble a Castlery sectional sofa?</div><div class="faq-a">Yes — Castlery sofas are one of the brands we assemble most often. All Castlery sectional, modular, and standard sofas.</div></div>
+      <div class="faq-item"><div class="faq-q">How long does sofa assembly take?</div><div class="faq-a">A standard 3-seater takes 30–45 minutes. An L-shaped sectional takes 45–75 minutes. Large U-shaped or highly modular systems can take up to 2 hours.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you remove the packaging?</div><div class="faq-a">Yes — we break down all cardboard boxes, remove plastic wrapping, and leave your home clean. Packaging disposal is included.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>Get Your Sofa Assembled Today</h2>
+        <p>Island-wide same-day available. Instant itemised quote — no phone call needed.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "Sofa Assembly Singapore" });
+}
+
+/* ── Mattress Installation ────────────────────────────────────────────────────── */
+export function mattressInstallationPage(): string {
+  const title = "Mattress Delivery & Setup Singapore | Disposal & Installation — TMG Install";
+  const description = "Professional mattress delivery setup and old mattress disposal in Singapore. Unboxing, bed-in-a-box expansion, placement, and licensed disposal of old mattresses. Island-wide service.";
+  const canonical = `${DOMAIN}/services/mattress-installation-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "Mattress Delivery Setup Singapore",
+      "serviceType": "Mattress Installation & Disposal",
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": { "@type": "Offer", "priceCurrency": "SGD", "price": "50" },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How much does mattress disposal cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "Old mattress disposal in Singapore starts from $60 per mattress. This includes collection from your home and licensed disposal. Combined with new mattress setup from $50. Get an instant quote at tmginstall.com/estimate." } },
+        { "@type": "Question", "name": "Do you set up bed-in-a-box mattresses?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we unbox, unroll, and position bed-in-a-box mattresses (Emma, Noa, King Koil, Sealy, Simmons and others) on your bed frame. We allow expansion time and remove all packaging." } },
+        { "@type": "Question", "name": "Can you dispose of my old mattress?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we collect your old mattress and dispose of it through licensed waste management channels. We handle single, queen, and king size mattresses." } },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "Mattress Installation Singapore", "item": canonical },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Mattress Setup & Disposal Singapore</div>
+    <h1><em>Mattress Setup</em> &amp;<br/>Old Mattress Disposal</h1>
+    <p class="hero-desc">New mattress unboxing and setup, bed-in-a-box placement, old mattress collection and licensed disposal. Island-wide, same-day available.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+
+    <div class="section">
+      <h2>What We Do</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">📦</div><h3>New Mattress Setup</h3><p>Unbox, remove packaging, position on your bed frame. Single, Queen, King — all sizes handled.</p></div>
+        <div class="service-card"><div class="service-card-icon">🌀</div><h3>Bed-in-a-Box Setup</h3><p>Unroll and expand compressed roll-up mattresses (Emma, Noa, King Koil, Sealy, Simmons and more). We allow full expansion time on-site.</p></div>
+        <div class="service-card"><div class="service-card-icon">🗑️</div><h3>Old Mattress Disposal</h3><p>We collect and dispose of your old mattress through licensed waste management. No need to carry it downstairs yourself.</p></div>
+        <div class="service-card"><div class="service-card-icon">🛏️</div><h3>Bed Frame + Mattress Combo</h3><p>Assemble the bed frame and set up the new mattress in one visit. Most efficient and cost-effective option.</p></div>
+        <div class="service-card"><div class="service-card-icon">🏠</div><h3>HDB & Condo Access</h3><p>We handle lift access, narrow corridors, and all standard Singapore residential environments including older HDB flats with narrow stairwells.</p></div>
+        <div class="service-card"><div class="service-card-icon">♻️</div><h3>Responsible Disposal</h3><p>Old mattresses are disposed of through licensed channels in compliance with Singapore NEA regulations.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Pricing Guide</h2>
+      <div class="pricing-table">
+        <div class="pricing-row"><span class="pricing-item">New Mattress Setup (Single / Super Single)</span><span class="pricing-price">from $50</span></div>
+        <div class="pricing-row"><span class="pricing-item">New Mattress Setup (Queen)</span><span class="pricing-price">from $60</span></div>
+        <div class="pricing-row"><span class="pricing-item">New Mattress Setup (King)</span><span class="pricing-price">from $70</span></div>
+        <div class="pricing-row"><span class="pricing-item">Old Mattress Disposal (Single)</span><span class="pricing-price">from $60</span></div>
+        <div class="pricing-row"><span class="pricing-item">Old Mattress Disposal (Queen / King)</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Bed Frame Assembly + Mattress Setup</span><span class="pricing-price">from $130</span></div>
+        <div class="pricing-row"><span class="pricing-item">Full Package (New Setup + Old Disposal)</span><span class="pricing-price">from $120</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">How much does mattress disposal cost in Singapore?</div><div class="faq-a">Old mattress disposal starts from $60 for a single and $80 for a queen or king. This includes collection from your home and licensed disposal. Bundle with new mattress setup for the best price.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you set up bed-in-a-box / roll-up mattresses?</div><div class="faq-a">Yes — we unbox, cut the packaging, unroll, and position compressed mattresses. Brands we regularly handle include Emma, Noa, King Koil, Sealy, Simmons, and all other roll-up formats.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you collect and dispose of my old mattress?</div><div class="faq-a">Yes — we collect and remove old mattresses as part of a full swap-out service. Old mattresses are disposed of through licensed waste management channels.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you do the bed frame assembly and mattress setup together?</div><div class="faq-a">Yes — this is the most efficient approach. We assemble the bed frame first and then set up the new mattress in a single visit. You get a discounted combined rate.</div></div>
+      <div class="faq-item"><div class="faq-q">Is same-day mattress setup available?</div><div class="faq-a">Yes, subject to availability. Select your preferred date when requesting a quote — we have morning, afternoon, and evening slots island-wide.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>New Mattress Arriving? We'll Handle It</h2>
+        <p>Setup, old mattress removal, bed frame assembly — all in one visit. Get an instant quote now.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "Mattress Setup & Disposal" });
+}
+
 /* ── Services Hub ────────────────────────────────────────────────────────────── */
 export function servicesHubPage(): string {
   const title = "Furniture Installation Services Singapore | TMG Install";
@@ -824,6 +1155,9 @@ export function servicesHubPage(): string {
         { "@type": "ListItem", "position": 4, "name": "Furniture Dismantling Singapore", "url": `${DOMAIN}/services/furniture-dismantling-singapore` },
         { "@type": "ListItem", "position": 5, "name": "Office Furniture Installation Singapore", "url": `${DOMAIN}/services/office-furniture-installation-singapore` },
         { "@type": "ListItem", "position": 6, "name": "Furniture Relocation Singapore", "url": `${DOMAIN}/services/furniture-relocation-singapore` },
+        { "@type": "ListItem", "position": 7, "name": "TV Mounting Singapore", "url": `${DOMAIN}/services/tv-mounting-singapore` },
+        { "@type": "ListItem", "position": 8, "name": "Sofa Assembly Singapore", "url": `${DOMAIN}/services/sofa-assembly-singapore` },
+        { "@type": "ListItem", "position": 9, "name": "Mattress Setup & Disposal Singapore", "url": `${DOMAIN}/services/mattress-installation-singapore` },
       ],
     },
     {
@@ -881,6 +1215,21 @@ export function servicesHubPage(): string {
           <div class="service-card-icon">🚛</div>
           <h3>Furniture Relocation</h3>
           <p>Dismantle at old address, reinstall at new address. Island-wide.</p>
+        </a>
+        <a href="/services/tv-mounting-singapore" class="service-card" style="display:block;">
+          <div class="service-card-icon">📺</div>
+          <h3>TV Wall Mounting</h3>
+          <p>Fixed, tilting, full-motion brackets. All wall types. Cable management. From $80.</p>
+        </a>
+        <a href="/services/sofa-assembly-singapore" class="service-card" style="display:block;">
+          <div class="service-card-icon">🛋️</div>
+          <h3>Sofa Assembly</h3>
+          <p>Sectional, modular, sofa-beds. IKEA, Castlery, HipVan and all brands. From $60.</p>
+        </a>
+        <a href="/services/mattress-installation-singapore" class="service-card" style="display:block;">
+          <div class="service-card-icon">🛏️</div>
+          <h3>Mattress Setup & Disposal</h3>
+          <p>New mattress unboxing, bed-in-a-box setup, old mattress disposal. From $50.</p>
         </a>
       </div>
     </div>
