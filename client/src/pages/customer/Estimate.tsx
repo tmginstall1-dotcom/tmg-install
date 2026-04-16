@@ -736,6 +736,23 @@ export default function EstimateWizard() {
   return (
     <>
     <div className={`min-h-screen pb-20 bg-white ${promoVisible ? "pt-24" : "pt-16"}`}>
+      {/* Trust microbar */}
+      <div className="bg-black/[0.025] border-b border-black/8 py-2">
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="flex items-center justify-center gap-3 sm:gap-5 flex-wrap">
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-black/40">
+              <Star className="w-3 h-3 text-amber-500 fill-amber-500" /> 4.9★ · 127 reviews
+            </span>
+            <span className="text-black/12 text-xs hidden sm:block">|</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.1em] text-black/40">⚡ 60s quote</span>
+            <span className="text-black/12 text-xs hidden sm:block">|</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.1em] text-black/40">🛡️ Fully insured</span>
+            <span className="text-black/12 text-xs hidden sm:block">|</span>
+            <span className="hidden sm:block text-[10px] font-black uppercase tracking-[0.1em] text-black/40">🏙️ Island-wide</span>
+          </div>
+        </div>
+      </div>
+
       {/* Step indicator */}
       <div className={`sticky z-40 bg-white border-b border-black/10 ${promoVisible ? "top-24" : "top-16"}`}>
         <div className="max-w-2xl mx-auto px-4 py-4">
@@ -915,6 +932,24 @@ export default function EstimateWizard() {
                         </span>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* Bundle upsell — show when Install selected but not Dismantle */}
+                {services.includes("install") && !services.includes("dismantle") && !services.includes("relocate") && (
+                  <div className="flex items-start gap-3 border border-amber-300 bg-amber-50 px-4 py-3.5">
+                    <Tag className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-xs uppercase tracking-[0.08em] text-amber-900">Save 40% — Add Dismantling</p>
+                      <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">Replacing old furniture? When Installation + Dismantling are combined, the dismantle price drops 40%. Most popular for IKEA moves.</p>
+                    </div>
+                    <button
+                      data-testid="button-add-dismantle-upsell"
+                      onClick={() => setServices(prev => [...prev, "dismantle"])}
+                      className="shrink-0 text-[10px] font-black uppercase tracking-[0.08em] bg-amber-600 text-white px-3 py-2 hover:bg-amber-700 transition-colors whitespace-nowrap"
+                    >
+                      Add it
+                    </button>
                   </div>
                 )}
               </div>

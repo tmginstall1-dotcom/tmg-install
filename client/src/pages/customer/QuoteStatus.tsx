@@ -304,18 +304,82 @@ export default function QuoteStatus() {
           </motion.div>
         )}
 
-        {/* ═══ EMAIL REMINDER — submitted / under_review / approved (subtle) ══ */}
-        {["submitted", "under_review", "approved"].includes(quote.status) && (
+        {/* ═══ WHAT HAPPENS NEXT — submitted / under_review ══════════════════ */}
+        {["submitted", "under_review"].includes(quote.status) && (
+          <motion.div {...fadeUp(0.02)} className="mb-8 border border-black/12 overflow-hidden">
+            <div className="bg-black text-white px-5 py-3.5 flex items-center gap-3">
+              <Clock className="w-4 h-4 text-white/70 flex-shrink-0" />
+              <div>
+                <p className="font-black text-sm uppercase tracking-wide" style={{ letterSpacing: "0.1em" }}>
+                  What happens next
+                </p>
+                <p className="text-white/55 text-xs mt-0.5">Your quote is in — here's what to expect</p>
+              </div>
+            </div>
+            <div className="bg-white px-5 py-5 space-y-4">
+              {[
+                {
+                  num: 1,
+                  done: true,
+                  color: "bg-emerald-500",
+                  title: "Quote submitted ✓",
+                  desc: `Received at ${new Date(quote.createdAt || Date.now()).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })} — reference ${quote.referenceNo}`,
+                },
+                {
+                  num: 2,
+                  done: quote.status === "under_review",
+                  color: "bg-black",
+                  title: "Our team reviews (< 4 hours)",
+                  desc: "We verify pricing, availability, and any access details. You'll get a message on WhatsApp and email once approved.",
+                },
+                {
+                  num: 3,
+                  done: false,
+                  color: "bg-black/20",
+                  title: "Deposit payment link sent",
+                  desc: "A 50% deposit secures your slot. We'll send a payment link via email and WhatsApp — check your Junk/Spam folder too.",
+                },
+                {
+                  num: 4,
+                  done: false,
+                  color: "bg-black/20",
+                  title: "Booking confirmed",
+                  desc: "Once the deposit is paid, your appointment is locked in. You'll receive a confirmation with your technician's details.",
+                },
+              ].map(({ num, done, color, title, desc }) => (
+                <div key={num} className="flex items-start gap-4">
+                  <div className={`w-7 h-7 rounded-full ${color} text-white text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                    {done && num === 1 ? <Check className="w-3.5 h-3.5" /> : num}
+                  </div>
+                  <div>
+                    <p className={`font-bold text-sm ${done ? "text-black" : "text-black/40"}`}>{title}</p>
+                    <p className="text-xs text-black/45 mt-0.5 leading-relaxed">{desc}</p>
+                  </div>
+                </div>
+              ))}
+              <div className="pt-3 border-t border-black/8 flex items-center gap-3">
+                <a
+                  href={`https://wa.me/6580880757?text=Hi%2C+I+just+submitted+quote+reference+${quote.referenceNo}+and+have+a+question.`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.08em] text-black border border-black/15 px-3 py-2 hover:bg-black hover:text-white transition-colors"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" /> Questions? WhatsApp us
+                </a>
+                <span className="text-xs text-black/35">We typically respond within 30 min during business hours.</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ═══ APPROVED — prompt to watch for deposit link ════════════════════ */}
+        {quote.status === "approved" && (
           <motion.div {...fadeUp(0.02)} className="mb-8 flex items-start gap-3.5 border border-black/12 bg-black/[0.015] px-5 py-4">
             <Mail className="w-4 h-4 text-black/40 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-bold text-black mb-0.5">
-                {quote.status === "approved" ? "Your quote is approved!" : "Quote received — we'll be in touch soon"}
-              </p>
+              <p className="text-sm font-bold text-black mb-0.5">Your quote is approved — deposit link coming</p>
               <p className="text-xs text-black/55 leading-relaxed">
-                {quote.status === "approved"
-                  ? "Our team will send a deposit payment link to your registered email. Please check your inbox — and don't forget to look in your Junk or Spam folder too."
-                  : "Once our team approves your quote, we'll email you a deposit payment link. Keep an eye on your inbox and check your Junk / Spam folder if you don't see it."}
+                Our team will send a deposit payment link to your registered email shortly. Check your inbox and your Junk / Spam / Promotions folder.
               </p>
               <div className="flex items-center gap-1.5 mt-2.5">
                 <MailWarning className="w-3.5 h-3.5 text-amber-500" />
