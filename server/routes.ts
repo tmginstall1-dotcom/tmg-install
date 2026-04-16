@@ -5014,6 +5014,53 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const entry = body.entry?.[0];
       const change = entry?.changes?.[0];
       const value = change?.value;
+
+      // ── Handle delivery status callbacks (sent / delivered / read / failed) ────
+      // Meta sends these in value.statuses[], NOT value.messages[].
+      // Previously this whole block was silently discarded — now we log failures.
+      if (value?.statuses?.length) {
+        for (const st of value.statuses) {
+          const recipientId: string = st.recipient_id || "";
+          const status: string = st.status || "";
+          const wamidSt: string = st.id || "";
+          if (status === "failed") {
+            const errCode = st.errors?.[0]?.code;
+            const errTitle = st.errors?.[0]?.title || "Unknown error";
+            const is24h = errCode === 131047 || errCode === 131026;
+            console.error(
+              `[WhatsApp] ❌ Message delivery FAILED — to: ****${recipientId.slice(-4)}, ` +
+              `msgId: ${wamidSt.slice(0, 16)}…, code: ${errCode}, reason: ${errTitle}`
+            );
+            // Log a system message in the conversation so admin can see the failure
+            const failureNote = is24h
+              ? `⚠️ WhatsApp delivery failed (code ${errCode}): 24-hour messaging window is closed. Customer must message us first to re-open the window. Consider calling or emailing them.`
+              : `⚠️ WhatsApp delivery failed (code ${errCode}): ${errTitle}`;
+            storage.logWhatsAppMessage({
+              phone: recipientId,
+              direction: 'outbound',
+              body: failureNote,
+              sentBy: 'system',
+              wamid: undefined,
+            }).catch(() => {});
+            if (is24h) {
+              console.warn(
+                `[WhatsApp] 24-hour window closed for ****${recipientId.slice(-4)} — ` +
+                `free-form messages cannot be delivered. Customer must message first to re-open window.`
+              );
+              // Mark the session window as closed so admin UI can warn before next send
+              await db.update(whatsappSessionsTable)
+                .set({ windowOpen: false })
+                .where(eq(whatsappSessionsTable.phone, recipientId))
+                .catch(() => {});
+            }
+          } else if (status === "sent" || status === "delivered" || status === "read") {
+            console.log(`[WhatsApp] Status update — to: ****${recipientId.slice(-4)}, status: ${status}`);
+          }
+        }
+        // If there are no inbound messages in this event, we're done
+        if (!value?.messages?.length) return;
+      }
+
       if (!value?.messages?.length) return;
 
       const msg = value.messages[0];

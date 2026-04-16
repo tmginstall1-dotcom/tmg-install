@@ -177,10 +177,16 @@ export async function sendWhatsAppMessage(to: string, text: string, opts?: { log
     throw new Error(`WhatsApp accepted the request but returned no message ID. The number may not be on WhatsApp.`);
   }
 
-  console.log(`[WhatsApp] Message sent to ${to} (id: ${msgId})`);
-  // Only log to our DB after confirmed delivery
+  // Log the full response so we can see message_status and contacts
+  const msgStatus = data?.messages?.[0]?.message_status ?? "unknown";
+  const waId = data?.contacts?.[0]?.wa_id;
+  console.log(`[WhatsApp] Message accepted by Meta — to: ${to}, id: ${msgId}, status: ${msgStatus}, wa_id: ${waId ?? "n/a"}`);
+  if (!waId) {
+    console.warn(`[WhatsApp] No wa_id returned for ${to} — number may not be registered on WhatsApp`);
+  }
+  // Only log to our DB after confirmed acceptance by Meta
   const sentBy = opts?.logAsSentBy !== undefined ? opts.logAsSentBy : 'bot';
-  storage.logWhatsAppMessage({ phone: to, direction: 'outbound', body: text, sentBy: sentBy ?? 'bot' }).catch(() => {});
+  storage.logWhatsAppMessage({ phone: to, direction: 'outbound', body: text, sentBy: sentBy ?? 'bot', wamid: msgId }).catch(() => {});
   return true;
 }
 
