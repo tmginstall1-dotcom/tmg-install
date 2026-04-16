@@ -464,6 +464,30 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
       ALTER TABLE ai_approval_queue ADD COLUMN IF NOT EXISTS executed_at TIMESTAMP;
     `));
 
+    // ── Subcontractor Management ───────────────────────────────────────────────
+    await withRetry(() => pool.query(`
+      CREATE TABLE IF NOT EXISTS subcontractors (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        company TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS job_subcontracts (
+        id SERIAL PRIMARY KEY,
+        quote_id INTEGER NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+        subcontractor_id INTEGER NOT NULL REFERENCES subcontractors(id) ON DELETE CASCADE,
+        agreed_cost DECIMAL(10,2) NOT NULL,
+        payment_status TEXT NOT NULL DEFAULT 'unpaid',
+        paid_at TIMESTAMP,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `));
+
     console.log("[startup] DB schema ready, TMG50 seeded.");
     await pool.end();
   } catch (e: any) {
