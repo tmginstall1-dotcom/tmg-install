@@ -961,3 +961,28 @@ export const jobSubcontracts = pgTable("job_subcontracts", {
 export const insertJobSubcontractSchema = createInsertSchema(jobSubcontracts).omit({ id: true, createdAt: true });
 export type InsertJobSubcontract = z.infer<typeof insertJobSubcontractSchema>;
 export type JobSubcontract = typeof jobSubcontracts.$inferSelect;
+
+// ── Partial Leads (abandoned web wizard capture) ──────────────────────────
+export const partialLeads = pgTable("partial_leads", {
+  id: serial("id").primaryKey(),
+  resumeToken: text("resume_token").notNull().unique(),
+  email: text("email").notNull(),
+  name: text("name"),
+  phone: text("phone"),
+  services: jsonb("services"),
+  serviceAddress: text("service_address"),
+  pickupAddress: text("pickup_address"),
+  dropoffAddress: text("dropoff_address"),
+  items: jsonb("items"),
+  slotDateStr: text("slot_date_str"),
+  status: text("status").notNull().default("pending"),
+  emailSentAt: timestamp("email_sent_at"),
+  whatsappSentAt: timestamp("whatsapp_sent_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastActiveAt: timestamp("last_active_at").defaultNow(),
+}, (t) => ({
+  partialLeadsTokenIdx: index("partial_leads_token_idx").on(t.resumeToken),
+  partialLeadsStatusIdx: index("partial_leads_status_idx").on(t.status, t.createdAt),
+}));
+export type PartialLead = typeof partialLeads.$inferSelect;

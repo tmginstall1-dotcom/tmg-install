@@ -200,6 +200,28 @@ export default function EstimateWizard() {
     trackEvent("wizard_start", "/estimate");
   }, []);
 
+  // Resume from abandoned lead link (?resume=TOKEN)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const resumeToken = params.get("resume");
+    if (!resumeToken) return;
+    fetch(`/api/partial-leads/resume/${resumeToken}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(lead => {
+        if (!lead) return;
+        setPartialLeadToken(resumeToken);
+        setCaptureShown(true);
+        if (lead.email) setCaptureEmail(lead.email);
+        if (lead.name) setCaptureName(lead.name);
+        if (lead.services && Array.isArray(lead.services)) setServices(lead.services as any);
+        if (lead.serviceAddress) setServiceAddress(lead.serviceAddress);
+        if (lead.pickupAddress) setPickupAddress(lead.pickupAddress);
+        if (lead.dropoffAddress) setDropoffAddress(lead.dropoffAddress);
+        setStep(3);
+      })
+      .catch(() => {});
+  }, []);
+
   // Step 1
   const [services, setServices] = useState<ServiceType[]>([]);
   const [disposalMode, setDisposalMode] = useState<"dispose" | "dismantle_dispose">("dismantle_dispose");
@@ -243,6 +265,14 @@ export default function EstimateWizard() {
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [promoStatus, setPromoStatus] = useState<"idle" | "validating" | "valid" | "invalid">("idle");
   const [promoMessage, setPromoMessage] = useState("");
+
+  // Partial lead capture (abandoned wizard recovery)
+  const [showCaptureModal, setShowCaptureModal] = useState(false);
+  const [captureEmail, setCaptureEmail] = useState("");
+  const [captureName, setCaptureName] = useState("");
+  const [captureSaving, setCaptureSaving] = useState(false);
+  const [partialLeadToken, setPartialLeadToken] = useState<string | null>(null);
+  const [captureShown, setCaptureShown] = useState(false);
 
   const { visible: promoVisible, promo: promoBarData } = usePromoBar();
 
@@ -711,6 +741,11 @@ export default function EstimateWizard() {
       } catch (_) {}
       trackEvent("wizard_submit", "/estimate");
 
+      // Mark partial lead as completed so no re-engagement email is sent
+      if (partialLeadToken) {
+        fetch(`/api/partial-leads/${partialLeadToken}/complete`, { method: "POST" }).catch(() => {});
+      }
+
       setLocation(`/quotes/${quote.id}`);
     } catch (err: any) {
       setSubmitError(err.message || "Failed to submit. Please try again.");
@@ -728,7 +763,45 @@ export default function EstimateWizard() {
     return false;
   };
 
-  const next = () => setStep(s => Math.min(s + 1, 5) as 1 | 2 | 3 | 4 | 5);
+  const goNext = () => setStep(s => Math.min(s + 1, 5) as 1 | 2 | 3 | 4 | 5);
+
+  const next = () => {
+    if (step === 3 && !captureShown) {
+      setCaptureShown(true);
+      setShowCaptureModal(true);
+      return;
+    }
+    goNext();
+  };
+
+  const saveCaptureAndNext = async (skip = false) => {
+    setShowCaptureModal(false);
+    if (!skip && captureEmail.trim()) {
+      setCaptureSaving(true);
+      try {
+        const res = await fetch("/api/partial-leads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: captureEmail.trim(),
+            name: captureName.trim() || undefined,
+            services,
+            serviceAddress: isRelocation ? pickupAddress : serviceAddress,
+            pickupAddress: isRelocation ? pickupAddress : undefined,
+            dropoffAddress: isRelocation ? dropoffAddress : undefined,
+            items: items.map(i => ({ name: i.name, quantity: i.quantity, serviceType: i.serviceType })),
+          }),
+        });
+        if (res.ok) {
+          const { token } = await res.json();
+          setPartialLeadToken(token);
+        }
+      } catch { /* non-fatal */ }
+      setCaptureSaving(false);
+    }
+    goNext();
+  };
+
   const back = () => setStep(s => Math.max(s - 1, 1) as 1 | 2 | 3 | 4 | 5);
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -2002,6 +2075,92 @@ export default function EstimateWizard() {
             <button onClick={() => { setTermsAccepted(true); setShowTermsModal(false); }} className="px-5 py-2.5 bg-black text-white font-black text-xs uppercase tracking-[0.1em] hover:bg-neutral-800 transition-colors" data-testid="button-accept-terms">I Agree</button>
           </div>
         </div>
+      </div>
+    )}
+
+    {/* ── Partial Lead Capture Modal ── */}
+    {showCaptureModal && (
+      <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
+        onClick={() => saveCaptureAndNext(true)}>
+        <motion.div
+          initial={{ y: 60, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: "spring", damping: 26, stiffness: 300 }}
+          className="bg-white w-full sm:max-w-md sm:border sm:border-black/15"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-start justify-between px-6 pt-6 pb-0">
+            <div>
+              <p className="font-heading text-2xl font-black uppercase tracking-[-0.02em] leading-tight">Save your progress</p>
+              <p className="text-sm text-black/50 mt-1 leading-relaxed">Enter your email and we'll keep your items saved — pick up right where you left off anytime.</p>
+            </div>
+            <button
+              onClick={() => saveCaptureAndNext(true)}
+              data-testid="button-capture-close"
+              className="ml-4 p-1.5 text-black/30 hover:text-black transition-colors shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Trust strip */}
+          <div className="mx-6 mt-4 px-4 py-3 bg-black/[0.03] border border-black/8 flex items-center gap-3">
+            <Star className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
+            <p className="text-[11px] text-black/55 leading-snug">
+              <strong className="text-black">4.9★ · 127 reviews</strong> · Fully insured · No hidden fees · Island-wide
+            </p>
+          </div>
+
+          {/* Form */}
+          <div className="px-6 pb-6 pt-4 space-y-3">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5">Email Address *</label>
+              <input
+                type="email"
+                autoFocus
+                value={captureEmail}
+                onChange={e => setCaptureEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") saveCaptureAndNext(false); }}
+                placeholder="you@email.com"
+                data-testid="input-capture-email"
+                className="w-full px-4 py-3 border border-black/15 text-sm outline-none focus:border-black transition-colors placeholder:text-black/25"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5">Your Name <span className="font-normal normal-case tracking-normal text-black/30">(optional)</span></label>
+              <input
+                type="text"
+                value={captureName}
+                onChange={e => setCaptureName(e.target.value)}
+                placeholder="e.g. Sarah"
+                data-testid="input-capture-name"
+                className="w-full px-4 py-3 border border-black/15 text-sm outline-none focus:border-black transition-colors placeholder:text-black/25"
+              />
+            </div>
+
+            <button
+              onClick={() => saveCaptureAndNext(false)}
+              disabled={captureSaving || !captureEmail.trim()}
+              data-testid="button-capture-save"
+              className="w-full bg-black text-white py-3.5 font-black text-xs uppercase tracking-[0.1em] hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              {captureSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <>Save & Continue <ArrowRight className="w-4 h-4" /></>}
+            </button>
+
+            <button
+              onClick={() => saveCaptureAndNext(true)}
+              data-testid="button-capture-skip"
+              className="w-full text-center text-xs text-black/35 hover:text-black/60 transition-colors py-1"
+            >
+              Skip — continue without saving
+            </button>
+
+            <p className="text-[10px] text-black/30 text-center leading-relaxed">
+              We'll only use your email to send you the resume link. No spam, ever.
+            </p>
+          </div>
+        </motion.div>
       </div>
     )}
     </>

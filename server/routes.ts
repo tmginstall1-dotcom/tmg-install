@@ -8717,6 +8717,105 @@ Respond directly — no JSON, just the message text.`,
   setInterval(runFollowUpScheduler, 5 * 60 * 1000);
   setTimeout(runFollowUpScheduler, 60_000);
 
+  // ── Partial Lead (abandoned wizard) API ───────────────────────────────────
+
+  app.post("/api/partial-leads", async (req, res) => {
+    try {
+      const { email, name, phone, services, serviceAddress, pickupAddress, dropoffAddress, items, slotDateStr } = req.body;
+      if (!email || typeof email !== "string") return res.status(400).json({ error: "Email required" });
+      const token = require("crypto").randomUUID();
+      const lead = await storage.createPartialLead({ resumeToken: token, email: email.trim().toLowerCase(), name, phone, services, serviceAddress, pickupAddress, dropoffAddress, items, slotDateStr });
+      res.json({ token: lead.resumeToken });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/partial-leads/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      await storage.updatePartialLead(token, req.body);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/partial-leads/:token/complete", async (req, res) => {
+    try {
+      const { token } = req.params;
+      await storage.markPartialLeadCompleted(token);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/partial-leads/resume/:token", async (req, res) => {
+    try {
+      const lead = await storage.getPartialLeadByToken(req.params.token);
+      if (!lead || lead.status === "completed") return res.status(404).json({ error: "Not found" });
+      res.json(lead);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Abandoned Lead Scheduler ──────────────────────────────────────────────
+  async function runAbandonedLeadScheduler() {
+    try {
+      const DELAY_MS = 30 * 60 * 1000; // 30 minutes after starting
+      const leads = await storage.getDuePartialLeads(DELAY_MS);
+      for (const lead of leads) {
+        try {
+          const resumeUrl = `${APP_URL}/estimate?resume=${lead.resumeToken}`;
+          const itemCount = Array.isArray(lead.items) ? lead.items.length : 0;
+          const itemsText = itemCount > 0 ? `You had ${itemCount} item${itemCount !== 1 ? "s" : ""} in your basket.` : "";
+          const servicesText = Array.isArray(lead.services) && lead.services.length > 0
+            ? `Services: ${(lead.services as string[]).map((s: string) => ({ install: "Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal" }[s] || s)).join(", ")}.`
+            : "";
+
+          const emailSent = await sendEmail({
+            to: lead.email,
+            subject: "Your TMG Install quote is waiting ✨",
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; color: #111;">
+                <div style="background: #111; padding: 24px 32px;">
+                  <h1 style="color: #fff; font-size: 20px; margin: 0; font-weight: 900; letter-spacing: -0.02em;">TMG Install</h1>
+                  <p style="color: rgba(255,255,255,0.5); font-size: 12px; margin: 4px 0 0;">Singapore's Furniture Installation Specialists</p>
+                </div>
+                <div style="padding: 32px;">
+                  <h2 style="font-size: 22px; font-weight: 900; margin: 0 0 8px;">Your quote is still waiting${lead.name ? `, ${lead.name}` : ""}!</h2>
+                  <p style="color: #555; margin: 0 0 16px;">You were almost there — you started a quote with us but didn't finish. Your details are saved; just click below to pick up exactly where you left off.</p>
+                  ${servicesText || itemsText ? `<p style="color: #555; margin: 0 0 16px;">${servicesText} ${itemsText}</p>` : ""}
+                  <a href="${resumeUrl}" style="display: inline-block; background: #111; color: #fff; text-decoration: none; font-weight: 900; font-size: 14px; letter-spacing: 0.04em; padding: 14px 28px; margin-bottom: 24px;">COMPLETE MY QUOTE →</a>
+                  <div style="background: #f8f8f8; border-left: 3px solid #111; padding: 16px; margin-bottom: 24px;">
+                    <p style="font-size: 13px; margin: 0 0 6px;"><strong>⭐ 4.9 rated on Google</strong> · 127+ reviews</p>
+                    <p style="font-size: 13px; margin: 0 0 6px;">✅ Fully insured · Island-wide · Fixed prices, no surprises</p>
+                    <p style="font-size: 13px; margin: 0;">⚡ Most quotes responded to within 4 hours</p>
+                  </div>
+                  <p style="font-size: 12px; color: #999;">Need help? Just WhatsApp us at <a href="https://wa.me/6590248681" style="color: #111;">+65 9024 8681</a></p>
+                </div>
+              </div>
+            `,
+          });
+
+          if (emailSent) {
+            await storage.markPartialLeadEmailSent(lead.resumeToken);
+            console.log(`[AbandonedLead] Re-engagement email sent to ${lead.email}`);
+          }
+        } catch (err) {
+          console.error(`[AbandonedLead] Failed for ${lead.email}:`, err);
+        }
+      }
+    } catch (err) {
+      console.error("[AbandonedLead] Scheduler error:", err);
+    }
+  }
+
+  setInterval(runAbandonedLeadScheduler, 5 * 60 * 1000);
+  setTimeout(runAbandonedLeadScheduler, 90_000);
+
   // Admin toggle for reminders
   app.post("/api/admin/settings/wa-reminders", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });

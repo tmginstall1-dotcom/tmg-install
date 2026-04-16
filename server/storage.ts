@@ -18,6 +18,7 @@ import {
   subcontractors, jobSubcontracts,
   type Subcontractor, type InsertSubcontractor,
   type JobSubcontract, type InsertJobSubcontract,
+  partialLeads, type PartialLead,
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 
@@ -201,6 +202,15 @@ export interface IStorage {
     totalUnpaid: number;
     payables: { subcontractorId: number; name: string; company: string | null; unpaidCount: number; unpaidTotal: number }[];
   }>;
+
+  // Partial Leads
+  createPartialLead(data: { resumeToken: string; email: string; name?: string; phone?: string; services?: any; serviceAddress?: string; pickupAddress?: string; dropoffAddress?: string; items?: any; slotDateStr?: string }): Promise<import("@shared/schema").PartialLead>;
+  updatePartialLead(token: string, data: Partial<{ name: string; phone: string; services: any; serviceAddress: string; pickupAddress: string; dropoffAddress: string; items: any; slotDateStr: string; lastActiveAt: Date }>): Promise<void>;
+  markPartialLeadCompleted(token: string): Promise<void>;
+  getPartialLeadByToken(token: string): Promise<import("@shared/schema").PartialLead | undefined>;
+  getDuePartialLeads(olderThanMs: number): Promise<import("@shared/schema").PartialLead[]>;
+  markPartialLeadEmailSent(token: string): Promise<void>;
+  markPartialLeadWhatsappSent(token: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1867,6 +1877,56 @@ export class DatabaseStorage implements IStorage {
         unpaidTotal: Number(r.unpaid_total),
       })),
     };
+  }
+
+  // ── Partial Leads ─────────────────────────────────────────────────────────
+  async createPartialLead(data: { resumeToken: string; email: string; name?: string; phone?: string; services?: any; serviceAddress?: string; pickupAddress?: string; dropoffAddress?: string; items?: any; slotDateStr?: string }): Promise<PartialLead> {
+    const [row] = await db.insert(partialLeads).values({
+      resumeToken: data.resumeToken,
+      email: data.email,
+      name: data.name ?? null,
+      phone: data.phone ?? null,
+      services: data.services ?? null,
+      serviceAddress: data.serviceAddress ?? null,
+      pickupAddress: data.pickupAddress ?? null,
+      dropoffAddress: data.dropoffAddress ?? null,
+      items: data.items ?? null,
+      slotDateStr: data.slotDateStr ?? null,
+      status: "pending",
+    }).returning();
+    return row;
+  }
+
+  async updatePartialLead(token: string, data: Partial<{ name: string; phone: string; services: any; serviceAddress: string; pickupAddress: string; dropoffAddress: string; items: any; slotDateStr: string; lastActiveAt: Date }>): Promise<void> {
+    await db.update(partialLeads).set({ ...data, lastActiveAt: new Date() }).where(eq(partialLeads.resumeToken, token));
+  }
+
+  async markPartialLeadCompleted(token: string): Promise<void> {
+    await db.update(partialLeads).set({ status: "completed", completedAt: new Date() }).where(eq(partialLeads.resumeToken, token));
+  }
+
+  async getPartialLeadByToken(token: string): Promise<PartialLead | undefined> {
+    const [row] = await db.select().from(partialLeads).where(eq(partialLeads.resumeToken, token)).limit(1);
+    return row;
+  }
+
+  async getDuePartialLeads(olderThanMs: number): Promise<PartialLead[]> {
+    const cutoff = new Date(Date.now() - olderThanMs);
+    return db.select().from(partialLeads).where(
+      and(
+        eq(partialLeads.status, "pending"),
+        lte(partialLeads.createdAt, cutoff),
+        isNull(partialLeads.emailSentAt),
+      )
+    );
+  }
+
+  async markPartialLeadEmailSent(token: string): Promise<void> {
+    await db.update(partialLeads).set({ emailSentAt: new Date() }).where(eq(partialLeads.resumeToken, token));
+  }
+
+  async markPartialLeadWhatsappSent(token: string): Promise<void> {
+    await db.update(partialLeads).set({ whatsappSentAt: new Date() }).where(eq(partialLeads.resumeToken, token));
   }
 }
 
