@@ -26,6 +26,9 @@ type Conversation = {
   unreadCount: number;
   state: string | null;
   botPaused: boolean;
+  pendingQuoteRef: string | null;
+  pendingQuoteStatus: string | null;
+  customerName: string | null;
 };
 
 type WaMessage = {
@@ -1836,6 +1839,7 @@ export default function AdminConversations() {
   const selectedConvo = convos.find(c => c.phone === selectedPhone);
   const totalUnread = convos.reduce((s, c) => s + c.unreadCount, 0);
   const totalEscalation = convos.filter(c => c.botPaused).length;
+  const totalPendingQuotes = convos.filter(c => !!c.pendingQuoteRef).length;
 
   const filteredConvos = convos.filter(c => {
     const q = search.toLowerCase();
@@ -1953,6 +1957,11 @@ export default function AdminConversations() {
               {totalUnread > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-[#25D366] text-white text-[10px] font-bold min-w-[20px] text-center">
                   {totalUnread > 99 ? "99+" : totalUnread}
+                </span>
+              )}
+              {totalPendingQuotes > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold min-w-[20px] text-center" title={`${totalPendingQuotes} pending quote${totalPendingQuotes !== 1 ? 's' : ''}`}>
+                  📋 {totalPendingQuotes}
                 </span>
               )}
             </div>
@@ -2098,14 +2107,19 @@ export default function AdminConversations() {
                           </span>
                         )}
                       </div>
-                      {(isPaused || selectedPhone === convo.phone) && (
-                        <div className="flex items-center gap-1.5 mt-1">
+                      {(isPaused || convo.pendingQuoteRef || selectedPhone === convo.phone) && (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {isPaused && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md text-red-700 bg-red-50 border border-red-200 flex items-center gap-1">
                               <AlertCircle className="w-2.5 h-2.5" /> Needs Attention
                             </span>
                           )}
-                          {!isPaused && (
+                          {convo.pendingQuoteRef && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md text-blue-700 bg-blue-50 border border-blue-200 flex items-center gap-1">
+                              📋 {convo.pendingQuoteRef} · {convo.pendingQuoteStatus === 'new' ? 'New Request' : 'Quote Sent'}
+                            </span>
+                          )}
+                          {!isPaused && !convo.pendingQuoteRef && selectedPhone === convo.phone && (
                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${sc.color} ${sc.bg}`}>
                               {sc.label}
                             </span>

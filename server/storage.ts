@@ -1290,20 +1290,34 @@ export class DatabaseStorage implements IStorage {
     return rows.reverse();
   }
 
-  async getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null; botPaused: boolean }[]> {
-    // Get latest message per phone + unread count, joined with session for name/state/botPaused
+  async getWhatsAppConversations(): Promise<{ phone: string; name: string | null; lastMessage: string; lastAt: Date; unreadCount: number; state: string | null; botPaused: boolean; pendingQuoteRef: string | null; pendingQuoteStatus: string | null; customerName: string | null }[]> {
+    // Get latest message per phone + unread count + pending quote info
     const rows = await db.execute(sql`
       SELECT
         m.phone,
-        ws.collected_name AS name,
+        COALESCE(ws.collected_name, c.name) AS name,
         ws.state,
         ws.bot_paused,
         (SELECT body FROM whatsapp_messages WHERE phone = m.phone ORDER BY created_at DESC LIMIT 1) AS last_message,
         (SELECT created_at FROM whatsapp_messages WHERE phone = m.phone ORDER BY created_at DESC LIMIT 1) AS last_at,
-        COUNT(CASE WHEN m.direction = 'inbound' AND m.read_at IS NULL THEN 1 END)::int AS unread_count
+        COUNT(CASE WHEN m.direction = 'inbound' AND m.read_at IS NULL THEN 1 END)::int AS unread_count,
+        (
+          SELECT q.reference_no FROM quotes q
+          WHERE q.customer_whatsapp_phone = m.phone
+            AND q.status IN ('new', 'sent')
+          ORDER BY q.created_at DESC LIMIT 1
+        ) AS pending_quote_ref,
+        (
+          SELECT q.status FROM quotes q
+          WHERE q.customer_whatsapp_phone = m.phone
+            AND q.status IN ('new', 'sent')
+          ORDER BY q.created_at DESC LIMIT 1
+        ) AS pending_quote_status,
+        c.name AS customer_name
       FROM whatsapp_messages m
       LEFT JOIN whatsapp_sessions ws ON ws.phone = m.phone
-      GROUP BY m.phone, ws.collected_name, ws.state, ws.bot_paused
+      LEFT JOIN customers c ON c.phone = m.phone
+      GROUP BY m.phone, ws.collected_name, ws.state, ws.bot_paused, c.name
       ORDER BY last_at DESC
     `);
     return (rows.rows as any[]).map(r => ({
@@ -1314,6 +1328,9 @@ export class DatabaseStorage implements IStorage {
       lastMessage: r.last_message ?? "",
       lastAt: new Date(r.last_at),
       unreadCount: Number(r.unread_count ?? 0),
+      pendingQuoteRef: r.pending_quote_ref ?? null,
+      pendingQuoteStatus: r.pending_quote_status ?? null,
+      customerName: r.customer_name ?? null,
     }));
   }
 
