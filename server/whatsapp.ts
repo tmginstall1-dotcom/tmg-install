@@ -161,12 +161,23 @@ export async function sendWhatsAppMessage(to: string, text: string, opts?: { log
 
   if (!res.ok) {
     const errMsg = data?.error?.message || data?.message || JSON.stringify(data);
-    console.error(`[WhatsApp] Send error to ${to}:`, errMsg);
+    const errCode = data?.error?.code;
+    console.error(`[WhatsApp] Send error to ${to} (code ${errCode ?? "?"}):`, errMsg);
     // Throw so callers can surface the real reason to the admin
     throw new Error(`WhatsApp API error: ${errMsg}`);
   }
 
-  console.log(`[WhatsApp] Message sent to ${to}`);
+  // Meta Cloud API returns HTTP 200 but may include no message ID if the send was
+  // rejected for a non-error reason (e.g. number not on WhatsApp).
+  // Validate the response body to catch silent failures.
+  const msgId = data?.messages?.[0]?.id;
+  if (!msgId) {
+    const raw = JSON.stringify(data);
+    console.warn(`[WhatsApp] API returned 200 but no message ID for ${to} — possible silent failure. Response: ${raw}`);
+    throw new Error(`WhatsApp accepted the request but returned no message ID. The number may not be on WhatsApp.`);
+  }
+
+  console.log(`[WhatsApp] Message sent to ${to} (id: ${msgId})`);
   // Only log to our DB after confirmed delivery
   const sentBy = opts?.logAsSentBy !== undefined ? opts.logAsSentBy : 'bot';
   storage.logWhatsAppMessage({ phone: to, direction: 'outbound', body: text, sentBy: sentBy ?? 'bot' }).catch(() => {});

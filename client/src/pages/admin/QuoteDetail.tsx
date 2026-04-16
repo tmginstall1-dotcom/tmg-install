@@ -260,10 +260,15 @@ export default function AdminQuoteDetail() {
     },
     onSuccess: (data: any) => {
       setEmailSentAt(new Date());
-      const isWa = data?.channel === "whatsapp";
+      const both = data?.emailSent && data?.whatsappSent;
+      const title = both
+        ? "✅ Sent via WhatsApp + Email"
+        : data?.whatsappSent
+          ? "✅ WhatsApp Sent"
+          : "✅ Email Sent";
       toast({
-        title: isWa ? "✅ WhatsApp Sent" : "✅ Email Sent",
-        description: data?.message || (isWa ? "Payment link sent via WhatsApp." : "Deposit invoice sent via email."),
+        title,
+        description: data?.message || "Deposit notification sent.",
       });
     },
     onError: (err: any) => {
@@ -432,10 +437,15 @@ export default function AdminQuoteDetail() {
   const handleRequestFinalPayment = async () => {
     try {
       const data = await requestFinalPayment.mutateAsync(parseInt(id));
-      const isWa = data?.channel === "whatsapp";
+      const both = data?.emailSent && data?.whatsappSent;
+      const title = both
+        ? "✅ Sent via WhatsApp + Email"
+        : data?.whatsappSent
+          ? "✅ WhatsApp Sent"
+          : "✅ Final Payment Email Sent";
       toast({
-        title: isWa ? "✅ WhatsApp Sent" : "✅ Final Payment Email Sent",
-        description: data?.message || (isWa ? "Payment link sent via WhatsApp." : "Final payment invoice sent via email."),
+        title,
+        description: data?.message || "Final payment notification sent.",
       });
     } catch (err: any) {
       toast({ title: "Failed to send", description: err.message, variant: "destructive" });

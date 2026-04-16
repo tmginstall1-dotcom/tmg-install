@@ -3866,11 +3866,11 @@ ${systemPrompt}` });
           }
         }
 
-        // Send WhatsApp for WA-originated customers or as fallback when email not available
-        // Use customerWhatsappPhone first, fall back to customer.phone for web-booked customers
+        // Always send WhatsApp when a phone number is available — email and WhatsApp
+        // fire independently so customers get payment links on both channels.
         const rawWaPhone2 = quote.customerWhatsappPhone || quote.customer?.phone;
         const waPhone2 = rawWaPhone2 ? normalizeSGPhone(rawWaPhone2) : null;
-        if (waPhone2 && !hasRealEmail) {
+        if (waPhone2) {
           const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
           const slotLine = quote.preferredDate
             ? `📅 *Slot: ${quote.preferredDate}${quote.preferredTimeWindow ? ` (${quote.preferredTimeWindow})` : ""}*\n`
@@ -6909,34 +6909,36 @@ Respond directly — no JSON, just the message text.`,
         !quote.customer.email.endsWith("@tmginstall.com") &&
         quote.customer.email.includes("@");
 
-      let channel = "";
-      let channelTarget = "";
+      // Send via BOTH channels independently — same dual-channel logic as final payment.
+      let emailResendOk = false;
+      let waResendOk = false;
+      const resendChannels: string[] = [];
 
+      // ── Channel 1: Email ──────────────────────────────────────────────────
       if (hasRealEmail) {
         const emailHtml = depositRequestEmail(quote, paymentLink);
-        const sent = await sendEmail({
+        emailResendOk = await sendEmail({
           to: quote.customer!.email,
           subject: `[${quote.referenceNo}] Deposit Payment Required — TMG Install`,
           html: emailHtml,
         });
-        if (!sent) {
-          return res.status(500).json({ message: `Resend API rejected the email to ${quote.customer!.email}. Check server logs.` });
+        if (emailResendOk) {
+          resendChannels.push(`email:${quote.customer!.email}`);
+          console.log(`[Deposit] Resent email to ${quote.customer!.email} for ${quote.referenceNo}`);
+        } else {
+          console.error(`[Deposit] Resend email FAILED to ${quote.customer!.email} for ${quote.referenceNo}`);
         }
-        channel = "email";
-        channelTarget = quote.customer!.email;
-        console.log(`[Deposit] Resent email to ${channelTarget} for ${quote.referenceNo}`);
-      } else {
-        // No real email — send via WhatsApp (customerWhatsappPhone OR phone fallback)
-        const rawPhone = quote.customerWhatsappPhone || quote.customer?.phone;
-        if (!rawPhone) {
-          return res.status(400).json({ message: "No real email and no WhatsApp number found for this customer." });
-        }
-        const waPhone = normalizeSGPhone(rawPhone);
+      }
+
+      // ── Channel 2: WhatsApp — always attempt when phone available ─────────
+      const rawResendPhone = quote.customerWhatsappPhone || quote.customer?.phone;
+      if (rawResendPhone) {
+        const waResendPhone = normalizeSGPhone(rawResendPhone);
         const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
         const resendSlotLine = quote.preferredDate
           ? `📅 *Slot: ${quote.preferredDate}${quote.preferredTimeWindow ? ` (${quote.preferredTimeWindow})` : ""}*\n`
           : "";
-        const waMsg =
+        const waResendMsg =
           `Hi *${quote.customer?.name || "there"}* 👋\n\n` +
           `Friendly reminder from *TMG Install* — your quote *${quote.referenceNo}* is approved and awaiting your deposit.\n\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
@@ -6946,21 +6948,36 @@ Respond directly — no JSON, just the message text.`,
           `━━━━━━━━━━━━━━━━━━━━\n\n` +
           waPayBlock(depositAmt, shortPayUrl) +
           `\n\n_Slot held for 48 hours. Reply here if you need help._`;
-        const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
-        if (!waSent) {
-          return res.status(500).json({ message: `WhatsApp send failed to +${waPhone}. Check that the WhatsApp token is valid.` });
+        const waSent = await sendWhatsAppMessage(waResendPhone, waResendMsg).catch(() => false);
+        waResendOk = !!waSent;
+        if (waResendOk) {
+          resendChannels.push(`whatsapp:+${waResendPhone}`);
+          console.log(`[Deposit] Resent WhatsApp to +${waResendPhone} for ${quote.referenceNo}`);
+        } else {
+          console.error(`[Deposit] Resend WhatsApp FAILED to +${waResendPhone} for ${quote.referenceNo}`);
         }
-        channel = "whatsapp";
-        channelTarget = `+${waPhone}`;
-        console.log(`[Deposit] Resent WhatsApp payment link to ${channelTarget} for ${quote.referenceNo}`);
       }
 
+      if (!emailResendOk && !waResendOk) {
+        return res.status(500).json({ message: "No valid email or WhatsApp number — could not send deposit notification." });
+      }
+
+      const resendBoth = emailResendOk && waResendOk;
+      const resendChannel = waResendOk ? "whatsapp" : "email";
+      const resendTarget = waResendOk
+        ? `+${normalizeSGPhone(quote.customerWhatsappPhone || quote.customer?.phone || "")}`
+        : quote.customer!.email;
+
       res.json({
-        message: channel === "email"
-          ? `Deposit invoice sent via email to ${channelTarget}`
-          : `Deposit payment link sent via WhatsApp to ${channelTarget}`,
-        channel,
-        channelTarget,
+        message: resendBoth
+          ? `Deposit link sent via WhatsApp + email`
+          : resendChannel === "whatsapp"
+            ? `Deposit payment link sent via WhatsApp to ${resendTarget}`
+            : `Deposit invoice sent via email to ${resendTarget}`,
+        channel: resendChannel,
+        channelTarget: resendTarget,
+        emailSent: emailResendOk,
+        whatsappSent: waResendOk,
       });
     } catch (err: any) {
       console.error("[Deposit] Resend error:", err);
