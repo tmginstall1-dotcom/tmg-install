@@ -268,6 +268,7 @@ export default function EstimateWizard() {
 
   // Partial lead capture (abandoned wizard recovery)
   const [showCaptureModal, setShowCaptureModal] = useState(false);
+  const [showContactEditor, setShowContactEditor] = useState(false);
   const [captureEmail, setCaptureEmail] = useState("");
   const [captureName, setCaptureName] = useState("");
   const [captureSaving, setCaptureSaving] = useState(false);
@@ -776,6 +777,9 @@ export default function EstimateWizard() {
 
   const saveCaptureAndNext = async (skip = false) => {
     setShowCaptureModal(false);
+    // Carry whatever the user typed in the modal forward — so Step 5 doesn't ask again.
+    if (captureEmail.trim() && !email) setEmail(captureEmail.trim());
+    if (captureName.trim() && !name) setName(captureName.trim());
     if (!skip && captureEmail.trim()) {
       setCaptureSaving(true);
       try {
@@ -1643,22 +1647,46 @@ export default function EstimateWizard() {
                 {/* Customer details form */}
                 <div className="bg-white border border-black/10 p-6 space-y-4">
                   <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40">Contact Information</p>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Full Name <span className="text-black">*</span></label>
-                      <input required value={name} onChange={e => setName(e.target.value)} data-testid="input-name"
-                        placeholder="e.g. James Tan Wei Ming" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
+
+                  {/* If name + email already captured earlier, show a compact confirmation strip with edit toggle */}
+                  {email && !showContactEditor ? (
+                    <div className="flex items-start justify-between gap-4 px-4 py-3 bg-black/[0.03] border border-black/10">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-1">Sending quote to</p>
+                        <p className="text-sm font-bold text-black truncate" data-testid="text-contact-summary">
+                          {name ? `${name} · ` : ""}{email}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowContactEditor(true)}
+                        data-testid="button-edit-contact"
+                        className="text-xs font-black uppercase tracking-[0.1em] text-black/60 hover:text-black underline shrink-0"
+                      >
+                        Edit
+                      </button>
                     </div>
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Phone <span className="text-black">*</span></label>
-                      <input required value={phone} onChange={e => setPhone(e.target.value)} data-testid="input-phone"
-                        placeholder="+65 9000 0000" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
+                  ) : (
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Full Name <span className="text-black">*</span></label>
+                        <input required value={name} onChange={e => setName(e.target.value)} data-testid="input-name"
+                          placeholder="e.g. James Tan Wei Ming" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Email <span className="text-black">*</span></label>
+                        <input required type="email" value={email} onChange={e => setEmail(e.target.value)} data-testid="input-email"
+                          placeholder="e.g. james.tan@email.com" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Phone is always asked here (never collected in modal) */}
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Email <span className="text-black">*</span></label>
-                    <input required type="email" value={email} onChange={e => setEmail(e.target.value)} data-testid="input-email"
-                      placeholder="e.g. james.tan@email.com" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
+                    <label className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-1.5 block">Phone <span className="text-black">*</span></label>
+                    <input required value={phone} onChange={e => setPhone(e.target.value)} data-testid="input-phone"
+                      placeholder="+65 9000 0000" className="w-full px-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm" />
+                    <p className="text-[11px] text-black/45 mt-1.5">We'll text you to confirm — no spam, ever.</p>
                   </div>
                 </div>
 
