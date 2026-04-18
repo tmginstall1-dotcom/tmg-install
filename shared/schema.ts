@@ -898,6 +898,19 @@ export const aiPlatformExecutions = pgTable("ai_platform_executions", {
 });
 export type AiPlatformExecution = typeof aiPlatformExecutions.$inferSelect;
 
+// ── Site settings (live overrides written by AI Site agent on approve) ───────
+export const siteSettings = pgTable("site_settings", {
+  id: serial("id").primaryKey(),
+  settingKey: text("setting_key").notNull().unique(),  // e.g. "meta_title:/", "h1:/", "cta_text:/estimate"
+  settingValue: text("setting_value").notNull(),
+  page: text("page"),                                  // e.g. "/" or "/estimate"
+  field: text("field"),                                // e.g. "meta_title", "meta_description", "h1", "cta_text"
+  source: text("source").default("ai_agent"),          // ai_agent | manual
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: text("updated_by"),
+});
+export type SiteSetting = typeof siteSettings.$inferSelect;
+
 // ── Phase 9: WhatsApp AI Sales Agent ─────────────────────────────────────────
 
 export const aiWhatsappFollowups = pgTable("ai_whatsapp_followups", {

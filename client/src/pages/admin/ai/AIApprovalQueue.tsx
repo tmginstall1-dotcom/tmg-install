@@ -571,11 +571,39 @@ export default function AIApprovalQueue() {
   const review = useMutation({
     mutationFn: ({ id, decision, note }: { id: number; decision: string; note?: string }) =>
       apiRequest("POST", `/api/ai/approvals/${id}/review`, { decision, note }),
-    onSuccess: (_data, vars) => {
+    onSuccess: (data: any, vars) => {
       qc.invalidateQueries({ queryKey: ["/api/ai/approvals"] });
       qc.invalidateQueries({ queryKey: ["/api/ai/summary"] });
       setConfirmState(null);
-      toast({ title: vars.decision === "approved" ? "Approved" : vars.decision === "rejected" ? "Rejected" : "Deferred" });
+      if (vars.decision === "approved") {
+        // Surface what the auto-executor actually did so admins know it's live
+        const platform = data?.platformExecution;
+        const site = data?.siteApply;
+        if (platform && !platform.skipped && !platform.error) {
+          const verb = platform.testMode ? "Dry-run executed" : "Pushed live to platform";
+          toast({
+            title: `Approved · ${verb}`,
+            description: `${platform.platform} → ${platform.actionType} (${platform.resultStatus}). ${platform.summary || ""}`.trim(),
+          });
+        } else if (site && !site.error) {
+          toast({
+            title: "Approved · Site updated live",
+            description: `Applied ${site.applied?.join(", ")} to ${site.page}. Changes visible immediately.`,
+          });
+        } else if (platform?.skipped || platform?.error) {
+          toast({
+            title: "Approved · Platform push skipped",
+            description: platform.reason || platform.error || "Enable platform execution flags to auto-push.",
+            variant: platform.error ? "destructive" : "default",
+          });
+        } else if (data?.autoExecuted) {
+          toast({ title: "Approved · Deliverable generated", description: "Expand to copy the implementation spec." });
+        } else {
+          toast({ title: "Approved", description: "Enable 'ai_auto_execute_enabled' to auto-execute on approve." });
+        }
+      } else {
+        toast({ title: vars.decision === "rejected" ? "Rejected" : "Deferred" });
+      }
     },
     onError: (err: any) => {
       setConfirmState(null);

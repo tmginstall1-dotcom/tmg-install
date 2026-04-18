@@ -7450,9 +7450,30 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
-  // ── Public review + testimonials endpoints (no auth required) ────────────
+  // ── Public site settings (live overrides written by AI Site agent) ──
+  // Returns a flat map of field→value for a given page (or all pages).
+  // Frontend uses this to override default meta tags, hero copy, CTA text.
+  app.get("/api/public/site-settings", async (req, res) => {
+    try {
+      const { siteSettings } = await import("@shared/schema");
+      const page = (req.query.page as string) || undefined;
+      const rows = page
+        ? await db.select().from(siteSettings).where(eq(siteSettings.page, page))
+        : await db.select().from(siteSettings);
+      const out: Record<string, Record<string, string>> = {};
+      for (const r of rows) {
+        const p = r.page || "/";
+        const f = r.field || "unknown";
+        if (!out[p]) out[p] = {};
+        out[p][f] = r.settingValue;
+      }
+      res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+      return res.json(out);
+    } catch {
+      return res.json({});
+    }
+  });
 
-  // GET /api/public/google-review — returns the stored Google review URLs
   app.get("/api/public/google-review", async (_req, res) => {
     try {
       const [row] = await db.select().from(appSettings).where(eq(appSettings.key, "google_review_url"));

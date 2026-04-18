@@ -24,6 +24,7 @@ import {
   aiSearchConsoleData,
   aiPagespeedData,
   aiPlatformExecutions,
+  siteSettings,
   quotes,
   customers,
 } from "@shared/schema";
@@ -176,6 +177,41 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
 // ── Phase 6: Allowed types for auto-execution on approval ────────────────────
 // These types generate structured deliverables ONLY — never call live APIs.
 const AUTO_EXECUTE_TYPES = new Set(["negative_keyword", "creative", "site_change", "landing_page"]);
+
+// Action types that should be pushed to the live ad platform automatically on approve
+const AUTO_PLATFORM_EXECUTE_TYPES = new Set(["negative_keyword", "pause_ad", "enable_ad", "pause_adset", "enable_adset", "pause_ad_group", "enable_ad_group"]);
+
+/**
+ * applySiteChangeToLive — writes an approved site_change recommendation directly
+ * into the site_settings KV table so the frontend picks it up immediately.
+ * Used by the auto-execute flow after admin approval.
+ */
+async function applySiteChangeToLive(item: typeof aiApprovalQueue.$inferSelect, actor: string): Promise<{ applied: string[]; page: string }> {
+  const pa = (item.proposedAction as any) ?? {};
+  const sc = pa.suggestedChanges ?? {};
+  const page = pa.targetPage || "/";
+  const applied: string[] = [];
+
+  const writes: Array<{ field: string; value: string | undefined }> = [
+    { field: "meta_title",       value: sc.titleTag },
+    { field: "meta_description", value: sc.metaDescription },
+    { field: "h1",               value: sc.h1Suggestion },
+    { field: "cta_text",         value: sc.ctaText },
+  ];
+
+  for (const w of writes) {
+    if (!w.value || typeof w.value !== "string") continue;
+    const key = `${w.field}:${page}`;
+    await db.insert(siteSettings)
+      .values({ settingKey: key, settingValue: w.value, page, field: w.field, source: "ai_agent", updatedBy: actor })
+      .onConflictDoUpdate({
+        target: siteSettings.settingKey,
+        set: { settingValue: w.value, page, field: w.field, source: "ai_agent", updatedAt: new Date(), updatedBy: actor },
+      });
+    applied.push(w.field);
+  }
+  return { applied, page };
+}
 
 type ApprovalItem = typeof aiApprovalQueue.$inferSelect;
 
@@ -959,27 +995,131 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
         { id, decision, note, refType: item?.refType, refId: item?.refId, queueType: item?.queueType },
       );
 
-      // ── Phase 6: Auto-execute on approval for safe action types ──────────────
+      // ── Phase 6: Auto-execute on approval ────────────────────────────────────
+      // On approve we now do TWO things automatically (when ai_auto_execute_enabled is ON):
+      //   1. Generate the structured deliverable (CSV/spec/brief) — buildAndPersistExecution
+      //   2. PUSH THE CHANGE LIVE:
+      //      • For ad action types → call platform API (Google/Meta) directly
+      //      • For site_change → write directly to site_settings table (live override)
       let autoExecResult: any = null;
-      if (decision === "approved" && item && AUTO_EXECUTE_TYPES.has(item.queueType ?? "")) {
+      let platformExecResult: any = null;
+      let siteApplyResult: any = null;
+
+      if (decision === "approved" && item) {
         const autoExecEnabled = await getFlag("ai_auto_execute_enabled");
-        if (autoExecEnabled) {
-          // Mark as executing before starting (enables retry detection if server crashes)
-          await db.update(aiApprovalQueue)
-            .set({ executionStatus: "executing" })
-            .where(eq(aiApprovalQueue.id, id));
+
+        // 1️⃣ Build the deliverable spec (existing behaviour)
+        if (autoExecEnabled && AUTO_EXECUTE_TYPES.has(item.queueType ?? "")) {
+          await db.update(aiApprovalQueue).set({ executionStatus: "executing" }).where(eq(aiApprovalQueue.id, id));
           try {
             autoExecResult = await buildAndPersistExecution(item, actor, true);
           } catch (execErr: any) {
-            // Execution failed — still return approved, but surface the failure
             await db.update(aiApprovalQueue)
               .set({ executionStatus: "execution_failed", executionResult: { error: String(execErr) } as any })
               .where(eq(aiApprovalQueue.id, id));
           }
         }
+
+        // 2️⃣ Push the change LIVE based on type
+        if (autoExecEnabled) {
+          // ── Ad platform actions → Google/Meta API ──
+          if (AUTO_PLATFORM_EXECUTE_TYPES.has(item.queueType ?? "")) {
+            try {
+              const pa = (item.proposedAction as any) ?? {};
+              const platformRaw = (pa.platform as string | undefined)?.toLowerCase() ?? "";
+              const isGoogle = platformRaw === "google" || platformRaw === "google_ads" || item.queueType === "negative_keyword";
+              const isMeta   = platformRaw === "meta" || platformRaw === "meta_ads";
+
+              const platformFlag = isGoogle ? "ai_google_ads_execution_enabled" : isMeta ? "ai_meta_ads_execution_enabled" : null;
+              const platformOk = platformFlag ? await getFlag(platformFlag) : false;
+
+              // Idempotency: only push if nothing pushed yet
+              const [already] = await db.select({ id: aiPlatformExecutions.id })
+                .from(aiPlatformExecutions).where(eq(aiPlatformExecutions.approvalQueueId, id)).limit(1);
+
+              if (platformOk && !already) {
+                const testMode = await getFlag("ai_platform_execution_test_mode");
+                const execResult: PlatformExecutionResult = await executePlatformAction(item, actor, !!testMode);
+
+                const [persisted] = await db.insert(aiPlatformExecutions).values({
+                  approvalQueueId: item.id,
+                  recommendationId: item.refId ?? undefined,
+                  platform: execResult.platform,
+                  actionType: execResult.actionType,
+                  targetObjectIds: execResult.targetObjectIds as any,
+                  proposedChange: execResult.proposedChange as any,
+                  executedChange: execResult.executedChange as any,
+                  actor,
+                  resultStatus: execResult.resultStatus,
+                  platformResponseSummary: execResult.platformResponseSummary,
+                  platformResponseRaw: execResult.platformResponseRaw as any ?? null,
+                  rollbackPath: execResult.rollbackPath,
+                  rollbackPayload: execResult.rollbackPayload as any ?? null,
+                  errorMessage: execResult.errorMessage ?? null,
+                  testMode: execResult.testMode,
+                }).returning({ id: aiPlatformExecutions.id });
+
+                platformExecResult = {
+                  id: persisted?.id,
+                  platform: execResult.platform,
+                  actionType: execResult.actionType,
+                  resultStatus: execResult.resultStatus,
+                  summary: execResult.platformResponseSummary,
+                  testMode: execResult.testMode,
+                  errorMessage: execResult.errorMessage,
+                };
+
+                // Merge into the approval row's executionResult
+                const existing = (autoExecResult ?? item.executionResult ?? {}) as any;
+                await db.update(aiApprovalQueue)
+                  .set({ executionResult: { ...existing, platformExecution: platformExecResult } as any })
+                  .where(eq(aiApprovalQueue.id, id));
+
+                await logAiAction("platform_executed", actor, "ads",
+                  `AUTO-PUSHED on approve [${execResult.resultStatus.toUpperCase()}]: ${item.title}`,
+                  { id, platform: execResult.platform, actionType: execResult.actionType, testMode: execResult.testMode });
+              } else if (!platformOk) {
+                platformExecResult = { skipped: true, reason: `Platform execution flag (${platformFlag}) is OFF` };
+              } else if (already) {
+                platformExecResult = { skipped: true, reason: "Already pushed to platform" };
+              }
+            } catch (platformErr: any) {
+              platformExecResult = { error: String(platformErr?.message || platformErr) };
+              await logAiAction("platform_execution_failed", actor, "ads",
+                `AUTO-PUSH FAILED: ${item.title} — ${platformErr?.message || platformErr}`,
+                { id });
+            }
+          }
+
+          // ── Site/SEO changes → write directly to live site_settings ──
+          if (item.queueType === "site_change") {
+            try {
+              siteApplyResult = await applySiteChangeToLive(item, actor);
+
+              // Merge into the approval row's executionResult
+              const existing = (autoExecResult ?? item.executionResult ?? {}) as any;
+              await db.update(aiApprovalQueue)
+                .set({ executionResult: { ...existing, siteApply: siteApplyResult } as any })
+                .where(eq(aiApprovalQueue.id, id));
+
+              await logAiAction("site_change_applied", actor, "site",
+                `AUTO-APPLIED on approve: ${item.title} → ${siteApplyResult.applied.join(", ")} on ${siteApplyResult.page}`,
+                { id, ...siteApplyResult });
+            } catch (siteErr: any) {
+              siteApplyResult = { error: String(siteErr?.message || siteErr) };
+            }
+          }
+        }
       }
 
-      res.json({ success: true, decision, autoExecuted: !!autoExecResult, executionResult: autoExecResult });
+      res.json({
+        success: true,
+        decision,
+        autoExecuted: !!autoExecResult,
+        executionResult: autoExecResult,
+        platformExecution: platformExecResult,
+        siteApply: siteApplyResult,
+      });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       res.status(500).json({ message: "DB error" });
