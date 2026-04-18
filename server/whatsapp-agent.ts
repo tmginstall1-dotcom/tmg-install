@@ -32,6 +32,29 @@ import { storage } from "./storage";
 import { openai } from "./replit_integrations/audio/client";
 import { scoreLead } from "./ai-lead-scoring";
 import { sendAiAlert } from "./ai-alerts";
+import { callLLM, summarizeIfLong, KillSwitchError, CircuitOpenError } from "./ai-llm-client";
+import { z } from "zod";
+
+// ── Zod schema for fact-extraction LLM output ────────────────────────────────
+// World-class agents validate LLM output. If gpt-4o hallucinates a key or
+// returns the wrong type, the client will auto-repair with one retry; if it
+// still fails, we fall back to deterministic behavior instead of crashing.
+const factExtractionSchema = z.object({
+  serviceType: z.enum(["installation", "dismantling", "relocation", "office_fitout", "unknown"]).optional(),
+  customerName: z.string().optional(),
+  jobAddress: z.string().optional(),
+  floorLevel: z.number().int().min(-5).max(200).optional(),
+  hasLift: z.boolean().optional(),
+  homeOrOffice: z.enum(["home", "office", "commercial", "unknown"]).optional(),
+  itemTypes: z.array(z.string()).optional(),
+  quantity: z.number().int().min(0).max(10000).optional(),
+  urgency: z.enum(["asap", "this_week", "this_month", "flexible"]).optional(),
+  preferredDate: z.string().optional(),
+  photosPresent: z.boolean().optional(),
+  specialNotes: z.string().optional(),
+  toAddress: z.string().optional(),
+  confidenceLevel: z.number().min(0).max(1).optional(),
+}).strict().partial();
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -162,11 +185,16 @@ async function extractFacts(
   currentFacts: CaseFacts,
 ): Promise<{ facts: CaseFacts; confidence: number }> {
   try {
-    const historyText = history.slice(-6).map(h => `${h.role}: ${h.content}`).join("\n");
-    const res = await openai.chat.completions.create({
-      model: "gpt-4o",
+    // Long conversations get summarized into a single paragraph so the
+    // prompt stays bounded and we don't lose earlier customer-stated facts.
+    const { summary, recent } = await summarizeIfLong("whatsapp_extract_facts", history, 16);
+    const historyText = recent.slice(-6).map(h => `${h.role}: ${h.content}`).join("\n");
+    const earlierBlock = summary ? `EARLIER CONVERSATION (summary):\n${summary}\n\n` : "";
+
+    const { value: extracted } = await callLLM({
+      agent: "whatsapp_extract_facts",
       max_tokens: 600,
-      response_format: { type: "json_object" },
+      schema: factExtractionSchema,
       messages: [
         {
           role: "system",
@@ -176,7 +204,7 @@ Only update fields where the new message provides information — keep existing 
 
 SERVICES: installation, dismantling, relocation, office_fitout
 CURRENT KNOWN FACTS: ${JSON.stringify(currentFacts)}
-CONVERSATION HISTORY:
+${earlierBlock}CONVERSATION HISTORY (recent):
 ${historyText}
 
 Return ONLY a JSON object with these optional fields:
@@ -196,20 +224,23 @@ Return ONLY a JSON object with these optional fields:
   "toAddress": string,
   "confidenceLevel": number (0.0-1.0 how confident you are about serviceType)
 }
-Only include fields where you have new/updated information.`,
+Only include fields where you have new/updated information. Use exactly these field names — no extras.`,
         },
         { role: "user", content: text },
       ],
     });
 
-    const raw = res.choices[0]?.message?.content ?? "{}";
-    const extracted = JSON.parse(raw) as Partial<CaseFacts>;
-    const merged: CaseFacts = { ...currentFacts, ...extracted };
+    const merged: CaseFacts = { ...currentFacts, ...(extracted as Partial<CaseFacts>) };
     const confidence = typeof extracted.confidenceLevel === "number"
       ? extracted.confidenceLevel
       : (currentFacts.confidenceLevel ?? 0.5);
     return { facts: merged, confidence };
-  } catch {
+  } catch (err: any) {
+    // KillSwitch/CircuitOpen: stay safe — return last-known facts. The outer
+    // turn handler will still send a deterministic reply or hand off.
+    if (!(err instanceof KillSwitchError) && !(err instanceof CircuitOpenError)) {
+      console.warn("[whatsapp-agent] extractFacts failed:", err?.name, err?.message);
+    }
     return { facts: currentFacts, confidence: currentFacts.confidenceLevel ?? 0.5 };
   }
 }
@@ -301,8 +332,8 @@ async function generateSalesReply(params: {
     : "";
 
   try {
-    const res = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const { value: replyText } = await callLLM<string>({
+      agent: "whatsapp_sales_reply",
       max_tokens: 200,
       messages: [
         {
@@ -337,9 +368,12 @@ ${historyContext}`,
       ],
     });
 
-    return res.choices[0]?.message?.content?.trim() ||
+    return replyText.trim() ||
       (nextMissing ? questionMap[nextMissing] : "Thanks! Our team will prepare your quote and be in touch shortly.");
-  } catch {
+  } catch (err: any) {
+    if (!(err instanceof KillSwitchError) && !(err instanceof CircuitOpenError)) {
+      console.warn("[whatsapp-agent] generateSalesReply failed:", err?.name, err?.message);
+    }
     return nextMissing
       ? questionMap[nextMissing] || "Could you share a bit more about what you need?"
       : "Thanks for the details! Our team will review and be in touch with your quote shortly.";

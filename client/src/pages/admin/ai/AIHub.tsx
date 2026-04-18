@@ -181,6 +181,11 @@ export default function AIHub() {
     refetchInterval: 60000,
   });
 
+  const { data: llmHealth } = useQuery<any>({
+    queryKey: ["/api/ai/llm-health"],
+    refetchInterval: 60000,
+  });
+
   const { data: recentLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/ai/audit-log", "hub-recent"],
     queryFn: () => fetch("/api/ai/audit-log?limit=3", { credentials: "include" }).then(r => r.json()),
@@ -568,6 +573,95 @@ export default function AIHub() {
                 <p className="text-[10px] text-slate-500 mt-1">{(spend.monthlyUtilization * 100).toFixed(0)}% of monthly cap · trips kill switch at 100%</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* LLM HEALTH — per-agent telemetry from server/ai-llm-client.ts */}
+        {llmHealth && (
+          <div data-testid="card-llm-health" className="bg-gradient-to-br from-violet-500/10 to-fuchsia-500/5 border border-violet-500/20 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300">🧠 LLM Health · 24h</span>
+                <span className="text-[10px] text-slate-500">retries · circuit breakers · token cost</span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {llmHealth.openBreakers?.length > 0 && (
+                  <span data-testid="badge-breakers-open" className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-300 font-bold uppercase">
+                    ⚠ {llmHealth.openBreakers.length} breaker{llmHealth.openBreakers.length > 1 ? 's' : ''} open
+                  </span>
+                )}
+                {llmHealth.totals?.repairs > 0 && (
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold uppercase">
+                    {llmHealth.totals.repairs} schema repair{llmHealth.totals.repairs > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Aggregate strip */}
+            <div className="grid grid-cols-4 gap-3 mb-3">
+              <div className="bg-slate-900/40 rounded-lg p-2">
+                <p className="text-[9px] uppercase text-slate-500">Calls</p>
+                <p data-testid="text-llm-calls" className="text-sm font-bold text-white tabular-nums">{(llmHealth.totals?.calls ?? 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-slate-900/40 rounded-lg p-2">
+                <p className="text-[9px] uppercase text-slate-500">Success</p>
+                <p data-testid="text-llm-success-rate" className={`text-sm font-bold tabular-nums ${
+                  llmHealth.totals?.successRate == null ? "text-slate-400"
+                  : llmHealth.totals.successRate >= 0.98 ? "text-emerald-300"
+                  : llmHealth.totals.successRate >= 0.9  ? "text-amber-300"
+                  : "text-red-300"
+                }`}>
+                  {llmHealth.totals?.successRate == null ? "—" : `${(llmHealth.totals.successRate * 100).toFixed(1)}%`}
+                </p>
+              </div>
+              <div className="bg-slate-900/40 rounded-lg p-2">
+                <p className="text-[9px] uppercase text-slate-500">Tokens</p>
+                <p data-testid="text-llm-tokens" className="text-sm font-bold text-white tabular-nums">
+                  {((llmHealth.totals?.tokens ?? 0) / 1000).toFixed(1)}k
+                </p>
+              </div>
+              <div className="bg-slate-900/40 rounded-lg p-2">
+                <p className="text-[9px] uppercase text-slate-500">Cost SGD</p>
+                <p data-testid="text-llm-cost" className="text-sm font-bold text-white tabular-nums">
+                  {(llmHealth.totals?.costSgd ?? 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
+
+            {/* Per-agent rows */}
+            {llmHealth.agents?.length > 0 ? (
+              <div className="space-y-1.5">
+                {llmHealth.agents.slice(0, 6).map((a: any) => (
+                  <div
+                    key={a.agent}
+                    data-testid={`row-llm-agent-${a.agent}`}
+                    className="flex items-center justify-between gap-2 text-[11px] bg-slate-900/30 rounded px-2 py-1.5"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {a.breaker?.open && <span className="text-red-400">⚠</span>}
+                      <span className="font-mono text-slate-300 truncate">{a.agent}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-400 tabular-nums shrink-0">
+                      <span title="calls">{a.calls}×</span>
+                      <span
+                        title="success rate"
+                        className={a.successRate == null ? "text-slate-400"
+                          : a.successRate >= 0.98 ? "text-emerald-300"
+                          : a.successRate >= 0.9  ? "text-amber-300"
+                          : "text-red-300"}
+                      >
+                        {a.successRate == null ? "—" : `${(a.successRate * 100).toFixed(0)}%`}
+                      </span>
+                      <span title="p95 latency">p95 {a.p95LatencyMs}ms</span>
+                      <span title="cost">${a.costSgd.toFixed(3)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-500 italic">No LLM calls in the last 24h.</p>
+            )}
           </div>
         )}
 

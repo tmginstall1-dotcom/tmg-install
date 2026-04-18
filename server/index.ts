@@ -581,6 +581,16 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
     setInterval(() => {
       flushAlertDigest(15).catch(e => console.warn("[ai-alerts] digest flush error:", e?.message));
     }, 15 * 60 * 1000);
+
+    // Daily LLM-telemetry retention prune — keep 90 days of ai_llm_calls so
+    // the table doesn't grow unbounded (architect feedback). Runs once at
+    // startup then every 24h.
+    const { pruneOldLlmCalls } = await import("./ai-llm-client");
+    pruneOldLlmCalls(90).then(n => { if (n > 0) console.log(`[llm-client] pruned ${n} old telemetry rows`); });
+    setInterval(() => {
+      pruneOldLlmCalls(90).then(n => { if (n > 0) console.log(`[llm-client] pruned ${n} old telemetry rows`); })
+        .catch(e => console.warn("[llm-client] prune error:", e?.message));
+    }, 24 * 60 * 60 * 1000);
   } catch (e: any) {
     console.warn("[startup] alert digest init warning:", e?.message);
   }

@@ -842,6 +842,27 @@ export const aiSpendLedger = pgTable("ai_spend_ledger", {
 });
 export type AiSpendLedger = typeof aiSpendLedger.$inferSelect;
 
+// ── LLM Telemetry (Phase 9d — world-class observability) ────────────────────
+// One row per LLM call routed through server/ai-llm-client.ts. Powers the
+// LLM Health card on the AI Hub, cost dashboards, and retro analysis of
+// schema-repair / circuit-breaker behavior.
+export const aiLlmCalls = pgTable("ai_llm_calls", {
+  id: serial("id").primaryKey(),
+  agent: text("agent").notNull(),                     // e.g. whatsapp_extract_facts
+  model: text("model").notNull(),                     // gpt-4o, gpt-4o-mini, ...
+  latencyMs: integer("latency_ms").notNull().default(0),
+  promptTokens: integer("prompt_tokens").notNull().default(0),
+  completionTokens: integer("completion_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  costSgd: numeric("cost_sgd", { precision: 12, scale: 6 }).notNull().default("0"),
+  success: boolean("success").notNull().default(false),
+  errorMessage: text("error_message"),                // null on success
+  schemaRepaired: boolean("schema_repaired").notNull().default(false),
+  attempts: integer("attempts").notNull().default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AiLlmCall = typeof aiLlmCalls.$inferSelect;
+
 // ── Customer Ratings (Phase 9c — feedback loop) ─────────────────────────────
 // Captures post-job customer ratings (1-5) collected via WhatsApp prompt
 // after closeCase. Joins back to whatsapp_sessions.lead_score for tuning the

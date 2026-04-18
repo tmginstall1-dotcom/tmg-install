@@ -3187,6 +3187,83 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
     }
   });
 
+  // ── GET /api/ai/llm-health ──────────────────────────────────────────────
+  // Per-agent LLM telemetry (last 24h): call count, success rate, p50/p95
+  // latency, total tokens, total SGD cost, schema-repair count, current
+  // circuit-breaker state. Powers the LLM Health card in the AI Hub.
+  app.get("/api/ai/llm-health", requireAdmin, async (_req, res) => {
+    try {
+      const { getBreakerSnapshot } = await import("./ai-llm-client");
+      const rows: Array<any> = await db.execute(sql`
+        SELECT
+          agent,
+          COUNT(*)::int                                          AS calls,
+          SUM(CASE WHEN success THEN 1 ELSE 0 END)::int          AS successes,
+          SUM(CASE WHEN schema_repaired THEN 1 ELSE 0 END)::int  AS repairs,
+          SUM(total_tokens)::int                                 AS tokens,
+          ROUND(SUM(cost_sgd)::numeric, 4)                       AS cost_sgd,
+          ROUND(AVG(latency_ms)::numeric, 0)                     AS avg_latency_ms,
+          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms)::int AS p50_latency_ms,
+          PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms)::int AS p95_latency_ms,
+          MAX(created_at)                                        AS last_call_at
+        FROM ai_llm_calls
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY agent
+        ORDER BY calls DESC
+      `).then((r: any) => r.rows ?? r);
+
+      const totals = rows.reduce((acc: any, r: any) => {
+        acc.calls    += Number(r.calls ?? 0);
+        acc.tokens   += Number(r.tokens ?? 0);
+        acc.cost_sgd += Number(r.cost_sgd ?? 0);
+        acc.repairs  += Number(r.repairs ?? 0);
+        return acc;
+      }, { calls: 0, tokens: 0, cost_sgd: 0, repairs: 0 });
+      const totalSuccesses = rows.reduce((s: number, r: any) => s + Number(r.successes ?? 0), 0);
+      const successRate = totals.calls > 0 ? totalSuccesses / totals.calls : null;
+
+      const breakers = getBreakerSnapshot();
+      const breakerByAgent: Record<string, { open: boolean; openUntil: number; failures: number; successes: number }> = {};
+      for (const b of breakers) {
+        breakerByAgent[b.agent] = {
+          open: b.openUntil > Date.now(),
+          openUntil: b.openUntil,
+          failures: b.failures,
+          successes: b.successes,
+        };
+      }
+
+      res.json({
+        windowHours: 24,
+        totals: {
+          calls:    totals.calls,
+          tokens:   totals.tokens,
+          costSgd:  Number(totals.cost_sgd.toFixed(4)),
+          repairs:  totals.repairs,
+          successRate,
+        },
+        agents: rows.map((r: any) => ({
+          agent: r.agent,
+          calls: Number(r.calls),
+          successes: Number(r.successes),
+          successRate: Number(r.calls) > 0 ? Number(r.successes) / Number(r.calls) : null,
+          repairs: Number(r.repairs),
+          tokens: Number(r.tokens),
+          costSgd: Number(r.cost_sgd ?? 0),
+          avgLatencyMs: Number(r.avg_latency_ms ?? 0),
+          p50LatencyMs: Number(r.p50_latency_ms ?? 0),
+          p95LatencyMs: Number(r.p95_latency_ms ?? 0),
+          lastCallAt: r.last_call_at,
+          breaker: breakerByAgent[r.agent] ?? { open: false, openUntil: 0, failures: 0, successes: 0 },
+        })),
+        openBreakers: breakers.filter(b => b.openUntil > Date.now()).map(b => b.agent),
+      });
+    } catch (e: any) {
+      console.error("[ai/llm-health] error:", e);
+      res.status(500).json({ message: e?.message ?? "DB error" });
+    }
+  });
+
   // ── GET /api/ai/score-vs-rating ─────────────────────────────────────────
   // Bucketed comparison of stored lead_score vs eventual customer rating.
   // Used to validate the lead scorer is actually picking up signal.
