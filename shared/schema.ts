@@ -898,6 +898,8 @@ export const aiPlatformExecutions = pgTable("ai_platform_executions", {
   rolledBackBy: text("rolled_back_by"),
   rollbackStatus: text("rollback_status"),        // success | failed | manual_required
   rollbackError: text("rollback_error"),
+  baselineMetric: jsonb("baseline_metric"),       // { ctr, conversions, clicks, spend, windowDays } captured at exec time for self-healing
+  selfHealingCheckedAt: timestamp("self_healing_checked_at"), // last time the self-healer evaluated this exec
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type AiPlatformExecution = typeof aiPlatformExecutions.$inferSelect;

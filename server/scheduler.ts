@@ -34,6 +34,7 @@ import {
   corePageSpeedSync,
   recoverStaleRunningStates,
 } from "./connector-sync";
+import { runSelfHealingSweep, maybeSendWeeklyDigest } from "./ai-self-healing";
 
 // ── Singleton guard ────────────────────────────────────────────────────────────
 // Prevents duplicate timers if startScheduler() is called more than once per
@@ -172,4 +173,21 @@ export function startScheduler() {
     () => runScheduledSync("pagespeed",      corePageSpeedSync,     () => []),
     SCHEDULE_INTERVALS.pagespeed,
   );
+
+  // Self-healing rollback sweep + weekly digest: run once daily.
+  // First fire 5 min after boot, then every 24h. Each is internally gated
+  // by its own feature flag and is a no-op when disabled.
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const runDaily = async () => {
+    try {
+      const heal = await runSelfHealingSweep("scheduler");
+      if (heal.evaluated > 0) console.log("[scheduler] self-healing sweep:", JSON.stringify(heal));
+    } catch (e: any) { console.error("[scheduler] self-healing failed:", e?.message); }
+    try {
+      const digest = await maybeSendWeeklyDigest();
+      if (digest.sent) console.log("[scheduler] weekly digest sent to", digest.recipient);
+    } catch (e: any) { console.error("[scheduler] weekly digest failed:", e?.message); }
+  };
+  setTimeout(runDaily, 5 * 60 * 1000);
+  setInterval(runDaily, DAY_MS);
 }

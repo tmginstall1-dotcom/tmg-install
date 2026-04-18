@@ -1107,6 +1107,18 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
                 await logAiAction("platform_executed", actor, "ads",
                   `AUTO-PUSHED on approve [${execResult.resultStatus.toUpperCase()}]: ${item.title}`,
                   { id, platform: execResult.platform, actionType: execResult.actionType, testMode: execResult.testMode });
+
+                // Capture baseline metrics for self-healing (only on real success, never dry-run)
+                if (persisted?.id && execResult.resultStatus === "success" && !execResult.testMode) {
+                  try {
+                    const tIds = (execResult.targetObjectIds as any) ?? {};
+                    const campaignId = tIds.campaignId ?? tIds.campaign_id;
+                    const { captureBaselineForExecution } = await import("./ai-self-healing");
+                    await captureBaselineForExecution(persisted.id, execResult.platform, campaignId);
+                  } catch (baselineErr: any) {
+                    console.error("[baseline-capture] failed for exec", persisted.id, baselineErr?.message);
+                  }
+                }
               } else if (!platformOk) {
                 platformExecResult = { skipped: true, reason: `Platform execution flag (${platformFlag}) is OFF` };
               } else if (already) {
@@ -1249,24 +1261,16 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
 
       const actor = (req as any).session?.username ?? "admin";
       const { executePlatformAction } = await import("./ad-executor");
+      const { buildReverseApprovalItem, reverseActionFor } = await import("./ai-self-healing");
 
-      // Build a synthetic "reverse" action payload from the original execution.
-      // We invert pause↔enable; for negative_keyword_add we use removeKeywords.
       const at = exec.actionType ?? "";
       // Only enable_/pause_ pairs are reversible via the existing executor.
       // negative_keyword_add requires manual removal in the platform UI for now
       // (the ad-executor doesn't yet implement removeKeywords), so we force
       // manual_required with the helpful rollback path text instead of pretending.
-      const reverseType =
-        at === "pause_ad" ? "enable_ad" :
-        at === "enable_ad" ? "pause_ad" :
-        at === "pause_adset" ? "enable_adset" :
-        at === "enable_adset" ? "pause_adset" :
-        at === "pause_ad_group" ? "enable_ad_group" :
-        at === "enable_ad_group" ? "pause_ad_group" :
-        null;
+      const reverseLogical = reverseActionFor(at);
 
-      if (!reverseType) {
+      if (!reverseLogical) {
         await db.update(aiPlatformExecutions).set({
           rolledBackAt: new Date(), rolledBackBy: actor, rollbackStatus: "manual_required",
           rollbackError: `No automated reverse for action type '${at}'. Follow manual rollback path.`,
@@ -1278,15 +1282,8 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       let rollbackErr: string | null = null;
       let rollbackSummary = "";
       try {
-        const reverseResult = await executePlatformAction({
-          platform: exec.platform as any,
-          actionType: reverseType as any,
-          targetObjectIds: (exec.targetObjectIds as any) ?? {},
-          payload: (exec.rollbackPayload as any) ?? {},
-          approvalQueueId: exec.approvalQueueId,
-          recommendationId: exec.recommendationId ?? undefined,
-          actor: `rollback:${actor}`,
-        } as any);
+        const reverseItem = buildReverseApprovalItem(exec, reverseLogical);
+        const reverseResult = await executePlatformAction(reverseItem, `rollback:${actor}`, !!exec.testMode);
         rollbackOk = reverseResult?.resultStatus === "success" || reverseResult?.resultStatus === "test_mode";
         rollbackSummary = reverseResult?.platformResponseSummary ?? "";
         if (!rollbackOk) rollbackErr = reverseResult?.errorMessage ?? "platform did not confirm rollback";
@@ -1361,6 +1358,30 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
     } catch (e: any) {
       res.status(500).json({ message: e.message ?? "site rollback failed" });
     }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SELF-HEALING + WEEKLY DIGEST — manual triggers (for testing & ops)
+  // ════════════════════════════════════════════════════════════════════════════
+  // POST /api/ai/self-healing/run — runs the sweep immediately, returns counters
+  app.post("/api/ai/self-healing/run", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const actor = (req as any).session?.username ?? "admin";
+      const { runSelfHealingSweep } = await import("./ai-self-healing");
+      const result = await runSelfHealingSweep(`manual:${actor}`);
+      res.json({ ok: true, ...result });
+    } catch (e: any) { res.status(500).json({ message: e.message ?? "self-healing run failed" }); }
+  });
+
+  // POST /api/ai/digest/send-now — sends the digest to the configured recipient
+  // regardless of day-of-week (still requires recipient flag to be set).
+  app.post("/api/ai/digest/send-now", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { maybeSendWeeklyDigest } = await import("./ai-self-healing");
+      const result = await maybeSendWeeklyDigest({ force: true });
+      if (!result.sent) return res.status(400).json({ ok: false, ...result });
+      res.json({ ok: true, ...result });
+    } catch (e: any) { res.status(500).json({ message: e.message ?? "digest send failed" }); }
   });
 
   // ════════════════════════════════════════════════════════════════════════════
