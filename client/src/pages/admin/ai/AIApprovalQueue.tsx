@@ -436,13 +436,44 @@ function PlatformExecutionSection({ platformExecution }: { platformExecution?: a
         </div>
       )}
 
-      {/* Rollback path */}
+      {/* Rollback path + one-click rollback button */}
       {pe.rollbackPath && pe.rollbackPath !== "No changes made." && pe.rollbackPath !== "No changes made — export only." && (
         <div className="flex items-start gap-2 p-2.5 bg-slate-500/5 border border-slate-500/15 rounded-lg">
           <RotateCcw className="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0" />
-          <div>
+          <div className="flex-1">
             <p className="text-[10px] font-bold uppercase text-slate-600 mb-1">Rollback Path</p>
             <p className="text-[11px] text-slate-400 leading-relaxed">{pe.rollbackPath}</p>
+            {pe.rolledBackAt ? (
+              <p className="text-[11px] text-emerald-400 mt-1.5 font-semibold">
+                ✓ Rolled back {new Date(pe.rolledBackAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" })} by {pe.rolledBackBy}
+                {pe.rollbackStatus === "failed" && <span className="text-red-400"> — but failed: {pe.rollbackError}</span>}
+                {pe.rollbackStatus === "manual_required" && <span className="text-amber-400"> — manual reversal required</span>}
+              </p>
+            ) : pe.resultStatus === "success" && pe.id ? (
+              <button
+                data-testid={`button-rollback-execution-${pe.id}`}
+                onClick={async () => {
+                  if (!confirm(`Roll back this ${PLATFORM_LABEL[pe.platform] ?? pe.platform} change? This will reverse the action via the platform API.`)) return;
+                  try {
+                    const r = await fetch(`/api/ai/executions/${pe.id}/rollback`, { method: "POST", credentials: "include" });
+                    const j = await r.json();
+                    if (j.ok) {
+                      toast({ title: "Rolled back", description: j.summary || "Reversal pushed to platform." });
+                    } else if (j.status === "manual_required") {
+                      toast({ title: "Manual rollback required", description: "Follow the rollback path above.", variant: "destructive" });
+                    } else {
+                      toast({ title: "Rollback failed", description: j.error || j.message || "Platform did not confirm.", variant: "destructive" });
+                    }
+                    qc.invalidateQueries({ queryKey: ["/api/ai/approvals"] });
+                  } catch (e: any) {
+                    toast({ title: "Rollback error", description: e.message, variant: "destructive" });
+                  }
+                }}
+                className="mt-2 px-2.5 py-1 text-[11px] font-semibold uppercase bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded transition flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3 h-3" /> Roll back this change
+              </button>
+            ) : null}
           </div>
         </div>
       )}
@@ -559,6 +590,32 @@ export default function AIApprovalQueue() {
   const [reviewNote, setReviewNote] = useState<Record<number, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const bulkReview = useMutation({
+    mutationFn: ({ ids, decision }: { ids: number[]; decision: string }) =>
+      apiRequest("POST", "/api/ai/approvals/bulk-review", { ids, decision }),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/ai/approvals"] });
+      qc.invalidateQueries({ queryKey: ["/api/ai/summary"] });
+      setSelectedIds(new Set());
+      const { successCount = 0, failCount = 0, total = 0 } = data ?? {};
+      toast({
+        title: `Bulk action: ${successCount}/${total} succeeded`,
+        description: failCount > 0 ? `${failCount} failed — check individual items` : "All actions executed.",
+        variant: failCount > 0 ? "destructive" : "default",
+      });
+    },
+    onError: (err: any) => toast({ title: "Bulk action failed", description: err.message, variant: "destructive" }),
+  });
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/ai/approvals", statusFilter],
@@ -815,6 +872,76 @@ export default function AIApprovalQueue() {
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Bulk action bar — shown when items are selected */}
+            {(() => {
+              const pendingItems = items.filter((i: any) => i.status === "pending");
+              const allPendingSelected = pendingItems.length > 0 && pendingItems.every((i: any) => selectedIds.has(i.id));
+              const someSelected = selectedIds.size > 0;
+              if (pendingItems.length === 0) return null;
+              return (
+                <div className={`sticky top-2 z-20 flex items-center gap-3 px-4 py-2.5 rounded-lg border backdrop-blur-md transition-all ${
+                  someSelected ? "bg-violet-500/15 border-violet-500/40" : "bg-white/5 border-white/10"
+                }`}>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300 select-none">
+                    <input
+                      type="checkbox"
+                      data-testid="checkbox-select-all-pending"
+                      checked={allPendingSelected}
+                      onChange={() => {
+                        if (allPendingSelected) setSelectedIds(new Set());
+                        else setSelectedIds(new Set(pendingItems.map((i: any) => i.id)));
+                      }}
+                      className="w-4 h-4 accent-violet-500"
+                    />
+                    <span>Select all pending ({pendingItems.length})</span>
+                  </label>
+                  {someSelected && (
+                    <>
+                      <span className="text-xs text-violet-300 font-semibold">{selectedIds.size} selected</span>
+                      <div className="ml-auto flex items-center gap-2">
+                        <button
+                          data-testid="button-bulk-approve"
+                          disabled={bulkReview.isPending}
+                          onClick={() => {
+                            if (!confirm(`Approve ${selectedIds.size} item(s)? Auto-execute will run on enabled platforms.`)) return;
+                            bulkReview.mutate({ ids: Array.from(selectedIds), decision: "approved" });
+                          }}
+                          className="px-3 py-1.5 rounded text-xs font-bold uppercase bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 transition disabled:opacity-50"
+                        >
+                          Approve all
+                        </button>
+                        <button
+                          data-testid="button-bulk-defer"
+                          disabled={bulkReview.isPending}
+                          onClick={() => bulkReview.mutate({ ids: Array.from(selectedIds), decision: "deferred" })}
+                          className="px-3 py-1.5 rounded text-xs font-bold uppercase bg-slate-500/20 hover:bg-slate-500/30 border border-slate-500/40 text-slate-300 transition disabled:opacity-50"
+                        >
+                          Defer
+                        </button>
+                        <button
+                          data-testid="button-bulk-reject"
+                          disabled={bulkReview.isPending}
+                          onClick={() => {
+                            if (!confirm(`Reject ${selectedIds.size} item(s)?`)) return;
+                            bulkReview.mutate({ ids: Array.from(selectedIds), decision: "rejected" });
+                          }}
+                          className="px-3 py-1.5 rounded text-xs font-bold uppercase bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 transition disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          data-testid="button-bulk-clear"
+                          onClick={() => setSelectedIds(new Set())}
+                          className="px-2 py-1.5 rounded text-xs text-slate-400 hover:text-white transition"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             {items.map((item: any) => {
               const TypeIcon = TYPE_ICONS[item.queueType] ?? CheckSquare;
               const isExpanded = expandedId === item.id;
@@ -851,6 +978,16 @@ export default function AIApprovalQueue() {
 
                   <div className="p-4">
                     <div className="flex items-start gap-3">
+                      {item.status === "pending" && (
+                        <input
+                          type="checkbox"
+                          data-testid={`checkbox-select-item-${item.id}`}
+                          checked={selectedIds.has(item.id)}
+                          onChange={() => toggleSelect(item.id)}
+                          className="w-4 h-4 mt-3 accent-violet-500 cursor-pointer shrink-0"
+                          aria-label={`Select item ${item.id}`}
+                        />
+                      )}
                       <div className="w-8 h-8 rounded-lg bg-black/20 flex items-center justify-center shrink-0 mt-0.5">
                         <TypeIcon className="w-4 h-4 text-slate-400" />
                       </div>

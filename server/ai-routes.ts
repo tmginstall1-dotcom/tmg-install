@@ -202,11 +202,14 @@ async function applySiteChangeToLive(item: typeof aiApprovalQueue.$inferSelect, 
   for (const w of writes) {
     if (!w.value || typeof w.value !== "string") continue;
     const key = `${w.field}:${page}`;
+    // Capture the existing value FIRST so rollback can restore it
+    const [existing] = await db.select().from(siteSettings).where(eq(siteSettings.settingKey, key)).limit(1);
+    const previousValue = existing?.settingValue ?? null;
     await db.insert(siteSettings)
-      .values({ settingKey: key, settingValue: w.value, page, field: w.field, source: "ai_agent", updatedBy: actor })
+      .values({ settingKey: key, settingValue: w.value, previousValue, page, field: w.field, source: "ai_agent", updatedBy: actor })
       .onConflictDoUpdate({
         target: siteSettings.settingKey,
-        set: { settingValue: w.value, page, field: w.field, source: "ai_agent", updatedAt: new Date(), updatedBy: actor },
+        set: { settingValue: w.value, previousValue, page, field: w.field, source: "ai_agent", updatedAt: new Date(), updatedBy: actor },
       });
     applied.push(w.field);
   }
@@ -996,32 +999,58 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       );
 
       // ── Phase 6: Auto-execute on approval ────────────────────────────────────
-      // On approve we now do TWO things automatically (when ai_auto_execute_enabled is ON):
-      //   1. Generate the structured deliverable (CSV/spec/brief) — buildAndPersistExecution
-      //   2. PUSH THE CHANGE LIVE:
-      //      • For ad action types → call platform API (Google/Meta) directly
-      //      • For site_change → write directly to site_settings table (live override)
       let autoExecResult: any = null;
       let platformExecResult: any = null;
       let siteApplyResult: any = null;
 
       if (decision === "approved" && item) {
-        const autoExecEnabled = await getFlag("ai_auto_execute_enabled");
+        const r = await runAutoExecuteOnApproval(item, actor);
+        autoExecResult = r.autoExecResult;
+        platformExecResult = r.platformExecResult;
+        siteApplyResult = r.siteApplyResult;
+      }
 
-        // 1️⃣ Build the deliverable spec (existing behaviour)
-        if (autoExecEnabled && AUTO_EXECUTE_TYPES.has(item.queueType ?? "")) {
-          await db.update(aiApprovalQueue).set({ executionStatus: "executing" }).where(eq(aiApprovalQueue.id, id));
-          try {
-            autoExecResult = await buildAndPersistExecution(item, actor, true);
-          } catch (execErr: any) {
-            await db.update(aiApprovalQueue)
-              .set({ executionStatus: "execution_failed", executionResult: { error: String(execErr) } as any })
-              .where(eq(aiApprovalQueue.id, id));
-          }
-        }
+      res.json({
+        success: true,
+        decision,
+        autoExecuted: !!autoExecResult,
+        executionResult: autoExecResult,
+        platformExecution: platformExecResult,
+        siteApply: siteApplyResult,
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "DB error" });
+    }
+  });
 
-        // 2️⃣ Push the change LIVE based on type
-        if (autoExecEnabled) {
+  // ── EXTRACTED HELPER: shared by /review, /bulk-review, and analyzer auto-approve
+  // This is the SINGLE PLACE where the auto-execute pipeline runs after an
+  // approval decision. Three callers depend on it; refactoring this affects all.
+  async function runAutoExecuteOnApproval(
+    item: typeof aiApprovalQueue.$inferSelect,
+    actor: string,
+  ): Promise<{ autoExecResult: any; platformExecResult: any; siteApplyResult: any }> {
+    const id = item.id;
+    let autoExecResult: any = null;
+    let platformExecResult: any = null;
+    let siteApplyResult: any = null;
+    const autoExecEnabled = await getFlag("ai_auto_execute_enabled");
+
+    // 1️⃣ Build the deliverable spec (existing behaviour)
+    if (autoExecEnabled && AUTO_EXECUTE_TYPES.has(item.queueType ?? "")) {
+      await db.update(aiApprovalQueue).set({ executionStatus: "executing" }).where(eq(aiApprovalQueue.id, id));
+      try {
+        autoExecResult = await buildAndPersistExecution(item, actor, true);
+      } catch (execErr: any) {
+        await db.update(aiApprovalQueue)
+          .set({ executionStatus: "execution_failed", executionResult: { error: String(execErr) } as any })
+          .where(eq(aiApprovalQueue.id, id));
+      }
+    }
+
+    // 2️⃣ Push the change LIVE based on type
+    if (autoExecEnabled) {
           // ── Ad platform actions → Google/Meta API ──
           if (AUTO_PLATFORM_EXECUTE_TYPES.has(item.queueType ?? "")) {
             try {
@@ -1109,22 +1138,10 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
               siteApplyResult = { error: String(siteErr?.message || siteErr) };
             }
           }
-        }
-      }
-
-      res.json({
-        success: true,
-        decision,
-        autoExecuted: !!autoExecResult,
-        executionResult: autoExecResult,
-        platformExecution: platformExecResult,
-        siteApply: siteApplyResult,
-      });
-    } catch (err: any) {
-      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      res.status(500).json({ message: "DB error" });
     }
-  });
+
+    return { autoExecResult, platformExecResult, siteApplyResult };
+  }
 
   /** GET /api/ai/approvals/:id/detail — full detail with linked recommendation + audit trail */
   app.get("/api/ai/approvals/:id/detail", requireAdmin, async (req: Request, res: Response) => {
@@ -1159,6 +1176,246 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
 
       res.json({ item, linkedRec, auditTrail });
     } catch { res.status(500).json({ message: "DB error" }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // BULK REVIEW — approve/reject/defer many items in one click
+  // ════════════════════════════════════════════════════════════════════════════
+  // POST /api/ai/approvals/bulk-review  body: { ids: number[], decision, note? }
+  // Internally re-uses the same review endpoint logic per id (sequential to keep
+  // platform writes ordered and rate-limit-friendly). Returns per-id results.
+  app.post("/api/ai/approvals/bulk-review", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { ids, decision, note } = req.body ?? {};
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids[] required" });
+      if (!["approved", "rejected", "deferred"].includes(decision)) return res.status(400).json({ message: "invalid decision" });
+      if (ids.length > 50) return res.status(400).json({ message: "max 50 items per bulk review" });
+
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const cookie = req.headers.cookie ?? "";
+      const results: any[] = [];
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const rawId of ids) {
+        const id = parseInt(String(rawId));
+        if (!Number.isFinite(id)) { results.push({ id: rawId, ok: false, error: "bad id" }); failCount++; continue; }
+        try {
+          const r = await fetch(`${baseUrl}/api/ai/approvals/${id}/review`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", cookie },
+            body: JSON.stringify({ decision, note }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (r.ok) { results.push({ id, ok: true, ...j }); successCount++; }
+          else { results.push({ id, ok: false, status: r.status, error: j?.message }); failCount++; }
+        } catch (e: any) {
+          results.push({ id, ok: false, error: e.message ?? "exception" });
+          failCount++;
+        }
+      }
+
+      await db.insert(aiAuditLog).values({
+        actionType: decision === "approved" ? "action_approved" : decision === "rejected" ? "action_rejected" : "action_applied",
+        actor: (req as any).session?.username ?? "admin",
+        module: "approval_queue",
+        summary: `Bulk ${decision}: ${successCount}/${ids.length} succeeded`,
+        detail: { decision, ids, successCount, failCount } as any,
+        outcome: failCount === 0 ? "success" : (successCount === 0 ? "failed" : "partial"),
+      });
+
+      res.json({ total: ids.length, successCount, failCount, results });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message ?? "bulk review failed" });
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ROLLBACK — one-click undo for executed platform actions and site changes
+  // ════════════════════════════════════════════════════════════════════════════
+  // POST /api/ai/executions/:id/rollback
+  //   Reverses a previously-executed Google/Meta Ads action by calling the same
+  //   platform API with the stored rollbackPayload. Marks the execution as
+  //   rolled-back. Idempotent: a second call returns the prior result.
+  app.post("/api/ai/executions/:id/rollback", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "bad id" });
+    try {
+      const [exec] = await db.select().from(aiPlatformExecutions).where(eq(aiPlatformExecutions.id, id)).limit(1);
+      if (!exec) return res.status(404).json({ message: "execution not found" });
+      if (exec.rolledBackAt) return res.json({ ok: true, alreadyRolledBack: true, rolledBackAt: exec.rolledBackAt, status: exec.rollbackStatus });
+      if (exec.resultStatus !== "success") return res.status(400).json({ message: `cannot rollback execution in state '${exec.resultStatus}'` });
+      if (!exec.rollbackPayload) return res.status(400).json({ message: "no rollback payload available — manual reversal required" });
+
+      const actor = (req as any).session?.username ?? "admin";
+      const { executePlatformAction } = await import("./ad-executor");
+
+      // Build a synthetic "reverse" action payload from the original execution.
+      // We invert pause↔enable; for negative_keyword_add we use removeKeywords.
+      const at = exec.actionType ?? "";
+      // Only enable_/pause_ pairs are reversible via the existing executor.
+      // negative_keyword_add requires manual removal in the platform UI for now
+      // (the ad-executor doesn't yet implement removeKeywords), so we force
+      // manual_required with the helpful rollback path text instead of pretending.
+      const reverseType =
+        at === "pause_ad" ? "enable_ad" :
+        at === "enable_ad" ? "pause_ad" :
+        at === "pause_adset" ? "enable_adset" :
+        at === "enable_adset" ? "pause_adset" :
+        at === "pause_ad_group" ? "enable_ad_group" :
+        at === "enable_ad_group" ? "pause_ad_group" :
+        null;
+
+      if (!reverseType) {
+        await db.update(aiPlatformExecutions).set({
+          rolledBackAt: new Date(), rolledBackBy: actor, rollbackStatus: "manual_required",
+          rollbackError: `No automated reverse for action type '${at}'. Follow manual rollback path.`,
+        }).where(eq(aiPlatformExecutions.id, id));
+        return res.json({ ok: false, status: "manual_required", rollbackPath: exec.rollbackPath });
+      }
+
+      let rollbackOk = false;
+      let rollbackErr: string | null = null;
+      let rollbackSummary = "";
+      try {
+        const reverseResult = await executePlatformAction({
+          platform: exec.platform as any,
+          actionType: reverseType as any,
+          targetObjectIds: (exec.targetObjectIds as any) ?? {},
+          payload: (exec.rollbackPayload as any) ?? {},
+          approvalQueueId: exec.approvalQueueId,
+          recommendationId: exec.recommendationId ?? undefined,
+          actor: `rollback:${actor}`,
+        } as any);
+        rollbackOk = reverseResult?.resultStatus === "success" || reverseResult?.resultStatus === "test_mode";
+        rollbackSummary = reverseResult?.platformResponseSummary ?? "";
+        if (!rollbackOk) rollbackErr = reverseResult?.errorMessage ?? "platform did not confirm rollback";
+      } catch (e: any) {
+        rollbackErr = e.message ?? "rollback exception";
+      }
+
+      await db.update(aiPlatformExecutions).set({
+        rolledBackAt: new Date(),
+        rolledBackBy: actor,
+        rollbackStatus: rollbackOk ? "success" : "failed",
+        rollbackError: rollbackErr,
+      }).where(eq(aiPlatformExecutions.id, id));
+
+      await db.insert(aiAuditLog).values({
+        actionType: "rollback",
+        actor,
+        module: "ads",
+        summary: `Rollback ${rollbackOk ? "succeeded" : "FAILED"}: ${exec.platform} ${at} (exec #${id})`,
+        detail: { executionId: id, platform: exec.platform, actionType: at, reverseType, rollbackSummary, rollbackErr } as any,
+        outcome: rollbackOk ? "success" : "failed",
+      });
+
+      res.json({ ok: rollbackOk, status: rollbackOk ? "success" : "failed", summary: rollbackSummary, error: rollbackErr });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message ?? "rollback failed" });
+    }
+  });
+
+  // POST /api/ai/site-settings/rollback  body: { keys?: string[], page?: string }
+  //   Restores previousValue → settingValue for either specified keys, or all
+  //   settings on a given page. Used by the AI Site agent's "Undo last change"
+  //   button. Auto-clears previousValue afterwards (no nested rollback).
+  app.post("/api/ai/site-settings/rollback", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { keys, page } = req.body ?? {};
+      let rows: typeof siteSettings.$inferSelect[] = [];
+      if (Array.isArray(keys) && keys.length) {
+        rows = await db.select().from(siteSettings).where(inArray(siteSettings.settingKey, keys));
+      } else if (typeof page === "string") {
+        rows = await db.select().from(siteSettings).where(eq(siteSettings.page, page));
+      } else {
+        return res.status(400).json({ message: "provide keys[] or page" });
+      }
+
+      const actor = (req as any).session?.username ?? "admin";
+      const restored: Array<{ key: string; from: string; to: string }> = [];
+      const skipped: Array<{ key: string; reason: string }> = [];
+
+      for (const row of rows) {
+        if (!row.previousValue) { skipped.push({ key: row.settingKey, reason: "no previous value to restore" }); continue; }
+        await db.update(siteSettings).set({
+          settingValue: row.previousValue,
+          previousValue: null,
+          source: "rollback",
+          updatedAt: new Date(),
+          updatedBy: actor,
+        }).where(eq(siteSettings.id, row.id));
+        restored.push({ key: row.settingKey, from: row.settingValue, to: row.previousValue });
+      }
+
+      await db.insert(aiAuditLog).values({
+        actionType: "rollback",
+        actor,
+        module: "site",
+        summary: `Site rollback: restored ${restored.length} setting(s)${page ? ` on ${page}` : ""}`,
+        detail: { restored, skipped, page, keys } as any,
+        outcome: restored.length > 0 ? "success" : "skipped",
+      });
+
+      res.json({ restored, skipped, count: restored.length });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message ?? "site rollback failed" });
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ACTIVITY SUMMARY — "what did the AI do for me this week?"
+  // ════════════════════════════════════════════════════════════════════════════
+  // GET /api/ai/activity-summary?days=7
+  app.get("/api/ai/activity-summary", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const days = Math.max(1, Math.min(90, parseInt(String(req.query.days ?? "7"))));
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const [execs, recentApprovals, auditEvents] = await Promise.all([
+        db.select().from(aiPlatformExecutions).where(gte(aiPlatformExecutions.createdAt, since)),
+        db.select().from(aiApprovalQueue).where(gte(aiApprovalQueue.createdAt, since)),
+        db.select().from(aiAuditLog).where(gte(aiAuditLog.createdAt, since)),
+      ]);
+
+      const platformPushes = execs.length;
+      const platformSuccess = execs.filter(e => e.resultStatus === "success").length;
+      const platformDryRun = execs.filter(e => e.resultStatus === "test_mode").length;
+      const platformFailed = execs.filter(e => e.resultStatus === "failed").length;
+      const rollbacks = execs.filter(e => e.rolledBackAt).length;
+      const successRate = platformPushes > 0 ? Math.round((platformSuccess / platformPushes) * 100) : 0;
+
+      const approved = recentApprovals.filter(a => a.status === "approved").length;
+      const autoApproved = recentApprovals.filter(a => a.reviewedBy === "ai_autoapprove").length;
+      const pending = recentApprovals.filter(a => a.status === "pending").length;
+      const rejected = recentApprovals.filter(a => a.status === "rejected").length;
+
+      // Estimate of admin time saved: ~90 seconds per auto-executed item
+      // (typical click-through-platform-find-object-edit-save cycle) plus ~30s
+      // per auto-approved item that the admin no longer had to read.
+      const minutesSaved = Math.round((platformSuccess * 90 + autoApproved * 30) / 60);
+
+      // Site changes applied
+      const siteChanges = auditEvents.filter(e => e.module === "site" && e.actionType === "action_applied").length;
+
+      res.json({
+        windowDays: days,
+        since: since.toISOString(),
+        platform: {
+          totalPushes: platformPushes,
+          success: platformSuccess,
+          dryRun: platformDryRun,
+          failed: platformFailed,
+          rollbacks,
+          successRate,
+        },
+        approvals: { approved, autoApproved, pending, rejected, total: recentApprovals.length },
+        site: { changesApplied: siteChanges },
+        minutesSaved,
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message ?? "activity summary failed" });
+    }
   });
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -2346,7 +2603,19 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
 
         // Auto-queue medium/high risk items for approval
         if (riskLevel !== "low") {
-          await db.insert(aiApprovalQueue).values({
+          // ── High-confidence auto-approve gate ────────────────────────────
+          // If the master flag + autoapprove flag are ON and the rec's
+          // confidence meets the configured threshold, skip the human queue
+          // and mark as approved immediately. The next /review-style auto-
+          // executor pass will pick it up and push to the platform.
+          const autoApproveOn = (await getAiFlag("ai_high_confidence_autoapprove")) === "true";
+          const minConfStr = await getAiFlag("ai_autoapprove_min_confidence");
+          const minConf = parseFloat(minConfStr || "0.9");
+          const numericConf = parseFloat(String(confidence ?? "0"));
+          const shouldAutoApprove = autoApproveOn && numericConf >= minConf && riskLevel === "medium";
+          // Hard fence: never auto-approve "high" risk items, even if confidence is 1.0
+
+          const [inserted] = await db.insert(aiApprovalQueue).values({
             queueType: "ads_change",
             title: `${action.toUpperCase()}: ${campaignName}`,
             description: reason,
@@ -2355,8 +2624,38 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
             expectedImpact: expectedEffect,
             proposedAction: evidence as any,
             refType: "ad_recommendation",
+            status: shouldAutoApprove ? "approved" : "pending",
+            reviewedBy: shouldAutoApprove ? "ai_autoapprove" : null,
+            reviewedAt: shouldAutoApprove ? new Date() : null,
+            reviewNote: shouldAutoApprove ? `Auto-approved: confidence ${numericConf.toFixed(2)} ≥ threshold ${minConf}` : null,
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          });
+          }).returning();
+
+          if (shouldAutoApprove && inserted) {
+            await db.insert(aiAuditLog).values({
+              actionType: "action_approved",
+              actor: "ai_autoapprove",
+              module: "ads",
+              summary: `Auto-approved (conf ${numericConf.toFixed(2)} ≥ ${minConf}): ${action} ${campaignName}`,
+              detail: { confidence: numericConf, threshold: minConf, riskLevel, action, campaignName, reason } as any,
+              outcome: "success",
+            });
+            // Immediately run the auto-execute pipeline so the change actually
+            // pushes to the platform — without this, auto-approved items would
+            // sit in the queue with status='approved' but never execute.
+            try {
+              await runAutoExecuteOnApproval(inserted, "ai_autoapprove");
+            } catch (autoErr: any) {
+              await db.insert(aiAuditLog).values({
+                actionType: "action_applied",
+                actor: "ai_autoapprove",
+                module: "ads",
+                summary: `Auto-execute after auto-approve FAILED: ${campaignName}`,
+                detail: { approvalId: inserted.id, error: autoErr.message ?? String(autoErr) } as any,
+                outcome: "failed",
+              });
+            }
+          }
         }
       }
 

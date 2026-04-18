@@ -156,6 +156,11 @@ export default function AIHub() {
     queryKey: ["/api/ai/summary"],
   });
 
+  const { data: activity } = useQuery<any>({
+    queryKey: ["/api/ai/activity-summary"],
+    refetchInterval: 60000,
+  });
+
   const { data: recentLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/ai/audit-log", "hub-recent"],
     queryFn: () => fetch("/api/ai/audit-log?limit=3", { credentials: "include" }).then(r => r.json()),
@@ -333,6 +338,50 @@ export default function AIHub() {
                 <ArrowRight className="w-4 h-4" />
               </button>
             </Link>
+          </div>
+        )}
+
+        {/* AI Activity Summary — what AI has done in the last 7 days */}
+        {activity && (
+          <div className="bg-gradient-to-br from-violet-500/10 to-fuchsia-500/5 border border-violet-500/20 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300">AI Activity</span>
+                <span className="text-[10px] text-slate-500">last {activity.windowDays}d</span>
+              </div>
+              <Link href="/admin/ai/audit"><span className="text-[11px] text-violet-400 hover:text-violet-300 cursor-pointer">View audit log →</span></Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div data-testid="stat-platform-pushes">
+                <p className="text-2xl font-bold text-white tabular-nums">{activity.platform?.totalPushes ?? 0}</p>
+                <p className="text-[10px] uppercase text-slate-400 mt-0.5">Platform pushes</p>
+              </div>
+              <div data-testid="stat-success-rate">
+                <p className="text-2xl font-bold text-emerald-300 tabular-nums">{activity.platform?.successRate ?? 0}%</p>
+                <p className="text-[10px] uppercase text-slate-400 mt-0.5">Success rate</p>
+              </div>
+              <div data-testid="stat-auto-approved">
+                <p className="text-2xl font-bold text-violet-300 tabular-nums">{activity.approvals?.autoApproved ?? 0}</p>
+                <p className="text-[10px] uppercase text-slate-400 mt-0.5">Auto-approved</p>
+              </div>
+              <div data-testid="stat-site-changes">
+                <p className="text-2xl font-bold text-blue-300 tabular-nums">{activity.site?.changesApplied ?? 0}</p>
+                <p className="text-[10px] uppercase text-slate-400 mt-0.5">Site updates</p>
+              </div>
+              <div data-testid="stat-rollbacks">
+                <p className={`text-2xl font-bold tabular-nums ${(activity.platform?.rollbacks ?? 0) > 0 ? "text-amber-300" : "text-slate-500"}`}>{activity.platform?.rollbacks ?? 0}</p>
+                <p className="text-[10px] uppercase text-slate-400 mt-0.5">Rollbacks</p>
+              </div>
+              <div data-testid="stat-time-saved">
+                <p className="text-2xl font-bold text-fuchsia-300 tabular-nums">{activity.minutesSaved ?? 0}m</p>
+                <p className="text-[10px] uppercase text-slate-400 mt-0.5">Admin time saved</p>
+              </div>
+            </div>
+            {activity.platform?.failed > 0 && (
+              <p className="text-[11px] text-red-300 mt-3 flex items-center gap-1.5">
+                ⚠ {activity.platform.failed} push(es) failed in this window — review the approval queue.
+              </p>
+            )}
           </div>
         )}
 
