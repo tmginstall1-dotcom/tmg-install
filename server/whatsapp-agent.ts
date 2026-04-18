@@ -27,7 +27,7 @@ import {
   appSettings,
   customerRatings,
 } from "@shared/schema";
-import { sendBotMessage } from "./whatsapp";
+import { sendBotMessage, downloadWhatsAppMedia } from "./whatsapp";
 import { storage } from "./storage";
 import { openai } from "./replit_integrations/audio/client";
 import { scoreLead } from "./ai-lead-scoring";
@@ -176,6 +176,68 @@ export function check24hrWindow(lastInboundAt: Date | null | undefined): boolean
   if (!lastInboundAt) return false;
   const elapsed = Date.now() - new Date(lastInboundAt).getTime();
   return elapsed < 24 * 60 * 60 * 1000;
+}
+
+// ── Vision: identify furniture in a customer photo ──────────────────────────
+// gpt-4o is multimodal — pass the image as a data URL and ask for structured
+// items. We route through callLLM so we get telemetry, retries, breaker, and
+// schema validation with one auto-repair like every other agent surface.
+const visionResultSchema = z.object({
+  items: z.array(z.object({
+    type: z.string(),                                // e.g. "wardrobe"
+    qty: z.number().int().min(1).max(50).optional(), // visible count
+    notes: z.string().optional(),                    // colour/material/condition
+  })).max(20),
+  description: z.string(),                            // 1-2 sentence summary
+  isFurniture: z.boolean(),                           // false → not relevant (selfie, screenshot, address note)
+}).strict();
+export type FurnitureVisionResult = z.infer<typeof visionResultSchema>;
+
+export async function analyzeFurniturePhoto(
+  base64: string,
+  mimeType: string,
+  caption?: string,
+): Promise<FurnitureVisionResult | null> {
+  try {
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+    const captionLine = caption?.trim() ? `\nCustomer caption: "${caption.trim()}"` : "";
+    const { value } = await callLLM({
+      agent: "whatsapp_vision_analyze",
+      model: "gpt-4o",
+      max_tokens: 400,
+      schema: visionResultSchema,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You analyse photos sent by customers of TMG Install, a Singapore furniture installation company. " +
+            "Identify the furniture or items in the image so the sales agent does NOT need to ask the customer what's in the photo. " +
+            "Return JSON only.",
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text:
+                `Look at this customer photo and return JSON:` +
+                `\n- items: array of distinct furniture pieces visible. type is a short noun (wardrobe, bed frame, sofa, dining table, office desk, bookshelf, fridge, etc). qty is the count visible if obvious. notes can mention colour, condition, dismantled vs assembled.` +
+                `\n- description: one short sentence summarising what is in the photo.` +
+                `\n- isFurniture: true if the photo shows furniture or a room with furniture. false for selfies, screenshots, payment receipts, address signs, random scenery.` +
+                captionLine,
+            },
+            { type: "image_url", image_url: { url: dataUrl, detail: "low" } },
+          ],
+        },
+      ],
+    });
+    return value;
+  } catch (err: any) {
+    if (!(err instanceof KillSwitchError) && !(err instanceof CircuitOpenError)) {
+      console.warn("[whatsapp-agent] analyzeFurniturePhoto failed:", err?.name, err?.message);
+    }
+    return null;
+  }
 }
 
 // ── Fact Extraction ───────────────────────────────────────────────────────────
@@ -595,6 +657,47 @@ export async function processWithAIAgent(params: {
     // ── 7. Skip if message is empty / non-text (reactions handled by legacy bot) ─
     if (!text && params.msgType !== "image") return false;
 
+    // ── 7a. Vision: if customer sent a photo, identify the furniture in it ──
+    // Without this, the agent only sees the literal string "[Photo]" and ends
+    // up asking "what type of furniture is that?" — which feels broken to the
+    // customer (the screenshot bug). gpt-4o vision reads the image once, the
+    // findings get injected into the user-text fed to extractFacts so the
+    // existing fact-extractor populates itemTypes/quantity automatically.
+    let visionAnalyzedText = text;
+    let visionResult: FurnitureVisionResult | null = null;
+    if (params.msgType === "image" && params.msg?.image?.id) {
+      try {
+        const media = await downloadWhatsAppMedia(params.msg.image.id);
+        if (media) {
+          const caption = (params.msg.image.caption || "").trim();
+          visionResult = await analyzeFurniturePhoto(media.base64, media.mimeType, caption);
+          if (visionResult && visionResult.isFurniture) {
+            const itemSummary = visionResult.items
+              .map(i => `${i.qty && i.qty > 1 ? `${i.qty}× ` : ""}${i.type}${i.notes ? ` (${i.notes})` : ""}`)
+              .join(", ") || "furniture";
+            // Build a synthetic user message that the fact-extractor can mine.
+            // We keep the original caption (if any) + describe the photo so
+            // itemTypes/quantity get populated without re-prompting the user.
+            visionAnalyzedText =
+              (caption ? `${caption}\n` : "") +
+              `[Customer photo analysed by vision — items visible: ${itemSummary}. ${visionResult.description}]`;
+            console.log(`[WA-Agent] ${corrTag} vision identified: ${itemSummary} (phone=${masked})`);
+            await logAudit("vision_analyzed", "ai_vision",
+              `Photo analysed for ${masked}: ${itemSummary}`,
+              { correlationId, phone: masked, items: visionResult.items, description: visionResult.description });
+          } else if (visionResult && !visionResult.isFurniture) {
+            // Non-furniture photo (selfie/screenshot/etc) — note it but don't pollute facts.
+            visionAnalyzedText = (caption ? `${caption}\n` : "") + `[Customer sent a non-furniture photo: ${visionResult.description}]`;
+            console.log(`[WA-Agent] ${corrTag} vision: non-furniture photo (phone=${masked})`);
+          }
+        } else {
+          console.warn(`[WA-Agent] ${corrTag} vision: media download failed for ${masked}`);
+        }
+      } catch (visionErr: any) {
+        console.warn(`[WA-Agent] ${corrTag} vision pipeline error:`, visionErr?.message);
+      }
+    }
+
     // ── 7b. Customer rating capture (post-job feedback loop) ───────────────
     // If we have a pending rating prompt for this phone (last 24h) and the
     // inbound is just "1".."5", record it and thank the customer. Returning
@@ -633,7 +736,10 @@ export async function processWithAIAgent(params: {
     }
 
     // ── 8. Extract facts from this message ───────────────────────────────────
-    const { facts, confidence } = await extractFacts(text, history, currentFacts);
+    // For image messages, visionAnalyzedText carries the gpt-4o-vision items
+    // summary so the fact-extractor can populate itemTypes without re-asking.
+    const { facts, confidence } = await extractFacts(visionAnalyzedText, history, currentFacts);
+    if (visionResult?.isFurniture) facts.photosPresent = true;
     const missingFacts = computeMissingFacts(facts);
     const quoteReady = isQuoteReady(facts);
 

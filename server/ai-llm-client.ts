@@ -158,7 +158,18 @@ export interface CallLLMOptions<T = string> {
   /** Stable identifier used for telemetry + circuit breaker bucket. e.g. "whatsapp_extract_facts" */
   agent: string;
   model?: string;
-  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  /**
+   * OpenAI chat messages. `content` may be a plain string OR an array of
+   * content parts (supports vision: `{ type: "image_url", image_url: { url } }`
+   * alongside `{ type: "text", text }`).
+   */
+  messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string | Array<
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } }
+    >;
+  }>;
   /** If provided, response_format=json_object AND output is parsed + validated against this Zod schema. */
   schema?: ZodSchema<T>;
   max_tokens?: number;
