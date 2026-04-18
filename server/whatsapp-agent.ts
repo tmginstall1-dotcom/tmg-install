@@ -17,7 +17,7 @@
  */
 
 import { db } from "./db";
-import { eq, and, lte, gte, desc, sql as drizzleSql } from "drizzle-orm";
+import { eq, and, lte, gte, desc, sql as drizzleSql, ilike, or as drizzleOr } from "drizzle-orm";
 import {
   aiFeatureFlags,
   aiAuditLog,
@@ -26,7 +26,9 @@ import {
   whatsappSessions,
   appSettings,
   customerRatings,
+  catalogItems,
 } from "@shared/schema";
+import { PricingConfig } from "@shared/pricing";
 import { sendBotMessage, downloadWhatsAppMedia } from "./whatsapp";
 import { storage } from "./storage";
 import { openai } from "./replit_integrations/audio/client";
@@ -355,6 +357,129 @@ async function shouldHandoff(
   return { required: false, reason: "" };
 }
 
+// ── Indicative Price Range ────────────────────────────────────────────────────
+// Customers often want a ballpark BEFORE giving floor/lift/date. This helper
+// reads catalog_items + PricingConfig and returns a SGD low/high range based
+// only on the items + service type the AI agent already knows. The full quote
+// is still generated later by the existing pricing engine in routes.ts.
+//
+// Mapping CaseFacts.serviceType → catalog service_type:
+//   installation → install
+//   dismantling  → dismantle
+//   relocation   → relocate
+//   office_fitout → install (treated as install for ballpark)
+function mapAgentServiceToCatalog(s: CaseFacts["serviceType"]): "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose" {
+  switch (s) {
+    case "dismantling": return "dismantle";
+    case "relocation":  return "relocate";
+    case "office_fitout":
+    case "installation":
+    default: return "install";
+  }
+}
+
+interface IndicativeRange {
+  low: number;          // SGD lower bound (best access, ground floor + lift)
+  high: number;         // SGD upper bound (typical higher floor, no lift)
+  matchedItems: Array<{ term: string; matchedAs: string; unitPrice: number; qty: number }>;
+  unmatchedTerms: string[]; // terms with no catalog match → fallback used
+  serviceType: string;
+}
+
+export async function buildIndicativeRange(
+  itemTypes: string[] | undefined,
+  serviceType: CaseFacts["serviceType"],
+  totalQuantityHint?: number,
+): Promise<IndicativeRange | null> {
+  if (!itemTypes || itemTypes.length === 0) return null;
+  const catalogService = mapAgentServiceToCatalog(serviceType);
+
+  const matchedItems: IndicativeRange["matchedItems"] = [];
+  const unmatchedTerms: string[] = [];
+  let labourSubtotal = 0;
+  let totalUnits = 0;
+
+  for (const rawTerm of itemTypes) {
+    // Normalise: strip parentheticals, lowercase, drop trailing 's' for crude singular
+    const term = rawTerm.replace(/\(.*?\)/g, "").trim().toLowerCase();
+    if (!term) continue;
+
+    // Try ILIKE on the normalised term (and a singular form if it ends in 's')
+    const variants = Array.from(new Set([term, term.replace(/s$/, "")])).filter(Boolean);
+    let rows: Array<{ name: string; basePrice: string }> = [];
+    try {
+      rows = await db
+        .select({ name: catalogItems.name, basePrice: catalogItems.basePrice })
+        .from(catalogItems)
+        .where(and(
+          eq(catalogItems.serviceType, catalogService),
+          drizzleOr(...variants.map(v => ilike(catalogItems.name, `%${v}%`))) as any,
+        ))
+        .limit(20);
+    } catch (e: any) {
+      console.warn("[indicative-range] catalog query failed:", e?.message);
+    }
+
+    if (rows.length === 0) {
+      // Fallback to PricingConfig generic
+      const fb = PricingConfig.fallback.genericFallback; // 150
+      const mult = catalogService === "install"
+        ? 1
+        : catalogService === "dismantle" ? PricingConfig.fallback.dismantleMultiplier
+        : catalogService === "relocate"  ? PricingConfig.fallback.relocateMultiplier
+        : catalogService === "dispose"   ? PricingConfig.fallback.disposeMultiplier
+        :                                  PricingConfig.fallback.dismantleDisposeMultiplier;
+      unmatchedTerms.push(rawTerm);
+      const unitPrice = fb * mult;
+      const qty = 1;
+      matchedItems.push({ term: rawTerm, matchedAs: `(no catalog match — generic ${catalogService} fallback)`, unitPrice, qty });
+      labourSubtotal += unitPrice * qty;
+      totalUnits += qty;
+      continue;
+    }
+
+    // Use median of matched prices as the per-unit estimate (robust to outliers)
+    const prices = rows.map(r => parseFloat(r.basePrice)).filter(n => n > 0).sort((a, b) => a - b);
+    const medianPrice = prices[Math.floor(prices.length / 2)] ?? PricingConfig.fallback.genericFallback;
+    const qty = 1; // per item type — totalQuantityHint applied below
+    matchedItems.push({ term: rawTerm, matchedAs: rows[0].name, unitPrice: medianPrice, qty });
+    labourSubtotal += medianPrice * qty;
+    totalUnits += qty;
+  }
+
+  // If we got a customer-stated total quantity that's bigger than #types, scale up.
+  if (totalQuantityHint && totalQuantityHint > totalUnits) {
+    const scale = totalQuantityHint / totalUnits;
+    labourSubtotal *= scale;
+    totalUnits = totalQuantityHint;
+  }
+
+  if (matchedItems.length === 0) return null;
+
+  // Bulk discount (only kicks in at 10+ units)
+  const bulkPct = PricingConfig.bulkDiscount.find(b => totalUnits >= b.minQty)?.pct ?? 0;
+  const labourAfterBulk = labourSubtotal * (1 - bulkPct);
+
+  // Range — best vs worst access:
+  //   low  = labour + callout (assume ground floor / no surcharge)
+  //   high = labour + callout + 4 floors × no-lift surcharge (typical worst-case for SG walk-up)
+  const callout = catalogService === "relocate" ? 0 : PricingConfig.callout.fee;
+  const transport = catalogService === "relocate" ? PricingConfig.transport.minFee : 0;
+  const low  = Math.round(labourAfterBulk + callout + transport);
+  const noLiftWorst = 4 * PricingConfig.floor.perFloorNoLift; // ~$60
+  const high = Math.round(labourAfterBulk + callout + transport + noLiftWorst);
+
+  return { low, high, matchedItems, unmatchedTerms, serviceType: catalogService };
+}
+
+// Detect when the customer is asking about price/cost up front so we can
+// surface an indicative range BEFORE drilling into floor/lift/date details.
+const PRICE_INTENT_REGEX =
+  /\b(how\s*much|price|prices|pricing|cost|costs|charges?|rate|rates|quote|quotation|estimate|ballpark|range|expensive|affordable|cheaper|budget|fee|fees|\$|sgd|s\$)\b/i;
+export function isPriceIntent(text: string): boolean {
+  return PRICE_INTENT_REGEX.test(text || "");
+}
+
 // ── Sales Reply Generation ────────────────────────────────────────────────────
 async function generateSalesReply(params: {
   from: string;
@@ -364,8 +489,10 @@ async function generateSalesReply(params: {
   aiState: AiConvState;
   history: Array<{ role: string; content: string }>;
   windowOpen: boolean;
+  /** Optional ballpark price range to mention BEFORE asking the next qualifier. */
+  priceRange?: IndicativeRange | null;
 }): Promise<string> {
-  const { text, facts, missingFacts, aiState, history, windowOpen } = params;
+  const { text, facts, missingFacts, aiState, history, windowOpen, priceRange } = params;
 
   if (!windowOpen) {
     return "Hi! Thanks for reaching out. Our team will get back to you shortly. For urgent matters, please call us directly.";
@@ -393,6 +520,18 @@ async function generateSalesReply(params: {
     ? `\nBUNDLE OPPORTUNITY: Customer has selected installation only. If it comes up naturally and hasn't been mentioned yet, you may mention: "By the way, if you need to clear old furniture too, our Install + Dismantle bundle saves you 40% on dismantling — a great deal for IKEA moves or room upgrades." Say this ONCE, naturally, only if relevant.`
     : "";
 
+  // Indicative price range — when the customer has asked about cost and we
+  // have enough item info, lead with a ballpark range so we don't stonewall
+  // them with another qualifier question. The exact quote is still confirmed
+  // later by our pricing engine using floor/lift/access details.
+  const priceHint = priceRange
+    ? `\nPRICE RANGE TO QUOTE FIRST (the customer asked for a price upfront):
+- Indicative range based on items shown: SGD ${priceRange.low} – SGD ${priceRange.high}
+- This is a BALLPARK only. Phrase it naturally, e.g. "Based on what I can see, you're looking at roughly SGD ${priceRange.low}–${priceRange.high} for the ${priceRange.serviceType}."
+- Then immediately note: "The exact quote depends on floor level, lift access, and the date — could you share <next missing fact>?"
+- Do NOT just ask the question without giving the range first. The customer wants a number before sharing more details.${priceRange.unmatchedTerms.length ? `\n- Note: some items used a generic estimate (${priceRange.unmatchedTerms.join(", ")}) so the exact quote may differ once our team reviews the photo.` : ""}`
+    : "";
+
   try {
     const { value: replyText } = await callLLM<string>({
       agent: "whatsapp_sales_reply",
@@ -411,7 +550,7 @@ RULES:
 - Be concise, warm, and sales-oriented
 - Ask ONLY the single most important missing piece of information
 - Never ask multiple questions at once
-- Never invent pricing
+- Never invent pricing — use ONLY the indicative range below if one is provided. Otherwise do not quote any number.
 - Never promise slots that aren't confirmed
 - Keep under 90 words
 - Use plain conversational language, no markdown
@@ -421,7 +560,7 @@ KNOWN FACTS: ${JSON.stringify(facts)}
 CURRENT STATE: ${aiState}
 NEXT MISSING FACT: ${nextMissing || "none — all facts collected"}
 SUGGESTED QUESTION: ${nextMissing ? questionMap[nextMissing] || `What is your ${nextMissing}?` : "Push toward quote/booking"}
-${bundleUpsellHint}
+${priceHint}${bundleUpsellHint}
 
 CONVERSATION HISTORY:
 ${historyContext}`,
@@ -869,6 +1008,27 @@ export async function processWithAIAgent(params: {
       reply = buildQuoteReadyMessage(facts);
       newAiState = "quote_ready";
     } else {
+      // If the customer asked about price upfront and we know enough to
+      // ballpark it, compute an indicative range so the reply leads with
+      // a number instead of yet another qualifier question.
+      let priceRange: IndicativeRange | null = null;
+      try {
+        const askedPrice = isPriceIntent(text) || isPriceIntent(visionAnalyzedText);
+        if (askedPrice && facts.itemTypes && facts.itemTypes.length > 0) {
+          priceRange = await buildIndicativeRange(facts.itemTypes, facts.serviceType, facts.quantity);
+          if (priceRange) {
+            console.log(`[WA-Agent] ${corrTag} indicative range SGD ${priceRange.low}-${priceRange.high} for ${facts.itemTypes.join(",")} (phone=${masked})`);
+            await logAudit("indicative_price_quoted", "ai_pricing",
+              `Ballpark SGD ${priceRange.low}-${priceRange.high} given to ${masked}`,
+              { correlationId, phone: masked, low: priceRange.low, high: priceRange.high,
+                items: priceRange.matchedItems, unmatched: priceRange.unmatchedTerms,
+                serviceType: priceRange.serviceType });
+          }
+        }
+      } catch (prErr: any) {
+        console.warn(`[WA-Agent] ${corrTag} indicative-range error:`, prErr?.message);
+      }
+
       reply = await generateSalesReply({
         from,
         text,
@@ -877,6 +1037,7 @@ export async function processWithAIAgent(params: {
         aiState: newAiState,
         history,
         windowOpen,
+        priceRange,
       });
     }
 
