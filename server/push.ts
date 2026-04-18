@@ -82,29 +82,37 @@ export async function sendPushToAdmins(payload: {
   body: string;
   url?: string;
   tag?: string;
-}): Promise<void> {
+}): Promise<{ delivered: number; failed: number; total: number }> {
+  const stats = { delivered: 0, failed: 0, total: 0 };
   try {
     await initVapid();
     const subs = await getSubscriptions();
-    if (subs.length === 0) return;
+    stats.total = subs.length;
+    if (subs.length === 0) return stats;
 
     const data = JSON.stringify(payload);
     const stale: string[] = [];
 
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       subs.map(async sub => {
         try {
           await webpush.sendNotification(sub, data);
+          return true;
         } catch (err: any) {
-          // 410 Gone / 404 Not Found = subscription is no longer valid; remove it
           if (err?.statusCode === 410 || err?.statusCode === 404) {
             stale.push(sub.endpoint);
           } else {
             console.warn("[Push] Failed to notify:", err?.message);
           }
+          throw err;
         }
       })
     );
+
+    for (const r of results) {
+      if (r.status === "fulfilled") stats.delivered++;
+      else stats.failed++;
+    }
 
     if (stale.length > 0) {
       const current = await getSubscriptions();
@@ -113,4 +121,5 @@ export async function sendPushToAdmins(payload: {
   } catch (err) {
     console.error("[Push] sendPushToAdmins error:", err);
   }
+  return stats;
 }

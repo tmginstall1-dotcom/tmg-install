@@ -24,6 +24,8 @@ import {
   aiSearchConsoleData,
   aiPagespeedData,
   aiPlatformExecutions,
+  aiWhatsappFollowups,
+  aiWhatsappHandoffs,
   siteSettings,
   quotes,
   customers,
@@ -1119,6 +1121,24 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
                     console.error("[baseline-capture] failed for exec", persisted.id, baselineErr?.message);
                   }
                 }
+
+                // Real-time alert if the execution didn't succeed.
+                // executePlatformAction is designed never to throw — it returns
+                // resultStatus='failed'|'missing_ids' for normal failures, so
+                // the catch{} below would miss them.
+                if (execResult.resultStatus !== "success" && !execResult.testMode) {
+                  try {
+                    const { sendAiAlert } = await import("./ai-alerts");
+                    await sendAiAlert({
+                      severity: "critical",
+                      channel: "ads",
+                      title: `Platform push ${execResult.resultStatus.toUpperCase()}`,
+                      body: `${item.title}\n${execResult.platformResponseSummary ?? execResult.errorMessage ?? "(no detail)"}`,
+                      url: "/admin/ai/approvals",
+                      dedupeKey: `push_${execResult.resultStatus}|${id}`,
+                    });
+                  } catch {}
+                }
               } else if (!platformOk) {
                 platformExecResult = { skipped: true, reason: `Platform execution flag (${platformFlag}) is OFF` };
               } else if (already) {
@@ -1129,6 +1149,18 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
               await logAiAction("platform_execution_failed", actor, "ads",
                 `AUTO-PUSH FAILED: ${item.title} — ${platformErr?.message || platformErr}`,
                 { id });
+              // Real-time alert: a platform push failure means our recommendation
+              // didn't actually land — admin should know within seconds, not in the digest.
+              try {
+                const { sendAiAlert } = await import("./ai-alerts");
+                await sendAiAlert({
+                  severity: "critical",
+                  channel: "ads",
+                  title: `Platform push FAILED`,
+                  body: `${item.title}\nError: ${platformErr?.message || platformErr}`,
+                  url: "/admin/ai/approvals",
+                });
+              } catch {}
             }
           }
 
@@ -1382,6 +1414,150 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
       if (!result.sent) return res.status(400).json({ ok: false, ...result });
       res.json({ ok: true, ...result });
     } catch (e: any) { res.status(500).json({ message: e.message ?? "digest send failed" }); }
+  });
+
+  // POST /api/ai/anomaly/run — runs the anomaly sweep immediately
+  app.post("/api/ai/anomaly/run", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { runAnomalySweep } = await import("./ai-anomaly");
+      const result = await runAnomalySweep("manual");
+      res.json({ ok: true, ...result });
+    } catch (e: any) { res.status(500).json({ message: e.message ?? "anomaly run failed" }); }
+  });
+
+  // POST /api/ai/alerts/test — fires a test alert through both push + WhatsApp channels
+  app.post("/api/ai/alerts/test", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { sendAiAlert } = await import("./ai-alerts");
+      const result = await sendAiAlert({
+        severity: "info",
+        channel: "approval",
+        title: "Test alert",
+        body: "If you received this on your phone and browser, real-time alerts are wired correctly.",
+        url: "/admin/ai",
+      });
+      res.json({ ok: true, ...result });
+    } catch (e: any) { res.status(500).json({ message: e.message ?? "alert test failed" }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // RECOMMENDATION QUALITY — approve/reject rates per type & per agent
+  // ════════════════════════════════════════════════════════════════════════════
+  // GET /api/ai/recommendation-quality?days=30
+  //   Tells you which AI recommendation categories are working and which aren't.
+  //   Use this to tune confidence thresholds, retire weak prompts, or focus
+  //   training on weak categories.
+  app.get("/api/ai/recommendation-quality", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const days = Math.max(1, Math.min(180, parseInt(String(req.query.days ?? "30"))));
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const items = await db.select().from(aiApprovalQueue).where(gte(aiApprovalQueue.createdAt, since));
+
+      // Group by queueType then by status
+      const byType: Record<string, { approved: number; rejected: number; deferred: number; pending: number; total: number; autoApproved: number }> = {};
+      for (const it of items) {
+        const t = it.queueType ?? "unknown";
+        const b = byType[t] ??= { approved: 0, rejected: 0, deferred: 0, pending: 0, total: 0, autoApproved: 0 };
+        b.total++;
+        if (it.status === "approved") b.approved++;
+        else if (it.status === "rejected") b.rejected++;
+        else if (it.status === "deferred") b.deferred++;
+        else b.pending++;
+        if (it.reviewedBy === "ai_autoapprove") b.autoApproved++;
+      }
+
+      const breakdown = Object.entries(byType).map(([type, c]) => {
+        const reviewed = c.approved + c.rejected + c.deferred;
+        const approveRate = reviewed > 0 ? Math.round((c.approved / reviewed) * 100) : 0;
+        const rejectRate  = reviewed > 0 ? Math.round((c.rejected / reviewed) * 100) : 0;
+        return { type, ...c, reviewed, approveRate, rejectRate };
+      }).sort((a, b) => b.total - a.total);
+
+      // Overall verdict + suggestion
+      const totalReviewed = breakdown.reduce((s, b) => s + b.reviewed, 0);
+      const totalApproved = breakdown.reduce((s, b) => s + b.approved, 0);
+      const overallApproveRate = totalReviewed > 0 ? Math.round((totalApproved / totalReviewed) * 100) : 0;
+
+      const weakCategories = breakdown.filter(b => b.reviewed >= 3 && b.rejectRate >= 50);
+      const strongCategories = breakdown.filter(b => b.reviewed >= 3 && b.approveRate >= 80);
+
+      res.json({
+        windowDays: days,
+        since: since.toISOString(),
+        overallApproveRate,
+        totalRecommendations: items.length,
+        breakdown,
+        suggestions: {
+          weakCategories: weakCategories.map(c => c.type),
+          strongCategories: strongCategories.map(c => c.type),
+          message: weakCategories.length > 0
+            ? `Consider tightening prompts for: ${weakCategories.map(c => c.type).join(", ")} (rejected ≥50% of the time)`
+            : strongCategories.length > 0
+              ? `Strong categories — safe to raise auto-approve thresholds for: ${strongCategories.map(c => c.type).join(", ")}`
+              : `Not enough reviewed items yet to draw conclusions.`,
+        },
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message ?? "quality stats failed" }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // WHATSAPP SALES AGENT PERFORMANCE — handoff rate, follow-ups sent, conversion proxies
+  // ════════════════════════════════════════════════════════════════════════════
+  // GET /api/ai/whatsapp-agent-performance?days=14
+  app.get("/api/ai/whatsapp-agent-performance", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const days = Math.max(1, Math.min(90, parseInt(String(req.query.days ?? "14"))));
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const [followups, handoffs] = await Promise.all([
+        db.select().from(aiWhatsappFollowups).where(gte(aiWhatsappFollowups.createdAt, since)),
+        db.select().from(aiWhatsappHandoffs).where(gte(aiWhatsappHandoffs.handedAt, since)),
+      ]);
+
+      // Distinct phones that received either a followup or were handed off → unique conversations
+      const allPhones = new Set<string>([...followups.map(f => f.phone), ...handoffs.map(h => h.phone)]);
+
+      const followupsSent = followups.filter(f => f.status === "sent").length;
+      const followupsSkipped = followups.filter(f => f.status === "skipped" || f.status === "cancelled").length;
+      const followupsPending = followups.filter(f => f.status === "pending").length;
+
+      const followupTypeBreakdown: Record<string, number> = {};
+      for (const f of followups) {
+        followupTypeBreakdown[f.followupType] = (followupTypeBreakdown[f.followupType] ?? 0) + 1;
+      }
+
+      const handoffsTotal = handoffs.length;
+      const handoffReasons: Record<string, number> = {};
+      for (const h of handoffs) handoffReasons[h.reason] = (handoffReasons[h.reason] ?? 0) + 1;
+      const resumed = handoffs.filter(h => h.resumedAt).length;
+
+      // Handoff rate as % of unique phones the AI engaged with
+      const handoffRate = allPhones.size > 0 ? Math.round((handoffsTotal / allPhones.size) * 100) : 0;
+
+      res.json({
+        windowDays: days,
+        since: since.toISOString(),
+        uniqueConversations: allPhones.size,
+        followups: {
+          total: followups.length,
+          sent: followupsSent,
+          skipped: followupsSkipped,
+          pending: followupsPending,
+          byType: followupTypeBreakdown,
+        },
+        handoffs: {
+          total: handoffsTotal,
+          rate: handoffRate,
+          resumed,
+          byReason: handoffReasons,
+        },
+        verdict: handoffRate >= 50
+          ? `High handoff rate (${handoffRate}%) — review prompts; the AI is giving up too easily.`
+          : handoffRate <= 15 && allPhones.size >= 5
+            ? `Strong autonomy (${handoffRate}% handoff rate). AI is handling most conversations end-to-end.`
+            : `Normal range. Continue monitoring.`,
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message ?? "agent perf failed" }); }
   });
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -2653,6 +2829,17 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
           }).returning();
 
           if (shouldAutoApprove && inserted) {
+            // Real-time alert: AI made a decision without you — you should know.
+            try {
+              const { sendAiAlert } = await import("./ai-alerts");
+              await sendAiAlert({
+                severity: "info",
+                channel: "approval",
+                title: `AI auto-approved: ${action}`,
+                body: `${campaignName}\nConfidence ${(numericConf * 100).toFixed(0)}% ≥ ${(minConf * 100).toFixed(0)}% threshold`,
+                url: "/admin/ai/approvals",
+              });
+            } catch {}
             await db.insert(aiAuditLog).values({
               actionType: "action_approved",
               actor: "ai_autoapprove",

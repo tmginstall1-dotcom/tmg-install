@@ -161,6 +161,16 @@ export default function AIHub() {
     refetchInterval: 60000,
   });
 
+  const { data: recQuality } = useQuery<any>({
+    queryKey: ["/api/ai/recommendation-quality"],
+    refetchInterval: 5 * 60000,
+  });
+
+  const { data: waPerf } = useQuery<any>({
+    queryKey: ["/api/ai/whatsapp-agent-performance"],
+    refetchInterval: 5 * 60000,
+  });
+
   const { data: recentLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/ai/audit-log", "hub-recent"],
     queryFn: () => fetch("/api/ai/audit-log?limit=3", { credentials: "include" }).then(r => r.json()),
@@ -381,6 +391,106 @@ export default function AIHub() {
               <p className="text-[11px] text-red-300 mt-3 flex items-center gap-1.5">
                 ⚠ {activity.platform.failed} push(es) failed in this window — review the approval queue.
               </p>
+            )}
+            <div className="mt-3 pt-3 border-t border-violet-500/10 flex items-center gap-2">
+              <button
+                data-testid="button-test-alert"
+                onClick={async () => {
+                  const r = await fetch("/api/ai/alerts/test", { method: "POST", credentials: "include" }).then(r => r.json()).catch(() => ({}));
+                  alert(`Push: ${r.pushSent ? "✓ sent" : "✗"}   WhatsApp: ${r.whatsappSent ? "✓ sent" : r.throttled ? "throttled (10m)" : "skipped (flag off or no phone set)"}`);
+                }}
+                className="text-[11px] text-violet-300 hover:text-violet-200 px-2 py-1 rounded border border-violet-500/30 hover:border-violet-500/50 transition-colors"
+              >
+                Test real-time alert
+              </button>
+              <button
+                data-testid="button-send-digest"
+                onClick={async () => {
+                  const r = await fetch("/api/ai/digest/send-now", { method: "POST", credentials: "include" }).then(r => r.json()).catch(() => ({}));
+                  alert(r.sent ? `Digest sent to ${r.recipient}` : `Could not send: ${r.reason ?? "unknown"}`);
+                }}
+                className="text-[11px] text-violet-300 hover:text-violet-200 px-2 py-1 rounded border border-violet-500/30 hover:border-violet-500/50 transition-colors"
+              >
+                Send digest now
+              </button>
+              <button
+                data-testid="button-run-anomaly"
+                onClick={async () => {
+                  const r = await fetch("/api/ai/anomaly/run", { method: "POST", credentials: "include" }).then(r => r.json()).catch(() => ({}));
+                  alert(`Scanned ${r.scanned ?? 0} campaigns. Alerted on ${r.alerted ?? 0}. Skipped ${r.insufficientHistory ?? 0} (not enough history).`);
+                }}
+                className="text-[11px] text-violet-300 hover:text-violet-200 px-2 py-1 rounded border border-violet-500/30 hover:border-violet-500/50 transition-colors"
+              >
+                Run anomaly scan
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Two-column: Recommendation Quality + WhatsApp Agent Performance */}
+        {(recQuality || waPerf) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {/* Recommendation Quality */}
+            {recQuality && (
+              <div data-testid="card-rec-quality" className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/20 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-300">Recommendation Quality</span>
+                  <span className="text-[10px] text-slate-500">last {recQuality.windowDays}d</span>
+                </div>
+                <div className="flex items-baseline gap-3 mb-3">
+                  <p className="text-3xl font-bold text-white tabular-nums" data-testid="text-overall-approve-rate">{recQuality.overallApproveRate}%</p>
+                  <p className="text-[11px] text-slate-400">approve rate · {recQuality.totalRecommendations} total</p>
+                </div>
+                {recQuality.breakdown && recQuality.breakdown.length > 0 && (
+                  <div className="space-y-1.5">
+                    {recQuality.breakdown.slice(0, 5).map((b: any) => (
+                      <div key={b.type} className="flex items-center gap-2 text-[11px]" data-testid={`row-rec-type-${b.type}`}>
+                        <span className="text-slate-300 w-32 truncate">{b.type}</span>
+                        <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-400" style={{ width: `${b.approveRate}%` }} />
+                        </div>
+                        <span className="text-slate-400 tabular-nums w-14 text-right">{b.approveRate}% / {b.total}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {recQuality.suggestions?.message && (
+                  <p className="text-[11px] text-emerald-200/80 mt-3 italic" data-testid="text-rec-suggestion">💡 {recQuality.suggestions.message}</p>
+                )}
+              </div>
+            )}
+
+            {/* WhatsApp Agent Performance */}
+            {waPerf && (
+              <div data-testid="card-wa-perf" className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-green-300">WhatsApp Sales Agent</span>
+                  <span className="text-[10px] text-slate-500">last {waPerf.windowDays}d</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div>
+                    <p className="text-2xl font-bold text-white tabular-nums" data-testid="text-wa-conversations">{waPerf.uniqueConversations}</p>
+                    <p className="text-[10px] uppercase text-slate-400 mt-0.5">Conversations</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-300 tabular-nums" data-testid="text-wa-followups">{waPerf.followups?.sent ?? 0}</p>
+                    <p className="text-[10px] uppercase text-slate-400 mt-0.5">Follow-ups sent</p>
+                  </div>
+                  <div>
+                    <p className={`text-2xl font-bold tabular-nums ${(waPerf.handoffs?.rate ?? 0) >= 50 ? "text-amber-300" : "text-green-300"}`} data-testid="text-wa-handoff-rate">{waPerf.handoffs?.rate ?? 0}%</p>
+                    <p className="text-[10px] uppercase text-slate-400 mt-0.5">Handoff rate</p>
+                  </div>
+                </div>
+                {waPerf.handoffs?.byReason && Object.keys(waPerf.handoffs.byReason).length > 0 && (
+                  <div className="text-[11px] text-slate-400">
+                    <span className="text-slate-500">Handoff reasons: </span>
+                    {Object.entries(waPerf.handoffs.byReason).map(([r, n]: any) => (
+                      <span key={r} className="inline-block mr-2 text-slate-300">{r} ({n})</span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-green-200/80 mt-2 italic" data-testid="text-wa-verdict">💬 {waPerf.verdict}</p>
+              </div>
             )}
           </div>
         )}

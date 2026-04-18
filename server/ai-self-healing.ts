@@ -45,6 +45,7 @@ async function getAppSetting(key: string): Promise<string | null> {
 }
 import { executePlatformAction } from "./ad-executor";
 import { sendEmail } from "./email";
+import { sendAiAlert } from "./ai-alerts";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -182,15 +183,20 @@ export async function runSelfHealingSweep(triggeredBy: string = "scheduler"): Pr
       const campaignId = targetIds.campaignId ?? targetIds.campaign_id;
       if (!campaignId) { result.skippedNoPostData++; continue; }
 
-      // Pull post-change window: from exec date forward, up to POST_WINDOW_DAYS
+      // Pull post-change window: from exec date forward, bounded by POST_WINDOW_DAYS
+      // (otherwise long-tail data would dilute degradation signals indefinitely)
       const execDate = exec.createdAt!;
       const postStart = execDate.toISOString().slice(0, 10);
+      const postEndDate = new Date(execDate);
+      postEndDate.setUTCDate(postEndDate.getUTCDate() + POST_WINDOW_DAYS);
+      const postEnd = postEndDate.toISOString().slice(0, 10);
       const platformKey = exec.platform === "google_ads" ? "google" : exec.platform === "meta_ads" ? "meta" : exec.platform;
 
       const postRows = await db.select().from(aiAdsSnapshots).where(and(
         eq(aiAdsSnapshots.platform, platformKey),
         eq(aiAdsSnapshots.campaignId, campaignId),
         gte(aiAdsSnapshots.snapshotDate, postStart),
+        sql`${aiAdsSnapshots.snapshotDate} <= ${postEnd}`,
       ));
 
       if (postRows.length < 3) {
@@ -270,6 +276,7 @@ export async function runSelfHealingSweep(triggeredBy: string = "scheduler"): Pr
         .where(and(
           eq(aiPlatformExecutions.id, exec.id),
           isNull(aiPlatformExecutions.rolledBackAt),
+          isNull(aiPlatformExecutions.rollbackStatus),
         ))
         .returning({ id: aiPlatformExecutions.id });
       if (claim.length === 0) continue; // another rollback path already claimed it
@@ -297,6 +304,15 @@ export async function runSelfHealingSweep(triggeredBy: string = "scheduler"): Pr
         detail: { executionId: exec.id, worstDrop, ctrDrop, convDrop, baseline, postCtr, postConversions, rollbackErr } as any,
         outcome: rollbackOk ? "success" : "failed",
       });
+
+      // Real-time alert: this is a high-impact event the user should know about immediately
+      await sendAiAlert({
+        severity: rollbackOk ? "warn" : "critical",
+        channel: "self_healing",
+        title: rollbackOk ? `Self-healed ${exec.platform} action` : `Self-heal FAILED — manual review needed`,
+        body: `Exec #${exec.id} (${exec.actionType}) dropped ${worstDrop.toFixed(0)}%. ${rollbackOk ? "Auto-reverted." : `Error: ${rollbackErr}`}`,
+        url: "/admin/ai/approvals",
+      }).catch(() => {});
 
       if (rollbackOk) result.rolledBack++; else result.errors++;
     } catch (err: any) {

@@ -35,6 +35,7 @@ import {
   recoverStaleRunningStates,
 } from "./connector-sync";
 import { runSelfHealingSweep, maybeSendWeeklyDigest } from "./ai-self-healing";
+import { runAnomalySweep } from "./ai-anomaly";
 
 // ── Singleton guard ────────────────────────────────────────────────────────────
 // Prevents duplicate timers if startScheduler() is called more than once per
@@ -190,4 +191,15 @@ export function startScheduler() {
   };
   setTimeout(runDaily, 5 * 60 * 1000);
   setInterval(runDaily, DAY_MS);
+
+  // Anomaly sweep: every 4 hours. Cheap, gated by its own flag.
+  const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+  const runAnomaly = async () => {
+    try {
+      const a = await runAnomalySweep("scheduler");
+      if (a.scanned > 0 || a.alerted > 0) console.log("[scheduler] anomaly sweep:", JSON.stringify({ scanned: a.scanned, alerted: a.alerted }));
+    } catch (e: any) { console.error("[scheduler] anomaly sweep failed:", e?.message); }
+  };
+  setTimeout(runAnomaly, 7 * 60 * 1000); // first fire 7 min after boot, after data has loaded
+  setInterval(runAnomaly, FOUR_HOURS_MS);
 }
