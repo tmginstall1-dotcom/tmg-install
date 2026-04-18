@@ -171,6 +171,11 @@ export default function AIHub() {
     refetchInterval: 5 * 60000,
   });
 
+  const { data: hotLeads } = useQuery<any>({
+    queryKey: ["/api/ai/hot-leads"],
+    refetchInterval: 60000,
+  });
+
   const { data: recentLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/ai/audit-log", "hub-recent"],
     queryFn: () => fetch("/api/ai/audit-log?limit=3", { credentials: "include" }).then(r => r.json()),
@@ -423,6 +428,79 @@ export default function AIHub() {
               >
                 Run anomaly scan
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* HOT LEADS — top of revenue funnel, refresh every minute */}
+        {hotLeads && hotLeads.totalLeads > 0 && (
+          <div data-testid="card-hot-leads" className="bg-gradient-to-br from-orange-500/15 to-red-500/5 border border-orange-500/30 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-orange-300">🔥 Hot Leads (24h)</span>
+                <span className="text-[10px] text-slate-500">threshold {hotLeads.hotThreshold}/100 · auto-refresh 1m</span>
+              </div>
+              <Link href="/admin/whatsapp"><span className="text-[11px] text-orange-400 hover:text-orange-300 cursor-pointer">View conversations →</span></Link>
+            </div>
+            <div className="flex items-baseline gap-4 mb-3">
+              <div>
+                <p className="text-3xl font-bold text-orange-300 tabular-nums" data-testid="text-hot-count">{hotLeads.hotCount}</p>
+                <p className="text-[10px] uppercase text-slate-400">hot — call now</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-yellow-300 tabular-nums" data-testid="text-warm-count">{hotLeads.warmCount}</p>
+                <p className="text-[10px] uppercase text-slate-400">warm</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-400 tabular-nums">{hotLeads.totalLeads}</p>
+                <p className="text-[10px] uppercase text-slate-400">scored total</p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              {hotLeads.leads.slice(0, 5).map((l: any) => (
+                <div
+                  key={l.phone}
+                  data-testid={`row-hot-lead-${l.phone}`}
+                  className={`flex items-center gap-3 p-2 rounded-lg border ${
+                    l.tier === "hot"  ? "bg-orange-500/10 border-orange-500/30"
+                    : l.tier === "warm" ? "bg-yellow-500/5 border-yellow-500/20"
+                    : "bg-white/5 border-white/10"
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center font-bold tabular-nums ${
+                    l.tier === "hot"  ? "bg-orange-500/30 text-orange-200"
+                    : l.tier === "warm" ? "bg-yellow-500/20 text-yellow-200"
+                    : "bg-slate-700 text-slate-300"
+                  }`}>
+                    <span className="text-lg leading-none">{l.score}</span>
+                    <span className="text-[8px] uppercase mt-0.5">{l.tier}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-white truncate">{l.customerName ?? l.phoneMasked}</p>
+                      {l.urgency === "asap" && <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 font-bold uppercase">ASAP</span>}
+                      {l.aiOwnership === "human" && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 uppercase">Human</span>}
+                    </div>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {l.serviceType ?? "—"} {l.quantity ? `· ${l.quantity} items` : ""} {l.jobAddress ? `· ${l.jobAddress.slice(0, 35)}` : ""}
+                    </p>
+                    {l.topReasons && l.topReasons.length > 0 && (
+                      <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                        {l.topReasons.map((r: any) => `${r.label} (+${r.points})`).join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                  <a
+                    href={`https://wa.me/${l.phone}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid={`link-wa-${l.phone}`}
+                    className="text-[11px] px-3 py-1.5 rounded bg-green-500/20 hover:bg-green-500/30 text-green-300 border border-green-500/30 transition-colors shrink-0"
+                  >
+                    Open chat
+                  </a>
+                </div>
+              ))}
             </div>
           </div>
         )}

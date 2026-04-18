@@ -26,6 +26,8 @@ import {
   aiPlatformExecutions,
   aiWhatsappFollowups,
   aiWhatsappHandoffs,
+  appSettings,
+  whatsappSessions,
   siteSettings,
   quotes,
   customers,
@@ -1558,6 +1560,68 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
             : `Normal range. Continue monitoring.`,
       });
     } catch (e: any) { res.status(500).json({ message: e.message ?? "agent perf failed" }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // HOT LEADS — current top-scoring WhatsApp conversations (revenue priority queue)
+  // ════════════════════════════════════════════════════════════════════════════
+  // GET /api/ai/hot-leads?hours=24&limit=10
+  app.get("/api/ai/hot-leads", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const hours = Math.max(1, Math.min(168, parseInt(String(req.query.hours ?? "24"))));
+      const limit = Math.max(1, Math.min(50, parseInt(String(req.query.limit ?? "10"))));
+      const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+      const [thrRow] = await db.select().from(appSettings).where(eq(appSettings.key, "ai_hot_lead_threshold")).limit(1);
+      const hotThreshold = parseInt(thrRow?.value ?? "75", 10);
+
+      const sessions = await db.execute(sql`
+        SELECT phone, lead_score, lead_score_reasons, case_facts, ai_state, ai_ownership,
+               last_inbound_at, hot_lead_alerted_at, updated_at
+        FROM whatsapp_sessions
+        WHERE last_inbound_at >= ${since.toISOString()}
+          AND COALESCE(lead_score, 0) > 0
+        ORDER BY lead_score DESC, last_inbound_at DESC
+        LIMIT ${limit}
+      `);
+
+      const rows = (sessions as any).rows ?? sessions;
+      const leads = (rows as any[]).map(r => {
+        let facts: any = {};
+        let reasons: any[] = [];
+        try { facts = r.case_facts ? JSON.parse(r.case_facts) : {}; } catch {}
+        try { reasons = r.lead_score_reasons ? JSON.parse(r.lead_score_reasons) : []; } catch {}
+        const score = r.lead_score ?? 0;
+        return {
+          phone: r.phone,
+          phoneMasked: `****${String(r.phone).slice(-4)}`,
+          score,
+          tier: score >= hotThreshold ? "hot" : score >= 45 ? "warm" : "cold",
+          customerName: facts.customerName ?? null,
+          serviceType: facts.serviceType ?? null,
+          jobAddress: facts.jobAddress ?? null,
+          quantity: facts.quantity ?? facts.itemTypes?.length ?? null,
+          urgency: facts.urgency ?? null,
+          aiState: r.ai_state,
+          aiOwnership: r.ai_ownership,
+          lastInboundAt: r.last_inbound_at,
+          hotLeadAlertedAt: r.hot_lead_alerted_at,
+          topReasons: reasons.sort((a, b) => b.points - a.points).slice(0, 3),
+        };
+      });
+
+      const hotCount = leads.filter(l => l.tier === "hot").length;
+      const warmCount = leads.filter(l => l.tier === "warm").length;
+
+      res.json({
+        windowHours: hours,
+        hotThreshold,
+        totalLeads: leads.length,
+        hotCount,
+        warmCount,
+        leads,
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message ?? "hot leads failed" }); }
   });
 
   // ════════════════════════════════════════════════════════════════════════════

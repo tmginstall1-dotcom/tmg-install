@@ -267,6 +267,15 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
   // Whether a follow-up is already scheduled (prevents double-scheduling)
   followupScheduled: boolean("followup_scheduled").default(false),
 
+  // ── Lead scoring (Phase 11) ──────────────────────────────────────────────
+  // 0–100 hotness score from server/ai-lead-scoring.ts. Recomputed per inbound.
+  leadScore: integer("lead_score").default(0),
+  // JSON array of {label, points} explaining the score
+  leadScoreReasons: text("lead_score_reasons"),
+  // When we last fired a "hot lead" real-time alert for this conversation —
+  // used to avoid re-alerting on every subsequent message in the same chat.
+  hotLeadAlertedAt: timestamp("hot_lead_alerted_at"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

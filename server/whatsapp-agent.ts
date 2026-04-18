@@ -24,10 +24,13 @@ import {
   aiWhatsappFollowups,
   aiWhatsappHandoffs,
   whatsappSessions,
+  appSettings,
 } from "@shared/schema";
 import { sendBotMessage } from "./whatsapp";
 import { storage } from "./storage";
 import { openai } from "./replit_integrations/audio/client";
+import { scoreLead } from "./ai-lead-scoring";
+import { sendAiAlert } from "./ai-alerts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -562,6 +565,30 @@ export async function processWithAIAgent(params: {
     const missingFacts = computeMissingFacts(facts);
     const quoteReady = isQuoteReady(facts);
 
+    // ── 8b. Score the lead BEFORE handoff/auto-qualify checks ────────────────
+    // We always want the score persisted so admins see analytics regardless
+    // of which path the conversation takes. The hot-lead alert itself is
+    // only sent on the AI-owned path (handoff means human already involved).
+    let leadScoreResult: ReturnType<typeof scoreLead> | null = null;
+    try {
+      const [thrRow] = await db.select().from(appSettings).where(eq(appSettings.key, "ai_hot_lead_threshold")).limit(1);
+      const hotThreshold = parseInt(thrRow?.value ?? "75", 10);
+      leadScoreResult = scoreLead(facts, { hotThreshold });
+    } catch (scoreErr: any) {
+      console.warn("[lead-scoring] failed:", scoreErr?.message);
+    }
+    // Persist score immediately — survives every early-return branch below.
+    if (leadScoreResult) {
+      try {
+        await db.update(whatsappSessions).set({
+          leadScore: leadScoreResult.score,
+          leadScoreReasons: JSON.stringify(leadScoreResult.reasons),
+        }).where(eq(whatsappSessions.phone, from));
+      } catch (persistErr: any) {
+        console.warn("[lead-scoring] persist failed:", persistErr?.message);
+      }
+    }
+
     // ── 9. Check for handoff conditions ──────────────────────────────────────
     const handoffCheck = await shouldHandoff(text, facts, confidence);
     if (handoffCheck.required) {
@@ -594,6 +621,56 @@ export async function processWithAIAgent(params: {
       });
 
       return true;
+    }
+
+    // ── 9b. Hot-lead alert — fire if score is hot, with ATOMIC 6h cooldown ──
+    // The cooldown is enforced via a conditional UPDATE: we claim the
+    // alert slot by setting hot_lead_alerted_at only if it's null or older
+    // than 6h. Concurrent inbounds racing on the same phone will only see
+    // one row "won" the claim, so only one alert fires.
+    if (leadScoreResult && leadScoreResult.tier === "hot") {
+      try {
+        const hotAlertsOn = await getFlag("ai_hot_lead_alerts_enabled");
+        if (hotAlertsOn) {
+          const sixHoursAgo = new Date(Date.now() - 6 * 3600_000);
+          const claim = await db.update(whatsappSessions)
+            .set({ hotLeadAlertedAt: now })
+            .where(and(
+              eq(whatsappSessions.phone, from),
+              drizzleSql`(${whatsappSessions.hotLeadAlertedAt} IS NULL OR ${whatsappSessions.hotLeadAlertedAt} < ${sixHoursAgo})`,
+            ))
+            .returning({ phone: whatsappSessions.phone });
+
+          if (claim.length > 0) {
+            const topReasons = leadScoreResult.reasons
+              .sort((a, b) => b.points - a.points).slice(0, 3)
+              .map(r => `• ${r.label} (+${r.points})`).join("\n");
+            const customer = facts.customerName ?? "Unknown";
+            const service = facts.serviceType ?? "service";
+            // Address truncated heavily for both display and PII minimization;
+            // full address available to admin in /admin/whatsapp.
+            const addrSnip = (facts.jobAddress ?? "").slice(0, 30);
+
+            await sendAiAlert({
+              severity: "warn",
+              channel: "approval",
+              // Body intentionally omits raw phone (lands in audit log).
+              // Admin clicks the URL to get full chat + actionable phone.
+              title: `🔥 HOT LEAD (${leadScoreResult.score}/100): ${customer}`,
+              body: `${service} · ${addrSnip}\nLead: ${masked}\n\nTop signals:\n${topReasons}\n\nOpen chat to call back within minutes.`,
+              url: "/admin/whatsapp",
+              // Dedupe key uses masked phone — full phone not persisted in audit.
+              dedupeKey: `hot_lead|${masked}`,
+            });
+
+            await logAudit("hot_lead_alert", "ai_lead_scoring",
+              `Hot lead alert (score=${leadScoreResult.score}) — ${masked}`,
+              { phone: masked, score: leadScoreResult.score, reasons: leadScoreResult.reasons });
+          }
+        }
+      } catch (alertErr: any) {
+        console.warn("[lead-scoring] alert failed:", alertErr?.message);
+      }
     }
 
     // ── 10. Determine new AI state ────────────────────────────────────────────
@@ -643,6 +720,9 @@ export async function processWithAIAgent(params: {
       missingFacts: JSON.stringify(missingFacts),
       confidenceScore: confidence.toString(),
       conversationHistory: JSON.stringify(updatedHistory),
+      // Note: leadScore/reasons/hotLeadAlertedAt are persisted earlier
+      // (right after scoring + alert claim) so they survive every
+      // early-return branch including the auto-qualify-disabled path.
       updatedAt: now,
     } as any);
 
