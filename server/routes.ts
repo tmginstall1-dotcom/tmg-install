@@ -37,7 +37,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 
 import { calcTransportFee, calcOvertimeCharge, PricingConfig } from "@shared/pricing";
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable } from "@shared/schema";
-import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable } from "@shared/schema";
+import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable, aiFeatureFlags, customerRatings } from "@shared/schema";
 import { eq, and, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
@@ -672,6 +672,42 @@ async function sendCaseClosedNotifications(quote: any): Promise<void> {
       }
     } catch (e) {
       console.error(`[Closed] Review request error for ${ref}:`, e);
+    }
+  }
+
+  // ── 3. Internal 1-5 rating prompt (gated by ai_customer_feedback_loop_enabled) ─
+  // We send a quick numeric prompt and store a `pending` row in
+  // customer_ratings. The WhatsApp agent's rating-capture path will
+  // record the reply and join it back to the lead score for tuning.
+  if (waPhone) {
+    try {
+      const [flagRow] = await db.select().from(aiFeatureFlags)
+        .where(eq(aiFeatureFlags.key, "ai_customer_feedback_loop_enabled")).limit(1);
+      const flagOn = (flagRow as any)?.value === true;
+      if (flagOn) {
+        // Avoid duplicate prompt for the same quote
+        const existing = await db.select({ id: customerRatings.id }).from(customerRatings)
+          .where(and(eq(customerRatings.phone, waPhone), eq(customerRatings.quoteId, quote.id)))
+          .limit(1);
+        if (existing.length === 0) {
+          const ratingMsg =
+            `One last quick favour, ${name} 🙏\n\n` +
+            `How would you rate the install on a scale of *1 to 5*?\n` +
+            `Just reply with a single number — it really helps us improve.`;
+          const sent = await sendWhatsAppMessage(waPhone, ratingMsg).catch(() => false);
+          if (sent) {
+            await db.insert(customerRatings).values({
+              quoteId: quote.id,
+              phone: waPhone,
+              source: "whatsapp",
+              status: "pending",
+            } as any);
+            console.log(`[Closed] Rating prompt → +${waPhone} for ${ref}`);
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`[Closed] Rating prompt error for ${ref}:`, e);
     }
   }
 }

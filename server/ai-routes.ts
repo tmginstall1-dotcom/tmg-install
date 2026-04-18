@@ -2864,17 +2864,46 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
 
         // Auto-queue medium/high risk items for approval
         if (riskLevel !== "low") {
-          // ── High-confidence auto-approve gate ────────────────────────────
-          // If the master flag + autoapprove flag are ON and the rec's
-          // confidence meets the configured threshold, skip the human queue
-          // and mark as approved immediately. The next /review-style auto-
-          // executor pass will pick it up and push to the platform.
-          const autoApproveOn = (await getAiFlag("ai_high_confidence_autoapprove")) === "true";
-          const minConfStr = await getAiFlag("ai_autoapprove_min_confidence");
-          const minConf = parseFloat(minConfStr || "0.9");
-          const numericConf = parseFloat(String(confidence ?? "0"));
-          const shouldAutoApprove = autoApproveOn && numericConf >= minConf && riskLevel === "medium";
+          // ── High-confidence auto-approve gate (hardened) ─────────────────
+          // Per-action-type threshold from app_settings:
+          //   ai_autoapprove_threshold_<action>   (e.g. _pause, _adjust_budget)
+          //   ai_autoapprove_default_threshold    (fallback, default 0.9)
+          // High-impact actions (anything containing 'budget' or 'spend') also
+          // require ai_autoapprove_allow_high_impact=true. Everything is logged.
+          const autoApproveOn = await getFlag("ai_high_confidence_autoapprove");
+          const allowHighImpact = await getFlag("ai_autoapprove_allow_high_impact");
+          const actionLc = String(action ?? "").toLowerCase();
+          const isHighImpact = /budget|spend|scale/.test(actionLc);
+
+          // Per-type threshold lookup with default fallback
+          const perTypeKey = `ai_autoapprove_threshold_${actionLc}`;
+          const [perTypeRow] = await db.select().from(appSettings).where(eq(appSettings.key, perTypeKey)).limit(1);
+          const [defRow]     = await db.select().from(appSettings).where(eq(appSettings.key, "ai_autoapprove_default_threshold")).limit(1);
+          const minConf = parseFloat(perTypeRow?.value ?? defRow?.value ?? "0.9");
+          // Confidence is stored as a 0–100 percentage string (e.g. "74.00").
+          // Normalize to 0..1 so comparison against the 0..1 threshold is correct.
+          const rawConf = parseFloat(String(confidence ?? "0"));
+          const numericConf = rawConf > 1 ? rawConf / 100 : rawConf;
+
+          const blockedByHighImpactFlag = isHighImpact && !allowHighImpact;
+          const shouldAutoApprove =
+            autoApproveOn &&
+            numericConf >= minConf &&
+            riskLevel === "medium" &&
+            !blockedByHighImpactFlag;
           // Hard fence: never auto-approve "high" risk items, even if confidence is 1.0
+
+          // Audit when we *could* have auto-approved but blocked by high-impact gate
+          if (autoApproveOn && numericConf >= minConf && riskLevel === "medium" && blockedByHighImpactFlag) {
+            await db.insert(aiAuditLog).values({
+              actionType: "autoapprove_blocked",
+              actor: "ai_autoapprove",
+              module: "ads",
+              summary: `Auto-approve eligible but blocked by high-impact gate: ${action} ${campaignName}`,
+              detail: { confidence: numericConf, threshold: minConf, action, campaignName } as any,
+              outcome: "skipped",
+            }).catch(() => {});
+          }
 
           const [inserted] = await db.insert(aiApprovalQueue).values({
             queueType: "ads_change",
@@ -3142,5 +3171,49 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
         },
       });
     } catch { res.status(500).json({ message: "DB error" }); }
+  });
+
+  // ── GET /api/ai/spend-status ────────────────────────────────────────────
+  // Today/month AI-driven ad-spend totals + caps + utilization. Powers the
+  // AIHub spend guardrails card.
+  app.get("/api/ai/spend-status", requireAdmin, async (_req, res) => {
+    try {
+      const { getSpendStatus } = await import("./ai-spend-guard");
+      const status = await getSpendStatus();
+      res.json(status);
+    } catch (e: any) {
+      console.error("[ai/spend-status] error:", e);
+      res.status(500).json({ message: e?.message ?? "DB error" });
+    }
+  });
+
+  // ── GET /api/ai/score-vs-rating ─────────────────────────────────────────
+  // Bucketed comparison of stored lead_score vs eventual customer rating.
+  // Used to validate the lead scorer is actually picking up signal.
+  // Returns: { buckets: [{ scoreRange, count, avgRating }] }
+  app.get("/api/ai/score-vs-rating", requireAdmin, async (_req, res) => {
+    try {
+      const rows = await db.execute(sql`
+        SELECT
+          CASE
+            WHEN ws.lead_score >= 75 THEN 'hot (75-100)'
+            WHEN ws.lead_score >= 50 THEN 'warm (50-74)'
+            WHEN ws.lead_score >  0  THEN 'cool (1-49)'
+            ELSE 'unscored (0)'
+          END AS bucket,
+          COUNT(*)::int            AS count,
+          AVG(cr.rating)::numeric(4,2) AS avg_rating
+        FROM customer_ratings cr
+        JOIN whatsapp_sessions ws ON ws.phone = cr.phone
+        WHERE cr.rating IS NOT NULL
+        GROUP BY bucket
+        ORDER BY MIN(ws.lead_score) DESC
+      `);
+      const buckets = (rows as any).rows ?? rows ?? [];
+      res.json({ buckets });
+    } catch (e: any) {
+      console.error("[ai/score-vs-rating] error:", e);
+      res.status(500).json({ message: e?.message ?? "DB error" });
+    }
   });
 }

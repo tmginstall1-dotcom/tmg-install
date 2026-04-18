@@ -176,6 +176,11 @@ export default function AIHub() {
     refetchInterval: 60000,
   });
 
+  const { data: spend } = useQuery<any>({
+    queryKey: ["/api/ai/spend-status"],
+    refetchInterval: 60000,
+  });
+
   const { data: recentLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/ai/audit-log", "hub-recent"],
     queryFn: () => fetch("/api/ai/audit-log?limit=3", { credentials: "include" }).then(r => r.json()),
@@ -501,6 +506,67 @@ export default function AIHub() {
                   </a>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* SPEND GUARDRAILS — daily/monthly AI-driven ad spend vs caps */}
+        {spend && (
+          <div data-testid="card-spend-guardrails" className="bg-gradient-to-br from-cyan-500/10 to-blue-500/5 border border-cyan-500/20 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">💰 Spend Guardrails</span>
+                <span className="text-[10px] text-slate-500">AI-driven ad-budget changes · auto-refresh 1m</span>
+              </div>
+              {spend.recentBlocks > 0 && (
+                <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold uppercase">
+                  {spend.recentBlocks} blocked this month
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Today */}
+              <div>
+                <div className="flex items-baseline justify-between mb-1">
+                  <p className="text-[10px] uppercase text-slate-400">Today</p>
+                  <p className="text-[11px] text-slate-400 tabular-nums">
+                    SGD <span data-testid="text-spend-today" className="text-white font-semibold">{spend.todaySgd.toFixed(2)}</span>
+                    <span className="text-slate-500"> / {spend.dailyCapSgd.toFixed(0)}</span>
+                  </p>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      spend.dailyUtilization >= 1 ? "bg-red-500"
+                      : spend.dailyUtilization >= 0.8 ? "bg-amber-500"
+                      : "bg-cyan-500"
+                    }`}
+                    style={{ width: `${Math.min(100, spend.dailyUtilization * 100).toFixed(1)}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">{(spend.dailyUtilization * 100).toFixed(0)}% of daily cap</p>
+              </div>
+              {/* Month */}
+              <div>
+                <div className="flex items-baseline justify-between mb-1">
+                  <p className="text-[10px] uppercase text-slate-400">Month-to-date</p>
+                  <p className="text-[11px] text-slate-400 tabular-nums">
+                    SGD <span data-testid="text-spend-month" className="text-white font-semibold">{spend.monthSgd.toFixed(2)}</span>
+                    <span className="text-slate-500"> / {spend.monthlyCapSgd.toFixed(0)}</span>
+                  </p>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      spend.monthlyUtilization >= 1 ? "bg-red-500"
+                      : spend.monthlyUtilization >= 0.8 ? "bg-amber-500"
+                      : "bg-cyan-500"
+                    }`}
+                    style={{ width: `${Math.min(100, spend.monthlyUtilization * 100).toFixed(1)}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">{(spend.monthlyUtilization * 100).toFixed(0)}% of monthly cap · trips kill switch at 100%</p>
+              </div>
             </div>
           </div>
         )}

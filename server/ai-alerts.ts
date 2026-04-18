@@ -33,6 +33,12 @@ interface AlertInput {
   channel?: "ads" | "site" | "self_healing" | "anomaly" | "approval";
   /** Optional override for throttling — defaults to severity+title. Use when title is too coarse (e.g. include campaign id). */
   dedupeKey?: string;
+  /**
+   * If true AND severity is info|warn AND digest mode is enabled, skip the
+   * immediate push/WhatsApp and queue this alert for the periodic digest
+   * (see flushAlertDigest). Critical alerts always bypass the digest.
+   */
+  digestible?: boolean;
 }
 
 const THROTTLE_WINDOW_MS = 10 * 60 * 1000;
@@ -67,6 +73,26 @@ export async function sendAiAlert(input: AlertInput): Promise<{ pushSent: boolea
   const summary = `[${input.severity.toUpperCase()}] ${input.title}`;
   if (await isThrottled(dedupeKey)) {
     result.throttled = true;
+    return result;
+  }
+
+  // ── Digest mode: queue low-severity alerts instead of pushing now ──────────
+  // We only audit-log the alert with `pendingDigest:true`. The flushAlertDigest
+  // job (every 15 min) picks them up and sends one summary push. Critical
+  // severity always bypasses this, since by definition you want it now.
+  if (
+    input.digestible === true &&
+    input.severity !== "critical" &&
+    (await getFlag("ai_alert_digest_enabled")) === true
+  ) {
+    await db.insert(aiAuditLog).values({
+      actionType: "alert_fired",
+      actor: "ai_alerts",
+      module: "alerts",
+      summary,
+      detail: { ...input, dedupeKey, pendingDigest: true } as any,
+      outcome: "queued",
+    }).catch(() => {});
     return result;
   }
 
@@ -105,4 +131,109 @@ export async function sendAiAlert(input: AlertInput): Promise<{ pushSent: boolea
   }).catch(() => {});
 
   return result;
+}
+
+/**
+ * flushAlertDigest — periodic job. Looks at audit-log alerts queued in the
+ * last `windowMin` minutes (default 15) with `pendingDigest:true`, groups
+ * them by severity+channel, sends ONE consolidated push, and marks them as
+ * digested by inserting a follow-up audit row.
+ *
+ * We do not mutate the original audit rows (auditing principle: append-only).
+ * Instead we record digestedIds in a `digest_sent` audit row and key the
+ * "is this row already digested" check off the existence of a digest_sent
+ * row that lists this row's id.
+ */
+export async function flushAlertDigest(windowMin = 15): Promise<{ digested: number; pushed: boolean }> {
+  if ((await getFlag("ai_alert_digest_enabled")) !== true) return { digested: 0, pushed: false };
+  if ((await getFlag("ai_master_kill_switch")) === true) return { digested: 0, pushed: false };
+
+  const since = new Date(Date.now() - windowMin * 60 * 1000);
+  // Pull queued alerts from window
+  const queued = await db.select()
+    .from(aiAuditLog)
+    .where(and(
+      eq(aiAuditLog.actionType, "alert_fired"),
+      eq(aiAuditLog.module, "alerts"),
+      gte(aiAuditLog.createdAt, since),
+      sql`${aiAuditLog.detail}->>'pendingDigest' = 'true'`,
+    ));
+
+  if (queued.length === 0) return { digested: 0, pushed: false };
+
+  // Filter out already-digested rows
+  const ids = queued.map(q => q.id);
+  const alreadyDigestedRows = await db.select({ detail: aiAuditLog.detail })
+    .from(aiAuditLog)
+    .where(and(
+      eq(aiAuditLog.actionType, "digest_sent"),
+      eq(aiAuditLog.module, "alerts"),
+      gte(aiAuditLog.createdAt, since),
+    ));
+  const digested = new Set<number>();
+  for (const r of alreadyDigestedRows) {
+    const arr = (r.detail as any)?.digestedIds as number[] | undefined;
+    if (Array.isArray(arr)) arr.forEach(i => digested.add(i));
+  }
+  const fresh = queued.filter(q => !digested.has(q.id));
+  if (fresh.length === 0) return { digested: 0, pushed: false };
+
+  // Group by severity
+  const byKey = new Map<string, typeof fresh>();
+  for (const r of fresh) {
+    const sev = (r.detail as any)?.severity ?? "info";
+    const ch  = (r.detail as any)?.channel ?? "general";
+    const k = `${sev}|${ch}`;
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k)!.push(r);
+  }
+
+  const lines: string[] = [];
+  for (const [k, items] of byKey.entries()) {
+    const [sev, ch] = k.split("|");
+    const top = items.slice(0, 5).map(it => `  • ${(it.detail as any)?.title ?? "(untitled)"}`);
+    lines.push(`${sev.toUpperCase()} / ${ch} — ${items.length} alert(s):\n${top.join("\n")}`);
+  }
+  const body = `In the last ${windowMin} min, ${fresh.length} digestible alert(s):\n\n${lines.join("\n\n")}`;
+
+  let pushed = false;
+  try {
+    const stats = await sendPushToAdmins({
+      title: `AI digest · ${fresh.length} alerts (${windowMin}m)`,
+      body: body.slice(0, 240),
+      url: "/admin/ai",
+      tag: `ai-alert-digest`,
+    });
+    pushed = stats.delivered > 0;
+  } catch (e: any) {
+    console.warn("[ai-alerts] digest push failed:", e?.message);
+  }
+
+  // Only mark these alerts digested when the push actually went out.
+  // If push failed (no subscribers, transient error, etc.), leave them
+  // pending so the next 15-min cycle retries — otherwise they'd be
+  // silently dropped (architect feedback).
+  if (pushed) {
+    await db.insert(aiAuditLog).values({
+      actionType: "digest_sent",
+      actor: "ai_alerts",
+      module: "alerts",
+      summary: `Digest of ${fresh.length} alerts (${windowMin} min)`,
+      detail: { digestedIds: fresh.map(r => r.id), windowMin, body } as any,
+      outcome: "success",
+    }).catch(() => {});
+  } else {
+    // Audit the failed attempt (without marking digestedIds) so we can see
+    // it in the log without losing the queued items.
+    await db.insert(aiAuditLog).values({
+      actionType: "digest_attempt_failed",
+      actor: "ai_alerts",
+      module: "alerts",
+      summary: `Digest push failed for ${fresh.length} alerts — will retry`,
+      detail: { count: fresh.length, windowMin } as any,
+      outcome: "failure",
+    }).catch(() => {});
+  }
+
+  return { digested: pushed ? fresh.length : 0, pushed };
 }

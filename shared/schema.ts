@@ -825,6 +825,40 @@ export const aiAuditLog = pgTable("ai_audit_log", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ── Spend Guardrails (Phase 9b) ──────────────────────────────────────────────
+// Hard daily/monthly SGD ceiling on AI-driven ad-spend changes.
+// Each row records the *delta* (new budget − old budget) of an AI-approved
+// budget action, plus whether the spend guard let it through. The sum over
+// today/month drives the cap enforcement in server/ai-spend-guard.ts.
+export const aiSpendLedger = pgTable("ai_spend_ledger", {
+  id: serial("id").primaryKey(),
+  channel: text("channel").notNull(),                 // google_ads | meta_ads | other
+  sgdDelta: numeric("sgd_delta", { precision: 12, scale: 2 }).notNull().default("0"),
+  executionId: integer("execution_id"),               // ai_platform_executions.id (nullable)
+  actionType: text("action_type"),                    // adjust_budget | scale | cut | etc.
+  campaignName: text("campaign_name"),
+  decision: text("decision").notNull().default("allowed"), // allowed | blocked_daily | blocked_monthly
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AiSpendLedger = typeof aiSpendLedger.$inferSelect;
+
+// ── Customer Ratings (Phase 9c — feedback loop) ─────────────────────────────
+// Captures post-job customer ratings (1-5) collected via WhatsApp prompt
+// after closeCase. Joins back to whatsapp_sessions.lead_score for tuning the
+// AI scorer (does our "hot lead" actually satisfy more than our "cold"?).
+export const customerRatings = pgTable("customer_ratings", {
+  id: serial("id").primaryKey(),
+  quoteId: integer("quote_id"),
+  phone: text("phone").notNull(),
+  rating: integer("rating"),                          // 1..5, null while pending
+  comment: text("comment"),
+  source: text("source").notNull().default("whatsapp"), // whatsapp | review_link | manual
+  status: text("status").notNull().default("pending"),  // pending | answered | declined
+  promptedAt: timestamp("prompted_at").defaultNow(),
+  answeredAt: timestamp("answered_at"),
+});
+export type CustomerRating = typeof customerRatings.$inferSelect;
+
 // ── Phase 2: Live Data Connectors ────────────────────────────────────────────
 
 // Connector configs — one row per connector, tracks sync state

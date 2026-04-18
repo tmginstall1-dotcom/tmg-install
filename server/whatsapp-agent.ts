@@ -17,7 +17,7 @@
  */
 
 import { db } from "./db";
-import { eq, and, lte, desc, sql as drizzleSql } from "drizzle-orm";
+import { eq, and, lte, gte, desc, sql as drizzleSql } from "drizzle-orm";
 import {
   aiFeatureFlags,
   aiAuditLog,
@@ -25,6 +25,7 @@ import {
   aiWhatsappHandoffs,
   whatsappSessions,
   appSettings,
+  customerRatings,
 } from "@shared/schema";
 import { sendBotMessage } from "./whatsapp";
 import { storage } from "./storage";
@@ -559,6 +560,43 @@ export async function processWithAIAgent(params: {
 
     // ── 7. Skip if message is empty / non-text (reactions handled by legacy bot) ─
     if (!text && params.msgType !== "image") return false;
+
+    // ── 7b. Customer rating capture (post-job feedback loop) ───────────────
+    // If we have a pending rating prompt for this phone (last 24h) and the
+    // inbound is just "1".."5", record it and thank the customer. Returning
+    // true here short-circuits the rest of the AI pipeline for this turn.
+    try {
+      const trimmed = text.trim();
+      // Tightened: entire message must be a single digit 1-5 (with optional
+      // surrounding whitespace). Avoids false positives like "5 pm" / "4 items".
+      const ratingMatch = /^([1-5])$/.exec(trimmed);
+      if (ratingMatch) {
+        const since = new Date(Date.now() - 24 * 3600_000);
+        const [pending] = await db.select().from(customerRatings)
+          .where(and(
+            eq(customerRatings.phone, from),
+            eq(customerRatings.status, "pending"),
+            gte(customerRatings.promptedAt, since),
+          ))
+          .orderBy(desc(customerRatings.promptedAt))
+          .limit(1);
+        if (pending) {
+          const rating = parseInt(ratingMatch[1], 10);
+          await db.update(customerRatings)
+            .set({ rating, status: "answered", answeredAt: now } as any)
+            .where(eq(customerRatings.id, pending.id));
+          await sendBotMessage(from, rating >= 4
+            ? `Thank you for the ${rating}-star rating! 🙏 Means a lot to the team.`
+            : `Thanks for the honest ${rating}-star feedback. We'll look at how to do better next time. A team member may follow up.`);
+          await logAudit("customer_rating_captured", "ai_feedback_loop",
+            `Rating ${rating}/5 from ${masked} (quote ${pending.quoteId ?? "?"})`,
+            { phone: masked, rating, quoteId: pending.quoteId });
+          return true;
+        }
+      }
+    } catch (rErr: any) {
+      console.warn("[feedback-loop] rating capture failed:", rErr?.message);
+    }
 
     // ── 8. Extract facts from this message ───────────────────────────────────
     const { facts, confidence } = await extractFacts(text, history, currentFacts);

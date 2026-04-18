@@ -823,6 +823,31 @@ export async function executePlatformAction(
     }
 
     if (action === "adjust_budget" || action === "scale" || action === "cut") {
+      // ── SPEND GUARD: hard SGD ceiling on AI-driven budget changes ────────────
+      // Block before doing anything (even dry-run) when over cap, so the audit
+      // ledger faithfully reflects intent vs. allowance.
+      const { checkAndReserveSpend } = await import("./ai-spend-guard");
+      const cur = parseFloat(pa.currentBudget ?? "0");
+      const prop = parseFloat(pa.budgetAmount ?? pa.newBudget ?? "0");
+      const delta = prop - cur;
+      const guard = await checkAndReserveSpend("google_ads", delta, {
+        actionType: action, campaignName: pa.campaignName ?? null,
+      });
+      if (!guard.allowed) {
+        return {
+          platform: "google_ads",
+          actionType: "adjust_budget",
+          targetObjectIds: { budgetId: pa.budgetId, campaignName: pa.campaignName },
+          proposedChange: pa,
+          executedChange: {},
+          resultStatus: "failed",
+          platformResponseSummary: `Blocked by spend guard: ${guard.reason}`,
+          rollbackPath: "No changes made — blocked before API call.",
+          errorMessage: guard.reason,
+          testMode,
+        };
+      }
+
       // ── PILOT FENCE: budget adjustments are locked to dry-run mode ────────────
       // Even when testMode=false (connector live mode), budget changes generate a
       // full payload but never make a live API call. This prevents uncontrolled
@@ -859,6 +884,29 @@ export async function executePlatformAction(
     }
 
     if (action === "adjust_budget" || action === "scale" || action === "cut") {
+      // ── SPEND GUARD ────────────────────────────────────────────────────────────
+      const { checkAndReserveSpend } = await import("./ai-spend-guard");
+      const cur = parseFloat(pa.currentBudget ?? "0");
+      const prop = parseFloat(pa.budgetAmount ?? pa.newBudget ?? "0");
+      const delta = prop - cur;
+      const guard = await checkAndReserveSpend("meta_ads", delta, {
+        actionType: action, campaignName: pa.campaignName ?? null,
+      });
+      if (!guard.allowed) {
+        return {
+          platform: "meta_ads",
+          actionType: "adjust_budget",
+          targetObjectIds: { targetId: pa.adSetId ?? pa.campaignId, campaignName: pa.campaignName },
+          proposedChange: pa,
+          executedChange: {},
+          resultStatus: "failed",
+          platformResponseSummary: `Blocked by spend guard: ${guard.reason}`,
+          rollbackPath: "No changes made — blocked before API call.",
+          errorMessage: guard.reason,
+          testMode,
+        };
+      }
+
       // ── PILOT FENCE: budget adjustments are locked to dry-run mode ────────────
       const fencedBase = await executeMetaBudgetAdjust(pa, item, true /* always dry-run */);
       if (!testMode) {

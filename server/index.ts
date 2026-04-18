@@ -383,7 +383,46 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
         ('ai_whatsapp_followups_enabled',      FALSE, 'Enable AI-scheduled follow-up messages (missing info, quote, deposit, booking, stale)'),
         ('ai_whatsapp_auto_qualify_enabled',   TRUE,  'Allow AI to send qualifying replies automatically inside the 24-hr window'),
         ('ai_whatsapp_template_mode_enabled',  TRUE,  'Allow template-style messages outside the 24-hr window when permitted'),
-        ('ai_whatsapp_handoff_required_on_low_confidence', TRUE, 'Force human handoff when AI confidence score drops below 0.3')
+        ('ai_whatsapp_handoff_required_on_low_confidence', TRUE, 'Force human handoff when AI confidence score drops below 0.3'),
+        ('ai_hot_lead_alerts_enabled',         FALSE, 'Send real-time push + WhatsApp alert when a HOT lead is detected (lead score ≥ threshold)'),
+        ('ai_alert_digest_enabled',            FALSE, 'Group low-severity AI alerts into a single periodic digest push (every 15 min) instead of pushing each one individually'),
+        ('ai_high_confidence_autoapprove',     FALSE, 'Allow AI to auto-approve recommendations whose confidence meets the per-action-type threshold'),
+        ('ai_autoapprove_allow_high_impact',   FALSE, 'Permit auto-approve to act on budget/spend-changing actions (otherwise those always require human review)'),
+        ('ai_customer_feedback_loop_enabled',  FALSE, 'After case closeout, ask the customer for a 1-5 rating via WhatsApp and store internally for AI tuning')
+      ON CONFLICT (key) DO NOTHING;
+
+      -- Spend guardrail ledger (Phase 9b)
+      CREATE TABLE IF NOT EXISTS ai_spend_ledger (
+        id SERIAL PRIMARY KEY,
+        channel TEXT NOT NULL,
+        sgd_delta NUMERIC(12,2) NOT NULL DEFAULT 0,
+        execution_id INTEGER,
+        action_type TEXT,
+        campaign_name TEXT,
+        decision TEXT NOT NULL DEFAULT 'allowed',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS ai_spend_ledger_created_idx ON ai_spend_ledger (created_at);
+
+      -- Customer ratings (Phase 9c — feedback loop)
+      CREATE TABLE IF NOT EXISTS customer_ratings (
+        id SERIAL PRIMARY KEY,
+        quote_id INTEGER,
+        phone TEXT NOT NULL,
+        rating INTEGER,
+        comment TEXT,
+        source TEXT NOT NULL DEFAULT 'whatsapp',
+        status TEXT NOT NULL DEFAULT 'pending',
+        prompted_at TIMESTAMP DEFAULT NOW(),
+        answered_at TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS customer_ratings_phone_status_idx ON customer_ratings (phone, status);
+
+      -- Spend caps in app_settings (idempotent — admin can override later)
+      INSERT INTO app_settings (key, value) VALUES
+        ('ai_daily_spend_cap_sgd',   '200'),
+        ('ai_monthly_spend_cap_sgd', '3000'),
+        ('ai_autoapprove_default_threshold', '0.9')
       ON CONFLICT (key) DO NOTHING;
     `));
 
@@ -531,6 +570,19 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
     startScheduler();
   } catch (e: any) {
     console.warn("[startup] Scheduler init warning (non-fatal):", e?.message || e);
+  }
+
+  // ── Alert digest flush (every 15 min) ────────────────────────────────────
+  // When ai_alert_digest_enabled is on, low-severity alerts are queued
+  // instead of being pushed individually. This periodic job groups them
+  // and sends a single summary push so the admin doesn't get spammed.
+  try {
+    const { flushAlertDigest } = await import("./ai-alerts");
+    setInterval(() => {
+      flushAlertDigest(15).catch(e => console.warn("[ai-alerts] digest flush error:", e?.message));
+    }, 15 * 60 * 1000);
+  } catch (e: any) {
+    console.warn("[startup] alert digest init warning:", e?.message);
   }
 
   // Auto-refresh WhatsApp token on startup, then every 6 days
