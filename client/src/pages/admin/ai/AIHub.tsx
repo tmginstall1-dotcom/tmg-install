@@ -290,6 +290,12 @@ export default function AIHub() {
     { key: "ai_whatsapp_auto_qualify_enabled",                 label: "WhatsApp Auto Qualify",          risk: "low" },
     { key: "ai_whatsapp_template_mode_enabled",                label: "WhatsApp Template Mode",         risk: "low" },
     { key: "ai_whatsapp_handoff_required_on_low_confidence",   label: "WhatsApp Low-Confidence Handoff",risk: "low" },
+    // ── Phase 9b/9c — alerting, auto-approve hardening, feedback loop ───────
+    { key: "ai_hot_lead_alerts_enabled",        label: "Hot-Lead Real-Time Alerts",  risk: "low"    },
+    { key: "ai_alert_digest_enabled",           label: "Alert Digest (group low-sev)", risk: "low"  },
+    { key: "ai_high_confidence_autoapprove",    label: "High-Confidence Auto-Approve", risk: "high" },
+    { key: "ai_autoapprove_allow_high_impact",  label: "Allow Auto-Approve on Spend Actions", risk: "high" },
+    { key: "ai_customer_feedback_loop_enabled", label: "Customer Feedback Loop (1–5 rating)", risk: "low" },
   ];
 
   const lastLog = recentLogs[0];

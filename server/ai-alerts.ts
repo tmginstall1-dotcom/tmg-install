@@ -67,7 +67,12 @@ async function isThrottled(dedupeKey: string): Promise<boolean> {
 export async function sendAiAlert(input: AlertInput): Promise<{ pushSent: boolean; whatsappSent: boolean; throttled: boolean }> {
   const result = { pushSent: false, whatsappSent: false, throttled: false };
 
-  if ((await getFlag("ai_master_kill_switch")) === true) return result;
+  // Kill-switch suppresses all NON-critical alerts. Critical ones must still
+  // fire — otherwise the very alert that announces the kill switch tripping
+  // (e.g. spend-cap-hit) would be silently swallowed (architect feedback).
+  if (input.severity !== "critical" && (await getFlag("ai_master_kill_switch")) === true) {
+    return result;
+  }
 
   const dedupeKey = input.dedupeKey ?? `${input.severity}|${input.title}`;
   const summary = `[${input.severity.toUpperCase()}] ${input.title}`;
@@ -148,8 +153,14 @@ export async function flushAlertDigest(windowMin = 15): Promise<{ digested: numb
   if ((await getFlag("ai_alert_digest_enabled")) !== true) return { digested: 0, pushed: false };
   if ((await getFlag("ai_master_kill_switch")) === true) return { digested: 0, pushed: false };
 
-  const since = new Date(Date.now() - windowMin * 60 * 1000);
-  // Pull queued alerts from window
+  // RETENTION WINDOW (4× the cycle) — we look back 4× the cycle window so
+  // rows whose initial digest push failed get retried for several cycles
+  // before aging out. Without this, a transient push outage would silently
+  // drop queued alerts (architect feedback). The "already-digested" check
+  // uses the same window so we never double-send.
+  const retentionMin = Math.max(windowMin * 4, 60);
+  const since = new Date(Date.now() - retentionMin * 60 * 1000);
+  // Pull queued alerts from the retention window
   const queued = await db.select()
     .from(aiAuditLog)
     .where(and(
@@ -161,7 +172,7 @@ export async function flushAlertDigest(windowMin = 15): Promise<{ digested: numb
 
   if (queued.length === 0) return { digested: 0, pushed: false };
 
-  // Filter out already-digested rows
+  // Filter out already-digested rows (look back same retention window)
   const ids = queued.map(q => q.id);
   const alreadyDigestedRows = await db.select({ detail: aiAuditLog.detail })
     .from(aiAuditLog)

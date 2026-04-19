@@ -28,7 +28,7 @@ import {
   customerRatings,
   catalogItems,
 } from "@shared/schema";
-import { PricingConfig } from "@shared/pricing";
+import { PricingConfig, computePricing, type PricingItem, type PricingCatalogEntry } from "@shared/pricing";
 import { sendBotMessage, downloadWhatsAppMedia } from "./whatsapp";
 import { storage } from "./storage";
 import { openai } from "./replit_integrations/audio/client";
@@ -379,13 +379,150 @@ function mapAgentServiceToCatalog(s: CaseFacts["serviceType"]): "install" | "dis
 }
 
 interface IndicativeRange {
-  low: number;          // SGD lower bound (best access, ground floor + lift)
-  high: number;         // SGD upper bound (typical higher floor, no lift)
+  low: number;          // SGD lower bound (best access: ground floor + lift, easy access)
+  high: number;         // SGD upper bound (worst case: 4-floor no-lift walkup, moderate access)
   matchedItems: Array<{ term: string; matchedAs: string; unitPrice: number; qty: number }>;
-  unmatchedTerms: string[]; // terms with no catalog match → fallback used
+  unmatchedTerms: string[]; // terms with no catalog match → computePricing fallback used
   serviceType: string;
 }
 
+// Synonyms / canonical-term normalisation. Customer language → catalog language.
+// Keys are lowercase customer phrases, values are tokens we'll AND-search in catalog names.
+const TERM_SYNONYMS: Record<string, string[]> = {
+  "couch": ["sofa"],
+  "settee": ["sofa"],
+  "loveseat": ["sofa"],
+  "tv stand": ["tv"],
+  "tv console": ["tv"],
+  "tv unit": ["tv"],
+  "study desk": ["desk"],
+  "office chair": ["office", "chair"],
+  "gaming chair": ["gaming", "chair"],
+  "dressing table": ["dressing"],
+  "vanity": ["dressing"],
+  "wardrobe cupboard": ["wardrobe"],
+  "almirah": ["wardrobe"],
+  "shoe rack": ["shoe"],
+  "shoe cabinet": ["shoe"],
+  "tv mount": ["tv", "mount"],
+  "fridge": ["refrigerator"],
+};
+
+// Common compound nouns customers write as one word that the catalog stores as two.
+// "bedframe" → ["bed", "frame"], "bookshelf" → ["book", "shelf"], etc.
+const COMPOUND_SPLITS: Record<string, string[]> = {
+  bedframe:    ["bed", "frame"],
+  sofabed:     ["sofa", "bed"],
+  bookshelf:   ["bookshelf"], // catalog has "Bookshelf" as one word — keep
+  bookcase:    ["bookcase"],
+  nightstand:  ["bedside"],   // catalog uses "Bedside Table"
+  headboard:   ["headboard"],
+  workdesk:    ["desk"],
+  studydesk:   ["desk"],
+  officedesk:  ["office", "desk"],
+  diningtable: ["dining", "table"],
+  coffeetable: ["coffee", "table"],
+  sidetable:   ["side", "table"],
+  tvconsole:   ["tv"],
+  tvstand:     ["tv"],
+  shoerack:    ["shoe"],
+};
+
+const STOPWORDS = new Set(["the", "a", "an", "of", "for", "and", "or", "with", "to", "my", "our", "your"]);
+
+function normaliseToken(t: string): string {
+  return t
+    .replace(/\(.*?\)/g, "")           // strip parentheticals
+    .replace(/[^\p{L}\p{N}\s-]/gu, "") // strip punctuation
+    .trim()
+    .toLowerCase();
+}
+
+/** Turn a customer term into the AND-tokens we'll search catalog names with. */
+function expandTerm(rawTerm: string): string[] {
+  const norm = normaliseToken(rawTerm);
+  if (!norm) return [];
+
+  // 1) direct synonym phrase
+  if (TERM_SYNONYMS[norm]) return TERM_SYNONYMS[norm];
+
+  // 2) split into tokens, drop stopwords + plural-s
+  const tokens = norm.split(/[\s-]+/).filter(Boolean)
+    .filter(t => !STOPWORDS.has(t))
+    .map(t => t.replace(/s$/i, "")); // crude singularise
+
+  // 3) compound-word splits for any token (e.g. "bedframe" → ["bed","frame"])
+  const expanded: string[] = [];
+  for (const t of tokens) {
+    if (COMPOUND_SPLITS[t]) expanded.push(...COMPOUND_SPLITS[t]);
+    else expanded.push(t);
+  }
+  return Array.from(new Set(expanded)).filter(t => t.length >= 2);
+}
+
+/**
+ * Find the best catalog match for a customer term. Returns the median-priced
+ * match (so a customer saying "wardrobe" gets a typical wardrobe price, not
+ * the cheapest or most expensive). Returns null if nothing matches.
+ *
+ * Strategy: AND-match every expanded token against the catalog name; if that
+ * returns nothing, fall back to OR-matching on the same tokens.
+ */
+async function findCatalogMatch(
+  rawTerm: string,
+  catalogService: "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose",
+): Promise<{ name: string; basePrice: number } | null> {
+  const tokens = expandTerm(rawTerm);
+  if (tokens.length === 0) return null;
+
+  const baseWhere = eq(catalogItems.serviceType, catalogService);
+
+  // Pass 1: STRICT — name must contain all tokens (best precision)
+  let rows: Array<{ name: string; basePrice: string }> = [];
+  try {
+    rows = await db
+      .select({ name: catalogItems.name, basePrice: catalogItems.basePrice })
+      .from(catalogItems)
+      .where(and(baseWhere, ...tokens.map(t => ilike(catalogItems.name, `%${t}%`))))
+      .limit(40);
+  } catch (e: any) {
+    console.warn("[indicative-range] strict match failed:", e?.message);
+  }
+
+  // Pass 2: LOOSE — any token (only if strict found nothing AND we have multiple tokens)
+  if (rows.length === 0 && tokens.length > 1) {
+    try {
+      rows = await db
+        .select({ name: catalogItems.name, basePrice: catalogItems.basePrice })
+        .from(catalogItems)
+        .where(and(baseWhere, drizzleOr(...tokens.map(t => ilike(catalogItems.name, `%${t}%`))) as any))
+        .limit(40);
+    } catch (e: any) {
+      console.warn("[indicative-range] loose match failed:", e?.message);
+    }
+  }
+
+  if (rows.length === 0) return null;
+
+  // Use the median of matched prices — robust to outliers (custom $450
+  // walk-in wardrobe shouldn't drag a typical "wardrobe" estimate up).
+  const sorted = rows
+    .map(r => ({ name: r.name, price: parseFloat(r.basePrice) }))
+    .filter(r => r.price > 0)
+    .sort((a, b) => a.price - b.price);
+  if (sorted.length === 0) return null;
+  const mid = sorted[Math.floor(sorted.length / 2)];
+  return { name: mid.name, basePrice: mid.price };
+}
+
+/**
+ * Build an indicative SGD price range using the SAME pricing engine
+ * (`computePricing` from shared/pricing.ts) the web booking flow uses.
+ * We run it twice — best access (ground + lift, easy) and worst access
+ * (4-floor walkup no lift, moderate) — and return both grand totals as
+ * the low/high bounds. This guarantees the ballpark is consistent with
+ * what the customer would see if they completed the full booking flow.
+ */
 export async function buildIndicativeRange(
   itemTypes: string[] | undefined,
   serviceType: CaseFacts["serviceType"],
@@ -394,82 +531,84 @@ export async function buildIndicativeRange(
   if (!itemTypes || itemTypes.length === 0) return null;
   const catalogService = mapAgentServiceToCatalog(serviceType);
 
+  // Step 1: resolve each customer term into a PricingItem (matched or fallback).
+  const items: PricingItem[] = [];
   const matchedItems: IndicativeRange["matchedItems"] = [];
   const unmatchedTerms: string[] = [];
-  let labourSubtotal = 0;
-  let totalUnits = 0;
 
   for (const rawTerm of itemTypes) {
-    // Normalise: strip parentheticals, lowercase, drop trailing 's' for crude singular
-    const term = rawTerm.replace(/\(.*?\)/g, "").trim().toLowerCase();
-    if (!term) continue;
-
-    // Try ILIKE on the normalised term (and a singular form if it ends in 's')
-    const variants = Array.from(new Set([term, term.replace(/s$/, "")])).filter(Boolean);
-    let rows: Array<{ name: string; basePrice: string }> = [];
-    try {
-      rows = await db
-        .select({ name: catalogItems.name, basePrice: catalogItems.basePrice })
-        .from(catalogItems)
-        .where(and(
-          eq(catalogItems.serviceType, catalogService),
-          drizzleOr(...variants.map(v => ilike(catalogItems.name, `%${v}%`))) as any,
-        ))
-        .limit(20);
-    } catch (e: any) {
-      console.warn("[indicative-range] catalog query failed:", e?.message);
-    }
-
-    if (rows.length === 0) {
-      // Fallback to PricingConfig generic
-      const fb = PricingConfig.fallback.genericFallback; // 150
-      const mult = catalogService === "install"
-        ? 1
-        : catalogService === "dismantle" ? PricingConfig.fallback.dismantleMultiplier
-        : catalogService === "relocate"  ? PricingConfig.fallback.relocateMultiplier
-        : catalogService === "dispose"   ? PricingConfig.fallback.disposeMultiplier
-        :                                  PricingConfig.fallback.dismantleDisposeMultiplier;
+    const match = await findCatalogMatch(rawTerm, catalogService);
+    if (match) {
+      items.push({
+        name: match.name,
+        serviceType: catalogService,
+        quantity: 1,
+        unitPrice: match.basePrice,
+      });
+      matchedItems.push({ term: rawTerm, matchedAs: match.name, unitPrice: match.basePrice, qty: 1 });
+    } else {
+      // unitPrice=0 tells computePricing to use catalog/multiplier fallback
+      items.push({ name: rawTerm, serviceType: catalogService, quantity: 1, unitPrice: 0 });
       unmatchedTerms.push(rawTerm);
-      const unitPrice = fb * mult;
-      const qty = 1;
-      matchedItems.push({ term: rawTerm, matchedAs: `(no catalog match — generic ${catalogService} fallback)`, unitPrice, qty });
-      labourSubtotal += unitPrice * qty;
-      totalUnits += qty;
-      continue;
+      matchedItems.push({ term: rawTerm, matchedAs: `(no catalog match — pricing engine fallback)`, unitPrice: 0, qty: 1 });
     }
-
-    // Use median of matched prices as the per-unit estimate (robust to outliers)
-    const prices = rows.map(r => parseFloat(r.basePrice)).filter(n => n > 0).sort((a, b) => a - b);
-    const medianPrice = prices[Math.floor(prices.length / 2)] ?? PricingConfig.fallback.genericFallback;
-    const qty = 1; // per item type — totalQuantityHint applied below
-    matchedItems.push({ term: rawTerm, matchedAs: rows[0].name, unitPrice: medianPrice, qty });
-    labourSubtotal += medianPrice * qty;
-    totalUnits += qty;
   }
 
-  // If we got a customer-stated total quantity that's bigger than #types, scale up.
-  if (totalQuantityHint && totalQuantityHint > totalUnits) {
-    const scale = totalQuantityHint / totalUnits;
-    labourSubtotal *= scale;
-    totalUnits = totalQuantityHint;
+  if (items.length === 0) return null;
+
+  // Apply customer-stated total quantity by scaling the FIRST item up.
+  if (totalQuantityHint && totalQuantityHint > items.length) {
+    items[0].quantity = totalQuantityHint - items.length + 1;
+    matchedItems[0].qty = items[0].quantity;
   }
 
-  if (matchedItems.length === 0) return null;
+  // Step 2: load the full catalog once for fallback-multiplier lookups in computePricing.
+  let catalogEntries: PricingCatalogEntry[] = [];
+  try {
+    const rows = await db.select({
+      name: catalogItems.name,
+      serviceType: catalogItems.serviceType,
+      basePrice: catalogItems.basePrice,
+    }).from(catalogItems);
+    catalogEntries = rows.map(r => ({
+      name: r.name,
+      serviceType: r.serviceType as PricingCatalogEntry["serviceType"],
+      basePrice: parseFloat(r.basePrice),
+    })).filter(e => isFinite(e.basePrice) && e.basePrice > 0);
+  } catch (e: any) {
+    console.warn("[indicative-range] catalog load failed:", e?.message);
+  }
 
-  // Bulk discount (only kicks in at 10+ units)
-  const bulkPct = PricingConfig.bulkDiscount.find(b => totalUnits >= b.minQty)?.pct ?? 0;
-  const labourAfterBulk = labourSubtotal * (1 - bulkPct);
+  const needsRelocation = catalogService === "relocate";
 
-  // Range — best vs worst access:
-  //   low  = labour + callout (assume ground floor / no surcharge)
-  //   high = labour + callout + 4 floors × no-lift surcharge (typical worst-case for SG walk-up)
-  const callout = catalogService === "relocate" ? 0 : PricingConfig.callout.fee;
-  const transport = catalogService === "relocate" ? PricingConfig.transport.minFee : 0;
-  const low  = Math.round(labourAfterBulk + callout + transport);
-  const noLiftWorst = 4 * PricingConfig.floor.perFloorNoLift; // ~$60
-  const high = Math.round(labourAfterBulk + callout + transport + noLiftWorst);
+  // Step 3: run the SAME engine the web booking uses, twice.
+  // For relocation we use a typical SG urban distance (8 km — close to median);
+  // the helper minimum fee dominates short trips anyway.
+  const baseInput = {
+    items,
+    needsRelocation,
+    catalogEntries,
+    distanceKm: needsRelocation ? 8 : 0,
+  };
 
-  return { low, high, matchedItems, unmatchedTerms, serviceType: catalogService };
+  const lowResult = computePricing({
+    ...baseInput,
+    floors: [{ level: 0, hasLift: true }],   // ground floor with lift
+    accessDifficulty: "easy",
+  });
+  const highResult = computePricing({
+    ...baseInput,
+    floors: [{ level: 4, hasLift: false }],  // 4-floor walkup
+    accessDifficulty: "medium",
+  });
+
+  return {
+    low: Math.round(lowResult.grandTotal),
+    high: Math.round(highResult.grandTotal),
+    matchedItems,
+    unmatchedTerms,
+    serviceType: catalogService,
+  };
 }
 
 // Detect when the customer is asking about price/cost up front so we can
@@ -736,6 +875,44 @@ export async function processWithAIAgent(params: {
   const masked = maskPhone(from);
 
   try {
+    // ── 0. Customer rating capture (runs BEFORE all gates) ───────────────────
+    // The post-job 1–5 rating reply must be ingested even when the AI agent
+    // is disabled or the conversation is human-owned — otherwise closeCase
+    // sends a prompt the customer answers and we silently drop it
+    // (architect feedback). Returning true short-circuits the rest of the
+    // pipeline AND tells the legacy bot we already handled this turn.
+    try {
+      const trimmedEarly = (text ?? "").trim();
+      if (/^[1-5]$/.test(trimmedEarly)) {
+        const sinceR = new Date(Date.now() - 24 * 3600_000);
+        const [pendingR] = await db.select().from(customerRatings)
+          .where(and(
+            eq(customerRatings.phone, from),
+            eq(customerRatings.status, "pending"),
+            gte(customerRatings.promptedAt, sinceR),
+          ))
+          .orderBy(desc(customerRatings.promptedAt))
+          .limit(1);
+        if (pendingR) {
+          const ratingVal = parseInt(trimmedEarly, 10);
+          await db.update(customerRatings)
+            .set({ rating: ratingVal, status: "answered", answeredAt: new Date() } as any)
+            .where(eq(customerRatings.id, pendingR.id));
+          await sendBotMessage(from, ratingVal >= 4
+            ? `Thank you for the ${ratingVal}-star rating! 🙏 Means a lot to the team.`
+            : `Thanks for the honest ${ratingVal}-star feedback. We'll look at how to do better next time. A team member may follow up.`);
+          await logAudit("customer_rating_captured", "ai_feedback_loop",
+            `Rating ${ratingVal}/5 from ${masked} (quote ${pendingR.quoteId ?? "?"})`,
+            { phone: masked, rating: ratingVal, quoteId: pendingR.quoteId, capturedAt: "pre_gate" });
+          console.log(`[WA-Agent] ${corrTag} rating ${ratingVal}/5 captured (phone=${masked})`);
+          return true;
+        }
+      }
+    } catch (rEarlyErr: any) {
+      console.warn("[feedback-loop] early rating capture failed:", rEarlyErr?.message);
+      // Fall through — don't break inbound handling on this path.
+    }
+
     // ── 1. Feature flag checks ───────────────────────────────────────────────
     const kill = await getFlag("ai_master_kill_switch");
     const agentEnabled = await getFlag("ai_whatsapp_agent_enabled");
@@ -837,42 +1014,8 @@ export async function processWithAIAgent(params: {
       }
     }
 
-    // ── 7b. Customer rating capture (post-job feedback loop) ───────────────
-    // If we have a pending rating prompt for this phone (last 24h) and the
-    // inbound is just "1".."5", record it and thank the customer. Returning
-    // true here short-circuits the rest of the AI pipeline for this turn.
-    try {
-      const trimmed = text.trim();
-      // Tightened: entire message must be a single digit 1-5 (with optional
-      // surrounding whitespace). Avoids false positives like "5 pm" / "4 items".
-      const ratingMatch = /^([1-5])$/.exec(trimmed);
-      if (ratingMatch) {
-        const since = new Date(Date.now() - 24 * 3600_000);
-        const [pending] = await db.select().from(customerRatings)
-          .where(and(
-            eq(customerRatings.phone, from),
-            eq(customerRatings.status, "pending"),
-            gte(customerRatings.promptedAt, since),
-          ))
-          .orderBy(desc(customerRatings.promptedAt))
-          .limit(1);
-        if (pending) {
-          const rating = parseInt(ratingMatch[1], 10);
-          await db.update(customerRatings)
-            .set({ rating, status: "answered", answeredAt: now } as any)
-            .where(eq(customerRatings.id, pending.id));
-          await sendBotMessage(from, rating >= 4
-            ? `Thank you for the ${rating}-star rating! 🙏 Means a lot to the team.`
-            : `Thanks for the honest ${rating}-star feedback. We'll look at how to do better next time. A team member may follow up.`);
-          await logAudit("customer_rating_captured", "ai_feedback_loop",
-            `Rating ${rating}/5 from ${masked} (quote ${pending.quoteId ?? "?"})`,
-            { phone: masked, rating, quoteId: pending.quoteId });
-          return true;
-        }
-      }
-    } catch (rErr: any) {
-      console.warn("[feedback-loop] rating capture failed:", rErr?.message);
-    }
+    // (rating capture moved to step 0 — runs before all gates so closeCase
+    // ratings are captured even when AI agent is disabled or human-owned)
 
     // ── 8. Extract facts from this message ───────────────────────────────────
     // For image messages, visionAnalyzedText carries the gpt-4o-vision items
