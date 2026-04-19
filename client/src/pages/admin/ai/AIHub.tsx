@@ -296,6 +296,9 @@ export default function AIHub() {
     { key: "ai_high_confidence_autoapprove",    label: "High-Confidence Auto-Approve", risk: "high" },
     { key: "ai_autoapprove_allow_high_impact",  label: "Allow Auto-Approve on Spend Actions", risk: "high" },
     { key: "ai_customer_feedback_loop_enabled", label: "Customer Feedback Loop (1–5 rating)", risk: "low" },
+    // ── Phase 9d — sales recovery + reputation flywheel ─────────────────────
+    { key: "ai_abandoned_quote_rescue_enabled", label: "Abandoned-Quote Rescue (24h/3d/7d nudges + web-wizard WA)", risk: "medium" },
+    { key: "ai_review_after_rating_only",       label: "Google Review Only After 4+★ Rating",  risk: "low" },
   ];
 
   const lastLog = recentLogs[0];

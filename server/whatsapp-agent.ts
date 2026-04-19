@@ -27,6 +27,8 @@ import {
   appSettings,
   customerRatings,
   catalogItems,
+  jobUpdates,
+  quotes,
 } from "@shared/schema";
 import { PricingConfig, computePricing, type PricingItem, type PricingCatalogEntry } from "@shared/pricing";
 import { sendBotMessage, downloadWhatsAppMedia } from "./whatsapp";
@@ -905,6 +907,60 @@ export async function processWithAIAgent(params: {
             `Rating ${ratingVal}/5 from ${masked} (quote ${pendingR.quoteId ?? "?"})`,
             { phone: masked, rating: ratingVal, quoteId: pendingR.quoteId, capturedAt: "pre_gate" });
           console.log(`[WA-Agent] ${corrTag} rating ${ratingVal}/5 captured (phone=${masked})`);
+
+          // ── Auto Google review request (rating-gated) ──────────────────────
+          // Only ask happy customers (rating >= threshold) for a Google review.
+          // This is the cheapest, highest-ROI growth lever for local services:
+          // every Google review compounds local-SEO ranking forever. Idempotent
+          // via a `review_requested` job_update entry so retries don't double-send.
+          try {
+            const minRow = await db.select().from(appSettings)
+              .where(eq(appSettings.key, "auto_google_review_min_rating")).limit(1);
+            const minRating = parseInt((minRow[0] as any)?.value ?? "4", 10) || 4;
+            if (ratingVal >= minRating && pendingR.quoteId) {
+              const urlRow = await db.select().from(appSettings)
+                .where(eq(appSettings.key, "google_review_url")).limit(1);
+              const reviewUrl = (urlRow[0] as any)?.value;
+              if (reviewUrl && /^https?:\/\//i.test(reviewUrl)) {
+                // Idempotency: did we already log a review_requested for this quote?
+                const existingUpdates = await db.select({ statusChange: jobUpdates.statusChange })
+                  .from(jobUpdates)
+                  .where(eq(jobUpdates.quoteId, pendingR.quoteId));
+                const alreadyAsked = existingUpdates.some(
+                  (u) => u.statusChange === "review_requested",
+                );
+                if (!alreadyAsked) {
+                  // CLAIM-THEN-SEND: write the marker SYNCHRONOUSLY before
+                  // the setTimeout fires so any concurrent rating-capture
+                  // path (e.g. webhook retry) sees it and skips. Trade-off:
+                  // if WhatsApp send later fails, we'll have logged "asked"
+                  // but the customer didn't get the prompt — acceptable
+                  // versus the alternative of double-asking.
+                  await storage.addJobUpdate({
+                    quoteId: pendingR.quoteId!,
+                    statusChange: "review_requested",
+                    actorType: "system",
+                    note: `Google review request after ${ratingVal}★ rating`,
+                  } as any);
+                  await logAudit("review_request_sent", "ai_feedback_loop",
+                    `Review request → ${masked} (quote ${pendingR.quoteId}, rating ${ratingVal})`,
+                    { phone: masked, quoteId: pendingR.quoteId, rating: ratingVal });
+                  setTimeout(async () => {
+                    try {
+                      await sendBotMessage(from,
+                        `Since you rated us ${ratingVal}★ — would you mind dropping a quick Google review? It seriously helps a small local business like ours: \n\n${reviewUrl}\n\n_Takes 30 seconds. Thank you so much! 🙏_`,
+                      );
+                    } catch (rsErr: any) {
+                      console.warn("[feedback-loop] review request send failed:", rsErr?.message);
+                    }
+                  }, 2500);
+                }
+              }
+            }
+          } catch (revErr: any) {
+            console.warn("[feedback-loop] review-request gating failed:", revErr?.message);
+          }
+
           return true;
         }
       }

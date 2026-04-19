@@ -648,7 +648,19 @@ async function sendCaseClosedNotifications(quote: any): Promise<void> {
   }
 
   // ── 2. Google review request via WhatsApp (if URL configured) ────────────
-  if (waPhone && reviewUrl) {
+  // GATED: when `ai_review_after_rating_only` is ON (default), we skip the
+  // immediate review ping at close time. The WhatsApp agent will instead
+  // fire the review request only after the customer replies with 4+★ to
+  // the rating prompt — keeping our Google profile clean of low-star spam
+  // and concentrating asks on customers who'll actually leave good ones.
+  let reviewAfterRatingOnly = true;
+  try {
+    const [rrFlag] = await db.select().from(aiFeatureFlags)
+      .where(eq(aiFeatureFlags.key, "ai_review_after_rating_only")).limit(1);
+    if ((rrFlag as any)?.value === false) reviewAfterRatingOnly = false;
+  } catch {}
+
+  if (waPhone && reviewUrl && !reviewAfterRatingOnly) {
     try {
       const alreadySent = (quote.updates ?? []).some((u: any) => u.statusChange === "review_requested");
       if (!alreadySent) {
@@ -3933,22 +3945,37 @@ ${systemPrompt}` });
         }
       }
 
-      // Auto-send review request via WhatsApp when job is marked completed
+      // Auto-send review request via WhatsApp when job is marked completed.
+      // GATED by `ai_review_after_rating_only` so the rating-gated path in
+      // the WhatsApp agent owns review asks by default. If admins flip
+      // that flag OFF, this older immediate-on-complete path activates.
       if (input.status === "completed" && quote.customerWhatsappPhone) {
-        const [reviewSetting] = await db.select().from(appSettings).where(eq(appSettings.key, "google_review_url"));
-        const reviewUrl = reviewSetting?.value;
-        if (reviewUrl) {
-          const alreadySent = (quote.updates ?? []).some(u => u.statusChange === "review_requested");
-          if (!alreadySent) {
-            const phone = normalizeSGPhone(quote.customerWhatsappPhone);
-            const msg = `Hi! 👋 Thank you for choosing *TMG Install* — we hope the installation went smoothly!\n\nIf you're happy with the service, we'd truly appreciate a quick Google review — it helps us a lot:\n\n${reviewUrl}\n\n_Thank you for your support!_ 🙏`;
-            await sendWhatsAppMessage(phone, msg).catch(() => {});
-            await storage.addJobUpdate({
-              quoteId: id,
-              statusChange: "review_requested",
-              actorType: "system",
-              note: "Review request sent via WhatsApp",
-            });
+        let reviewAfterRatingOnly = true;
+        try {
+          const [rrFlag] = await db.select().from(aiFeatureFlags)
+            .where(eq(aiFeatureFlags.key, "ai_review_after_rating_only")).limit(1);
+          if ((rrFlag as any)?.value === false) reviewAfterRatingOnly = false;
+        } catch {}
+
+        if (!reviewAfterRatingOnly) {
+          const [reviewSetting] = await db.select().from(appSettings).where(eq(appSettings.key, "google_review_url"));
+          const reviewUrl = reviewSetting?.value;
+          if (reviewUrl) {
+            const alreadySent = (quote.updates ?? []).some(u => u.statusChange === "review_requested");
+            if (!alreadySent) {
+              const phone = normalizeSGPhone(quote.customerWhatsappPhone);
+              // CLAIM-THEN-SEND: write the marker first so any racing path
+              // sees it and skips. We accept a possible missed message over
+              // a possible duplicate one.
+              await storage.addJobUpdate({
+                quoteId: id,
+                statusChange: "review_requested",
+                actorType: "system",
+                note: "Review request sent via WhatsApp (status=completed path)",
+              });
+              const msg = `Hi! 👋 Thank you for choosing *TMG Install* — we hope the installation went smoothly!\n\nIf you're happy with the service, we'd truly appreciate a quick Google review — it helps us a lot:\n\n${reviewUrl}\n\n_Thank you for your support!_ 🙏`;
+              await sendWhatsAppMessage(phone, msg).catch(() => {});
+            }
           }
         }
       }
@@ -8861,6 +8888,37 @@ Respond directly — no JSON, just the message text.`,
             await storage.markPartialLeadEmailSent(lead.resumeToken);
             console.log(`[AbandonedLead] Re-engagement email sent to ${lead.email}`);
           }
+
+          // ── WhatsApp nudge for the same partial lead ──────────────────────
+          // Only fires when (a) the rescue flag is on, (b) lead has a phone,
+          // and (c) we haven't already WA-nudged this resume token. This
+          // squeezes a second conversion path out of every web abandon.
+          try {
+            const [rescueFlag] = await db.select().from(aiFeatureFlags)
+              .where(eq(aiFeatureFlags.key, "ai_abandoned_quote_rescue_enabled")).limit(1);
+            const rescueOn = (rescueFlag as any)?.value === true;
+            // Master kill switch must also gate this path (architect feedback).
+            const [killFlag] = await db.select().from(aiFeatureFlags)
+              .where(eq(aiFeatureFlags.key, "ai_master_kill_switch")).limit(1);
+            const killOn = (killFlag as any)?.value === true;
+            if (rescueOn && !killOn && lead.phone && !lead.whatsappSentAt) {
+              const waPhone = normalizeSGPhone(lead.phone);
+              if (waPhone) {
+                const waMsg =
+                  `Hi${lead.name ? ` ${lead.name}` : ""}! 👋 You started a quote with TMG Install but didn't quite finish.\n\n` +
+                  (itemsText || servicesText ? `${servicesText} ${itemsText}\n\n` : "") +
+                  `No re-typing needed — pick up exactly where you left off:\n${resumeUrl}\n\n` +
+                  `Or just reply here and I'll help you finish in 60 seconds. ⚡`;
+                const waSent = await sendWhatsAppMessage(waPhone, waMsg).catch(() => false);
+                if (waSent) {
+                  await storage.markPartialLeadWhatsappSent(lead.resumeToken);
+                  console.log(`[AbandonedLead] WA nudge sent to +${waPhone}`);
+                }
+              }
+            }
+          } catch (waErr) {
+            console.warn(`[AbandonedLead] WA nudge failed for ${lead.email}:`, (waErr as any)?.message);
+          }
         } catch (err) {
           console.error(`[AbandonedLead] Failed for ${lead.email}:`, err);
         }
@@ -8872,6 +8930,127 @@ Respond directly — no JSON, just the message text.`,
 
   setInterval(runAbandonedLeadScheduler, 5 * 60 * 1000);
   setTimeout(runAbandonedLeadScheduler, 90_000);
+
+  // ── Stale Quote Nudger (Phase 9d sales recovery) ──────────────────────────
+  // Quotes with status='submitted' AND a customer WhatsApp phone get up to 3
+  // gentle nudges: 24h, 3d, 7d after creation. Each nudge is recorded as a
+  // job_update so we never double-send. Gated by `ai_abandoned_quote_rescue_enabled`.
+  // Skips quotes where AI ownership is human (live conversation in flight).
+  async function runStaleQuoteNudger() {
+    try {
+      const [rescueFlag] = await db.select().from(aiFeatureFlags)
+        .where(eq(aiFeatureFlags.key, "ai_abandoned_quote_rescue_enabled")).limit(1);
+      if ((rescueFlag as any)?.value !== true) return;
+      const [killFlag] = await db.select().from(aiFeatureFlags)
+        .where(eq(aiFeatureFlags.key, "ai_master_kill_switch")).limit(1);
+      if ((killFlag as any)?.value === true) return;
+
+      const HOUR = 3600 * 1000;
+      const now = Date.now();
+      // Pull quotes still in 'submitted' status from the last 14 days that
+      // have a WhatsApp phone. 14d is a hard horizon — beyond that it's a
+      // dead lead, no nudge.
+      const candidates = await db.select().from(quotesTable).where(
+        and(
+          eq(quotesTable.status, "submitted"),
+          gte(quotesTable.createdAt, new Date(now - 14 * 24 * HOUR)),
+        ),
+      );
+
+      for (const q of candidates) {
+        const waPhoneRaw = (q as any).customerWhatsappPhone;
+        if (!waPhoneRaw) continue;
+        const waPhone = normalizeSGPhone(waPhoneRaw);
+        if (!waPhone) continue;
+
+        const ageMs = now - new Date(q.createdAt as any).getTime();
+        const ageH  = ageMs / HOUR;
+        // Decide which nudge stage is due
+        let stage: "quote_nudge_24h" | "quote_nudge_3d" | "quote_nudge_7d" | null = null;
+        if      (ageH >= 7 * 24) stage = "quote_nudge_7d";
+        else if (ageH >= 3 * 24) stage = "quote_nudge_3d";
+        else if (ageH >= 24)     stage = "quote_nudge_24h";
+        if (!stage) continue;
+
+        // Idempotency: skip if this stage (or a LATER stage — implies we
+        // already moved on) was already sent.
+        const updates = await db.select({ statusChange: jobUpdatesTable.statusChange })
+          .from(jobUpdatesTable)
+          .where(eq(jobUpdatesTable.quoteId, q.id));
+        const sentStages = new Set(updates.map(u => u.statusChange));
+        if (sentStages.has(stage)) continue;
+        // If a later stage already sent, don't backfill earlier stages
+        if (stage === "quote_nudge_24h" && (sentStages.has("quote_nudge_3d") || sentStages.has("quote_nudge_7d"))) continue;
+        if (stage === "quote_nudge_3d"  &&  sentStages.has("quote_nudge_7d")) continue;
+
+        // Skip if a human is in the conversation
+        try {
+          const sess = await storage.getWhatsAppSession(waPhone);
+          if (sess?.botPaused || (sess as any)?.aiOwnership === "human") continue;
+        } catch {}
+
+        // ── ATOMIC CLAIM (lock + recheck + marker insert in one tx) ─────
+        // pg_try_advisory_xact_lock holds the lock only for the LIFETIME
+        // of the transaction, so lock + recheck + marker INSERT must all
+        // run on the same tx handle. Otherwise the lock releases between
+        // statements and racing schedulers can both pass the recheck
+        // (architect feedback). `sql` is imported as `drizzleSql` here.
+        const stageHash = stage === "quote_nudge_24h" ? 1
+                       : stage === "quote_nudge_3d"  ? 2 : 3;
+        let claimed = false;
+        try {
+          await db.transaction(async (tx) => {
+            const lockRes: any = await tx.execute(
+              drizzleSql`SELECT pg_try_advisory_xact_lock(${q.id}::int, ${stageHash}::int) AS got`,
+            );
+            const got = lockRes?.rows?.[0]?.got ?? lockRes?.[0]?.got;
+            if (!got) return; // another scheduler holds the lock — skip
+            const recheck = await tx.select({ statusChange: jobUpdatesTable.statusChange })
+              .from(jobUpdatesTable)
+              .where(eq(jobUpdatesTable.quoteId, q.id));
+            if (recheck.some(u => u.statusChange === stage)) return;
+            // CLAIM: insert the marker INSIDE the locked tx so any
+            // concurrent run that gets the lock next sees it on recheck.
+            await tx.insert(jobUpdatesTable).values({
+              quoteId: q.id,
+              statusChange: stage,
+              actorType: "system",
+              note: `Auto stale-quote nudge (age ${Math.round(ageH)}h)`,
+            } as any);
+            claimed = true;
+          });
+        } catch (txErr) {
+          console.warn(`[StaleQuoteNudger] tx claim failed for quote ${q.id}/${stage}:`, (txErr as any)?.message);
+          continue;
+        }
+        if (!claimed) continue;
+
+        const total = Number((q as any).total ?? 0).toFixed(0);
+        const ref   = (q as any).referenceNo ?? `#${q.id}`;
+        const msgs: Record<typeof stage, string> = {
+          quote_nudge_24h:
+            `Hi! Just checking in on your TMG Install quote ${ref} ($${total}) — did you get a chance to review it? 👀\n\n` +
+            `Happy to tweak anything (date, items, access). Just reply here or say *YES* to lock in your slot. We're 4.9★ rated and fully insured. 😊`,
+          quote_nudge_3d:
+            `Hi again! Your TMG Install quote ${ref} is still ready when you are. \n\n` +
+            `Slots for the coming weeks are filling up — if you'd like to lock yours in we can hold one for 24 hrs once you confirm. Reply here anytime!`,
+          quote_nudge_7d:
+            `Hi! Last gentle nudge from TMG Install — your quote ${ref} is still valid if you'd like to proceed. \n\n` +
+            `Even if the timing changed, no worries — just reply here when you're ready and we'll sort it out. 🙏`,
+        } as any;
+
+        // Marker is already committed inside the tx above; now SEND.
+        // If WA send fails, we accept losing one nudge over double-sending.
+        const ok = await sendWhatsAppMessage(waPhone, msgs[stage]).catch(() => false);
+        console.log(`[StaleQuoteNudger] ${stage} → +${waPhone} for ${ref} (sent=${ok})`);
+      }
+    } catch (err) {
+      console.error("[StaleQuoteNudger] Scheduler error:", err);
+    }
+  }
+
+  setInterval(runStaleQuoteNudger, 30 * 60 * 1000); // every 30 min
+  setTimeout(runStaleQuoteNudger, 120_000);          // first run 2 min after boot
 
   // Admin toggle for reminders
   app.post("/api/admin/settings/wa-reminders", async (req, res) => {

@@ -388,7 +388,9 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
         ('ai_alert_digest_enabled',            FALSE, 'Group low-severity AI alerts into a single periodic digest push (every 15 min) instead of pushing each one individually'),
         ('ai_high_confidence_autoapprove',     FALSE, 'Allow AI to auto-approve recommendations whose confidence meets the per-action-type threshold'),
         ('ai_autoapprove_allow_high_impact',   FALSE, 'Permit auto-approve to act on budget/spend-changing actions (otherwise those always require human review)'),
-        ('ai_customer_feedback_loop_enabled',  FALSE, 'After case closeout, ask the customer for a 1-5 rating via WhatsApp and store internally for AI tuning')
+        ('ai_customer_feedback_loop_enabled',  FALSE, 'After case closeout, ask the customer for a 1-5 rating via WhatsApp and store internally for AI tuning'),
+        ('ai_abandoned_quote_rescue_enabled',  FALSE, 'Auto-nudge customers via WhatsApp 24h/3d/7d after a quote is sent but not booked, AND nudge abandoned web wizard leads with a phone number'),
+        ('ai_review_after_rating_only',        TRUE,  'Only send the Google review request to customers who rated 4+ stars (instead of every closed case). Highest-impact reputation lever.')
       ON CONFLICT (key) DO NOTHING;
 
       -- Spend guardrail ledger (Phase 9b)
@@ -422,7 +424,8 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
       INSERT INTO app_settings (key, value) VALUES
         ('ai_daily_spend_cap_sgd',   '200'),
         ('ai_monthly_spend_cap_sgd', '3000'),
-        ('ai_autoapprove_default_threshold', '0.9')
+        ('ai_autoapprove_default_threshold', '0.9'),
+        ('auto_google_review_min_rating',    '4')
       ON CONFLICT (key) DO NOTHING;
     `));
 
