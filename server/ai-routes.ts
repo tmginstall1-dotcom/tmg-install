@@ -31,7 +31,9 @@ import {
   siteSettings,
   quotes,
   customers,
+  catalogItems,
 } from "@shared/schema";
+import { callLLM } from "./ai-llm-client";
 import {
   executePlatformAction,
   gadsExecCredsCheck,
@@ -3291,6 +3293,245 @@ Return ONLY: {"score": 0-100, "summary": "2-sentence overall assessment", "findi
     } catch (e: any) {
       console.error("[ai/score-vs-rating] error:", e);
       res.status(500).json({ message: e?.message ?? "DB error" });
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // PRICING COACH — AI assistance when admin manually creates a job/quote
+  //
+  // Goal: when admin types items + prices in CreateJobModal, give them a
+  // grounded sanity check showing:
+  //   1. How each price compares to the OFFICIAL catalog rate (authoritative)
+  //   2. A recommended total with reasoning (manpower, transport, mass, etc.)
+  //   3. Singapore market intelligence on competitor ranges
+  //   4. Suggested add-ons to mention (walk-up, urgent, mattress disposal)
+  //
+  // Why we don't live-scrape the web: third-party movers' sites block bots,
+  // serve dynamic prices, and add 5–10s of latency. Baking curated SG market
+  // benchmarks into the prompt is faster, more reliable, and we can refresh
+  // the benchmarks centrally when the market shifts.
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // Bounded string lengths everywhere — admin sessions are trusted but a
+  // runaway paste / accidental bulk-import would otherwise blow up our
+  // OpenAI bill (each char ≈ 0.25 tokens; large notes blocks add up fast).
+  const pricingCoachRequestSchema = z.object({
+    jobType: z.enum(["standard", "relocation"]),
+    items: z.array(z.object({
+      description: z.string().min(1).max(200),
+      quantity:    z.number().int().positive().max(50),
+      unitPrice:   z.number().nonnegative().max(50_000),
+    })).min(1).max(30),
+    services:     z.array(z.string().max(60)).max(10).optional().default([]),
+    pickupFloor:  z.string().max(20).nullable().optional(),
+    pickupLift:   z.boolean().nullable().optional(),
+    dropoffFloor: z.string().max(20).nullable().optional(),
+    dropoffLift:  z.boolean().nullable().optional(),
+    notes:        z.string().max(1500).nullable().optional(),
+  });
+
+  const pricingCoachResponseSchema = z.object({
+    summary: z.string(),
+    recommendedTotal: z.number().nonnegative(),
+    confidence: z.enum(["high", "medium", "low"]),
+    priceCheck: z.array(z.object({
+      name:         z.string(),
+      entered:      z.number(),
+      catalog:      z.number().nullable(),
+      catalogMatch: z.string().nullable(),
+      delta:        z.number(),                                // percent
+      verdict:      z.enum(["fair", "low", "high", "no_match"]),
+    })),
+    reasoning: z.array(z.string()).max(8),
+    competitive: z.array(z.object({
+      competitor: z.string(),
+      priceRange: z.string(),
+      note:       z.string(),
+    })).max(5),
+    addOns: z.array(z.object({
+      label: z.string(),
+      price: z.number().nonnegative(),
+      when:  z.string(),
+    })).max(8),
+  });
+
+  // Curated Singapore market benchmarks (refresh quarterly).
+  // Source: public rate cards from Lalamove, GoGoX, Helpling, traditional movers.
+  const SG_MARKET_INTEL = `
+SINGAPORE MARKET BENCHMARKS (2026 — for sanity-checking only):
+- Lalamove / GoGoX small-van (1.7m): S$45–60 base + S$1.50/km — DRIVER ONLY, no manpower.
+- Lalamove + 1 helper add-on: S$30–50 surcharge per helper.
+- Traditional 2-man mover (Shalom, ARK, RPM Movers): S$180–280 minimum for a 2-hour job within a single condo/HDB block.
+- Helpling / TaskRabbit-style 2-man furniture move: S$150–220 minimum.
+- IKEA in-house assembly: S$90 for first item, S$30 each additional.
+- Standalone furniture installation specialists: S$80–150 per item depending on complexity.
+- Mattress-only disposal (no replacement): S$60–100 (king), S$50–80 (queen).
+- Massage chair relocation (heavy 80–130kg, 2-man required): S$120–200 typical.
+- King mattress relocation (no transport, same building): S$60–90 typical.
+- Same-condo block-to-block relocation (no lorry, trolley walk): NO transport surcharge, but 2-man minimum still applies.
+- Walk-up surcharge (no lift): S$15–30 per flight beyond ground.
+- Same-day urgent booking surcharge: S$30–80.
+`.trim();
+
+  app.post("/api/ai/pricing-coach", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const parsed = pricingCoachRequestSchema.parse(req.body);
+
+      // ── 1. Look up catalog matches for each item via fuzzy ILIKE ──
+      // We build a single OR'd query so we don't N+1 the DB.
+      const itemKeywords = parsed.items
+        .map(i => i.description.toLowerCase().split(/\s+/).filter(w => w.length >= 4))
+        .flat();
+      const uniqKeywords = Array.from(new Set(itemKeywords)).slice(0, 30);
+
+      // Standard jobs span install / dismantle / dispose / dismantle_dispose,
+      // so we query the union and let the LLM rank the best per-item match.
+      // Relocation jobs are isolated to the dedicated "relocate" service slice.
+      const catalogTargetTypes = parsed.jobType === "relocation"
+        ? ["relocate"]
+        : ["install", "dismantle", "dispose", "dismantle_dispose"];
+
+      let catalogMatches: { name: string; basePrice: string; serviceType: string; category: string | null }[] = [];
+      if (uniqKeywords.length > 0) {
+        const orConds = uniqKeywords.map(k => sql`LOWER(name) LIKE ${'%' + k + '%'}`);
+        const rows = await db.execute(sql`
+          SELECT name, base_price, service_type, category
+          FROM catalog_items
+          WHERE active = true
+            AND service_type IN (${sql.join(catalogTargetTypes.map(t => sql`${t}`), sql`, `)})
+            AND (${sql.join(orConds, sql` OR `)})
+          ORDER BY name
+          LIMIT 60
+        `);
+        catalogMatches = ((rows as any).rows ?? rows ?? []).map((r: any) => ({
+          name:        r.name,
+          basePrice:   String(r.base_price),
+          serviceType: r.service_type,
+          category:    r.category,
+        }));
+      }
+
+      // ── 2. Build the prompt ──
+      const itemsTotal = parsed.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+      const accessNotes: string[] = [];
+      if (parsed.pickupFloor)  accessNotes.push(`Pick-up: floor ${parsed.pickupFloor}${parsed.pickupLift === false ? " (NO LIFT)" : ""}`);
+      if (parsed.dropoffFloor) accessNotes.push(`Drop-off: floor ${parsed.dropoffFloor}${parsed.dropoffLift === false ? " (NO LIFT)" : ""}`);
+
+      const sysPrompt = `You are TMG Install's pricing coach for Singapore furniture installation/relocation jobs.
+
+OUTPUT EXACTLY this JSON shape (use these EXACT field names, no others, no nested objects in scalar fields):
+
+{
+  "summary": "string — one sentence headline recommendation, e.g. 'Charge S$160 flat — covers 2-man minimum + catalog rates'",
+  "recommendedTotal": 160,
+  "confidence": "high" | "medium" | "low",
+  "priceCheck": [
+    {
+      "name": "string — the admin's item description verbatim",
+      "entered": 84,
+      "catalog": 84,
+      "catalogMatch": "string — the matched catalog row name, or null if no match",
+      "delta": 0,
+      "verdict": "fair" | "low" | "high" | "no_match"
+    }
+  ],
+  "reasoning": ["bullet 1 ≤120 chars", "bullet 2", "bullet 3"],
+  "competitive": [
+    { "competitor": "Traditional 2-man movers", "priceRange": "S$180–280", "note": "minimum for 2hr job" }
+  ],
+  "addOns": [
+    { "label": "Walk-up surcharge (no lift)", "price": 25, "when": "if no lift at either end" }
+  ]
+}
+
+RULES:
+1. "summary" is a single STRING, never an object.
+2. "priceCheck" entries: each has name (string), entered (number), catalog (number or null), catalogMatch (string or null), delta (number percent), verdict (one of the 4 enums).
+3. For each admin item: fuzzy-match to catalog ("king mattress" → "Mattress — King"). delta = round(((entered - catalog) / catalog) * 100). Verdict: fair if |delta|≤15, low if delta<-15, high if delta>15, no_match if no catalog row.
+4. recommendedTotal accounts for: catalog floor, 2-man minimum (~S$140–160 break-even for any 2-man job in SG), manpower-heavy items (massage chairs/hydraulic beds need 2 strong men), floor/lift surcharges, and whether transport is needed (same-building no-lorry jobs skip transport surcharge).
+5. reasoning: 3–6 short operational bullets. Each ≤120 chars. No fluff.
+6. competitive: 2–4 RELEVANT benchmarks from the SG market intel (skip Lalamove if no transport needed).
+7. addOns: 2–5 realistic add-ons with label, price (SGD number), and when (trigger condition).
+8. confidence: high if all items matched, medium if some, low if mostly unmatched.
+
+Output STRICT JSON only. No markdown fences. No prose.`;
+
+      const userPrompt = `JOB TYPE: ${parsed.jobType}
+SERVICES: ${parsed.services.join(", ") || "(none specified)"}
+ACCESS: ${accessNotes.length ? accessNotes.join(" | ") : "(not specified)"}
+NOTES: ${parsed.notes || "(none)"}
+
+ADMIN-ENTERED ITEMS (subtotal = S$${itemsTotal.toFixed(2)}):
+${parsed.items.map((i, idx) => `${idx+1}. ${i.description} × ${i.quantity} @ S$${i.unitPrice.toFixed(2)} = S$${(i.quantity * i.unitPrice).toFixed(2)}`).join("\n")}
+
+OFFICIAL TMG CATALOG MATCHES (service_type=${catalogTargetType}):
+${catalogMatches.length === 0 ? "(no fuzzy matches found in catalog — admin may be using non-standard descriptions)" : catalogMatches.slice(0, 25).map(c => `- ${c.name} [${c.category}] = S$${c.basePrice}`).join("\n")}
+
+${SG_MARKET_INTEL}
+
+Respond with strict JSON only.`;
+
+      const result = await callLLM<string>({
+        agent: "pricing_coach",
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: sysPrompt },
+          { role: "user",   content: userPrompt + "\n\nReply with ONE valid JSON object matching the shape above. Top-level keys MUST be: summary, recommendedTotal, confidence, priceCheck, reasoning, competitive, addOns. No wrapper objects." },
+        ],
+        max_tokens: 1500,
+        temperature: 0.2,
+      });
+
+      // Parse + validate ourselves so we can log raw on failure and recover
+      // gracefully. callLLM only does ONE schema-repair retry which has been
+      // unreliable for this complex schema; we'd rather see exactly what the
+      // model said when something goes wrong.
+      let raw = result.value as string;
+      raw = raw.trim();
+      // strip markdown fences if any
+      raw = raw.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+
+      let aiPayload: any;
+      try {
+        aiPayload = JSON.parse(raw);
+      } catch (pe: any) {
+        console.error("[ai/pricing-coach] JSON parse failed. Raw:", raw.slice(0, 800));
+        return res.status(502).json({ message: "AI returned invalid JSON. Please try again." });
+      }
+
+      // The model sometimes wraps the response in an extra object. Unwrap if so.
+      if (aiPayload && typeof aiPayload === "object" && !Array.isArray(aiPayload)) {
+        if (!("summary" in aiPayload) || !("priceCheck" in aiPayload)) {
+          const inner = Object.values(aiPayload).find(
+            (v: any) => v && typeof v === "object" && "summary" in v && "priceCheck" in v
+          );
+          if (inner) aiPayload = inner;
+        }
+      }
+
+      const check = pricingCoachResponseSchema.safeParse(aiPayload);
+      if (!check.success) {
+        const issues = check.error.issues.slice(0, 6).map(i => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
+        console.error("[ai/pricing-coach] schema fail:", issues, "Raw keys:", Object.keys(aiPayload || {}));
+        console.error("[ai/pricing-coach] raw output:", JSON.stringify(aiPayload).slice(0, 1500));
+        return res.status(502).json({ message: `AI response did not match expected shape: ${issues}` });
+      }
+
+      res.json({
+        ...check.data,
+        meta: {
+          model: result.model,
+          latencyMs: result.latencyMs,
+          costSgd: Number(result.costSgd.toFixed(4)),
+          catalogMatchesFound: catalogMatches.length,
+        },
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("[ai/pricing-coach] error:", err);
+      res.status(500).json({ message: err?.message ?? "Pricing coach failed" });
     }
   });
 }
