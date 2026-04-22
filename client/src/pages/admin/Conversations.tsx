@@ -6,7 +6,7 @@ import {
   CheckCheck, Zap, ArrowLeft, ImageIcon, ZoomIn, BotOff, FileText,
   TriangleAlert, AlertCircle, ChevronDown, Paperclip, Smile,
   Download, Music, File, StickyNote, Plus, RotateCcw, ListChecks, Trash2, Copy,
-  Mic, MessageSquare,
+  Mic, MessageSquare, Mail, PhoneCall,
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
@@ -1034,6 +1034,30 @@ function ChatPanel({
               </div>
 
               <div className="flex items-center gap-1 flex-shrink-0">
+                {/* Call customer — opens phone dialer (works even outside WA 24h window) */}
+                <a
+                  href={`tel:+${selectedPhone}`}
+                  className="w-8 h-8 flex items-center justify-center rounded-full text-white/70 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all"
+                  data-testid="call-customer"
+                  title="Call customer"
+                  aria-label={`Call customer at ${formatPhone(selectedPhone)}`}
+                >
+                  <PhoneCall className="w-4 h-4" />
+                </a>
+
+                {/* Email customer — only if we have one on file */}
+                {session?.collectedEmail && (
+                  <a
+                    href={`mailto:${session.collectedEmail}?subject=${encodeURIComponent("Following up — TMG Install")}&body=${encodeURIComponent(`Hi ${selectedConvo?.name || "there"},\n\n`)}`}
+                    className="w-8 h-8 flex items-center justify-center rounded-full text-white/70 hover:bg-blue-500/20 hover:text-blue-300 transition-all"
+                    data-testid="email-customer"
+                    title={`Email ${session.collectedEmail}`}
+                    aria-label={`Email customer at ${session.collectedEmail}`}
+                  >
+                    <Mail className="w-4 h-4" />
+                  </a>
+                )}
+
                 {/* WhatsApp open link */}
                 <a
                   href={`https://wa.me/${selectedPhone}`}
@@ -1042,8 +1066,9 @@ function ChatPanel({
                   className="w-8 h-8 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white transition-all"
                   data-testid="open-whatsapp"
                   title="Open in WhatsApp"
+                  aria-label="Open conversation in WhatsApp"
                 >
-                  <Phone className="w-4 h-4" />
+                  <MessageCircle className="w-4 h-4" />
                 </a>
 
                 {/* Bot pause / resume toggle */}
@@ -1486,6 +1511,67 @@ function ChatPanel({
                 />
               </div>
             )}
+
+            {/* ── 24-hour-window failure banner — actionable fallback ───────
+                Detects when the most recent outbound system message reports a
+                Meta error 131047 / "messaging window is closed" and surfaces
+                Call/Email actions inline so admin can reach the customer
+                immediately without hunting for the phone number. */}
+            {(() => {
+              // Scan the FULL thread (not just last 8) so an unresolved failure
+              // never silently disappears as new messages push it out of view.
+              const all = thread?.messages ?? [];
+              // Tighten predicate: require sentBy='system' so genuine error
+              // logs match but a coincidental admin/customer message that
+              // mentions "131047" doesn't trigger a false positive.
+              const lastFail = [...all].reverse().find(m =>
+                m.direction === "outbound" &&
+                m.sentBy === "system" &&
+                (m.body?.includes("131047") || m.body?.includes("messaging window is closed"))
+              );
+              const lastInbound = [...all].reverse().find(m => m.direction === "inbound");
+              // Banner clears once the customer replies (window has re-opened).
+              const stillStuck = lastFail && (!lastInbound || new Date(lastFail.createdAt) > new Date(lastInbound.createdAt));
+              if (!stillStuck) return null;
+              return (
+                <div className="mx-2 mb-1.5 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                  <div className="flex items-start gap-2 mb-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-amber-900 leading-tight">WhatsApp 24-hour window closed</p>
+                      <p className="text-[11px] text-amber-700 mt-0.5 leading-snug">
+                        Customer must message us first to re-open WhatsApp. Reach them another way:
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <a
+                      href={`tel:+${selectedPhone}`}
+                      data-testid="banner-call-customer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-semibold rounded-lg hover:bg-emerald-700 active:scale-[0.98] transition-all"
+                    >
+                      <PhoneCall className="w-3.5 h-3.5" /> Call {formatPhone(selectedPhone)}
+                    </a>
+                    {session?.collectedEmail && (
+                      <a
+                        href={`mailto:${session.collectedEmail}?subject=${encodeURIComponent("Following up — TMG Install")}&body=${encodeURIComponent(`Hi ${selectedConvo?.name || "there"},\n\n`)}`}
+                        data-testid="banner-email-customer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-[11px] font-semibold rounded-lg hover:bg-blue-700 active:scale-[0.98] transition-all"
+                      >
+                        <Mail className="w-3.5 h-3.5" /> Email
+                      </a>
+                    )}
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(`+${selectedPhone}`); toast({ title: "Phone number copied" }); }}
+                      data-testid="banner-copy-phone"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 text-amber-900 text-[11px] font-semibold rounded-lg hover:bg-amber-100 active:scale-[0.98] transition-all"
+                    >
+                      <Copy className="w-3.5 h-3.5" /> Copy number
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="px-2 pb-2 pt-1.5">
               <div className="flex items-end gap-1">
