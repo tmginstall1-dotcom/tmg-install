@@ -213,7 +213,15 @@ export default function EstimateWizard() {
         setCaptureShown(true);
         if (lead.email) setCaptureEmail(lead.email);
         if (lead.name) setCaptureName(lead.name);
-        if (lead.services && Array.isArray(lead.services)) setServices(lead.services as any);
+        if (lead.services && Array.isArray(lead.services)) {
+          // Normalize on resume: if Relocation is present, drop redundant Install/Dismantle
+          // (legacy partial leads may have stored conflicting selections before this UX fix).
+          const raw = lead.services as ServiceType[];
+          const normalized = raw.includes("relocate")
+            ? raw.filter(s => s !== "install" && s !== "dismantle")
+            : raw;
+          setServices(normalized);
+        }
         if (lead.serviceAddress) setServiceAddress(lead.serviceAddress);
         if (lead.pickupAddress) setPickupAddress(lead.pickupAddress);
         if (lead.dropoffAddress) setDropoffAddress(lead.dropoffAddress);
@@ -238,6 +246,20 @@ export default function EstimateWizard() {
   const [accessDifficulty, setAccessDifficulty] = useState<"easy" | "medium" | "hard">("easy");
   // Step 3
   const [items, setItems] = useState<LineItem[]>([]);
+
+  // Item reconciliation: when Relocation gets selected, install/dismantle line
+  // items in the cart become redundant (Relocation already covers them as a
+  // bundle). Drop them so the cart total reflects the user's intent and
+  // matches what Step 1 visually communicates.
+  useEffect(() => {
+    if (services.includes("relocate")) {
+      setItems(prev => {
+        const filtered = prev.filter(i => i.serviceType !== "install" && i.serviceType !== "dismantle");
+        return filtered.length === prev.length ? prev : filtered;
+      });
+    }
+  }, [services]);
+
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogFocused, setCatalogFocused] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
@@ -871,61 +893,119 @@ export default function EstimateWizard() {
                   <p className="text-sm text-black/45">Select one or more services — you can mix and match.</p>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
-                  {([
-                    {
-                      type: "install" as ServiceType,
-                      icon: <Wrench className="w-6 h-6" />,
-                      label: "Installation",
-                      desc: "Assemble and install furniture at your location",
-                      priceHint: "from $80/item",
-                    },
-                    {
-                      type: "dismantle" as ServiceType,
-                      icon: <Scissors className="w-6 h-6" />,
-                      label: "Dismantling",
-                      desc: "Carefully take apart and pack existing furniture",
-                      priceHint: "from $60/item",
-                    },
-                    {
-                      type: "relocate" as ServiceType,
-                      icon: <Truck className="w-6 h-6" />,
-                      label: "Relocation / Move",
-                      desc: "Dismantle at origin, transport & reinstall at the new location",
-                      priceHint: "from $120/item",
-                    },
-                  ]).map(({ type, icon, label, desc, priceHint }) => {
-                    const active = services.includes(type);
-                    return (
-                      <button
-                        key={type}
-                        data-testid={`service-${type}`}
-                        onClick={() => setServices(prev => active ? prev.filter(s => s !== type) : [...prev, type])}
-                        className={`group relative border p-5 text-left transition-all duration-150 ${
-                          active ? "border-black bg-black/[0.025]" : "border-black/10 bg-white hover:border-black/30 hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className={`w-12 h-12 flex items-center justify-center flex-shrink-0 transition-colors ${
-                            active ? "bg-black text-white" : "bg-black/[0.05] text-black/50"
-                          }`}>
-                            {icon}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-black text-base uppercase tracking-[0.04em]">{label}</p>
-                              <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.04em] bg-black/[0.05] text-black/40">{priceHint}</span>
+                  {(() => {
+                    const relocateActive = services.includes("relocate");
+                    const cards = [
+                      {
+                        type: "install" as ServiceType,
+                        icon: <Wrench className="w-6 h-6" />,
+                        label: "Installation",
+                        desc: "Assemble and install new furniture at your location",
+                        priceHint: "from $80/item",
+                        // Disabled when Relocation is selected (Relocation already includes install)
+                        coveredByRelocate: true,
+                      },
+                      {
+                        type: "dismantle" as ServiceType,
+                        icon: <Scissors className="w-6 h-6" />,
+                        label: "Dismantling",
+                        desc: "Carefully take apart existing furniture (no transport)",
+                        priceHint: "from $60/item",
+                        coveredByRelocate: true,
+                      },
+                      {
+                        type: "relocate" as ServiceType,
+                        icon: <Truck className="w-6 h-6" />,
+                        label: "Relocation / Move",
+                        desc: "Complete door-to-door bundle — pick this if you're moving furniture from one place to another",
+                        priceHint: "from $120/item",
+                        coveredByRelocate: false,
+                        isBundle: true,
+                        bundleItems: ["Dismantle at origin", "Transport in our van", "Reinstall at new home"],
+                      },
+                    ] as const;
+                    return cards.map(({ type, icon, label, desc, priceHint, coveredByRelocate, isBundle, bundleItems }) => {
+                      const active = services.includes(type);
+                      // Disabled (covered) when relocate is on and this card is install/dismantle
+                      const isCovered = relocateActive && coveredByRelocate;
+                      const handleClick = () => {
+                        if (isCovered) return; // ignore — visually shown as already included
+                        if (type === "relocate" && !active) {
+                          // Selecting Relocation auto-clears Install/Dismantle (they're bundled in)
+                          setServices(prev => [...prev.filter(s => s !== "install" && s !== "dismantle"), "relocate"]);
+                        } else {
+                          setServices(prev => active ? prev.filter(s => s !== type) : [...prev, type]);
+                        }
+                      };
+                      return (
+                        <button
+                          key={type}
+                          type="button"
+                          data-testid={`service-${type}`}
+                          onClick={handleClick}
+                          disabled={isCovered}
+                          aria-disabled={isCovered}
+                          tabIndex={isCovered ? -1 : 0}
+                          className={`group relative border p-5 text-left transition-all duration-150 ${
+                            isCovered
+                              ? "border-emerald-400/60 bg-emerald-50/50 cursor-default"
+                              : active
+                                ? "border-black bg-black/[0.025]"
+                                : "border-black/10 bg-white hover:border-black/30 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className={`w-12 h-12 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isCovered
+                                ? "bg-emerald-500 text-white"
+                                : active ? "bg-black text-white" : "bg-black/[0.05] text-black/50"
+                            }`}>
+                              {isCovered ? <Check className="w-6 h-6" /> : icon}
                             </div>
-                            <p className="text-sm text-black/45 mt-0.5">{desc}</p>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className={`font-black text-base uppercase tracking-[0.04em] ${isCovered ? "text-emerald-900/70 line-through decoration-2 decoration-emerald-600/40" : ""}`}>{label}</p>
+                                {isBundle && !isCovered && (
+                                  <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.06em] bg-emerald-600 text-white">ALL-IN-ONE BUNDLE</span>
+                                )}
+                                {!isCovered && (
+                                  <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.04em] bg-black/[0.05] text-black/40">{priceHint}</span>
+                                )}
+                                {isCovered && (
+                                  <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.06em] bg-emerald-600 text-white">INCLUDED IN RELOCATION</span>
+                                )}
+                              </div>
+                              <p className={`text-sm mt-0.5 ${isCovered ? "text-emerald-900/60" : "text-black/45"}`}>{desc}</p>
+
+                              {/* Bundle includes — only on the Relocation card */}
+                              {isBundle && bundleItems && (
+                                <div className="mt-3 pt-3 border-t border-black/10">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-2">What's included:</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {bundleItems.map(b => (
+                                      <span key={b} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800">
+                                        <Check className="w-3 h-3" /> {b}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <p className="text-[11px] text-black/50 mt-2 leading-relaxed">
+                                    <span className="font-bold">Don't add Dismantle or Installation separately</span> — they're already bundled in at a discount.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                            {!isCovered && (
+                              <div className={`w-5 h-5 border flex items-center justify-center shrink-0 mt-1 transition-all ${
+                                active ? "bg-black border-black" : "border-black/20"
+                              }`}>
+                                {active && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                            )}
                           </div>
-                          <div className={`w-5 h-5 border flex items-center justify-center shrink-0 mt-1 transition-all ${
-                            active ? "bg-black border-black" : "border-black/20"
-                          }`}>
-                            {active && <Check className="w-3 h-3 text-white" />}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    });
+                  })()}
 
                   {/* ── Disposal card (special — has sub-mode toggle) ── */}
                   {(() => {
