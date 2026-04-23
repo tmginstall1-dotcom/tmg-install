@@ -1,0 +1,70 @@
+Build a production-grade AI operations agent backend for TMGinstall.com.
+
+Context:
+TMGinstall.com is a Singapore furniture installation, dismantling, relocation, and office furniture service business.
+
+Goal:
+Create an approval-gated AI agent system that supports quote review, sales follow-up, lead management, and admin operations.
+
+Important rules:
+- Do NOT replace the existing TMGinstall.com website.
+- Do NOT create a new public customer website unless needed for testing.
+- Do NOT auto-send quotes, prices, payment links, or customer messages without admin approval.
+- Do NOT modify Stripe payment logic directly unless explicitly requested.
+- Do NOT create duplicate business workflows.
+- The system must be admin-controlled and approval-gated.
+
+Build:
+1. Backend API for AI quote analysis.
+2. Admin dashboard to review AI-generated quote drafts.
+3. Lead follow-up dashboard.
+4. WhatsApp message draft generator.
+5. Email draft generator.
+6. Job status checker.
+7. Scheduled follow-up worker.
+8. Audit log for every AI suggestion and admin action.
+
+Data model:
+- leads
+- quote_requests
+- ai_quote_drafts
+- quote_items
+- follow_up_tasks
+- admin_approvals
+- audit_logs
+
+AI agent duties:
+- Read customer service description.
+- Detect service type: installation, dismantle, relocation, office move, repair, disposal request.
+- Extract furniture items and quantities.
+- Suggest labour estimate.
+- Suggest transport/trip notes.
+- Draft customer WhatsApp reply.
+- Draft customer email.
+- Flag unclear requests for admin review.
+- Never finalize price without admin approval.
+
+Admin dashboard:
+- Show pending AI quote drafts.
+- Show confidence score.
+- Allow admin to edit item lines.
+- Approve, reject, or request manual review.
+- Generate WhatsApp text after approval.
+- Generate email text after approval.
+- Show follow-up queue.
+
+Security:
+- Use environment variables for all API keys.
+- Never expose service role keys to frontend.
+- Add admin login.
+- Add audit logs.
+- Add error handling.
+- Add rate limiting.
+- Add clean production UI.
+
+Tech preference:
+- Node.js or Python backend.
+- PostgreSQL-compatible database.
+- REST API.
+- Clean responsive admin dashboard.
+- Ready for later connection to existing Supabase project.
