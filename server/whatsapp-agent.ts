@@ -311,6 +311,19 @@ Only include fields where you have new/updated information. Use exactly these fi
   }
 }
 
+// ── Fact normalization ────────────────────────────────────────────────────────
+// Apply deterministic post-processing to extracted facts so we don't ask
+// pointless follow-ups. The clearest example: ground floor (level 1) doesn't
+// have a lift in any meaningful sense, so we auto-mark hasLift=true and skip
+// the question entirely.
+function normalizeFacts(facts: CaseFacts): CaseFacts {
+  const out = { ...facts };
+  if (out.floorLevel === 1 && out.hasLift === undefined) {
+    out.hasLift = true;
+  }
+  return out;
+}
+
 // ── Missing Facts Check ───────────────────────────────────────────────────────
 function computeMissingFacts(facts: CaseFacts): string[] {
   const missing: string[] = [];
@@ -319,7 +332,8 @@ function computeMissingFacts(facts: CaseFacts): string[] {
   if (!facts.homeOrOffice || facts.homeOrOffice === "unknown") missing.push("homeOrOffice");
   if (!facts.itemTypes || facts.itemTypes.length === 0) missing.push("itemTypes");
   if (facts.floorLevel === undefined) missing.push("floorLevel");
-  if (facts.hasLift === undefined) missing.push("hasLift");
+  // Skip lift question for ground floor — it's a non-question.
+  if (facts.hasLift === undefined && facts.floorLevel !== 1) missing.push("hasLift");
   if (!facts.preferredDate) missing.push("preferredDate");
   if (facts.serviceType === "relocation" && !facts.toAddress) missing.push("toAddress");
   return missing;
@@ -1076,8 +1090,12 @@ export async function processWithAIAgent(params: {
     // ── 8. Extract facts from this message ───────────────────────────────────
     // For image messages, visionAnalyzedText carries the gpt-4o-vision items
     // summary so the fact-extractor can populate itemTypes without re-asking.
-    const { facts, confidence } = await extractFacts(visionAnalyzedText, history, currentFacts);
-    if (visionResult?.isFurniture) facts.photosPresent = true;
+    const { facts: rawFacts, confidence } = await extractFacts(visionAnalyzedText, history, currentFacts);
+    if (visionResult?.isFurniture) rawFacts.photosPresent = true;
+    // Apply deterministic post-processing (e.g. ground floor → hasLift=true)
+    // BEFORE we compute missing facts or generate the next reply. This is the
+    // single funnel for "obvious" inferences that the LLM doesn't always make.
+    const facts = normalizeFacts(rawFacts);
     const missingFacts = computeMissingFacts(facts);
     const quoteReady = isQuoteReady(facts);
 
@@ -1206,6 +1224,115 @@ export async function processWithAIAgent(params: {
     if (quoteReady && currentAiState !== "quote_ready") {
       reply = buildQuoteReadyMessage(facts);
       newAiState = "quote_ready";
+
+      // ── 11a. Create a draft quote in the admin pipeline ─────────────────
+      // This is the moment the bot has every fact it needs. We surface the
+      // lead in the admin Dashboard "Action Required" panel by inserting a
+      // quotes row with status="submitted" + requiresManualReview=true so
+      // the admin can review, price, and send a final quote to the customer.
+      // Failure here must NOT break the customer reply — the WhatsApp session
+      // itself remains visible in /admin/ai/whatsapp as a fallback.
+      try {
+        // Race-safe dedupe via Postgres advisory lock keyed on the phone
+        // number's hash. Two concurrent inbound handlers for the same lead
+        // will serialize through this lock, so we'll only ever insert ONE
+        // auto-quote per phone+window. The lock is auto-released at txn end.
+        // Dedupe predicate is intentionally narrow: only suppresses when
+        // there's already a pending-review WhatsApp draft (so a manual
+        // admin-created quote on the same phone won't block a fresh lead).
+        const phoneLockKey = parseInt(
+          require("node:crypto").createHash("sha1").update(from).digest("hex").slice(0, 15),
+          16
+        );
+        await db.transaction(async (tx) => {
+          await tx.execute(drizzleSql`SELECT pg_advisory_xact_lock(${phoneLockKey})`);
+
+          const existingQuote = await tx.select({ id: quotes.id, createdAt: quotes.createdAt })
+            .from(quotes)
+            .where(and(
+              eq(quotes.customerWhatsappPhone, from),
+              eq(quotes.sourceChannel, "whatsapp"),
+              eq(quotes.requiresManualReview, true),
+            ))
+            .orderBy(desc(quotes.createdAt))
+            .limit(1);
+          const recentlyCreated = existingQuote[0]?.createdAt
+            && (Date.now() - new Date(existingQuote[0].createdAt).getTime()) < 24 * 60 * 60 * 1000;
+
+          if (recentlyCreated) {
+            console.log(`[WA-Agent] ${corrTag} skip auto-quote — pending WhatsApp draft already exists for ${masked} (id=${existingQuote[0].id})`);
+            return;
+          }
+
+          const { randomBytes } = await import("node:crypto");
+          const refNo = `TMG-${randomBytes(4).toString("hex").toUpperCase()}`;
+
+          // Map AI service type to the catalog/quote service_type vocabulary.
+          const svcMap: Record<string, "install" | "dismantle" | "relocate"> = {
+            installation:  "install",
+            dismantling:   "dismantle",
+            relocation:    "relocate",
+            office_fitout: "install",
+          };
+          const itemSvc = svcMap[facts.serviceType ?? "installation"] ?? "install";
+
+          // Floors info mirrors the wizard's shape so the admin UI renders it.
+          const floorsInfo: any[] = [];
+          if (facts.floorLevel !== undefined) {
+            floorsInfo.push({
+              role:  facts.serviceType === "relocation" ? "pickup" : "service",
+              floor: facts.floorLevel,
+              hasLift: facts.hasLift ?? (facts.floorLevel === 1),
+            });
+          }
+
+          // customers.email is NOT NULL — synthesize a deterministic placeholder
+          // when the customer hasn't shared one yet. Admin can edit later.
+          const safeEmail = session?.collectedEmail
+            ?? `${from.replace(/[^0-9]/g, "")}@whatsapp.tmginstall.local`;
+
+          const created = await storage.createQuote(
+            {
+              name:  session?.collectedName ?? "WhatsApp Lead",
+              phone: from,
+              email: safeEmail,
+            } as any,
+            {
+              referenceNo:           refNo,
+              serviceAddress:        facts.jobAddress ?? "(pending — collected via WhatsApp)",
+              status:                "submitted",
+              sourceChannel:         "whatsapp",
+              customerWhatsappPhone: from,
+              requiresManualReview:  true,
+              aiConfidenceScore:     Math.round(confidence * 100),
+              pickupAddress:         facts.serviceType === "relocation" ? facts.jobAddress : null,
+              dropoffAddress:        facts.serviceType === "relocation" ? facts.toAddress : null,
+              floorsInfo:            floorsInfo.length ? JSON.stringify(floorsInfo) : null,
+              selectedServices:      JSON.stringify([itemSvc]),
+              preferredDate:         facts.preferredDate ?? null,
+              notes:                 `Auto-created from WhatsApp AI agent.\nMissing facts at creation: ${missingFacts.length === 0 ? "none" : missingFacts.join(", ")}.\nLead score: ${leadScoreResult?.score ?? "n/a"}.`,
+            } as any,
+            (facts.itemTypes ?? []).map(it => ({
+              originalDescription: it,
+              detectedName:        null,
+              serviceType:         itemSvc,
+              quantity:            facts.quantity && facts.quantity > 0 ? facts.quantity : 1,
+              unitPrice:           "0",
+              subtotal:            "0",
+            })) as any
+          );
+
+          await logAudit("whatsapp_quote_drafted", "ai_quote_creation",
+            `Auto-created quote ${refNo} from WhatsApp lead ${masked}`,
+            { phone: masked, quoteId: created.id, refNo, items: facts.itemTypes ?? [], confidence });
+          console.log(`[WA-Agent] ${corrTag} created draft quote ${refNo} (id=${created.id}) for ${masked}`);
+        });
+      } catch (qErr: any) {
+        console.error(`[WA-Agent] ${corrTag} draft-quote creation failed:`, qErr?.message);
+        await logAudit("whatsapp_quote_draft_failed", "ai_quote_creation",
+          `Failed to auto-create quote for WhatsApp lead ${masked}: ${qErr?.message}`,
+          { phone: masked, error: qErr?.message }).catch(() => {});
+      }
     } else {
       // If the customer asked about price upfront and we know enough to
       // ballpark it, compute an indicative range so the reply leads with
