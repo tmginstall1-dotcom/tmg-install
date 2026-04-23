@@ -4406,6 +4406,8 @@ ${systemPrompt}` });
           transportFee: z.string().optional(),
           selectedServices: z.string().optional(),
           notes: z.string().optional(),
+          scheduledAt: z.string().datetime().optional().nullable().transform(v => v ? new Date(v) : v),
+          timeWindow: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/, "Invalid time window").optional().nullable(),
         }).optional(),
         items: z.array(z.object({
           catalogItemId: z.number().nullable().optional(),
@@ -4421,8 +4423,9 @@ ${systemPrompt}` });
       const updated = await storage.editQuote(id, { customerUpdates, quoteUpdates, items });
       if (!updated) return res.status(404).json({ message: "Quote not found" });
       res.json(updated);
-    } catch (err) {
+    } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      console.error("[quotes/:id/edit] failed:", err?.message, err?.stack);
       res.status(500).json({ message: "Internal error" });
     }
   });

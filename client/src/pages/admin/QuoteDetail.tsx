@@ -35,6 +35,130 @@ function getContactChannels(quote: any) {
  * Renders Email / WhatsApp / Both buttons depending on available contact data.
  * Falls back to a phone-entry form when no contact info is stored.
  */
+const TIME_WINDOWS = [
+  { value: "09:00-12:00", label: "Morning (09:00 – 12:00)" },
+  { value: "13:00-17:00", label: "Afternoon (13:00 – 17:00)" },
+  { value: "09:00-17:00", label: "Full Day (09:00 – 17:00)" },
+];
+
+function ScheduleEditor({
+  quoteId,
+  scheduledAt,
+  timeWindow,
+}: {
+  quoteId: number;
+  scheduledAt: string | Date | null | undefined;
+  timeWindow: string | null | undefined;
+}) {
+  const { toast } = useToast();
+  const initialDate = scheduledAt ? format(new Date(scheduledAt), "yyyy-MM-dd") : "";
+  const initialTw = timeWindow || "09:00-12:00";
+  const [editing, setEditing] = useState(false);
+  const [dateVal, setDateVal] = useState(initialDate);
+  const [twVal, setTwVal] = useState(initialTw);
+
+  // Resync local state if the upstream quote changes (e.g. after another save).
+  useEffect(() => {
+    setDateVal(scheduledAt ? format(new Date(scheduledAt), "yyyy-MM-dd") : "");
+    setTwVal(timeWindow || "09:00-12:00");
+  }, [scheduledAt, timeWindow]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!dateVal) throw new Error("Please select a date");
+      if (!/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(twVal)) throw new Error("Please select a time window");
+      const startTime = twVal.split("-")[0];
+      // Build SG-local datetime (UTC+08:00) so the saved instant matches what the admin sees.
+      const isoLocalSg = `${dateVal}T${startTime}:00+08:00`;
+      const scheduledAtIso = new Date(isoLocalSg).toISOString();
+      return apiRequest("PATCH", `/api/quotes/${quoteId}/edit`, {
+        quoteUpdates: { scheduledAt: scheduledAtIso, timeWindow: twVal },
+      }).then(r => r.json());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/quotes', String(quoteId)] });
+      queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
+      toast({ title: "Schedule updated" });
+      setEditing(false);
+    },
+    onError: (e: any) => {
+      toast({ title: "Could not update schedule", description: e?.message || "Please try again", variant: "destructive" });
+    },
+  });
+
+  if (!editing) {
+    return (
+      <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-sm">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-xs text-zinc-500 mb-1">Confirmed Date</p>
+            {scheduledAt ? (
+              <p className="font-semibold text-zinc-900 flex items-center gap-1.5" data-testid="text-confirmed-date">
+                <Calendar className="w-3.5 h-3.5 text-zinc-400" />
+                {format(new Date(scheduledAt), 'EEE, MMM d')} · {timeWindow || "—"}
+              </p>
+            ) : (
+              <p className="text-zinc-500 italic">Not scheduled yet</p>
+            )}
+          </div>
+          <button
+            onClick={() => setEditing(true)}
+            data-testid="button-edit-schedule"
+            className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline whitespace-nowrap"
+          >
+            Edit
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-2">
+      <p className="text-xs text-zinc-500">Edit Date & Time</p>
+      <input
+        type="date"
+        value={dateVal}
+        onChange={e => setDateVal(e.target.value)}
+        data-testid="input-scheduled-date"
+        className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <select
+        value={twVal}
+        onChange={e => setTwVal(e.target.value)}
+        data-testid="select-time-window"
+        className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        {TIME_WINDOWS.map(tw => (
+          <option key={tw.value} value={tw.value}>{tw.label}</option>
+        ))}
+      </select>
+      <div className="flex gap-2 pt-1">
+        <button
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+          data-testid="button-save-schedule"
+          className="flex-1 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50"
+        >
+          {save.isPending ? "Saving…" : "Save"}
+        </button>
+        <button
+          onClick={() => {
+            setDateVal(initialDate);
+            setTwVal(initialTw);
+            setEditing(false);
+          }}
+          disabled={save.isPending}
+          data-testid="button-cancel-schedule"
+          className="h-9 px-4 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 text-sm font-medium disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PaymentChannelButtons({
   quote,
   emailPending,
@@ -1449,15 +1573,11 @@ export default function AdminQuoteDetail() {
 
                 {['deposit_paid', 'booked', 'assigned'].includes(quote.status) && (
                   <div className="space-y-4">
-                    {quote.scheduledAt && (
-                      <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-sm">
-                        <p className="text-xs text-zinc-500 mb-1">Confirmed Date</p>
-                        <p className="font-semibold text-zinc-900 flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-zinc-400" />
-                          {format(new Date(quote.scheduledAt), 'EEE, MMM d')} · {quote.timeWindow}
-                        </p>
-                      </div>
-                    )}
+                    <ScheduleEditor
+                      quoteId={quote.id}
+                      scheduledAt={quote.scheduledAt}
+                      timeWindow={quote.timeWindow}
+                    />
                     
                     <div className="space-y-2">
                       <label className="text-xs font-medium text-zinc-500">Assign Staff or Team</label>
