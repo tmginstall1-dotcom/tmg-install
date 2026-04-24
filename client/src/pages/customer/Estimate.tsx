@@ -327,7 +327,7 @@ export default function EstimateWizard() {
   // Category tab groups (maps display label → category keywords)
   const CATEGORY_TABS = [
     { label: "All",      match: null },
-    { label: "Beds",     match: ["beds", "ikea beds"] },
+    { label: "Beds",     match: ["beds", "ikea beds", "mattresses"] },
     { label: "Wardrobes",match: ["ikea wardrobes", "wardrobes", "bedroom"] },
     { label: "Sofas",    match: ["sofas", "living room", "ikea living room"] },
     { label: "Dining",   match: ["dining"] },
