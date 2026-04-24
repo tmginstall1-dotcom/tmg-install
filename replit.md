@@ -100,10 +100,24 @@ Always provide full file contents when editing any code file — never partial s
 - **Verified math**: KB + MASS Carry Only at ground floor with lift now produces $403 (was $63). Light single-item moves bump modestly (e.g. coffee table $63 → $98) — closer to market.
 - **Persistence**: New `relocation_mode` column on `quotes` (`carry` | `full` | null) wired through wizard (`/api/quotes/wizard`) and both WhatsApp create paths (draft + final submission). `server/email.ts` `isCarryOnlyRelocation()` reads the explicit field first, falling back to the legacy unitPrice heuristic for older rows.
 
-### Pricing Engine — D&R Floor (Round 16, Apr 2026)
-- **Bug**: After Round 14's Carry Only repricing, the bundle formula `(install + dismantle) × 0.60` produced **D&R prices LOWER than Carry Only** for heavy items (e.g. King Bed D&R = $108 but Carry Only = $160 — backwards).
-- **Fix**: New shared helper `computeDRPrice()` in `shared/pricing.ts` enforces a hard floor: D&R is always at least Carry Only × 1.30 (a 30% premium covers dismantle + reinstall labor). Used in 6 sites in `client/src/pages/customer/Estimate.tsx` and the WhatsApp matcher in `server/routes.ts`. AI prompt updated to honour the same floor.
-- **Verified math**: King Bed D&R now $208 (was $108), Massage Chair D&R now $234 (was $84). Same job: Carry Only $340 vs D&R $442 — D&R correctly costs more, as customers expect.
+### Pricing Engine — D&R Helper (`computeDRPrice`)
+- Added `computeDRPrice()` in `shared/pricing.ts` to centralize Dismantle & Reinstall pricing across all 6 sites in `client/src/pages/customer/Estimate.tsx`, the WhatsApp matcher in `server/routes.ts`, and the AI prompt.
+- **Business logic (intentional)**: D&R = `(install + dismantle) × 0.60` — a 40% bundle discount because the customer commits to the full service (dismantle + transport + reinstall). This means D&R can be CHEAPER than Carry Only for heavy 2-man items: that's by design, since Carry Only is priced separately by raw weight/labor (skip the assembly work, pay for pure heavy carry).
+- Fallback (when install/dismantle prices missing): D&R ≈ Carry × 0.90.
+
+### Carry Only — Weight-Tier Pricing (Round 16 — `WEIGHT-TIER-R16-MARKER`)
+Per-item Carry Only prices are now strictly weight-based to match real labor effort. Rationale: customers shouldn't pay per-item fees for things one mover can grab and walk with — they're already paying transport + crew base.
+
+| Tier | Weight | Range | Examples |
+|---|---|---|---|
+| **0 — FREE** | ≤10 kg, 1-hand carry | **$0** | Bedside table, side table, dining chair, monitor arm, desk privacy screen, accent chair, ergonomic chair (rolls!), wall-mount whiteboard, coffee table |
+| 1 | 10–25 kg, 1-man | $30–$60 | Shoe rack, basic office desk |
+| 2 | 25–50 kg, 2-man light | $70–$110 | Dressing table, TV console, study table, bookshelf, single bed frame, filing cabinet, dining table, 2-seater sofa |
+| 3 | 50–80 kg, 2-man heavy | $120–$180 | Queen/double/super-single bed, 3-seater sofa, sofa bed, display cabinet, sideboard |
+| 4 | 80–130 kg, 2–3-man + care | $200–$280 | **King bed frame intact ($220)**, **massage chair ($220)**, IKEA Pax wardrobe ($240), L-shaped sofa ($220), L-shaped exec desk ($200) |
+| 5 | >130 kg / specialty | $300+ | Pianos, pool tables, phone booths, meeting pods, conference tables |
+
+UI: All four price-display sites in `Estimate.tsx` render **"FREE"** instead of "$0" for Tier 0 relocate items.
 
 ### Catalog UX — Mattresses Visible Under "Beds" Tab
 - The customer estimator's category tabs filter by keyword matches on `category`. The "Beds" tab originally only matched `beds` and `ikea beds`, hiding the `Mattresses` category. Updated the Beds tab match list to include `mattresses` so all mattress sizes (Single $50, Super Single $60, Queen $80, King $100) appear when customers tap "Beds".

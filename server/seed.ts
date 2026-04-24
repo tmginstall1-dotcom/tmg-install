@@ -1969,4 +1969,79 @@ export async function seedDatabase() {
     console.log("[startup] Round 15: Mattress relocation pricing — Single=$50, Super Single=$60, Queen=$80, King=$100.");
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Round 16: Weight-based Carry Only pricing — light items FREE, heavy items repriced (WEIGHT-TIER-R1 marker)
+  // Tier 0 (≤10 kg, 1-hand carry-and-go) → $0  (free, no per-item charge — customer still pays transport + crew base)
+  // Tier 1 (10–25 kg, 1-man manageable)  → $30–$60
+  // Tier 2 (25–50 kg, 2-man light)       → $70–$110
+  // Tier 3 (50–80 kg, 2-man heavy)       → $120–$180
+  // Tier 4 (80–130 kg, 2–3-man + care)   → $200–$280
+  // Tier 5 (>130 kg / specialty)         → $300+
+  // ──────────────────────────────────────────────────────────────────────────
+  const weightTierMarkerR16 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "WEIGHT-TIER-R16-MARKER")).limit(1);
+  if (weightTierMarkerR16.length === 0) {
+    const updates: { sku: string; price: string }[] = [
+      // ── Tier 0: FREE (≤10 kg, single-hand carry, walk-and-go) ───────────────
+      { sku: "BT-RELOCATE",                price: "0.00" },   // Bedside table ~5–8 kg
+      { sku: "SIDE-RELOCATE",              price: "0.00" },   // Side table ~3–5 kg
+      { sku: "DNC-RELOCATE",               price: "0.00" },   // Dining chair ~3–5 kg
+      { sku: "MONARM-RELOCATE",            price: "0.00" },   // Monitor arm ~2 kg
+      { sku: "OFF-DESK-SCREEN-RELOCATE",   price: "0.00" },   // Desk privacy screen ~5 kg
+      { sku: "ARM-RELOCATE",               price: "0.00" },   // Single armchair / accent chair (light) ~8–12 kg
+      { sku: "EC-RELOCATE",                price: "0.00" },   // Ergonomic chair (rolls on wheels)
+      { sku: "OFF-WHITEBOARD-RELOCATE",    price: "0.00" },   // Wall-mount whiteboard ~6 kg
+      { sku: "CFT-RELOCATE",               price: "0.00" },   // Coffee table (most are light wood/glass) ~10–15 kg
+
+      // ── Tier 1: $30–$60 (10–25 kg, 1-man) ──────────────────────────────────
+      { sku: "SR-RELOCATE",                price: "30.00" },  // Shoe rack — small to medium
+      { sku: "OD-RELOCATE",                price: "60.00" },  // Office desk (basic) ~20–25 kg
+
+      // ── Tier 2: $70–$110 (25–50 kg, 2-man light) ──────────────────────────
+      { sku: "DT-RELOCATE",                price: "70.00" },  // Dressing table (mirror needs care)
+      { sku: "TVC-RELOCATE",               price: "80.00" },  // TV console
+      { sku: "STUDY-RELOCATE",             price: "70.00" },  // Study/computer table
+      { sku: "BS-RELOCATE",                price: "80.00" },  // Bookshelf
+      { sku: "SF2-RELOCATE",               price: "100.00" }, // 2-seater sofa ~35 kg
+      { sku: "SB-RELOCATE",                price: "80.00" },  // Single bed frame
+      { sku: "FC-RELOCATE",                price: "70.00" },  // Filing cabinet
+      { sku: "DNT-RELOCATE",               price: "100.00" }, // Dining table (4-seat)
+      { sku: "EXDT-RELOCATE",              price: "120.00" }, // Extendable dining table
+
+      // ── Tier 3: $120–$180 (50–80 kg, 2-man heavy) ─────────────────────────
+      { sku: "QB-RELOCATE",                price: "130.00" }, // Queen bed frame
+      { sku: "DB-RELOCATE-01",             price: "120.00" }, // Double bed frame
+      { sku: "SSB-RELOCATE",               price: "100.00" }, // Super single bed frame
+      { sku: "SF3-RELOCATE",               price: "150.00" }, // 3-seater sofa
+      { sku: "SOFABED-RELOCATE",           price: "150.00" }, // Sofa bed / day bed
+      { sku: "DC-RELOCATE",                price: "150.00" }, // Display cabinet
+      { sku: "SIDE-BUF-RELOCATE",          price: "130.00" }, // Sideboard / buffet cabinet
+
+      // ── Tier 4: $200–$280 (80–130 kg, 2–3-man + careful handling) ─────────
+      { sku: "KB-RELOCATE",                price: "220.00" }, // King bed frame intact — 60–80 kg, often won't fit lift
+      { sku: "MASS-RELOCATE",              price: "220.00" }, // Massage chair — premium models 80–130 kg
+      { sku: "PAX-RELOCATE",               price: "240.00" }, // IKEA Pax wardrobe (intact)
+      { sku: "LSOFA-RELOCATE",             price: "220.00" }, // L-shaped / corner sofa
+      { sku: "L-DESK-RELOCATE",            price: "200.00" }, // L-shaped executive desk
+
+      // ── King mattress slight bump for 2-man weight ─────────────────────────
+      { sku: "MATTRESS-K-RELOCATE",        price: "110.00" }, // King mattress ~40 kg (was $100)
+    ];
+
+    for (const u of updates) {
+      await db.update(catalogItems).set({ basePrice: u.price }).where(eq(catalogItems.sku, u.sku));
+    }
+
+    // Idempotency marker
+    await db.insert(catalogItems).values({
+      name: "Weight Tier R16 Marker",
+      sku: "WEIGHT-TIER-R16-MARKER",
+      category: "_internal",
+      serviceType: "relocate",
+      basePrice: "0",
+      isActive: false,
+    } as any).onConflictDoNothing?.();
+
+    console.log("[startup] Round 16: Weight-tier Carry Only pricing applied — 9 light items FREE, KB=$220, MASS=$220, PAX=$240, LSOFA=$220.");
+  }
+
 }

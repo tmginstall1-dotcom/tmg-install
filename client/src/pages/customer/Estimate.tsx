@@ -1299,7 +1299,7 @@ export default function EstimateWizard() {
                                     return (
                                       <div className="flex items-center gap-2 justify-end">
                                         {serviceBadge('relocate')}
-                                        <span className="text-xs font-bold">${fullPrice.toFixed(0)}</span>
+                                        <span className="text-xs font-bold">{fullPrice <= 0 ? 'FREE' : `$${fullPrice.toFixed(0)}`}</span>
                                       </div>
                                     );
                                   }
@@ -1318,7 +1318,7 @@ export default function EstimateWizard() {
                                   return (
                                     <div key={e.id} className="flex items-center gap-2 justify-end">
                                       {serviceBadge(e.serviceType)}
-                                      <span className="text-xs font-bold">${displayPrice.toFixed(0)}</span>
+                                      <span className="text-xs font-bold">{e.serviceType === 'relocate' && displayPrice <= 0 ? 'FREE' : `$${displayPrice.toFixed(0)}`}</span>
                                     </div>
                                   );
                                 });
@@ -1353,7 +1353,7 @@ export default function EstimateWizard() {
                                     dis ? parseFloat(dis.basePrice) : undefined,
                                     parseFloat(rel.basePrice),
                                   );
-                                  return `$${fullPrice.toFixed(0)}`;
+                                  return fullPrice <= 0 ? 'FREE' : `$${fullPrice.toFixed(0)}`;
                                 }
                               }
                               const relevant = group.entries.filter(e => services.includes(e.serviceType));
@@ -1370,7 +1370,7 @@ export default function EstimateWizard() {
                                 }
                                 return s + parseFloat(e.basePrice);
                               }, 0);
-                              return `$${total.toFixed(0)}`;
+                              return total <= 0 ? 'FREE' : `$${total.toFixed(0)}`;
                             })();
                             return (
                               <button
