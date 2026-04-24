@@ -191,6 +191,47 @@ export default function AIHub() {
     queryFn: () => fetch("/api/ai/audit-log?limit=3", { credentials: "include" }).then(r => r.json()),
   });
 
+  // Background activity — live connector sync status (auto-refreshes faster while jobs run)
+  const { data: connectorStatusMap } = useQuery<Record<string, {
+    label?: string; lastSyncStatus: string; lastSyncAt: string | null;
+    nextSyncAt: string | null; schedulerEnabled: boolean;
+  }>>({
+    queryKey: ["/api/ai/connectors/status"],
+    refetchInterval: (q) => {
+      const data = q.state.data as Record<string, any> | undefined;
+      const anyRunning = data && Object.values(data).some((c: any) => c?.lastSyncStatus === "running");
+      return anyRunning ? 4_000 : 30_000;
+    },
+  });
+
+  const CONNECTOR_LABELS: Record<string, string> = {
+    google_ads: "Google Ads",
+    meta_ads: "Meta Ads",
+    search_console: "Search Console",
+    pagespeed: "PageSpeed",
+  };
+  const connectorEntries = Object.entries(connectorStatusMap ?? {});
+  const runningJobs = connectorEntries
+    .filter(([, c]) => c?.lastSyncStatus === "running")
+    .map(([k]) => CONNECTOR_LABELS[k] ?? k);
+  const upcomingJobs = connectorEntries
+    .filter(([, c]) => c?.schedulerEnabled && c?.nextSyncAt)
+    .map(([k, c]) => ({ name: CONNECTOR_LABELS[k] ?? k, at: new Date(c!.nextSyncAt!) }))
+    .sort((a, b) => a.at.getTime() - b.at.getTime());
+  const nextUp = upcomingJobs[0];
+
+  function relTime(d: Date): string {
+    const diffMs = d.getTime() - Date.now();
+    const abs = Math.abs(diffMs);
+    const m = Math.round(abs / 60000);
+    if (m < 1) return diffMs < 0 ? "just now" : "in <1 min";
+    if (m < 60) return diffMs < 0 ? `${m} min ago` : `in ${m} min`;
+    const h = Math.round(m / 60);
+    if (h < 24) return diffMs < 0 ? `${h}h ago` : `in ${h}h`;
+    const days = Math.round(h / 24);
+    return diffMs < 0 ? `${days}d ago` : `in ${days}d`;
+  }
+
   const toggleFlag = useMutation({
     mutationFn: ({ key, value }: { key: string; value: boolean }) =>
       apiRequest("PATCH", `/api/ai/flags/${key}`, { value }),
@@ -374,6 +415,44 @@ export default function AIHub() {
             </Link>
           </div>
         )}
+
+        {/* Background Activity Strip — live status of AI background jobs */}
+        <Link href="/admin/ai/connectors">
+          <div data-testid="strip-background-activity"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors cursor-pointer ${
+              runningJobs.length > 0
+                ? "bg-violet-500/10 border-violet-500/30 hover:bg-violet-500/15"
+                : "bg-white/5 border-white/10 hover:bg-white/8"
+            }`}>
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+              runningJobs.length > 0 ? "bg-violet-500/20" : "bg-slate-500/15"
+            }`}>
+              <Database className={`w-3.5 h-3.5 ${runningJobs.length > 0 ? "text-violet-300" : "text-slate-400"}`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                {runningJobs.length > 0 && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse shadow-[0_0_6px_rgba(167,139,250,0.8)] shrink-0" />
+                )}
+                <p className="text-xs font-semibold text-slate-300 truncate" data-testid="text-bg-activity-status">
+                  {runningJobs.length > 0
+                    ? <>Running now: <span className="text-white">{runningJobs.join(", ")}</span></>
+                    : connectorEntries.length === 0
+                      ? "Background jobs — status unavailable"
+                      : <>Background jobs idle{nextUp ? <> · next: <span className="text-white">{nextUp.name}</span> {relTime(nextUp.at)}</> : ""}</>}
+                </p>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                {runningJobs.length > 0
+                  ? "Auto-refreshing every few seconds while jobs run."
+                  : connectorEntries.filter(([, c]) => c?.lastSyncAt).length > 0
+                    ? `${connectorEntries.filter(([, c]) => c?.lastSyncAt).length} of ${connectorEntries.length} connectors have synced data — tap to view`
+                    : "Tap to view connector schedules and run a sync"}
+              </p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-500 shrink-0" />
+          </div>
+        </Link>
 
         {/* AI Activity Summary — what AI has done in the last 7 days */}
         {activity && (

@@ -162,6 +162,11 @@ export default function AIConnectors() {
 
   const { data: connectors, isLoading } = useQuery<Record<string, ConnectorStatus>>({
     queryKey: ["/api/ai/connectors/status"],
+    refetchInterval: (q) => {
+      const data = q.state.data as Record<string, ConnectorStatus> | undefined;
+      const anyRunning = data && Object.values(data).some(c => c?.lastSyncStatus === "running");
+      return anyRunning ? 4_000 : 30_000;
+    },
   });
   const { data: psData } = useQuery<{ mobile: PageSpeedRow | null; desktop: PageSpeedRow | null }>({
     queryKey: ["/api/ai/pagespeed/data"],
@@ -297,6 +302,13 @@ export default function AIConnectors() {
                         ) : (
                           <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/25 text-amber-400">
                             <AlertCircle className="w-2.5 h-2.5" /> Not Configured
+                          </span>
+                        )}
+                        {cfg?.lastSyncStatus === "running" && (
+                          <span data-testid={`status-syncing-${def.key}`}
+                            className="flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse shadow-[0_0_6px_rgba(167,139,250,0.8)]" />
+                            Syncing now…
                           </span>
                         )}
                         {cfg?.lastSyncStatus === "error" && (
