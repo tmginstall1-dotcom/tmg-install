@@ -17,8 +17,7 @@ export const PricingConfig = {
     dismantleDisposeMultiplier: 0.95, // dismantle+dispose bundle = install * 0.95 when no catalog entry
     genericFallback: 150,            // SGD per unit when absolutely no catalog price found
     relocateDRDiscount: 0.40,        // D&R labor discount for relocation — 40% off install+dismantle (bundled with transport)
-    drCarryFloorMultiplier: 1.30,    // D&R must always cost ≥ Carry Only × this multiplier (30% premium for dismantle/reinstall labor)
-    drCarryFallbackMultiplier: 1.50, // When install/dismantle prices missing: D&R = Carry × this (carry + ~50% for D/R labor)
+    drCarryFallbackMultiplier: 0.90, // When install/dismantle prices missing: D&R = Carry × this (~bundle-discounted equivalent)
   },
   bulkDiscount: [
     { minQty: 100, pct: 0.15 },
@@ -137,11 +136,15 @@ function round2(n: number): number {
 /**
  * Compute the Dismantle & Reinstall (D&R) price for a relocation item.
  *
- * Logic:
- *   • Bundle formula:  (install + dismantle) × (1 - relocateDRDiscount)   = base D&R
- *   • Floor:           D&R must always be ≥ Carry-Only × drCarryFloorMultiplier
- *                      (because D&R = carry labor + dismantle/reinstall labor — never cheaper)
- *   • Fallback:        if install/dismantle prices are missing, D&R = carry × drCarryFallbackMultiplier
+ * Business logic:
+ *   • D&R = (install + dismantle) × (1 - relocateDRDiscount)   — 40% off bundle deal.
+ *     This is INTENTIONALLY discounted: customer commits to the full service
+ *     (dismantle + transport + reinstall) and gets a combo rate.
+ *   • Carry Only is priced separately by raw weight/labor — it can be HIGHER
+ *     than D&R for heavy 2-man items like king bed frames or massage chairs,
+ *     because the customer skips assembly work but pays for pure heavy carry.
+ *   • Fallback: if install/dismantle prices are missing, D&R ≈ carry × 0.90
+ *     (still bundle-discounted relative to standalone carry).
  *
  * @param installPrice    Catalog install price (omit if not present)
  * @param dismantlePrice  Catalog dismantle price (omit if not present)
@@ -149,13 +152,11 @@ function round2(n: number): number {
  */
 export function computeDRPrice(installPrice?: number, dismantlePrice?: number, carryPrice?: number): number {
   const cfg = PricingConfig.fallback;
-  const carry = carryPrice && carryPrice > 0 ? carryPrice : 0;
-  const floor = carry * cfg.drCarryFloorMultiplier;
   if (installPrice && dismantlePrice) {
-    const bundle = (installPrice + dismantlePrice) * (1 - cfg.relocateDRDiscount);
-    return round2(Math.max(bundle, floor));
+    return round2((installPrice + dismantlePrice) * (1 - cfg.relocateDRDiscount));
   }
-  // No install/dismantle data — fall back to carry × multiplier
+  // No install/dismantle data — fall back to carry × multiplier (still bundle-discounted)
+  const carry = carryPrice && carryPrice > 0 ? carryPrice : 0;
   return round2(carry * cfg.drCarryFallbackMultiplier);
 }
 
