@@ -150,6 +150,52 @@ function round2(n: number): number {
  * @param dismantlePrice  Catalog dismantle price (omit if not present)
  * @param carryPrice      Catalog relocate (Carry Only) price
  */
+/**
+ * SKUs of items that physically WON'T fit in a standard HDB lift when intact,
+ * OR require 3+ movers, OR need special handling (corner protection, hoist, etc.).
+ *
+ * For these items we cannot quote a "carry-and-go" price honestly — the
+ * customer needs an on-site survey. The catalog UI shows a clear warning
+ * badge instead of just a price.
+ */
+export const SPECIAL_HANDLING_SKUS: ReadonlySet<string> = new Set([
+  // Won't fit in standard HDB / condo lift when intact
+  "KB-RELOCATE",            // King bed frame intact (~2m × 2.1m)
+  "PAX-RELOCATE",           // IKEA Pax wardrobe intact
+  "LSOFA-RELOCATE",         // L-shaped / corner sofa
+  "L-DESK-RELOCATE",        // L-shaped executive desk
+  "CT-RELOCATE",            // Conference table
+  "CT-01",                  // Conference table (alt SKU)
+
+  // Heavy 2–3 man + corner protection / floor protection
+  "MASS-RELOCATE",          // Massage chair (premium models 80–130 kg)
+  "FRIDGE4-RELOCATE",       // 4-door French refrigerator
+  "STND-RELOCATE",          // Sit-stand desk (motor unit, fragile)
+
+  // Specialty — always needs survey
+  "PIANO-UP-RELOCATE",      // Upright piano
+  "PIANO-GR-RELOCATE",      // Grand piano
+  "POOL-RELOCATE",          // Pool / billiard table
+  "SAFE-RELOCATE",          // Safe / gun safe
+  "PHONE-BOOTH-RELOCATE",   // Solo phone booth
+  "DUO-BOOTH-RELOCATE",     // Duo phone booth
+  "POD4-RELOCATE",          // 4-person meeting pod
+
+  // Large kitchen islands
+  "IKEA-KI-M-RELOCATE",     // Medium kitchen island
+  "IKEA-KI-L-RELOCATE",     // Large kitchen island
+]);
+
+/**
+ * Returns true if the given SKU needs a site survey / special handling.
+ * The UI should show a "Won't fit in lift / needs survey" badge instead of
+ * presenting the carry-only price as a casual walk-and-go option.
+ */
+export function requiresSpecialHandling(sku?: string | null): boolean {
+  if (!sku) return false;
+  return SPECIAL_HANDLING_SKUS.has(sku);
+}
+
 export function computeDRPrice(installPrice?: number, dismantlePrice?: number, carryPrice?: number): number {
   const cfg = PricingConfig.fallback;
   if (installPrice && dismantlePrice) {

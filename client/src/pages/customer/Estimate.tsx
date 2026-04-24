@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import type { CatalogItem } from "@shared/schema";
-import { computePricing, PricingConfig, computeDRPrice, type PricingCatalogEntry } from "@shared/pricing";
+import { computePricing, PricingConfig, computeDRPrice, requiresSpecialHandling, type PricingCatalogEntry } from "@shared/pricing";
 
 type ServiceType = "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose";
 
@@ -1273,7 +1273,10 @@ export default function EstimateWizard() {
                           No items found for <strong>"{catalogSearch}"</strong>
                         </div>
                       ) : (
-                        filteredGroups.map(group => (
+                        filteredGroups.map(group => {
+                          const isSpecial = group.entries.some(e => requiresSpecialHandling(e.sku));
+                          const showLiftWarning = isSpecial && services.includes('relocate');
+                          return (
                           <button
                             key={group.name}
                             onClick={() => { addCatalogGroup(group, 1); setCatalogSearch(""); setCatalogFocused(false); }}
@@ -1283,6 +1286,11 @@ export default function EstimateWizard() {
                             <div className="min-w-0">
                               <p className="font-semibold text-sm truncate">{group.name}</p>
                               <p className="text-xs text-black/35">{group.category}</p>
+                              {showLiftWarning && (
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mt-1" data-testid={`badge-lift-warning-${group.name.toLowerCase().replace(/\s+/g, '-')}`}>
+                                  ⚠ Won't fit in lift — needs survey
+                                </p>
+                              )}
                             </div>
                             <div className="text-right shrink-0 space-y-0.5">
                               {(() => {
@@ -1325,7 +1333,7 @@ export default function EstimateWizard() {
                               })()}
                             </div>
                           </button>
-                        ))
+                        );})
                       )}
                     </div>
                   )}
@@ -1342,6 +1350,8 @@ export default function EstimateWizard() {
                         <div className="grid grid-cols-2 gap-2">
                           {filteredGroups.map(group => {
                             const alreadyAdded = items.some(i => i.name === group.name);
+                            const isSpecial = group.entries.some(e => requiresSpecialHandling(e.sku));
+                            const showLiftWarning = isSpecial && services.includes('relocate');
                             const priceDisplay = (() => {
                               if (services.length === 1 && services[0] === 'relocate') {
                                 const rel = group.entries.find(e => e.serviceType === 'relocate');
@@ -1395,6 +1405,11 @@ export default function EstimateWizard() {
                                   <p className="text-[10px] text-black/35 truncate">{group.category}</p>
                                   {priceDisplay && <p className="text-xs font-black text-black shrink-0">{priceDisplay}</p>}
                                 </div>
+                                {showLiftWarning && (
+                                  <p className="text-[9px] font-bold uppercase tracking-wider text-amber-700 mt-1.5 leading-tight" data-testid={`badge-lift-warning-grid-${group.name.toLowerCase().replace(/\s+/g, '-')}`}>
+                                    ⚠ Won't fit in lift — needs survey
+                                  </p>
+                                )}
                               </button>
                             );
                           })}
@@ -1882,6 +1897,11 @@ export default function EstimateWizard() {
                               )}
                               {item.serviceType === 'relocate' && item.relocateMode === 'full' && (
                                 <span className="text-[10px] font-black uppercase tracking-[0.06em] text-black/40">Dismantle &amp; Reinstall</span>
+                              )}
+                              {item.serviceType === 'relocate' && requiresSpecialHandling(item.sku) && (
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700" data-testid={`badge-cart-lift-warning-${item.id}`}>
+                                  ⚠ Won't fit in lift — survey needed
+                                </span>
                               )}
                             </div>
                             <span className="font-black text-sm">{item.isCustom ? "TBD" : `$${(item.unitPrice * item.quantity).toFixed(2)}`}</span>

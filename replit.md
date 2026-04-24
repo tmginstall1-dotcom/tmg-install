@@ -119,6 +119,16 @@ Per-item Carry Only prices are now strictly weight-based to match real labor eff
 
 UI: All four price-display sites in `Estimate.tsx` render **"FREE"** instead of "$0" for Tier 0 relocate items.
 
+### "Won't fit in lift" Special-Handling Badge
+- New `SPECIAL_HANDLING_SKUS` set + `requiresSpecialHandling(sku)` helper in `shared/pricing.ts`.
+- Items in this set physically won't fit in a standard HDB/condo lift when intact, OR need 3+ movers, OR require special equipment (corner protection, hoist, dolly). Quoting these as a casual "carry-and-go" rate misled customers — they need an on-site survey.
+- Covered SKUs: King bed frame intact, IKEA Pax wardrobe, L-shaped sofa, L-shaped exec desk, conference table, massage chair, 4-door fridge, sit-stand desk, all pianos, pool/billiard table, safe, phone booths, meeting pods, medium/large kitchen islands.
+- UI shows an amber **"⚠ Won't fit in lift — needs survey"** badge in (1) catalog search results, (2) browse-grid cards, and (3) cart line items. The price still displays as a starting estimate, but the badge sets the expectation that final pricing requires a survey.
+
+### Round 17 — Defensive Mattress Catalog (`MATT-FULL-R17` marker)
+- Round 15 only inserted the Single mattress and assumed the other 3 sizes pre-existed. On a fresh production DB they didn't, so customers searching "mattress" only saw one result.
+- Round 17 idempotently upserts ALL 4 mattress sizes (Single $50, Super Single $60, Queen $80, King $100) with category `Mattresses` and `volumeM3`. Safe to re-run; uses its own marker.
+
 ### Catalog UX — Mattresses Visible Under "Beds" Tab
 - The customer estimator's category tabs filter by keyword matches on `category`. The "Beds" tab originally only matched `beds` and `ikea beds`, hiding the `Mattresses` category. Updated the Beds tab match list to include `mattresses` so all mattress sizes (Single $50, Super Single $60, Queen $80, King $100) appear when customers tap "Beds".
 

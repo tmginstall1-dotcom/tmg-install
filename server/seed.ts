@@ -2044,4 +2044,48 @@ export async function seedDatabase() {
     console.log("[startup] Round 16: Weight-tier Carry Only pricing applied — 9 light items FREE, KB=$220, MASS=$220, PAX=$240, LSOFA=$220.");
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Round 17: Defensive mattress catalog completion (MATT-FULL-R17 marker)
+  // Round 15 only inserted Single mattress and assumed the other 3 sizes pre-existed.
+  // On a fresh production DB they didn't, so customers searching "mattress" only see one size.
+  // This round upserts ALL 4 mattress sizes idempotently.
+  // ──────────────────────────────────────────────────────────────────────────
+  const r17 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "MATT-FULL-R17")).limit(1);
+  if (r17.length === 0) {
+    const mattresses = [
+      { sku: "MATT-SGL-RELOCATE", name: "Mattress — Single",         price: "50.00", volume: "0.15" },
+      { sku: "MATT-SS-RELOCATE",  name: "Mattress — Super Single",   price: "60.00", volume: "0.18" },
+      { sku: "MATT-Q-RELOCATE",   name: "Mattress — Queen",          price: "80.00", volume: "0.30" },
+      { sku: "MATT-K-RELOCATE",   name: "Mattress — King",           price: "100.00", volume: "0.36" },
+    ];
+
+    for (const m of mattresses) {
+      const existing = await db.select().from(catalogItems).where(eq(catalogItems.sku, m.sku)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(catalogItems).values({
+          name: m.name,
+          sku: m.sku,
+          category: "Mattresses",
+          serviceType: "relocate",
+          basePrice: m.price,
+          volumeM3: m.volume,
+          active: true,
+        } as any);
+      } else {
+        await db.update(catalogItems).set({ basePrice: m.price, active: true, name: m.name, category: "Mattresses" }).where(eq(catalogItems.sku, m.sku));
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__matt_full_r17_marker__",
+      sku: "MATT-FULL-R17",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 17: All 4 mattress sizes guaranteed in catalog (Single $50, Super Single $60, Queen $80, King $100).");
+  }
+
 }
