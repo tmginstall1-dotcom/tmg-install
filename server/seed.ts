@@ -1929,4 +1929,44 @@ export async function seedDatabase() {
     console.log("[startup] Round 14: Heavy-item Carry Only repricing — KB-RELOCATE=$160, MASS-RELOCATE=$180.");
   }
 
+  // Round 15: Mattress relocation catalog completion + competitive repricing (MATT-RELOC-R1 marker)
+  // - Adds the missing Single mattress entry (MATT-SGL-RELOCATE) — volume already mapped at 0.15.
+  // - Competitive SG market rates (Helpling, Movings.sg, Soulful Concepts, 2025) for mattress-only
+  //   relocation (no frame, manpower-only same-building or short carry):
+  //     • Single (3'):        ~7–12kg, 1-man liftable but awkward → $50
+  //     • Super Single (3.5'): ~10–15kg, 1–2 man → $60
+  //     • Queen (5'):         ~25–35kg, 2-man required → $80
+  //     • King (6'):          ~30–45kg, 2-man, very floppy/awkward → $100
+  const r15 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "MATT-RELOC-R1"));
+  if (r15.length === 0) {
+    await db.insert(catalogItems).values({
+      name: "__matt_reloc_r1_marker__",
+      sku: "MATT-RELOC-R1",
+      category: "System",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    });
+
+    // Insert Single mattress if missing (other three already exist).
+    const existingSingle = await db.select().from(catalogItems).where(eq(catalogItems.sku, "MATT-SGL-RELOCATE"));
+    if (existingSingle.length === 0) {
+      await db.insert(catalogItems).values({
+        name: "Mattress — Single",
+        sku: "MATT-SGL-RELOCATE",
+        category: "Mattresses",
+        serviceType: "relocate",
+        basePrice: "50.00",
+      });
+    } else {
+      await db.update(catalogItems).set({ basePrice: "50.00" }).where(eq(catalogItems.sku, "MATT-SGL-RELOCATE"));
+    }
+
+    await db.update(catalogItems).set({ basePrice: "60.00" }).where(eq(catalogItems.sku, "MATT-SS-RELOCATE"));
+    await db.update(catalogItems).set({ basePrice: "80.00" }).where(eq(catalogItems.sku, "MATT-Q-RELOCATE"));
+    await db.update(catalogItems).set({ basePrice: "100.00" }).where(eq(catalogItems.sku, "MATT-K-RELOCATE"));
+
+    console.log("[startup] Round 15: Mattress relocation pricing — Single=$50, Super Single=$60, Queen=$80, King=$100.");
+  }
+
 }
