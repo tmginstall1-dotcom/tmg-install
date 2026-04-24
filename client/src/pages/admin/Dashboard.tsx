@@ -4,12 +4,14 @@ import { queryClient } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { CreateJobModal } from "@/components/admin/CreateJobModal";
+import { PhoneCallIntakeModal } from "@/components/admin/PhoneCallIntakeModal";
 import { format, isToday, isTomorrow, startOfWeek, subWeeks } from "date-fns";
 import { useState, useMemo } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
   ClipboardList, DollarSign, CalendarCheck, Zap, AlertCircle, Trash2,
   ChevronRight, Search, X, Loader2, TrendingUp, BellRing, Plus,
+  Phone as PhoneIcon,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -179,6 +181,7 @@ export default function AdminDashboard() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [search, setSearch] = useState("");
   const [showNewJob, setShowNewJob] = useState(false);
+  const [showPhoneCall, setShowPhoneCall] = useState(false);
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
@@ -285,6 +288,17 @@ export default function AdminDashboard() {
               <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">{greeting()}</h1>
             </div>
             <div className="flex items-center gap-4 sm:pt-0.5 flex-wrap">
+              {/* Log Phone Call button — AI extracts a draft quote from call notes */}
+              <button
+                onClick={() => setShowPhoneCall(true)}
+                data-testid="button-log-phone-call"
+                title="AI will extract a draft quote from your call notes"
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold transition-colors shadow-sm"
+              >
+                <PhoneIcon className="w-4 h-4" />
+                Log Phone Call
+              </button>
+
               {/* Quick New Job button */}
               <button
                 onClick={() => setShowNewJob(true)}
@@ -551,6 +565,7 @@ export default function AdminDashboard() {
 
       {/* Quick New Job modal */}
       <CreateJobModal open={showNewJob} onClose={() => setShowNewJob(false)} />
+      <PhoneCallIntakeModal open={showPhoneCall} onClose={() => setShowPhoneCall(false)} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { logAttributionEvent, registerAiRoutes } from "./ai-routes";
+import { registerPhoneIntakeRoutes } from "./phone-intake";
 import { servicesHubPage, ikeaAssemblyPage, wardrobeInstallationPage, bedAssemblyPage, furnitureDismantlingPage, officeFurniturePage, furnitureRelocationPage, tvMountingPage, sofaAssemblyPage, mattressInstallationPage, taobaoFurnitureInstallationPage } from "./seo-pages";
 import { api } from "@shared/routes";
 import { initVapid, getVapidPublicKey, addSubscription, removeSubscription, sendPushToAdmins } from "./push";
@@ -9329,6 +9330,7 @@ Return ONLY valid JSON:
 
   // ── AI Operations Layer ────────────────────────────────────────────────────
   registerAiRoutes(app);
+  registerPhoneIntakeRoutes(app);
 
   return httpServer;
 }
