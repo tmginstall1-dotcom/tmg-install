@@ -208,6 +208,7 @@ function shell({
         <a href="/services/furniture-dismantling-singapore">→ Furniture Dismantling</a>
         <a href="/services/office-furniture-installation-singapore">→ Office Furniture Installation</a>
         <a href="/services/furniture-relocation-singapore">→ Furniture Relocation</a>
+        <a href="/services/taobao-furniture-installation-singapore">→ Taobao Furniture Installation</a>
       </div>
     </div>
     <div class="footer-bottom">
@@ -1330,4 +1331,170 @@ export function servicesHubPage(): string {
   </main>`;
 
   return shell({ title, description, canonical, schema, body, breadcrumb: "Services" });
+}
+
+/* ── Taobao Furniture Installation ───────────────────────────────────────────── */
+export function taobaoFurnitureInstallationPage(): string {
+  const title = "Taobao Furniture Installation Singapore | Assembly · Dismantle · Relocation | TMG Install";
+  const description = "Got Taobao furniture delivered to Singapore? We assemble, install, dismantle and relocate Taobao furniture island-wide. Wardrobes, bed frames, desks, sofas, cabinets — instant fixed-price quote. Book online in 60 seconds.";
+  const canonical = `${DOMAIN}/services/taobao-furniture-installation-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "Taobao Furniture Installation Singapore",
+      "serviceType": [
+        "Taobao Furniture Installation",
+        "Taobao Furniture Assembly",
+        "Taobao Furniture Dismantling",
+        "Taobao Furniture Relocation",
+      ],
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": {
+        "@type": "Offer",
+        "priceCurrency": "SGD",
+        "description": "Fixed-price catalog of 250+ furniture items — instant upfront quote with no hidden fees.",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "Taobao Furniture Installation Singapore", "item": canonical },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Do you install Taobao furniture in Singapore?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes — TMG Install is Singapore's go-to team for Taobao (淘宝) furniture installation. We handle wardrobes, bed frames, desks, sofas, cabinets, dining sets and more, regardless of brand or seller. Bring the parts and any instructions you have, and we'll assemble it correctly the first time." },
+        },
+        {
+          "@type": "Question",
+          "name": "Can you assemble Taobao furniture without instructions?",
+          "acceptedAnswer": { "@type": "Answer", "text": "In most cases yes. Our installers are experienced with Chinese-language and pictogram-only manuals. If a manual is missing entirely we work from the parts and any photos you have. Send us photos via WhatsApp before booking so we can confirm." },
+        },
+        {
+          "@type": "Question",
+          "name": "How much does Taobao furniture installation cost in Singapore?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Pricing follows our standard fixed-price catalog — wardrobes from S$120, bed frames from S$80, desks and tables from S$50. Add your items in our quote tool to get an itemised, all-in price upfront with no hidden fees." },
+        },
+        {
+          "@type": "Question",
+          "name": "Do you also dismantle Taobao furniture for relocation or disposal?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. We dismantle Taobao furniture for moves (and reinstall at the new address) or for disposal. We can also arrange disposal of unwanted parts after assembly." },
+        },
+        {
+          "@type": "Question",
+          "name": "Can you handle delivery from the warehouse to my home?",
+          "acceptedAnswer": { "@type": "Answer", "text": "We focus on the assembly and installation. For Taobao shipments arriving at consolidator warehouses, we work with trusted last-mile delivery partners and can recommend one if needed — WhatsApp us for combined packages." },
+        },
+        {
+          "@type": "Question",
+          "name": "What areas in Singapore do you cover?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Island-wide — HDB, condo, landed and commercial properties across all estates." },
+        },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Taobao Furniture Installation Singapore</div>
+    <h1><em>Taobao Furniture</em><br/>Installation, Dismantle &amp; Relocation</h1>
+    <p class="hero-desc">Bought your wardrobe, bed frame or desk from Taobao? We assemble, install, dismantle and relocate Taobao furniture across Singapore — fixed prices, no hidden fees, instant online quote.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+
+    <div class="section">
+      <h2>Singapore's Taobao Furniture Specialists</h2>
+      <p>Taobao (淘宝) is one of the most popular ways for Singapore buyers to source affordable furniture — wardrobes, bed frames, sofas, dining sets, desks, shelving and TV consoles. The catch: most Taobao furniture arrives flat-packed with Chinese-language instructions and proprietary fittings, which makes self-assembly slow and risky.</p>
+      <p>TMG Install is the team Singapore homeowners and property agents call when their Taobao shipment lands. We assemble, install, dismantle and relocate Taobao furniture island-wide, with the same fixed-price catalog and instant upfront quote we use for everything else. No phone calls, no surprise add-ons.</p>
+    </div>
+
+    <div class="section">
+      <h2>What We Do With Your Taobao Furniture</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">🪛</div><h3>Assembly &amp; Installation</h3><p>Wardrobes, bed frames, desks, dining sets, sofas, shelving — assembled correctly the first time, with wall-fixings where needed.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔧</div><h3>Dismantling</h3><p>Moving out or replacing? We dismantle Taobao furniture cleanly for transport, reinstallation, or disposal.</p></div>
+        <div class="service-card"><div class="service-card-icon">🚛</div><h3>Relocation</h3><p>Dismantle at the old address and reinstall at the new — coordinated with your mover, island-wide.</p></div>
+        <div class="service-card"><div class="service-card-icon">♻️</div><h3>Disposal</h3><p>Old Taobao furniture you're replacing? We can dismantle and arrange proper disposal in one visit.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Common Taobao Furniture We Install</h2>
+      <ul>
+        <li>Wardrobes — sliding-door, swing-door, walk-in modular, kid's wardrobes</li>
+        <li>Bed frames — storage beds, upholstered beds, tatami beds, bunk and loft beds</li>
+        <li>Sofas — modular, L-shape, recliner, fabric and PU leather</li>
+        <li>Dining sets — extendable tables, marble-top tables, dining chairs</li>
+        <li>Desks &amp; office chairs — standing desks, ergonomic chairs, gaming setups</li>
+        <li>Cabinets &amp; shelving — TV consoles, shoe cabinets, display cabinets, bookcases</li>
+        <li>Children's furniture — bunk beds, study desks, toy storage</li>
+        <li>Outdoor &amp; balcony furniture — rattan sets, outdoor sofas</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Why Singapore Customers Use TMG Install for Taobao Furniture</h2>
+      <ul>
+        <li><strong>Fixed-price quote upfront</strong> — we don't surcharge "Taobao" or "imported" furniture. Same 250+ item catalog, same prices.</li>
+        <li><strong>Comfortable with Chinese-language manuals</strong> — pictogram-only or 中文 instructions are no problem for our team.</li>
+        <li><strong>We bring the right tools</strong> — Allen keys, drills, spirit levels and HDB-friendly drill bits, every job.</li>
+        <li><strong>Wall-fixed for safety</strong> — tall wardrobes and shelving are anchored to the wall to meet HDB safety norms.</li>
+        <li><strong>Island-wide same-day availability</strong> — book before noon for same-day where slots allow.</li>
+        <li><strong>Fully insured</strong> — we cover any damage during assembly or transport.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>How It Works</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">📋</div><h3>1. Get a Quote</h3><p>Add your Taobao items in our quote tool — pick the closest match (e.g. "wardrobe 4-door"). Itemised price in 60 seconds.</p></div>
+        <div class="service-card"><div class="service-card-icon">📅</div><h3>2. Book a Slot</h3><p>Choose a 3-hour window. Same-day and weekend slots available island-wide.</p></div>
+        <div class="service-card"><div class="service-card-icon">🪛</div><h3>3. We Install</h3><p>Our team arrives with full tools, assembles, wall-fixes, cleans up and disposes of all packaging.</p></div>
+        <div class="service-card"><div class="service-card-icon">✅</div><h3>4. You Inspect</h3><p>Walk-through and sign-off — payment only after you're happy.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">Do you install Taobao furniture in Singapore?</div><div class="faq-a">Yes — TMG Install is Singapore's go-to team for Taobao (淘宝) furniture installation. We handle wardrobes, bed frames, desks, sofas, cabinets, dining sets and more, regardless of brand or seller.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you assemble Taobao furniture without instructions?</div><div class="faq-a">In most cases yes. Our installers are experienced with Chinese-language and pictogram-only manuals. If the manual is missing entirely we work from the parts and any photos you have. Send us photos via WhatsApp before booking so we can confirm.</div></div>
+      <div class="faq-item"><div class="faq-q">How much does Taobao furniture installation cost?</div><div class="faq-a">Same fixed catalog as everything else — wardrobes from S$120, bed frames from S$80, desks and tables from S$50. Get an itemised price upfront in our quote tool.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you also dismantle Taobao furniture?</div><div class="faq-a">Yes — for moves (and reinstall at the new address) or for disposal. We can also arrange removal of unwanted parts after assembly.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you handle delivery from the warehouse?</div><div class="faq-a">We focus on assembly and installation. For shipments arriving at consolidator warehouses we work with trusted last-mile delivery partners and can recommend one — WhatsApp us for combined packages.</div></div>
+      <div class="faq-item"><div class="faq-q">What areas do you cover?</div><div class="faq-a">Island-wide — HDB, condo, landed and commercial across all estates.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>Get Your Taobao Furniture Installed</h2>
+        <p>Instant fixed-price quote — no phone calls, no surprises. Book in 60 seconds.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "Taobao Furniture Installation" });
 }
