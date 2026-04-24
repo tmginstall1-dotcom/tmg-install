@@ -17,6 +17,8 @@ export const PricingConfig = {
     dismantleDisposeMultiplier: 0.95, // dismantle+dispose bundle = install * 0.95 when no catalog entry
     genericFallback: 150,            // SGD per unit when absolutely no catalog price found
     relocateDRDiscount: 0.40,        // D&R labor discount for relocation — 40% off install+dismantle (bundled with transport)
+    drCarryFloorMultiplier: 1.30,    // D&R must always cost ≥ Carry Only × this multiplier (30% premium for dismantle/reinstall labor)
+    drCarryFallbackMultiplier: 1.50, // When install/dismantle prices missing: D&R = Carry × this (carry + ~50% for D/R labor)
   },
   bulkDiscount: [
     { minQty: 100, pct: 0.15 },
@@ -130,6 +132,31 @@ export interface PricingResult {
 function round2(n: number): number {
   if (!isFinite(n) || isNaN(n)) return 0;
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Compute the Dismantle & Reinstall (D&R) price for a relocation item.
+ *
+ * Logic:
+ *   • Bundle formula:  (install + dismantle) × (1 - relocateDRDiscount)   = base D&R
+ *   • Floor:           D&R must always be ≥ Carry-Only × drCarryFloorMultiplier
+ *                      (because D&R = carry labor + dismantle/reinstall labor — never cheaper)
+ *   • Fallback:        if install/dismantle prices are missing, D&R = carry × drCarryFallbackMultiplier
+ *
+ * @param installPrice    Catalog install price (omit if not present)
+ * @param dismantlePrice  Catalog dismantle price (omit if not present)
+ * @param carryPrice      Catalog relocate (Carry Only) price
+ */
+export function computeDRPrice(installPrice?: number, dismantlePrice?: number, carryPrice?: number): number {
+  const cfg = PricingConfig.fallback;
+  const carry = carryPrice && carryPrice > 0 ? carryPrice : 0;
+  const floor = carry * cfg.drCarryFloorMultiplier;
+  if (installPrice && dismantlePrice) {
+    const bundle = (installPrice + dismantlePrice) * (1 - cfg.relocateDRDiscount);
+    return round2(Math.max(bundle, floor));
+  }
+  // No install/dismantle data — fall back to carry × multiplier
+  return round2(carry * cfg.drCarryFallbackMultiplier);
 }
 
 /** Transport pricing — 2.4m Van (Toyota Hiace), Singapore

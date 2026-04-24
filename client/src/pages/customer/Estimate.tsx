@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import type { CatalogItem } from "@shared/schema";
-import { computePricing, PricingConfig, type PricingCatalogEntry } from "@shared/pricing";
+import { computePricing, PricingConfig, computeDRPrice, type PricingCatalogEntry } from "@shared/pricing";
 
 type ServiceType = "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose";
 
@@ -483,10 +483,11 @@ export default function EstimateWizard() {
           const carryPrice = parseFloat(relocateEntry.basePrice);
           const installEntry = group.entries.find(e => e.serviceType === 'install');
           const dismantleEntry = group.entries.find(e => e.serviceType === 'dismantle');
-          const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount; // 0.60
-          const fullPrice = (installEntry && dismantleEntry)
-            ? (parseFloat(installEntry.basePrice) + parseFloat(dismantleEntry.basePrice)) * drDiscount
-            : carryPrice * 1.5 * drDiscount; // fallback: 1.5× carry-only with bundle discount
+          const fullPrice = computeDRPrice(
+            installEntry ? parseFloat(installEntry.basePrice) : undefined,
+            dismantleEntry ? parseFloat(dismantleEntry.basePrice) : undefined,
+            carryPrice,
+          );
           const existing = updated.find(i => i.catalogItemId === relocateEntry.id);
           if (existing) {
             updated = updated.map(i => i.catalogItemId === relocateEntry.id ? { ...i, quantity: i.quantity + qty } : i);
@@ -500,17 +501,18 @@ export default function EstimateWizard() {
           }
         } else {
           // Non-relocate, or mixed services: add one line per service type
-          // For relocate entries: always apply D&R bundle formula (install + dismantle) × (1 − drPct)
-          const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount; // 0.60
+          // For relocate entries: always apply D&R bundle formula floored at carry × 1.30 (see computeDRPrice)
           relevant.forEach(entry => {
             const existing = updated.find(i => i.catalogItemId === entry.id);
             let unitPrice = parseFloat(entry.basePrice);
             if (entry.serviceType === 'relocate') {
               const installEntry = group.entries.find(e => e.serviceType === 'install');
               const dismantleEntry = group.entries.find(e => e.serviceType === 'dismantle');
-              if (installEntry && dismantleEntry) {
-                unitPrice = (parseFloat(installEntry.basePrice) + parseFloat(dismantleEntry.basePrice)) * drDiscount;
-              }
+              unitPrice = computeDRPrice(
+                installEntry ? parseFloat(installEntry.basePrice) : undefined,
+                dismantleEntry ? parseFloat(dismantleEntry.basePrice) : undefined,
+                parseFloat(entry.basePrice),
+              );
             }
             if (existing) {
               updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
@@ -1289,10 +1291,11 @@ export default function EstimateWizard() {
                                   if (rel) {
                                     const inst = group.entries.find(e => e.serviceType === 'install');
                                     const dis = group.entries.find(e => e.serviceType === 'dismantle');
-                                    const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
-                                    const fullPrice = (inst && dis)
-                                      ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
-                                      : parseFloat(rel.basePrice) * 1.5 * drDiscount;
+                                    const fullPrice = computeDRPrice(
+                                      inst ? parseFloat(inst.basePrice) : undefined,
+                                      dis ? parseFloat(dis.basePrice) : undefined,
+                                      parseFloat(rel.basePrice),
+                                    );
                                     return (
                                       <div className="flex items-center gap-2 justify-end">
                                         {serviceBadge('relocate')}
@@ -1306,7 +1309,11 @@ export default function EstimateWizard() {
                                   if (e.serviceType === 'relocate') {
                                     const inst2 = group.entries.find(x => x.serviceType === 'install');
                                     const dis2  = group.entries.find(x => x.serviceType === 'dismantle');
-                                    if (inst2 && dis2) displayPrice = (parseFloat(inst2.basePrice) + parseFloat(dis2.basePrice)) * (1 - PricingConfig.fallback.relocateDRDiscount);
+                                    displayPrice = computeDRPrice(
+                                      inst2 ? parseFloat(inst2.basePrice) : undefined,
+                                      dis2 ? parseFloat(dis2.basePrice) : undefined,
+                                      parseFloat(e.basePrice),
+                                    );
                                   }
                                   return (
                                     <div key={e.id} className="flex items-center gap-2 justify-end">
@@ -1341,21 +1348,25 @@ export default function EstimateWizard() {
                                 if (rel) {
                                   const inst = group.entries.find(e => e.serviceType === 'install');
                                   const dis = group.entries.find(e => e.serviceType === 'dismantle');
-                                  const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
-                                  const fullPrice = (inst && dis)
-                                    ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
-                                    : parseFloat(rel.basePrice) * 1.5 * drDiscount;
+                                  const fullPrice = computeDRPrice(
+                                    inst ? parseFloat(inst.basePrice) : undefined,
+                                    dis ? parseFloat(dis.basePrice) : undefined,
+                                    parseFloat(rel.basePrice),
+                                  );
                                   return `$${fullPrice.toFixed(0)}`;
                                 }
                               }
                               const relevant = group.entries.filter(e => services.includes(e.serviceType));
                               if (relevant.length === 0) return null;
-                              const drDiscount2 = 1 - PricingConfig.fallback.relocateDRDiscount;
                               const total = relevant.reduce((s, e) => {
                                 if (e.serviceType === 'relocate') {
                                   const inst2 = group.entries.find(x => x.serviceType === 'install');
                                   const dis2  = group.entries.find(x => x.serviceType === 'dismantle');
-                                  if (inst2 && dis2) return s + (parseFloat(inst2.basePrice) + parseFloat(dis2.basePrice)) * drDiscount2;
+                                  return s + computeDRPrice(
+                                    inst2 ? parseFloat(inst2.basePrice) : undefined,
+                                    dis2 ? parseFloat(dis2.basePrice) : undefined,
+                                    parseFloat(e.basePrice),
+                                  );
                                 }
                                 return s + parseFloat(e.basePrice);
                               }, 0);
@@ -1550,10 +1561,9 @@ export default function EstimateWizard() {
                                     const inst = grp?.entries.find(e => e.serviceType === 'install');
                                     const dis = grp?.entries.find(e => e.serviceType === 'dismantle');
                                     const carry = rel ? parseFloat(rel.basePrice) : (i.carryPrice ?? i.unitPrice);
-                                    const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
                                     const full = (inst && dis)
-                                      ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
-                                      : (i.fullPrice ?? carry * 1.5 * drDiscount);
+                                      ? computeDRPrice(parseFloat(inst.basePrice), parseFloat(dis.basePrice), carry)
+                                      : (i.fullPrice ?? computeDRPrice(undefined, undefined, carry));
                                     return { ...i, relocateMode: 'full', carryPrice: carry, fullPrice: full, unitPrice: full };
                                   }))}
                                   className={`px-2.5 py-1.5 transition-colors ${item.relocateMode === 'full' ? 'bg-black text-white' : 'bg-white text-black/40 hover:text-black/70'}`}
@@ -1570,10 +1580,9 @@ export default function EstimateWizard() {
                                     const inst = grp?.entries.find(e => e.serviceType === 'install');
                                     const dis = grp?.entries.find(e => e.serviceType === 'dismantle');
                                     const carry = rel ? parseFloat(rel.basePrice) : (i.carryPrice ?? i.unitPrice);
-                                    const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
                                     const full = (inst && dis)
-                                      ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
-                                      : (i.fullPrice ?? carry * 1.5 * drDiscount);
+                                      ? computeDRPrice(parseFloat(inst.basePrice), parseFloat(dis.basePrice), carry)
+                                      : (i.fullPrice ?? computeDRPrice(undefined, undefined, carry));
                                     return { ...i, relocateMode: 'carry', carryPrice: carry, fullPrice: full, unitPrice: carry };
                                   }))}
                                   className={`px-2.5 py-1.5 border-l border-black/15 transition-colors ${item.relocateMode === 'carry' ? 'bg-black text-white' : 'bg-white text-black/40 hover:text-black/70'}`}

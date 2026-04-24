@@ -100,6 +100,14 @@ Always provide full file contents when editing any code file — never partial s
 - **Verified math**: KB + MASS Carry Only at ground floor with lift now produces $403 (was $63). Light single-item moves bump modestly (e.g. coffee table $63 → $98) — closer to market.
 - **Persistence**: New `relocation_mode` column on `quotes` (`carry` | `full` | null) wired through wizard (`/api/quotes/wizard`) and both WhatsApp create paths (draft + final submission). `server/email.ts` `isCarryOnlyRelocation()` reads the explicit field first, falling back to the legacy unitPrice heuristic for older rows.
 
+### Pricing Engine — D&R Floor (Round 16, Apr 2026)
+- **Bug**: After Round 14's Carry Only repricing, the bundle formula `(install + dismantle) × 0.60` produced **D&R prices LOWER than Carry Only** for heavy items (e.g. King Bed D&R = $108 but Carry Only = $160 — backwards).
+- **Fix**: New shared helper `computeDRPrice()` in `shared/pricing.ts` enforces a hard floor: D&R is always at least Carry Only × 1.30 (a 30% premium covers dismantle + reinstall labor). Used in 6 sites in `client/src/pages/customer/Estimate.tsx` and the WhatsApp matcher in `server/routes.ts`. AI prompt updated to honour the same floor.
+- **Verified math**: King Bed D&R now $208 (was $108), Massage Chair D&R now $234 (was $84). Same job: Carry Only $340 vs D&R $442 — D&R correctly costs more, as customers expect.
+
+### Catalog UX — Mattresses Visible Under "Beds" Tab
+- The customer estimator's category tabs filter by keyword matches on `category`. The "Beds" tab originally only matched `beds` and `ikea beds`, hiding the `Mattresses` category. Updated the Beds tab match list to include `mattresses` so all mattress sizes (Single $50, Super Single $60, Queen $80, King $100) appear when customers tap "Beds".
+
 ## External Dependencies
 
 - **PostgreSQL**: Primary database.

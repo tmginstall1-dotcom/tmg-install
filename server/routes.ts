@@ -6499,7 +6499,7 @@ ${isRelocationJob ? `RELOCATION RULE (CRITICAL):
 - Use service_type = "relocate" for EVERY furniture item.
 - NEVER output both "dismantle" AND "relocate" for the same item. Use ONLY "relocate".
 - NEVER output "install" items for a relocation job.
-${isCarryOnly ? `- MODE: CARRY ONLY — use catalog relocate price when matched (heavy 2-man items like king bed, massage chair still incur per-item labour). Fall back to estimate if unmatched.` : isFullDR ? `- MODE: FULL SERVICE D&R — estimate the price as (install catalog price + dismantle catalog price) × 0.60 for each item.` : ""}` : `SERVICE TYPES:
+${isCarryOnly ? `- MODE: CARRY ONLY — use catalog relocate price when matched (heavy 2-man items like king bed, massage chair still incur per-item labour). Fall back to estimate if unmatched.` : isFullDR ? `- MODE: FULL SERVICE D&R — estimate the price as max((install catalog price + dismantle catalog price) × 0.60, carry-only catalog price × 1.30). D&R must always cost at least 30% more than Carry Only — never less.` : ""}` : `SERVICE TYPES:
 - install: assembling / installing furniture
 - dismantle: taking apart only (no disposal)
 - dismantle_dispose: take apart AND haul away
@@ -6562,16 +6562,21 @@ Return ONLY valid JSON.`,
           return bestScore > 0 ? best : undefined;
         };
 
-        // Helper: compute full D&R price for an item using (install + dismantle) × 0.60
-        const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount; // 0.60
+        // Helper: compute full D&R price using shared computeDRPrice (floors at carry × 1.30)
         const computeFullDRPrice = (detectedName: string, fallbackEstimate: number): number => {
           const installEntry = findBestCatalogMatch(detectedName, "install");
           const dismantleEntry = findBestCatalogMatch(detectedName, "dismantle");
-          if (installEntry && dismantleEntry) {
-            return Math.round((Number(installEntry.basePrice) + Number(dismantleEntry.basePrice)) * drDiscount * 100) / 100;
-          } else if (installEntry) {
-            return Math.round(Number(installEntry.basePrice) * 1.5 * drDiscount * 100) / 100; // fallback: 1.5× install
+          const relocateEntry = findBestCatalogMatch(detectedName, "relocate");
+          const carry = relocateEntry ? Number(relocateEntry.basePrice) : 0;
+          if (installEntry || dismantleEntry || carry > 0) {
+            return computeDRPrice(
+              installEntry ? Number(installEntry.basePrice) : undefined,
+              dismantleEntry ? Number(dismantleEntry.basePrice) : undefined,
+              carry > 0 ? carry : undefined,
+            );
           }
+          // No catalog data at all — fall back to AI estimate × bundle discount
+          const drDiscount = 1 - PricingConfig.fallback.relocateDRDiscount;
           return Math.round(fallbackEstimate * drDiscount * 100) / 100;
         };
 
