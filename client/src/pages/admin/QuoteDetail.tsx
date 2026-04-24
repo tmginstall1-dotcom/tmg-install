@@ -8,7 +8,7 @@ import {
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
   ClipboardList, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
-  Printer, Timer, QrCode, RotateCcw, Handshake,
+  Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -155,6 +155,144 @@ function ScheduleEditor({
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+function AiEmailDrafter({ quote }: { quote: any }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [intent, setIntent] = useState<"follow_up" | "send_quote" | "reschedule" | "reminder" | "custom">("follow_up");
+  const [extra, setExtra] = useState("");
+  const [draft, setDraft] = useState<{ subject: string; body: string } | null>(null);
+
+  const draftMut = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ai/draft-email", {
+        quoteId: quote.id,
+        intent,
+        extraInstructions: extra || undefined,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setDraft({ subject: data.subject, body: data.body });
+    },
+    onError: (e: any) => {
+      toast({ title: "Could not draft email", description: e?.message || "Try again", variant: "destructive" });
+    },
+  });
+
+  const copyAll = async () => {
+    if (!draft) return;
+    const txt = `Subject: ${draft.subject}\n\n${draft.body}`;
+    try {
+      await navigator.clipboard.writeText(txt);
+      toast({ title: "Copied to clipboard" });
+    } catch {
+      toast({ title: "Copy failed", description: "Select and copy manually", variant: "destructive" });
+    }
+  };
+
+  if (!quote.customer?.email || quote.customer.email.endsWith("@whatsapp.tmginstall.local")) {
+    return null;
+  }
+
+  return (
+    <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+      <button
+        onClick={() => setOpen(o => !o)}
+        data-testid="button-toggle-ai-email-drafter"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-50 transition-colors"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
+          <Sparkles className="w-4 h-4 text-violet-500" />
+          AI Email Drafter
+        </span>
+        <span className="text-xs text-zinc-400">{open ? "Hide" : "Show"}</span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3 border-t border-zinc-100">
+          <div className="space-y-1.5 pt-3">
+            <label className="text-xs font-medium text-zinc-500">Email type</label>
+            <select
+              value={intent}
+              onChange={e => setIntent(e.target.value as any)}
+              data-testid="select-email-intent"
+              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+            >
+              <option value="follow_up">Follow-up (no response)</option>
+              <option value="send_quote">Send quote</option>
+              <option value="reschedule">Reschedule request</option>
+              <option value="reminder">Day-before reminder</option>
+              <option value="custom">Custom (use instructions)</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-500">Extra instructions (optional)</label>
+            <textarea
+              value={extra}
+              onChange={e => setExtra(e.target.value.slice(0, 500))}
+              placeholder="e.g. Mention free reschedule once if they ask…"
+              data-testid="input-email-extra"
+              rows={2}
+              className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+            />
+          </div>
+          <button
+            onClick={() => draftMut.mutate()}
+            disabled={draftMut.isPending}
+            data-testid="button-generate-email-draft"
+            className="w-full h-9 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            {draftMut.isPending ? "Drafting…" : (draft ? "Re-draft" : "Draft email with AI")}
+          </button>
+
+          {draft && (
+            <div className="space-y-2 pt-2 border-t border-zinc-100">
+              <div>
+                <label className="text-xs font-medium text-zinc-500">Subject</label>
+                <input
+                  value={draft.subject}
+                  onChange={e => setDraft({ ...draft, subject: e.target.value })}
+                  data-testid="input-email-subject"
+                  className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-zinc-500">Body</label>
+                <textarea
+                  value={draft.body}
+                  onChange={e => setDraft({ ...draft, body: e.target.value })}
+                  data-testid="input-email-body"
+                  rows={10}
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 mt-1 font-mono text-xs leading-relaxed"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={copyAll}
+                  data-testid="button-copy-email"
+                  className="flex-1 h-9 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium"
+                >
+                  Copy subject + body
+                </button>
+                <a
+                  href={`mailto:${encodeURIComponent(quote.customer.email)}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`}
+                  data-testid="link-open-mail-client"
+                  className="h-9 px-4 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 text-sm font-medium flex items-center"
+                >
+                  Open in mail
+                </a>
+              </div>
+              <p className="text-[11px] text-zinc-400 leading-snug">
+                AI draft — review before sending. Not auto-delivered.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1478,7 +1616,9 @@ export default function AdminQuoteDetail() {
           
           {/* Right Column (Action Panel) */}
           <div className="space-y-5 lg:sticky lg:top-28 lg:self-start">
-            
+
+            <AiEmailDrafter quote={quote} />
+
             <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
               <div className="bg-zinc-50 px-5 py-4 border-b border-zinc-200">
                 <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Job Pipeline</p>

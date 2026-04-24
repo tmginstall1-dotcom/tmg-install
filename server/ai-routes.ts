@@ -42,6 +42,12 @@ import {
 } from "./ad-executor";
 import { z } from "zod";
 import { storage } from "./storage";
+import { createRateLimiter } from "./lib/rate-limit";
+
+// Rate limiters — defence-in-depth so a runaway client or compromised admin
+// session can't drain OpenAI credits. Tuned for normal admin workloads.
+const aiGeneralLimiter = createRateLimiter({ name: "ai-general", windowMs: 60_000, max: 60 });   // 60 req/min/user across /api/ai/*
+const aiLlmLimiter     = createRateLimiter({ name: "ai-llm",     windowMs: 60_000, max: 20 });   // 20 LLM-calling endpoints/min/user
 
 // ── Lazy OpenAI client — never crashes server startup if key is missing ───────
 let _openai: any = null;
@@ -481,6 +487,10 @@ async function buildAndPersistExecution(
 }
 
 export function registerAiRoutes(app: Express) {
+
+  // Apply general rate limiter to ALL /api/ai/* routes (60 req/min/user).
+  // LLM-heavy endpoints get an additional, tighter limiter applied per-route.
+  app.use("/api/ai", aiGeneralLimiter);
 
   // ════════════════════════════════════════════════════════════════════════════
   // FEATURE FLAGS
@@ -3532,6 +3542,103 @@ Respond with strict JSON only.`;
       }
       console.error("[ai/pricing-coach] error:", err);
       res.status(500).json({ message: err?.message ?? "Pricing coach failed" });
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // DRAFT CUSTOMER EMAIL — admin-facing AI helper
+  // ════════════════════════════════════════════════════════════════════════════
+  // POST /api/ai/draft-email
+  // Body: { quoteId: number, intent: "follow_up"|"send_quote"|"reschedule"|"reminder"|"custom", extraInstructions?: string }
+  // Returns: { subject, body, model, latencyMs }
+  //
+  // The drafted email is NEVER sent automatically. The admin reviews/edits it
+  // and copies it into their email client (or we surface it in the UI later).
+  // This satisfies the spec line "draft customer email" + "approval-gated".
+  app.post("/api/ai/draft-email", requireAdmin, aiLlmLimiter, async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({
+        quoteId: z.number().int().positive(),
+        intent: z.enum(["follow_up", "send_quote", "reschedule", "reminder", "custom"]).default("follow_up"),
+        extraInstructions: z.string().max(500).optional(),
+      });
+      const body = schema.parse(req.body);
+
+      const quote = await storage.getQuote(body.quoteId);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+
+      const customer = quote.customer;
+      const items = (quote.items ?? []).map((it: any) =>
+        `- ${it.quantity}× ${it.detectedName ?? it.originalDescription} (${it.serviceType})`
+      ).join("\n") || "(no items captured yet)";
+
+      const intentBrief: Record<string, string> = {
+        follow_up:   "Polite follow-up — customer received the quote but hasn't responded. Encourage them to confirm or ask questions.",
+        send_quote:  "Email accompanies an attached PDF quote. Summarise scope and total, mention 50% deposit to confirm booking.",
+        reschedule:  "We need to reschedule their booking. Apologise briefly, offer flexibility, ask for preferred new date/window.",
+        reminder:    "Friendly day-before reminder of their confirmed booking. Confirm date, time-window, address, contact info.",
+        custom:      "Use the extraInstructions verbatim as the brief.",
+      };
+
+      const prompt = `You are drafting a customer-facing email for TMG Install (Singapore furniture installation, dismantling, relocation).
+Tone: warm, concise, professional. British/Singapore English. No emojis. No markdown.
+Sign off as "The TMG Install Team".
+
+INTENT: ${body.intent} — ${intentBrief[body.intent]}
+${body.extraInstructions ? `\nADMIN INSTRUCTIONS: ${body.extraInstructions}\n` : ""}
+QUOTE CONTEXT:
+- Reference: ${quote.referenceNo}
+- Status: ${quote.status}
+- Customer: ${customer?.name ?? "(unknown)"}
+- Service address: ${quote.serviceAddress ?? "(not set)"}
+- Total: ${quote.total ? `S$${quote.total}` : "(pending pricing)"}
+- Scheduled: ${quote.scheduledAt ? new Date(quote.scheduledAt).toDateString() + " " + (quote.timeWindow ?? "") : "(not scheduled)"}
+- Items:
+${items}
+
+Return ONLY a JSON object with this shape (no prose, no fences):
+{ "subject": "string (max 80 chars)", "body": "string (plain-text email body, multi-paragraph, no signature line — we add it)" }`;
+
+      const emailSchema = z.object({
+        subject: z.string().min(3).max(120),
+        body: z.string().min(20).max(4000),
+      });
+
+      const result = await callLLM({
+        agent: "draft_customer_email",
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: "You output strictly valid JSON matching the requested shape. No code fences." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.6,
+        max_tokens: 700,
+        schema: emailSchema,
+      });
+
+      const out = result.value;
+
+      // Audit so admins can see who drafted what + when (no auto-send risk).
+      await db.insert(aiAuditLog).values({
+        actor: "ai_agent",
+        actionType: "email_drafted",
+        module: "draft_customer_email",
+        summary: `Drafted ${body.intent} email for quote ${quote.referenceNo}`,
+        detail: { quoteId: quote.id, intent: body.intent, model: result.model, latencyMs: result.latencyMs },
+        outcome: "success",
+      } as any).catch(() => {}); // non-fatal
+
+      res.json({
+        subject: out.subject,
+        body: `${out.body}\n\n— The TMG Install Team`,
+        meta: { model: result.model, latencyMs: result.latencyMs, costSgd: Number(result.costSgd.toFixed(4)) },
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("[ai/draft-email] error:", err?.message);
+      res.status(500).json({ message: err?.message ?? "Email draft failed" });
     }
   });
 }

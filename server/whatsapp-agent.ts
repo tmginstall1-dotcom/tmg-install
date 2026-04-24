@@ -44,7 +44,7 @@ import { z } from "zod";
 // returns the wrong type, the client will auto-repair with one retry; if it
 // still fails, we fall back to deterministic behavior instead of crashing.
 const factExtractionSchema = z.object({
-  serviceType: z.enum(["installation", "dismantling", "relocation", "office_fitout", "unknown"]).optional(),
+  serviceType: z.enum(["installation", "dismantling", "relocation", "office_fitout", "repair", "disposal", "unknown"]).optional(),
   customerName: z.string().optional(),
   jobAddress: z.string().optional(),
   floorLevel: z.number().int().min(-5).max(200).optional(),
@@ -76,7 +76,7 @@ export type AiConvState =
   | "blocked_outside_window";
 
 export interface CaseFacts {
-  serviceType?: "installation" | "dismantling" | "relocation" | "office_fitout" | "unknown";
+  serviceType?: "installation" | "dismantling" | "relocation" | "office_fitout" | "repair" | "disposal" | "unknown";
   customerName?: string;
   phone?: string;
   sourceChannel?: string;
@@ -268,14 +268,16 @@ async function extractFacts(
 Extract structured facts from the customer's message and return a JSON object.
 Only update fields where the new message provides information — keep existing values for fields not mentioned.
 
-SERVICES: installation, dismantling, relocation, office_fitout
+SERVICES: installation, dismantling, relocation, office_fitout, repair, disposal
+- "repair" = customer wants something fixed/restored (wobbly chair, broken drawer, loose hinge, reupholstery).
+- "disposal" = customer wants old/unwanted items hauled away and discarded (NOT moved to a new place — that's relocation).
 CURRENT KNOWN FACTS: ${JSON.stringify(currentFacts)}
 ${earlierBlock}CONVERSATION HISTORY (recent):
 ${historyText}
 
 Return ONLY a JSON object with these optional fields:
 {
-  "serviceType": "installation"|"dismantling"|"relocation"|"office_fitout"|"unknown",
+  "serviceType": "installation"|"dismantling"|"relocation"|"office_fitout"|"repair"|"disposal"|"unknown",
   "customerName": string,
   "jobAddress": string,
   "floorLevel": number,
@@ -380,14 +382,18 @@ async function shouldHandoff(
 // is still generated later by the existing pricing engine in routes.ts.
 //
 // Mapping CaseFacts.serviceType → catalog service_type:
-//   installation → install
-//   dismantling  → dismantle
-//   relocation   → relocate
+//   installation  → install
+//   dismantling   → dismantle
+//   relocation    → relocate
 //   office_fitout → install (treated as install for ballpark)
+//   disposal      → dispose
+//   repair        → install (no dedicated repair catalog yet — admin prices manually)
 function mapAgentServiceToCatalog(s: CaseFacts["serviceType"]): "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose" {
   switch (s) {
     case "dismantling": return "dismantle";
     case "relocation":  return "relocate";
+    case "disposal":    return "dispose";
+    case "repair":
     case "office_fitout":
     case "installation":
     default: return "install";
@@ -657,7 +663,7 @@ async function generateSalesReply(params: {
   const historyContext = history.slice(-6).map(h => `${h.role}: ${h.content}`).join("\n");
 
   const questionMap: Record<string, string> = {
-    serviceType: "Could you let me know what service you need? (e.g. furniture installation, dismantling, or relocation)",
+    serviceType: "Could you let me know what service you need? (e.g. installation, dismantling, relocation, repair, or disposal)",
     jobAddress: "What's the address or area of the job? (e.g. Tampines, Bishan, Raffles Place)",
     homeOrOffice: "Is this for a home or an office / commercial space?",
     itemTypes: "What furniture or items need to be handled? (e.g. wardrobe, bed frame, office desks)",
