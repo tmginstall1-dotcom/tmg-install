@@ -1904,4 +1904,29 @@ export async function seedDatabase() {
     console.log("[startup] Round 13: All catalog relocate prices aligned with D&R bundle formula (install + dismantle) × 0.60.");
   }
 
+  // Round 14: Heavy-item Carry Only repricing (HEAVY-CARRY-R1 marker)
+  // Round 13's D&R formula under-priced bulky 2-man items vs. Singapore market rates.
+  // Market research (Movings.sg, MoveHub, Homejourney, XM Movers, Miuvo, 2025):
+  //   - King size mattress + bed frame, same-building, manpower only: $80–$200 typical
+  //   - Massage chair (80–130kg, 2-man): $120–$200 (specialised manpower needed)
+  // These prices now flow through to Carry Only mode too (see shared/pricing.ts change).
+  const r14 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "HEAVY-CARRY-R1"));
+  if (r14.length === 0) {
+    await db.insert(catalogItems).values({
+      name: "__heavy_carry_r1_marker__",
+      sku: "HEAVY-CARRY-R1",
+      category: "System",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    });
+
+    // King Bed Frame relocate: market mid $160 (2-man, bulky, awkward)
+    await db.update(catalogItems).set({ basePrice: "160.00" }).where(eq(catalogItems.sku, "KB-RELOCATE"));
+    // Massage Chair relocate: upper-mid market $180 (heavy 80–130kg, 2-man minimum)
+    await db.update(catalogItems).set({ basePrice: "180.00" }).where(eq(catalogItems.sku, "MASS-RELOCATE"));
+
+    console.log("[startup] Round 14: Heavy-item Carry Only repricing — KB-RELOCATE=$160, MASS-RELOCATE=$180.");
+  }
+
 }

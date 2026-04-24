@@ -344,6 +344,11 @@ export const quotes = pgTable("quotes", {
   // Loyalty / repeat-customer discount
   loyaltyDiscount: numeric("loyalty_discount").default("0"), // SGD flat discount for returning customers
 
+  // Relocation mode: "carry" = Carry Only (no dismantle, transport+labor only, 120-min cap with overtime)
+  //                   "full"  = Full D&R (dismantle + transport + reinstall, no time cap)
+  // Used by email overtime notice gating and admin display. Null for non-relocation jobs.
+  relocationMode: text("relocation_mode"),
+
   // Automated reminders
   dayBeforeReminderAt: timestamp("day_before_reminder_at"), // null = not yet sent
 

@@ -4918,6 +4918,12 @@ Respond with ONLY a JSON array (no prose, no markdown):
       // Hold expiry: 48 hours from submission
       const slotHeldUntil = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
+      const relocateItems = input.items.filter(i => i.serviceType === 'relocate');
+      const wizardRelocationMode: "carry" | "full" | null = relocateItems.length === 0
+        ? null
+        : (relocateItems.some(i => i.relocateMode === 'full') ? 'full'
+          : (relocateItems.every(i => i.relocateMode === 'carry') ? 'carry' : 'full'));
+
       const allItems = [
         ...input.items.map(item => ({
           catalogItemId: item.catalogItemId,
@@ -4958,6 +4964,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
           status: "submitted",
           requiresManualReview: false,
           aiConfidenceScore: 100,
+          relocationMode: wizardRelocationMode,
           distanceKm: input.distanceKm != null ? input.distanceKm.toFixed(1) : null,
           detectionPhotoUrl: input.detectedPhotoUrl || null,
           // Slot chosen in wizard
@@ -6492,7 +6499,7 @@ ${isRelocationJob ? `RELOCATION RULE (CRITICAL):
 - Use service_type = "relocate" for EVERY furniture item.
 - NEVER output both "dismantle" AND "relocate" for the same item. Use ONLY "relocate".
 - NEVER output "install" items for a relocation job.
-${isCarryOnly ? `- MODE: CARRY ONLY — set estimatedUnitPrice = 0 for every item (no labor charge; only transport fee applies).` : isFullDR ? `- MODE: FULL SERVICE D&R — estimate the price as (install catalog price + dismantle catalog price) × 0.60 for each item.` : ""}` : `SERVICE TYPES:
+${isCarryOnly ? `- MODE: CARRY ONLY — use catalog relocate price when matched (heavy 2-man items like king bed, massage chair still incur per-item labour). Fall back to estimate if unmatched.` : isFullDR ? `- MODE: FULL SERVICE D&R — estimate the price as (install catalog price + dismantle catalog price) × 0.60 for each item.` : ""}` : `SERVICE TYPES:
 - install: assembling / installing furniture
 - dismantle: taking apart only (no disposal)
 - dismantle_dispose: take apart AND haul away
@@ -6506,7 +6513,7 @@ Return a JSON object with an 'items' array. Each item must have:
 - 'detectedName': string — use the EXACT catalog name if matched (e.g. 'IKEA PAX Wardrobe (3-door)'), otherwise a short descriptive name
 - 'serviceType': string — must be one of the valid types above
 - 'quantity': number (default 1)
-- 'estimatedUnitPrice': number — ${isCarryOnly ? "ALWAYS 0 for carry-only mode" : "use catalog price when matched, otherwise estimate"}
+- 'estimatedUnitPrice': number — use catalog price when matched, otherwise estimate (applies to both carry-only and full D&R modes; carry-only still incurs per-item labour for heavy 2-man items)
 - 'confidence': number (0–100)
 
 MATCHING TIPS:
@@ -6573,8 +6580,9 @@ Return ONLY valid JSON.`,
           const matchedCatalogItem = findBestCatalogMatch(item.detectedName, item.serviceType);
           let unitPrice: number;
           if (isCarryOnly && item.serviceType === "relocate") {
-            // Carry only: no per-item labor charge, only transport fee will apply
-            unitPrice = 0;
+            // Carry Only still charges per-item labour for heavy 2-man items (king bed, massage chair, etc.)
+            // Use catalog basePrice when matched, otherwise fall back to AI-estimated price.
+            unitPrice = matchedCatalogItem ? Number(matchedCatalogItem.basePrice) : (item.estimatedUnitPrice || 0);
           } else if (isFullDR && item.serviceType === "relocate") {
             // Full D&R: (install + dismantle) × 0.60
             unitPrice = computeFullDRPrice(item.detectedName, item.estimatedUnitPrice || 0);
@@ -6756,6 +6764,7 @@ Return ONLY valid JSON.`,
             depositAmount,
             finalAmount,
             requiresManualReview: true,
+            relocationMode: session.isRelocation ? (relocateModeWA || null) : null,
             // Relocation: store pickup (from) and dropoff (to) addresses + distance
             pickupAddress: session.isRelocation ? address : null,
             dropoffAddress: session.collectedToAddress || null,
@@ -8262,6 +8271,14 @@ Respond directly — no JSON, just the message text.`,
     const grandTotal = laborSubtotalAdmin + floorSurcharge + accessSurcharge + transportFee + calloutFeeAdmin;
 
     const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
+    const finalStructuredState = (session as any).structuredState
+      ? (() => { try { return JSON.parse((session as any).structuredState); } catch { return null; } })()
+      : null;
+    const finalRelocationMode: "carry" | "full" | null = session.isRelocation
+      ? (finalStructuredState?.relocation_mode === "carry" || finalStructuredState?.relocation_mode === "full"
+          ? finalStructuredState.relocation_mode
+          : null)
+      : null;
     const quote = await storage.createQuote(
       { name, email: `wa_${phone}@tmginstall.com`, phone },
       {
@@ -8276,6 +8293,7 @@ Respond directly — no JSON, just the message text.`,
         depositAmount: (grandTotal * 0.5).toFixed(2),
         finalAmount: (grandTotal * 0.5).toFixed(2),
         requiresManualReview: true,
+        relocationMode: finalRelocationMode,
         pickupAddress: session.isRelocation ? address : null,
         dropoffAddress: session.collectedToAddress || null,
         distanceKm: session.distanceKm || null,

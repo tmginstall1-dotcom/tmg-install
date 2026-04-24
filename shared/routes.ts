@@ -109,6 +109,7 @@ export const api = {
           unitPrice: z.number().min(0),
           itemName: z.string().min(1),
           sku: z.string().optional(),
+          relocateMode: z.enum(['carry', 'full']).optional(),
         })),
         customItems: z.array(z.object({
           description: z.string().min(1),

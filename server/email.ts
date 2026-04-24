@@ -163,10 +163,16 @@ function isRelocationJob(quote: any): boolean {
 // Overtime only applies to Carry Only relocation jobs (D&R jobs have no time cap)
 function isCarryOnlyRelocation(quote: any): boolean {
   if (!isRelocationJob(quote)) return false;
+  // Preferred: explicit relocationMode field (set by /estimate and WhatsApp flows from Apr 2026)
+  if (quote.relocationMode === 'carry') return true;
+  if (quote.relocationMode === 'full') return false;
+  // Legacy fallback for older quotes without the field — was: if any relocate item has unitPrice > 0
+  // it's a D&R job. Still works for pre-Round-14 quotes where carry items had unitPrice=0.
+  // Note: post-Round-14 carry items have positive unitPrice, but they always have relocationMode set,
+  // so the legacy branch only runs for old data.
   const items: any[] = Array.isArray(quote.items) ? quote.items : [];
   const relocateItems = items.filter((i: any) => i.serviceType === 'relocate');
   if (relocateItems.length === 0) return false;
-  // If any relocate item has unitPrice > 0, it's a D&R job — no overtime
   return !relocateItems.some((i: any) => parseFloat(i.unitPrice ?? '0') > 0);
 }
 

@@ -90,6 +90,16 @@ Always provide full file contents when editing any code file — never partial s
 - **Consistent Elements**: Section labels are small, bold, and uppercase. Form inputs are border-only with no rounding. Grid layouts prioritize `grid-cols-1` for mobile responsiveness.
 - **Specific Components**: Custom styling for stat grids, toggle switchers, the `AdminBottomNav`, and mobile action bars, all adhering to the flat, minimal design.
 
+### Pricing Engine — Carry Only Mode (Round 14, Apr 2026)
+- **Bug fix**: Customer-facing estimator's "Carry Only" relocate mode previously charged `unitPrice = 0` for every item, regardless of item weight or 2-man labour requirements. A king bed + massage chair came out to just $63 (transport + stairs).
+- **Resolution**: `shared/pricing.ts` now passes the catalog basePrice through for carry items; `client/src/pages/customer/Estimate.tsx` toggles set `unitPrice: carry` (was `0`) and the price tag shows the actual labour charge instead of "$0 Transport incl."
+- **Catalog repricing** (Round 14 in `server/seed.ts`, marker `HEAVY-CARRY-R1`):
+  - `KB-RELOCATE` $108 → **$160** (king bed frame, 2-man, bulky)
+  - `MASS-RELOCATE` $84 → **$180** (massage chair 80–130 kg, 2-man, often needs floor protection)
+- **AI prompt**: `server/routes.ts:6512` no longer instructs the WhatsApp AI agent to force `estimatedUnitPrice=0` for carry-only — uses catalog price in both modes.
+- **Verified math**: KB + MASS Carry Only at ground floor with lift now produces $403 (was $63). Light single-item moves bump modestly (e.g. coffee table $63 → $98) — closer to market.
+- **Persistence**: New `relocation_mode` column on `quotes` (`carry` | `full` | null) wired through wizard (`/api/quotes/wizard`) and both WhatsApp create paths (draft + final submission). `server/email.ts` `isCarryOnlyRelocation()` reads the explicit field first, falling back to the legacy unitPrice heuristic for older rows.
+
 ## External Dependencies
 
 - **PostgreSQL**: Primary database.

@@ -731,6 +731,7 @@ export default function EstimateWizard() {
           unitPrice: effectivePriceMap.get(`${i.name}|${i.serviceType}`) ?? i.unitPrice,
           itemName: i.name,
           sku: i.sku,
+          relocateMode: i.serviceType === 'relocate' ? (i.relocateMode || 'full') : undefined,
         })),
         customItems: [],
         logisticsFee: pricingResult.logisticsSubtotal,
@@ -1573,7 +1574,7 @@ export default function EstimateWizard() {
                                     const full = (inst && dis)
                                       ? (parseFloat(inst.basePrice) + parseFloat(dis.basePrice)) * drDiscount
                                       : (i.fullPrice ?? carry * 1.5 * drDiscount);
-                                    return { ...i, relocateMode: 'carry', carryPrice: carry, fullPrice: full, unitPrice: 0 };
+                                    return { ...i, relocateMode: 'carry', carryPrice: carry, fullPrice: full, unitPrice: carry };
                                   }))}
                                   className={`px-2.5 py-1.5 border-l border-black/15 transition-colors ${item.relocateMode === 'carry' ? 'bg-black text-white' : 'bg-white text-black/40 hover:text-black/70'}`}
                                 >
@@ -1596,17 +1597,8 @@ export default function EstimateWizard() {
                             </button>
                           </div>
                           <div className="text-right w-20">
-                            {item.relocateMode === 'carry' ? (
-                              <>
-                                <p className="font-black text-sm text-black/50">$0.00</p>
-                                <p className="text-[10px] text-black/35 leading-tight">Transport<br/>incl.</p>
-                              </>
-                            ) : (
-                              <>
-                                <p className="font-black text-sm">{isFallback ? "~" : ""}${(displayUnitPrice * item.quantity).toFixed(2)}</p>
-                                <p className="text-xs text-black/35">{isFallback ? "~" : ""}${displayUnitPrice.toFixed(2)} ea</p>
-                              </>
-                            )}
+                            <p className="font-black text-sm">{isFallback ? "~" : ""}${(displayUnitPrice * item.quantity).toFixed(2)}</p>
+                            <p className="text-xs text-black/35">{isFallback ? "~" : ""}${displayUnitPrice.toFixed(2)} ea</p>
                           </div>
                           <button onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))}
                             data-testid={`button-remove-${item.id}`}

@@ -73,7 +73,7 @@ export interface PricingItem {
   quantity: number;
   unitPrice: number; // 0 = no catalog price available (will trigger fallback)
   volumeM3?: number; // cubic metres per unit (optional — used for trip calculation)
-  carryOnly?: boolean; // Carry-only relocate: no per-item labor, skip fallback (logistics + stairs only)
+  carryOnly?: boolean; // Carry-only relocate flag (informational; per-item labor still charged from catalog basePrice). Skips fallback so unmatched carry items default to $0 instead of generic estimate.
 }
 
 export interface PricingFloor {
@@ -180,7 +180,10 @@ export function computePricing(input: PricingInput): PricingResult {
 
   const itemLines: ItemLine[] = input.items.map(item => {
     const qty = Math.max(1, Math.round(item.quantity));
-    let unitPrice = item.carryOnly ? 0 : item.unitPrice;
+    // Carry Only mode now charges the catalog basePrice (passed in via item.unitPrice).
+    // Heavy items like king beds & massage chairs need 2-man labour even without dismantle —
+    // a flat $0 was undercharging these jobs vs. Singapore market rates.
+    let unitPrice = item.unitPrice;
     let fallbackUsed = false;
 
     if (!item.carryOnly && !(unitPrice > 0)) {
