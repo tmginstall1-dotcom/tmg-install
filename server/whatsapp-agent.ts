@@ -327,10 +327,27 @@ function normalizeFacts(facts: CaseFacts): CaseFacts {
 }
 
 // ── Missing Facts Check ───────────────────────────────────────────────────────
+/**
+ * Treat an address as "complete enough" only if it has a block/house number,
+ * a unit (#01-23), a postal code (6 digits), or at least 2 separate digit
+ * groups. "Clementi Ave 1" alone (1 digit, street suffix) is too vague —
+ * we want to push the AI to re-ask for a real address.
+ */
+function isAddressComplete(addr?: string): boolean {
+  if (!addr) return false;
+  const s = addr.trim();
+  if (s.length < 12) return false;
+  const hasBlock     = /\b(blk|block)\s*\d+/i.test(s);
+  const hasUnit      = /#\s*\d+\s*[-\u2013]\s*\d+/.test(s);
+  const hasPostal    = /\b(?:s|sg|singapore)?\s*\d{6}\b/i.test(s);
+  const digitGroups  = (s.match(/\d+/g) || []).length;
+  return hasBlock || hasUnit || hasPostal || digitGroups >= 2;
+}
+
 function computeMissingFacts(facts: CaseFacts): string[] {
   const missing: string[] = [];
   if (!facts.serviceType || facts.serviceType === "unknown") missing.push("serviceType");
-  if (!facts.jobAddress) missing.push("jobAddress");
+  if (!isAddressComplete(facts.jobAddress)) missing.push("jobAddress");
   if (!facts.homeOrOffice || facts.homeOrOffice === "unknown") missing.push("homeOrOffice");
   if (!facts.itemTypes || facts.itemTypes.length === 0) missing.push("itemTypes");
   if (facts.floorLevel === undefined) missing.push("floorLevel");
@@ -664,7 +681,7 @@ async function generateSalesReply(params: {
 
   const questionMap: Record<string, string> = {
     serviceType: "Could you let me know what service you need? (e.g. installation, dismantling, relocation, repair, or disposal)",
-    jobAddress: "What's the address or area of the job? (e.g. Tampines, Bishan, Raffles Place)",
+    jobAddress: "What's the full job address? Please include block/house number, street, unit and postal code (e.g. Blk 123 Tampines St 11 #08-456 S521123).",
     homeOrOffice: "Is this for a home or an office / commercial space?",
     itemTypes: "What furniture or items need to be handled? (e.g. wardrobe, bed frame, office desks)",
     floorLevel: "Which floor is the property on?",
@@ -1282,6 +1299,38 @@ export async function processWithAIAgent(params: {
           };
           const itemSvc = svcMap[facts.serviceType ?? "installation"] ?? "install";
 
+          // Pre-resolve each AI-extracted item against the catalog so the draft
+          // quote lands with real prices (not $0). Use the SAME findCatalogMatch
+          // helper buildIndicativeRange() uses, so the admin sees prices that
+          // match the indicative range we already showed the customer.
+          const qty = facts.quantity && facts.quantity > 0 ? facts.quantity : 1;
+          const resolvedItems: Array<{ originalDescription: string; detectedName: string | null; serviceType: typeof itemSvc; quantity: number; unitPrice: string; subtotal: string }> = [];
+          const unmatchedTerms: string[] = [];
+          for (const term of (facts.itemTypes ?? [])) {
+            const match = await findCatalogMatch(term, itemSvc);
+            if (match) {
+              const unit = match.basePrice;
+              resolvedItems.push({
+                originalDescription: term,
+                detectedName:        match.name,
+                serviceType:         itemSvc,
+                quantity:            qty,
+                unitPrice:           unit.toFixed(2),
+                subtotal:            (unit * qty).toFixed(2),
+              });
+            } else {
+              unmatchedTerms.push(term);
+              resolvedItems.push({
+                originalDescription: term,
+                detectedName:        null,
+                serviceType:         itemSvc,
+                quantity:            qty,
+                unitPrice:           "0",
+                subtotal:            "0",
+              });
+            }
+          }
+
           // Floors info mirrors the wizard's shape so the admin UI renders it.
           const floorsInfo: any[] = [];
           if (facts.floorLevel !== undefined) {
@@ -1316,16 +1365,9 @@ export async function processWithAIAgent(params: {
               floorsInfo:            floorsInfo.length ? JSON.stringify(floorsInfo) : null,
               selectedServices:      JSON.stringify([itemSvc]),
               preferredDate:         facts.preferredDate ?? null,
-              notes:                 `Auto-created from WhatsApp AI agent.\nMissing facts at creation: ${missingFacts.length === 0 ? "none" : missingFacts.join(", ")}.\nLead score: ${leadScoreResult?.score ?? "n/a"}.`,
+              notes:                 `Auto-created from WhatsApp AI agent.\nMissing facts at creation: ${missingFacts.length === 0 ? "none" : missingFacts.join(", ")}.\nLead score: ${leadScoreResult?.score ?? "n/a"}.${unmatchedTerms.length > 0 ? `\nUnmatched items (review price): ${unmatchedTerms.join(", ")}.` : ""}`,
             } as any,
-            (facts.itemTypes ?? []).map(it => ({
-              originalDescription: it,
-              detectedName:        null,
-              serviceType:         itemSvc,
-              quantity:            facts.quantity && facts.quantity > 0 ? facts.quantity : 1,
-              unitPrice:           "0",
-              subtotal:            "0",
-            })) as any
+            resolvedItems as any
           );
 
           await logAudit("whatsapp_quote_drafted", "ai_quote_creation",
