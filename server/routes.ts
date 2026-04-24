@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { logAttributionEvent, registerAiRoutes } from "./ai-routes";
 import { registerPhoneIntakeRoutes } from "./phone-intake";
-import { servicesHubPage, ikeaAssemblyPage, wardrobeInstallationPage, bedAssemblyPage, furnitureDismantlingPage, officeFurniturePage, furnitureRelocationPage, tvMountingPage, sofaAssemblyPage, mattressInstallationPage, taobaoFurnitureInstallationPage } from "./seo-pages";
+import { servicesHubPage, ikeaAssemblyPage, wardrobeInstallationPage, bedAssemblyPage, furnitureDismantlingPage, officeFurniturePage, furnitureRelocationPage, tvMountingPage, sofaAssemblyPage, mattressInstallationPage, taobaoFurnitureInstallationPage, castleryFurnitureAssemblyPage, hdbMovingServicesPage, condoMovingServicesPage, lazadaFurnitureInstallationPage, shopeeFurnitureInstallationPage } from "./seo-pages";
 import { api } from "@shared/routes";
 import { initVapid, getVapidPublicKey, addSubscription, removeSubscription, sendPushToAdmins } from "./push";
 import { z } from "zod";
@@ -1543,6 +1543,11 @@ export async function registerRoutes(
   app.get("/services/sofa-assembly-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(sofaAssemblyPage()));
   app.get("/services/mattress-installation-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(mattressInstallationPage()));
   app.get("/services/taobao-furniture-installation-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(taobaoFurnitureInstallationPage()));
+  app.get("/services/castlery-furniture-assembly-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(castleryFurnitureAssemblyPage()));
+  app.get("/services/hdb-moving-services-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(hdbMovingServicesPage()));
+  app.get("/services/condo-moving-services-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(condoMovingServicesPage()));
+  app.get("/services/lazada-furniture-installation-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(lazadaFurnitureInstallationPage()));
+  app.get("/services/shopee-furniture-installation-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(shopeeFurnitureInstallationPage()));
 
   // -- Stripe Webhook (must be before any body-parsing middleware for this route) --
   app.post("/api/webhooks/stripe", async (req, res) => {

@@ -209,6 +209,11 @@ function shell({
         <a href="/services/office-furniture-installation-singapore">→ Office Furniture Installation</a>
         <a href="/services/furniture-relocation-singapore">→ Furniture Relocation</a>
         <a href="/services/taobao-furniture-installation-singapore">→ Taobao Furniture Installation</a>
+        <a href="/services/castlery-furniture-assembly-singapore">→ Castlery Furniture Assembly</a>
+        <a href="/services/lazada-furniture-installation-singapore">→ Lazada Furniture Installation</a>
+        <a href="/services/shopee-furniture-installation-singapore">→ Shopee Furniture Installation</a>
+        <a href="/services/hdb-moving-services-singapore">→ HDB Moving Services</a>
+        <a href="/services/condo-moving-services-singapore">→ Condo Moving Services</a>
       </div>
     </div>
     <div class="footer-bottom">
@@ -1314,6 +1319,36 @@ export function servicesHubPage(): string {
           <h3>Mattress Setup & Disposal</h3>
           <p>New mattress unboxing, bed-in-a-box setup, old mattress disposal. From $50.</p>
         </a>
+        <a href="/services/taobao-furniture-installation-singapore" class="service-card" style="display:block;">
+          <div class="service-card-icon">📦</div>
+          <h3>Taobao Furniture Installation</h3>
+          <p>Assembly, dismantle and relocation for Taobao-shipped furniture. Chinese manuals welcome.</p>
+        </a>
+        <a href="/services/castlery-furniture-assembly-singapore" class="service-card" style="display:block;">
+          <div class="service-card-icon">🛋️</div>
+          <h3>Castlery Furniture Assembly</h3>
+          <p>Adams, Madison, Auburn — modular sofas, bed frames, dining tables assembled and wall-fixed.</p>
+        </a>
+        <a href="/services/lazada-furniture-installation-singapore" class="service-card" style="display:block;">
+          <div class="service-card-icon">🛒</div>
+          <h3>Lazada Furniture Installation</h3>
+          <p>Wardrobes, beds, desks, sofas from Lazada — assembled with parts inventory check.</p>
+        </a>
+        <a href="/services/shopee-furniture-installation-singapore" class="service-card" style="display:block;">
+          <div class="service-card-icon">🛍️</div>
+          <h3>Shopee Furniture Installation</h3>
+          <p>Shopee furniture assembled even when instructions are missing. Same fixed-price catalog.</p>
+        </a>
+        <a href="/services/hdb-moving-services-singapore" class="service-card" style="display:block;">
+          <div class="service-card-icon">🏠</div>
+          <h3>HDB Moving Services</h3>
+          <p>Whole-house HDB moves — dismantle, transport, reassemble in one day. From $600.</p>
+        </a>
+        <a href="/services/condo-moving-services-singapore" class="service-card" style="display:block;">
+          <div class="service-card-icon">🏢</div>
+          <h3>Condo Moving Services</h3>
+          <p>MCST-compliant condo moves — COI supplied, lift padding, security check-in handled.</p>
+        </a>
       </div>
     </div>
 
@@ -1497,4 +1532,690 @@ export function taobaoFurnitureInstallationPage(): string {
   </main>`;
 
   return shell({ title, description, canonical, schema, body, breadcrumb: "Taobao Furniture Installation" });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Castlery furniture assembly Singapore
+// ─────────────────────────────────────────────────────────────────────────────
+export function castleryFurnitureAssemblyPage(): string {
+  const title = "Castlery Furniture Assembly Singapore | Sofa · Bed · Dining | TMG Install";
+  const description = "Castlery sofa, bed frame or dining table delivered without assembly? TMG Install assembles, installs, dismantles and relocates Castlery furniture across Singapore — fixed price, instant quote, fully insured.";
+  const canonical = `${DOMAIN}/services/castlery-furniture-assembly-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "Castlery Furniture Assembly Singapore",
+      "serviceType": [
+        "Castlery Furniture Assembly",
+        "Castlery Sofa Installation",
+        "Castlery Bed Frame Assembly",
+        "Castlery Dining Table Installation",
+        "Castlery Furniture Dismantling",
+        "Castlery Furniture Relocation",
+      ],
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": { "@type": "Offer", "priceCurrency": "SGD", "description": "Fixed-price catalog covering Castlery sofas, beds, dining sets and storage." },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "Castlery Furniture Assembly Singapore", "item": canonical },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "Do you assemble Castlery furniture in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we regularly assemble Castlery sofas, bed frames, dining tables, sideboards and TV consoles for customers across Singapore. Our team is familiar with Castlery's modular construction and proprietary fittings." } },
+        { "@type": "Question", "name": "Castlery already includes delivery — why use TMG?", "acceptedAnswer": { "@type": "Answer", "text": "Castlery's standard delivery brings the boxes to your doorstep but doesn't always include in-room assembly, especially for flat-pack items, weekend slots or older orders. We assemble, place and wall-fix wherever needed, and dismantle / relocate when you move." } },
+        { "@type": "Question", "name": "Can you dismantle a Castlery sofa for relocation?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — Castlery modular sofas (Adams, Madison, Auburn etc.) are designed to disconnect at the seams. We dismantle, transport and reinstall them at your new address, often within a single visit." } },
+        { "@type": "Question", "name": "Do you install Castlery wall-mounted shelves and TV consoles?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we bring HDB-friendly drill bits, a stud finder and proper anchors for concrete and dry-wall partitions. Wall-mounted shelving and TV consoles are anchored safely with weight-rated fixings." } },
+        { "@type": "Question", "name": "How much does Castlery furniture assembly cost?", "acceptedAnswer": { "@type": "Answer", "text": "Standard catalog pricing applies — sofas from S$120, bed frames from S$80, dining tables from S$60. Add your items in our quote tool for an itemised price upfront." } },
+        { "@type": "Question", "name": "Do you cover all Singapore estates?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — island-wide HDB, condo and landed. Same-day slots available subject to availability." } },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Castlery Furniture Assembly Singapore</div>
+    <h1><em>Castlery Furniture</em><br/>Assembly, Installation &amp; Relocation</h1>
+    <p class="hero-desc">Castlery sofa, bed frame or dining table arrived flat-packed? We assemble, install, dismantle and relocate Castlery furniture across Singapore — fixed price, fully insured, instant quote.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+    <div class="section">
+      <h2>Singapore's Trusted Castlery Assembly Team</h2>
+      <p>Castlery is one of Singapore's most popular contemporary furniture brands — known for the Adams sofa, Madison sectional, Auburn dining range, and modular bed frames. Most Castlery items arrive flat-packed for easy delivery into HDB lifts and condo passenger lifts, which means the customer is left to assemble.</p>
+      <p>TMG Install is the team Singapore homeowners call when their Castlery delivery lands. We assemble, install, wall-fix, dismantle and relocate Castlery furniture island-wide, with the same fixed-price catalog and instant upfront quote we use for every brand. No phone calls, no surprise charges.</p>
+    </div>
+
+    <div class="section">
+      <h2>What We Do With Your Castlery Furniture</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">🛋️</div><h3>Sofa Assembly</h3><p>Adams, Madison, Auburn, Hudson — modular sectionals connected, levelled and placed exactly where you want them.</p></div>
+        <div class="service-card"><div class="service-card-icon">🛏️</div><h3>Bed Frame Installation</h3><p>Storage beds, upholstered headboards, slat assemblies — properly fitted with corner reinforcement.</p></div>
+        <div class="service-card"><div class="service-card-icon">🍽️</div><h3>Dining &amp; Storage</h3><p>Extending dining tables, sideboards, TV consoles, shelving — assembled level, safely wall-fixed where needed.</p></div>
+        <div class="service-card"><div class="service-card-icon">🚛</div><h3>Relocation &amp; Dismantle</h3><p>Moving home? We dismantle Castlery modular pieces cleanly and reassemble them at the new address.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Common Castlery Items We Install</h2>
+      <ul>
+        <li><strong>Sofas</strong> — Adams, Madison, Auburn, Hudson, Anton, Selene (modular &amp; sectional)</li>
+        <li><strong>Bed frames</strong> — storage beds, upholstered platform beds, slat-base frames</li>
+        <li><strong>Dining tables</strong> — Auburn, Anton, Werner, extending and fixed-length</li>
+        <li><strong>Storage</strong> — TV consoles, sideboards, shelving, display cabinets</li>
+        <li><strong>Office</strong> — desks, ergonomic chairs, bookcases</li>
+        <li><strong>Outdoor</strong> — Lana, Vista, Calvin (rattan and aluminium-frame)</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Why Singapore Customers Choose TMG for Castlery</h2>
+      <ul>
+        <li><strong>Familiar with Castlery's fittings</strong> — modular cam-locks, hidden brackets, slat clips. We've assembled hundreds.</li>
+        <li><strong>Wall-fixed for safety</strong> — tall storage and TV consoles anchored to wall studs with weight-rated brackets.</li>
+        <li><strong>Fixed-price upfront</strong> — no premium for "designer" furniture. Same catalog, same prices.</li>
+        <li><strong>Same-day &amp; weekend slots</strong> — book before noon for same-day availability island-wide.</li>
+        <li><strong>Insured &amp; clean</strong> — we cover any damage and remove all packaging waste.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>How It Works</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">📋</div><h3>1. Get a Quote</h3><p>Add your Castlery items in our quote tool. Itemised price in 60 seconds.</p></div>
+        <div class="service-card"><div class="service-card-icon">📅</div><h3>2. Book a Slot</h3><p>Pick a 3-hour window — same-day, weekend or weekday.</p></div>
+        <div class="service-card"><div class="service-card-icon">🪛</div><h3>3. We Install</h3><p>Team arrives with full tools, assembles, wall-fixes, places and cleans up packaging.</p></div>
+        <div class="service-card"><div class="service-card-icon">✅</div><h3>4. You Inspect</h3><p>Walk-through and sign-off — payment only after you're happy.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">Do you assemble Castlery furniture in Singapore?</div><div class="faq-a">Yes — we regularly assemble Castlery sofas, bed frames, dining tables, sideboards and TV consoles for customers across Singapore. Our team knows Castlery's modular construction and proprietary fittings inside out.</div></div>
+      <div class="faq-item"><div class="faq-q">Castlery already includes delivery — why use TMG?</div><div class="faq-a">Castlery's standard delivery brings the boxes to your doorstep but doesn't always include in-room assembly. We assemble, place and wall-fix wherever needed, plus we handle relocations later when you move.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you dismantle a Castlery modular sofa for relocation?</div><div class="faq-a">Yes — Castlery modular sofas are designed to disconnect at the seams. We dismantle, transport and reinstall them at the new address.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you wall-mount Castlery shelves and TV consoles?</div><div class="faq-a">Yes — with HDB-friendly drill bits, stud finder and weight-rated anchors for concrete or partition walls.</div></div>
+      <div class="faq-item"><div class="faq-q">How much does it cost?</div><div class="faq-a">Standard catalog pricing — sofas from S$120, bed frames from S$80, dining from S$60. Get an itemised quote in our tool.</div></div>
+      <div class="faq-item"><div class="faq-q">What areas do you cover?</div><div class="faq-a">Island-wide — HDB, condo, landed and commercial across all estates.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>Get Your Castlery Furniture Assembled</h2>
+        <p>Instant fixed-price quote — no phone calls, no surprises. Book in 60 seconds.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "Castlery Furniture Assembly" });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HDB moving services Singapore
+// ─────────────────────────────────────────────────────────────────────────────
+export function hdbMovingServicesPage(): string {
+  const title = "HDB Moving Services Singapore | Furniture Move + Reassembly | TMG Install";
+  const description = "Moving HDB to HDB or HDB to condo? TMG Install dismantles, moves, and reassembles your furniture across Singapore — lift booking handled, fixed price, fully insured. Instant online quote.";
+  const canonical = `${DOMAIN}/services/hdb-moving-services-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "HDB Moving Services Singapore",
+      "serviceType": [
+        "HDB Moving Services",
+        "HDB Furniture Relocation",
+        "HDB to HDB Move",
+        "HDB to Condo Move",
+        "HDB Furniture Dismantling",
+        "HDB Furniture Reassembly",
+      ],
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": { "@type": "Offer", "priceCurrency": "SGD", "description": "Fixed-price HDB moving — dismantle + transport + reassembly bundled per item." },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "HDB Moving Services Singapore", "item": canonical },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How much does an HDB move cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "HDB moves are priced per item using our fixed catalog — typical 3-room HDB moves run S$600–S$1,200 all-in (dismantle + transport + reassembly). Add your items to our quote tool for an exact upfront price." } },
+        { "@type": "Question", "name": "Do you handle the lift booking with HDB town councils?", "acceptedAnswer": { "@type": "Answer", "text": "Most HDB blocks no longer require lift booking for residential moves, but if your town council does, we'll guide you through the form (typically S$30–S$50 deposit, refunded after the move). We coordinate timing so the lift is reserved when our truck arrives." } },
+        { "@type": "Question", "name": "Will all my furniture fit in the HDB lift?", "acceptedAnswer": { "@type": "Answer", "text": "Most HDB lifts measure 2.0–2.4m wide × 1.4m deep × 2.4m tall. Bed frames, wardrobes and L-shape sofas are dismantled to fit. For oversized items in older blocks without service lifts, we use the staircase — included in the price for floors up to 4." } },
+        { "@type": "Question", "name": "How long does an HDB move take?", "acceptedAnswer": { "@type": "Answer", "text": "A typical 3-room HDB move (whole-house) takes 5–7 hours start to finish. 4-room moves take 6–8 hours. We start at 9am or 1pm and complete the same day." } },
+        { "@type": "Question", "name": "Do you reassemble at the new address?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — every item we dismantle is reassembled at your new address as part of the bundled price. Wardrobes are wall-fixed, bed slats reseated, sofa modules reconnected." } },
+        { "@type": "Question", "name": "Do you supply boxes for clothes and kitchenware?", "acceptedAnswer": { "@type": "Answer", "text": "We focus on furniture dismantle + transport + reassembly. For boxes, we partner with trusted box suppliers — WhatsApp us and we'll bundle a recommendation." } },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">HDB Moving Services Singapore</div>
+    <h1><em>HDB Moving Made Simple</em><br/>Dismantle · Move · Reassemble</h1>
+    <p class="hero-desc">Moving HDB to HDB, HDB to condo, or HDB to landed? We dismantle, transport and reassemble all your furniture in one visit — fixed price upfront, lift coordination handled, fully insured.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+    <div class="section">
+      <h2>Singapore's HDB Moving Specialists</h2>
+      <p>HDB moves come with their own quirks — narrow lifts, lift-booking forms, common-area protection rules, and the ever-present risk of scratching freshly painted corridors. Most "general movers" turn up with a lorry but leave you to dismantle wardrobes and reassemble bed frames yourself.</p>
+      <p>TMG Install is different. We're a furniture installation company first, so dismantle, transport and reassembly are bundled together — one team, one fixed price, one day. We've moved hundreds of HDB households across every estate from Sembawang to Sentosa Cove.</p>
+    </div>
+
+    <div class="section">
+      <h2>What's Included In Every HDB Move</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">🔧</div><h3>Dismantle at Old Place</h3><p>Wardrobes, bed frames, sofas, dining tables, TV consoles — taken apart cleanly and labelled.</p></div>
+        <div class="service-card"><div class="service-card-icon">🚛</div><h3>Transport</h3><p>14ft or 24ft lorry, padded blankets, lift-mat protection. Coordinated with your lift booking.</p></div>
+        <div class="service-card"><div class="service-card-icon">🪛</div><h3>Reassemble at New Place</h3><p>Every dismantled item reassembled, levelled, and wall-fixed where needed — same day.</p></div>
+        <div class="service-card"><div class="service-card-icon">🧹</div><h3>Clean Up</h3><p>Packaging removed, debris swept. Hand the keys back to your old place clean.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>HDB Move Pricing — Honest, Upfront</h2>
+      <p>We quote per item using our standard fixed catalog. Typical whole-house HDB moves work out around:</p>
+      <ul>
+        <li><strong>3-room HDB (whole-house)</strong> — S$600–S$1,000 all-in</li>
+        <li><strong>4-room HDB (whole-house)</strong> — S$800–S$1,400 all-in</li>
+        <li><strong>5-room / executive HDB</strong> — S$1,000–S$1,800 all-in</li>
+        <li><strong>Single-item moves</strong> (e.g. just a wardrobe + bed frame) — from S$220</li>
+      </ul>
+      <p>No surprise add-ons for lift coordination, basic disassembly tools, or packaging removal — all included.</p>
+    </div>
+
+    <div class="section">
+      <h2>Why HDB Customers Pick TMG</h2>
+      <ul>
+        <li><strong>One team, one bill</strong> — no separate "movers" and "assemblers" with finger-pointing if anything goes wrong.</li>
+        <li><strong>Lift-booking guidance</strong> — we know which town councils still require it and walk you through the form.</li>
+        <li><strong>Common-area-friendly</strong> — corner protectors, lift mats and trolleys to avoid wall scratches.</li>
+        <li><strong>HDB drill licence</strong> — for wardrobe wall-fixing, our team knows HDB drill rules (no drilling on Sundays / public holidays).</li>
+        <li><strong>Same-day completion</strong> — start at 9am, sleep in your new bed that night.</li>
+        <li><strong>Fully insured</strong> — covered for damage to furniture, walls and lifts.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>How It Works</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">📋</div><h3>1. List Your Items</h3><p>Use our quote tool — pick everything that's moving with you. Get an itemised fixed price in 60 seconds.</p></div>
+        <div class="service-card"><div class="service-card-icon">📅</div><h3>2. Pick Your Move Date</h3><p>9am or 1pm start. Weekday and weekend slots available.</p></div>
+        <div class="service-card"><div class="service-card-icon">🚛</div><h3>3. We Move &amp; Reassemble</h3><p>One team, one day — dismantle, transport, reassemble, clean up.</p></div>
+        <div class="service-card"><div class="service-card-icon">✅</div><h3>4. You Inspect</h3><p>Walk-through at the new place. Pay only after sign-off.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">How much does an HDB move cost?</div><div class="faq-a">3-room moves run S$600–S$1,000 all-in; 4-room S$800–S$1,400; 5-room / executive S$1,000–S$1,800. Single-item from S$220. Add your items to our quote tool for an exact price.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you handle the HDB lift booking?</div><div class="faq-a">Most blocks no longer require it, but where they do (typical S$30–S$50 deposit, refunded after) we'll guide you through the town council form and coordinate timing.</div></div>
+      <div class="faq-item"><div class="faq-q">Will my wardrobe fit in the HDB lift?</div><div class="faq-a">Most won't fit assembled — that's why we dismantle them. We've moved out of every HDB layout from 2-room flexi to executive maisonettes.</div></div>
+      <div class="faq-item"><div class="faq-q">How long does the move take?</div><div class="faq-a">Typically 5–8 hours start-to-finish for a whole-house move. We start at 9am or 1pm and complete same day.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you reassemble at the new place?</div><div class="faq-a">Yes — included in the bundled price. Wardrobes wall-fixed, bed slats reseated, sofa modules reconnected.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you supply moving boxes?</div><div class="faq-a">We focus on furniture. For boxes, WhatsApp us — we'll bundle a recommendation from a trusted box partner.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>Plan Your HDB Move Today</h2>
+        <p>Instant fixed-price quote — no surveyor visit, no surprises. Book in 60 seconds.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "HDB Moving Services" });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Condo moving services Singapore
+// ─────────────────────────────────────────────────────────────────────────────
+export function condoMovingServicesPage(): string {
+  const title = "Condo Moving Services Singapore | MCST-Compliant Moves | TMG Install";
+  const description = "Moving in or out of a Singapore condo? TMG Install handles MCST clearance, lift padding, security check-in, dismantle, transport and reassembly — fixed price, fully insured. Instant online quote.";
+  const canonical = `${DOMAIN}/services/condo-moving-services-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "Condo Moving Services Singapore",
+      "serviceType": [
+        "Condo Moving Services",
+        "MCST-Compliant Moving",
+        "Condo Furniture Relocation",
+        "Condo Move-In Service",
+        "Condo Move-Out Service",
+      ],
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": { "@type": "Offer", "priceCurrency": "SGD", "description": "Fixed-price condo moves with MCST coordination, lift padding and security check-in handled." },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "Condo Moving Services Singapore", "item": canonical },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "Do you handle the MCST move-in / move-out form?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we'll provide our company details, COI (certificate of insurance), and worker NRICs/work permits for your MCST submission. Most condos require 3–7 days notice. We coordinate the timing once your slot is approved." } },
+        { "@type": "Question", "name": "Do you bring lift padding?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — heavy-duty lift pads, corner protectors and floor mats are standard for every condo move. Many MCSTs require them — we bring them whether or not it's mandatory." } },
+        { "@type": "Question", "name": "What's the typical condo moving deposit?", "acceptedAnswer": { "@type": "Answer", "text": "Most Singapore condos collect a S$200–S$1,000 refundable damage deposit from you (the resident), not from the mover. We can supply our COI in advance to reduce or waive it where the MCST allows." } },
+        { "@type": "Question", "name": "Can you do an after-hours / weekend condo move?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — most Singapore condos allow moves on Saturdays and selected weekday evenings. We work within whatever window your MCST approves." } },
+        { "@type": "Question", "name": "Do you dismantle and reassemble furniture as part of the move?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — that's our specialty. Wardrobes, bed frames, sofas, dining tables and TV consoles are dismantled, transported and reassembled in one visit, included in the price." } },
+        { "@type": "Question", "name": "How much does a condo move cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "Per item using our fixed catalog. Typical 2-bedroom condo moves run S$800–S$1,400; 3-bedroom S$1,200–S$2,000. Add your items to our quote tool for an exact upfront price." } },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Condo Moving Services Singapore</div>
+    <h1><em>Condo Moves Done Right</em><br/>MCST-Compliant · Fully Insured · Fixed Price</h1>
+    <p class="hero-desc">Moving into or out of a Singapore condo? We handle the MCST clearance, lift padding, security check-in, dismantle, transport and reassembly — one team, one fixed price, fully insured.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+    <div class="section">
+      <h2>Singapore's Condo Moving Specialists</h2>
+      <p>Condo moves are stricter than HDB moves — MCST forms, insurance certificates, lift padding, security check-in, time-window restrictions and refundable damage deposits. Pick the wrong mover and your move can be turned away at the gate.</p>
+      <p>TMG Install handles condo moves end-to-end across Singapore — from One-North to Marina One, Sentosa Cove to D'Leedon. We supply our COI in advance, bring our own lift pads and corner protectors, and coordinate timing with your MCST so the move runs on schedule.</p>
+    </div>
+
+    <div class="section">
+      <h2>What's Included In Every Condo Move</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">📄</div><h3>MCST Paperwork</h3><p>COI, company UEN, worker NRICs / work permits supplied for your MCST move-in/out form.</p></div>
+        <div class="service-card"><div class="service-card-icon">🛡️</div><h3>Lift &amp; Floor Protection</h3><p>Heavy-duty lift pads, corner guards and runner mats — every move, no extra charge.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔧</div><h3>Dismantle + Reassemble</h3><p>Wardrobes, bed frames, sofas, dining tables — taken apart, moved, put back together, one team.</p></div>
+        <div class="service-card"><div class="service-card-icon">🚛</div><h3>Transport &amp; Security</h3><p>Padded transport, gate check-in handled, MCST timing coordinated.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Condo Move Pricing</h2>
+      <p>Per item using our standard fixed catalog. Typical condo moves work out around:</p>
+      <ul>
+        <li><strong>1-bedroom condo</strong> — S$500–S$900 all-in</li>
+        <li><strong>2-bedroom condo</strong> — S$800–S$1,400 all-in</li>
+        <li><strong>3-bedroom condo</strong> — S$1,200–S$2,000 all-in</li>
+        <li><strong>Penthouse / 4+ bedroom</strong> — quoted per item, typically S$1,800–S$3,500</li>
+      </ul>
+      <p>No surprise charges for lift padding, MCST liaison, or basic disassembly — all included.</p>
+    </div>
+
+    <div class="section">
+      <h2>Why Condo Owners Choose TMG</h2>
+      <ul>
+        <li><strong>COI supplied upfront</strong> — most MCSTs accept our certificate of insurance, often reducing or waiving your damage deposit.</li>
+        <li><strong>Single-team accountability</strong> — same crew dismantles, moves and reassembles. If anything goes wrong, one number to call.</li>
+        <li><strong>Time-window respected</strong> — we know condos enforce strict move windows; we plan to finish inside yours.</li>
+        <li><strong>Lift-pad ready</strong> — no scrambling at security check-in for "where are your protective pads?"</li>
+        <li><strong>Discreet</strong> — uniformed crew, low-noise tools, lift-mat trolleys. No banging through your neighbours' corridors.</li>
+        <li><strong>Fully insured</strong> — for furniture, walls, lift interiors and condo common-area damage.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>How It Works</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">📋</div><h3>1. Get a Quote</h3><p>List the items moving with you. Itemised fixed price in 60 seconds.</p></div>
+        <div class="service-card"><div class="service-card-icon">📄</div><h3>2. We Send MCST Docs</h3><p>COI, UEN and worker IDs — straight to your email for the MCST form.</p></div>
+        <div class="service-card"><div class="service-card-icon">🚛</div><h3>3. Move Day</h3><p>Crew arrives within your approved window. Dismantle, transport, reassemble — done.</p></div>
+        <div class="service-card"><div class="service-card-icon">✅</div><h3>4. You Inspect</h3><p>Walk-through at the new place. Pay only after sign-off.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">Do you handle the MCST move-in / move-out form?</div><div class="faq-a">Yes — we provide COI, UEN, worker IDs and timing details. Most condos require 3–7 days notice; we coordinate once your slot is approved.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you bring lift padding?</div><div class="faq-a">Always. Heavy-duty lift pads, corner protectors and floor mats are standard for every condo move.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you do an after-hours or weekend move?</div><div class="faq-a">Yes — within whatever window your MCST approves (typically Saturdays and selected weekday evenings).</div></div>
+      <div class="faq-item"><div class="faq-q">Do you reassemble at the new place?</div><div class="faq-a">Yes — included in the bundled price. Wardrobes, beds, sofas, dining tables — all reassembled and levelled.</div></div>
+      <div class="faq-item"><div class="faq-q">How much does it cost?</div><div class="faq-a">2-bedroom condos S$800–S$1,400; 3-bedroom S$1,200–S$2,000. Get an exact quote in our tool.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you cover all Singapore condos?</div><div class="faq-a">Yes — every condo, executive condo and penthouse across Singapore. Sentosa Cove included.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>Book Your Condo Move</h2>
+        <p>Instant fixed-price quote — MCST docs supplied, no surveyor visit, no surprises.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "Condo Moving Services" });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lazada furniture installation Singapore
+// ─────────────────────────────────────────────────────────────────────────────
+export function lazadaFurnitureInstallationPage(): string {
+  const title = "Lazada Furniture Installation Singapore | Assembly · Wall-Fix · Relocation | TMG Install";
+  const description = "Furniture from Lazada arriving flat-packed? TMG Install assembles, installs, dismantles and relocates Lazada furniture across Singapore — fixed price, fully insured, instant online quote.";
+  const canonical = `${DOMAIN}/services/lazada-furniture-installation-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "Lazada Furniture Installation Singapore",
+      "serviceType": [
+        "Lazada Furniture Installation",
+        "Lazada Furniture Assembly",
+        "Lazada Furniture Dismantling",
+        "Lazada Furniture Relocation",
+      ],
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": { "@type": "Offer", "priceCurrency": "SGD", "description": "Fixed-price catalog covering 250+ furniture types — instant quote." },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "Lazada Furniture Installation Singapore", "item": canonical },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "Do you install furniture bought from Lazada?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — TMG Install assembles Lazada furniture from any seller, including LazMall and overseas-shipped items. Wardrobes, bed frames, desks, sofas, dining sets, shelving — we handle them all." } },
+        { "@type": "Question", "name": "Lazada furniture often has poor instructions — can you still install it?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Our installers are experienced with low-quality manuals, missing instructions and pictogram-only guides. WhatsApp us photos of the parts before booking and we'll confirm we can handle it." } },
+        { "@type": "Question", "name": "Can you check that all parts are included before assembly?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — first thing we do on arrival is a parts inventory against the manual. If anything is missing we flag it before drilling so you can raise a Lazada return without compromising the box." } },
+        { "@type": "Question", "name": "How much does Lazada furniture installation cost?", "acceptedAnswer": { "@type": "Answer", "text": "Standard catalog pricing — wardrobes from S$120, bed frames from S$80, desks from S$50, sofas from S$120. Add your items in our quote tool for an itemised price upfront." } },
+        { "@type": "Question", "name": "Can you wall-fix tall wardrobes and shelving?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — included where the furniture's design needs it for safety. We bring HDB-friendly drill bits, stud finder and weight-rated wall anchors for both concrete and partition walls." } },
+        { "@type": "Question", "name": "What if my Lazada furniture is defective?", "acceptedAnswer": { "@type": "Answer", "text": "We'll document the defect with photos for your Lazada warranty claim and stop assembly to preserve the return condition. You can rebook us for a future date once the seller ships replacement parts." } },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Lazada Furniture Installation Singapore</div>
+    <h1><em>Lazada Furniture</em><br/>Assembly, Installation &amp; Relocation</h1>
+    <p class="hero-desc">Bought a wardrobe, bed frame or desk from Lazada? We assemble, install, dismantle and relocate Lazada furniture across Singapore — fixed prices, instant quote, fully insured.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+    <div class="section">
+      <h2>Singapore's Lazada Furniture Specialists</h2>
+      <p>Lazada is one of Singapore's biggest furniture marketplaces — wardrobes, bed frames, study desks, sofas, dining sets and shelving from hundreds of sellers. The catch: instructions vary wildly, parts can be mis-labelled, and proprietary fittings are common. Many buyers spend a Saturday wrestling with the assembly only to call us in on Sunday to finish.</p>
+      <p>TMG Install is the team Singapore homes call when their Lazada delivery lands. We assemble, install, wall-fix, dismantle and relocate Lazada furniture island-wide, with the same fixed-price catalog and instant upfront quote we use for every brand.</p>
+    </div>
+
+    <div class="section">
+      <h2>What We Do With Your Lazada Furniture</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">🪛</div><h3>Assembly &amp; Installation</h3><p>Wardrobes, bed frames, desks, dining sets, sofas — assembled correctly the first time, wall-fixed where needed.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔍</div><h3>Parts Inventory</h3><p>We check parts against the manual before drilling so any missing items can still be claimed via Lazada warranty.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔧</div><h3>Dismantling</h3><p>Moving out or replacing? We dismantle Lazada furniture cleanly for transport, reinstallation or disposal.</p></div>
+        <div class="service-card"><div class="service-card-icon">🚛</div><h3>Relocation</h3><p>Dismantle + transport + reassemble at the new address — coordinated with your move.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Common Lazada Furniture We Install</h2>
+      <ul>
+        <li>Wardrobes — sliding-door, swing-door, modular, fabric portable wardrobes</li>
+        <li>Bed frames — divan, storage beds, slat-base, upholstered, bunk and loft</li>
+        <li>Sofas &amp; recliners — modular, L-shape, fabric, PU leather</li>
+        <li>Dining sets — extending tables, marble-top tables, dining chairs</li>
+        <li>Study desks &amp; office chairs — standing desks, gaming chairs, ergonomic setups</li>
+        <li>Cabinets &amp; shelving — TV consoles, shoe cabinets, bookcases, kitchen organisers</li>
+        <li>Children's furniture — bunk beds, study desks, toy storage</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Why Singapore Customers Use TMG for Lazada</h2>
+      <ul>
+        <li><strong>Fixed-price quote upfront</strong> — no premium for "Lazada" or unbranded furniture. Same catalog, same prices.</li>
+        <li><strong>Comfortable with poor manuals</strong> — pictogram-only, mis-translated, or missing instructions are no problem.</li>
+        <li><strong>Parts inventory before drilling</strong> — protect your Lazada return rights if anything's missing.</li>
+        <li><strong>We bring the right tools</strong> — Allen keys, drills, spirit levels, HDB-friendly drill bits — every job.</li>
+        <li><strong>Wall-fixed for safety</strong> — tall wardrobes and shelving anchored to wall studs.</li>
+        <li><strong>Same-day available</strong> — book before noon for same-day where slots allow.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>How It Works</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">📋</div><h3>1. Get a Quote</h3><p>Add your Lazada items in our quote tool. Itemised price in 60 seconds.</p></div>
+        <div class="service-card"><div class="service-card-icon">📅</div><h3>2. Book a Slot</h3><p>3-hour window. Same-day, weekend or weekday.</p></div>
+        <div class="service-card"><div class="service-card-icon">🪛</div><h3>3. We Install</h3><p>Parts inventory, assembly, wall-fixing, packaging removal — one visit.</p></div>
+        <div class="service-card"><div class="service-card-icon">✅</div><h3>4. You Inspect</h3><p>Walk-through and sign-off. Payment only after you're happy.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">Do you install furniture from Lazada?</div><div class="faq-a">Yes — from any Lazada seller including LazMall and overseas-shipped items. Wardrobes, beds, sofas, dining, desks, shelving — all handled.</div></div>
+      <div class="faq-item"><div class="faq-q">Lazada manuals are bad — can you still assemble?</div><div class="faq-a">Yes. We're experienced with poor or missing instructions. WhatsApp us photos before booking and we'll confirm.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you check that all parts are included?</div><div class="faq-a">Yes — parts inventory against the manual is the first step. If anything's missing we flag it before drilling so you can claim via Lazada.</div></div>
+      <div class="faq-item"><div class="faq-q">How much does it cost?</div><div class="faq-a">Standard catalog — wardrobes from S$120, beds from S$80, desks from S$50, sofas from S$120. Itemised in our quote tool.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you wall-fix tall wardrobes?</div><div class="faq-a">Yes — included. We bring HDB-friendly drill bits, stud finder and weight-rated anchors.</div></div>
+      <div class="faq-item"><div class="faq-q">What if my Lazada furniture is defective?</div><div class="faq-a">We document the defect with photos and pause assembly to preserve your warranty claim — rebook us once Lazada ships replacement parts.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>Get Your Lazada Furniture Installed</h2>
+        <p>Instant fixed-price quote — no phone calls, no surprises. Book in 60 seconds.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "Lazada Furniture Installation" });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shopee furniture installation Singapore
+// ─────────────────────────────────────────────────────────────────────────────
+export function shopeeFurnitureInstallationPage(): string {
+  const title = "Shopee Furniture Installation Singapore | Assembly · Wall-Fix · Relocation | TMG Install";
+  const description = "Furniture from Shopee arriving flat-packed? TMG Install assembles, installs, dismantles and relocates Shopee furniture across Singapore — fixed price, instant quote, fully insured.";
+  const canonical = `${DOMAIN}/services/shopee-furniture-installation-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "Shopee Furniture Installation Singapore",
+      "serviceType": [
+        "Shopee Furniture Installation",
+        "Shopee Furniture Assembly",
+        "Shopee Furniture Dismantling",
+        "Shopee Furniture Relocation",
+      ],
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": { "@type": "Offer", "priceCurrency": "SGD", "description": "Fixed-price catalog covering 250+ furniture types — instant quote." },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "Shopee Furniture Installation Singapore", "item": canonical },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "Do you install furniture bought from Shopee?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — TMG Install assembles Shopee furniture from any seller, including Shopee Mall and preferred sellers. Wardrobes, bed frames, study desks, sofas and shelving are all in our catalog." } },
+        { "@type": "Question", "name": "Shopee furniture often comes without instructions — is that a problem?", "acceptedAnswer": { "@type": "Answer", "text": "No. Our installers handle no-instruction assemblies daily by working from the parts and component shapes. WhatsApp us photos of the box and the parts before booking and we'll confirm." } },
+        { "@type": "Question", "name": "Will you check parts before starting?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — first step on arrival is a parts inventory. If anything is missing or damaged we'll flag it before drilling so you can raise a Shopee return without compromising the box." } },
+        { "@type": "Question", "name": "How much does Shopee furniture installation cost?", "acceptedAnswer": { "@type": "Answer", "text": "Same catalog as everything else — wardrobes from S$120, bed frames from S$80, desks from S$50, sofas from S$120. Itemised quote in our online tool." } },
+        { "@type": "Question", "name": "Can you wall-fix shelving and tall wardrobes?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — included. HDB-friendly drill bits, stud finder, weight-rated anchors. Tall wardrobes and bookcases are wall-fixed for safety." } },
+        { "@type": "Question", "name": "Do you also dismantle Shopee furniture for moves or disposal?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — for relocations (we dismantle, transport and reassemble at the new address) or for disposal. We can arrange disposal of unwanted items in one visit." } },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Shopee Furniture Installation Singapore</div>
+    <h1><em>Shopee Furniture</em><br/>Assembly, Installation &amp; Relocation</h1>
+    <p class="hero-desc">Bought a wardrobe, bed frame or desk from Shopee? We assemble, install, dismantle and relocate Shopee furniture across Singapore — fixed prices, instant quote, fully insured.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+    <div class="section">
+      <h2>Singapore's Shopee Furniture Specialists</h2>
+      <p>Shopee is the marketplace many Singapore renters and young homeowners turn to first — affordable wardrobes, bed frames, study desks, kitchen organisers and modular shelving. The trade-off: instructions are often missing, mis-translated or pictogram-only, and parts quality is variable.</p>
+      <p>TMG Install handles Shopee furniture installations across Singapore. Same fixed-price catalog, same instant upfront quote, same insured team. We've assembled thousands of pieces from no-name Shopee sellers and we know what to watch for.</p>
+    </div>
+
+    <div class="section">
+      <h2>What We Do With Your Shopee Furniture</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">🪛</div><h3>Assembly &amp; Installation</h3><p>Wardrobes, beds, desks, dining sets, sofas, shelving — assembled correctly first time.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔍</div><h3>Parts Inventory</h3><p>Counted against the manual (or against the parts list you screenshot from Shopee) before any drilling starts.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔧</div><h3>Dismantling</h3><p>Moving out or replacing? Cleanly dismantled for transport, reinstall or disposal.</p></div>
+        <div class="service-card"><div class="service-card-icon">🚛</div><h3>Relocation</h3><p>Dismantle + transport + reassemble at the new address — same day where possible.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Common Shopee Furniture We Install</h2>
+      <ul>
+        <li>Wardrobes — sliding-door, swing-door, modular DIY, fabric portable</li>
+        <li>Bed frames — storage beds, divan, slat-base, upholstered, bunk, loft</li>
+        <li>Sofas — modular, L-shape, fabric, PU leather, recliners</li>
+        <li>Dining sets — extending tables, marble-top, glass-top, dining chairs</li>
+        <li>Study desks &amp; office chairs — standing desks, gaming chairs, ergonomic setups</li>
+        <li>Cabinets &amp; shelving — TV consoles, shoe cabinets, bookcases, kitchen storage</li>
+        <li>Children's furniture — bunk beds, study desks, toy storage</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Why Singapore Customers Use TMG for Shopee</h2>
+      <ul>
+        <li><strong>Fixed-price quote upfront</strong> — no premium for unbranded furniture.</li>
+        <li><strong>Comfortable without instructions</strong> — pictogram-only, mis-translated, or no manual at all are no problem.</li>
+        <li><strong>Parts inventory protects your return rights</strong> — anything missing is flagged before drilling.</li>
+        <li><strong>HDB-friendly tools</strong> — proper drill bits, stud finder, weight-rated wall anchors.</li>
+        <li><strong>Wall-fixed for safety</strong> — tall wardrobes and shelving anchored properly.</li>
+        <li><strong>Same-day available</strong> — book before noon for same-day where slots allow.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>How It Works</h2>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">📋</div><h3>1. Get a Quote</h3><p>Add your Shopee items in our quote tool. Itemised price in 60 seconds.</p></div>
+        <div class="service-card"><div class="service-card-icon">📅</div><h3>2. Book a Slot</h3><p>3-hour window. Same-day, weekend or weekday.</p></div>
+        <div class="service-card"><div class="service-card-icon">🪛</div><h3>3. We Install</h3><p>Parts inventory, assembly, wall-fixing, packaging removal — one visit.</p></div>
+        <div class="service-card"><div class="service-card-icon">✅</div><h3>4. You Inspect</h3><p>Walk-through and sign-off. Pay only after you're happy.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">Do you install furniture from Shopee?</div><div class="faq-a">Yes — from any Shopee seller including Shopee Mall. Wardrobes, beds, sofas, dining, desks and shelving all in our catalog.</div></div>
+      <div class="faq-item"><div class="faq-q">No instructions in the box — can you still assemble?</div><div class="faq-a">Yes. Our installers handle no-instruction assemblies daily. WhatsApp us photos of the parts before booking and we'll confirm.</div></div>
+      <div class="faq-item"><div class="faq-q">Will you check parts before starting?</div><div class="faq-a">Yes — first step is a parts inventory against the manual or your Shopee parts-list screenshot.</div></div>
+      <div class="faq-item"><div class="faq-q">How much does it cost?</div><div class="faq-a">Standard catalog — wardrobes from S$120, beds from S$80, desks from S$50. Itemised in our tool.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you wall-fix shelving?</div><div class="faq-a">Yes — included. HDB-friendly drill bits, stud finder, weight-rated anchors.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you dismantle Shopee furniture for moves?</div><div class="faq-a">Yes — for moves (dismantle, transport, reassemble at new address) or disposal.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>Get Your Shopee Furniture Installed</h2>
+        <p>Instant fixed-price quote — no phone calls, no surprises. Book in 60 seconds.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "Shopee Furniture Installation" });
 }
