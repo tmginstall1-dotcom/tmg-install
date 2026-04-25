@@ -323,7 +323,18 @@ export default function PageBgScene() {
       });
     }
 
-    const resize   = () => { W = canvas.width  = window.innerWidth; H = canvas.height = window.innerHeight; };
+    const resize   = () => {
+      /* High-DPI rendering: backing store at devicePixelRatio resolution
+         (capped at 2.5×) so lines/strokes stay crisp on phones & retina. */
+      const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width  = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      canvas.style.width  = W + "px";
+      canvas.style.height = H + "px";
+      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
     const onScroll = () => { const mx = document.documentElement.scrollHeight - window.innerHeight; scrollP = mx > 0 ? Math.min(1, window.scrollY / mx) : 0; };
     const onMouse  = (e: MouseEvent) => { mouseX = e.clientX / window.innerWidth - 0.5; mouseY = e.clientY / window.innerHeight - 0.5; };
 
