@@ -505,14 +505,24 @@ export default function PageBgScene() {
       dl.sort((a, b) => b.avgZ - a.avgZ);
       fl.sort((a, b) => b.avgZ - a.avgZ);
 
-      /* ── Pass 0: filled faces (volume + shading) ── */
+      /* ── Pass 0: cel-shaded faces (anime draft — 3 flat tones) ── */
       fl.forEach(({ pts, shade, alpha }) => {
-        const fillA = alpha * 0.46;
+        const fillA = alpha * 0.62;
         if (fillA < 0.01) return;
-        /* Warm amber leather tone, modulated by light */
-        const r = Math.round(46 + 165 * shade);
-        const g = Math.round(28 + 110 * shade);
-        const b = Math.round(10 + 38  * shade);
+
+        /* 3-tone cel-shade buckets: highlight / midtone / shadow */
+        let r: number, g: number, b: number;
+        if (shade > 0.72) {
+          /* Highlight — warm cream */
+          r = 244; g = 196; b = 102;
+        } else if (shade > 0.46) {
+          /* Midtone — amber */
+          r = 176; g = 108; b = 36;
+        } else {
+          /* Shadow — deep umber */
+          r = 58;  g = 32;  b = 12;
+        }
+
         ctx.fillStyle = `rgba(${r},${g},${b},${fillA.toFixed(3)})`;
         ctx.beginPath();
         ctx.moveTo(pts[0][0], pts[0][1]);
@@ -520,36 +530,71 @@ export default function PageBgScene() {
         ctx.closePath();
         ctx.fill();
 
-        /* Subtle highlight wash on lit faces */
-        if (shade > 0.78) {
-          ctx.fillStyle = `rgba(255,228,140,${(0.07 * (shade - 0.78) / 0.22 * alpha).toFixed(3)})`;
-          ctx.fill();
+        /* Hatching on shadow faces (parallel ink strokes, clipped to face) */
+        if (shade < 0.46) {
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          for (const [x, y] of pts) {
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+          }
+          const span = (maxX - minX) + (maxY - minY);
+          if (span > 8) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+            ctx.closePath();
+            ctx.clip();
+
+            /* Light gold hatching reads against dark fill — like ink lines on toned paper */
+            ctx.strokeStyle = `rgba(228,178,86,${(0.34 * alpha).toFixed(3)})`;
+            ctx.lineWidth = 0.7;
+            ctx.lineCap = "butt";
+            const GAP = 7;
+            const h = maxY - minY;
+            /* 45° diagonal hatch lines */
+            for (let d = minX - h; d < maxX; d += GAP) {
+              ctx.beginPath();
+              ctx.moveTo(d, minY);
+              ctx.lineTo(d + h, maxY);
+              ctx.stroke();
+            }
+            ctx.restore();
+          }
         }
       });
 
-      /* ── Pass 1: outer bloom (very wide, very dim) ── */
+      /* ── Pass 1: soft outer halo (toned way down — anime is flatter) ── */
       dl.forEach(({ x1,y1,x2,y2,a,lw }) => {
         if (lw < 0.8) return;
-        ctx.strokeStyle = AMB(a * 0.055);
-        ctx.lineWidth   = lw * 10;
+        ctx.strokeStyle = AMB(a * 0.022);
+        ctx.lineWidth   = lw * 7;
         ctx.lineCap     = "round";
         ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
       });
 
-      /* ── Pass 2: inner glow (medium, moderate) ── */
+      /* ── Pass 2: inner ink halo (subtle warmth) ── */
       dl.forEach(({ x1,y1,x2,y2,a,lw }) => {
         if (lw < 0.8) return;
-        ctx.strokeStyle = AMB(a * 0.13);
-        ctx.lineWidth   = lw * 3.2;
+        ctx.strokeStyle = AMB(a * 0.06);
+        ctx.lineWidth   = lw * 2.4;
         ctx.lineCap     = "round";
         ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
       });
 
-      /* ── Pass 3: sharp main strokes ── */
+      /* ── Pass 3: bold ink outline (structural = thick, detail = thin sketch) ── */
       dl.forEach(({ x1,y1,x2,y2,a,lw,det }) => {
-        ctx.strokeStyle = det ? GOLD(a * 1.12) : AMB(a);
-        ctx.lineWidth   = lw;
-        ctx.lineCap     = "round";
+        if (det) {
+          /* Detail/construction lines — thin gold sketch strokes */
+          ctx.strokeStyle = GOLD(a * 0.85);
+          ctx.lineWidth   = Math.max(0.5, lw * 0.7);
+        } else {
+          /* Structural silhouette — bold amber ink */
+          ctx.strokeStyle = `rgba(255,200,90,${Math.min(1, a * 1.15).toFixed(3)})`;
+          ctx.lineWidth   = lw * 1.55;
+        }
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
         ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
       });
 
