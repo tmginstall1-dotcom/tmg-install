@@ -32,7 +32,7 @@ function mkBox(
   cx: number, cy: number, cz: number,
   w: number,  h: number,  d: number,
   xv?: V3[], xe?: Edge[]
-): { v: V3[]; e: Edge[] } {
+): { v: V3[]; e: Edge[]; f: number[][] } {
   const x0 = cx - w/2, x1 = cx + w/2;
   const y0 = cy,       y1 = cy + h;
   const z0 = cz - d/2, z1 = cz + d/2;
@@ -45,12 +45,21 @@ function mkBox(
     [4,5],[5,6],[6,7],[7,4],
     [0,4],[1,5],[2,6],[3,7],
   ];
+  /* Faces wound CCW when viewed from outside the box */
+  const f: number[][] = [
+    [0,3,2,1], // back   (-z)
+    [4,5,6,7], // front  (+z)
+    [3,7,6,2], // top    (+y)
+    [0,1,5,4], // bottom (-y)
+    [1,2,6,5], // right  (+x)
+    [0,4,7,3], // left   (-x)
+  ];
   if (xv && xe) {
     const off = v.length;
     v.push(...xv);
     e.push(...xe.map(([a, b]) => [a + off, b + off] as Edge));
   }
-  return { v, e };
+  return { v, e, f };
 }
 
 function merge(...parts: { v: V3[]; e: Edge[] }[]): [V3[], Edge[]] {
@@ -156,7 +165,7 @@ function scatterT(sp: number, sDel: number, aDel: number): number {
 
 /* ── Piece type ────────────────────────────────────────────── */
 interface Piece {
-  v: V3[]; e: Edge[];
+  v: V3[]; e: Edge[]; f: number[][];
   cx: number; cy: number; cz: number;
   scatter: V3; arcY: number;
   spin: [number, number, number];
@@ -175,7 +184,7 @@ function buildChair(): Piece[] {
     xv?: V3[], xe?: Edge[]
   ) {
     const g = mkBox(bx, by, bz, w, h, d, xv, xe);
-    P.push({ v:g.v, e:g.e, cx:bx, cy:by+h/2, cz:bz, scatter:sc, arcY, spin:spn, sDel, aDel, alpha });
+    P.push({ v:g.v, e:g.e, f:g.f, cx:bx, cy:by+h/2, cz:bz, scatter:sc, arcY, spin:spn, sDel, aDel, alpha });
   }
 
   const [sv, se] = merge(
@@ -419,7 +428,13 @@ export default function PageBgScene() {
 
       /* ── Chair — build draw list ── */
       type DE = { x1:number;y1:number;x2:number;y2:number;avgZ:number;a:number;lw:number;det:boolean };
+      type DF = { pts:[number,number][]; avgZ:number; shade:number; alpha:number };
       const dl: DE[] = [];
+      const fl: DF[] = [];
+
+      /* Light direction in world space (normalized): from upper-front-left */
+      const LX = -0.42, LY = -0.78, LZ = 0.46;
+      const LL = Math.hypot(LX, LY, LZ);
 
       CHAIR.forEach(piece => {
         const t = scatterT(scrollP, piece.sDel, piece.aDel);
@@ -430,13 +445,54 @@ export default function PageBgScene() {
         const sv = spinV(tv, mc[0],mc[1],mc[2], t*piece.spin[0], t*piece.spin[1], t*piece.spin[2]);
         const rv = sv.map(v => camRot(v, yaw, pitch));
         const pv = rv.map(v => proj([v[0],v[1],v[2]+DEPTH], ox, oy, focal));
+        const tc = Math.max(0, Math.min(1, t));
+
+        /* Faces — filled, shaded surfaces (back-to-front) */
+        piece.f.forEach(faceIdx => {
+          const pts: [number,number][] = [];
+          let sumZ = 0;
+          let valid = true;
+          for (const i of faceIdx) {
+            const [px, py, ps] = pv[i];
+            if (ps <= 0) { valid = false; break; }
+            pts.push([px, py]);
+            sumZ += rv[i][2] + DEPTH;
+          }
+          if (!valid || pts.length < 3) return;
+
+          /* Backface cull via signed screen area (y-down → CCW outward = negative) */
+          let area = 0;
+          for (let i = 0; i < pts.length; i++) {
+            const [x1, y1] = pts[i];
+            const [x2, y2] = pts[(i + 1) % pts.length];
+            area += x1 * y2 - x2 * y1;
+          }
+          if (area >= 0) return;
+
+          /* Face normal in camera space → diffuse shading */
+          const v0 = rv[faceIdx[0]], v1 = rv[faceIdx[1]], v2 = rv[faceIdx[2]];
+          const ux = v1[0]-v0[0], uy = v1[1]-v0[1], uz = v1[2]-v0[2];
+          const wx = v2[0]-v0[0], wy = v2[1]-v0[1], wz = v2[2]-v0[2];
+          let nx = uy*wz - uz*wy, ny = uz*wx - ux*wz, nz = ux*wy - uy*wx;
+          const nl = Math.hypot(nx, ny, nz) || 1;
+          nx /= nl; ny /= nl; nz /= nl;
+          const dot = (nx*LX + ny*LY + nz*LZ) / LL;
+          /* Wrap-around shading so back side isn't pitch black */
+          const shade = Math.max(0.16, Math.min(1, 0.34 + 0.66 * Math.max(0, dot * 0.5 + 0.5)));
+
+          fl.push({
+            pts,
+            avgZ: sumZ / faceIdx.length,
+            shade,
+            alpha: piece.alpha * (1 - tc * 0.55) * breathe,
+          });
+        });
 
         piece.e.forEach(([ia, ib], ei) => {
           const [ax,ay,as2] = pv[ia], [bx,by,bs2] = pv[ib];
           if (as2<=0||bs2<=0) return;
           const avgZ = (rv[ia][2]+rv[ib][2])/2 + DEPTH;
           const dep  = Math.max(0.06, Math.min(0.95, focal/avgZ * 1.38));
-          const tc   = Math.max(0, Math.min(1, t));
           dl.push({
             x1:ax, y1:ay, x2:bx, y2:by, avgZ,
             a:  piece.alpha * dep * (1 - tc*0.28) * breathe,
@@ -447,6 +503,29 @@ export default function PageBgScene() {
       });
 
       dl.sort((a, b) => b.avgZ - a.avgZ);
+      fl.sort((a, b) => b.avgZ - a.avgZ);
+
+      /* ── Pass 0: filled faces (volume + shading) ── */
+      fl.forEach(({ pts, shade, alpha }) => {
+        const fillA = alpha * 0.46;
+        if (fillA < 0.01) return;
+        /* Warm amber leather tone, modulated by light */
+        const r = Math.round(46 + 165 * shade);
+        const g = Math.round(28 + 110 * shade);
+        const b = Math.round(10 + 38  * shade);
+        ctx.fillStyle = `rgba(${r},${g},${b},${fillA.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+        ctx.closePath();
+        ctx.fill();
+
+        /* Subtle highlight wash on lit faces */
+        if (shade > 0.78) {
+          ctx.fillStyle = `rgba(255,228,140,${(0.07 * (shade - 0.78) / 0.22 * alpha).toFixed(3)})`;
+          ctx.fill();
+        }
+      });
 
       /* ── Pass 1: outer bloom (very wide, very dim) ── */
       dl.forEach(({ x1,y1,x2,y2,a,lw }) => {
