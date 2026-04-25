@@ -176,64 +176,100 @@ interface Piece {
 function buildChair(): Piece[] {
   const P: Piece[] = [];
 
+  /* tilt: optional [ax, ay, az, pivotX, pivotY, pivotZ] applied at build time
+     (used to lean the back rearward without breaking face/edge topology) */
   function add(
     bx: number, by: number, bz: number,
     w:  number, h:  number, d:  number,
     sc: V3, arcY: number, spn: [number,number,number],
     sDel: number, aDel: number, alpha: number,
-    xv?: V3[], xe?: Edge[]
+    xv?: V3[], xe?: Edge[],
+    tilt?: [number, number, number, number, number, number]
   ) {
     const g = mkBox(bx, by, bz, w, h, d, xv, xe);
-    P.push({ v:g.v, e:g.e, f:g.f, cx:bx, cy:by+h/2, cz:bz, scatter:sc, arcY, spin:spn, sDel, aDel, alpha });
+    let v = g.v;
+    if (tilt) {
+      const [ax, ay, az, px, py, pz] = tilt;
+      v = spinV(v, px, py, pz, ax, ay, az);
+    }
+    P.push({ v, e:g.e, f:g.f, cx:bx, cy:by+h/2, cz:bz, scatter:sc, arcY, spin:spn, sDel, aDel, alpha });
   }
 
+  /* ── Seat cushion — plumper, deeper tufting, taller dome ── */
   const [sv, se] = merge(
-    tufts3(58, -93, 93, -85, 85),
-    domeCap(58, 66.5, -93, 93, -85, 85)
+    tufts3(64, -94, 94, -86, 86),
+    domeCap(64, 75, -94, 94, -86, 86)
   );
-  add(0, 38, 0, 186, 20, 170,
+  add(0, 38, 0, 192, 26, 178,
       [0,-272,0], 44, [0.50,0,0.20], 0.22, 0.46, 1.00, sv, se);
 
+  /* ── Seat frame (heavy structural support, mostly hidden under skirt) ── */
   const [sfv, sfe] = merge(
     xBrace([-98,5,-90],[98,40,90],[98,5,-90],[-98,40,90])
   );
-  add(0, 5, 0, 200, 35, 184,
-      [0,-318,58], 0, [0.38,0,-0.18], 0.28, 0.36, 0.86, sfv, sfe);
+  add(0, 5, 0, 200, 33, 184,
+      [0,-318,58], 0, [0.38,0,-0.18], 0.28, 0.36, 0.78, sfv, sfe);
 
-  add(0, 7, 92, 196, 14, 8,
-      [0,-285,62], 16, [0.32,0,0.18], 0.25, 0.42, 0.88);
+  /* ── Seat skirt — full 4-sided band wrapping the seat (proper sofa frame) ── */
+  add(0, 5, 92, 202, 18, 8,
+      [0,-285,72], 16, [0.32,0,0.18], 0.25, 0.42, 0.93);
+  add(0, 5, -92, 202, 18, 8,
+      [0,-285,-72], 16, [0.32,0,-0.18], 0.25, 0.42, 0.90);
+  add(-96, 5, 0, 8, 18, 200,
+      [-310,-285,0], 16, [0,-0.95,0], 0.26, 0.41, 0.92);
+  add(96, 5, 0, 8, 18, 200,
+      [310,-285,0], 16, [0,0.95,0], 0.26, 0.41, 0.92);
 
+  /* ── Back — tilted 11° rearward for a real recline (built-in, not animated) ── */
+  const BACK_TILT: [number, number, number, number, number, number] =
+    [-0.19, 0, 0, 0, 58, -78];
+
+  /* Back cushion (puffed face + 4 vertical slats) */
   const [bcv, bce] = merge(
-    frontPuff(-84, 84, 58, 218, -75, -66.5),
-    slats(-84, 84, 58, 218, -75, 3)
+    frontPuff(-86, 86, 60, 224, -78, -66),
+    slats(-86, 86, 60, 224, -78, 4)
   );
-  add(0, 58, -84, 168, 160, 18,
-      [0,308,-382], 92, [-1.05,0.12,0], 0.04, 0.70, 1.00, bcv, bce);
+  add(0, 60, -86, 174, 164, 22,
+      [0,308,-382], 92, [-1.05,0.12,0], 0.04, 0.70, 1.00, bcv, bce, BACK_TILT);
 
+  /* Back panel (X-brace structural backing) */
   const [bfv, bfe] = merge(
-    xBrace([-97,53,-82],[97,243,-82],[97,53,-82],[-97,243,-82])
+    xBrace([-99,57,-84],[99,250,-84],[99,57,-84],[-99,250,-84])
   );
-  add(0, 53, -95, 198, 190, 28,
-      [0,228,-422], 70, [-0.82,0,0.10], 0.08, 0.62, 0.84, bfv, bfe);
+  add(0, 57, -98, 202, 196, 26,
+      [0,228,-422], 70, [-0.82,0,0.10], 0.08, 0.62, 0.86, bfv, bfe, BACK_TILT);
 
-  const [lav, lae] = merge({ v:[[-85,12,-90],[-85,94,-90]] as V3[], e:[[0,1]] as Edge[] });
-  add(-96, 12, 0, 22, 82, 186,
-      [-365,88,0], 52, [0,-1.22,0], 0.13, 0.52, 0.90, lav, lae);
+  /* ── Arms — slimmer side panels with a fuller rolled cap ── */
+  const [lav, lae] = merge({ v:[[-86,14,-90],[-86,96,-90]] as V3[], e:[[0,1]] as Edge[] });
+  add(-96, 12, 0, 20, 84, 188,
+      [-365,88,0], 52, [0,-1.22,0], 0.13, 0.52, 0.92, lav, lae);
+  /* Left arm rolled top — wider cap with slight forward lip */
+  add(-96, 96, 4, 26, 16, 180,
+      [-392,132,-52], 32, [0,-1.42,-0.42], 0.18, 0.56, 0.96);
 
-  add(-96, 92, 8, 22, 14, 168,
-      [-392,132,-52], 32, [0,-1.42,-0.42], 0.18, 0.56, 0.92);
+  const [rav, rae] = merge({ v:[[86,14,-90],[86,96,-90]] as V3[], e:[[0,1]] as Edge[] });
+  add(96, 12, 0, 20, 84, 188,
+      [365,88,0], 52, [0,1.22,0], 0.13, 0.52, 0.92, rav, rae);
+  add(96, 96, 4, 26, 16, 180,
+      [392,132,-52], 32, [0,1.42,0.42], 0.18, 0.56, 0.96);
 
-  const [rav, rae] = merge({ v:[[85,12,-90],[85,94,-90]] as V3[], e:[[0,1]] as Edge[] });
-  add(96, 12, 0, 22, 82, 186,
-      [365,88,0], 52, [0,1.22,0], 0.13, 0.52, 0.90, rav, rae);
-
-  add(96, 92, 8, 22, 14, 168,
-      [392,132,-52], 32, [0,1.42,0.42], 0.18, 0.56, 0.92);
-
-  add( 74,-75, 74,14,80,14,[ 218,-285, 218],0,[ 0.42,-0.92,-0.62],0.30,0.20,0.82);
-  add(-74,-75, 74,14,80,14,[-218,-285, 218],0,[ 0.42, 0.92, 0.62],0.30,0.20,0.82);
-  add( 74,-75,-74,14,80,14,[ 218,-285,-268],0,[-0.42,-0.92,-0.62],0.37,0.08,0.82);
-  add(-74,-75,-74,14,80,14,[-218,-285,-268],0,[-0.42, 0.92, 0.62],0.37,0.08,0.82);
+  /* ── Legs — slim tapered posts with small foot blocks (cabriole feel) ──
+     Each corner: thin vertical post (12×68×12) sitting on a wider foot (20×7×20). */
+  type LegSpec = readonly [number, number, V3, [number, number, number], number, number];
+  const LEGS: ReadonlyArray<LegSpec> = [
+    [ 78,  78, [ 220, -285,  220], [ 0.42, -0.92, -0.62], 0.30, 0.20] as const, // FR
+    [-78,  78, [-220, -285,  220], [ 0.42,  0.92,  0.62], 0.30, 0.20] as const, // FL
+    [ 78, -78, [ 220, -285, -270], [-0.42, -0.92, -0.62], 0.37, 0.08] as const, // BR
+    [-78, -78, [-220, -285, -270], [-0.42,  0.92,  0.62], 0.37, 0.08] as const, // BL
+  ];
+  LEGS.forEach(([lx, lz, sc, spn, sDel, aDel]) => {
+    /* Slim post: y = -68 to 0 (height 68), 12×12 cross-section */
+    add(lx, -68, lz, 12, 68, 12, sc, 0, spn, sDel, aDel, 0.92);
+    /* Foot block at floor: y = -75 to -68 (height 7), 20×20 base */
+    add(lx, -75, lz, 20, 7, 20,
+        [sc[0]*1.02, sc[1]-6, sc[2]*1.02] as V3, 0, spn,
+        Math.min(0.95, sDel + 0.01), Math.max(0, aDel - 0.01), 0.94);
+  });
 
   return P;
 }
