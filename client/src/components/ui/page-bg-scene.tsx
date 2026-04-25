@@ -306,6 +306,15 @@ export default function PageBgScene() {
     let frame = 0;
     let hasBursted = false;
 
+    /* ── Perf: pause RAF loop when canvas is off-screen OR tab is hidden,
+       and throttle to ~30fps on high-DPR (mobile/retina) devices. ── */
+    let isIntersecting = true;
+    let isTabVisible   = !document.hidden;
+    const isActive = () => isIntersecting && isTabVisible;
+    const isMobileDPR = (window.devicePixelRatio || 1) >= 2;
+    const FRAME_INTERVAL = isMobileDPR ? 1000 / 30 : 0; // 0 = render every RAF tick (60fps)
+    let lastFrameTime = 0;
+
     /* Sonar ring timers — 3 rings offset by thirds */
     const ringPhase = [0.0, 0.33, 0.67];
     const RING_PERIOD = 2.6; // seconds per cycle
@@ -343,10 +352,42 @@ export default function PageBgScene() {
     window.addEventListener("scroll",    onScroll, { passive: true });
     window.addEventListener("mousemove", onMouse,  { passive: true });
 
+    /* Restart RAF loop only when going from inactive → active. */
+    const ensureRunning = () => {
+      if (raf === 0 && isActive()) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        isIntersecting = entries[0]?.isIntersecting ?? true;
+        ensureRunning();
+      },
+      { threshold: 0 }
+    );
+    io.observe(canvas);
+
+    const onVisChange = () => {
+      isTabVisible = !document.hidden;
+      ensureRunning();
+    };
+    document.addEventListener("visibilitychange", onVisChange);
+
     const BASE_YAW = 0.48, BASE_PITCH = 0.30, DEPTH = 480;
 
-    const tick = () => {
+    const tick = (ts?: number) => {
+      /* Truly pause: don't reschedule when off-screen / tab hidden. */
+      if (!isActive()) { raf = 0; return; }
       raf = requestAnimationFrame(tick);
+
+      /* Frame-rate throttle on high-DPR (mobile) devices — render at ~30fps. */
+      if (FRAME_INTERVAL > 0) {
+        const now = ts ?? performance.now();
+        if (now - lastFrameTime < FRAME_INTERVAL) return;
+        lastFrameTime = now;
+      }
+
       frame++;
 
       /* Smooth camera tracking — wider range for deeper parallax feel */
@@ -824,6 +865,8 @@ export default function PageBgScene() {
       window.removeEventListener("resize",    resize);
       window.removeEventListener("scroll",    onScroll);
       window.removeEventListener("mousemove", onMouse);
+      document.removeEventListener("visibilitychange", onVisChange);
+      io.disconnect();
     };
   }, []);
 

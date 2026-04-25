@@ -2,7 +2,6 @@ import { Link } from "wouter";
 import { PricingConfig } from "@shared/pricing";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
-import WhatsAppWidget from "@/components/WhatsAppWidget";
 import { useSEO } from "@/hooks/use-seo";
 import {
   ArrowRight,
@@ -31,11 +30,13 @@ import {
   Receipt,
   Globe,
 } from "lucide-react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { SiFacebook, SiInstagram } from "react-icons/si";
-import PageBgScene from "@/components/ui/page-bg-scene";
+
+const PageBgScene    = lazy(() => import("@/components/ui/page-bg-scene"));
+const WhatsAppWidget = lazy(() => import("@/components/WhatsAppWidget"));
 
 const WHATSAPP = "https://wa.me/6580880757?text=Hi%2C+I%27d+like+a+furniture+installation+quote";
 
@@ -577,7 +578,9 @@ export default function Landing() {
       </div>
 
       {/* ══════ FULL-PAGE 3D BACKGROUND ══════ */}
-      <PageBgScene />
+      <Suspense fallback={null}>
+        <PageBgScene />
+      </Suspense>
 
       {/* ── Warm amber dismantle wash — fades in as scroll deepens ── */}
       <div
@@ -740,7 +743,8 @@ export default function Landing() {
                 <img
                   src="/work/office-fitout.jpg"
                   alt="Office furniture installation by TMG Install"
-                  loading="eager"
+                  loading="lazy"
+                  decoding="async"
                   width="560"
                   height="315"
                   className="absolute inset-0 w-full h-full object-cover"
@@ -992,9 +996,8 @@ export default function Landing() {
                   <img
                     src={src}
                     alt={label}
-                    loading="eager"
-                    decoding="sync"
-                    fetchPriority="high"
+                    loading="lazy"
+                    decoding="async"
                     width={w}
                     height={h}
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03] opacity-85 group-hover:opacity-100"
@@ -1063,9 +1066,8 @@ export default function Landing() {
                   <img
                     src={src}
                     alt={label}
-                    loading={i < 2 ? "eager" : "lazy"}
-                    decoding={i < 2 ? "sync" : "async"}
-                    fetchPriority={i === 0 ? "high" : "auto"}
+                    loading="lazy"
+                    decoding="async"
                     width="400"
                     height="500"
                     className="absolute inset-0 w-full h-full object-cover opacity-90"
@@ -1938,7 +1940,9 @@ export default function Landing() {
       </footer>
 
       {/* ── Floating WhatsApp widget ── */}
-      <WhatsAppWidget context="landing" trackPath="/" />
+      <Suspense fallback={null}>
+        <WhatsAppWidget context="landing" trackPath="/" />
+      </Suspense>
     </div>
   );
 }
