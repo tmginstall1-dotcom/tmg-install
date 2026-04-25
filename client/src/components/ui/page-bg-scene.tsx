@@ -427,7 +427,8 @@ export default function PageBgScene() {
       });
 
       /* ── Chair — build draw list ── */
-      type DE = { x1:number;y1:number;x2:number;y2:number;avgZ:number;a:number;lw:number;det:boolean };
+      type EdgeKind = 'silh' | 'int' | 'det';
+      type DE = { x1:number;y1:number;x2:number;y2:number;avgZ:number;a:number;lw:number;kind:EdgeKind };
       type DF = { pts:[number,number][]; avgZ:number; shade:number; alpha:number };
       const dl: DE[] = [];
       const fl: DF[] = [];
@@ -435,6 +436,14 @@ export default function PageBgScene() {
       /* Light direction in world space (normalized): from upper-front-left */
       const LX = -0.42, LY = -0.78, LZ = 0.46;
       const LL = Math.hypot(LX, LY, LZ);
+
+      /* Edge → adjacent box-face indices (matches mkBox face winding):
+         faces: 0=back, 1=front, 2=top, 3=bottom, 4=right, 5=left */
+      const EDGE_FACES: ReadonlyArray<readonly [number, number]> = [
+        [0, 3], [0, 4], [0, 2], [0, 5],  // edges 0-3 (back rim)
+        [1, 3], [1, 4], [1, 2], [1, 5],  // edges 4-7 (front rim)
+        [3, 5], [3, 4], [2, 4], [2, 5],  // edges 8-11 (verticals)
+      ];
 
       CHAIR.forEach(piece => {
         const t = scatterT(scrollP, piece.sDel, piece.aDel);
@@ -447,8 +456,11 @@ export default function PageBgScene() {
         const pv = rv.map(v => proj([v[0],v[1],v[2]+DEPTH], ox, oy, focal));
         const tc = Math.max(0, Math.min(1, t));
 
-        /* Faces — filled, shaded surfaces (back-to-front) */
-        piece.f.forEach(faceIdx => {
+        /* Track which box faces are camera-facing → drives silhouette detection */
+        const faceFront: boolean[] = new Array(piece.f.length).fill(false);
+
+        /* Faces — filled, shaded surfaces */
+        piece.f.forEach((faceIdx, fi) => {
           const pts: [number,number][] = [];
           let sumZ = 0;
           let valid = true;
@@ -468,6 +480,7 @@ export default function PageBgScene() {
             area += x1 * y2 - x2 * y1;
           }
           if (area >= 0) return;
+          faceFront[fi] = true;
 
           /* Face normal in camera space → diffuse shading */
           const v0 = rv[faceIdx[0]], v1 = rv[faceIdx[1]], v2 = rv[faceIdx[2]];
@@ -491,13 +504,26 @@ export default function PageBgScene() {
         piece.e.forEach(([ia, ib], ei) => {
           const [ax,ay,as2] = pv[ia], [bx,by,bs2] = pv[ib];
           if (as2<=0||bs2<=0) return;
+
+          /* Classify edge: silhouette / internal-seam / decorative-detail */
+          let kind: EdgeKind;
+          if (ei >= 12) {
+            kind = 'det';
+          } else {
+            const [fA, fB] = EDGE_FACES[ei];
+            const fa = faceFront[fA], fb = faceFront[fB];
+            if (fa !== fb) kind = 'silh';
+            else if (fa && fb) kind = 'int';
+            else return; // both adjacent faces hidden → cull edge
+          }
+
           const avgZ = (rv[ia][2]+rv[ib][2])/2 + DEPTH;
           const dep  = Math.max(0.06, Math.min(0.95, focal/avgZ * 1.38));
           dl.push({
             x1:ax, y1:ay, x2:bx, y2:by, avgZ,
             a:  piece.alpha * dep * (1 - tc*0.28) * breathe,
             lw: Math.max(0.5, dep * 1.65 * (1 - tc*0.42)),
-            det: ei >= 12,
+            kind,
           });
         });
       });
@@ -505,22 +531,23 @@ export default function PageBgScene() {
       dl.sort((a, b) => b.avgZ - a.avgZ);
       fl.sort((a, b) => b.avgZ - a.avgZ);
 
-      /* ── Pass 0: cel-shaded faces (anime draft — 3 flat tones) ── */
+      /* ── Pass 0: cel-shaded faces (anime draft — solid 3 flat tones) ── */
       fl.forEach(({ pts, shade, alpha }) => {
-        const fillA = alpha * 0.62;
-        if (fillA < 0.01) return;
+        /* Near-opaque fills so chair reads as solid form, not see-through */
+        const fillA = Math.min(0.98, alpha * 0.96);
+        if (fillA < 0.02) return;
 
         /* 3-tone cel-shade buckets: highlight / midtone / shadow */
         let r: number, g: number, b: number;
         if (shade > 0.72) {
           /* Highlight — warm cream */
-          r = 244; g = 196; b = 102;
+          r = 248; g = 204; b = 112;
         } else if (shade > 0.46) {
           /* Midtone — amber */
           r = 176; g = 108; b = 36;
         } else {
           /* Shadow — deep umber */
-          r = 58;  g = 32;  b = 12;
+          r = 48;  g = 26;  b = 10;
         }
 
         ctx.fillStyle = `rgba(${r},${g},${b},${fillA.toFixed(3)})`;
@@ -531,7 +558,7 @@ export default function PageBgScene() {
         ctx.fill();
 
         /* Hatching on shadow faces (parallel ink strokes, clipped to face) */
-        if (shade < 0.46) {
+        if (shade < 0.50) {
           let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
           for (const [x, y] of pts) {
             if (x < minX) minX = x; if (x > maxX) maxX = x;
@@ -547,7 +574,7 @@ export default function PageBgScene() {
             ctx.clip();
 
             /* Light gold hatching reads against dark fill — like ink lines on toned paper */
-            ctx.strokeStyle = `rgba(228,178,86,${(0.34 * alpha).toFixed(3)})`;
+            ctx.strokeStyle = `rgba(232,184,92,${(0.42 * alpha).toFixed(3)})`;
             ctx.lineWidth = 0.7;
             ctx.lineCap = "butt";
             const GAP = 7;
@@ -559,41 +586,50 @@ export default function PageBgScene() {
               ctx.lineTo(d + h, maxY);
               ctx.stroke();
             }
+
+            /* Cross-hatch on the very darkest faces for deeper shadow texture */
+            if (shade < 0.30) {
+              ctx.strokeStyle = `rgba(220,168,76,${(0.30 * alpha).toFixed(3)})`;
+              for (let d = minX; d < maxX + h; d += GAP) {
+                ctx.beginPath();
+                ctx.moveTo(d, minY);
+                ctx.lineTo(d - h, maxY);
+                ctx.stroke();
+              }
+            }
             ctx.restore();
           }
         }
       });
 
-      /* ── Pass 1: soft outer halo (toned way down — anime is flatter) ── */
-      dl.forEach(({ x1,y1,x2,y2,a,lw }) => {
-        if (lw < 0.8) return;
-        ctx.strokeStyle = AMB(a * 0.022);
-        ctx.lineWidth   = lw * 7;
+      /* ── Pass 1: silhouette glow halo (only outline edges — anime "rim" warmth) ── */
+      dl.forEach(({ x1,y1,x2,y2,a,lw,kind }) => {
+        if (kind !== 'silh' || lw < 0.8) return;
+        ctx.strokeStyle = AMB(a * 0.07);
+        ctx.lineWidth   = lw * 5.5;
         ctx.lineCap     = "round";
         ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
       });
 
-      /* ── Pass 2: inner ink halo (subtle warmth) ── */
-      dl.forEach(({ x1,y1,x2,y2,a,lw }) => {
-        if (lw < 0.8) return;
-        ctx.strokeStyle = AMB(a * 0.06);
-        ctx.lineWidth   = lw * 2.4;
-        ctx.lineCap     = "round";
-        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-      });
-
-      /* ── Pass 3: bold ink outline (structural = thick, detail = thin sketch) ── */
-      dl.forEach(({ x1,y1,x2,y2,a,lw,det }) => {
-        if (det) {
-          /* Detail/construction lines — thin gold sketch strokes */
-          ctx.strokeStyle = GOLD(a * 0.85);
-          ctx.lineWidth   = Math.max(0.5, lw * 0.7);
+      /* ── Pass 2: ink strokes routed by edge kind ──
+         Bold cream silhouette outlines the form (the "ink line"),
+         thin amber seams show internal form between visible faces,
+         thin gold strokes for decorative slats/tufts/braces.            */
+      dl.forEach(({ x1,y1,x2,y2,a,lw,kind }) => {
+        if (kind === 'silh') {
+          /* Bold inked silhouette — the dominant outline */
+          ctx.strokeStyle = `rgba(255,232,162,${Math.min(1, a * 1.30).toFixed(3)})`;
+          ctx.lineWidth   = lw * 2.05;
+        } else if (kind === 'int') {
+          /* Internal seam between visible faces — quiet amber */
+          ctx.strokeStyle = `rgba(196,138,52,${(a * 0.55).toFixed(3)})`;
+          ctx.lineWidth   = Math.max(0.5, lw * 0.85);
         } else {
-          /* Structural silhouette — bold amber ink */
-          ctx.strokeStyle = `rgba(255,200,90,${Math.min(1, a * 1.15).toFixed(3)})`;
-          ctx.lineWidth   = lw * 1.55;
+          /* Decorative detail — thin gold sketch */
+          ctx.strokeStyle = GOLD(a * 0.82);
+          ctx.lineWidth   = Math.max(0.5, lw * 0.7);
         }
-        ctx.lineCap = "round";
+        ctx.lineCap  = "round";
         ctx.lineJoin = "round";
         ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
       });
