@@ -649,16 +649,18 @@ async function sendCaseClosedNotifications(quote: any): Promise<void> {
   }
 
   // ── 2. Google review request via WhatsApp (if URL configured) ────────────
-  // GATED: when `ai_review_after_rating_only` is ON (default), we skip the
-  // immediate review ping at close time. The WhatsApp agent will instead
-  // fire the review request only after the customer replies with 4+★ to
-  // the rating prompt — keeping our Google profile clean of low-star spam
-  // and concentrating asks on customers who'll actually leave good ones.
-  let reviewAfterRatingOnly = true;
+  // Default behaviour: send the review ask immediately at case close so it
+  // actually goes out for customers who paid without ever replying to the
+  // rating prompt (e.g. customers who only call us — their WA window may
+  // already be open from earlier in the job, or the message will at least
+  // be queued for as soon as they reply). Admins who specifically want the
+  // older "only ask after a 4+★ rating" behaviour can flip the
+  // `ai_review_after_rating_only` flag ON in Settings.
+  let reviewAfterRatingOnly = false;
   try {
     const [rrFlag] = await db.select().from(aiFeatureFlags)
       .where(eq(aiFeatureFlags.key, "ai_review_after_rating_only")).limit(1);
-    if ((rrFlag as any)?.value === false) reviewAfterRatingOnly = false;
+    if ((rrFlag as any)?.value === true) reviewAfterRatingOnly = true;
   } catch {}
 
   if (waPhone && reviewUrl && !reviewAfterRatingOnly) {
@@ -3953,15 +3955,16 @@ ${systemPrompt}` });
       }
 
       // Auto-send review request via WhatsApp when job is marked completed.
-      // GATED by `ai_review_after_rating_only` so the rating-gated path in
-      // the WhatsApp agent owns review asks by default. If admins flip
-      // that flag OFF, this older immediate-on-complete path activates.
+      // Default behaviour: send immediately on completion. Admins who want
+      // the older "only after a 4+★ rating reply" gating can flip
+      // `ai_review_after_rating_only` ON in Settings — same semantics as
+      // the case-closed path in sendCaseClosedNotifications.
       if (input.status === "completed" && quote.customerWhatsappPhone) {
-        let reviewAfterRatingOnly = true;
+        let reviewAfterRatingOnly = false;
         try {
           const [rrFlag] = await db.select().from(aiFeatureFlags)
             .where(eq(aiFeatureFlags.key, "ai_review_after_rating_only")).limit(1);
-          if ((rrFlag as any)?.value === false) reviewAfterRatingOnly = false;
+          if ((rrFlag as any)?.value === true) reviewAfterRatingOnly = true;
         } catch {}
 
         if (!reviewAfterRatingOnly) {
@@ -5114,17 +5117,50 @@ Respond with ONLY a JSON array (no prose, no markdown):
               `[WhatsApp] ❌ Message delivery FAILED — to: ****${recipientId.slice(-4)}, ` +
               `msgId: ${wamidSt.slice(0, 16)}…, code: ${errCode}, reason: ${errTitle}`
             );
-            // Log a system message in the conversation so admin can see the failure
+            // Log a system message in the conversation so admin can see the failure.
+            // De-dupe: when several outbound messages fail in quick succession with
+            // the same 24-hr error (common when admin sends final-payment + case-
+            // closed + invoice in the same minute), only show ONE warning rather
+            // than stacking identical notes that drown out the actual chat.
             const failureNote = is24h
               ? `⚠️ WhatsApp delivery failed (code ${errCode}): 24-hour messaging window is closed. Customer must message us first to re-open the window. Consider calling or emailing them.`
               : `⚠️ WhatsApp delivery failed (code ${errCode}): ${errTitle}`;
-            storage.logWhatsAppMessage({
-              phone: recipientId,
-              direction: 'outbound',
-              body: failureNote,
-              sentBy: 'system',
-              wamid: undefined,
-            }).catch(() => {});
+            try {
+              const recent = await db.select()
+                .from(whatsappMessagesTable)
+                .where(and(
+                  eq(whatsappMessagesTable.phone, recipientId),
+                  eq(whatsappMessagesTable.direction, 'outbound'),
+                  eq(whatsappMessagesTable.sentBy, 'system'),
+                ))
+                .orderBy(desc(whatsappMessagesTable.createdAt))
+                .limit(1);
+              const last = recent[0];
+              const sameErr = is24h
+                ? !!last?.body?.includes("131047") || !!last?.body?.includes("messaging window is closed")
+                : !!last?.body?.includes(`code ${errCode}`);
+              const recentEnough = last
+                ? (Date.now() - new Date(last.createdAt).getTime()) < 30 * 60 * 1000
+                : false;
+              if (!(sameErr && recentEnough)) {
+                await storage.logWhatsAppMessage({
+                  phone: recipientId,
+                  direction: 'outbound',
+                  body: failureNote,
+                  sentBy: 'system',
+                  wamid: undefined,
+                });
+              }
+            } catch {
+              // Fallback: if dedup query fails, still log the note so admin sees it.
+              storage.logWhatsAppMessage({
+                phone: recipientId,
+                direction: 'outbound',
+                body: failureNote,
+                sentBy: 'system',
+                wamid: undefined,
+              }).catch(() => {});
+            }
             if (is24h) {
               console.warn(
                 `[WhatsApp] 24-hour window closed for ****${recipientId.slice(-4)} — ` +

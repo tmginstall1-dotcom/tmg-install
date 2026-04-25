@@ -390,8 +390,23 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
         ('ai_autoapprove_allow_high_impact',   FALSE, 'Permit auto-approve to act on budget/spend-changing actions (otherwise those always require human review)'),
         ('ai_customer_feedback_loop_enabled',  FALSE, 'After case closeout, ask the customer for a 1-5 rating via WhatsApp and store internally for AI tuning'),
         ('ai_abandoned_quote_rescue_enabled',  FALSE, 'Auto-nudge customers via WhatsApp 24h/3d/7d after a quote is sent but not booked, AND nudge abandoned web wizard leads with a phone number'),
-        ('ai_review_after_rating_only',        TRUE,  'Only send the Google review request to customers who rated 4+ stars (instead of every closed case). Highest-impact reputation lever.')
+        ('ai_review_after_rating_only',        FALSE, 'When ON, only send the Google review request to customers who rated 4+ stars first. When OFF (default), the review ask fires immediately at case close so it actually goes out for customers who never reply with a star rating.')
       ON CONFLICT (key) DO NOTHING;
+
+      -- One-shot: flip existing installs that still have the old TRUE default,
+      -- so customers who paid without sending a star rating finally receive
+      -- the review ask. Marker prevents re-running once admin re-enables it.
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM app_settings WHERE key = 'mig_review_after_rating_default_off_v1') THEN
+          UPDATE ai_feature_flags
+            SET value = FALSE
+            WHERE key = 'ai_review_after_rating_only' AND value = TRUE;
+          INSERT INTO app_settings (key, value)
+            VALUES ('mig_review_after_rating_default_off_v1', 'done')
+            ON CONFLICT (key) DO NOTHING;
+        END IF;
+      END $$;
 
       -- Spend guardrail ledger (Phase 9b)
       CREATE TABLE IF NOT EXISTS ai_spend_ledger (
