@@ -468,12 +468,22 @@ export default function EstimateWizard() {
   // ── Catalog add ───────────────────────────────────────────────────────────
 
   const addCatalogGroup = (group: CatalogGroup, qty: number = 1) => {
-    const relevant = group.entries.filter(e => services.includes(e.serviceType));
+    // Auto-fallback: items that can't actually be dismantled (mattresses,
+    // boxes, plants, etc.) only ship with a plain "dispose" SKU. If the
+    // customer picked "Dismantle + Dispose" mode and this group has no
+    // dismantle_dispose variant, treat their request as plain "Dispose"
+    // so the flat catalog rate is used instead of an inflated AI estimate.
+    const groupHasDD = group.entries.some(e => e.serviceType === 'dismantle_dispose');
+    const groupHasDispose = group.entries.some(e => e.serviceType === 'dispose');
+    const effectiveServices: ServiceType[] = (services.includes('dismantle_dispose') && !groupHasDD && groupHasDispose)
+      ? (Array.from(new Set(services.map(s => s === 'dismantle_dispose' ? 'dispose' : s))) as ServiceType[])
+      : services;
+    const relevant = group.entries.filter(e => effectiveServices.includes(e.serviceType));
     setItems(prev => {
       let updated = [...prev];
       if (relevant.length === 0) {
         // No matching service variants — add as custom for each selected service
-        services.forEach(st => {
+        effectiveServices.forEach(st => {
           updated.push({ id: uid(), sku: "", name: group.name, category: group.category, serviceType: st, quantity: qty, unitPrice: 0, isCustom: true });
         });
       } else {
@@ -547,7 +557,14 @@ export default function EstimateWizard() {
         return gn.includes(lc) || lc.includes(gn) || gn.split(" ").slice(0, 2).join(" ") === lc.split(" ").slice(0, 2).join(" ");
       });
       if (matched) {
-        const relevant = matched.entries.filter(e => services.includes(e.serviceType));
+        // Same dismantle_dispose → dispose fallback as addCatalogGroup, so
+        // pasted "1 mattress" doesn't get tagged as Dismantle + Dispose.
+        const groupHasDD = matched.entries.some(e => e.serviceType === 'dismantle_dispose');
+        const groupHasDispose = matched.entries.some(e => e.serviceType === 'dispose');
+        const effectiveServices: ServiceType[] = (services.includes('dismantle_dispose') && !groupHasDD && groupHasDispose)
+          ? (Array.from(new Set(services.map(s => s === 'dismantle_dispose' ? 'dispose' : s))) as ServiceType[])
+          : services;
+        const relevant = matched.entries.filter(e => effectiveServices.includes(e.serviceType));
         relevant.forEach(entry => {
           newItems.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: matched.name, category: matched.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), volumeM3: entry.volumeM3, isCustom: false });
         });

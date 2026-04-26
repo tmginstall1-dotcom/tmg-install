@@ -2088,4 +2088,77 @@ export async function seedDatabase() {
     console.log("[startup] Round 17: All 4 mattress sizes guaranteed in catalog (Single $50, Super Single $60, Queen $80, King $100).");
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Round 18: Mattress disposal pricing & service-type cleanup (MATT-DISP-R18)
+  // Existing MATT-*-DISPOSAL rows had service_type = "dismantle" — a leftover
+  // that broke the customer wizard: when the default "Dismantle + Dispose"
+  // mode was selected, mattresses fell through to the AI-estimated custom
+  // price (~$140) instead of using the flat catalog disposal rate, AND the
+  // estimate page tagged them as "Dismantle + Dispose" which is wrong since
+  // mattresses can't be dismantled. This round forces service_type = "dispose"
+  // on the existing 3 sizes (SS / Queen / King), adds the missing Single
+  // mattress disposal SKU, and locks in clean pricing.
+  // ──────────────────────────────────────────────────────────────────────────
+  // Marker bumped from R18 → R18B because the original R18 inserted rows with
+  // names like "Mattress Disposal — Queen" which prevented the wizard's
+  // name-based group merge from working. R18B re-runs the upsert with names
+  // that match the relocate rows exactly.
+  const r18 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "MATT-DISP-R18B")).limit(1);
+  if (r18.length === 0) {
+    // IMPORTANT: name must match the corresponding RELOCATE row exactly so the
+    // customer wizard's groupCatalog (which groups by name) merges them into
+    // a single catalog item with two service variants — same pattern as Bunk
+    // Bed (BUNKBEDS-DISPOSE + BUNKBEDS-DIS-DISP both share the name "Bunk Bed
+    // (Standard)"). Without this the wizard sees a "Mattress — Queen" group
+    // with only the relocate entry, fails to find any 'dispose' variant, and
+    // falls through to a custom AI-estimated dismantle+dispose item.
+    const disposals = [
+      { sku: "MATT-SGL-DISPOSAL", name: "Mattress — Single",       price: "50.00", volume: "0.15" },
+      { sku: "MATT-SS-DISPOSAL",  name: "Mattress — Super Single", price: "60.00", volume: "0.18" },
+      { sku: "MATT-Q-DISPOSAL",   name: "Mattress — Queen",        price: "70.00", volume: "0.30" },
+      { sku: "MATT-K-DISPOSAL",   name: "Mattress — King",         price: "80.00", volume: "0.36" },
+    ];
+
+    for (const d of disposals) {
+      const existing = await db.select().from(catalogItems).where(eq(catalogItems.sku, d.sku)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(catalogItems).values({
+          name: d.name,
+          sku: d.sku,
+          category: "Mattresses",
+          serviceType: "dispose",
+          basePrice: d.price,
+          volumeM3: d.volume,
+          active: true,
+        } as any);
+      } else {
+        await db.update(catalogItems).set({
+          name: d.name,
+          category: "Mattresses",
+          serviceType: "dispose",
+          basePrice: d.price,
+          volumeM3: d.volume,
+          active: true,
+        }).where(eq(catalogItems.sku, d.sku));
+      }
+    }
+
+    // Clean up the broken R18 markers (the original Round 18 had a marker
+    // mismatch between read SKU and write SKU, so the block re-ran every
+    // restart and accumulated duplicate marker rows). They're inactive
+    // _internal rows so they don't affect the catalog, but tidy them up.
+    await db.delete(catalogItems).where(eq(catalogItems.sku, "MATT-DISP-R18"));
+
+    await db.insert(catalogItems).values({
+      name: "__matt_disp_r18b_marker__",
+      sku: "MATT-DISP-R18B",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 18B: Mattress disposal SKUs cleaned up — service_type=dispose, names match relocate rows, prices Single $50 / Super Single $60 / Queen $70 / King $80.");
+  }
+
 }
