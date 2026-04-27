@@ -1,7 +1,83 @@
 import { db } from "./db";
-import { appSettings } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { appSettings, whatsappMessages } from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { storage } from "./storage";
+
+// ── 24-hour-window pre-send guard ─────────────────────────────────────────────
+// WhatsApp Business rules: outside the 24-hour customer-service window we can
+// only send pre-approved templates. Any free-form bot/admin message will be
+// rejected by Meta with error 131047 ("messaging window is closed"). Until
+// recently we let those rejections happen, racked up failed sends, and only
+// reacted via the delivery-status webhook. This guard short-circuits the call
+// before it ever leaves our server and surfaces a single deduped warning to
+// admin so they know to call/email the customer instead.
+const WINDOW_MS = 24 * 60 * 60 * 1000;
+
+async function isWithin24hWindow(phone: string): Promise<boolean> {
+  try {
+    const recent = await db.select({ createdAt: whatsappMessages.createdAt })
+      .from(whatsappMessages)
+      .where(and(
+        eq(whatsappMessages.phone, phone),
+        eq(whatsappMessages.direction, "inbound"),
+      ))
+      .orderBy(desc(whatsappMessages.createdAt))
+      .limit(1);
+    if (!recent.length) return false;
+    return (Date.now() - new Date(recent[0].createdAt).getTime()) < WINDOW_MS;
+  } catch (err) {
+    console.warn("[WhatsApp] window check failed (defaulting to OPEN to avoid false blocks):", err);
+    return true; // fail-open so a transient DB issue doesn't silence real customer messages
+  }
+}
+
+async function logWindowClosedFailure(phone: string): Promise<void> {
+  // De-dupe identical 24h-window warnings within the last 30 minutes so we
+  // don't stack a wall of identical notes when several bot messages get
+  // blocked back-to-back (e.g. quote + deposit + tracking link in the same
+  // payment flow). Mirrors the dedup logic in the delivery-status webhook.
+  const note = `⚠️ WhatsApp delivery failed (code 131047): 24-hour messaging window is closed. Customer must message us first to re-open the window. Consider calling or emailing them.`;
+  try {
+    const recent = await db.select({ body: whatsappMessages.body, createdAt: whatsappMessages.createdAt })
+      .from(whatsappMessages)
+      .where(and(
+        eq(whatsappMessages.phone, phone),
+        eq(whatsappMessages.direction, "outbound"),
+        eq(whatsappMessages.sentBy, "system"),
+      ))
+      .orderBy(desc(whatsappMessages.createdAt))
+      .limit(1);
+    const last = recent[0];
+    const sameErr = !!last?.body?.includes("131047") || !!last?.body?.includes("messaging window is closed");
+    const recentEnough = last
+      ? (Date.now() - new Date(last.createdAt).getTime()) < 30 * 60 * 1000
+      : false;
+    if (sameErr && recentEnough) return;
+  } catch { /* fall through and log anyway */ }
+  storage.logWhatsAppMessage({
+    phone,
+    direction: "outbound",
+    body: note,
+    sentBy: "system",
+    wamid: undefined,
+  }).catch(() => {});
+}
+
+export class WhatsAppWindowClosedError extends Error {
+  code = 131047;
+  constructor(phone: string) {
+    super(`WhatsApp 24-hour messaging window is closed for ${phone} — customer must message us first.`);
+    this.name = "WhatsAppWindowClosedError";
+  }
+}
+
+async function assertWindowOpen(to: string): Promise<void> {
+  const open = await isWithin24hWindow(to);
+  if (open) return;
+  await logWindowClosedFailure(to);
+  console.warn(`[WhatsApp] Pre-send blocked — 24h window closed for ****${to.slice(-4)}.`);
+  throw new WhatsAppWindowClosedError(to);
+}
 
 const PHONE_NUMBER_ID = "1063172463540400";
 const WA_API_BASE = `https://graph.facebook.com/v19.0`;
@@ -140,6 +216,8 @@ export async function sendWhatsAppMessage(to: string, text: string, opts?: { log
     return false;
   }
 
+  await assertWindowOpen(to);
+
   const url = `${WA_API_BASE}/${PHONE_NUMBER_ID}/messages`;
   const body = {
     messaging_product: "whatsapp",
@@ -266,6 +344,8 @@ export async function sendWhatsAppImageMessage(
     throw new Error("WhatsApp credentials not configured");
   }
 
+  await assertWindowOpen(to);
+
   // Step 1 — upload the image to WhatsApp Media API
   const formData = new FormData();
   formData.append("messaging_product", "whatsapp");
@@ -327,6 +407,8 @@ export async function sendWhatsAppDocumentMessage(
 ): Promise<boolean> {
   const ACCESS_TOKEN = await getAccessToken();
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) throw new Error("WhatsApp credentials not configured");
+
+  await assertWindowOpen(to);
 
   const formData = new FormData();
   formData.append("messaging_product", "whatsapp");
