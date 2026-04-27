@@ -1348,7 +1348,7 @@ export async function processWithAIAgent(params: {
 
           const created = await storage.createQuote(
             {
-              name:  session?.collectedName ?? "WhatsApp Lead",
+              name:  session?.collectedName ?? "Customer",
               phone: from,
               email: safeEmail,
             } as any,

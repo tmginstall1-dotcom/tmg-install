@@ -408,6 +408,21 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
         END IF;
       END $$;
 
+      -- One-shot: rename existing customers still labelled "WhatsApp Lead"
+      -- (the old auto-name) to the more presentable "Customer". Once admin
+      -- edits a customer's name to anything else it stays untouched.
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM app_settings WHERE key = 'mig_rename_whatsapp_lead_default_v1') THEN
+          UPDATE customers
+            SET name = 'Customer'
+            WHERE name = 'WhatsApp Lead';
+          INSERT INTO app_settings (key, value)
+            VALUES ('mig_rename_whatsapp_lead_default_v1', 'done')
+            ON CONFLICT (key) DO NOTHING;
+        END IF;
+      END $$;
+
       -- Spend guardrail ledger (Phase 9b)
       CREATE TABLE IF NOT EXISTS ai_spend_ledger (
         id SERIAL PRIMARY KEY,
