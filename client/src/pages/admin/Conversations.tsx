@@ -858,6 +858,18 @@ function ChatPanel({
       noteMutation.mutate(replyText.trim());
       return;
     }
+    // Block any send-to-customer path while the WhatsApp 24-hour window
+    // is closed — covers attachments AND the Enter-key shortcut, not just
+    // the on-screen send button. Internal notes (handled above) still go
+    // through because they never touch WhatsApp.
+    if (windowClosed) {
+      toast({
+        title: "WhatsApp 24-hour window closed",
+        description: "The customer must message us first. Use Call/Email above, or switch to Internal Note.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (attachFile) {
       sendFileMutation.mutate({ file: attachFile, caption: replyText.trim() || undefined });
       return;
@@ -889,6 +901,24 @@ function ChatPanel({
   const threadLoaded = !loadingThread && thread !== undefined;
   const isImageFile = attachFile?.type.startsWith("image/") ?? false;
   const isSending = sendMutation.isPending || sendFileMutation.isPending || noteMutation.isPending;
+
+  /* WhatsApp 24-hour window status — derived from the most recent system
+     failure log (Meta error 131047 / "messaging window is closed"). The
+     window re-opens the moment the customer sends an inbound message, so
+     we compare timestamps. Used to block sending normal messages while
+     still permitting internal notes (notes never hit WhatsApp). */
+  const windowClosed = (() => {
+    const all = thread?.messages ?? [];
+    const lastFail = [...all].reverse().find(m =>
+      m.direction === "outbound" &&
+      m.sentBy === "system" &&
+      (m.body?.includes("131047") || m.body?.includes("messaging window is closed"))
+    );
+    if (!lastFail) return false;
+    const lastInbound = [...all].reverse().find(m => m.direction === "inbound");
+    return !lastInbound || new Date(lastFail.createdAt) > new Date(lastInbound.createdAt);
+  })();
+  const sendBlocked = windowClosed && !noteMode;
 
   /* Quick-reply templates shown in message mode */
   const QUICK_TEMPLATES = [
@@ -1513,27 +1543,11 @@ function ChatPanel({
             )}
 
             {/* ── 24-hour-window failure banner — actionable fallback ───────
-                Detects when the most recent outbound system message reports a
-                Meta error 131047 / "messaging window is closed" and surfaces
-                Call/Email actions inline so admin can reach the customer
-                immediately without hunting for the phone number. */}
-            {(() => {
-              // Scan the FULL thread (not just last 8) so an unresolved failure
-              // never silently disappears as new messages push it out of view.
-              const all = thread?.messages ?? [];
-              // Tighten predicate: require sentBy='system' so genuine error
-              // logs match but a coincidental admin/customer message that
-              // mentions "131047" doesn't trigger a false positive.
-              const lastFail = [...all].reverse().find(m =>
-                m.direction === "outbound" &&
-                m.sentBy === "system" &&
-                (m.body?.includes("131047") || m.body?.includes("messaging window is closed"))
-              );
-              const lastInbound = [...all].reverse().find(m => m.direction === "inbound");
-              // Banner clears once the customer replies (window has re-opened).
-              const stillStuck = lastFail && (!lastInbound || new Date(lastFail.createdAt) > new Date(lastInbound.createdAt));
-              if (!stillStuck) return null;
-              return (
+                Surfaces Call/Email actions inline so admin can reach the
+                customer immediately when the WhatsApp window is closed
+                (windowClosed is hoisted above so the input row can also
+                disable Send and switch the placeholder). */}
+            {windowClosed && (
                 <div className="mx-2 mb-1.5 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
                   <div className="flex items-start gap-2 mb-2">
                     <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -1570,8 +1584,7 @@ function ChatPanel({
                     </button>
                   </div>
                 </div>
-              );
-            })()}
+            )}
 
             <div className="px-2 pb-2 pt-1.5">
               <div className="flex items-end gap-1">
@@ -1603,7 +1616,13 @@ function ChatPanel({
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={noteMode ? "Internal note (not sent to customer)…" : "Message"}
+                      placeholder={
+                        noteMode
+                          ? "Internal note (not sent to customer)…"
+                          : sendBlocked
+                            ? "WhatsApp 24h window closed — Call/Email above, or switch to Internal Note"
+                            : "Message"
+                      }
                       className={`resize-none overflow-hidden text-[15px] text-gray-900 placeholder:text-gray-400 min-h-[40px] py-2 px-3 rounded-2xl border transition-colors leading-relaxed focus-visible:ring-0 ${
                         noteMode
                           ? "bg-amber-50 border-amber-200 focus:border-amber-400"
@@ -1666,7 +1685,8 @@ function ChatPanel({
                   {(replyText.trim() || attachFile) ? (
                     <Button
                       onClick={handleSend}
-                      disabled={attachFile ? isSending : (!replyText.trim() || isSending)}
+                      disabled={sendBlocked || (attachFile ? isSending : (!replyText.trim() || isSending))}
+                      title={sendBlocked ? "WhatsApp 24-hour window is closed — switch to Internal Note, or use Call/Email" : undefined}
                       className={`w-9 h-9 rounded-full text-white flex-shrink-0 p-0 flex items-center justify-center disabled:opacity-40 transition-all shadow-sm ml-0.5 ${
                         noteMode ? "bg-amber-500 hover:bg-amber-600" : "bg-[#25D366] hover:bg-[#1db954]"
                       }`}
