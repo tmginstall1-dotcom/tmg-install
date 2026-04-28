@@ -2218,4 +2218,31 @@ export async function seedDatabase() {
     console.log("[startup] Round 19: Television entries added — 3 size tiers (≤55\", 65–75\", 75+\") × install/dismantle/relocate.");
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Round 19B: Television relocate (carry-and-go) is free.
+  // Customer feedback: TVs are light, take seconds to lift into the truck
+  // alongside the other furniture, and shouldn't carry a separate line-item
+  // charge when we're already on-site for a relocation. Drop the three
+  // TV-*-RELOCATE prices to $0 across all size tiers.
+  // ──────────────────────────────────────────────────────────────────────────
+  const r19b = await db.select().from(catalogItems).where(eq(catalogItems.sku, "TV-R19B-MARKER")).limit(1);
+  if (r19b.length === 0) {
+    for (const sku of ["TV-55-RELOCATE", "TV-75-RELOCATE", "TV-XL-RELOCATE"]) {
+      await db.update(catalogItems)
+        .set({ basePrice: "0.00" })
+        .where(eq(catalogItems.sku, sku));
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__tv_r19b_marker__",
+      sku: "TV-R19B-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 19B: Television relocate (carry-and-go) set to free across all size tiers.");
+  }
+
 }
