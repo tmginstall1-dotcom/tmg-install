@@ -2161,4 +2161,61 @@ export async function seedDatabase() {
     console.log("[startup] Round 18B: Mattress disposal SKUs cleaned up — service_type=dispose, names match relocate rows, prices Single $50 / Super Single $60 / Queen $70 / King $80.");
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Round 19: Television (TV) catalog entries
+  // Customers regularly ask for help moving a bare TV (separate from the TV
+  // console it sits on). Most requests are "carry and go" relocation — we
+  // unplug, wrap, walk it to the truck, and set it up at the new place. We
+  // expose three size tiers so a 32" bedroom TV doesn't get priced like an
+  // 85" living-room set, and surface install (table mount or simple stand
+  // placement) + dismantle (unmounting from a wall bracket) variants too so
+  // the wizard's group-by-name UI shows one "Television" tile per size with
+  // selectable services. Wall-mounted installs continue to use the existing
+  // TVWM-INSTALL ($80) row — that one bundles bracket fitting and cable
+  // tidy, which is more involved than a plug-and-play table TV.
+  // ──────────────────────────────────────────────────────────────────────────
+  const r19 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "TV-R19-MARKER")).limit(1);
+  if (r19.length === 0) {
+    const tvItems = [
+      // Television up to 55" — typical bedroom / second-room TV, light enough for one person.
+      { sku: "TV-55-INSTALL",   name: 'Television (up to 55")', svc: "install",  price: "50.00", vol: "0.10" },
+      { sku: "TV-55-DISMANTLE", name: 'Television (up to 55")', svc: "dismantle", price: "40.00", vol: "0.10" },
+      { sku: "TV-55-RELOCATE",  name: 'Television (up to 55")', svc: "relocate", price: "50.00", vol: "0.10" },
+      // Television 65"–75" — standard living-room TV, two people for safe carry.
+      { sku: "TV-75-INSTALL",   name: 'Television (65"–75")', svc: "install",  price: "80.00", vol: "0.20" },
+      { sku: "TV-75-DISMANTLE", name: 'Television (65"–75")', svc: "dismantle", price: "55.00", vol: "0.20" },
+      { sku: "TV-75-RELOCATE",  name: 'Television (65"–75")', svc: "relocate", price: "80.00", vol: "0.20" },
+      // Television 75"+ — large screen, fragile glass, padded carry recommended.
+      { sku: "TV-XL-INSTALL",   name: 'Television (75" and above)', svc: "install",  price: "120.00", vol: "0.30" },
+      { sku: "TV-XL-DISMANTLE", name: 'Television (75" and above)', svc: "dismantle", price: "70.00",  vol: "0.30" },
+      { sku: "TV-XL-RELOCATE",  name: 'Television (75" and above)', svc: "relocate", price: "120.00", vol: "0.30" },
+    ];
+
+    for (const t of tvItems) {
+      const existing = await db.select().from(catalogItems).where(eq(catalogItems.sku, t.sku)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(catalogItems).values({
+          name: t.name,
+          sku: t.sku,
+          category: "Living Room",
+          serviceType: t.svc,
+          basePrice: t.price,
+          volumeM3: t.vol,
+          active: true,
+        } as any);
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__tv_r19_marker__",
+      sku: "TV-R19-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 19: Television entries added — 3 size tiers (≤55\", 65–75\", 75+\") × install/dismantle/relocate.");
+  }
+
 }
