@@ -889,6 +889,13 @@ export class DatabaseStorage implements IStorage {
       await db.update(customers).set(data.customerUpdates).where(eq(customers.id, quote.customerId));
     }
 
+    // Capture status change so we can emit a customer-friendly timeline event
+    // for it below (e.g. "Pending Date Confirmation" when admin clears the
+    // booking slot, or "Date Confirmed" when a new slot is locked in).
+    const oldStatus = quote.status;
+    const newStatus = data.quoteUpdates?.status;
+    const statusChanged = !!newStatus && newStatus !== oldStatus;
+
     if (data.quoteUpdates) {
       await db.update(quotes).set(data.quoteUpdates).where(eq(quotes.id, id));
     }
@@ -935,12 +942,33 @@ export class DatabaseStorage implements IStorage {
       }).where(eq(quotes.id, id));
     }
 
-    await db.insert(jobUpdates).values({
-      quoteId: id,
-      statusChange: 'edited',
-      actorType: 'admin',
-      note: 'Quote edited by admin'
-    });
+    if (statusChanged && newStatus === 'booking_pending') {
+      // Customer asked to reschedule and admin cleared the slot — show this on
+      // the public timeline so the customer knows their original date is no
+      // longer locked in and a new date is being arranged.
+      await db.insert(jobUpdates).values({
+        quoteId: id,
+        statusChange: 'booking_pending',
+        actorType: 'admin',
+        note: 'Booking date pending — to be reconfirmed.',
+      });
+    } else if (statusChanged && newStatus === 'booked' && oldStatus === 'booking_pending') {
+      // Admin picked a new date after the booking was sitting as pending —
+      // surface a fresh "Date confirmed" event for the customer.
+      await db.insert(jobUpdates).values({
+        quoteId: id,
+        statusChange: 'booked',
+        actorType: 'admin',
+        note: 'New booking date confirmed.',
+      });
+    } else {
+      await db.insert(jobUpdates).values({
+        quoteId: id,
+        statusChange: 'edited',
+        actorType: 'admin',
+        note: 'Quote edited by admin'
+      });
+    }
 
     return await this.fetchQuoteDetails(id);
   }

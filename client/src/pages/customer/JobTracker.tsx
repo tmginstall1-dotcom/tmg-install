@@ -41,6 +41,7 @@ const STATUS_LABELS: Record<string, string> = {
   deposit_requested: "Deposit Requested",
   deposit_paid: "Deposit Received",
   booking_requested: "Booking Requested",
+  booking_pending: "Pending Date Confirmation",
   booked: "Job Booked",
   assigned: "Installer Assigned",
   in_progress: "Job Started",
