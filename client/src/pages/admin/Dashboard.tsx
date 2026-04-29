@@ -200,7 +200,10 @@ export default function AdminDashboard() {
   const awaitingDeposit = quotes.filter((q: any) =>
     ["deposit_requested", "approved"].includes(q.status)
   );
-  const upcomingBooked  = quotes.filter((q: any) => ["booked", "assigned", "deposit_paid"].includes(q.status));
+  // Include booking_pending so jobs the admin marked "Pending Date Confirmation"
+  // (slot cleared, awaiting a new date) stay visible in the Upcoming Bookings
+  // list with the amber badge — otherwise they vanish from the dashboard.
+  const upcomingBooked  = quotes.filter((q: any) => ["booked", "assigned", "deposit_paid", "booking_pending"].includes(q.status));
   const activeJobs      = quotes.filter((q: any) => q.status === "in_progress");
   const awaitingPayment = quotes.filter((q: any) => ["completed", "final_payment_requested"].includes(q.status));
   const recentlyClosed  = quotes.filter((q: any) => ["closed", "final_paid"].includes(q.status)).slice(0, 5);
