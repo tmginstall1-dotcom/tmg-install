@@ -45,10 +45,12 @@ function ScheduleEditor({
   quoteId,
   scheduledAt,
   timeWindow,
+  currentStatus,
 }: {
   quoteId: number;
   scheduledAt: string | Date | null | undefined;
   timeWindow: string | null | undefined;
+  currentStatus: string;
 }) {
   const { toast } = useToast();
   const initialDate = scheduledAt ? format(new Date(scheduledAt), "yyyy-MM-dd") : "";
@@ -67,10 +69,11 @@ function ScheduleEditor({
     mutationFn: async (mode: "save" | "pending") => {
       if (mode === "pending") {
         // Customer has asked to reschedule but the new date isn't decided yet.
-        // Clear the booking slot so it shows as "Pending date confirmation"
-        // on both the admin and customer views.
+        // Clear the booking slot AND flip status to booking_pending so the
+        // header badge reads "Pending Date Confirmation" instead of staying
+        // on "In Progress".
         return apiRequest("PATCH", `/api/quotes/${quoteId}/edit`, {
-          quoteUpdates: { scheduledAt: null, timeWindow: null },
+          quoteUpdates: { scheduledAt: null, timeWindow: null, status: "booking_pending" },
         }).then(r => r.json());
       }
       if (!dateVal) throw new Error("Please select a date");
@@ -79,8 +82,11 @@ function ScheduleEditor({
       // Build SG-local datetime (UTC+08:00) so the saved instant matches what the admin sees.
       const isoLocalSg = `${dateVal}T${startTime}:00+08:00`;
       const scheduledAtIso = new Date(isoLocalSg).toISOString();
+      // If we're saving a fresh date for a job that was sitting in booking_pending,
+      // promote it back to "booked" so the badge stops saying "Pending Date Confirmation".
+      const statusFlip = (currentStatus === "booking_pending") ? { status: "booked" as const } : {};
       return apiRequest("PATCH", `/api/quotes/${quoteId}/edit`, {
-        quoteUpdates: { scheduledAt: scheduledAtIso, timeWindow: twVal },
+        quoteUpdates: { scheduledAt: scheduledAtIso, timeWindow: twVal, ...statusFlip },
       }).then(r => r.json());
     },
     onSuccess: (_data, mode) => {
@@ -1738,6 +1744,7 @@ export default function AdminQuoteDetail() {
                       quoteId={quote.id}
                       scheduledAt={quote.scheduledAt}
                       timeWindow={quote.timeWindow}
+                      currentStatus={quote.status}
                     />
                     
                     <div className="space-y-2">

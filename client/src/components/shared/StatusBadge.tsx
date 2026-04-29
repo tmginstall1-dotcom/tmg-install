@@ -11,7 +11,7 @@ const statusConfig: Record<string, { label: string; classes: string }> = {
   approved:                { label: "Approved",         classes: "bg-emerald-50 text-emerald-700" },
   deposit_requested:       { label: "Awaiting Deposit", classes: "bg-orange-50 text-orange-700" },
   deposit_paid:            { label: "Deposit Paid",     classes: "bg-indigo-50 text-indigo-700" },
-  booking_pending:         { label: "Needs Booking",    classes: "bg-fuchsia-50 text-fuchsia-700" },
+  booking_pending:         { label: "Pending Date Confirmation", classes: "bg-amber-50 text-amber-700" },
   booking_requested:       { label: "Booking Requested",classes: "bg-blue-50 text-blue-700" },
   booked:                  { label: "Booked",           classes: "bg-violet-50 text-violet-700" },
   assigned:                { label: "Staff Assigned",   classes: "bg-cyan-50 text-cyan-700" },
