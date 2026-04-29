@@ -1711,7 +1711,7 @@ export default function AdminQuoteDetail() {
                   </div>
                 )}
 
-                {['deposit_paid', 'booked', 'assigned'].includes(quote.status) && (
+                {['deposit_paid', 'booking_pending', 'booked', 'assigned', 'in_progress'].includes(quote.status) && (
                   <div className="space-y-4">
                     <ScheduleEditor
                       quoteId={quote.id}
