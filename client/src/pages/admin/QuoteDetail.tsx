@@ -64,7 +64,15 @@ function ScheduleEditor({
   }, [scheduledAt, timeWindow]);
 
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (mode: "save" | "pending") => {
+      if (mode === "pending") {
+        // Customer has asked to reschedule but the new date isn't decided yet.
+        // Clear the booking slot so it shows as "Pending date confirmation"
+        // on both the admin and customer views.
+        return apiRequest("PATCH", `/api/quotes/${quoteId}/edit`, {
+          quoteUpdates: { scheduledAt: null, timeWindow: null },
+        }).then(r => r.json());
+      }
       if (!dateVal) throw new Error("Please select a date");
       if (!/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(twVal)) throw new Error("Please select a time window");
       const startTime = twVal.split("-")[0];
@@ -75,10 +83,10 @@ function ScheduleEditor({
         quoteUpdates: { scheduledAt: scheduledAtIso, timeWindow: twVal },
       }).then(r => r.json());
     },
-    onSuccess: () => {
+    onSuccess: (_data, mode) => {
       queryClient.invalidateQueries({ queryKey: ['/api/quotes', String(quoteId)] });
       queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
-      toast({ title: "Schedule updated" });
+      toast({ title: mode === "pending" ? "Marked as pending date confirmation" : "Schedule updated" });
       setEditing(false);
     },
     onError: (e: any) => {
@@ -88,23 +96,26 @@ function ScheduleEditor({
 
   if (!editing) {
     return (
-      <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-sm">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-xs text-zinc-500 mb-1">Confirmed Date</p>
+      <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-zinc-500 mb-1.5">Confirmed Date</p>
             {scheduledAt ? (
-              <p className="font-semibold text-zinc-900 flex items-center gap-1.5" data-testid="text-confirmed-date">
-                <Calendar className="w-3.5 h-3.5 text-zinc-400" />
-                {format(new Date(scheduledAt), 'EEE, MMM d')} · {timeWindow || "—"}
+              <p className="font-semibold text-zinc-900 text-sm flex items-center gap-1.5" data-testid="text-confirmed-date">
+                <Calendar className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span>{format(new Date(scheduledAt), 'EEE, MMM d')} · {timeWindow || "—"}</span>
               </p>
             ) : (
-              <p className="text-zinc-500 italic">Not scheduled yet</p>
+              <p className="text-amber-700 text-sm font-medium flex items-center gap-1.5" data-testid="text-pending-date">
+                <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>Pending date confirmation</span>
+              </p>
             )}
           </div>
           <button
             onClick={() => setEditing(true)}
             data-testid="button-edit-schedule"
-            className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline whitespace-nowrap"
+            className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline whitespace-nowrap mt-0.5"
           >
             Edit
           </button>
@@ -114,33 +125,35 @@ function ScheduleEditor({
   }
 
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-2">
-      <p className="text-xs text-zinc-500">Edit Date & Time</p>
-      <input
-        type="date"
-        value={dateVal}
-        onChange={e => setDateVal(e.target.value)}
-        data-testid="input-scheduled-date"
-        className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-      <select
-        value={twVal}
-        onChange={e => setTwVal(e.target.value)}
-        data-testid="select-time-window"
-        className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        {TIME_WINDOWS.map(tw => (
-          <option key={tw.value} value={tw.value}>{tw.label}</option>
-        ))}
-      </select>
-      <div className="flex gap-2 pt-1">
+    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 space-y-3">
+      <p className="text-xs font-medium text-zinc-500">Edit Date & Time</p>
+      <div className="space-y-2">
+        <input
+          type="date"
+          value={dateVal}
+          onChange={e => setDateVal(e.target.value)}
+          data-testid="input-scheduled-date"
+          className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 text-left focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <select
+          value={twVal}
+          onChange={e => setTwVal(e.target.value)}
+          data-testid="select-time-window"
+          className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {TIME_WINDOWS.map(tw => (
+            <option key={tw.value} value={tw.value}>{tw.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
         <button
-          onClick={() => save.mutate()}
+          onClick={() => save.mutate("save")}
           disabled={save.isPending}
           data-testid="button-save-schedule"
-          className="flex-1 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50"
+          className="h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50 transition-colors"
         >
-          {save.isPending ? "Saving…" : "Save"}
+          {save.isPending && save.variables === "save" ? "Saving…" : "Save"}
         </button>
         <button
           onClick={() => {
@@ -150,11 +163,19 @@ function ScheduleEditor({
           }}
           disabled={save.isPending}
           data-testid="button-cancel-schedule"
-          className="h-9 px-4 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 text-sm font-medium disabled:opacity-50"
+          className="h-10 px-4 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 text-sm font-medium disabled:opacity-50 transition-colors"
         >
           Cancel
         </button>
       </div>
+      <button
+        onClick={() => save.mutate("pending")}
+        disabled={save.isPending}
+        data-testid="button-mark-pending-date"
+        className="w-full h-10 px-4 rounded-lg bg-white border border-amber-300 text-amber-700 hover:bg-amber-50 text-sm font-medium disabled:opacity-50 transition-colors"
+      >
+        {save.isPending && save.variables === "pending" ? "Saving…" : "Mark as Pending — date to be confirmed"}
+      </button>
     </div>
   );
 }

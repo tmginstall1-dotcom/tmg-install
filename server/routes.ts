@@ -4400,8 +4400,10 @@ ${systemPrompt}` });
       const existing = await storage.getQuote(id);
       if (!existing) return res.status(404).json({ message: "Quote not found" });
 
-      // Allow editing before and after deposit is paid, plus admin-created booked/assigned jobs
-      const editableStatuses = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booked', 'assigned'];
+      // Allow editing before and after deposit is paid, plus admin-created booked/assigned jobs.
+      // booking_pending and in_progress are also editable so admins can reschedule a job
+      // that's already been started or is sitting in the date-TBD state.
+      const editableStatuses = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booking_pending', 'booked', 'assigned', 'in_progress'];
       if (!editableStatuses.includes(existing.status)) {
         return res.status(400).json({ message: "Quote cannot be edited in its current status" });
       }
