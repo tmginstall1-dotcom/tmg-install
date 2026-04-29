@@ -3151,8 +3151,12 @@ Category rules:
         .where(eq(jobUpdatesTable.quoteId, quote.id))
         .orderBy(desc(jobUpdatesTable.createdAt));
 
+      // Customer-facing timeline shows key milestones only — filter out
+      // internal admin bookkeeping like "Quote edited by admin" and review
+      // request rows so the timeline reads as a clean status journey.
+      const HIDDEN_FROM_PUBLIC = new Set(["review_requested", "edited"]);
       const publicUpdates = updates
-        .filter(u => u.statusChange !== "review_requested")
+        .filter(u => !HIDDEN_FROM_PUBLIC.has(u.statusChange))
         .map(u => ({
           statusChange: u.statusChange,
           note: u.actorType === "admin" || u.actorType === "staff" ? u.note : null,
