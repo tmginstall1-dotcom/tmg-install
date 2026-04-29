@@ -889,12 +889,13 @@ export class DatabaseStorage implements IStorage {
       await db.update(customers).set(data.customerUpdates).where(eq(customers.id, quote.customerId));
     }
 
-    // Capture status change so we can emit a customer-friendly timeline event
-    // for it below (e.g. "Pending Date Confirmation" when admin clears the
-    // booking slot, or "Date Confirmed" when a new slot is locked in).
-    const oldStatus = quote.status;
-    const newStatus = data.quoteUpdates?.status;
-    const statusChanged = !!newStatus && newStatus !== oldStatus;
+    // Track what the admin asked for so we can emit a customer-friendly
+    // timeline event below. Drive the audit purely from the requested action
+    // (the status the client sent), NOT from a before/after diff — otherwise
+    // a re-click of "Mark as Pending" on a quote that's already in
+    // booking_pending would silently fall through to the generic 'edited'
+    // branch and the customer would never see the event.
+    const requestedStatus = data.quoteUpdates?.status;
 
     if (data.quoteUpdates) {
       await db.update(quotes).set(data.quoteUpdates).where(eq(quotes.id, id));
@@ -942,19 +943,18 @@ export class DatabaseStorage implements IStorage {
       }).where(eq(quotes.id, id));
     }
 
-    if (statusChanged && newStatus === 'booking_pending') {
-      // Customer asked to reschedule and admin cleared the slot — show this on
-      // the public timeline so the customer knows their original date is no
-      // longer locked in and a new date is being arranged.
+    if (requestedStatus === 'booking_pending') {
+      // Admin clicked "Mark as Pending" — log a customer-visible event so the
+      // tracker page reflects the change. Idempotent against re-clicks.
       await db.insert(jobUpdates).values({
         quoteId: id,
         statusChange: 'booking_pending',
         actorType: 'admin',
         note: 'Booking date pending — to be reconfirmed.',
       });
-    } else if (statusChanged && newStatus === 'booked' && oldStatus === 'booking_pending') {
-      // Admin picked a new date after the booking was sitting as pending —
-      // surface a fresh "Date confirmed" event for the customer.
+    } else if (requestedStatus === 'booked') {
+      // Admin saved a fresh date for a previously-pending booking — surface
+      // the new confirmation publicly so the customer sees their slot is set.
       await db.insert(jobUpdates).values({
         quoteId: id,
         statusChange: 'booked',
