@@ -970,6 +970,30 @@ export class DatabaseStorage implements IStorage {
       });
     }
 
+    // Recover the staff workflow after a reschedule. If the quote came out of
+    // this edit sitting in 'booked' but a crew is still attached (assignment
+    // wasn't cleared during the reschedule), promote it to 'assigned' so the
+    // staff app's "Arrive on site" / "Start job" flow is unblocked again.
+    // Without this, the rescheduled job is stranded in booked and the crew
+    // cannot complete it. Also covers historical quotes that got stuck before
+    // this fix was deployed — the next save reconciles them automatically.
+    const reloaded = await db.select().from(quotes).where(eq(quotes.id, id));
+    const post = reloaded[0];
+    if (
+      post &&
+      post.status === 'booked' &&
+      (post.assignedStaffId || post.assignedTeamId) &&
+      post.scheduledAt
+    ) {
+      await db.update(quotes).set({ status: 'assigned' }).where(eq(quotes.id, id));
+      await db.insert(jobUpdates).values({
+        quoteId: id,
+        statusChange: 'assigned',
+        actorType: 'admin',
+        note: 'Crew re-assigned for the new date.',
+      });
+    }
+
     return await this.fetchQuoteDetails(id);
   }
 
