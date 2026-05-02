@@ -25,6 +25,13 @@ export const PricingConfig = {
     { minQty: 10,  pct: 0.05 },
     { minQty: 1,   pct: 0.00 },
   ] as { minQty: number; pct: number }[],
+  // Per-hole line items (e.g. "Walk-in / Built-in Wardrobe (per hole)") are
+  // priced per drilled hole, so a single 120-hole job is really one wardrobe,
+  // not 120 separate items. To stop a single wardrobe from instantly hitting
+  // the 100+ tier, each per-hole unit is weighted at 1/5 of a regular item
+  // when picking the bulk-discount tier. Example: 120 holes → 24 weighted
+  // → falls in the 10+ tier (5%) instead of the 100+ tier (15%).
+  perHoleBulkWeight: 0.2,
   floor: {
     perFloorNoLift: 15,   // SGD per floor above ground without lift
     perFloorWithLift: 5,  // SGD per floor above ground with lift
@@ -55,6 +62,21 @@ export const PricingConfig = {
     pct: 0.50, // 50% deposit, 50% final
   },
 };
+
+// --------------------------------------------------------------------------
+// Bulk-discount weighting helper
+// --------------------------------------------------------------------------
+// Per-hole units (e.g. wall-hung wardrobes priced per drilled hole) shouldn't
+// flood the bulk-discount tier table — a single 120-hole wardrobe is one job,
+// not 120 items. This helper applies the perHoleBulkWeight to such lines so
+// tier selection reflects "true item count" rather than physical hole count.
+export function bulkWeightedQty(items: { name: string; quantity: number }[]): number {
+  const w = PricingConfig.perHoleBulkWeight;
+  return items.reduce((sum, it) => {
+    const isPerHole = /per hole/i.test(it.name || "");
+    return sum + (it.quantity || 0) * (isPerHole ? w : 1);
+  }, 0);
+}
 
 // --------------------------------------------------------------------------
 // Input / output types
@@ -312,8 +334,9 @@ export function computePricing(input: PricingInput): PricingResult {
   // ── C) Bulk discount (applies to labor only) ────────────────────────────
 
   const totalQty = itemLines.reduce((s, l) => s + l.quantity, 0);
+  const weightedQty = bulkWeightedQty(itemLines.map(l => ({ name: l.name, quantity: l.quantity })));
   const discountPct = [...cfg.bulkDiscount].sort((a, b) => b.minQty - a.minQty)
-    .find(t => totalQty >= t.minQty)?.pct ?? 0;
+    .find(t => weightedQty >= t.minQty)?.pct ?? 0;
   const discountAmount = round2(laborSubtotal * discountPct);
   const discountLine = discountAmount > 0
     ? { label: `Bulk Discount (${Math.round(discountPct * 100)}%)`, amount: -discountAmount }

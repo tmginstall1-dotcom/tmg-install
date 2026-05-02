@@ -35,7 +35,7 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-import { calcTransportFee, calcOvertimeCharge, PricingConfig } from "@shared/pricing";
+import { calcTransportFee, calcOvertimeCharge, PricingConfig, bulkWeightedQty } from "@shared/pricing";
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable } from "@shared/schema";
 import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable, aiFeatureFlags, customerRatings } from "@shared/schema";
@@ -344,9 +344,11 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
       adjustmentLines.push(`D&R bundle saving (${Math.round(drPct * 100)}% off dismantling) — -SGD $${drDiscountAmt.toFixed(0)}`);
     }
 
-    // Bulk discount
+    // Bulk discount — per-hole units count at PricingConfig.perHoleBulkWeight
+    // so a single 120-hole wardrobe is billed as one wardrobe, not 120 items.
     const totalQty = aiParsed.reduce((s, i) => s + (i.quantity || 1), 0);
-    const discountTier = PricingConfig.bulkDiscount.find((t: { minQty: number; pct: number }) => totalQty >= t.minQty);
+    const weightedQty = bulkWeightedQty(aiParsed.map((i: any) => ({ name: i.name || i.detectedName || "", quantity: i.quantity || 1 })));
+    const discountTier = PricingConfig.bulkDiscount.find((t: { minQty: number; pct: number }) => weightedQty >= t.minQty);
     const discountPct = discountTier?.pct ?? 0;
     const discountAmt = Math.round(totalEstimate * discountPct * 100) / 100;
     if (discountAmt > 0) {
@@ -6694,8 +6696,11 @@ Return ONLY valid JSON.`,
         }
 
         // ── Bulk discount (same tiers as web / Estimate page) ─────────────────
+        // Per-hole units weighted at PricingConfig.perHoleBulkWeight so a
+        // 120-hole wardrobe doesn't auto-trigger the 100+ tier on its own.
         const totalQty = aiParsedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
-        const discountTier = PricingConfig.bulkDiscount.find(t => totalQty >= t.minQty);
+        const weightedQty = bulkWeightedQty(aiParsedItems.map((it: any) => ({ name: it.name || it.detectedName || "", quantity: it.quantity || 1 })));
+        const discountTier = PricingConfig.bulkDiscount.find(t => weightedQty >= t.minQty);
         const discountPct = discountTier?.pct ?? 0;
         const discountAmount = Math.round(totalEstimate * discountPct * 100) / 100;
         if (discountAmount > 0) {
@@ -8300,8 +8305,11 @@ Respond directly — no JSON, just the message text.`,
     }
 
     // ── Bulk discount (same tiers as web / Estimate page) ─────────────────────
+    // Per-hole units weighted at PricingConfig.perHoleBulkWeight so a single
+    // wall-hung wardrobe priced per hole doesn't dominate the tier match.
     const totalQtyB = aiParsedItems.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
-    const discountTierB = PricingConfig.bulkDiscount.find((t: { minQty: number; pct: number }) => totalQtyB >= t.minQty);
+    const weightedQtyB = bulkWeightedQty(aiParsedItems.map((it: any) => ({ name: it.name || it.detectedName || "", quantity: it.quantity || 1 })));
+    const discountTierB = PricingConfig.bulkDiscount.find((t: { minQty: number; pct: number }) => weightedQtyB >= t.minQty);
     const discountPctB = discountTierB?.pct ?? 0;
     const discountAmountB = Math.round(totalEstimate * discountPctB * 100) / 100;
     if (discountAmountB > 0) {
