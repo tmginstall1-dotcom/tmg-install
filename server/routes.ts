@@ -4695,6 +4695,16 @@ COUNTING RULES:
 - For a matching set of identical items, estimate total quantity visible
 - Large multi-piece items (L-shaped sofa, king bed) = quantity: 1 even if they have multiple sections
 - OFFICE WORKSTATIONS: each workstation = 1 desk. Count them by the number of individual work areas/seats, not by panel count. If the desk surface is L-shaped or corner-shaped, use "L-Shaped Executive Desk". Count surrounding partition panels SEPARATELY as "Office Panel / Partition" — a typical workstation has 3–6 panels around it.
+- WALL-HUNG / WALK-IN / BUILT-IN WARDROBE (very important — these are priced PER HOLE, not per piece):
+  • If you see a wall-mounted modular wardrobe system (open shelves, hanging rails, basket racks, vertical standards/uprights drilled into the wall — e.g. Elfa, IKEA Algot, IKEA Boaxel, Pax with wall anchors, custom carpentry walk-in wardrobe), output it as: name "Walk-in / Built-in Wardrobe (per hole)".
+  • For quantity, ESTIMATE THE TOTAL NUMBER OF DRILLED HOLES visible in the system. Count holes this way:
+      – Each vertical wall standard / upright = 4–6 holes (top, middle, bottom anchors)
+      – Each shelf bracket = 2 holes
+      – Each hanging rod end-support = 2 holes
+      – Each basket / drawer rack = 2 holes per side bracket
+      – Each top overhead cabinet = 4–6 holes
+  • Add up the visible elements and return ONE line item with quantity = total hole count. Typical walk-in wardrobe like the photos we see lands at 60–120 holes. Round to a whole number.
+  • Do NOT also add a separate "Wardrobe" line for the same system — it's one line, priced per hole.
 - If quantity is unclear, default to 1
 
 CONFIDENCE RULES — include the confidence field:
@@ -4768,10 +4778,17 @@ Respond with ONLY a JSON array (no prose, no markdown):
                 // Only keep high or medium confidence items — filter out low/unknown
                 (item.confidence === "high" || item.confidence === "medium" || !item.confidence)
               )
-              .map((item: any) => ({
-                name: item.name.trim(),
-                quantity: Math.max(1, Math.min(50, Number(item.quantity) || 1)),
-              }));
+              .map((item: any) => {
+                const nm = item.name.trim();
+                // Walk-in / built-in wardrobe is priced per hole and can run
+                // 60–200+ holes; everything else stays capped at 50 units.
+                const isPerHole = /per hole/i.test(nm);
+                const cap = isPerHole ? 300 : 50;
+                return {
+                  name: nm,
+                  quantity: Math.max(1, Math.min(cap, Number(item.quantity) || 1)),
+                };
+              });
           }
         } catch (parseErr) {
           console.error("[detect-items] JSON parse failed:", parseErr, "raw:", content);
