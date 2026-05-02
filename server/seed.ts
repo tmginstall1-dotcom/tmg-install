@@ -2245,4 +2245,58 @@ export async function seedDatabase() {
     console.log("[startup] Round 19B: Television relocate (carry-and-go) set to free across all size tiers.");
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Round 20: Wall-Hung Shelving System (per hole) — walk-in wardrobe style
+  // wall-mounted shelving, hanging rails, and basket racks. The labour driver
+  // for these systems is the number of holes drilled into the wall (every
+  // bracket / standard / rail mount counts), so we price by hole instead of
+  // by piece. Rates benchmarked against IKEA's $5/hole install:
+  //   • Install     $5/hole — match IKEA so we're competitive on new fits.
+  //   • Dismantle   $2/hole — lighter work, no drilling, just unscrew + label.
+  //   • Relocate    $7/hole — bundled dismantle + drill + reinstall ($2+$5).
+  // All three SKUs share the same display name so the customer wizard merges
+  // them under one tile with selectable Install / Dismantle / Relocate
+  // service variants (same group-by-name pattern as Mattress and Bunk Bed).
+  // ──────────────────────────────────────────────────────────────────────────
+  const r20 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "WALLHUNG-R20-MARKER")).limit(1);
+  if (r20.length === 0) {
+    const wallHungItems = [
+      { sku: "WALLHUNG-INSTALL",   name: "Wall-Hung Shelving System (per hole)", svc: "install",   price: "5.00",  vol: "0.02" },
+      { sku: "WALLHUNG-DISMANTLE", name: "Wall-Hung Shelving System (per hole)", svc: "dismantle", price: "2.00",  vol: "0.02" },
+      { sku: "WALLHUNG-RELOCATE",  name: "Wall-Hung Shelving System (per hole)", svc: "relocate",  price: "7.00",  vol: "0.02" },
+    ];
+
+    for (const w of wallHungItems) {
+      const existing = await db.select().from(catalogItems).where(eq(catalogItems.sku, w.sku)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(catalogItems).values({
+          name: w.name,
+          sku: w.sku,
+          category: "Wall-Mounted",
+          serviceType: w.svc,
+          basePrice: w.price,
+          volumeM3: w.vol,
+          active: true,
+        } as any);
+      } else {
+        // Keep existing rows in lock-step with the rates above (idempotent
+        // re-seed in case prices ever drift on a re-deploy).
+        await db.update(catalogItems)
+          .set({ basePrice: w.price, name: w.name, category: "Wall-Mounted", active: true })
+          .where(eq(catalogItems.sku, w.sku));
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__wallhung_r20_marker__",
+      sku: "WALLHUNG-R20-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 20: Wall-Hung Shelving System (per hole) — install $5, dismantle $2, relocate $7.");
+  }
+
 }

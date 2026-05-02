@@ -452,6 +452,26 @@ const TERM_SYNONYMS: Record<string, string[]> = {
   "shoe cabinet": ["shoe"],
   "tv mount": ["tv", "mount"],
   "fridge": ["refrigerator"],
+  // Wall-hung walk-in wardrobe / modular shelving — priced per hole. Map all
+  // the common customer phrasings (Elfa, Pax, walk-in, open wardrobe, etc.)
+  // onto the catalog name "Wall-Hung Shelving System (per hole)".
+  "wall hung": ["wall-hung"],
+  "wall-hung": ["wall-hung"],
+  "wall hung shelf": ["wall-hung"],
+  "wall hung shelving": ["wall-hung"],
+  "wall hung system": ["wall-hung"],
+  "wall mounted shelf": ["wall-hung"],
+  "wall mounted shelving": ["wall-hung"],
+  "wall mounted wardrobe": ["wall-hung"],
+  "walk in wardrobe": ["wall-hung"],
+  "walk-in wardrobe": ["wall-hung"],
+  "open wardrobe": ["wall-hung"],
+  "modular wardrobe": ["wall-hung"],
+  "modular shelving": ["wall-hung"],
+  "elfa": ["wall-hung"],
+  "elfa system": ["wall-hung"],
+  "pax wardrobe": ["wall-hung"],
+  "pax system": ["wall-hung"],
 };
 
 // Common compound nouns customers write as one word that the catalog stores as two.
