@@ -2345,4 +2345,48 @@ export async function seedDatabase() {
     console.log("[startup] Round 21: Walk-in Wardrobe is now per-hole — legacy flat WALKIN-* rows disabled, WALLHUNG-* renamed to 'Walk-in Wardrobe (Wall-Hung, per hole)'.");
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Round 22: Fold "Custom/Built-in Wardrobe" into the per-hole tile too
+  // After Round 21 the wizard started auto-suggesting "Custom/Built-in
+  // Wardrobe" (flat $258 relocate / $250 install / $180 dismantle) when the
+  // customer was looking for a walk-in wardrobe. Functionally that's the same
+  // carpentry job — built-in carcassing, hanging rails, drilled-into-wall
+  // shelves — and the user wants ALL of it priced per hole. So:
+  //
+  //   1) Deactivate every "Custom/Built-in Wardrobe" row (CUST-WRD-*,
+  //      CUSTOMBU-*, and the legacy unnamed-SKU duplicates).
+  //   2) Rename the per-hole tile to "Walk-in / Built-in Wardrobe (per hole)"
+  //      so customers searching either phrase land on the same per-hole tile.
+  //
+  // We deliberately leave "Wardrobe with Built-in Mirror" alone — that's a
+  // pre-fab piece of furniture (mirror is a feature, not the carpentry
+  // method), and per-hole pricing doesn't apply.
+  // ──────────────────────────────────────────────────────────────────────────
+  const r22 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "WALLHUNG-R22-MARKER")).limit(1);
+  if (r22.length === 0) {
+    // Step 1: hide the legacy flat-priced built-in wardrobe rows.
+    await db.update(catalogItems)
+      .set({ active: false })
+      .where(eq(catalogItems.name, "Custom/Built-in Wardrobe"));
+
+    // Step 2: rename per-hole rows so the wizard tile covers both phrasings.
+    const newName = "Walk-in / Built-in Wardrobe (per hole)";
+    for (const sku of ["WALLHUNG-INSTALL", "WALLHUNG-DISMANTLE", "WALLHUNG-RELOCATE"]) {
+      await db.update(catalogItems)
+        .set({ name: newName })
+        .where(eq(catalogItems.sku, sku));
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__wallhung_r22_marker__",
+      sku: "WALLHUNG-R22-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 22: Custom/Built-in Wardrobe folded into per-hole tile — renamed to 'Walk-in / Built-in Wardrobe (per hole)'.");
+  }
+
 }
