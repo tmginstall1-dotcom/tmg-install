@@ -2299,4 +2299,50 @@ export async function seedDatabase() {
     console.log("[startup] Round 20: Wall-Hung Shelving System (per hole) — install $5, dismantle $2, relocate $7.");
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Round 21: Make per-hole pricing the default for "Walk-in Wardrobe"
+  // The customer wizard was still quoting walk-in wardrobes at the old flat
+  // $462 relocate ($450 install / $320 dismantle) from the legacy
+  // "Walk-in Wardrobe Frame System" SKU because it grouped by that name and
+  // outranked the new per-hole tile. User wants the per-hole pricing to win
+  // for ALL walk-in wardrobe quotes.
+  //
+  //   1) Deactivate every "Walk-in Wardrobe Frame System" row (catches both
+  //      WALKIN-* SKUs and the legacy unnamed-SKU duplicates) so the old tile
+  //      disappears from the wizard.
+  //   2) Rename WALLHUNG-* rows so the wizard tile reads
+  //      "Walk-in Wardrobe (Wall-Hung, per hole)" — customers typing "walk-in
+  //      wardrobe" now see the per-hole tile and can enter their hole count
+  //      as quantity.
+  // ──────────────────────────────────────────────────────────────────────────
+  const r21 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "WALLHUNG-R21-MARKER")).limit(1);
+  if (r21.length === 0) {
+    // Step 1: hide the legacy flat-priced walk-in wardrobe rows.
+    await db.update(catalogItems)
+      .set({ active: false })
+      .where(eq(catalogItems.name, "Walk-in Wardrobe Frame System"));
+
+    // Step 2: rename per-hole rows so the wizard tile mentions "Walk-in".
+    // All three service variants must share the exact same display name so
+    // the wizard's group-by-name logic keeps them under a single tile with
+    // selectable Install / Dismantle / Relocate options.
+    const newName = "Walk-in Wardrobe (Wall-Hung, per hole)";
+    for (const sku of ["WALLHUNG-INSTALL", "WALLHUNG-DISMANTLE", "WALLHUNG-RELOCATE"]) {
+      await db.update(catalogItems)
+        .set({ name: newName })
+        .where(eq(catalogItems.sku, sku));
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__wallhung_r21_marker__",
+      sku: "WALLHUNG-R21-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 21: Walk-in Wardrobe is now per-hole — legacy flat WALKIN-* rows disabled, WALLHUNG-* renamed to 'Walk-in Wardrobe (Wall-Hung, per hole)'.");
+  }
+
 }
