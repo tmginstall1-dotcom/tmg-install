@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import type { CatalogItem } from "@shared/schema";
-import { computePricing, PricingConfig, computeDRPrice, requiresSpecialHandling, type PricingCatalogEntry } from "@shared/pricing";
+import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, requiresSpecialHandling, type PricingCatalogEntry } from "@shared/pricing";
 
 type ServiceType = "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose";
 
@@ -408,6 +408,7 @@ export default function EstimateWizard() {
       unitPrice: i.unitPrice,
       volumeM3: i.volumeM3,
       carryOnly: i.relocateMode === 'carry',
+      sku: i.sku,
     })),
     needsRelocation: isRelocation,
     floors: floors.map(f => ({ level: parseInt(f.level) || 0, hasLift: f.hasLift })),
@@ -1615,7 +1616,16 @@ export default function EstimateWizard() {
                                     const full = (inst && dis)
                                       ? computeDRPrice(parseFloat(inst.basePrice), parseFloat(dis.basePrice), carry)
                                       : (i.fullPrice ?? computeDRPrice(undefined, undefined, carry));
-                                    return { ...i, relocateMode: 'carry', carryPrice: carry, fullPrice: full, unitPrice: carry };
+                                    // Fairness cap: customer should never pay more for less work.
+                                    // For non-special-handling items, Carry Only is capped at the
+                                    // D&R bundle price (e.g. single bed carry $80 → $63 D&R cap).
+                                    const carryEffective = effectiveCarryPrice(
+                                      inst ? parseFloat(inst.basePrice) : undefined,
+                                      dis ? parseFloat(dis.basePrice) : undefined,
+                                      carry,
+                                      i.sku,
+                                    );
+                                    return { ...i, relocateMode: 'carry', carryPrice: carry, fullPrice: full, unitPrice: carryEffective };
                                   }))}
                                   className={`px-2.5 py-1.5 border-l border-black/15 transition-colors ${item.relocateMode === 'carry' ? 'bg-black text-white' : 'bg-white text-black/40 hover:text-black/70'}`}
                                 >

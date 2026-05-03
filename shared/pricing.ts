@@ -97,6 +97,7 @@ export interface PricingItem {
   unitPrice: number; // 0 = no catalog price available (will trigger fallback)
   volumeM3?: number; // cubic metres per unit (optional — used for trip calculation)
   carryOnly?: boolean; // Carry-only relocate flag (informational; per-item labor still charged from catalog basePrice). Skips fallback so unmatched carry items default to $0 instead of generic estimate.
+  sku?: string; // Optional catalog SKU — used to detect SPECIAL_HANDLING items so the carry-cap rule can skip them.
 }
 
 export interface PricingFloor {
@@ -228,6 +229,33 @@ export function computeDRPrice(installPrice?: number, dismantlePrice?: number, c
   return round2(carry * cfg.drCarryFallbackMultiplier);
 }
 
+/**
+ * Effective Carry-Only price with a fairness cap.
+ *
+ * Rule: a customer should never pay MORE for less work. So for normal items,
+ * we cap Carry Only at the D&R bundle price. Heavy / oversized items in
+ * SPECIAL_HANDLING_SKUS (king bed, PAX, L-sofa, massage chair, piano, etc.)
+ * are exempt — for those, dismantling isn't really an option and the carry
+ * job genuinely needs 2-3 movers + protection, so the higher catalog rate
+ * stands.
+ */
+export function effectiveCarryPrice(
+  installPrice: number | undefined,
+  dismantlePrice: number | undefined,
+  carryPrice: number,
+  sku?: string | null,
+): number {
+  if (!(carryPrice > 0)) return 0;
+  if (requiresSpecialHandling(sku)) return round2(carryPrice);
+  // Need both install + dismantle to compute a real D&R figure; otherwise
+  // we have no fair anchor to cap against, so leave carry untouched.
+  if (!(installPrice && installPrice > 0 && dismantlePrice && dismantlePrice > 0)) {
+    return round2(carryPrice);
+  }
+  const dr = computeDRPrice(installPrice, dismantlePrice, carryPrice);
+  return round2(Math.min(carryPrice, dr));
+}
+
 /** Transport pricing — 2.4m Van (Toyota Hiace), Singapore
  *  Base $28 (first 3 km) + $0.50/km after + $30 helper = $58 minimum
  */
@@ -281,6 +309,21 @@ export function computePricing(input: PricingInput): PricingResult {
     // a flat $0 was undercharging these jobs vs. Singapore market rates.
     let unitPrice = item.unitPrice;
     let fallbackUsed = false;
+
+    // Fairness cap: for non-special-handling items, Carry Only can never cost
+    // more than the full D&R bundle (otherwise the customer pays more for
+    // less work — see screenshots of single/queen bed at $80/$130 carry vs.
+    // $63/$84 D&R). Look up install + dismantle prices from the catalog and
+    // delegate the cap to effectiveCarryPrice().
+    if (item.carryOnly && unitPrice > 0 && !requiresSpecialHandling(item.sku)) {
+      const inst = findInstallPrice(item.name, input.catalogEntries);
+      const dis  = (input.catalogEntries || []).find(e =>
+        e.serviceType === 'dismantle' && e.name.toLowerCase().trim() === item.name.toLowerCase().trim()
+      );
+      const dismantlePrice = dis && dis.basePrice > 0 ? dis.basePrice : undefined;
+      const installPrice   = inst && inst > 0 ? inst : undefined;
+      unitPrice = effectiveCarryPrice(installPrice, dismantlePrice, unitPrice, item.sku);
+    }
 
     if (!item.carryOnly && !(unitPrice > 0)) {
       fallbackUsed = true;
