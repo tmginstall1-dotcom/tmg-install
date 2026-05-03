@@ -230,30 +230,32 @@ export function computeDRPrice(installPrice?: number, dismantlePrice?: number, c
 }
 
 /**
- * Effective Carry-Only price with a fairness cap.
+ * Effective Carry-Only price.
  *
- * Rule: a customer should never pay MORE for less work. So for normal items,
- * we cap Carry Only at the D&R bundle price. Heavy / oversized items in
- * SPECIAL_HANDLING_SKUS (king bed, PAX, L-sofa, massage chair, piano, etc.)
- * are exempt — for those, dismantling isn't really an option and the carry
- * job genuinely needs 2-3 movers + protection, so the higher catalog rate
- * stands.
+ * Rule: for normal items, Carry Only labour is $0 — the transport fee
+ * already includes a 2-man crew for up to 2 hours (see PricingConfig.
+ * overtime.capMinutes), so charging per-item labour on top double-bills
+ * the customer. The job IS fundamentally "van + 2 movers loading and
+ * unloading"; no extra per-item work happens in carry mode.
+ *
+ * Heavy / oversized items in SPECIAL_HANDLING_SKUS (king bed, PAX,
+ * L-sofa, massage chair, piano, fridge, etc.) keep their catalog rate
+ * because they genuinely need a 3rd mover, corner protection, hoisting,
+ * or specialty equipment that goes beyond the standard 2-man crew.
+ *
+ * (installPrice and dismantlePrice are accepted for backward compat with
+ * the previous D&R-cap signature but are no longer used.)
  */
 export function effectiveCarryPrice(
-  installPrice: number | undefined,
-  dismantlePrice: number | undefined,
+  _installPrice: number | undefined,
+  _dismantlePrice: number | undefined,
   carryPrice: number,
   sku?: string | null,
 ): number {
   if (!(carryPrice > 0)) return 0;
   if (requiresSpecialHandling(sku)) return round2(carryPrice);
-  // Need both install + dismantle to compute a real D&R figure; otherwise
-  // we have no fair anchor to cap against, so leave carry untouched.
-  if (!(installPrice && installPrice > 0 && dismantlePrice && dismantlePrice > 0)) {
-    return round2(carryPrice);
-  }
-  const dr = computeDRPrice(installPrice, dismantlePrice, carryPrice);
-  return round2(Math.min(carryPrice, dr));
+  // Normal item — labour is bundled into the transport fee.
+  return 0;
 }
 
 /** Transport pricing — 2.4m Van (Toyota Hiace), Singapore
