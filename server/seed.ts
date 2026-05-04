@@ -2389,4 +2389,59 @@ export async function seedDatabase() {
     console.log("[startup] Round 22: Custom/Built-in Wardrobe folded into per-hole tile — renamed to 'Walk-in / Built-in Wardrobe (per hole)'.");
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Round 23: Stainless-Steel Kitchen Storage Rack / Cabinet
+  // Common Taobao / Shopee freestanding stainless-steel multi-tier kitchen
+  // rack with sliding doors and an open microwave / appliance shelf. Before
+  // this round the AI photo-scanner had no good catalog match and was
+  // either (a) lumping it into "Walk-in / Built-in Wardrobe (per hole)"
+  // (because of the vertical uprights), or (b) picking the most expensive
+  // nearby SKU. Either way customers saw $400+ quotes for what is a
+  // straightforward 1.5–2 hr flat-pack job.
+  //
+  // Real market labour for these:
+  //   • Install   $80 — 6–10 panels, bolt assembly, sliding-door alignment.
+  //   • Dismantle $60 — unbolt, no drilling.
+  //   • Relocate  $130 — D&R bundle (40% off install + dismantle).
+  // Volume ~0.45 m³ (similar to a sideboard / credenza).
+  // ──────────────────────────────────────────────────────────────────────────
+  const r23 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "KITCHRACK-R23-MARKER")).limit(1);
+  if (r23.length === 0) {
+    const kitchRackItems = [
+      { sku: "KITCHRACK-INSTALL",   svc: "install",   price: "80.00",  vol: "0.45" },
+      { sku: "KITCHRACK-DISMANTLE", svc: "dismantle", price: "60.00",  vol: "0.45" },
+      { sku: "KITCHRACK-RELOCATE",  svc: "relocate",  price: "130.00", vol: "0.45" },
+    ];
+    const krName = "Stainless Steel Kitchen Storage Rack / Cabinet";
+    for (const k of kitchRackItems) {
+      const existing = await db.select().from(catalogItems).where(eq(catalogItems.sku, k.sku)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(catalogItems).values({
+          name: krName,
+          sku: k.sku,
+          category: "Kitchen",
+          serviceType: k.svc,
+          basePrice: k.price,
+          volumeM3: k.vol,
+          active: true,
+        } as any);
+      } else {
+        await db.update(catalogItems)
+          .set({ basePrice: k.price, name: krName, category: "Kitchen", active: true })
+          .where(eq(catalogItems.sku, k.sku));
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__kitchrack_r23_marker__",
+      sku: "KITCHRACK-R23-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 23: Stainless Steel Kitchen Storage Rack / Cabinet — install $80, dismantle $60, relocate $130.");
+  }
+
 }

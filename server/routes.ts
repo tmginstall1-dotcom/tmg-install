@@ -4698,8 +4698,14 @@ COUNTING RULES:
 - Large multi-piece items (L-shaped sofa, king bed) = quantity: 1 even if they have multiple sections
 - OFFICE WORKSTATIONS: each workstation = 1 desk. Count them by the number of individual work areas/seats, not by panel count. If the desk surface is L-shaped or corner-shaped, use "L-Shaped Executive Desk". Count surrounding partition panels SEPARATELY as "Office Panel / Partition" — a typical workstation has 3–6 panels around it.
 - WALL-HUNG / WALK-IN / BUILT-IN WARDROBE (very important — these are priced PER HOLE, not per piece):
-  • If you see a wall-mounted modular wardrobe system (open shelves, hanging rails, basket racks, vertical standards/uprights drilled into the wall — e.g. Elfa, IKEA Algot, IKEA Boaxel, Pax with wall anchors, custom carpentry walk-in wardrobe), output it as: name "Walk-in / Built-in Wardrobe (per hole)".
-  • For quantity, ESTIMATE THE TOTAL NUMBER OF DRILLED HOLES visible in the system. Count holes this way:
+  • ONLY use the per-hole "Walk-in / Built-in Wardrobe (per hole)" classification when the system is CLEARLY drilled into a wall — i.e. you can see vertical metal standards / wood uprights ANCHORED into a brick or drywall surface, with hanging rails, open shelves, or basket racks suspended off the wall. Examples: Elfa, IKEA Algot, IKEA Boaxel, Pax mounted to a wall, custom carpentry walk-in wardrobe inside a room.
+  • DO NOT use per-hole pricing for any FREESTANDING unit that just happens to have vertical posts or sliding doors. In particular, the following are NOT per-hole — they are normal flat-pack furniture with their own catalog names:
+      – Stainless-steel kitchen storage racks / pantry shelves / appliance shelves (Taobao / Shopee style, multi-tier, often with sliding doors and a microwave shelf) → "Stainless Steel Kitchen Storage Rack / Cabinet"
+      – Freestanding metal shelving units (boltless rivet shelving, garage racks) → "Bookshelf"
+      – IKEA Kallax, Billy, Ivar, Vittsjo (these are NOT wall-hung even when placed against a wall) → use their IKEA names
+      – Bar carts, kitchen trolleys, microwave carts → use their specific names
+    Telltale sign: if the unit has its OWN feet / base frame and could be moved without unscrewing anything from the wall, it is NOT per-hole.
+  • For real wall-hung / walk-in wardrobe systems, ESTIMATE THE TOTAL NUMBER OF DRILLED HOLES visible. Count holes this way:
       – Each vertical wall standard / upright = 4–6 holes (top, middle, bottom anchors)
       – Each shelf bracket = 2 holes
       – Each hanging rod end-support = 2 holes
@@ -4707,6 +4713,7 @@ COUNTING RULES:
       – Each top overhead cabinet = 4–6 holes
   • Add up the visible elements and return ONE line item with quantity = total hole count. Typical walk-in wardrobe like the photos we see lands at 60–120 holes. Round to a whole number.
   • Do NOT also add a separate "Wardrobe" line for the same system — it's one line, priced per hole.
+- DUPLICATE PRODUCT PHOTOS: if the input image is a product listing collage / catalog page that shows the SAME piece of furniture from multiple angles (different views, different door configurations, different lighting), count it as ONE item — not one per photo. Telltale signs of duplicate photos: identical background, identical product, watermark/listing UI repeated, photo numbers (1/3, 2/3, etc.).
 - If quantity is unclear, default to 1
 
 CONFIDENCE RULES — include the confidence field:
