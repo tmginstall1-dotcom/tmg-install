@@ -9314,6 +9314,18 @@ Return ONLY valid JSON:
     return res.json({ ok: true });
   });
 
+  // POST /api/admin/ggv-jobs/bulk-delete — body: { ids: number[] }
+  app.post("/api/admin/ggv-jobs/bulk-delete", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const raw = (req.body?.ids ?? []) as unknown[];
+    const ids = Array.from(new Set(raw.map(v => Number(v)).filter(n => Number.isFinite(n) && n > 0)));
+    if (!ids.length) return res.status(400).json({ message: "ids required" });
+    const deleted = await storage.deleteGGVJobs(ids);
+    return res.json({ ok: true, deleted });
+  });
+
   // ── Subcontractors ────────────────────────────────────────────────────────
   // GET /api/admin/subcontractors — list all subcontractors
   app.get("/api/admin/subcontractors", async (req, res) => {

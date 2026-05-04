@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, Fragment } from "react";
+import { useState, useRef, useCallback, useEffect, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -133,6 +133,8 @@ export default function GGVJobs() {
   const [vehicleGroup, setVehicleGroup] = useState("TMG1 GGV 029");
   const [vehicleType, setVehicleType] = useState("EV VAN");
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   // Scan state
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -168,9 +170,58 @@ export default function GGVJobs() {
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/ggv-jobs/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setDeleteId(null); toast({ title: "Job deleted" }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      setSelectedIds(prev => { if (deleteId == null) return prev; const next = new Set(prev); next.delete(deleteId); return next; });
+      setDeleteId(null);
+      toast({ title: "Job deleted" });
+    },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  const bulkDeleteMut = useMutation({
+    mutationFn: (ids: number[]) => apiRequest("POST", "/api/admin/ggv-jobs/bulk-delete", { ids }),
+    onSuccess: async (res: any) => {
+      const data = await (res?.json ? res.json() : Promise.resolve(res));
+      const n = data?.deleted ?? selectedIds.size;
+      queryClient.invalidateQueries({ queryKey });
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+      toast({ title: `${n} job${n !== 1 ? "s" : ""} deleted` });
+    },
+    onError: (e: any) => toast({ title: "Bulk delete failed", description: e.message, variant: "destructive" }),
+  });
+
+  // Reset selection whenever the visible job set changes (date change, refresh, etc.)
+  // Drop any selected IDs that no longer exist in the current page.
+  useEffect(() => {
+    setSelectedIds(prev => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(jobs.map(j => j.id));
+      const next = new Set<number>();
+      prev.forEach(id => { if (visible.has(id)) next.add(id); });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [jobs]);
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds(prev => {
+      if (jobs.length === 0) return prev;
+      const allSelected = prev.size === jobs.length && jobs.every(j => prev.has(j.id));
+      return allSelected ? new Set() : new Set(jobs.map(j => j.id));
+    });
+  }
+
+  const allOnPageSelected = jobs.length > 0 && selectedIds.size >= jobs.length && jobs.every(j => selectedIds.has(j.id));
+  const someOnPageSelected = selectedIds.size > 0 && !allOnPageSelected;
 
   // ── Upload & AI Scan (multi-file) ──────────────────────────────────────────
 
@@ -349,7 +400,18 @@ export default function GGVJobs() {
               <p className="text-[11px] text-slate-500">Daily delivery & installation job log</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Bulk delete — only visible when rows are selected */}
+            {selectedIds.size > 0 && (
+              <Button
+                onClick={() => setBulkDeleteOpen(true)}
+                variant="outline"
+                data-testid="btn-bulk-delete"
+                className="border-rose-500/40 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 font-bold text-xs gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete {selectedIds.size}
+              </Button>
+            )}
             {/* Upload & Scan — multiple files */}
             <input
               ref={fileInputRef}
@@ -456,17 +518,33 @@ export default function GGVJobs() {
               </button>
             </div>
           )}
+          {jobs.length > 0 && (
+            <div className="flex items-center gap-2 px-1 pb-1">
+              <Checkbox
+                checked={allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false}
+                onCheckedChange={toggleSelectAll}
+                data-testid="checkbox-select-all-mobile"
+                className="border-slate-500"
+              />
+              <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+                {selectedIds.size > 0 ? `${selectedIds.size} selected` : "Select all"}
+              </span>
+            </div>
+          )}
           {jobs.map((job) => {
             const isFlagged  = job.flagged;
             const isDelivery = isDeliveryJob(job.jobNo);
             const effActual  = effectiveActual(job);
             const deductAmt  = parseFloat(job.deduction ?? "0");
+            const isSelected = selectedIds.has(job.id);
             return (
               <div
                 key={job.id}
                 data-testid={`row-ggv-${job.id}`}
                 className={`rounded-xl border px-4 py-3 ${
-                  isFlagged
+                  isSelected
+                    ? "bg-blue-500/10 border-blue-500/40"
+                    : isFlagged
                     ? "bg-rose-500/10 border-rose-500/30"
                     : job.remarks?.trim()
                     ? "bg-amber-500/8 border-amber-500/20"
@@ -475,6 +553,12 @@ export default function GGVJobs() {
               >
                 {/* Top row: job no + service + actual $ */}
                 <div className="flex items-start justify-between gap-2">
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => toggleSelect(job.id)}
+                    data-testid={`checkbox-select-${job.id}`}
+                    className="mt-0.5 border-slate-500 shrink-0"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {isFlagged && <Flag className="w-3 h-3 text-rose-400 shrink-0" />}
@@ -558,6 +642,14 @@ export default function GGVJobs() {
             <table className="w-full text-sm min-w-[1100px]">
               <thead>
                 <tr className="border-b border-white/8 bg-slate-800/60">
+                  <th className="px-3 py-2.5 w-10">
+                    <Checkbox
+                      checked={allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false}
+                      onCheckedChange={toggleSelectAll}
+                      data-testid="checkbox-select-all"
+                      className="border-slate-500"
+                    />
+                  </th>
                   <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-36">Job No</th>
                   <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-36">Booking Ref</th>
                   <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 w-24">Time</th>
@@ -575,11 +667,11 @@ export default function GGVJobs() {
               </thead>
               <tbody>
                 {isLoading && (
-                  <tr><td colSpan={13} className="text-center py-12 text-slate-500 text-sm">Loading…</td></tr>
+                  <tr><td colSpan={14} className="text-center py-12 text-slate-500 text-sm">Loading…</td></tr>
                 )}
                 {!isLoading && jobs.length === 0 && (
                   <tr>
-                    <td colSpan={13} className="text-center py-12">
+                    <td colSpan={14} className="text-center py-12">
                       <div className="flex flex-col items-center gap-3 text-slate-600">
                         <FileImage className="w-10 h-10" />
                         <div>
@@ -601,16 +693,26 @@ export default function GGVJobs() {
                   const hasRemarks = !!(job.remarks?.trim());
                   const isDelivery = isDeliveryJob(job.jobNo);
                   const effActual = effectiveActual(job);
+                  const isSelected = selectedIds.has(job.id);
                   return (
                     <tr
                       key={job.id}
                       data-testid={`row-ggv-${job.id}`}
                       className={`border-b border-white/5 transition-colors ${
-                        isFlagged ? "bg-rose-500/10 hover:bg-rose-500/15"
+                        isSelected ? "bg-blue-500/10 hover:bg-blue-500/15"
+                          : isFlagged ? "bg-rose-500/10 hover:bg-rose-500/15"
                           : hasRemarks ? "bg-amber-500/8 hover:bg-amber-500/12"
                           : "hover:bg-white/[0.03]"
                       }`}
                     >
+                      <td className="px-3 py-2.5">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(job.id)}
+                          data-testid={`checkbox-select-${job.id}`}
+                          className="border-slate-500"
+                        />
+                      </td>
                       <td className="px-3 py-2.5 font-mono text-xs text-slate-300">
                         <div className="flex items-center gap-1.5">
                           {isFlagged && <Flag className="w-3 h-3 text-rose-400 shrink-0" />}
@@ -658,7 +760,7 @@ export default function GGVJobs() {
               {jobs.length > 0 && (
                 <tfoot>
                   <tr className="border-t border-white/10 bg-slate-800/80">
-                    <td colSpan={3} className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">{jobs.length} job{jobs.length !== 1 ? "s" : ""}</td>
+                    <td colSpan={4} className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">{jobs.length} job{jobs.length !== 1 ? "s" : ""}</td>
                     <td className="px-3 py-3 text-right text-xs font-bold tabular-nums text-slate-300">${totalListed.toFixed(2)}</td>
                     <td className="px-3 py-3 text-right text-xs font-bold tabular-nums text-rose-400">{totalDeduction > 0 ? `-$${totalDeduction.toFixed(2)}` : "—"}</td>
                     <td className="px-3 py-3 text-right"><span className="text-base font-black tabular-nums text-emerald-400">${totalActual.toFixed(2)}</span></td>
@@ -944,6 +1046,31 @@ export default function GGVJobs() {
             <Button variant="ghost" onClick={() => setDialogOpen(false)} className="text-slate-400 hover:text-white">Cancel</Button>
             <Button onClick={handleSave} disabled={isPending} className="bg-emerald-500 hover:bg-emerald-400 text-black font-black" data-testid="btn-save-job">
               {isPending ? "Saving…" : editingJob ? "Save Changes" : "Add Job"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete confirm */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={v => { if (!bulkDeleteMut.isPending) setBulkDeleteOpen(v); }}>
+        <DialogContent className="bg-slate-900 border-white/10 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-400">
+              <AlertCircle className="w-5 h-5" /> Delete {selectedIds.size} job{selectedIds.size !== 1 ? "s" : ""}?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-400">
+            The selected job entr{selectedIds.size !== 1 ? "ies" : "y"} will be permanently deleted. This cannot be undone.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleteMut.isPending} className="text-slate-400 hover:text-white">Cancel</Button>
+            <Button
+              onClick={() => bulkDeleteMut.mutate(Array.from(selectedIds))}
+              disabled={bulkDeleteMut.isPending || selectedIds.size === 0}
+              className="bg-rose-500 hover:bg-rose-400 text-white font-black gap-1.5"
+              data-testid="btn-confirm-bulk-delete"
+            >
+              {bulkDeleteMut.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting…</> : <><Trash2 className="w-3.5 h-3.5" /> Delete {selectedIds.size}</>}
             </Button>
           </DialogFooter>
         </DialogContent>

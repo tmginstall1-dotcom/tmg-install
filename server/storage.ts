@@ -162,6 +162,7 @@ export interface IStorage {
   createGGVJob(data: InsertGGVJob): Promise<GGVJob>;
   updateGGVJob(id: number, data: Partial<InsertGGVJob>): Promise<GGVJob | undefined>;
   deleteGGVJob(id: number): Promise<void>;
+  deleteGGVJobs(ids: number[]): Promise<number>;
 
   // Site Analytics
   addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
@@ -1439,6 +1440,11 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteGGVJob(id: number): Promise<void> {
     await db.delete(ggvJobs).where(eq(ggvJobs.id, id));
+  }
+  async deleteGGVJobs(ids: number[]): Promise<number> {
+    if (!ids.length) return 0;
+    const rows = await db.delete(ggvJobs).where(inArray(ggvJobs.id, ids)).returning({ id: ggvJobs.id });
+    return rows.length;
   }
 
   async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent> {
