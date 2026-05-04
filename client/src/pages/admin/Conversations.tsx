@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
@@ -599,6 +600,7 @@ function ChatPanel({
   const [showTemplates, setShowTemplates] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -1582,8 +1584,24 @@ function ChatPanel({
                     >
                       <Copy className="w-3.5 h-3.5" /> Copy number
                     </button>
+                    <button
+                      onClick={() => setShowPaymentDialog(true)}
+                      data-testid="banner-generate-payment-message"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white text-[11px] font-semibold rounded-lg hover:bg-violet-700 active:scale-[0.98] transition-all"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> Generate payment text
+                    </button>
                   </div>
                 </div>
+            )}
+
+            {/* Payment-message snippet dialog (works regardless of WhatsApp window) */}
+            {selectedPhone && (
+              <PaymentMessageDialog
+                open={showPaymentDialog}
+                onClose={() => setShowPaymentDialog(false)}
+                fetchUrl={`${API_BASE}/api/admin/whatsapp/conversations/${selectedPhone}/payment-message`}
+              />
             )}
 
             <div className="px-2 pb-2 pt-1.5">

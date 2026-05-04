@@ -8,12 +8,13 @@ import {
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
   ClipboardList, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
-  Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles,
+  Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles, FileText, Copy,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { calcOvertimeCharge, PricingConfig } from "@shared/pricing";
+import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
 
 const TERMINAL_STATUSES_UI = ['closed', 'cancelled'];
 
@@ -330,6 +331,7 @@ function PaymentChannelButtons({
   whatsappPending,
   onEmail,
   onWhatsApp,
+  onCopy,
   compact = false,
 }: {
   quote: any;
@@ -337,6 +339,7 @@ function PaymentChannelButtons({
   whatsappPending: boolean;
   onEmail: () => void;
   onWhatsApp: (phone?: string) => void;
+  onCopy?: () => void;
   compact?: boolean;
 }) {
   const [phoneInput, setPhoneInput] = useState("");
@@ -346,6 +349,17 @@ function PaymentChannelButtons({
   const baseBtn = compact
     ? "inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
     : "inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg text-sm font-medium transition-colors disabled:opacity-50";
+
+  const copyBtn = onCopy ? (
+    <button
+      onClick={onCopy}
+      className={`${baseBtn} w-full bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200`}
+      data-testid="button-copy-payment-message"
+    >
+      <FileText className="w-4 h-4" />
+      Copy / send manually
+    </button>
+  ) : null;
 
   // If deposit is already paid, the WA button sends the FINAL payment message
   const depositAlreadyPaid = !!quote?.depositPaidAt;
@@ -372,59 +386,69 @@ function PaymentChannelButtons({
           <MessageCircle className="w-4 h-4" />
           {whatsappPending ? "Sending…" : waLabel}
         </button>
+        {copyBtn}
       </div>
     );
   }
 
   if (hasRealEmail && hasPhone) {
     return (
-      <div className="flex gap-2">
-        <button
-          onClick={onEmail}
-          disabled={isPending}
-          className={`${baseBtn} flex-1 bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50`}
-          data-testid="button-send-payment-email"
-        >
-          <Mail className="w-4 h-4" />
-          {emailPending ? "Sending…" : "Email"}
-        </button>
-        <button
-          onClick={() => onWhatsApp()}
-          disabled={isPending}
-          className={`${baseBtn} flex-1 bg-emerald-600 hover:bg-emerald-700 text-white`}
-          data-testid="button-send-payment-whatsapp"
-        >
-          <MessageCircle className="w-4 h-4" />
-          {whatsappPending ? "Sending…" : waLabelShort}
-        </button>
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <button
+            onClick={onEmail}
+            disabled={isPending}
+            className={`${baseBtn} flex-1 bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50`}
+            data-testid="button-send-payment-email"
+          >
+            <Mail className="w-4 h-4" />
+            {emailPending ? "Sending…" : "Email"}
+          </button>
+          <button
+            onClick={() => onWhatsApp()}
+            disabled={isPending}
+            className={`${baseBtn} flex-1 bg-emerald-600 hover:bg-emerald-700 text-white`}
+            data-testid="button-send-payment-whatsapp"
+          >
+            <MessageCircle className="w-4 h-4" />
+            {whatsappPending ? "Sending…" : waLabelShort}
+          </button>
+        </div>
+        {copyBtn}
       </div>
     );
   }
 
   if (hasRealEmail) {
     return (
-      <button
-        onClick={onEmail}
-        disabled={isPending}
-        className={`${baseBtn} w-full bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50`}
-        data-testid="button-send-payment-email"
-      >
-        <Mail className="w-4 h-4" />
-        {emailPending ? "Sending…" : "Send Payment Email"}
-      </button>
+      <div className="space-y-2">
+        <button
+          onClick={onEmail}
+          disabled={isPending}
+          className={`${baseBtn} w-full bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50`}
+          data-testid="button-send-payment-email"
+        >
+          <Mail className="w-4 h-4" />
+          {emailPending ? "Sending…" : "Send Payment Email"}
+        </button>
+        {copyBtn}
+      </div>
     );
   }
 
   return (
-    <button
-      onClick={() => onWhatsApp()}
-      disabled={isPending}
-      className={`${baseBtn} w-full bg-emerald-600 hover:bg-emerald-700 text-white`}
-      data-testid="button-send-payment-whatsapp"
-    >
-      <MessageCircle className="w-4 h-4" />
-      {whatsappPending ? "Sending…" : waLabel}
-    </button>
+    <div className="space-y-2">
+      <button
+        onClick={() => onWhatsApp()}
+        disabled={isPending}
+        className={`${baseBtn} w-full bg-emerald-600 hover:bg-emerald-700 text-white`}
+        data-testid="button-send-payment-whatsapp"
+      >
+        <MessageCircle className="w-4 h-4" />
+        {whatsappPending ? "Sending…" : waLabel}
+      </button>
+      {copyBtn}
+    </div>
   );
 }
 
@@ -616,6 +640,7 @@ export default function AdminQuoteDetail() {
 
   const [showPayNowConfirm, setShowPayNowConfirm] = useState(false);
   const [payNowNote, setPayNowNote] = useState("");
+  const [showPaymentMessageDialog, setShowPaymentMessageDialog] = useState(false);
   const markPayNowPaid = useMutation({
     mutationFn: () =>
       apiRequest("POST", `/api/admin/quotes/${id}/mark-paynow-paid`, { note: payNowNote.trim() || undefined }),
@@ -1722,6 +1747,7 @@ export default function AdminQuoteDetail() {
                       whatsappPending={sendWhatsAppPayment.isPending}
                       onEmail={() => resendDepositEmail.mutate()}
                       onWhatsApp={(phone) => sendWhatsAppPayment.mutate(phone)}
+                      onCopy={() => setShowPaymentMessageDialog(true)}
                     />
                   </div>
                 )}
@@ -1801,6 +1827,7 @@ export default function AdminQuoteDetail() {
                           whatsappPending={sendWhatsAppPayment.isPending}
                           onEmail={() => resendDepositEmail.mutate()}
                           onWhatsApp={(phone) => sendWhatsAppPayment.mutate(phone)}
+                          onCopy={() => setShowPaymentMessageDialog(true)}
                         />
                         <button
                           onClick={() => setShowPayNowConfirm(true)}
@@ -1891,6 +1918,7 @@ export default function AdminQuoteDetail() {
                       whatsappPending={sendWhatsAppPayment.isPending}
                       onEmail={() => handleRequestFinalPayment()}
                       onWhatsApp={(phone) => sendWhatsAppPayment.mutate(phone)}
+                      onCopy={() => setShowPaymentMessageDialog(true)}
                     />
                   </div>
                 )}
@@ -2172,6 +2200,7 @@ export default function AdminQuoteDetail() {
                   whatsappPending={sendWhatsAppPayment.isPending}
                   onEmail={() => resendDepositEmail.mutate()}
                   onWhatsApp={(phone) => sendWhatsAppPayment.mutate(phone)}
+                  onCopy={() => setShowPaymentMessageDialog(true)}
                   compact
                 />
               </div>
@@ -2180,6 +2209,13 @@ export default function AdminQuoteDetail() {
         );
         return null;
       })()}
+
+      {/* Payment-message snippet dialog (manual fallback when WhatsApp delivery fails) */}
+      <PaymentMessageDialog
+        open={showPaymentMessageDialog}
+        onClose={() => setShowPaymentMessageDialog(false)}
+        fetchUrl={`/api/admin/quotes/${id}/payment-message`}
+      />
 
       {/* PayNow Confirmation Modal */}
       {showPayNowConfirm && (

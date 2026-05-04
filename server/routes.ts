@@ -7212,6 +7212,150 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── Admin: Generate the payment message text + link (copy-able snippet) ──
+  // Used as a fallback when WhatsApp delivery fails (24-h window closed, etc.)
+  // so the admin can paste the same text into SMS / their personal WhatsApp /
+  // email. Re-uses the SAME message templates as the auto-send flow so the
+  // customer experience is identical regardless of channel.
+  async function buildPaymentMessageForQuote(quote: any, requestedType?: "deposit" | "final") {
+    const totalAmt = parseFloat(quote.total || "0");
+    const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
+    const balance = parseFloat(quote.finalAmount || "0") > 0
+      ? parseFloat(quote.finalAmount!)
+      : Math.max(0, totalAmt - depositPaid);
+
+    // Auto-detect type from quote status when not specified
+    const finalStatuses = ["completed", "final_payment_requested", "final_paid", "closed"];
+    const depositPaidAlready = !!quote.depositPaidAt;
+    const type: "deposit" | "final" = requestedType
+      ? requestedType
+      : (depositPaidAlready || finalStatuses.includes(quote.status)) ? "final" : "deposit";
+
+    const amount = type === "final" ? balance : (parseFloat(quote.depositAmount || "0") || totalAmt * 0.5);
+    const shortPayUrl = type === "final"
+      ? `${APP_URL}/pay/${quote.referenceNo}?type=final`
+      : `${APP_URL}/pay/${quote.referenceNo}`;
+
+    // Generate fresh Stripe link so the snippet works even after old links expire.
+    const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+    const stripeUrl = await createStripePaymentLink(
+      type === "final"
+        ? `Balance Payment for ${quote.referenceNo} — TMG Install`
+        : `Deposit for ${quote.referenceNo} — TMG Install`,
+      amount,
+      { quoteId: String(quote.id), type, referenceNo: quote.referenceNo },
+      quotePageUrl,
+    );
+    const paymentLink = stripeUrl || quotePageUrl;
+
+    const customerName = quote.customer?.name || "there";
+    const slotLine = quote.preferredDate
+      ? `📅 *Slot: ${quote.preferredDate}${quote.preferredTimeWindow ? ` (${quote.preferredTimeWindow})` : ""}*\n`
+      : "";
+
+    const text = type === "final"
+      ? (
+          `Hi *${customerName}* 👋\n\n` +
+          `Your installation for *${quote.referenceNo}* is now complete. Thank you for choosing TMG Install! 🙏\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `💳 *Balance Due: S$${amount.toFixed(2)}*\n` +
+          `_(50% balance payment — deposit already received)_\n` +
+          `Please clear the balance to close your job.\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n\n` +
+          waPayBlock(amount, shortPayUrl) +
+          `\n\n_We hope to serve you again. Reply here if you need help._`
+        )
+      : (
+          `Hi *${customerName}* 👋\n\n` +
+          `Your quote *${quote.referenceNo}* has been approved by TMG Install!\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `💰 *50% Deposit Required: S$${amount.toFixed(2)}*\n` +
+          `${slotLine}` +
+          `Your slot is reserved once we receive your deposit.\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n\n` +
+          waPayBlock(amount, shortPayUrl) +
+          `\n\n_Slot held for 48 hours. Reply here if you need help._`
+        );
+
+    const rawPhone = quote.customerWhatsappPhone || quote.customer?.phone || "";
+    const phone = rawPhone ? normalizeSGPhone(rawPhone) : "";
+    const waMeUrl = phone
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+      : "";
+
+    return {
+      text,
+      paymentLink,
+      shortPayUrl,
+      waMeUrl,
+      amount: amount.toFixed(2),
+      type,
+      phone,
+      refNo: quote.referenceNo,
+      customerName: quote.customer?.name || null,
+      customerEmail: quote.customer?.email || null,
+    };
+  }
+
+  app.get("/api/admin/quotes/:id/payment-message", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    try {
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      const requestedType = req.query.type === "final" || req.query.type === "deposit"
+        ? (req.query.type as "deposit" | "final")
+        : undefined;
+      const payload = await buildPaymentMessageForQuote(quote, requestedType);
+      res.json(payload);
+    } catch (err: any) {
+      console.error("[PaymentMessage] build error:", err);
+      res.status(500).json({ message: err?.message || "Failed to generate payment message" });
+    }
+  });
+
+  // Phone-based lookup: used by the Conversations 24-h-window banner where the
+  // admin is in a chat thread, not on a quote detail page. Picks the most
+  // recent quote that still owes money.
+  app.get("/api/admin/whatsapp/conversations/:phone/payment-message", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const phoneRaw = String(req.params.phone || "").replace(/[^0-9]/g, "");
+    if (!phoneRaw) return res.status(400).json({ message: "Invalid phone" });
+    const phone = normalizeSGPhone(phoneRaw) || phoneRaw;
+    try {
+      // Pull every quote linked to this phone (via customerWhatsappPhone or customer.phone)
+      // and pick the best candidate that still owes money.
+      const candidates = await storage.getQuotesByStatuses([
+        "approved", "deposit_requested",
+        "completed", "final_payment_requested",
+        "deposit_paid", "booked", "assigned", "in_progress",
+      ]);
+      const matches = candidates.filter(q => {
+        const qPhone = (q.customerWhatsappPhone || q.customer?.phone || "").replace(/[^0-9]/g, "");
+        const qNorm = qPhone ? (normalizeSGPhone(qPhone) || qPhone) : "";
+        return qNorm === phone;
+      });
+      if (matches.length === 0) {
+        return res.status(404).json({
+          message: "No open quote found for this customer. Open the quote in the Quotes page and use 'Generate payment message' there.",
+        });
+      }
+      // Pick the most recent active quote
+      matches.sort((a, b) => {
+        const aT = new Date(a.createdAt as any).getTime();
+        const bT = new Date(b.createdAt as any).getTime();
+        return bT - aT;
+      });
+      const quote = matches[0];
+      const payload = await buildPaymentMessageForQuote(quote);
+      res.json(payload);
+    } catch (err: any) {
+      console.error("[PaymentMessage] phone lookup error:", err);
+      res.status(500).json({ message: err?.message || "Failed to generate payment message" });
+    }
+  });
+
   // ── Admin: Reset deposit so a new payment link can be sent ───────────────
   app.post("/api/admin/quotes/:id/reset-deposit", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
