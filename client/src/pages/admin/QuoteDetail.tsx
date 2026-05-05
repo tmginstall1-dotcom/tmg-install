@@ -1718,10 +1718,19 @@ export default function AdminQuoteDetail() {
               <div className="p-5 space-y-4">
                 
                 {['submitted', 'under_review'].includes(quote.status) && (
-                  <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending}
-                    className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                    <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
-                  </button>
+                  <div className="space-y-2">
+                    <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending}
+                      className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                      <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
+                    </button>
+                    <button
+                      onClick={() => setShowPayNowConfirm(true)}
+                      data-testid="button-mark-deposit-already-paid"
+                      title="Customer already paid via PayNow — record it without sending the deposit request message"
+                      className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-sm font-medium transition-colors">
+                      <QrCode className="w-4 h-4" /> Customer Already Paid Deposit (PayNow)
+                    </button>
+                  </div>
                 )}
 
                 {quote.status === 'deposit_requested' && (
@@ -2174,10 +2183,16 @@ export default function AdminQuoteDetail() {
       {!isEditing && (() => {
         const s = quote.status;
         if (['submitted', 'under_review'].includes(s)) return (
-          <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+          <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] space-y-1.5">
             <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending}
               className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
               <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
+            </button>
+            <button
+              onClick={() => setShowPayNowConfirm(true)}
+              data-testid="button-mark-deposit-already-paid-mobile"
+              className="w-full inline-flex items-center justify-center gap-2 h-9 rounded-xl bg-white border border-emerald-300 text-emerald-700 text-xs font-semibold transition-colors">
+              <QrCode className="w-3.5 h-3.5" /> Already Paid via PayNow — Skip Request
             </button>
           </div>
         );
