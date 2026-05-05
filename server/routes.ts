@@ -7356,6 +7356,144 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── Public + Admin: Customer-facing INVOICE / RECEIPT ───────────────────
+  // Build a normalised invoice payload for a quote. Used by the public
+  // invoice page (customer link) and the admin "Send invoice" dialog.
+  function buildInvoicePayload(quote: any) {
+    const totalAmt = parseFloat(quote.total || "0");
+    const depositAmt = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
+    const finalAmt = parseFloat(quote.finalAmount || "0") > 0
+      ? parseFloat(quote.finalAmount!)
+      : Math.max(0, totalAmt - depositAmt);
+    const paidInFull = !!quote.finalPaidAt
+      || quote.paymentStatus === "paid_in_full"
+      || quote.status === "final_paid";
+
+    // Invoice number derived from the quote ref so it's stable & non-PII.
+    // e.g. TMG-MOJN5PS9 → INV-MOJN5PS9
+    const refTail = String(quote.referenceNo || "").replace(/^TMG-?/i, "");
+    const invoiceNo = `INV-${refTail || quote.id}`;
+    // "Issued" date = whenever the final payment cleared (if available),
+    // otherwise today (so the invoice doesn't claim to be paid in the future).
+    const invoiceDate = quote.finalPaidAt || new Date().toISOString();
+
+    const items = ((quote as any).items || []).map((it: any) => ({
+      id: it.id,
+      detectedName: it.detectedName || null,
+      originalDescription: it.originalDescription || null,
+      quantity: it.quantity || 1,
+      unitPrice: String(it.unitPrice || "0"),
+      subtotal: String(it.subtotal || "0"),
+    }));
+
+    return {
+      referenceNo: quote.referenceNo,
+      invoiceNo,
+      invoiceDate,
+      customerName: quote.customer?.name || "—",
+      customerEmail: quote.customer?.email || null,
+      customerPhone: quote.customerWhatsappPhone || quote.customer?.phone || null,
+      serviceAddress: quote.serviceAddress || null,
+      pickupAddress: quote.pickupAddress || null,
+      dropoffAddress: quote.dropoffAddress || null,
+      scheduledAt: quote.scheduledAt || null,
+      timeWindow: quote.timeWindow || null,
+      completedAt: quote.finalPaidAt || null,
+      items,
+      subtotal: String(quote.subtotal || quote.total || "0"),
+      transportFee: String((quote as any).transportFee || "0"),
+      discount: String(quote.discount || "0"),
+      total: String(quote.total || "0"),
+      depositAmount: depositAmt.toFixed(2),
+      depositPaidAt: quote.depositPaidAt || null,
+      finalAmount: finalAmt.toFixed(2),
+      finalPaidAt: quote.finalPaidAt || null,
+      paidInFull,
+    };
+  }
+
+  // Public endpoint — used by customers via shareable invoice link.
+  // Only serves invoices that are PAID IN FULL so we never expose
+  // a partially-paid job as a "receipt".
+  app.get("/api/public/invoice/:refNo", async (req, res) => {
+    try {
+      const refNo = String(req.params.refNo || "").toUpperCase();
+      if (!refNo) return res.status(400).json({ message: "Invalid reference" });
+      const [row] = await db.select().from(quotesTable).where(eq(quotesTable.referenceNo, refNo)).limit(1);
+      if (!row) return res.status(404).json({ message: "Invoice not found" });
+      const quote = await storage.getQuote(row.id);
+      if (!quote) return res.status(404).json({ message: "Invoice not found" });
+      const paidInFull = !!quote.finalPaidAt
+        || quote.paymentStatus === "paid_in_full"
+        || quote.status === "final_paid";
+      if (!paidInFull) {
+        return res.status(403).json({ message: "Invoice is only available once payment is complete." });
+      }
+      res.json(buildInvoicePayload(quote));
+    } catch (err: any) {
+      console.error("[Invoice] public fetch error:", err);
+      res.status(500).json({ message: err?.message || "Failed to load invoice" });
+    }
+  });
+
+  // Admin endpoint — returns a sendable invoice message (text + share URL).
+  // Available for any quote that has at least cleared the final payment;
+  // the admin can copy/paste into WhatsApp, SMS or email.
+  app.get("/api/admin/quotes/:id/invoice-message", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    try {
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      const paidInFull = !!quote.finalPaidAt
+        || quote.paymentStatus === "paid_in_full"
+        || quote.status === "final_paid";
+      if (!paidInFull) {
+        return res.status(409).json({
+          message: "Invoice is only available once the final payment is recorded. Mark the job as fully paid first.",
+        });
+      }
+
+      const payload = buildInvoicePayload(quote);
+      const viewUrl  = `${APP_URL}/invoice/${payload.referenceNo}`;
+      const printUrl = `${APP_URL}/invoice/${payload.referenceNo}?print=1`;
+
+      const customerName = payload.customerName !== "—" ? payload.customerName : "there";
+      const text =
+        `Hi *${customerName}* 🙏\n\n` +
+        `As requested, here is your invoice / receipt for *${payload.referenceNo}* — payment received in full.\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `🧾 *Invoice ${payload.invoiceNo}*\n` +
+        `*Total Paid: S$${Number(payload.total).toFixed(2)}*\n` +
+        `✅ PAID IN FULL\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `View / download your invoice here:\n${viewUrl}\n\n` +
+        `_Tap "Print / Save as PDF" on the page to keep a copy._\n\n` +
+        `Thank you again for choosing TMG Install! 💪`;
+
+      const rawPhone = payload.customerPhone || "";
+      const phone = rawPhone ? normalizeSGPhone(String(rawPhone)) : "";
+      const waMeUrl = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}` : "";
+
+      res.json({
+        text,
+        viewUrl,
+        printUrl,
+        waMeUrl,
+        phone,
+        refNo: payload.referenceNo,
+        invoiceNo: payload.invoiceNo,
+        customerName: payload.customerName !== "—" ? payload.customerName : null,
+        customerEmail: payload.customerEmail,
+        total: Number(payload.total).toFixed(2),
+      });
+    } catch (err: any) {
+      console.error("[Invoice] message build error:", err);
+      res.status(500).json({ message: err?.message || "Failed to generate invoice message" });
+    }
+  });
+
   // ── Admin: Reset deposit so a new payment link can be sent ───────────────
   app.post("/api/admin/quotes/:id/reset-deposit", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });

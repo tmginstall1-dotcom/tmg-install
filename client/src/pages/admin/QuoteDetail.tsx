@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { calcOvertimeCharge, PricingConfig } from "@shared/pricing";
 import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
+import { InvoiceMessageDialog } from "@/components/shared/InvoiceMessageDialog";
 
 const TERMINAL_STATUSES_UI = ['closed', 'cancelled'];
 
@@ -641,6 +642,7 @@ export default function AdminQuoteDetail() {
   const [showPayNowConfirm, setShowPayNowConfirm] = useState(false);
   const [payNowNote, setPayNowNote] = useState("");
   const [showPaymentMessageDialog, setShowPaymentMessageDialog] = useState(false);
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const markPayNowPaid = useMutation({
     mutationFn: () =>
       apiRequest("POST", `/api/admin/quotes/${id}/mark-paynow-paid`, { note: payNowNote.trim() || undefined }),
@@ -1123,6 +1125,17 @@ export default function AdminQuoteDetail() {
                   <RotateCcw className="w-3.5 h-3.5" />
                 )}
                 <span>Reopen</span>
+              </button>
+            )}
+            {quote.status !== "cancelled" && (quote.finalPaidAt || quote.paymentStatus === "paid_in_full" || ["closed", "final_paid"].includes(quote.status)) && (
+              <button
+                onClick={() => setShowInvoiceDialog(true)}
+                data-testid="button-send-invoice"
+                title="Send invoice / receipt to customer"
+                className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-700 hover:bg-emerald-100 text-xs sm:text-sm font-medium transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Invoice</span>
               </button>
             )}
             <button
@@ -2215,6 +2228,13 @@ export default function AdminQuoteDetail() {
         open={showPaymentMessageDialog}
         onClose={() => setShowPaymentMessageDialog(false)}
         fetchUrl={`/api/admin/quotes/${id}/payment-message`}
+      />
+
+      {/* Invoice / receipt sharing dialog (only available once paid in full) */}
+      <InvoiceMessageDialog
+        open={showInvoiceDialog}
+        onClose={() => setShowInvoiceDialog(false)}
+        fetchUrl={`/api/admin/quotes/${id}/invoice-message`}
       />
 
       {/* PayNow Confirmation Modal */}
