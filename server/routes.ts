@@ -4615,19 +4615,37 @@ ${systemPrompt}` });
   });
 
   // Admin: Manual close
+  // "Mark as Closed" semantically means: job done + fully paid + case settled.
+  // The on-screen card explicitly says "Fully paid — job marked complete", so we
+  // also stamp finalPaidAt / depositPaidAt (if missing) and paymentStatus, otherwise
+  // the invoice / receipt endpoint can't serve the case afterwards.
   app.post("/api/quotes/:id/close", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const { reason } = z.object({ reason: z.string().optional() }).parse(req.body);
+
+      const existing = await storage.getQuote(id);
+      if (!existing) return res.status(404).json({ message: "Quote not found" });
+
+      const now = new Date();
+      const paymentPatch: Partial<typeof quotesTable.$inferInsert> = {
+        paymentStatus: "paid_in_full",
+      };
+      if (!existing.depositPaidAt) paymentPatch.depositPaidAt = now;
+      if (!existing.finalPaidAt)   paymentPatch.finalPaidAt   = now;
+
+      await db.update(quotesTable).set(paymentPatch).where(eq(quotesTable.id, id));
+
       const quote = await storage.updateQuoteStatus(id, 'closed', {
         actorType: 'admin',
-        note: reason || 'Case manually closed by admin'
+        note: reason || 'Case manually closed by admin (marked fully paid)'
       });
       if (!quote) return res.status(404).json({ message: "Quote not found" });
       // Notify customer + send Google review request (fire-and-forget)
       sendCaseClosedNotifications(quote).catch(e => console.error("[ManualClose] notification error:", e));
       res.json(quote);
     } catch (err) {
+      console.error("[ManualClose] error:", err);
       res.status(500).json({ message: "Internal error" });
     }
   });
@@ -7367,7 +7385,8 @@ Respond directly — no JSON, just the message text.`,
       : Math.max(0, totalAmt - depositAmt);
     const paidInFull = !!quote.finalPaidAt
       || quote.paymentStatus === "paid_in_full"
-      || quote.status === "final_paid";
+      || quote.status === "final_paid"
+      || quote.status === "closed";
 
     // Invoice number derived from the quote ref so it's stable & non-PII.
     // e.g. TMG-MOJN5PS9 → INV-MOJN5PS9
@@ -7412,6 +7431,33 @@ Respond directly — no JSON, just the message text.`,
     };
   }
 
+  // Self-heal helper: legacy "Mark as Closed" admin action used to set only
+  // status='closed' without ever stamping payment dates. The invoice page then
+  // had no "Paid on" date to show. Whenever we read a closed quote that's
+  // missing those fields, lazily backfill them so the data is permanently
+  // consistent (and future reads are clean).
+  async function ensureClosedQuoteIsStamped(quote: any) {
+    if (!quote || quote.status !== "closed") return quote;
+    const needsHeal = !quote.finalPaidAt
+      || !quote.depositPaidAt
+      || quote.paymentStatus !== "paid_in_full";
+    if (!needsHeal) return quote;
+    const now = new Date();
+    const patch: Partial<typeof quotesTable.$inferInsert> = {
+      paymentStatus: "paid_in_full",
+    };
+    if (!quote.depositPaidAt) patch.depositPaidAt = now;
+    if (!quote.finalPaidAt)   patch.finalPaidAt   = now;
+    try {
+      await db.update(quotesTable).set(patch).where(eq(quotesTable.id, quote.id));
+      console.log(`[Invoice] Self-healed closed quote ${quote.referenceNo} — backfilled payment dates`);
+      return await storage.getQuote(quote.id) || quote;
+    } catch (e) {
+      console.error("[Invoice] Self-heal failed for", quote.referenceNo, e);
+      return quote;
+    }
+  }
+
   // Public endpoint — used by customers via shareable invoice link.
   // Only serves invoices that are PAID IN FULL so we never expose
   // a partially-paid job as a "receipt".
@@ -7421,11 +7467,13 @@ Respond directly — no JSON, just the message text.`,
       if (!refNo) return res.status(400).json({ message: "Invalid reference" });
       const [row] = await db.select().from(quotesTable).where(eq(quotesTable.referenceNo, refNo)).limit(1);
       if (!row) return res.status(404).json({ message: "Invoice not found" });
-      const quote = await storage.getQuote(row.id);
+      let quote = await storage.getQuote(row.id);
       if (!quote) return res.status(404).json({ message: "Invoice not found" });
+      quote = await ensureClosedQuoteIsStamped(quote);
       const paidInFull = !!quote.finalPaidAt
         || quote.paymentStatus === "paid_in_full"
-        || quote.status === "final_paid";
+        || quote.status === "final_paid"
+        || quote.status === "closed";
       if (!paidInFull) {
         return res.status(403).json({ message: "Invoice is only available once payment is complete." });
       }
@@ -7444,11 +7492,13 @@ Respond directly — no JSON, just the message text.`,
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
     try {
-      const quote = await storage.getQuote(id);
+      let quote = await storage.getQuote(id);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
+      quote = await ensureClosedQuoteIsStamped(quote);
       const paidInFull = !!quote.finalPaidAt
         || quote.paymentStatus === "paid_in_full"
-        || quote.status === "final_paid";
+        || quote.status === "final_paid"
+        || quote.status === "closed";
       if (!paidInFull) {
         return res.status(409).json({
           message: "Invoice is only available once the final payment is recorded. Mark the job as fully paid first.",
