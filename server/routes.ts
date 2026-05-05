@@ -7582,10 +7582,34 @@ Respond directly — no JSON, just the message text.`,
     try {
       const quote = await storage.getQuote(id);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
-      if (quote.depositPaidAt) return res.status(409).json({ message: "Deposit already marked as paid" });
 
       const depositAmt = (parseFloat(quote.depositAmount || "0") || parseFloat(quote.total || "0") * 0.5).toFixed(2);
       const { note } = z.object({ note: z.string().optional() }).parse(req.body);
+
+      // Idempotent recovery: deposit was already recorded (e.g. via Stripe webhook or
+      // a partial earlier attempt) but status is still stuck in an early stage.
+      // Promote the status forward without re-recording the payment or re-notifying.
+      const STALE_PRE_DEPOSIT = ['submitted', 'under_review', 'deposit_requested'];
+      if (quote.depositPaidAt && STALE_PRE_DEPOSIT.includes(quote.status as string)) {
+        const targetStatus: any = (quote.preferredDate && quote.preferredTimeWindow) ? 'booked' : 'deposit_paid';
+        const patch: any = { status: targetStatus, paymentStatus: 'deposit_paid' };
+        if (targetStatus === 'booked' && !quote.scheduledAt) {
+          patch.scheduledAt = new Date(quote.preferredDate + 'T12:00:00');
+          patch.timeWindow = quote.preferredTimeWindow;
+          patch.bookingRequestedAt = new Date();
+          patch.slotHeldUntil = null;
+        }
+        await db.update(quotes).set(patch).where(eq(quotes.id, id));
+        await storage.updateQuoteStatus(
+          id, targetStatus,
+          { actorType: "admin", note: `Status synced — deposit already on record${note ? ` (${note})` : ""}` },
+        );
+        const refreshed = await storage.getQuote(id);
+        console.log(`[PayNow] Idempotent sync for ${quote.referenceNo}: ${quote.status} → ${targetStatus}`);
+        return res.json({ ok: true, quote: refreshed, synced: true });
+      }
+
+      if (quote.depositPaidAt) return res.status(409).json({ message: "Deposit already marked as paid" });
 
       // Reuse the same updateQuotePayment logic (sets depositPaidAt, status → deposit_paid)
       const updated = await storage.updateQuotePayment(id, "deposit", depositAmt);

@@ -644,13 +644,19 @@ export default function AdminQuoteDetail() {
   const [showPaymentMessageDialog, setShowPaymentMessageDialog] = useState(false);
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const markPayNowPaid = useMutation({
-    mutationFn: () =>
-      apiRequest("POST", `/api/admin/quotes/${id}/mark-paynow-paid`, { note: payNowNote.trim() || undefined }),
-    onSuccess: () => {
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/admin/quotes/${id}/mark-paynow-paid`, { note: payNowNote.trim() || undefined });
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
       setShowPayNowConfirm(false);
       setPayNowNote("");
-      toast({ title: "✅ Deposit Confirmed", description: "Quote moved to Deposit Paid. Email + WhatsApp sent to customer." });
+      if (data?.synced) {
+        toast({ title: "✅ Status Synced", description: "Deposit was already on record — quote moved forward. No new message sent to customer." });
+      } else {
+        toast({ title: "✅ Deposit Confirmed", description: "Quote moved to Deposit Paid. Email + WhatsApp sent to customer." });
+      }
     },
     onError: (err: any) => {
       const msg = err?.message || "Could not confirm payment.";
