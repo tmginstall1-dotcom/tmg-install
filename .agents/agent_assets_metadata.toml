@@ -65,3 +65,9 @@ id = "lrH3pAPsLYxEfepHtersN"
 uri = "file://attached_assets/reports/Apr2026_NgKimBoon_Overclaim_Provable.pdf"
 type = "pdf"
 title = "Ng Kim Boon — April 2026 Over-Claim (Provable Only)"
+
+[[outputs]]
+id = "NLEi06BwmbvYhV35SGu6a"
+uri = "file://attached_assets/reports/Apr2026_NgKimBoon_Overclaim_v3.pdf"
+type = "pdf"
+title = "Ng Kim Boon — April 2026 Over-Claim (Driver clock + last work site)"
