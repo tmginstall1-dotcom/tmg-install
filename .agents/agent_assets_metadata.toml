@@ -41,3 +41,9 @@ id = "zzC3PWjq8sp273ipSM-ID"
 uri = "file://play-store-listing.md"
 type = "text"
 title = "Google Play Store Listing — TMG Staff"
+
+[[outputs]]
+id = "Z4WHdRUYHdODr1vvDZU0d"
+uri = "file://attached_assets/reports/Apr2026_Attendance_Audit.pdf"
+type = "pdf"
+title = "April 2026 — Attendance GPS Audit (Ng + Soh)"
