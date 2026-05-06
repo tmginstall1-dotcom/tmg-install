@@ -7,7 +7,7 @@ import { format, differenceInMinutes, startOfMonth, endOfMonth, startOfWeek, end
 import {
   Plus, Trash2, Pencil, Check, X, Users, Clock, UserPlus, LogIn, LogOut,
   ChevronDown, ChevronUp, Calendar, FileText, Settings2, Loader2, AlertCircle, MapPin, Printer,
-  ArrowRight, DollarSign, ChevronLeft, ChevronRight, Navigation2, MoveRight, CircleDot, CreditCard
+  ArrowRight, DollarSign, ChevronLeft, ChevronRight, Navigation2, MoveRight, CircleDot, CreditCard, AlertTriangle
 } from "lucide-react";
 import OfficialPayslip from "@/components/OfficialPayslip";
 import GpsMap from "@/components/GpsMap";
@@ -1029,6 +1029,7 @@ function calcOT(logs: any[]): { totalMins: number; regularMins: number; otMins: 
   for (const l of logs) {
     if (!l.clockOutAt) continue;
     const mins = differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
+    if (mins <= 0) continue; // Skip invalid records (clock-out before clock-in) so they don't poison totals
     totalMins += mins;
     regularMins += Math.min(mins, 8 * 60);
     otMins += Math.max(0, mins - 8 * 60);
@@ -1387,12 +1388,22 @@ function TimesheetsView() {
           )}
         </td>
         <td className="px-3 py-2.5 text-right">
-          {mins !== null ? (
+          {mins === null ? (
+            <span className="text-zinc-400 text-sm">—</span>
+          ) : mins <= 0 ? (
+            <button
+              onClick={() => setEditingId(log.id)}
+              data-testid={`button-fix-invalid-${log.id}`}
+              title="Clock-out is at or before clock-in. Click to fix."
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-bold border border-red-200 transition-colors">
+              <AlertTriangle className="w-3 h-3" /> Fix dates
+            </button>
+          ) : (
             <div>
               <span className="font-bold text-sm text-zinc-900">{fmt(mins)}</span>
               {otMins > 0 && <span className="ml-1 text-[10px] font-bold text-amber-600">+{fmt(otMins)} OT</span>}
             </div>
-          ) : <span className="text-zinc-400 text-sm">—</span>}
+          )}
         </td>
         {log.notes && <td className="px-3 py-2.5 text-xs text-zinc-400 italic max-w-[120px] truncate">{log.notes}</td>}
         {!log.notes && <td className="px-3 py-2.5" />}
