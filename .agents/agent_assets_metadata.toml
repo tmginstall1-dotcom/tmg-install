@@ -47,3 +47,9 @@ id = "Z4WHdRUYHdODr1vvDZU0d"
 uri = "file://attached_assets/reports/Apr2026_Attendance_Audit.pdf"
 type = "pdf"
 title = "April 2026 — Attendance GPS Audit (Ng + Soh)"
+
+[[outputs]]
+id = "QWmv0e40btKt2elg13T-b"
+uri = "file://attached_assets/reports/Apr2026_Detailed_GPS_Audit.pdf"
+type = "pdf"
+title = "April 2026 — Detailed GPS Audit (with maps & per-day breakdown)"
