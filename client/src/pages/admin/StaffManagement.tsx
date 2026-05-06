@@ -863,9 +863,11 @@ function RosterRow({ staff, log, status, liveLocation }: {
   liveLocation?: { lat: string; lng: string; recordedAt: string };
 }) {
   const [mapOpen, setMapOpen] = useState<"in" | "out" | "live" | null>(null);
-  const mins = log?.clockOutAt
+  const rawMins = log?.clockOutAt
     ? differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt))
     : null;
+  const dedMins = Math.max(0, Number(log?.deductionMinutes || 0));
+  const mins = rawMins === null ? null : Math.max(0, rawMins - dedMins);
 
   const hasInGps  = !!(log?.clockInLat  && log?.clockInLng);
   const hasOutGps = !!(log?.clockOutLat && log?.clockOutLng);
@@ -1024,17 +1026,20 @@ function RosterRow({ staff, log, status, liveLocation }: {
 
 // ─── Timesheets — helpers ───────────────────────────────────────────────────────
 
-function calcOT(logs: any[]): { totalMins: number; regularMins: number; otMins: number } {
-  let totalMins = 0, regularMins = 0, otMins = 0;
+function calcOT(logs: any[]): { totalMins: number; regularMins: number; otMins: number; deductedMins: number } {
+  let totalMins = 0, regularMins = 0, otMins = 0, deductedMins = 0;
   for (const l of logs) {
     if (!l.clockOutAt) continue;
-    const mins = differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
-    if (mins <= 0) continue; // Skip invalid records (clock-out before clock-in) so they don't poison totals
+    const raw = differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
+    if (raw <= 0) continue; // Skip invalid records (clock-out before clock-in) so they don't poison totals
+    const ded = Math.max(0, Number(l.deductionMinutes || 0));
+    const mins = Math.max(0, raw - ded);
+    deductedMins += Math.min(ded, raw);
     totalMins += mins;
     regularMins += Math.min(mins, 8 * 60);
     otMins += Math.max(0, mins - 8 * 60);
   }
-  return { totalMins, regularMins, otMins };
+  return { totalMins, regularMins, otMins, deductedMins };
 }
 
 // ─── Inline edit form for a single attendance log ──────────────────────────────
@@ -1242,6 +1247,153 @@ function AddRecordForm({
   );
 }
 
+// ─── Bulk Deduct Modal ─────────────────────────────────────────────────────────
+
+function BulkDeductModal({ staff, defaultUserId, defaultFrom, defaultTo, queryKeys, onClose }: {
+  staff: any[]; defaultUserId?: number; defaultFrom: string; defaultTo: string; queryKeys: any[]; onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const staffOnly = staff.filter((s: any) => s.role === "staff");
+  const [userId, setUserId] = useState<string>(String(defaultUserId ?? staffOnly[0]?.id ?? ""));
+  const [fromDate, setFromDate] = useState(defaultFrom);
+  const [toDate, setToDate] = useState(defaultTo);
+  const [minutesPerDay, setMinutesPerDay] = useState(30);
+  const [reason, setReason] = useState("");
+  const [mode, setMode] = useState<"set" | "add">("set");
+
+  const mut = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/attendance/bulk-deduct", {
+      userId: parseInt(userId),
+      fromDate,
+      toDate,
+      minutesPerDay,
+      reason: reason.trim(),
+      mode,
+    }),
+    onSuccess: async (res: any) => {
+      const data = await res.json();
+      queryKeys.forEach(k => qc.invalidateQueries({ queryKey: k }));
+      toast({
+        title: "Deduction applied",
+        description: `${data.daysAffected ?? data.updated} working day(s) affected. Total deducted: ${fmt(data.totalMinutesDeducted)}.`,
+      });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const staffName = staffOnly.find((s: any) => String(s.id) === userId)?.name || "—";
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" data-testid="modal-bulk-deduct">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-zinc-900">Bulk Deduct Working Time</p>
+              <p className="text-xs text-zinc-500">Subtract minutes from each working day in a date range</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-700">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Staff Member</label>
+            <select value={userId} onChange={e => setUserId(e.target.value)}
+              className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white"
+              data-testid="select-bulk-deduct-staff">
+              {staffOnly.map((s: any) => <option key={s.id} value={s.id}>{s.name} (@{s.username})</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-zinc-500 mb-1">From</label>
+              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white"
+                data-testid="input-bulk-deduct-from" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-zinc-500 mb-1">To</label>
+              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white"
+                data-testid="input-bulk-deduct-to" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Minutes per working day</label>
+              <div className="flex items-center gap-2">
+                <input type="number" min={0} max={1440} value={minutesPerDay}
+                  onChange={e => setMinutesPerDay(Math.max(0, Math.min(1440, parseInt(e.target.value) || 0)))}
+                  className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white"
+                  data-testid="input-bulk-deduct-minutes" />
+                <span className="text-xs text-zinc-500 whitespace-nowrap">min/day</span>
+              </div>
+              <div className="flex gap-1 mt-1">
+                {[15, 30, 45, 60].map(n => (
+                  <button key={n} onClick={() => setMinutesPerDay(n)}
+                    className={`text-[10px] px-2 py-0.5 rounded ${minutesPerDay === n ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>
+                    {n}m
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Mode</label>
+              <div className="flex border border-zinc-300 rounded-lg overflow-hidden h-10">
+                <button onClick={() => setMode("set")}
+                  className={`flex-1 text-xs font-medium ${mode === "set" ? "bg-zinc-900 text-white" : "bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                  data-testid="button-mode-set">
+                  Set (replace)
+                </button>
+                <button onClick={() => setMode("add")}
+                  className={`flex-1 text-xs font-medium ${mode === "add" ? "bg-zinc-900 text-white" : "bg-white text-zinc-600 hover:bg-zinc-50"}`}
+                  data-testid="button-mode-add">
+                  Add (stack)
+                </button>
+              </div>
+              <p className="text-[10px] text-zinc-400 mt-1">
+                {mode === "set" ? "Overwrites any existing deduction." : "Adds on top of existing deduction."}
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Reason (required)</label>
+            <input type="text" value={reason} onChange={e => setReason(e.target.value)}
+              placeholder="e.g. Lunch break not included in clock — Apr 2026 review"
+              className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white"
+              data-testid="input-bulk-deduct-reason" />
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+            <strong>Preview:</strong> Will deduct <strong>{minutesPerDay} min</strong> from every working day for{" "}
+            <strong>{staffName}</strong> between <strong>{fromDate}</strong> and <strong>{toDate}</strong>.
+            Days without a clock-out will be skipped.
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-6 py-4 bg-zinc-50 border-t border-zinc-100">
+          <button onClick={onClose}
+            className="h-9 px-4 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-100 text-sm font-medium">
+            Cancel
+          </button>
+          <button onClick={() => mut.mutate()}
+            disabled={mut.isPending || !userId || !reason.trim() || minutesPerDay <= 0}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium disabled:opacity-50"
+            data-testid="button-apply-bulk-deduct">
+            {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            Apply Deduction
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Timesheets View ────────────────────────────────────────────────────────────
 
 function TimesheetsView() {
@@ -1258,6 +1410,7 @@ function TimesheetsView() {
   const [confirmDel,  setConfirmDel]  = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addPresetUid, setAddPresetUid] = useState<number | undefined>();
+  const [bulkDeductOpen, setBulkDeductOpen] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -1398,15 +1551,31 @@ function TimesheetsView() {
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-bold border border-red-200 transition-colors">
               <AlertTriangle className="w-3 h-3" /> Fix dates
             </button>
-          ) : (
-            <div>
-              <span className="font-bold text-sm text-zinc-900">{fmt(mins)}</span>
-              {otMins > 0 && <span className="ml-1 text-[10px] font-bold text-amber-600">+{fmt(otMins)} OT</span>}
-            </div>
-          )}
+          ) : (() => {
+            const ded = Math.max(0, Number(log.deductionMinutes || 0));
+            const netMins = Math.max(0, mins! - ded);
+            const netOt = Math.max(0, netMins - 8 * 60);
+            return (
+              <div>
+                <span className="font-bold text-sm text-zinc-900">{fmt(netMins)}</span>
+                {netOt > 0 && <span className="ml-1 text-[10px] font-bold text-amber-600">+{fmt(netOt)} OT</span>}
+                {ded > 0 && (
+                  <div className="text-[10px] font-bold text-red-600 mt-0.5"
+                    title={log.deductionReason || "Admin deduction"}>
+                    −{fmt(ded)} deducted
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </td>
-        {log.notes && <td className="px-3 py-2.5 text-xs text-zinc-400 italic max-w-[120px] truncate">{log.notes}</td>}
-        {!log.notes && <td className="px-3 py-2.5" />}
+        {(log.notes || log.deductionReason) && (
+          <td className="px-3 py-2.5 text-xs text-zinc-400 italic max-w-[120px] truncate"
+            title={[log.notes, log.deductionReason && `Deduction: ${log.deductionReason}`].filter(Boolean).join(" · ")}>
+            {log.notes || log.deductionReason}
+          </td>
+        )}
+        {!log.notes && !log.deductionReason && <td className="px-3 py-2.5" />}
         <td className="px-3 py-2.5">
           {isDeleting ? (
             <div className="flex items-center gap-1.5">
@@ -1477,6 +1646,17 @@ function TimesheetsView() {
             <Plus className="w-4 h-4" />
             Add Record
           </button>
+
+          {/* Bulk Deduct button — period view only */}
+          {view === "period" && (
+            <button
+              onClick={() => setBulkDeductOpen(true)}
+              className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-50 text-sm font-medium transition-colors"
+              data-testid="button-open-bulk-deduct">
+              <Clock className="w-4 h-4" />
+              Bulk Deduct
+            </button>
+          )}
 
           {view === "period" && (
             <div className="flex gap-2 ml-auto flex-wrap">
@@ -1559,14 +1739,26 @@ function TimesheetsView() {
         />
       )}
 
+      {/* ── Bulk Deduct modal ───────────────────────────────────────── */}
+      {bulkDeductOpen && (
+        <BulkDeductModal
+          staff={staff as any[]}
+          defaultUserId={filterUid ? parseInt(filterUid) : undefined}
+          defaultFrom={from}
+          defaultTo={to}
+          queryKeys={sharedQueryKeys}
+          onClose={() => setBulkDeductOpen(false)}
+        />
+      )}
+
       {/* ── Stats ───────────────────────────────────────────────────── */}
       {view === "period" && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: "Total Hours", val: fmt(grandTotals.totalMins), color: "text-zinc-900" },
+            { label: "Total Hours (net)", val: fmt(grandTotals.totalMins), color: "text-zinc-900" },
             { label: "Regular", val: fmt(grandTotals.regularMins), color: "text-emerald-600" },
             { label: "Overtime", val: fmt(grandTotals.otMins), color: "text-amber-600" },
-            { label: "Staff w/ Records", val: `${staffRows.filter((r:any)=>r.days>0).length} / ${staffRows.length}`, color: "text-zinc-900" },
+            { label: "Deducted", val: grandTotals.deductedMins > 0 ? `−${fmt(grandTotals.deductedMins)}` : "—", color: grandTotals.deductedMins > 0 ? "text-red-600" : "text-zinc-400" },
           ].map(c => (
             <div key={c.label} className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm">
               <p className="text-sm font-medium text-zinc-500 mb-1">{c.label}</p>

@@ -46,8 +46,9 @@ export interface IStorage {
   getAttendanceLogs(from?: Date, to?: Date, userId?: number): Promise<AttendanceLogWithUser[]>;
   getAttendanceLog(id: number): Promise<AttendanceLog | undefined>;
   createAttendanceLog(data: { userId: number; clockInAt: Date; clockOutAt?: Date | null; notes?: string }): Promise<AttendanceLog>;
-  updateAttendanceLog(id: number, data: { clockInAt?: Date; clockOutAt?: Date | null; notes?: string }): Promise<AttendanceLog | undefined>;
+  updateAttendanceLog(id: number, data: { clockInAt?: Date; clockOutAt?: Date | null; notes?: string; deductionMinutes?: number; deductionReason?: string | null }): Promise<AttendanceLog | undefined>;
   deleteAttendanceLog(id: number): Promise<void>;
+  bulkDeductAttendance(args: { userId: number; from: Date; to: Date; minutesPerDay: number; reason: string; mode: 'set' | 'add' }): Promise<{ updated: number; totalMinutesDeducted: number }>;
 
   // GPS Track Points
   addGpsTrackPoint(data: { userId: number; lat: string; lng: string; accuracy?: string; speed?: string; heading?: string; recordedAt?: Date }): Promise<GpsTrackPoint>;
@@ -371,11 +372,13 @@ export class DatabaseStorage implements IStorage {
     return log;
   }
 
-  async updateAttendanceLog(id: number, data: { clockInAt?: Date; clockOutAt?: Date | null; notes?: string }): Promise<AttendanceLog | undefined> {
+  async updateAttendanceLog(id: number, data: { clockInAt?: Date; clockOutAt?: Date | null; notes?: string; deductionMinutes?: number; deductionReason?: string | null }): Promise<AttendanceLog | undefined> {
     const updates: any = {};
     if (data.clockInAt !== undefined) updates.clockInAt = data.clockInAt;
     if (data.clockOutAt !== undefined) updates.clockOutAt = data.clockOutAt;
     if (data.notes !== undefined) updates.notes = data.notes;
+    if (data.deductionMinutes !== undefined) updates.deductionMinutes = data.deductionMinutes;
+    if (data.deductionReason !== undefined) updates.deductionReason = data.deductionReason;
     const [updated] = await db.update(attendanceLogs).set(updates).where(eq(attendanceLogs.id, id)).returning();
     return updated;
   }
@@ -383,6 +386,70 @@ export class DatabaseStorage implements IStorage {
   async deleteAttendanceLog(id: number): Promise<void> {
     await db.delete(attendanceAmendments).where(eq(attendanceAmendments.attendanceLogId, id));
     await db.delete(attendanceLogs).where(eq(attendanceLogs.id, id));
+  }
+
+  async bulkDeductAttendance(args: { userId: number; from: Date; to: Date; minutesPerDay: number; reason: string; mode: 'set' | 'add' }): Promise<{ updated: number; daysAffected: number; totalMinutesDeducted: number }> {
+    // Fetch closed logs in range
+    const rows = await db.select().from(attendanceLogs).where(
+      and(
+        eq(attendanceLogs.userId, args.userId),
+        gte(attendanceLogs.clockInAt, args.from),
+        lte(attendanceLogs.clockInAt, args.to),
+      )
+    );
+    // Group by SGT calendar date — apply deduction once per working day, on the latest closed log of that day.
+    // All other logs on the same day get their deduction zeroed (in 'set' mode) so the daily total is correct.
+    const sgtDayKey = (d: Date) => {
+      const sgt = new Date(d.getTime() + 8 * 3600 * 1000);
+      return sgt.toISOString().slice(0, 10);
+    };
+    const byDay: Record<string, typeof rows> = {};
+    for (const r of rows) {
+      if (!r.clockOutAt) continue;
+      const k = sgtDayKey(r.clockInAt);
+      (byDay[k] ||= []).push(r);
+    }
+
+    let updated = 0;
+    let daysAffected = 0;
+    let totalDeducted = 0;
+    for (const day of Object.keys(byDay)) {
+      const dayLogs = byDay[day].sort(
+        (a, b) => (b.clockOutAt!.getTime() - a.clockOutAt!.getTime())
+      );
+      const primary = dayLogs[0];
+      const others = dayLogs.slice(1);
+
+      // Cap by raw minutes available across the day (never deduct more than worked)
+      const dayRawMins = dayLogs.reduce((acc, l) => {
+        const raw = Math.max(0, Math.round((l.clockOutAt!.getTime() - l.clockInAt.getTime()) / 60000));
+        return acc + raw;
+      }, 0);
+      const baseAlready = args.mode === 'add'
+        ? dayLogs.reduce((acc, l) => acc + (l.deductionMinutes || 0), 0)
+        : 0;
+      const desiredDayDeduction = Math.min(dayRawMins, baseAlready + args.minutesPerDay);
+      const appliedThisCall = desiredDayDeduction - baseAlready;
+
+      await db.update(attendanceLogs).set({
+        deductionMinutes: (args.mode === 'add' ? (primary.deductionMinutes || 0) : 0) + appliedThisCall,
+        deductionReason: args.reason,
+      }).where(eq(attendanceLogs.id, primary.id));
+      updated++;
+
+      if (args.mode === 'set') {
+        for (const o of others) {
+          if ((o.deductionMinutes || 0) !== 0) {
+            await db.update(attendanceLogs).set({ deductionMinutes: 0, deductionReason: null })
+              .where(eq(attendanceLogs.id, o.id));
+            updated++;
+          }
+        }
+      }
+      daysAffected++;
+      totalDeducted += appliedThisCall;
+    }
+    return { updated, daysAffected, totalMinutesDeducted: totalDeducted };
   }
 
   // GPS Track Points

@@ -85,7 +85,8 @@ export default function StaffDashboard() {
   // Sum of all fully-completed sessions today (minutes)
   const todayCompletedMins = todayLogs.reduce((acc: number, l: any) => {
     if (!l.clockOutAt) return acc;
-    return acc + differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
+    const raw = differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
+    return acc + Math.max(0, raw - Math.max(0, Number(l.deductionMinutes || 0)));
   }, 0);
 
   const allJobs = quotes || [];
@@ -124,7 +125,8 @@ export default function StaffDashboard() {
     if (!l.clockOutAt) return acc;
     const d = new Date(l.clockInAt);
     if (d < weekStart) return acc;
-    return acc + differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
+    const raw = differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
+    return acc + Math.max(0, raw - Math.max(0, Number(l.deductionMinutes || 0)));
   }, 0);
 
   const firstName = user?.name?.split(" ")[0] || "there";

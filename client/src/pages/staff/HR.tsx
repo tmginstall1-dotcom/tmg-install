@@ -147,7 +147,8 @@ function AttendanceTab() {
 
   const monthMins = activeLogs.reduce((acc: number, l: any) => {
     if (!l.clockOutAt) return acc;
-    return acc + differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
+    const raw = differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
+    return acc + Math.max(0, raw - Math.max(0, Number(l.deductionMinutes || 0)));
   }, 0);
   // Count unique calendar days (multiple sessions on same day = 1 day)
   const daysWorked = new Set(
@@ -210,9 +211,11 @@ function AttendanceTab() {
       ) : (
         <div className="space-y-2">
           {activeLogs.map((log: any) => {
-            const mins = log.clockOutAt
+            const rawMins = log.clockOutAt
               ? differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt))
               : null;
+            const ded = Math.max(0, Number(log.deductionMinutes || 0));
+            const mins = rawMins === null ? null : Math.max(0, rawMins - ded);
             const pendingAmend = amendments.find((a: any) => a.attendanceLogId === log.id && a.status === "pending");
             const isOpen = expandedId === log.id;
 

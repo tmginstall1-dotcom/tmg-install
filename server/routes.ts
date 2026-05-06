@@ -1869,18 +1869,45 @@ export async function registerRoutes(
     if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
-      const { clockInAt, clockOutAt, notes } = z.object({
+      const { clockInAt, clockOutAt, notes, deductionMinutes, deductionReason } = z.object({
         clockInAt: z.string().optional(),
         clockOutAt: z.string().nullable().optional(),
         notes: z.string().optional(),
+        deductionMinutes: z.number().int().min(0).max(1440).optional(),
+        deductionReason: z.string().nullable().optional(),
       }).parse(req.body);
       const updated = await storage.updateAttendanceLog(id, {
         clockInAt: clockInAt ? new Date(clockInAt) : undefined,
         clockOutAt: clockOutAt === null ? null : clockOutAt ? new Date(clockOutAt) : undefined,
         notes,
+        deductionMinutes,
+        deductionReason,
       });
       if (!updated) return res.status(404).json({ message: "Record not found" });
       res.json(updated);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  // Bulk-deduct working minutes across a date range for a single staff
+  app.post("/api/admin/attendance/bulk-deduct", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const { userId, fromDate, toDate, minutesPerDay, reason, mode } = z.object({
+        userId: z.number().int(),
+        fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "fromDate must be YYYY-MM-DD"),
+        toDate:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "toDate must be YYYY-MM-DD"),
+        minutesPerDay: z.number().int().min(1).max(1440),
+        reason: z.string().min(1).max(500),
+        mode: z.enum(['set', 'add']).default('set'),
+      }).refine(d => d.fromDate <= d.toDate, { message: "fromDate must be on or before toDate" })
+        .parse(req.body);
+      // Convert SGT date strings to UTC range covering the SGT day
+      const from = new Date(`${fromDate}T00:00:00+08:00`);
+      const to = new Date(`${toDate}T23:59:59+08:00`);
+      const result = await storage.bulkDeductAttendance({ userId, from, to, minutesPerDay, reason, mode });
+      res.json(result);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
@@ -2099,7 +2126,9 @@ export async function registerRoutes(
       const staffHoursMap: Record<number, number> = {};
       for (const log of logs) {
         if (!log.clockOutAt || !log.clockInAt) continue;
-        const hrs = (log.clockOutAt.getTime() - log.clockInAt.getTime()) / 3600000;
+        const rawMs = log.clockOutAt.getTime() - log.clockInAt.getTime();
+        const dedMs = Math.max(0, ((log as any).deductionMinutes || 0)) * 60000;
+        const hrs = Math.max(0, rawMs - dedMs) / 3600000;
         staffHoursMap[log.userId] = (staffHoursMap[log.userId] || 0) + hrs;
       }
       const staffJobsMap: Record<number, number> = {};
@@ -2242,7 +2271,9 @@ export async function registerRoutes(
           l.userId === s.id && l.clockInAt && l.clockOutAt && inRange(l.clockInAt)
         );
         for (const log of myLogs) {
-          const hrs = (log.clockOutAt!.getTime() - log.clockInAt!.getTime()) / 3600000;
+          const rawMs = log.clockOutAt!.getTime() - log.clockInAt!.getTime();
+          const dedMs = Math.max(0, ((log as any).deductionMinutes || 0)) * 60000;
+          const hrs = Math.max(0, rawMs - dedMs) / 3600000;
           const cost = Math.min(hrs, 8) * parseFloat(s.hourlyRate || "0")
                      + Math.max(0, hrs - 8) * parseFloat(s.overtimeRate || s.hourlyRate || "0");
           totalSalaryCost += cost;
@@ -2627,7 +2658,9 @@ export async function registerRoutes(
       let regularHours = 0, overtimeHours = 0, mealAllowanceDays = 0;
       for (const log of logs) {
         if (log.clockOutAt) {
-          const hrs = (new Date(log.clockOutAt).getTime() - new Date(log.clockInAt).getTime()) / 3600000;
+          const rawMs = new Date(log.clockOutAt).getTime() - new Date(log.clockInAt).getTime();
+          const dedMs = Math.max(0, ((log as any).deductionMinutes || 0)) * 60000;
+          const hrs = Math.max(0, rawMs - dedMs) / 3600000;
           const dailyOt = Math.max(0, hrs - 8);
           regularHours  += Math.min(hrs, 8);
           overtimeHours += dailyOt;

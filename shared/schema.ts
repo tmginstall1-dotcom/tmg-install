@@ -22,6 +22,8 @@ export const attendanceLogs = pgTable("attendance_logs", {
   clockOutLat: numeric("clock_out_lat"),
   clockOutLng: numeric("clock_out_lng"),
   notes: text("notes"),
+  deductionMinutes: integer("deduction_minutes").default(0).notNull(), // admin-applied bulk/per-row deduction in minutes
+  deductionReason: text("deduction_reason"),                            // why this deduction was applied
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
   attendanceUserIdx: index("attendance_logs_user_id_idx").on(t.userId),
