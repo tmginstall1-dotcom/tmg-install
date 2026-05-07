@@ -328,44 +328,56 @@ export default function EstimateWizard() {
   // Per-unit labour MAN-MINUTES for INSTALL by item family (single-person
   // equivalent — i.e. how many minutes one technician would need). Adding a
   // second crew member halves wall-clock time but keeps the man-minute total
-  // the same, which is exactly what we sum up for crew/day sizing.
-  // Dismantle ≈ 70% of install, dispose ≈ 50%, dismantle+dispose ≈ 100%,
-  // relocate carry ≈ 50%, relocate D&R ≈ 170% (set-down + set-up + travel).
+  // the same, which is what we sum up for crew/day sizing.
+  //
+  // These are honest field averages from TMG jobs — they include the actual
+  // mechanical work only (unboxing, fastening, levelling). Setup, breaks,
+  // packaging removal, on-site coordination and customer Q&A are added back
+  // separately as a 20% overhead, and we use 7 productive hours per crew per
+  // day (not 8) to reflect lunch + 2 short breaks.
   const perUnitInstallMinutes = (item: LineItem): number => {
     const n = item.name.toLowerCase();
-    if (/auditorium|theatre|theater|cinema|lecture/.test(n)) return 12;   // ~5 seats / man-hour
-    if (/\bpax\b|wardrobe|closet/.test(n)) return 150;                    // 2.5 man-hours per PAX
-    if (/king\s*bed|queen\s*bed|double\s*bed|super\s*single|single\s*bed|bed\s*frame/.test(n)) return 60;
-    if (/dining\s*table|conference\s*table|kitchen\s*island/.test(n)) return 60;
-    if (/office\s*desk|study\s*desk/.test(n)) return 35;
-    if (/sofa|couch|sectional|chaise|recliner/.test(n)) return 40;
-    if (/bookshelf|cabinet|shelving|kitchen\s*rack|tv\s*console/.test(n)) return 30;
-    if (/dining\s*chair|stool/.test(n)) return 5;
-    if (/ergonomic|office\s*chair|task\s*chair/.test(n)) return 6;
-    if (/mattress/.test(n)) return 10;
-    return 25; // generic furniture install
+    if (/auditorium|theatre|theater|cinema|lecture/.test(n)) return 15;   // ~4 seats / man-hour
+    if (/\bpax\b|wardrobe|closet/.test(n)) return 210;                    // 3.5 man-hours per PAX (real)
+    if (/king\s*bed|queen\s*bed/.test(n)) return 90;
+    if (/double\s*bed|super\s*single|single\s*bed|bed\s*frame/.test(n)) return 75;
+    if (/dining\s*table|conference\s*table|kitchen\s*island/.test(n)) return 75;
+    if (/office\s*desk|study\s*desk/.test(n)) return 50;
+    if (/sofa|couch|sectional|chaise|recliner/.test(n)) return 50;
+    if (/bookshelf|cabinet|shelving|kitchen\s*rack|tv\s*console/.test(n)) return 40;
+    if (/dining\s*chair|stool/.test(n)) return 8;
+    if (/ergonomic|office\s*chair|task\s*chair/.test(n)) return 10;
+    if (/mattress/.test(n)) return 12;
+    return 35; // generic furniture install
   };
   const itemLabourMinutes = (item: LineItem): number => {
     const inst = perUnitInstallMinutes(item);
     let perUnit = inst;
     if (item.serviceType === "dismantle") perUnit = Math.round(inst * 0.7);
-    else if (item.serviceType === "dispose") perUnit = Math.round(inst * 0.5);
-    else if (item.serviceType === "dismantle_dispose") perUnit = Math.round(inst * 1.0);
+    else if (item.serviceType === "dispose") perUnit = Math.round(inst * 0.6);
+    else if (item.serviceType === "dismantle_dispose") perUnit = Math.round(inst * 1.1);
     else if (item.serviceType === "relocate") {
-      perUnit = item.relocateMode === "carry" ? Math.round(inst * 0.5) : Math.round(inst * 1.7);
+      // Carry-only ≈ lift, walk, place. D&R = dismantle + pack + carry + reinstall.
+      perUnit = item.relocateMode === "carry" ? Math.round(inst * 0.6) : Math.round(inst * 2.0);
     }
     return perUnit * item.quantity;
   };
   const timelinePlan = useMemo(() => {
     const totalUnits = items.reduce((s, i) => s + i.quantity, 0);
     if (totalUnits < 50) return null;
-    const totalManMinutes = items.reduce((s, i) => s + itemLabourMinutes(i), 0);
+    const rawManMinutes = items.reduce((s, i) => s + itemLabourMinutes(i), 0);
+    // 20% overhead for setup, breaks, packaging removal, coordination,
+    // customer Q&A, navigating between rooms/units on multi-unit sites.
+    const overheadMultiplier = 1.20;
+    const totalManMinutes = Math.round(rawManMinutes * overheadMultiplier);
     const totalManHours = Math.ceil(totalManMinutes / 60);
-    // Recommended crew sizing — keeps job inside 1-2 working days where possible.
+    // Recommended crew sizing — scales with job size to stay within reason.
     let crewSize = 3;
-    if (totalUnits >= 200) crewSize = 6;
+    if (totalUnits >= 300) crewSize = 8;
+    else if (totalUnits >= 200) crewSize = 6;
     else if (totalUnits >= 100) crewSize = 4;
-    const hoursPerDayPerCrew = 8;
+    // 7 productive hours/day after lunch + breaks (8h shift, 1h non-productive).
+    const hoursPerDayPerCrew = 7;
     const days = Math.max(1, Math.ceil(totalManHours / (crewSize * hoursPerDayPerCrew)));
     return { totalUnits, totalManHours, crewSize, days };
   }, [items]);
@@ -1791,10 +1803,10 @@ export default function EstimateWizard() {
                     <div className="text-xs text-black/55 leading-relaxed border-t border-black/8 pt-3 space-y-1">
                       <p>
                         <span className="font-black text-black/70">How we calculated this:</span>{" "}
-                        {timelinePlan.totalManHours} total man-hours of labour (item-by-item) ÷ {timelinePlan.crewSize}-man crew × 8 hrs/day = {timelinePlan.days} working {timelinePlan.days === 1 ? "day" : "days"}.
+                        {timelinePlan.totalManHours} man-hours total (item-by-item field averages + 20% overhead for setup, breaks &amp; packaging) ÷ {timelinePlan.crewSize}-man crew × 7 productive hrs/day = {timelinePlan.days} working {timelinePlan.days === 1 ? "day" : "days"}.
                       </p>
                       <p className="text-black/40">
-                        Final schedule confirmed after on-site survey. Larger crews available on request to compress the timeline.
+                        Final schedule confirmed after on-site survey — access, lift size and stairs can shift the figure either way. Larger crews available on request to compress the timeline.
                       </p>
                     </div>
                   </div>
@@ -2040,7 +2052,7 @@ export default function EstimateWizard() {
                             <span className="font-black text-black">{timelinePlan.days} {timelinePlan.days === 1 ? "day" : "days"} ({timelinePlan.totalManHours} man-hrs)</span>
                           </div>
                           <p className="text-[10px] text-black/40 pt-1 border-t border-black/8 leading-relaxed">
-                            {timelinePlan.totalManHours} man-hrs ÷ {timelinePlan.crewSize}-man crew × 8h/day = {timelinePlan.days} {timelinePlan.days === 1 ? "day" : "days"}. Confirmed after on-site survey.
+                            {timelinePlan.totalManHours} man-hrs (incl. 20% overhead) ÷ {timelinePlan.crewSize}-man × 7 productive hrs/day = {timelinePlan.days} {timelinePlan.days === 1 ? "day" : "days"}. Confirmed after on-site survey.
                           </p>
                         </div>
                       </div>
