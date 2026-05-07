@@ -38,6 +38,14 @@ import { SiFacebook, SiInstagram } from "react-icons/si";
 const PageBgScene    = lazy(() => import("@/components/ui/page-bg-scene"));
 const WhatsAppWidget = lazy(() => import("@/components/WhatsAppWidget"));
 
+/* Sync media-query check at module load — used to skip the heavy 3D
+   background canvas on mobile (saves ~30 KB JS + a continuous canvas
+   render loop that hurts mobile INP and battery). Returns false during
+   SSR so we never render the scene server-side either. */
+const isDesktopViewport = (): boolean =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(min-width: 768px)").matches;
+
 const WHATSAPP = "https://wa.me/6580880757?text=Hi%2C+I%27d+like+a+furniture+installation+quote";
 
 const fadeUp = {
@@ -405,6 +413,16 @@ export default function Landing() {
   const { visible: promoVisible } = usePromoBar();
   const [pricingTab, setPricingTab] = useState<"install" | "dismantle" | "relocate">("install");
   const [scrolled, setScrolled] = useState(false);
+  /* Sync initial value (no flash on mobile, no SSR mismatch since this
+     page is client-rendered). Skips the heavy 3D background canvas + its
+     lazy chunk on phones. */
+  const [showBgScene, setShowBgScene] = useState<boolean>(isDesktopViewport);
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 768px)");
+    const onChange = () => setShowBgScene(mql.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
   const [lang, setLang] = useState<"en" | "cn">(() => {
     try { return (localStorage.getItem("tmg_lang") as "en" | "cn") || "en"; } catch { return "en"; }
   });
@@ -577,10 +595,15 @@ export default function Landing() {
         />
       </div>
 
-      {/* ══════ FULL-PAGE 3D BACKGROUND ══════ */}
-      <Suspense fallback={null}>
-        <PageBgScene />
-      </Suspense>
+      {/* ══════ FULL-PAGE 3D BACKGROUND ══════
+          Desktop only — the 3D canvas is expensive on mobile (CPU,
+          battery, ~30 KB extra JS) and contributes nothing to the
+          mobile UX since it's mostly hidden behind the hero card. */}
+      {showBgScene && (
+        <Suspense fallback={null}>
+          <PageBgScene />
+        </Suspense>
+      )}
 
       {/* ── Warm amber dismantle wash — fades in as scroll deepens ── */}
       <div
