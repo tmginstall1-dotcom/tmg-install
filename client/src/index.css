@@ -4,21 +4,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* TStar local font — graceful fallback if files are missing */
-@font-face {
-  font-family: "TStar";
-  src: url("/fonts/TStar-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "TStar";
-  src: url("/fonts/TStar-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
+/* TStar local font files were removed — using Teko (heading) and Inter (body)
+   from Google Fonts as defined in index.html. The fallback chain in
+   --font-heading still tries TStar first if a local copy is ever added back. */
 
 /* Suppress the native browser play-button overlay on ALL video elements.
    The scroll-driven background video is always paused (scrubbed via currentTime).

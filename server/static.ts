@@ -31,11 +31,15 @@ export function serveStatic(app: Express) {
     etag: true,
   }));
 
-  // ── All other static files (icons, manifest, etc.) with custom per-type rules
+  // ── All other static files (icons, manifest, etc.) with custom per-type rules.
+  // index: false  → don't auto-serve index.html for "/" — let the SPA fallback
+  // below serve it from the in-memory cache (faster TTFB, and applies the
+  // admin/public manifest swap consistently for every HTML response).
   app.use(express.static(distPath, {
     maxAge: "1d",
     etag: true,
     lastModified: true,
+    index: false,
     setHeaders: (res, filePath) => {
       if (filePath.endsWith(".html")) {
         // HTML must never be cached — keeps SPA routing always fresh
@@ -51,28 +55,27 @@ export function serveStatic(app: Express) {
   }));
 
   // ── SPA fallback — always serve fresh HTML for client-side routes
-  // Injects admin-specific manifest for /admin routes so iOS uses start_url=/admin
+  // Injects admin-specific manifest for /admin routes so iOS uses start_url=/admin.
+  // index.html is read ONCE at startup and held in memory (it's tiny and
+  // doesn't change between deploys). This removes a ~10-50ms disk-read off
+  // every cold-cache page request and improves TTFB.
   const indexHtmlPath = path.resolve(distPath, "index.html");
+  const indexHtmlPublic = fs.readFileSync(indexHtmlPath, "utf-8");
+  const indexHtmlAdmin = indexHtmlPublic
+    .replace(
+      `<link rel="manifest" href="/manifest.json" />`,
+      `<link rel="manifest" href="/manifest-admin.json" />`,
+    )
+    .replace(
+      `<meta name="apple-mobile-web-app-title" content="TMG Install" />`,
+      `<meta name="apple-mobile-web-app-title" content="TMG Admin" />`,
+    );
+
   app.use("/{*path}", (req: Request, res: Response) => {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
     const pathname = req.path;
-    if (pathname === "/admin" || pathname.startsWith("/admin/")) {
-      fs.readFile(indexHtmlPath, "utf-8", (err, html) => {
-        if (err) { res.sendFile(indexHtmlPath); return; }
-        const patched = html
-          .replace(
-            `<link rel="manifest" href="/manifest.json" />`,
-            `<link rel="manifest" href="/manifest-admin.json" />`,
-          )
-          .replace(
-            `<meta name="apple-mobile-web-app-title" content="TMG Install" />`,
-            `<meta name="apple-mobile-web-app-title" content="TMG Admin" />`,
-          );
-        res.setHeader("Content-Type", "text/html");
-        res.send(patched);
-      });
-    } else {
-      res.sendFile(indexHtmlPath);
-    }
+    const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
+    res.send(isAdmin ? indexHtmlAdmin : indexHtmlPublic);
   });
 }

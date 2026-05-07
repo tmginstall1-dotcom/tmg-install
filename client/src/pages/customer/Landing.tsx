@@ -738,17 +738,27 @@ export default function Landing() {
                 ))}
               </div>
 
-              {/* Mobile hero photo */}
+              {/* Mobile hero photo — LCP candidate. Uses <picture> for WebP +
+                  responsive srcset, and eager/high priority to match the
+                  preload hint in index.html. */}
               <div className="sm:hidden mt-8 relative overflow-hidden rounded-xl border border-white/10" style={{ aspectRatio: "16/9" }}>
-                <img
-                  src="/work/office-fitout.jpg"
-                  alt="Office furniture installation by TMG Install"
-                  loading="lazy"
-                  decoding="async"
-                  width="560"
-                  height="315"
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
+                <picture>
+                  <source
+                    type="image/webp"
+                    srcSet="/work/office-fitout-800.webp 800w, /work/office-fitout-1600.webp 1600w"
+                    sizes="100vw"
+                  />
+                  <img
+                    src="/work/office-fitout.jpg"
+                    alt="Office furniture installation by TMG Install"
+                    loading="eager"
+                    decoding="async"
+                    width="560"
+                    height="315"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    {...{ fetchpriority: "high" } as any}
+                  />
+                </picture>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-5">
                   <span className="inline-block px-2 py-1 bg-amber-400 text-black text-[9px] font-black tracking-[0.15em] uppercase mb-2">Recent Work</span>
