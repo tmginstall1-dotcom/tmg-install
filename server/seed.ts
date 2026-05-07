@@ -2444,4 +2444,66 @@ export async function seedDatabase() {
     console.log("[startup] Round 23: Stainless Steel Kitchen Storage Rack / Cabinet — install $80, dismantle $60, relocate $130.");
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Round 24: Auditorium Chair (Fixed Seat) — market-rate catalog entry
+  // Before this round there was no auditorium / theatre / lecture-hall chair
+  // SKU at all, so the AI photo-scanner and wizard fell back to the generic
+  // $150/unit placeholder (shared/pricing.ts → genericFallback). For a 50-
+  // seat install that produced a $7,500 line — roughly 3× the real Singapore
+  // market labour rate.
+  //
+  // Market rate basis (SG 2025-26):
+  //   • All-in (supply + install) low tier  S$200–S$475/seat
+  //   • Install-only labour ≈ 15–25% of all-in = S$45–S$65/seat in batches of 50+
+  //   • Comparable existing rows: Ergonomic Chair install $40,
+  //     Conference Table install $150, Dining Chair install $25
+  //   • Floor-bolt + row alignment + levelling = moderate labour, batch-friendly
+  //
+  // Naming uses "Auditorium" + "Chair" + "Seat" tokens so the wizard's
+  // fuzzy matcher (Estimate.tsx → matchByDescription, ≥40 token score) and
+  // the AI photo detector both hit this entry for any of:
+  //   "auditorium seat", "auditorium chair", "auditorium seating (per seat)",
+  //   "lecture hall chair", "theatre seat", "cinema seat".
+  // ──────────────────────────────────────────────────────────────────────────
+  const r24 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "AUDCHAIR-R24-MARKER")).limit(1);
+  if (r24.length === 0) {
+    const audChairItems = [
+      { sku: "AUDCHAIR-INSTALL",          svc: "install",           price: "50.00", vol: "0.20" },
+      { sku: "AUDCHAIR-DISMANTLE",        svc: "dismantle",         price: "35.00", vol: "0.20" },
+      { sku: "AUDCHAIR-RELOCATE",         svc: "relocate",          price: "50.00", vol: "0.20" },
+      { sku: "AUDCHAIR-DISPOSE",          svc: "dispose",           price: "40.00", vol: "0.20" },
+      { sku: "AUDCHAIR-DIS-DISP",         svc: "dismantle_dispose", price: "65.00", vol: "0.20" },
+    ];
+    const acName = "Auditorium Chair (Fixed Seat)";
+    for (const a of audChairItems) {
+      const existing = await db.select().from(catalogItems).where(eq(catalogItems.sku, a.sku)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(catalogItems).values({
+          name: acName,
+          sku: a.sku,
+          category: "Office",
+          serviceType: a.svc,
+          basePrice: a.price,
+          volumeM3: a.vol,
+          active: true,
+        } as any);
+      } else {
+        await db.update(catalogItems)
+          .set({ basePrice: a.price, name: acName, category: "Office", active: true })
+          .where(eq(catalogItems.sku, a.sku));
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__audchair_r24_marker__",
+      sku: "AUDCHAIR-R24-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 24: Auditorium Chair (Fixed Seat) — install $50, dismantle $35, relocate $50, dispose $40, D+D $65.");
+  }
+
 }

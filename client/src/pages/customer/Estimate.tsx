@@ -626,8 +626,19 @@ export default function EstimateWizard() {
     ["pool table", "billiard", "foosball"],
     ["pod", "phone booth"],
   ];
+  // Synonym normalisation — collapse common alternate phrasings to the
+  // canonical token used in catalog names so the fuzzy matcher hits the
+  // intended entry. Currently: theatre/theater/cinema/lecture-hall seating
+  // → "auditorium chair", which targets the Round 24 catalog row.
+  const normaliseSynonyms = (s: string): string => {
+    let out = s;
+    out = out.replace(/\b(theatre|theater|cinema)\s+(seat|seats|seating|chair|chairs)\b/gi, "auditorium chair");
+    out = out.replace(/\blecture\s*(hall|theatre|theater|room)?\s*(seat|seats|seating|chair|chairs)\b/gi, "auditorium chair");
+    out = out.replace(/\bauditorium\s+(seat|seats|seating)\b/gi, "auditorium chair");
+    return out;
+  };
   const matchScore = (det: string, cat: string): number => {
-    const d = det.toLowerCase(), c = cat.toLowerCase();
+    const d = normaliseSynonyms(det.toLowerCase()), c = cat.toLowerCase();
     const dC = stripParens(d), cC = stripParens(c);
     if (d === c) return 100;
     if (dC === cC) return 90;

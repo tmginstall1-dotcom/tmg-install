@@ -4890,8 +4890,18 @@ Respond with ONLY a JSON array (no prose, no markdown):
         ["pool table", "billiard", "foosball"],
         ["pod", "phone booth"],
       ];
+      // Synonym normalisation — keep in sync with client matchScore.
+      // Maps theatre/cinema/lecture-hall seating phrasing onto the canonical
+      // "auditorium chair" tokens so the Round 24 catalog row gets matched.
+      const srvNormaliseSynonyms = (s: string): string => {
+        let out = s;
+        out = out.replace(/\b(theatre|theater|cinema)\s+(seat|seats|seating|chair|chairs)\b/gi, "auditorium chair");
+        out = out.replace(/\blecture\s*(hall|theatre|theater|room)?\s*(seat|seats|seating|chair|chairs)\b/gi, "auditorium chair");
+        out = out.replace(/\bauditorium\s+(seat|seats|seating)\b/gi, "auditorium chair");
+        return out;
+      };
       function srvMatchScore(det: string, cat: string): number {
-        const d = det.toLowerCase(), c = cat.toLowerCase();
+        const d = srvNormaliseSynonyms(det.toLowerCase()), c = cat.toLowerCase();
         const dC = srvStripParens(d), cC = srvStripParens(c);
         if (d === c) return 100;
         if (dC === cC) return 90;
