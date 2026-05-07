@@ -324,6 +324,52 @@ export default function EstimateWizard() {
 
   const catalogGroups = useMemo(() => groupCatalog(catalogRaw || []), [catalogRaw]);
 
+  // ── Timeline / manpower estimator (large jobs, ≥50 total units) ───────────
+  // Per-unit labour MAN-MINUTES for INSTALL by item family (single-person
+  // equivalent — i.e. how many minutes one technician would need). Adding a
+  // second crew member halves wall-clock time but keeps the man-minute total
+  // the same, which is exactly what we sum up for crew/day sizing.
+  // Dismantle ≈ 70% of install, dispose ≈ 50%, dismantle+dispose ≈ 100%,
+  // relocate carry ≈ 50%, relocate D&R ≈ 170% (set-down + set-up + travel).
+  const perUnitInstallMinutes = (item: LineItem): number => {
+    const n = item.name.toLowerCase();
+    if (/auditorium|theatre|theater|cinema|lecture/.test(n)) return 12;   // ~5 seats / man-hour
+    if (/\bpax\b|wardrobe|closet/.test(n)) return 150;                    // 2.5 man-hours per PAX
+    if (/king\s*bed|queen\s*bed|double\s*bed|super\s*single|single\s*bed|bed\s*frame/.test(n)) return 60;
+    if (/dining\s*table|conference\s*table|kitchen\s*island/.test(n)) return 60;
+    if (/office\s*desk|study\s*desk/.test(n)) return 35;
+    if (/sofa|couch|sectional|chaise|recliner/.test(n)) return 40;
+    if (/bookshelf|cabinet|shelving|kitchen\s*rack|tv\s*console/.test(n)) return 30;
+    if (/dining\s*chair|stool/.test(n)) return 5;
+    if (/ergonomic|office\s*chair|task\s*chair/.test(n)) return 6;
+    if (/mattress/.test(n)) return 10;
+    return 25; // generic furniture install
+  };
+  const itemLabourMinutes = (item: LineItem): number => {
+    const inst = perUnitInstallMinutes(item);
+    let perUnit = inst;
+    if (item.serviceType === "dismantle") perUnit = Math.round(inst * 0.7);
+    else if (item.serviceType === "dispose") perUnit = Math.round(inst * 0.5);
+    else if (item.serviceType === "dismantle_dispose") perUnit = Math.round(inst * 1.0);
+    else if (item.serviceType === "relocate") {
+      perUnit = item.relocateMode === "carry" ? Math.round(inst * 0.5) : Math.round(inst * 1.7);
+    }
+    return perUnit * item.quantity;
+  };
+  const timelinePlan = useMemo(() => {
+    const totalUnits = items.reduce((s, i) => s + i.quantity, 0);
+    if (totalUnits < 50) return null;
+    const totalManMinutes = items.reduce((s, i) => s + itemLabourMinutes(i), 0);
+    const totalManHours = Math.ceil(totalManMinutes / 60);
+    // Recommended crew sizing — keeps job inside 1-2 working days where possible.
+    let crewSize = 3;
+    if (totalUnits >= 200) crewSize = 6;
+    else if (totalUnits >= 100) crewSize = 4;
+    const hoursPerDayPerCrew = 8;
+    const days = Math.max(1, Math.ceil(totalManHours / (crewSize * hoursPerDayPerCrew)));
+    return { totalUnits, totalManHours, crewSize, days };
+  }, [items]);
+
   // Category tab groups (maps display label → category keywords)
   const CATEGORY_TABS = [
     { label: "All",      match: null },
@@ -1720,6 +1766,40 @@ export default function EstimateWizard() {
                   </div>
                 )}
 
+                {/* Timeline + manpower banner — only shown for ≥50-unit projects */}
+                {timelinePlan && (
+                  <div data-testid="banner-timeline-plan" className="border-l-2 border-black bg-black/[0.025] px-5 py-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Truck className="w-4 h-4 text-black" />
+                      <p className="font-black text-xs uppercase tracking-[0.12em] text-black">Project Timeline &amp; Crew</p>
+                      <span className="text-[10px] border border-black/15 px-2 py-0.5 font-black uppercase tracking-[0.08em] text-black/50">{timelinePlan.totalUnits} units</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div data-testid="stat-crew-size">
+                        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-black/40">Recommended crew</p>
+                        <p className="font-black text-2xl text-black leading-tight">{timelinePlan.crewSize}-man</p>
+                      </div>
+                      <div data-testid="stat-days">
+                        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-black/40">Working days</p>
+                        <p className="font-black text-2xl text-black leading-tight">{timelinePlan.days} {timelinePlan.days === 1 ? "day" : "days"}</p>
+                      </div>
+                      <div data-testid="stat-man-hours">
+                        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-black/40">Total man-hours</p>
+                        <p className="font-black text-2xl text-black leading-tight">{timelinePlan.totalManHours}h</p>
+                      </div>
+                    </div>
+                    <div className="text-xs text-black/55 leading-relaxed border-t border-black/8 pt-3 space-y-1">
+                      <p>
+                        <span className="font-black text-black/70">How we calculated this:</span>{" "}
+                        {timelinePlan.totalManHours} total man-hours of labour (item-by-item) ÷ {timelinePlan.crewSize}-man crew × 8 hrs/day = {timelinePlan.days} working {timelinePlan.days === 1 ? "day" : "days"}.
+                      </p>
+                      <p className="text-black/40">
+                        Final schedule confirmed after on-site survey. Larger crews available on request to compress the timeline.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {items.length === 0 && (
                   <div className="border border-dashed border-black/20 p-10 text-center text-black/35">
                     <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -1947,6 +2027,24 @@ export default function EstimateWizard() {
                         ))}
                       </div>
                     </div>
+                    {timelinePlan && (
+                      <div className="pt-4" data-testid="review-timeline-plan">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-black/35 mb-2">Project Timeline &amp; Crew</p>
+                        <div className="border border-black/10 px-3 py-2.5 space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-black/55">Recommended crew</span>
+                            <span className="font-black text-black">{timelinePlan.crewSize}-man</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-black/55">Estimated duration</span>
+                            <span className="font-black text-black">{timelinePlan.days} {timelinePlan.days === 1 ? "day" : "days"} ({timelinePlan.totalManHours} man-hrs)</span>
+                          </div>
+                          <p className="text-[10px] text-black/40 pt-1 border-t border-black/8 leading-relaxed">
+                            {timelinePlan.totalManHours} man-hrs ÷ {timelinePlan.crewSize}-man crew × 8h/day = {timelinePlan.days} {timelinePlan.days === 1 ? "day" : "days"}. Confirmed after on-site survey.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="pt-4 space-y-2 text-sm">
                       <div className="flex justify-between text-black/45"><span>Labor subtotal</span><span>${subtotal.toFixed(2)}</span></div>
                       {items.some(i => i.serviceType === 'relocate') && (
