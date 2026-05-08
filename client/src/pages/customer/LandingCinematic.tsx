@@ -264,49 +264,51 @@ function Counter() {
 }
 
 function HeroTile3D() {
-  const isMobile = useIsMobile();
-  const ref = useRef(0);
-  const [show, setShow] = useState(false);
-
+  // Rotates between three real TMG job photos every 4s
+  const SHOTS = [
+    { src: "/images/work/wardrobe-install-team-800.webp", label: "Wardrobe install · Tampines" },
+    { src: "/images/work/office-fitout-800.webp", label: "Office fit-out · CBD" },
+    { src: "/images/work/bed-completed-800.webp", label: "Bed assembly · HDB" },
+  ];
+  const [i, setI] = useState(0);
   useEffect(() => {
-    if (!hasWebGL()) return;
-    const ric: any = (window as any).requestIdleCallback || ((cb: any) => setTimeout(cb, 600));
-    const id = ric(() => setShow(true));
-    return () => {
-      const cic: any = (window as any).cancelIdleCallback;
-      if (cic && id) cic(id);
-    };
-  }, []);
-
-  // gentle drift
-  useEffect(() => {
-    let raf = 0;
-    let t = 0;
-    const loop = () => {
-      t += 0.0025;
-      ref.current = 0.55 + Math.sin(t) * 0.2;
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    const id = setInterval(() => setI((v) => (v + 1) % SHOTS.length), 4000);
+    return () => clearInterval(id);
   }, []);
 
   return (
-    <div className="relative aspect-[4/3] w-full bg-white border" style={{ borderColor: "rgba(10,10,10,0.2)" }}>
-      <div className="absolute inset-0">
-        {show && hasWebGL() ? (
-          <Suspense fallback={null}>
-            <ThreeFurnitureScene progressRef={ref} isMobile={isMobile} />
-          </Suspense>
-        ) : (
-          <img src="/images/hero/exploded-wardrobe-800.webp" alt="" className="w-full h-full object-cover" />
-        )}
-      </div>
+    <div
+      className="relative aspect-[4/3] w-full overflow-hidden border"
+      style={{ borderColor: "rgba(10,10,10,0.2)", background: "#111" }}
+    >
+      {SHOTS.map((s, idx) => (
+        <img
+          key={s.src}
+          src={s.src}
+          alt={s.label}
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+          style={{ opacity: idx === i ? 1 : 0 }}
+        />
+      ))}
+      {/* dark gradient for label legibility */}
+      <div className="absolute inset-x-0 bottom-0 h-[55%] pointer-events-none"
+        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75), transparent)" }} />
+
+      {/* Top-row meta */}
       <div className="absolute top-2 left-2 right-2 flex items-center justify-between text-[10px] tracking-[0.18em] uppercase font-bold pointer-events-none">
-        <div className="flex items-center gap-1.5">
-          <AccentSquare /> Live
-        </div>
-        <span>Fig. 01</span>
+        <span className="flex items-center gap-1.5 px-1.5 py-0.5" style={{ background: ACCENT, color: INK }}>
+          <span className="inline-block w-[6px] h-[6px] rounded-full bg-black animate-pulse" /> Recent job
+        </span>
+        <span className="px-1.5 py-0.5 bg-black/65 text-white backdrop-blur-sm">
+          {String(i + 1).padStart(2, "0")} / 0{SHOTS.length}
+        </span>
+      </div>
+
+      {/* Bottom caption */}
+      <div className="absolute left-2 right-2 bottom-2 text-[10px] tracking-[0.18em] uppercase font-bold text-white pointer-events-none">
+        {SHOTS[i].label}
       </div>
     </div>
   );
@@ -397,37 +399,83 @@ function Hero() {
         </a>
       </div>
 
-      {/* BOTTOM-LEFT live tile */}
-      <div className="absolute bottom-4 left-3 md:bottom-8 md:left-6 z-20 w-[180px] md:w-[280px]">
+      {/* BOTTOM-LEFT live tile — desktop only (would crowd mobile CTAs) */}
+      <div className="hidden md:block absolute bottom-8 left-6 z-20 w-[280px]">
         <HeroTile3D />
         <div className="mt-2 text-[10px] tracking-[0.18em] uppercase font-bold flex items-center justify-between">
-          <span>Workstation Build</span>
-          <span className="opacity-60">00:42</span>
+          <span className="flex items-center gap-1.5"><AccentSquare /> Real TMG jobs · Singapore</span>
+          <span className="opacity-60">2024 / 25</span>
         </div>
       </div>
 
-      {/* BOTTOM-RIGHT CTA cluster */}
-      <div className="absolute bottom-4 right-3 md:bottom-8 md:right-6 z-20 flex flex-col items-end gap-1.5">
-        <div className="text-[10px] tracking-[0.18em] uppercase font-bold mb-1">Book your job.</div>
-        <LinkTag
+      {/* BOTTOM-RIGHT CTA cluster — high-conversion stack */}
+      <div className="absolute bottom-3 left-3 right-3 md:bottom-8 md:left-auto md:right-6 md:w-[340px] z-20">
+        {/* Microcopy line — value + reassurance */}
+        <div className="flex items-center justify-between mb-2 text-[10px] tracking-[0.2em] uppercase font-bold">
+          <span className="flex items-center gap-1.5"><AccentSquare /> Free quote · 60-second form</span>
+          <span className="opacity-60 hidden sm:inline">No payment up front</span>
+        </div>
+
+        {/* Primary CTA — big, bold, full-width green block */}
+        <a
           href="/estimate"
-          accent
-          testid="hero-cta-quote"
-          onClick={() => trackEvent("cta_estimate_hero", "/")}
+          onClick={(e) => {
+            e.preventDefault();
+            trackEvent("cta_estimate_hero", "/");
+            window.location.assign("/estimate");
+          }}
+          data-testid="hero-cta-quote"
+          className="group relative block w-full text-left transition-transform duration-200 hover:-translate-y-[2px] active:translate-y-0"
+          style={{ background: ACCENT, color: INK }}
         >
-          Get Quote →
-        </LinkTag>
-        <LinkTag
-          href={WHATSAPP}
-          external
-          testid="hero-cta-whatsapp"
-          onClick={() => trackEvent("cta_whatsapp_hero", "/")}
-        >
-          WhatsApp →
-        </LinkTag>
-        <LinkTag href="#services" onClick={() => {}}>
-          Index ↓
-        </LinkTag>
+          <div className="flex items-stretch">
+            <div className="flex-1 px-4 py-4 md:py-5">
+              <div className="text-[10px] tracking-[0.22em] uppercase font-bold opacity-70">Step 1 · Tell us what you need</div>
+              <div className="font-serif italic font-black text-[26px] md:text-[32px] leading-none mt-1 tracking-[-0.02em]">
+                Get my free quote
+              </div>
+            </div>
+            <div className="flex items-center justify-center px-4 md:px-5 border-l-2 border-black/15 text-[22px] md:text-[26px] font-black transition-transform duration-200 group-hover:translate-x-1">
+              →
+            </div>
+          </div>
+        </a>
+
+        {/* Secondary row — WhatsApp (high intent) + phone */}
+        <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+          <a
+            href={WHATSAPP}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => trackEvent("cta_whatsapp_hero", "/")}
+            data-testid="hero-cta-whatsapp"
+            className="flex items-center justify-center gap-2 px-3 py-3 text-[11px] tracking-[0.2em] uppercase font-bold transition-transform duration-200 hover:-translate-y-[1px]"
+            style={{ background: INK, color: PAPER }}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+              <path d="M20.52 3.48A11.86 11.86 0 0012.05 0C5.5 0 .15 5.34.13 11.9c0 2.1.55 4.16 1.6 5.97L0 24l6.3-1.65a11.9 11.9 0 005.74 1.46h.01c6.55 0 11.9-5.34 11.92-11.9a11.84 11.84 0 00-3.46-8.43zM12.05 21.8h-.01a9.9 9.9 0 01-5.04-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.86 9.86 0 01-1.52-5.27c0-5.45 4.45-9.88 9.92-9.88a9.86 9.86 0 017.02 2.9 9.82 9.82 0 012.9 7 9.9 9.9 0 01-9.93 9.88zm5.44-7.4c-.3-.15-1.76-.87-2.04-.97-.27-.1-.47-.15-.67.15s-.77.97-.94 1.17c-.17.2-.34.22-.64.07a8.18 8.18 0 01-2.4-1.48 9.04 9.04 0 01-1.66-2.07c-.17-.3-.02-.46.13-.61.13-.13.3-.34.45-.51.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51l-.57-.01a1.1 1.1 0 00-.8.37c-.27.3-1.04 1.02-1.04 2.49s1.07 2.88 1.22 3.08c.15.2 2.1 3.21 5.09 4.5.71.31 1.27.5 1.7.64.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.41.25-.7.25-1.29.18-1.41-.07-.13-.27-.2-.57-.35z"/>
+            </svg>
+            WhatsApp
+          </a>
+          <a
+            href="tel:+6580880757"
+            onClick={() => trackEvent("cta_call_hero", "/")}
+            data-testid="hero-cta-call"
+            className="flex items-center justify-center gap-2 px-3 py-3 text-[11px] tracking-[0.2em] uppercase font-bold transition-transform duration-200 hover:-translate-y-[1px] border-2"
+            style={{ background: PAPER, color: INK, borderColor: INK }}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.37 1.9.72 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0122 16.92z"/>
+            </svg>
+            Call now
+          </a>
+        </div>
+
+        {/* Trust strip */}
+        <div className="mt-2 flex items-center justify-between text-[9px] md:text-[10px] tracking-[0.18em] uppercase font-bold opacity-80">
+          <span>★★★★★ 5,600+ jobs</span>
+          <span>Same-week slots</span>
+        </div>
       </div>
 
       {/* Bottom strip */}
