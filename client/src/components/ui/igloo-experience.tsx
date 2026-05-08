@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { Volume2, VolumeX } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 const CHAPTERS = [
   { id: "hero",     label: "Intro" },
@@ -230,182 +229,8 @@ function CustomCursor() {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   3) AMBIENT SOUND — procedural frosty drone via Web Audio (no asset needed)
-   ────────────────────────────────────────────────────────────────────────── */
-function useAmbientDrone() {
-  const ctxRef = useRef<AudioContext | null>(null);
-  const masterRef = useRef<GainNode | null>(null);
-  const nodesRef = useRef<AudioNode[]>([]);
-  const [playing, setPlaying] = useState(false);
-
-  const stop = useCallback(() => {
-    const master = masterRef.current;
-    const ctx = ctxRef.current;
-    if (master && ctx) {
-      master.gain.cancelScheduledValues(ctx.currentTime);
-      master.gain.setValueAtTime(master.gain.value, ctx.currentTime);
-      master.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
-      setTimeout(() => {
-        try {
-          nodesRef.current.forEach((n) => {
-            try { (n as OscillatorNode).stop?.(); } catch {}
-            try { n.disconnect(); } catch {}
-          });
-          nodesRef.current = [];
-          ctx.close();
-        } catch {}
-        ctxRef.current = null;
-        masterRef.current = null;
-      }, 700);
-    }
-    setPlaying(false);
-  }, []);
-
-  const start = useCallback(async () => {
-    if (ctxRef.current) return;
-    const AC = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AC) return;
-    const ctx = new AC();
-    ctxRef.current = ctx;
-
-    const master = ctx.createGain();
-    master.gain.value = 0.0001;
-    master.connect(ctx.destination);
-    masterRef.current = master;
-
-    // Low drone — sine at 55Hz with slow detune wobble
-    const lo = ctx.createOscillator();
-    lo.type = "sine";
-    lo.frequency.value = 55;
-    const loLfo = ctx.createOscillator();
-    loLfo.frequency.value = 0.07;
-    const loLfoGain = ctx.createGain();
-    loLfoGain.gain.value = 1.5;
-    loLfo.connect(loLfoGain).connect(lo.detune);
-    const loGain = ctx.createGain();
-    loGain.gain.value = 0.18;
-    lo.connect(loGain).connect(master);
-
-    // Mid pad — sine at 110Hz + 165Hz (perfect 5th)
-    const mid1 = ctx.createOscillator();
-    mid1.type = "sine"; mid1.frequency.value = 110;
-    const mid2 = ctx.createOscillator();
-    mid2.type = "sine"; mid2.frequency.value = 164.81;
-    const midGain = ctx.createGain();
-    midGain.gain.value = 0.06;
-    mid1.connect(midGain); mid2.connect(midGain); midGain.connect(master);
-
-    // Wind — filtered white noise
-    const bufSize = 2 * ctx.sampleRate;
-    const noiseBuf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-    const data = noiseBuf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-    const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuf;
-    noise.loop = true;
-    const noiseLP = ctx.createBiquadFilter();
-    noiseLP.type = "lowpass";
-    noiseLP.frequency.value = 600;
-    noiseLP.Q.value = 0.7;
-    const noiseHP = ctx.createBiquadFilter();
-    noiseHP.type = "highpass";
-    noiseHP.frequency.value = 120;
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0.04;
-    // slow tremolo on wind
-    const noiseLfo = ctx.createOscillator();
-    noiseLfo.frequency.value = 0.11;
-    const noiseLfoGain = ctx.createGain();
-    noiseLfoGain.gain.value = 0.025;
-    noiseLfo.connect(noiseLfoGain).connect(noiseGain.gain);
-    noise.connect(noiseHP).connect(noiseLP).connect(noiseGain).connect(master);
-
-    // Shimmer — high sine with very slow sweep, very quiet
-    const shim = ctx.createOscillator();
-    shim.type = "sine"; shim.frequency.value = 1320;
-    const shimLfo = ctx.createOscillator();
-    shimLfo.frequency.value = 0.05;
-    const shimLfoGain = ctx.createGain();
-    shimLfoGain.gain.value = 60;
-    shimLfo.connect(shimLfoGain).connect(shim.frequency);
-    const shimGain = ctx.createGain();
-    shimGain.gain.value = 0.012;
-    shim.connect(shimGain).connect(master);
-
-    [lo, loLfo, mid1, mid2, noise, noiseLfo, shim, shimLfo].forEach((n) => {
-      try { (n as OscillatorNode).start?.(); } catch {}
-    });
-    nodesRef.current = [lo, loLfo, mid1, mid2, noise, noiseLfo, shim, shimLfo, loGain, midGain, noiseGain, noiseHP, noiseLP, shimGain, shimLfoGain, loLfoGain, noiseLfoGain];
-
-    // Fade in
-    master.gain.cancelScheduledValues(ctx.currentTime);
-    master.gain.setValueAtTime(0.0001, ctx.currentTime);
-    master.gain.exponentialRampToValueAtTime(0.55, ctx.currentTime + 2.2);
-
-    if (ctx.state === "suspended") {
-      try { await ctx.resume(); } catch {}
-    }
-    setPlaying(true);
-  }, []);
-
-  useEffect(() => () => { stop(); }, [stop]);
-
-  return { playing, start, stop };
-}
-
-function SoundToggle() {
-  const { playing, start, stop } = useAmbientDrone();
-  return (
-    <button
-      type="button"
-      onClick={() => (playing ? stop() : start())}
-      aria-label={playing ? "Mute ambient sound" : "Play ambient sound"}
-      data-testid="button-ambient-sound"
-      data-cursor-hover
-      className="igloo-sound-toggle"
-      style={{
-        position: "fixed",
-        right: 22,
-        bottom: 168,
-        width: 42,
-        height: 42,
-        borderRadius: "50%",
-        background: "rgba(15, 23, 42, 0.55)",
-        border: "1px solid rgba(186, 230, 253, 0.35)",
-        backdropFilter: "blur(14px) saturate(140%)",
-        WebkitBackdropFilter: "blur(14px) saturate(140%)",
-        boxShadow: "0 6px 22px rgba(2, 6, 23, 0.45), inset 0 0 0 1px rgba(186, 230, 253, 0.08), 0 0 24px rgba(125, 211, 252, 0.18)",
-        color: "rgba(224, 242, 254, 0.95)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        zIndex: 60,
-        transition: "transform 220ms ease, box-shadow 220ms ease, background 220ms ease",
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.06)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
-    >
-      {playing ? <Volume2 size={18} /> : <VolumeX size={18} />}
-      {playing && !prefersReducedMotion() && (
-        <span
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: -4,
-            borderRadius: "50%",
-            border: "1px solid rgba(125, 211, 252, 0.45)",
-            animation: "iglooPulse 2.4s ease-out infinite",
-            pointerEvents: "none",
-          }}
-        />
-      )}
-    </button>
-  );
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
-   4) SCROLL CHAPTERS — right-edge progress dots with hover labels
+   3) SCROLL CHAPTERS — right-edge progress dots with hover labels
+   (Sound toggle was removed per user request — no audio in this experience.)
    ────────────────────────────────────────────────────────────────────────── */
 function ScrollChapters() {
   const [active, setActive] = useState(0);
@@ -526,7 +351,6 @@ export default function IglooExperience() {
     <>
       <SnowField />
       <CustomCursor />
-      <SoundToggle />
       <ScrollChapters />
     </>
   );
