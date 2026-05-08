@@ -638,3 +638,15 @@ body {
     animation-play-state: paused !important;
   }
 }
+
+/* ── Page-wide GPU layer promotion for sections that sit above the fixed
+   background canvas. Each section becomes its own composited layer, so
+   scrolling = pure GPU compositing instead of CPU repaints. This is what
+   keeps the page smooth even though every section is translucent and
+   layered on top of the install-sequence canvas. ── */
+section[data-testid^="section-"] {
+  transform: translateZ(0);
+  will-change: transform;
+  contain: paint;
+  backface-visibility: hidden;
+}
