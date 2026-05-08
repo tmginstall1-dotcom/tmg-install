@@ -1,6 +1,16 @@
 import { Link } from "wouter";
-import { useState, useEffect, useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { useState, useEffect, useRef, Suspense } from "react";
+import {
+  motion,
+  useInView,
+  useScroll,
+  useTransform,
+  useSpring,
+  type MotionValue,
+} from "framer-motion";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { MeshDistortMaterial, Float } from "@react-three/drei";
+import * as THREE from "three";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
 import { useSEO } from "@/hooks/use-seo";
 
@@ -227,6 +237,146 @@ function GhostType({
   );
 }
 
+/* ─── 3D INK BLOB — scroll-driven floating shape (paradiso-style) ────── */
+
+/* Inner mesh that reads scroll progress + clock for animation. The blob is
+   a distorted icosahedron with a matte black material — reads as a giant
+   ink/brush mass that breathes and rotates as you scroll. */
+function InkBlobMesh({ scrollY }: { scrollY: MotionValue<number> }) {
+  const meshRef = useRef<THREE.Mesh | null>(null);
+  const distortRef = useRef<any>(null);
+
+  useFrame((state) => {
+    const m = meshRef.current;
+    if (!m) return;
+    const t = state.clock.getElapsedTime();
+    const s = scrollY.get(); // 0 → 1 over the page
+
+    // Rotate continuously + react to scroll
+    m.rotation.x = t * 0.18 + s * Math.PI * 1.4;
+    m.rotation.y = t * 0.22 + s * Math.PI * 2.2;
+    m.rotation.z = Math.sin(t * 0.3) * 0.15;
+
+    // Drift across the viewport as scroll progresses (right → left)
+    m.position.x = 0.6 - s * 1.4;
+    m.position.y = -0.3 + Math.sin(t * 0.6) * 0.12 - s * 0.6;
+    // Gentle scale pulse
+    const k = 1 + Math.sin(t * 0.9) * 0.04 + s * 0.25;
+    m.scale.set(k, k, k);
+
+    // Distortion modulates with scroll for an organic ink-like feel
+    if (distortRef.current) {
+      distortRef.current.distort = 0.42 + Math.sin(t * 0.7) * 0.06 + s * 0.18;
+    }
+  });
+
+  return (
+    <Float speed={1.4} rotationIntensity={0.2} floatIntensity={0.6}>
+      <mesh ref={meshRef} position={[0.6, -0.3, 0]} scale={1.6}>
+        <icosahedronGeometry args={[1, 24]} />
+        <MeshDistortMaterial
+          ref={distortRef}
+          color="#000000"
+          roughness={0.55}
+          metalness={0.1}
+          distort={0.42}
+          speed={1.6}
+        />
+      </mesh>
+    </Float>
+  );
+}
+
+/* Feature-detect WebGL once. Some headless browsers / sandboxed previews
+   can't create a context — we silently fall back to a CSS ink-blob so the
+   page never crashes. */
+function useHasWebGL() {
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    try {
+      const c = document.createElement("canvas");
+      const gl =
+        c.getContext("webgl2") ||
+        c.getContext("webgl") ||
+        c.getContext("experimental-webgl");
+      setOk(!!gl);
+    } catch {
+      setOk(false);
+    }
+  }, []);
+  return ok;
+}
+
+/* CSS fallback — animated radial-gradient blob that drifts with scroll.
+   No WebGL needed. Looks like a soft ink stain breathing in the background. */
+function InkBlobCSS({ scrollY }: { scrollY: MotionValue<number> }) {
+  const x = useTransform(scrollY, [0, 1], ["10vw", "-30vw"]);
+  const y = useTransform(scrollY, [0, 1], ["-5vh", "-40vh"]);
+  const rotate = useTransform(scrollY, [0, 1], [0, 220]);
+  const scale = useTransform(scrollY, [0, 1], [1, 1.4]);
+  return (
+    <div
+      aria-hidden="true"
+      className="fixed inset-0 pointer-events-none overflow-hidden"
+      style={{ zIndex: 1 }}
+      data-testid="ink-blob-css"
+    >
+      <motion.div
+        style={{
+          x,
+          y,
+          rotate,
+          scale,
+          position: "absolute",
+          left: "30%",
+          top: "30%",
+          width: "60vw",
+          height: "60vw",
+          background:
+            "radial-gradient(closest-side, rgba(0,0,0,0.16), rgba(0,0,0,0.08) 45%, rgba(0,0,0,0) 70%)",
+          filter: "blur(8px)",
+          borderRadius: "50% 38% 62% 44% / 48% 56% 40% 52%",
+          animation: "blobMorph 16s ease-in-out infinite",
+        }}
+      />
+    </div>
+  );
+}
+
+/* Full-bleed Canvas wrapper — fixed behind the hero, low z-index, low
+   opacity so the brush wordmark stays the protagonist. Falls back to CSS
+   when WebGL is unavailable. */
+function InkBlob3D({ scrollY }: { scrollY: MotionValue<number> }) {
+  const hasWebGL = useHasWebGL();
+
+  if (!hasWebGL) return <InkBlobCSS scrollY={scrollY} />;
+
+  return (
+    <div
+      aria-hidden="true"
+      className="fixed inset-0 pointer-events-none"
+      style={{ zIndex: 1, opacity: 0.22 }}
+      data-testid="ink-blob-3d"
+    >
+      <Canvas
+        camera={{ position: [0, 0, 4.2], fov: 45 }}
+        gl={{ antialias: true, alpha: true, failIfMajorPerformanceCaveat: false }}
+        dpr={[1, 1.6]}
+        onCreated={({ gl }) => {
+          gl.setClearColor(0x000000, 0);
+        }}
+      >
+        <ambientLight intensity={0.6} />
+        <directionalLight position={[5, 5, 5]} intensity={1.1} />
+        <directionalLight position={[-5, -3, 2]} intensity={0.4} color="#888" />
+        <Suspense fallback={null}>
+          <InkBlobMesh scrollY={scrollY} />
+        </Suspense>
+      </Canvas>
+    </div>
+  );
+}
+
 /* ─── Section reveal wrapper ─────────────────────────────────────────── */
 
 function Reveal({
@@ -256,19 +406,44 @@ function Reveal({
 /* ─── PAGE ────────────────────────────────────────────────────────────── */
 
 export default function LandingParadiso() {
-  usePageTracker("/preview");
+  usePageTracker("/");
   useSEO({
     title: "TMG Install — Singapore Furniture Installation, Done Right",
     description:
       "Quote in 60 seconds. Trusted by 5,000+ households. Installation, dismantling and relocation across Singapore.",
   });
 
+  // Scroll progress drives both the 3D blob and the parallax-translated
+  // editorial text. We smooth it with a spring so motion never jitters.
+  const pageRef = useRef<HTMLDivElement | null>(null);
+  const { scrollYProgress } = useScroll({ target: pageRef });
+  const smoothScroll = useSpring(scrollYProgress, {
+    stiffness: 70,
+    damping: 22,
+    mass: 0.4,
+  });
+
+  // Parallax transforms — scattered fragments and ghosts move at different
+  // speeds as you scroll, so the layout feels alive (paradiso effect).
+  const yEthos = useTransform(smoothScroll, [0, 1], [0, -180]);
+  const yFeeling = useTransform(smoothScroll, [0, 1], [0, -260]);
+  const yCraft = useTransform(smoothScroll, [0, 1], [0, -120]);
+  const yPromise = useTransform(smoothScroll, [0, 1], [0, -340]);
+  const yGhostL = useTransform(smoothScroll, [0, 1], [0, -420]);
+  const yGhostR = useTransform(smoothScroll, [0, 1], [0, -500]);
+  const xBleed = useTransform(smoothScroll, [0, 1], ["0%", "-55%"]);
+  const yWordmark = useTransform(smoothScroll, [0, 0.5], [0, -120]);
+  const opacityWordmark = useTransform(smoothScroll, [0, 0.35], [1, 0.15]);
+
   return (
     <div
-      className="bg-white text-black min-h-screen overflow-x-hidden"
+      ref={pageRef}
+      className="bg-white text-black min-h-screen overflow-x-hidden relative"
       style={{ fontFamily: "var(--font-body)" }}
       data-testid="page-paradiso"
     >
+      {/* Fixed 3D ink blob behind everything — drifts + rotates with scroll */}
+      <InkBlob3D scrollY={smoothScroll} />
       {/* ═══════════════════════ HERO ═══════════════════════ */}
       <section className="relative min-h-[100svh] w-full overflow-hidden">
         <GridMarks />
@@ -319,39 +494,51 @@ export default function LandingParadiso() {
           </div>
         </div>
 
-        {/* SCATTERED ITALIC FRAGMENTS (paradiso "An ethos…") */}
-        <div className="absolute left-[18%] top-[8%] z-10 hidden sm:block">
+        {/* SCATTERED ITALIC FRAGMENTS (paradiso "An ethos…") — parallax-scrolled */}
+        <motion.div
+          style={{ y: yEthos }}
+          className="absolute left-[18%] top-[8%] z-10 hidden sm:block"
+        >
           <p
             className="text-[11px] leading-snug max-w-[10ch] text-black/70"
             style={{ fontFamily: "var(--font-body)" }}
           >
             An ethos<span className="opacity-50">…</span>
           </p>
-        </div>
-        <div className="absolute right-[14%] top-[16%] z-10 hidden sm:block text-right">
+        </motion.div>
+        <motion.div
+          style={{ y: yFeeling }}
+          className="absolute right-[14%] top-[16%] z-10 hidden sm:block text-right"
+        >
           <p
             className="text-[11px] leading-snug max-w-[12ch] text-black/70"
             style={{ fontFamily: "var(--font-body)" }}
           >
             A feeling<span className="opacity-50">…</span>
           </p>
-        </div>
-        <div className="absolute left-[8%] bottom-[24%] z-10 hidden md:block">
+        </motion.div>
+        <motion.div
+          style={{ y: yCraft }}
+          className="absolute left-[8%] bottom-[24%] z-10 hidden md:block"
+        >
           <p
             className="text-[11px] leading-snug max-w-[16ch] text-black/70"
             style={{ fontFamily: "var(--font-body)" }}
           >
             A craft.
           </p>
-        </div>
-        <div className="absolute right-[10%] bottom-[20%] z-10 hidden md:block text-right">
+        </motion.div>
+        <motion.div
+          style={{ y: yPromise }}
+          className="absolute right-[10%] bottom-[20%] z-10 hidden md:block text-right"
+        >
           <p
             className="text-[11px] leading-snug max-w-[16ch] text-black/70"
             style={{ fontFamily: "var(--font-body)" }}
           >
             A promise.
           </p>
-        </div>
+        </motion.div>
 
         {/* ASYMMETRIC SCATTERED PILLS (no symmetric corner grid) */}
         <div className="absolute left-[14%] top-[14%] z-10">
@@ -374,22 +561,45 @@ export default function LandingParadiso() {
           </Pill>
         </div>
 
-        {/* GHOST TYPE — same brush style, bleeding behind the wordmark */}
-        <GhostType
-          brush
-          className="text-[28vw] -left-[4%] top-[18%]"
+        {/* GHOST BRUSH WORDMARKS — translate vertically with scroll */}
+        <motion.div
+          aria-hidden="true"
+          style={{ y: yGhostL }}
+          className="absolute -left-[4%] top-[18%] z-[2] pointer-events-none select-none"
         >
-          BUILD
-        </GhostType>
-        <GhostType
-          brush
-          className="text-[28vw] -right-[6%] top-[22%]"
+          <span
+            className="block uppercase leading-[0.85] whitespace-nowrap"
+            style={{
+              fontFamily: BRUSH,
+              fontSize: "28vw",
+              color: "rgba(0,0,0,0.05)",
+            }}
+          >
+            BUILD
+          </span>
+        </motion.div>
+        <motion.div
+          aria-hidden="true"
+          style={{ y: yGhostR }}
+          className="absolute -right-[6%] top-[22%] z-[2] pointer-events-none select-none"
         >
-          MOVE
-        </GhostType>
+          <span
+            className="block uppercase leading-[0.85] whitespace-nowrap"
+            style={{
+              fontFamily: BRUSH,
+              fontSize: "28vw",
+              color: "rgba(0,0,0,0.05)",
+            }}
+          >
+            MOVE
+          </span>
+        </motion.div>
 
-        {/* CENTER — BIG BRUSH WORDMARK + letterspaced subtitle */}
-        <div className="relative z-[5] flex flex-col items-center justify-center min-h-[100svh] px-6">
+        {/* CENTER — BIG BRUSH WORDMARK + letterspaced subtitle (scroll fades + lifts) */}
+        <motion.div
+          style={{ y: yWordmark, opacity: opacityWordmark }}
+          className="relative z-[5] flex flex-col items-center justify-center min-h-[100svh] px-6"
+        >
           <Reveal delay={0.05}>
             <h1
               className="text-center text-black leading-[0.9]"
@@ -420,28 +630,36 @@ export default function LandingParadiso() {
               I N S T A L L E R S
             </div>
           </Reveal>
-        </div>
+        </motion.div>
 
-        {/* BOTTOM TYPOGRAPHIC BLEED — huge faded display line */}
+        {/* BOTTOM TYPOGRAPHIC BLEED — huge faded line that slides horizontally on scroll */}
         <div
           aria-hidden="true"
           className="absolute left-0 right-0 bottom-0 pointer-events-none select-none overflow-hidden"
         >
-          <div
-            className="whitespace-nowrap text-center"
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontWeight: 700,
-              fontSize: "clamp(56px, 12vw, 200px)",
-              lineHeight: 0.9,
-              letterSpacing: "-0.02em",
-              color: "rgba(0,0,0,0.06)",
-              textTransform: "uppercase",
-              transform: "translateY(28%)",
-            }}
+          <motion.div
+            style={{ x: xBleed }}
+            className="whitespace-nowrap"
           >
-            Before the delivery, before the…
-          </div>
+            <span
+              className="inline-block"
+              style={{
+                fontFamily: "var(--font-heading)",
+                fontWeight: 700,
+                fontSize: "clamp(56px, 12vw, 200px)",
+                lineHeight: 0.9,
+                letterSpacing: "-0.02em",
+                color: "rgba(0,0,0,0.06)",
+                textTransform: "uppercase",
+                transform: "translateY(28%)",
+                paddingLeft: "5vw",
+                paddingRight: "5vw",
+              }}
+            >
+              Before the delivery, before the install, before the home —
+              precision. Before the delivery, before the install —
+            </span>
+          </motion.div>
         </div>
       </section>
 

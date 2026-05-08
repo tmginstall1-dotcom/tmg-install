@@ -749,3 +749,10 @@ body {
     cursor: text !important;
   }
 }
+
+/* Paradiso ink-blob (CSS fallback when WebGL is unavailable) */
+@keyframes blobMorph {
+  0%, 100% { border-radius: 50% 38% 62% 44% / 48% 56% 40% 52%; }
+  33%      { border-radius: 38% 62% 44% 56% / 56% 44% 60% 40%; }
+  66%      { border-radius: 60% 40% 52% 48% / 44% 60% 38% 62%; }
+}
