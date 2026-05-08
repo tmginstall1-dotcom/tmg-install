@@ -6,6 +6,7 @@ import {
   useScroll,
   useTransform,
   useSpring,
+  useMotionValue,
   type MotionValue,
 } from "framer-motion";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -32,6 +33,93 @@ import workConferenceTable from "@assets/6219e4af-4150-47a9-8625-09448ff10459_17
 const ACCENT = "#1aff7e"; // Neon green pill colour
 const BRUSH = "'Rubik Wet Paint', 'Caveat Brush', cursive"; // Hand-drawn ink wordmark
 
+/* ─── Smoothed mouse position hook — used for paradiso-style parallax on
+       the ghost wordmarks and as the source of truth for the custom
+       cursor dot. Returns motion values in [-1, 1] range (centre = 0). ─ */
+function useMouseParallax() {
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const sx = useSpring(mx, { stiffness: 60, damping: 18, mass: 0.5 });
+  const sy = useSpring(my, { stiffness: 60, damping: 18, mass: 0.5 });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    function onMove(e: MouseEvent) {
+      const w = window.innerWidth || 1;
+      const h = window.innerHeight || 1;
+      mx.set((e.clientX / w) * 2 - 1); // -1 .. 1
+      my.set((e.clientY / h) * 2 - 1);
+    }
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => window.removeEventListener("mousemove", onMove);
+  }, [mx, my]);
+
+  return { mx: sx, my: sy };
+}
+
+/* ─── CustomCursor — small green dot that follows the mouse, plus a
+       hollow ring that lags slightly behind. Hidden on touch devices.
+       Paradiso uses a similar live cursor as part of the brand voice. ─ */
+function CustomCursor() {
+  const x = useMotionValue(-100);
+  const y = useMotionValue(-100);
+  const ringX = useSpring(x, { stiffness: 180, damping: 22, mass: 0.6 });
+  const ringY = useSpring(y, { stiffness: 180, damping: 22, mass: 0.6 });
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // Skip on touch / coarse pointers.
+    const mq = window.matchMedia("(pointer: fine)");
+    if (!mq.matches) return;
+    setEnabled(true);
+
+    function onMove(e: MouseEvent) {
+      x.set(e.clientX);
+      y.set(e.clientY);
+    }
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => window.removeEventListener("mousemove", onMove);
+  }, [x, y]);
+
+  if (!enabled) return null;
+
+  return (
+    <>
+      {/* Hollow ring lagging slightly */}
+      <motion.div
+        aria-hidden="true"
+        className="fixed top-0 left-0 z-[80] pointer-events-none mix-blend-difference"
+        style={{
+          x: ringX,
+          y: ringY,
+          translateX: "-50%",
+          translateY: "-50%",
+          width: 28,
+          height: 28,
+          border: "1px solid white",
+          borderRadius: 9999,
+        }}
+      />
+      {/* Solid green dot at the exact pointer */}
+      <motion.div
+        aria-hidden="true"
+        className="fixed top-0 left-0 z-[81] pointer-events-none"
+        style={{
+          x,
+          y,
+          translateX: "-50%",
+          translateY: "-50%",
+          width: 8,
+          height: 8,
+          background: ACCENT,
+          borderRadius: 9999,
+        }}
+      />
+    </>
+  );
+}
+
 /* ─── Tiny shared atoms ───────────────────────────────────────────────── */
 
 /* Use wouter Link only for internal SPA paths; native <a> for hash anchors
@@ -55,9 +143,9 @@ function Pill({
   testId?: string;
 }) {
   const base =
-    "inline-block px-2.5 py-1 text-[10px] sm:text-[11px] font-bold tracking-[0.18em] uppercase text-black leading-none whitespace-nowrap";
+    "inline-block px-2.5 py-1 text-[10px] sm:text-[11px] font-bold tracking-[0.18em] uppercase text-black leading-none whitespace-nowrap transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.04]";
   const style = { background: ACCENT };
-  const cls = `${base} hover:opacity-90 transition-opacity ${className}`;
+  const cls = `${base} ${className}`;
   if (href) {
     if (isInternalRoute(href)) {
       return (
@@ -97,8 +185,8 @@ function BlackPill({
   testId?: string;
 }) {
   const base =
-    "inline-block px-2.5 py-1 text-[10px] sm:text-[11px] font-bold tracking-[0.18em] uppercase text-white leading-none whitespace-nowrap bg-black";
-  const cls = `${base} hover:bg-neutral-800 transition-colors ${className}`;
+    "inline-block px-2.5 py-1 text-[10px] sm:text-[11px] font-bold tracking-[0.18em] uppercase text-white leading-none whitespace-nowrap bg-black transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.04]";
+  const cls = `${base} ${className}`;
   if (href) {
     if (isInternalRoute(href)) {
       return (
@@ -630,13 +718,32 @@ export default function LandingParadiso() {
   const yWordmark = useTransform(smoothScroll, [0, 0.5], [0, -120]);
   const opacityWordmark = useTransform(smoothScroll, [0, 0.35], [1, 0.15]);
 
+  // Mouse-parallax — used for the ghost wordmark mirrors and the
+  // scattered text fragments. Source values are in [-1, 1].
+  const { mx, my } = useMouseParallax();
+  // Ghost mirrors drift opposite to the cursor — strong, paradiso-sized.
+  const ghostLX = useTransform(mx, [-1, 1], [60, -60]);
+  const ghostLY = useTransform(my, [-1, 1], [30, -30]);
+  const ghostRX = useTransform(mx, [-1, 1], [-60, 60]);
+  const ghostRY = useTransform(my, [-1, 1], [30, -30]);
+  // Wordmark drifts with the cursor — much smaller, just "alive".
+  const wordX = useTransform(mx, [-1, 1], [-12, 12]);
+  const wordY = useTransform(my, [-1, 1], [-8, 8]);
+  // Tiny editorial fragments — slowest parallax layer.
+  const fragX = useTransform(mx, [-1, 1], [-6, 6]);
+  const fragY = useTransform(my, [-1, 1], [-4, 4]);
+
   return (
     <div
       ref={pageRef}
-      className="bg-white text-black min-h-screen overflow-x-hidden relative"
+      className="bg-white text-black min-h-screen overflow-x-hidden relative paradiso-cursor"
       style={{ fontFamily: "var(--font-paradiso-body)" }}
       data-testid="page-paradiso"
     >
+      {/* Custom cursor (paradiso-style green dot + lagging ring). Skipped
+          on touch / coarse pointers automatically. */}
+      <CustomCursor />
+
       {/* Single global registration-mark canvas — fixed behind every
           section so the marks read as one continuous "paper grain" instead
           of restarting at each section. */}
@@ -760,35 +867,35 @@ export default function LandingParadiso() {
         </div>
 
         {/* ─── TINY EDITORIAL TEXT FRAGMENTS — paradiso scatters ultra-short
-             prose like "An ethos…", "A feeling…" at the corners. Reads as
-             a magazine sidebar, not as marketing copy. ─── */}
-        <div
+             prose like "An ethos…", "A feeling…" at the corners. Each
+             fragment drifts gently with the cursor (slowest parallax). ─── */}
+        <motion.div
           className="absolute left-[28%] top-[14%] z-20 hidden lg:block max-w-[8rem] text-[11px] leading-[1.35] text-black/85"
-          style={{ fontFamily: "var(--font-paradiso)" }}
+          style={{ fontFamily: "var(--font-paradiso)", x: fragX, y: fragY }}
           data-testid="fragment-1"
         >
           A studio,
           <br />
           not a marketplace.
-        </div>
-        <div
+        </motion.div>
+        <motion.div
           className="absolute right-[28%] top-[18%] z-20 hidden lg:block max-w-[8rem] text-[11px] leading-[1.35] text-black/85 text-right"
-          style={{ fontFamily: "var(--font-paradiso)" }}
+          style={{ fontFamily: "var(--font-paradiso)", x: fragX, y: fragY }}
           data-testid="fragment-2"
         >
           A craft,
           <br />
           not a side-hustle.
-        </div>
-        <div
+        </motion.div>
+        <motion.div
           className="absolute left-[36%] bottom-[22%] z-20 hidden lg:block max-w-[10rem] text-[11px] leading-[1.35] text-black/85"
-          style={{ fontFamily: "var(--font-paradiso)" }}
+          style={{ fontFamily: "var(--font-paradiso)", x: fragX, y: fragY }}
           data-testid="fragment-3"
         >
           An installation,
           <br />
           not a delivery drop-off.
-        </div>
+        </motion.div>
 
         {/* ─── CENTRAL BRUSH WORDMARK — the protagonist of the page.
              Pale ghost duplicates float on either side. The 3D ink mass
@@ -799,8 +906,8 @@ export default function LandingParadiso() {
           className="absolute inset-0 z-[25] flex flex-col items-center justify-center pointer-events-none px-6"
           data-testid="hero-wordmark"
         >
-          {/* Ghost mirror — left */}
-          <span
+          {/* Ghost mirror — left, mouse-parallaxed */}
+          <motion.span
             aria-hidden="true"
             className="absolute left-[-6%] top-[28%] hidden md:block select-none"
             style={{
@@ -808,13 +915,15 @@ export default function LandingParadiso() {
               fontSize: "clamp(180px, 22vw, 360px)",
               color: "rgba(0,0,0,0.05)",
               lineHeight: 0.9,
-              transform: "rotate(-4deg)",
+              rotate: -4,
+              x: ghostLX,
+              y: ghostLY,
             }}
           >
             tmg
-          </span>
-          {/* Ghost mirror — right */}
-          <span
+          </motion.span>
+          {/* Ghost mirror — right, mouse-parallaxed (opposite axis) */}
+          <motion.span
             aria-hidden="true"
             className="absolute right-[-6%] top-[28%] hidden md:block select-none"
             style={{
@@ -822,27 +931,37 @@ export default function LandingParadiso() {
               fontSize: "clamp(180px, 22vw, 360px)",
               color: "rgba(0,0,0,0.05)",
               lineHeight: 0.9,
-              transform: "rotate(4deg) scaleX(-1)",
+              rotate: 4,
+              scaleX: -1,
+              x: ghostRX,
+              y: ghostRY,
             }}
           >
             tmg
-          </span>
+          </motion.span>
 
-          {/* Main brush wordmark */}
-          <Reveal delay={0.05}>
-            <h1
-              className="text-black select-none m-0"
-              style={{
-                fontFamily: BRUSH,
-                fontSize: "clamp(140px, 26vw, 460px)",
-                lineHeight: 0.85,
-                letterSpacing: "-0.02em",
-              }}
-              data-testid="hero-title"
-            >
-              tmg
-            </h1>
-          </Reveal>
+          {/* Main brush wordmark — draws in on load, drifts subtly with cursor */}
+          <motion.h1
+            className="text-black select-none m-0"
+            initial={{ opacity: 0, scale: 0.86, filter: "blur(12px)" }}
+            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            transition={{
+              duration: 1.1,
+              delay: 0.15,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            style={{
+              fontFamily: BRUSH,
+              fontSize: "clamp(140px, 26vw, 460px)",
+              lineHeight: 0.85,
+              letterSpacing: "-0.02em",
+              x: wordX,
+              y: wordY,
+            }}
+            data-testid="hero-title"
+          >
+            tmg
+          </motion.h1>
 
           {/* Letter-spaced subline — paradiso's "INSTITUTE" treatment */}
           <Reveal delay={0.18}>

@@ -759,3 +759,19 @@ body {
   33%      { border-radius: 38% 62% 44% 56% / 56% 44% 60% 40%; }
   66%      { border-radius: 60% 40% 52% 48% / 44% 60% 38% 62%; }
 }
+
+/* Paradiso landing — hide native cursor on fine-pointer devices so the
+   custom green-dot cursor is the only one visible. Re-enable text cursor
+   inside form fields for usability. */
+@media (hover: hover) and (pointer: fine) {
+  .paradiso-cursor,
+  .paradiso-cursor * {
+    cursor: none !important;
+  }
+  .paradiso-cursor input,
+  .paradiso-cursor textarea,
+  .paradiso-cursor select,
+  .paradiso-cursor [contenteditable="true"] {
+    cursor: text !important;
+  }
+}
