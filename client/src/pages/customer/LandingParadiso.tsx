@@ -541,7 +541,9 @@ function InkBlob3D({ scrollY }: { scrollY: MotionValue<number> }) {
   const hasWebGL = useHasWebGL();
   const [crashed, setCrashed] = useState(false);
 
-  if (!hasWebGL || crashed) return <InkBlobCSS scrollY={scrollY} />;
+  // Paradiso has nothing in this slot when 3D fails; render nothing rather
+  // than show an ugly grey CSS blob fallback.
+  if (!hasWebGL || crashed) return null;
 
   return (
     <div
@@ -645,9 +647,18 @@ export default function LandingParadiso() {
       {/* ═══════════════════════ HERO ═══════════════════════ */}
       <section className="relative min-h-[100svh] w-full overflow-hidden border-b border-black/10 bg-white">
 
-        {/* ─── 3D ink mass — sits behind the centred brush wordmark. Below
-             text (z-4) but above the page bg. WebGL with CSS fallback. ─── */}
-        <InkBlob3D scrollY={smoothScroll} />
+        {/* ─── Tiny 3D accent anchored bottom-right of hero — paradiso uses
+             a small "PLAY!" media chip there. We keep the user's required
+             3D motion as a small, breathing wireframe wardrobe-mass that
+             never overlaps the wordmark. ─── */}
+        <div
+          aria-hidden="true"
+          className="absolute right-5 sm:right-10 top-[58%] sm:top-[60%] z-10 hidden xl:block pointer-events-none"
+          style={{ width: 180, height: 180, opacity: 0.9 }}
+          data-testid="hero-3d-accent"
+        >
+          <InkBlob3D scrollY={smoothScroll} />
+        </div>
 
         {/* ─── TOP-LEFT — tiny black credit bar (paradiso "patron" block).
              Logo chip + two-line studio credential, set in a small typeface
@@ -737,12 +748,12 @@ export default function LandingParadiso() {
             Fixed pricing
           </Pill>
         </div>
-        <div className="absolute left-[14%] bottom-[26%] z-20 hidden md:block">
+        <div className="absolute left-[28%] bottom-[18%] z-20 hidden md:block">
           <Pill href="#trust" testId="pill-trust">
             5,000+ jobs
           </Pill>
         </div>
-        <div className="absolute right-[18%] bottom-[28%] z-20 hidden md:block">
+        <div className="absolute right-[26%] bottom-[20%] z-20 hidden md:block">
           <Pill href="#trust" testId="pill-insured">
             Fully insured
           </Pill>
@@ -851,25 +862,46 @@ export default function LandingParadiso() {
           </Reveal>
         </motion.div>
 
-        {/* ─── BOTTOM-LEFT — small live caption card (paradiso has a tiny
-             "LIVE 14:25 — Barcelona" video card; we mirror with a small
-             "live job" status card). Pure type, no media. ─── */}
+        {/* ─── BOTTOM-LEFT — small "live job" film-still card. Mirrors
+             paradiso's LIVE 14:25 — Barcelona film thumbnail, but uses a
+             real TMG install photo + LIVE / duration pills. ─── */}
         <div
-          className="absolute left-3 sm:left-5 bottom-3 sm:bottom-5 z-30 flex items-stretch"
+          className="absolute left-3 sm:left-5 bottom-3 sm:bottom-5 z-30 w-[180px] sm:w-[230px]"
           data-testid="live-job"
         >
-          <div
-            className="px-2 py-1.5 text-[10px] tracking-[0.22em] uppercase font-semibold text-black"
-            style={{ background: ACCENT, fontFamily: "var(--font-paradiso)" }}
-          >
-            Live
+          {/* Tiny pill row sitting on top of the photo */}
+          <div className="flex items-stretch mb-1">
+            <div
+              className="px-2 py-1 text-[10px] tracking-[0.22em] uppercase font-semibold text-black"
+              style={{ background: ACCENT, fontFamily: "var(--font-paradiso)" }}
+            >
+              Live
+            </div>
+            <div className="flex-1" />
+            <div
+              className="px-2 py-1 text-[10px] tracking-[0.22em] uppercase text-black bg-white border border-black/15 tabular-nums"
+              style={{ fontFamily: "var(--font-paradiso)" }}
+            >
+              14:25
+            </div>
           </div>
+          {/* Real install photo */}
+          <div className="relative w-full aspect-[4/3] bg-neutral-100 overflow-hidden border border-black/10">
+            <img
+              src={workConferenceTable}
+              alt="TMG technician on a live install"
+              loading="eager"
+              decoding="async"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          </div>
+          {/* Caption strip below the photo, paradiso style */}
           <div
-            className="bg-black text-white px-2.5 py-1.5 text-[10px] uppercase tracking-[0.22em]"
+            className="mt-1 bg-black text-white px-2 py-1 text-[10px] uppercase tracking-[0.22em] truncate"
             style={{ fontFamily: "var(--font-paradiso)" }}
           >
             <span className="text-white/60">Now &mdash;</span>{" "}
-            <span className="text-white">2 PAX wardrobes, Bishan</span>
+            <span className="text-white">Tanjong Pagar</span>
           </div>
         </div>
 
@@ -978,19 +1010,21 @@ export default function LandingParadiso() {
             On site.
           </span>
 
-          {/* Section headline + lede */}
+          {/* Section headline + lede — brush font, lowercase, paradiso */}
           <Reveal>
             <h2
-              className="font-black uppercase leading-[0.9] tracking-[-0.03em] mt-12 sm:mt-16 max-w-3xl text-black"
+              className="relative font-black leading-[0.85] tracking-[-0.02em] mt-12 sm:mt-16 max-w-3xl text-black lowercase"
               style={{
-                fontFamily: "var(--font-paradiso)",
-                fontSize: "clamp(40px, 7vw, 104px)",
+                fontFamily: BRUSH,
+                fontSize: "clamp(56px, 10vw, 150px)",
               }}
               data-testid="text-work-title"
             >
-              The job,
+              the job,
               <br />
-              <span style={{ color: ACCENT }}>photographed.</span>
+              <span style={{ background: ACCENT }} className="px-3">
+                photographed.
+              </span>
             </h2>
           </Reveal>
 
@@ -1104,22 +1138,43 @@ export default function LandingParadiso() {
             <Pill testId="pill-section-services">01 · SERVICES</Pill>
           </div>
 
+          {/* Huge ghost brush type behind the headline */}
+          <GhostType
+            brush
+            className="left-[-3%] top-[5%] hidden md:block"
+            style={{ fontSize: "20vw", color: "rgba(0,0,0,0.05)" }}
+          >
+            handle
+          </GhostType>
+
           <Reveal>
             <h2
-              className="font-black uppercase leading-[0.9] tracking-[-0.03em] mt-12 sm:mt-16 max-w-4xl"
+              className="relative font-black leading-[0.85] tracking-[-0.02em] mt-12 sm:mt-16 max-w-4xl text-black lowercase"
               style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "clamp(40px, 8vw, 120px)",
+                fontFamily: BRUSH,
+                fontSize: "clamp(56px, 10vw, 160px)",
               }}
               data-testid="text-services-title"
             >
-              What we
+              what we
               <br />
-              <span style={{ background: ACCENT }} className="px-2">
+              <span style={{ background: ACCENT }} className="px-3">
                 handle.
               </span>
             </h2>
           </Reveal>
+
+          {/* Tiny editorial fragment off to the right */}
+          <div
+            className="hidden lg:block absolute right-0 top-24 max-w-[12rem] text-[11px] leading-[1.4] text-black/70"
+            style={{ fontFamily: "var(--font-paradiso)" }}
+          >
+            Six categories.
+            <br />
+            One uniformed crew.
+            <br />
+            Same-day completion.
+          </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px mt-16 sm:mt-20 bg-black/15">
             {[
@@ -1219,16 +1274,16 @@ export default function LandingParadiso() {
 
           <Reveal>
             <h2
-              className="font-black uppercase leading-[0.9] tracking-[-0.03em] mt-12 sm:mt-16 max-w-4xl"
+              className="relative font-black leading-[0.85] tracking-[-0.02em] mt-12 sm:mt-16 max-w-4xl lowercase"
               style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "clamp(40px, 8vw, 120px)",
+                fontFamily: BRUSH,
+                fontSize: "clamp(56px, 10vw, 160px)",
               }}
               data-testid="text-how-title"
             >
-              Three
+              three
               <br />
-              steps. <span style={{ color: ACCENT }}>One day.</span>
+              steps. <span style={{ color: ACCENT }}>one day.</span>
             </h2>
           </Reveal>
 
@@ -1295,20 +1350,40 @@ export default function LandingParadiso() {
             <BlackPill testId="pill-no-hidden">NO HIDDEN FEES</BlackPill>
           </div>
 
+          {/* Huge ghost brush type behind the headline */}
+          <GhostType
+            brush
+            className="right-[-2%] top-[8%] hidden md:block"
+            style={{ fontSize: "20vw", color: "rgba(0,0,0,0.05)" }}
+          >
+            upfront
+          </GhostType>
+
           <Reveal>
             <h2
-              className="font-black uppercase leading-[0.9] tracking-[-0.03em] mt-12 sm:mt-16 max-w-4xl"
+              className="relative font-black leading-[0.85] tracking-[-0.02em] mt-12 sm:mt-16 max-w-4xl text-black lowercase"
               style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "clamp(40px, 8vw, 120px)",
+                fontFamily: BRUSH,
+                fontSize: "clamp(56px, 10vw, 160px)",
               }}
               data-testid="text-pricing-title"
             >
-              Priced
+              priced
               <br />
-              upfront.
+              <span style={{ background: ACCENT }} className="px-3">
+                upfront.
+              </span>
             </h2>
           </Reveal>
+
+          {/* Tiny editorial fragment under the headline */}
+          <p
+            className="mt-6 max-w-md text-[12px] sm:text-[13px] leading-[1.5] text-black/70"
+            style={{ fontFamily: "var(--font-paradiso)" }}
+          >
+            What you see is what you pay. No site visit, no haggling, no
+            surprise add-ons after the truck arrives.
+          </p>
 
           <div className="grid md:grid-cols-3 gap-px mt-20 bg-black/15">
             {[
@@ -1416,12 +1491,21 @@ export default function LandingParadiso() {
             <Pill testId="pill-section-trust">04 · TRUSTED</Pill>
           </div>
 
-          <Reveal className="mt-12 sm:mt-16 grid md:grid-cols-2 gap-12 items-end">
+          {/* Huge ghost brush type behind */}
+          <GhostType
+            brush
+            className="left-[-3%] top-[5%] hidden md:block"
+            style={{ fontSize: "20vw", color: "rgba(0,0,0,0.05)" }}
+          >
+            trusted
+          </GhostType>
+
+          <Reveal className="relative mt-12 sm:mt-16 grid md:grid-cols-2 gap-12 items-end">
             <h2
-              className="font-black uppercase leading-[0.9] tracking-[-0.03em]"
+              className="font-black leading-[0.85] tracking-[-0.02em] lowercase"
               style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "clamp(40px, 7vw, 96px)",
+                fontFamily: BRUSH,
+                fontSize: "clamp(48px, 9vw, 140px)",
               }}
               data-testid="text-trust-title"
             >
@@ -1537,16 +1621,16 @@ export default function LandingParadiso() {
 
           <Reveal delay={0.1}>
             <h2
-              className="font-black uppercase leading-[0.85] tracking-[-0.04em] mt-8"
+              className="font-black leading-[0.82] tracking-[-0.02em] mt-8 lowercase"
               style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "clamp(56px, 11vw, 180px)",
+                fontFamily: BRUSH,
+                fontSize: "clamp(72px, 14vw, 240px)",
               }}
               data-testid="text-final-cta"
             >
-              Get your
+              get your
               <br />
-              <span style={{ background: ACCENT }} className="px-3">
+              <span style={{ background: ACCENT }} className="px-4">
                 quote
               </span>
               <br />
