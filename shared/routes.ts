@@ -96,7 +96,7 @@ export const api = {
           email: z.string().email(),
           phone: z.string().min(1),
         }),
-        selectedServices: z.array(z.enum(['install', 'dismantle', 'relocate'])).min(1),
+        selectedServices: z.array(z.enum(['install', 'dismantle', 'relocate', 'dispose', 'dismantle_dispose'])).min(1),
         serviceAddress: z.string().min(1),
         pickupAddress: z.string().optional(),
         dropoffAddress: z.string().optional(),
@@ -105,7 +105,7 @@ export const api = {
         items: z.array(z.object({
           catalogItemId: z.number().optional(),
           quantity: z.number().min(1),
-          serviceType: z.enum(['install', 'dismantle', 'relocate']),
+          serviceType: z.enum(['install', 'dismantle', 'relocate', 'dispose', 'dismantle_dispose']),
           unitPrice: z.number().min(0),
           itemName: z.string().min(1),
           sku: z.string().optional(),
@@ -113,7 +113,7 @@ export const api = {
         })),
         customItems: z.array(z.object({
           description: z.string().min(1),
-          serviceType: z.enum(['install', 'dismantle', 'relocate']),
+          serviceType: z.enum(['install', 'dismantle', 'relocate', 'dispose', 'dismantle_dispose']),
           quantity: z.number().min(1),
         })).optional(),
         logisticsFee: z.number().min(0).optional(),   // total of transport + floor + access surcharges
