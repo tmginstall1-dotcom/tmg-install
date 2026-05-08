@@ -14,6 +14,7 @@ import { useSEO } from "@/hooks/use-seo";
    ──────────────────────────────────────────────────────────────────────── */
 
 const ACCENT = "#1aff7e"; // Neon green pill colour
+const BRUSH = "'Rubik Wet Paint', 'Caveat Brush', cursive"; // Hand-drawn ink wordmark
 
 /* ─── Tiny shared atoms ───────────────────────────────────────────────── */
 
@@ -128,20 +129,13 @@ function TinyLabel({
 /* ─── Background — registration-mark grid (paradiso's tiny + crosses) ── */
 
 function GridMarks() {
+  // Paradiso uses tiny pale squares scattered on an invisible grid — much
+  // subtler than crosshair marks. ~3px squares at the corners of a 96px tile,
+  // very low opacity so they read as registration marks, not a grid.
   return (
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundImage: `
-          linear-gradient(to right, rgba(0,0,0,0.08) 1px, transparent 1px),
-          linear-gradient(to right, rgba(0,0,0,0.08) 1px, transparent 1px)
-        `,
-        backgroundSize: "8px 1px, 1px 8px",
-        backgroundPosition: "0 0, 0 0",
-        // Use repeated dots via SVG for the cross-grid markers
-        backgroundRepeat: "no-repeat",
-      }}
     >
       <svg
         width="100%"
@@ -154,27 +148,12 @@ function GridMarks() {
             id="paradiso-marks"
             x="0"
             y="0"
-            width="80"
-            height="80"
+            width="96"
+            height="96"
             patternUnits="userSpaceOnUse"
           >
-            {/* Two tiny rectangles per tile = paradiso's registration marks */}
-            <rect x="0" y="0" width="6" height="2" fill="rgba(0,0,0,0.18)" />
-            <rect x="0" y="0" width="2" height="6" fill="rgba(0,0,0,0.18)" />
-            <rect
-              x="74"
-              y="78"
-              width="6"
-              height="2"
-              fill="rgba(0,0,0,0.18)"
-            />
-            <rect
-              x="78"
-              y="74"
-              width="2"
-              height="6"
-              fill="rgba(0,0,0,0.18)"
-            />
+            <rect x="0" y="0" width="3" height="3" fill="rgba(0,0,0,0.10)" />
+            <rect x="93" y="93" width="3" height="3" fill="rgba(0,0,0,0.10)" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#paradiso-marks)" />
@@ -185,36 +164,36 @@ function GridMarks() {
 
 /* ─── Live "is here" counter — paradiso's "1 is here / 5616 were here" ── */
 
-function LiveCounter() {
+function LiveNow() {
   const [now, setNow] = useState(1);
-  const [total, setTotal] = useState(8472);
   useEffect(() => {
     const a = setInterval(
       () => setNow((n) => Math.max(1, Math.min(7, n + (Math.random() > 0.5 ? 1 : -1)))),
       6000,
     );
-    const b = setInterval(() => setTotal((t) => t + 1), 18000);
-    return () => {
-      clearInterval(a);
-      clearInterval(b);
-    };
+    return () => clearInterval(a);
   }, []);
   return (
-    <div className="flex flex-col gap-1 items-end" data-testid="live-counter">
-      <div className="flex items-center gap-2">
-        <span
-          className="inline-block w-2 h-2 rounded-full"
-          style={{ background: ACCENT, boxShadow: `0 0 8px ${ACCENT}` }}
-        />
-        <TinyLabel>{now} is here</TinyLabel>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="inline-block w-2 h-2 bg-black/30" />
-        <TinyLabel className="opacity-60">
-          {total.toLocaleString()} were here
-        </TinyLabel>
-      </div>
-    </div>
+    <>
+      {now} is
+      <br />
+      here
+    </>
+  );
+}
+
+function LiveTotal() {
+  const [total, setTotal] = useState(8472);
+  useEffect(() => {
+    const b = setInterval(() => setTotal((t) => t + 1), 18000);
+    return () => clearInterval(b);
+  }, []);
+  return (
+    <>
+      {total.toLocaleString()}
+      <br />
+      were here
+    </>
   );
 }
 
@@ -224,19 +203,22 @@ function GhostType({
   children,
   className = "",
   style,
+  brush = false,
 }: {
   children: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
+  brush?: boolean;
 }) {
   return (
     <div
       aria-hidden="true"
-      className={`pointer-events-none select-none absolute font-black uppercase leading-[0.85] whitespace-nowrap ${className}`}
+      className={`pointer-events-none select-none absolute uppercase leading-[0.85] whitespace-nowrap ${className}`}
       style={{
-        fontFamily: "var(--font-heading)",
+        fontFamily: brush ? BRUSH : "var(--font-heading)",
+        fontWeight: brush ? 400 : 900,
         color: "rgba(0,0,0,0.05)",
-        letterSpacing: "-0.04em",
+        letterSpacing: brush ? "0" : "-0.04em",
         ...style,
       }}
     >
@@ -288,145 +270,178 @@ export default function LandingParadiso() {
       data-testid="page-paradiso"
     >
       {/* ═══════════════════════ HERO ═══════════════════════ */}
-      <section className="relative min-h-[100svh] w-full">
+      <section className="relative min-h-[100svh] w-full overflow-hidden">
         <GridMarks />
 
-        {/* TOP-LEFT — patron / credit line */}
-        <div className="absolute left-4 sm:left-6 top-4 sm:top-6 z-10 flex items-start gap-2 max-w-[60vw]">
-          <BlackPill testId="link-top-brand" href="/preview">
-            TMG INSTALL
+        {/* TOP-LEFT — dark patron/credit badge (paradiso style) */}
+        <div className="absolute left-0 top-0 z-20 max-w-[80vw] sm:max-w-[28rem]">
+          <div
+            className="bg-black text-white px-3 py-2 text-[10px] sm:text-[11px] leading-snug"
+            style={{ fontFamily: "var(--font-body)" }}
+            data-testid="credit-badge"
+          >
+            <strong className="font-bold">TMG Install</strong> — Singapore
+            furniture installation, dismantling &amp; relocation.
+            <br />
+            Trusted by{" "}
+            <span className="text-[color:var(--accent)] font-bold" style={{ color: ACCENT }}>
+              5,000+ households
+            </span>{" "}
+            since 2018.
+          </div>
+        </div>
+
+        {/* TOP-RIGHT — live counter (lowercase paradiso style) */}
+        <div className="absolute right-3 sm:right-5 top-3 sm:top-5 z-20">
+          <div className="flex items-start gap-2" data-testid="live-counter">
+            <div
+              className="px-2 py-1.5 text-black"
+              style={{ background: ACCENT, minWidth: 44 }}
+            >
+              <div
+                className="text-[10px] leading-tight font-medium lowercase"
+                style={{ fontFamily: "var(--font-body)" }}
+              >
+                <LiveNow />
+              </div>
+            </div>
+            <div
+              className="px-2 py-1.5 text-black"
+              style={{ background: ACCENT, minWidth: 44 }}
+            >
+              <div
+                className="text-[10px] leading-tight font-medium lowercase"
+                style={{ fontFamily: "var(--font-body)" }}
+              >
+                <LiveTotal />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SCATTERED ITALIC FRAGMENTS (paradiso "An ethos…") */}
+        <div className="absolute left-[18%] top-[8%] z-10 hidden sm:block">
+          <p
+            className="text-[11px] leading-snug max-w-[10ch] text-black/70"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            An ethos<span className="opacity-50">…</span>
+          </p>
+        </div>
+        <div className="absolute right-[14%] top-[16%] z-10 hidden sm:block text-right">
+          <p
+            className="text-[11px] leading-snug max-w-[12ch] text-black/70"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            A feeling<span className="opacity-50">…</span>
+          </p>
+        </div>
+        <div className="absolute left-[8%] bottom-[24%] z-10 hidden md:block">
+          <p
+            className="text-[11px] leading-snug max-w-[16ch] text-black/70"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            A craft.
+          </p>
+        </div>
+        <div className="absolute right-[10%] bottom-[20%] z-10 hidden md:block text-right">
+          <p
+            className="text-[11px] leading-snug max-w-[16ch] text-black/70"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            A promise.
+          </p>
+        </div>
+
+        {/* ASYMMETRIC SCATTERED PILLS (no symmetric corner grid) */}
+        <div className="absolute left-[14%] top-[14%] z-10">
+          <Pill testId="pill-installers">INSTALLERS</Pill>
+        </div>
+        <div className="absolute left-[8%] top-[40%] z-10 hidden sm:block">
+          <Pill testId="pill-team">FOUNDING TEAM</Pill>
+        </div>
+        <div className="absolute right-[20%] top-[34%] z-10 hidden sm:block">
+          <BlackPill testId="pill-book" href="/estimate">
+            BOOK NOW!
           </BlackPill>
-          <div className="hidden sm:flex flex-col leading-tight">
-            <TinyLabel>Singapore furniture</TinyLabel>
-            <TinyLabel>installation specialists.</TinyLabel>
-            <TinyLabel className="opacity-60 mt-0.5">
-              Trusted by <span className="text-black font-bold">5,000+</span>{" "}
-              households.
-            </TinyLabel>
-          </div>
         </div>
-
-        {/* TOP-RIGHT — live counter + nav pills */}
-        <div className="absolute right-4 sm:right-6 top-4 sm:top-6 z-10 flex flex-col items-end gap-3">
-          <LiveCounter />
-          <div className="hidden md:flex items-center gap-1.5 flex-wrap justify-end max-w-[40vw]">
-            <Pill testId="nav-services" href="#services">
-              Services
-            </Pill>
-            <Pill testId="nav-how" href="#how">
-              How it works
-            </Pill>
-            <Pill testId="nav-pricing" href="#pricing">
-              Pricing
-            </Pill>
-            <Pill testId="nav-quote" href="/estimate">
-              Get Quote →
-            </Pill>
-          </div>
-        </div>
-
-        {/* SCATTERED EDITORIAL FRAGMENTS — paradiso's "An ethos…" */}
-        <div className="absolute left-[6%] top-[28%] z-10 hidden sm:block">
-          <TinyLabel className="block max-w-[10ch] leading-snug">
-            A craft<span className="opacity-50">…</span>
-          </TinyLabel>
-        </div>
-        <div className="absolute right-[8%] top-[32%] z-10 hidden sm:block text-right">
-          <TinyLabel className="block max-w-[14ch] leading-snug">
-            A promise<span className="opacity-50">…</span>
-          </TinyLabel>
-        </div>
-        <div className="absolute left-[12%] bottom-[28%] z-10 hidden md:block">
-          <TinyLabel className="block max-w-[14ch] leading-snug opacity-70">
-            A relocation.
-          </TinyLabel>
-        </div>
-        <div className="absolute right-[14%] bottom-[24%] z-10 hidden md:block text-right">
-          <TinyLabel className="block max-w-[14ch] leading-snug opacity-70">
-            An installation.
-          </TinyLabel>
-        </div>
-
-        {/* CORNER PILLS */}
-        <div className="absolute left-4 sm:left-6 bottom-24 sm:bottom-28 z-10">
-          <Pill testId="pill-discipline">DISCIPLINE</Pill>
-        </div>
-        <div className="absolute right-4 sm:right-6 bottom-24 sm:bottom-28 z-10">
-          <Pill testId="pill-since">SINCE 2018</Pill>
-        </div>
-        <div className="absolute left-4 sm:left-6 bottom-4 sm:bottom-6 z-10">
-          <Pill testId="pill-island-wide" href="#trust">
-            ISLAND-WIDE
+        <div className="absolute right-[6%] bottom-[6%] z-10 flex flex-col items-end gap-1">
+          <Pill testId="pill-membership" href="#trust">
+            MEMBERSHIP
           </Pill>
-        </div>
-        <div className="absolute right-4 sm:right-6 bottom-4 sm:bottom-6 z-10 flex gap-1.5">
-          <Pill testId="pill-whatsapp-hero" href="https://wa.me/6580880757">
-            WHATSAPP US
-          </Pill>
-          <Pill testId="pill-quote-hero" href="/estimate">
-            QUOTE IN 60s →
+          <Pill testId="pill-governance" href="/terms">
+            GOVERNANCE
           </Pill>
         </div>
 
-        {/* GHOST TYPE — bleeds off-screen left & right */}
+        {/* GHOST TYPE — same brush style, bleeding behind the wordmark */}
         <GhostType
-          className="text-[18vw] sm:text-[16vw] -left-[4%] top-[22%]"
-          style={{ transform: "translateY(-15%)" }}
+          brush
+          className="text-[28vw] -left-[4%] top-[18%]"
         >
-          INSTALL
+          BUILD
         </GhostType>
         <GhostType
-          className="text-[18vw] sm:text-[16vw] right-[-8%] bottom-[18%]"
+          brush
+          className="text-[28vw] -right-[6%] top-[22%]"
         >
-          RELOCATE
+          MOVE
         </GhostType>
 
-        {/* CENTER — Big TMG mark */}
+        {/* CENTER — BIG BRUSH WORDMARK + letterspaced subtitle */}
         <div className="relative z-[5] flex flex-col items-center justify-center min-h-[100svh] px-6">
           <Reveal delay={0.05}>
             <h1
-              className="text-center font-black uppercase leading-[0.82] tracking-[-0.04em] text-black"
+              className="text-center text-black leading-[0.9]"
               style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "clamp(72px, 17vw, 280px)",
+                fontFamily: BRUSH,
+                fontWeight: 400,
+                fontSize: "clamp(96px, 22vw, 360px)",
+                letterSpacing: "-0.01em",
               }}
               data-testid="hero-title"
             >
-              TMG
-              <br />
-              INSTALL
+              tmg
             </h1>
           </Reveal>
 
-          <Reveal delay={0.25} className="mt-6 sm:mt-10 text-center max-w-2xl">
-            <TinyLabel className="block">
-              Furniture, fitness, AV, kitchen — assembled, mounted, relocated.
-              <br className="hidden sm:block" />
-              Quoted upfront. Delivered same-day. Guaranteed.
-            </TinyLabel>
+          <Reveal delay={0.18}>
+            <div
+              className="text-center text-black mt-2 sm:mt-4"
+              style={{
+                fontFamily: "var(--font-body)",
+                fontWeight: 400,
+                fontSize: "clamp(14px, 1.6vw, 22px)",
+                letterSpacing: "0.5em",
+                paddingLeft: "0.5em",
+              }}
+              data-testid="hero-subtitle"
+            >
+              I N S T A L L E R S
+            </div>
           </Reveal>
+        </div>
 
-          <Reveal delay={0.4} className="mt-8 sm:mt-10 flex items-center gap-2">
-            <Link
-              href="/estimate"
-              data-testid="button-hero-cta"
-              onClick={() => trackEvent("paradiso_hero_cta")}
-              className="inline-flex items-center gap-2 px-5 py-3 text-xs font-bold tracking-[0.2em] uppercase text-black hover:opacity-90 transition-opacity"
-              style={{ background: ACCENT }}
-            >
-              Get an instant quote
-              <span aria-hidden="true">→</span>
-            </Link>
-            <a
-              href="https://wa.me/6580880757"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="button-hero-whatsapp"
-              className="inline-flex items-center gap-2 px-5 py-3 text-xs font-bold tracking-[0.2em] uppercase text-white bg-black hover:bg-neutral-800 transition-colors"
-            >
-              WhatsApp us
-            </a>
-          </Reveal>
+        {/* BOTTOM TYPOGRAPHIC BLEED — huge faded display line */}
+        <div
+          aria-hidden="true"
+          className="absolute left-0 right-0 bottom-0 pointer-events-none select-none overflow-hidden"
+        >
+          <div
+            className="whitespace-nowrap text-center"
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontWeight: 700,
+              fontSize: "clamp(56px, 12vw, 200px)",
+              lineHeight: 0.9,
+              letterSpacing: "-0.02em",
+              color: "rgba(0,0,0,0.06)",
+              textTransform: "uppercase",
+              transform: "translateY(28%)",
+            }}
+          >
+            Before the delivery, before the…
+          </div>
         </div>
       </section>
 
