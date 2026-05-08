@@ -214,7 +214,7 @@ function Marquee() {
     <section
       aria-label="What we install"
       className="relative overflow-hidden border-y"
-      style={{ background: "rgba(250,250,247,0.86)", borderColor: LINE }}
+      style={{ background: PAPER, borderColor: LINE }}
       data-testid="section-marquee"
     >
       <div className="flex gap-12 py-4 md:py-6 whitespace-nowrap animate-tmg-marquee">
@@ -318,7 +318,7 @@ function Hero() {
   return (
     <section
       className="relative min-h-[100svh] w-full overflow-hidden"
-      style={{ background: "rgba(250,250,247,0.86)", color: INK }}
+      style={{ background: PAPER, color: INK }}
       data-testid="section-hero"
     >
       <DotGrid opacity={0.55} />
@@ -465,7 +465,7 @@ function Hero() {
             onClick={() => trackEvent("cta_call_hero", "/")}
             data-testid="hero-cta-call"
             className="flex items-center justify-center gap-2 px-3 py-3 text-[11px] tracking-[0.2em] uppercase font-bold transition-transform duration-200 hover:-translate-y-[1px] border-2"
-            style={{ background: "rgba(250,250,247,0.86)", color: INK, borderColor: INK }}
+            style={{ background: PAPER, color: INK, borderColor: INK }}
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.37 1.9.72 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0122 16.92z"/>
@@ -826,7 +826,7 @@ function Scene3D() {
       ref={sectionRef}
       id="scene-3d"
       className="relative py-16 md:py-28"
-      style={{ background: "rgba(250,250,247,0.86)", color: INK }}
+      style={{ background: PAPER, color: INK }}
       data-testid="section-scene-3d"
     >
       <DotGrid opacity={0.4} />
@@ -1009,14 +1009,17 @@ function PageBackgroundSequence() {
     };
   }, []);
 
-  // Size the canvas to viewport (DPR-aware)
+  // Size the canvas to viewport. Render at DPR=1 (huge perf win on retina —
+  // cuts pixels-to-paint by 4× with no visible quality loss for a soft
+  // background image).
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
+    let lastIdx = -1;
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      cv.width = Math.round(window.innerWidth * dpr);
-      cv.height = Math.round(window.innerHeight * dpr);
+      cv.width = Math.round(window.innerWidth);
+      cv.height = Math.round(window.innerHeight);
+      lastIdx = -1; // force redraw after resize
       drawAt(currentP());
     };
     const currentP = () => {
@@ -1024,11 +1027,14 @@ function PageBackgroundSequence() {
       return max > 0 ? Math.max(0, Math.min(1, window.scrollY / max)) : 0;
     };
     const drawAt = (p: number) => {
-      const ctx = cv.getContext("2d");
+      const ctx = cv.getContext("2d", { alpha: false });
       if (!ctx) return;
       const idx = reduce
         ? SEQ_COUNT - 1
         : Math.max(0, Math.min(SEQ_COUNT - 1, Math.round(p * (SEQ_COUNT - 1))));
+      // Skip redraw when frame index hasn't actually changed — most scroll
+      // ticks land on the same frame; this avoids needless drawImage calls.
+      if (idx === lastIdx) return;
       const img = imagesRef.current[idx];
       if (!img || !img.complete || img.naturalWidth === 0) return;
       const cw = cv.width;
@@ -1036,7 +1042,6 @@ function PageBackgroundSequence() {
       const ir = img.naturalWidth / img.naturalHeight;
       const cr = cw / ch;
       let dw, dh, dx, dy;
-      // contain-fit so the whole desk is visible
       if (ir > cr) {
         dw = cw;
         dh = cw / ir;
@@ -1049,20 +1054,24 @@ function PageBackgroundSequence() {
       ctx.fillStyle = "#f1efe7";
       ctx.fillRect(0, 0, cw, ch);
       ctx.drawImage(img, dx, dy, dw, dh);
+      lastIdx = idx;
     };
 
     resize();
     let raf = 0;
     const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => drawAt(currentP()));
+      if (raf) return; // coalesce scroll bursts into one rAF
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        drawAt(currentP());
+      });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", resize);
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", resize);
-      cancelAnimationFrame(raf);
+      if (raf) cancelAnimationFrame(raf);
     };
   }, [ready, reduce]);
 
@@ -1071,7 +1080,7 @@ function PageBackgroundSequence() {
       <div
         aria-hidden
         className="fixed inset-0 z-0 pointer-events-none"
-        style={{ background: "#f1efe7" }}
+        style={{ background: "#f1efe7", willChange: "transform", transform: "translateZ(0)" }}
       >
         <canvas ref={canvasRef} className="w-full h-full block" />
       </div>
@@ -1204,7 +1213,7 @@ function InstallSequence() {
       ref={sectionRef}
       id="install-sequence"
       className="relative h-[220vh] md:h-[280vh]"
-      style={{ background: "rgba(250,250,247,0.86)", color: INK }}
+      style={{ background: PAPER, color: INK }}
       data-testid="section-install-sequence"
     >
       <div className="sticky top-0 h-screen w-full overflow-hidden">
@@ -1335,7 +1344,7 @@ function AssemblyScroll() {
       ref={sectionRef}
       id="assembly-scroll"
       className="relative md:h-[320vh]"
-      style={{ background: "rgba(250,250,247,0.86)", color: INK }}
+      style={{ background: PAPER, color: INK }}
       data-testid="section-assembly"
     >
       {/* Section opener strip */}
@@ -1523,7 +1532,7 @@ function Services() {
     <section
       id="services"
       className="relative py-28 md:py-40 px-6 md:px-10 lg:px-14"
-      style={{ background: "rgba(250,250,247,0.86)", color: INK, borderTop: `1px solid ${LINE}` }}
+      style={{ background: PAPER, color: INK, borderTop: `1px solid ${LINE}` }}
       data-testid="section-services"
     >
       <DotGrid opacity={0.35} />
@@ -1602,7 +1611,7 @@ function WhyTMG() {
     <section
       id="why"
       className="relative py-28 md:py-40 px-6 md:px-10 lg:px-14"
-      style={{ background: "rgba(250,250,247,0.86)", color: INK, borderTop: `1px solid ${LINE}` }}
+      style={{ background: PAPER, color: INK, borderTop: `1px solid ${LINE}` }}
       data-testid="section-why"
     >
       <DotGrid opacity={0.35} />
@@ -1668,7 +1677,7 @@ function IndexStrip() {
   return (
     <section
       className="relative py-20 md:py-32 px-6 md:px-10 lg:px-14 overflow-hidden"
-      style={{ background: "rgba(250,250,247,0.86)", color: INK, borderTop: `1px solid ${LINE}` }}
+      style={{ background: PAPER, color: INK, borderTop: `1px solid ${LINE}` }}
       data-testid="section-index"
     >
       <DotGrid opacity={0.32} />
@@ -1817,7 +1826,7 @@ function BusinessSection() {
     <section
       id="business"
       className="relative py-28 md:py-40 px-6 md:px-10 lg:px-14 overflow-hidden"
-      style={{ background: "rgba(250,250,247,0.86)", color: INK }}
+      style={{ background: PAPER, color: INK }}
       data-testid="section-business"
     >
       <DotGrid opacity={0.35} />
@@ -2086,6 +2095,14 @@ export default function LandingCinematic() {
       <ScrollProgress />
       <Hero />
       <Marquee />
+      {/* Reveal gap — transparent section that lets the desk background
+          assembly show through clearly. Sits between Marquee and the chapter
+          story. Tall enough to be the "feature moment" for the desk. */}
+      <section
+        aria-hidden
+        className="relative h-[90vh] md:h-[110vh] pointer-events-none"
+        data-testid="section-desk-reveal"
+      />
       <AssemblyScroll />
       <Services />
       <WhyTMG />
