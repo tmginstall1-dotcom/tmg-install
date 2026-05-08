@@ -13,7 +13,8 @@ import { StaffBottomNav } from "@/components/layout/StaffBottomNav";
 import { AdminBottomNav } from "@/components/layout/AdminBottomNav";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
-import Landing from "@/pages/customer/Landing";
+import Landing from "@/pages/customer/LandingCinematic";
+const LandingClassic = lazy(() => import("@/pages/customer/Landing"));
 
 const QuoteStatus = lazy(() => import("@/pages/customer/QuoteStatus"));
 const StatusRedirect = lazy(() => import("@/pages/customer/StatusRedirect"));
@@ -130,6 +131,7 @@ function Router() {
       <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/" component={Landing} />
+          <Route path="/legacy-home" component={LandingClassic} />
           <Route path="/estimate" component={EstimateWizard} />
           <Route path="/quotes/:id" component={QuoteStatus} />
           <Route path="/status/:refNo" component={StatusRedirect} />

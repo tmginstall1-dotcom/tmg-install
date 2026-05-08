@@ -40,6 +40,7 @@ export function Navbar() {
   }, [profileOpen]);
 
   if (location === "/admin/login" || location === "/staff/login") return null;
+  if (location === "/") return null;
 
   const isAdminArea = location.startsWith("/admin");
   const isStaffArea = location.startsWith("/staff");
