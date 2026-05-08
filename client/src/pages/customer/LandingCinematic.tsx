@@ -5,118 +5,76 @@ import {
   useTransform,
   useSpring,
   useReducedMotion,
-  useMotionValueEvent,
-  useVelocity,
   AnimatePresence,
 } from "framer-motion";
-import { useState, useEffect, useRef, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Check, Star, MessageCircle, MapPin } from "lucide-react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  MessageCircle,
+  Camera,
+  Building2,
+  Home,
+  HeadphonesIcon,
+  ShieldCheck,
+  Wrench,
+  Hammer,
+  PackageOpen,
+  Sofa,
+  RefreshCw,
+} from "lucide-react";
 import { useSEO } from "@/hooks/use-seo";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
 
-const WHATSAPP =
-  "https://wa.me/6580880757?text=Hi%2C+I%27d+like+a+furniture+installation+quote";
+/* ──────────────────────────────────────────────────────────────────
+   TMG INSTALL — CINEMATIC HOMEPAGE
+   Scope: redesign of "/" only. No backend, schema, or portal changes.
+   Existing CTAs preserved: /estimate (quote) and the WhatsApp link.
+   ────────────────────────────────────────────────────────────────── */
 
-const HERO_IMG_1600 = "/images/hero/exploded-wardrobe-1600.webp";
-const HERO_IMG_800 = "/images/hero/exploded-wardrobe-800.webp";
+const WHATSAPP =
+  "https://wa.me/6580880757?text=Hi%20TMG%20Install%2C%20I%20would%20like%20to%20get%20a%20quote%20for%20furniture%20installation%20or%20relocation.";
+
+const HERO_FALLBACK_1600 = "/images/hero/exploded-wardrobe-1600.webp";
+const HERO_FALLBACK_800 = "/images/hero/exploded-wardrobe-800.webp";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-const SERVICES = [
-  { label: "Wardrobe Installation", price: "from $120", slug: "/services/wardrobe-installation-singapore" },
-  { label: "Bed Frame Assembly", price: "from $80", slug: "/services/bed-frame-installation-singapore" },
-  { label: "IKEA Flatpack", price: "from $60", slug: "/services/ikea-assembly-singapore" },
-  { label: "Office Fit-Out", price: "from $45/station", slug: "/services/office-fit-out-singapore" },
-  { label: "Sofa & Lounge Relocation", price: "from $60", slug: "/services/furniture-relocation-singapore" },
-  { label: "Gym Equipment", price: "from $80", slug: "/services/gym-equipment-assembly-singapore" },
-];
+/* Lazy-loaded 3D scene — kept out of the initial JS payload */
+const ThreeFurnitureScene = lazy(() => import("@/components/home/ThreeFurnitureScene"));
 
-const PRICING = [
-  { item: "IKEA Hemnes Wardrobe (3-door)", install: 120, dismantle: 90 },
-  { item: "Queen Bed Frame", install: 80, dismantle: 60 },
-  { item: "2-Seater Sofa", install: 60, dismantle: 45 },
-  { item: "Treadmill", install: 80, dismantle: 60 },
-  { item: "Roller Blind (per window)", install: 50, dismantle: 30 },
-  { item: "L-Shaped Executive Desk", install: 100, dismantle: 80 },
-];
-
-const STORY_STEPS = [
-  {
-    kicker: "01 — Quote",
-    title: "An itemised price in under 60 seconds.",
-    body: "Pick from a 250+ item catalog. Every line shows install, dismantle, and bundle pricing. No callbacks, no surprise add-ons at the door.",
-  },
-  {
-    kicker: "02 — Schedule",
-    title: "Same-week. Seven days a week.",
-    body: "Including public holidays. Pick a two-hour window. We confirm by WhatsApp the night before and arrive on time.",
-  },
-  {
-    kicker: "03 — Execution",
-    title: "Trained installers. The right tool, every time.",
-    body: "Every crew arrives with the standard kit — torque drivers, levels, hex sets, dust sheets, and the experience to use them properly.",
-  },
-  {
-    kicker: "04 — Handover",
-    title: "Boxes cleared. Floors swept. Photos sent.",
-    body: "We inspect every fitting, take handover photos, clear the packaging, and leave the room ready to live in.",
-  },
-];
-
-const FALLBACK_TESTIMONIALS = [
-  {
-    name: "Darren L.",
-    loc: "Tampines",
-    job: "Wardrobe Installation",
-    text: "Booked for wardrobe installation and they were done in under two hours. Very professional, no mess left behind. Price was exactly as quoted — will use again for my second unit.",
-  },
-  {
-    name: "Mei Ling T.",
-    loc: "Bishan",
-    job: "IKEA PAX Assembly",
-    text: "Got a quote on WhatsApp in minutes. Team arrived on time and assembled our IKEA PAX wardrobe perfectly. No hidden charges — completely transparent from start to finish.",
-  },
-  {
-    name: "Ravi K.",
-    loc: "Raffles Place",
-    job: "20-Station Office Fit-Out",
-    text: "Used TMG for a full office fit-out — 20 workstations, overhead cabinets, boardroom table. Efficient team, competitive pricing, and they cleaned up thoroughly afterwards.",
-  },
-];
-
-const WORK = [
-  { src: "/images/work/wardrobe-oak-800.webp", label: "Oak wardrobe — Bukit Timah" },
-  { src: "/images/work/bed-completed-800.webp", label: "Master bedroom — Bishan" },
-  { src: "/images/work/office-fitout-800.webp", label: "20-station office — CBD" },
-  { src: "/images/work/phone-booth-completed-800.webp", label: "Phone booth — Raffles Place" },
-  { src: "/images/work/wardrobe-white-800.webp", label: "Built-in wardrobe — Tampines" },
-  { src: "/images/work/conference-table-800.webp", label: "Boardroom table — One-North" },
-  { src: "/images/work/office-pod-800.webp", label: "Office privacy pod — Tanjong Pagar" },
-  { src: "/images/work/bed-assembly-800.webp", label: "Queen frame assembly — Bedok" },
-];
-
-/* ------------------------------ Helpers ------------------------------ */
-
-function useCountUp(target: number, trigger: boolean, duration = 1400) {
-  const [val, setVal] = useState(0);
-  useEffect(() => {
-    if (!trigger) return;
-    let start: number | null = null;
-    let raf = 0;
-    const tick = (t: number) => {
-      if (start === null) start = t;
-      const p = Math.min(1, (t - start) / duration);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setVal(Math.round(target * eased));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, trigger, duration]);
-  return val;
+/* WebGL availability detection (cached) */
+let cachedWebGL: boolean | null = null;
+function hasWebGL(): boolean {
+  if (cachedWebGL !== null) return cachedWebGL;
+  if (typeof window === "undefined") return false;
+  try {
+    const c = document.createElement("canvas");
+    cachedWebGL = !!(window.WebGLRenderingContext &&
+      (c.getContext("webgl2") || c.getContext("webgl") || c.getContext("experimental-webgl")));
+  } catch {
+    cachedWebGL = false;
+  }
+  return cachedWebGL;
 }
+
+/* Mobile detection (matchMedia, SSR-safe) */
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 768px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
+
+/* ─────────────────────── Magnetic CTA button ─────────────────────── */
 
 function MagneticButton({
   href,
@@ -128,7 +86,7 @@ function MagneticButton({
 }: {
   href: string;
   children: React.ReactNode;
-  variant?: "primary" | "ghost" | "outline";
+  variant?: "primary" | "ghost" | "outline" | "dark";
   testid?: string;
   external?: boolean;
   onClick?: () => void;
@@ -136,34 +94,16 @@ function MagneticButton({
   const ref = useRef<HTMLAnchorElement>(null);
   const reduce = useReducedMotion();
   const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [, setLocation] = useLocation();
 
   function onMove(e: React.MouseEvent) {
     if (reduce || !ref.current) return;
     const r = ref.current.getBoundingClientRect();
     setPos({
-      x: (e.clientX - (r.left + r.width / 2)) * 0.25,
-      y: (e.clientY - (r.top + r.height / 2)) * 0.25,
+      x: (e.clientX - (r.left + r.width / 2)) * 0.22,
+      y: (e.clientY - (r.top + r.height / 2)) * 0.22,
     });
   }
-
-  const cls =
-    variant === "primary"
-      ? "bg-amber-500 text-stone-950 hover:bg-amber-400"
-      : variant === "outline"
-      ? "bg-transparent text-white border border-white/30 hover:border-white hover:bg-white/5"
-      : "bg-transparent text-white hover:bg-white/5";
-
-  const content = (
-    <motion.span
-      animate={{ x: pos.x, y: pos.y }}
-      transition={{ type: "spring", stiffness: 220, damping: 16, mass: 0.4 }}
-      className="inline-flex items-center gap-3"
-    >
-      {children}
-    </motion.span>
-  );
-
-  const [, setLocation] = useLocation();
 
   function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
     onClick?.();
@@ -172,6 +112,15 @@ function MagneticButton({
       setLocation(href);
     }
   }
+
+  const cls =
+    variant === "primary"
+      ? "bg-white text-stone-950 hover:bg-stone-100"
+      : variant === "dark"
+      ? "bg-stone-950 text-white hover:bg-stone-800"
+      : variant === "outline"
+      ? "bg-transparent text-white border border-white/30 hover:border-white hover:bg-white/5"
+      : "bg-transparent text-white hover:bg-white/5";
 
   return (
     <a
@@ -183,74 +132,133 @@ function MagneticButton({
       onMouseMove={onMove}
       onMouseLeave={() => setPos({ x: 0, y: 0 })}
       data-testid={testid}
-      className={`group inline-flex items-center justify-center px-8 py-4 text-[13px] font-medium tracking-[0.18em] uppercase rounded-full transition-colors duration-300 ${cls}`}
+      className={`group inline-flex items-center justify-center px-8 py-4 text-[12px] font-medium tracking-[0.18em] uppercase rounded-full transition-colors duration-300 ${cls}`}
     >
-      {content}
+      <motion.span
+        animate={{ x: pos.x, y: pos.y }}
+        transition={{ type: "spring", stiffness: 220, damping: 16, mass: 0.4 }}
+        className="inline-flex items-center gap-3"
+      >
+        {children}
+      </motion.span>
     </a>
   );
 }
 
-/* ------------------------------ Sections ------------------------------ */
+/* ─────────────────────── Hero with 3D scene ─────────────────────── */
 
-function Hero() {
-  const ref = useRef<HTMLElement>(null);
+function Hero3D() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const progressRef = useRef(0);
   const reduce = useReducedMotion();
+  const isMobile = useIsMobile();
+  const [showCanvas, setShowCanvas] = useState(false);
+
+  // Scroll-driven hero progress from start of page through 2 viewports
   const { scrollYProgress } = useScroll({
-    target: ref,
+    target: sectionRef,
     offset: ["start start", "end start"],
   });
-  const y = useTransform(scrollYProgress, [0, 1], ["0%", reduce ? "0%" : "30%"]);
-  const scale = useTransform(scrollYProgress, [0, 1], [1, reduce ? 1 : 1.08]);
-  const fade = useTransform(scrollYProgress, [0, 0.7], [1, 0.2]);
+
+  // Drive the 3D scene's progress ref via a one-way subscription
+  useEffect(() => {
+    const unsub = scrollYProgress.on("change", (v) => {
+      progressRef.current = reduce ? 1 : v;
+    });
+    return () => unsub();
+  }, [scrollYProgress, reduce]);
+
+  // Defer canvas mount until the page is interactive (helps LCP)
+  useEffect(() => {
+    if (!hasWebGL()) return;
+    const ric: any =
+      (window as any).requestIdleCallback ||
+      ((cb: any) => setTimeout(cb, 600));
+    const id = ric(() => setShowCanvas(true));
+    return () => {
+      const cic: any = (window as any).cancelIdleCallback;
+      if (cic && id) cic(id);
+    };
+  }, []);
+
+  const heroFade = useTransform(scrollYProgress, [0, 0.7], [1, 0.2]);
+  const heroLift = useTransform(scrollYProgress, [0, 1], ["0%", reduce ? "0%" : "-15%"]);
+
+  const showStaticFallback = !showCanvas || !hasWebGL();
 
   return (
     <section
-      ref={ref}
+      ref={sectionRef}
       className="relative min-h-[100vh] flex flex-col justify-end overflow-hidden bg-stone-950"
       data-testid="section-hero"
     >
-      {/* Backdrop image with parallax */}
-      <motion.div style={{ y, scale }} className="absolute inset-0 z-0">
-        <picture>
-          <source media="(min-width: 768px)" srcSet={HERO_IMG_1600} />
-          <img
-            src={HERO_IMG_800}
-            alt=""
-            aria-hidden="true"
-            // @ts-expect-error - lowercase variant for React 18
-            fetchpriority="high"
-            decoding="async"
-            className="w-full h-full object-cover opacity-90"
-          />
-        </picture>
+      {/* 3D canvas (or static image fallback) */}
+      <motion.div style={{ y: heroLift }} className="absolute inset-0 z-0">
+        {showStaticFallback ? (
+          <picture>
+            <source media="(min-width: 768px)" srcSet={HERO_FALLBACK_1600} />
+            <img
+              src={HERO_FALLBACK_800}
+              alt=""
+              aria-hidden="true"
+              // @ts-expect-error - lowercase variant for React 18
+              fetchpriority="high"
+              decoding="async"
+              className="w-full h-full object-cover opacity-80"
+            />
+          </picture>
+        ) : (
+          <Suspense
+            fallback={
+              <picture>
+                <source media="(min-width: 768px)" srcSet={HERO_FALLBACK_1600} />
+                <img src={HERO_FALLBACK_800} alt="" aria-hidden="true" className="w-full h-full object-cover opacity-80" />
+              </picture>
+            }
+          >
+            <ThreeFurnitureScene progressRef={progressRef} isMobile={isMobile} />
+          </Suspense>
+        )}
       </motion.div>
 
-      {/* Vignettes & glow */}
-      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-stone-950/60 via-stone-950/30 to-stone-950" />
-      <div className="absolute inset-0 z-[1] bg-[radial-gradient(ellipse_60%_70%_at_50%_55%,transparent,rgba(0,0,0,0.7))]" />
+      {/* Vignette + grid overlay */}
+      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-stone-950/40 via-stone-950/10 to-stone-950" />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 z-[1] opacity-[0.08] pointer-events-none"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)",
+          backgroundSize: "80px 80px",
+        }}
+      />
 
-      {/* Top nav bar */}
+      {/* Top nav */}
       <motion.nav
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease: EASE }}
         className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-6 lg:px-12 py-5"
       >
-        <Link href="/" className="font-serif text-xl tracking-[0.25em] uppercase text-white" data-testid="link-home">
+        <Link
+          href="/"
+          className="font-serif text-xl tracking-[0.25em] uppercase text-white"
+          data-testid="link-home"
+        >
           TMG Install
         </Link>
-        <div className="hidden md:flex items-center gap-8 text-[11px] tracking-[0.25em] uppercase text-white/70">
+        <div className="hidden md:flex items-center gap-8 text-[11px] tracking-[0.25em] uppercase text-white/60">
+          <a href="#story" className="hover:text-white transition" data-testid="nav-story">Process</a>
           <a href="#services" className="hover:text-white transition" data-testid="nav-services">Services</a>
-          <a href="#pricing" className="hover:text-white transition" data-testid="nav-pricing">Pricing</a>
-          <a href="#work" className="hover:text-white transition" data-testid="nav-work">Work</a>
-          <a href="#process" className="hover:text-white transition" data-testid="nav-process">Process</a>
+          <a href="#why" className="hover:text-white transition" data-testid="nav-why">Why TMG</a>
+          <a href="#business" className="hover:text-white transition" data-testid="nav-business">Business</a>
         </div>
         <a
           href={WHATSAPP}
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => trackEvent("cta_whatsapp_nav", "/")}
-          className="text-[11px] tracking-[0.25em] uppercase text-amber-400 border-b border-amber-400/60 hover:text-white hover:border-white pb-1 transition"
+          className="text-[11px] tracking-[0.25em] uppercase text-white border-b border-white/40 hover:border-white pb-1 transition"
           data-testid="nav-whatsapp"
         >
           WhatsApp
@@ -259,14 +267,14 @@ function Hero() {
 
       {/* Hero copy */}
       <motion.div
-        style={{ opacity: fade }}
+        style={{ opacity: heroFade }}
         className="relative z-20 px-6 lg:px-16 pb-24 md:pb-32 max-w-6xl"
       >
         <motion.p
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.2, ease: EASE }}
-          className="text-[11px] tracking-[0.4em] uppercase text-amber-400 mb-6"
+          className="text-[11px] tracking-[0.4em] uppercase text-white/55 mb-6"
         >
           The Moving Guy · Singapore
         </motion.p>
@@ -274,23 +282,25 @@ function Hero() {
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.1, delay: 0.3, ease: EASE }}
-          className="font-serif text-white text-[44px] leading-[1.05] sm:text-6xl md:text-7xl lg:text-[88px] tracking-[-0.02em] max-w-5xl"
+          className="font-serif text-white text-[42px] leading-[1.04] sm:text-6xl md:text-7xl lg:text-[88px] tracking-[-0.02em] max-w-5xl"
         >
-          Furniture installed
+          Furniture Installation,<br />
+          Dismantling & Relocation
           <br />
-          with the precision <span className="italic text-white/85">of a watchmaker.</span>
+          <span className="italic text-white/85">— Built Properly.</span>
         </motion.h1>
         <motion.p
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.55, ease: EASE }}
           className="mt-8 max-w-xl text-base md:text-lg text-stone-300 leading-relaxed"
         >
-          Wardrobes, beds, IKEA flatpack, office fit-outs and relocation across Singapore.
-          Transparent fixed prices from a 250+ item catalog. Quote in 60 seconds.
+          TMG Install helps homes, offices, landlords and businesses handle furniture
+          assembly, dismantling, relocation support and office setup with clear coordination
+          and professional workmanship.
         </motion.p>
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.75, ease: EASE }}
           className="mt-10 flex flex-wrap items-center gap-4"
@@ -300,7 +310,7 @@ function Hero() {
             testid="hero-cta-quote"
             onClick={() => trackEvent("cta_estimate_hero", "/")}
           >
-            Get a Quote <ArrowRight size={16} className="-mr-1" />
+            Get Instant Quote <ArrowRight size={16} className="-mr-1" />
           </MagneticButton>
           <MagneticButton
             href={WHATSAPP}
@@ -312,23 +322,6 @@ function Hero() {
             <MessageCircle size={16} /> WhatsApp Us
           </MagneticButton>
         </motion.div>
-
-        {/* Trust strip */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 1.1 }}
-          className="mt-14 flex flex-wrap items-center gap-x-10 gap-y-4 text-[11px] tracking-[0.2em] uppercase text-white/55"
-          data-testid="hero-trust-strip"
-        >
-          <span>250+ Catalog Items</span>
-          <span className="hidden sm:inline text-white/20">·</span>
-          <span>28 Districts</span>
-          <span className="hidden sm:inline text-white/20">·</span>
-          <span>7 Days · Inc. PH</span>
-          <span className="hidden md:inline text-white/20">·</span>
-          <span className="hidden md:inline">Same-Week Scheduling</span>
-        </motion.div>
       </motion.div>
 
       {/* Scroll cue */}
@@ -337,6 +330,7 @@ function Hero() {
         animate={{ opacity: 1 }}
         transition={{ delay: 1.6, duration: 0.8 }}
         className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 text-white/40 text-[10px] tracking-[0.4em] uppercase"
+        aria-hidden="true"
       >
         <motion.div
           animate={{ y: [0, 6, 0] }}
@@ -349,187 +343,89 @@ function Hero() {
   );
 }
 
-function ServicesMarquee() {
-  const { scrollY } = useScroll();
-  const velocity = useVelocity(scrollY);
-  const smooth = useSpring(velocity, { damping: 50, stiffness: 400 });
-  const factor = useTransform(smooth, [-2000, 0, 2000], [-2, 1, 4]);
-  const x = useRef(0);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLDivElement>(null);
-  const setWidth = useRef(0);
-  const reduce = useReducedMotion();
+/* ─────────────────────── 3D scroll story ─────────────────────── */
 
-  useEffect(() => {
-    function measure() {
-      if (measureRef.current) setWidth.current = measureRef.current.scrollWidth;
-    }
-    measure();
-    const t = window.setTimeout(measure, 300);
-    window.addEventListener("resize", measure);
-    return () => { window.clearTimeout(t); window.removeEventListener("resize", measure); };
-  }, []);
+const STORY_STEPS = [
+  {
+    no: "01",
+    title: "Describe the job",
+    body: "Send photos, item list and location. Brand-new flat-pack, an old wardrobe to dismantle, or a full office reset — give us the details and we work from there.",
+  },
+  {
+    no: "02",
+    title: "Get a clear estimate",
+    body: "We review the work before confirmation. You see what's covered, what isn't, and what it costs. No site visits unless the job needs one.",
+  },
+  {
+    no: "03",
+    title: "Install, dismantle or relocate",
+    body: "Our team arrives on schedule, completes the work properly, and clears the packaging. Photos sent on completion when applicable.",
+  },
+];
 
-  useMotionValueEvent(factor, "change", (f) => {
-    if (reduce || !trackRef.current) return;
-    x.current -= f * 0.6;
-    if (setWidth.current > 0) {
-      // Wrap so the marquee never runs out of content
-      while (x.current <= -setWidth.current) x.current += setWidth.current;
-      while (x.current > 0) x.current -= setWidth.current;
-    }
-    trackRef.current.style.transform = `translateX(${x.current}px)`;
-  });
-
-  const items = [
-    "Wardrobe Installation", "Bed Frame Assembly", "IKEA Flatpack",
-    "Office Fit-Out", "Furniture Dismantling", "Sofa Relocation",
-    "Gym Equipment", "Kitchen Cabinets", "Roller Blinds", "Mattress Carry-Up",
-    "MCST Compliant", "Same-Week Scheduling",
-  ];
-
-  return (
-    <section className="bg-stone-950 border-y border-white/5 py-8 overflow-hidden" aria-hidden="true">
-      <div ref={trackRef} className="flex gap-12 whitespace-nowrap will-change-transform">
-        <div ref={measureRef} className="flex gap-12 flex-shrink-0">
-          {items.map((it, i) => (
-            <span key={`a-${i}`} className="font-serif text-3xl md:text-4xl text-white/40 italic">
-              {it} <span className="not-italic text-amber-400/40 mx-3">·</span>
-            </span>
-          ))}
-        </div>
-        <div className="flex gap-12 flex-shrink-0" aria-hidden="true">
-          {items.map((it, i) => (
-            <span key={`b-${i}`} className="font-serif text-3xl md:text-4xl text-white/40 italic">
-              {it} <span className="not-italic text-amber-400/40 mx-3">·</span>
-            </span>
-          ))}
-        </div>
-        <div className="flex gap-12 flex-shrink-0" aria-hidden="true">
-          {items.map((it, i) => (
-            <span key={`c-${i}`} className="font-serif text-3xl md:text-4xl text-white/40 italic">
-              {it} <span className="not-italic text-amber-400/40 mx-3">·</span>
-            </span>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function StatItem({ v, suffix, label, inView, delay, idx }: { v: number; suffix: string; label: string; inView: boolean; delay: number; idx: number }) {
-  const value = useCountUp(v, inView, delay);
-  return (
-    <div data-testid={`stat-${idx}`}>
-      <div className="font-serif text-5xl md:text-6xl lg:text-7xl text-white tabular-nums">
-        {value}
-        <span className="text-amber-400">{suffix}</span>
-      </div>
-      <div className="mt-3 text-[11px] tracking-[0.2em] uppercase text-stone-400 max-w-[180px]">
-        {label}
-      </div>
-    </div>
-  );
-}
-
-function Stats() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [inView, setInView] = useState(false);
-  useEffect(() => {
-    if (!ref.current) return;
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && setInView(true), { threshold: 0.4 });
-    io.observe(ref.current);
-    return () => io.disconnect();
-  }, []);
-
-  const items = [
-    { v: 250, suffix: "+", label: "Catalog items, fixed prices" },
-    { v: 28, suffix: "", label: "Singapore districts covered" },
-    { v: 7, suffix: " days", label: "A week, including PH" },
-    { v: 60, suffix: "s", label: "From quote to confirmation" },
-  ];
-
-  return (
-    <section ref={ref} className="bg-stone-950 py-24 md:py-32 px-6 lg:px-16 border-b border-white/5" data-testid="section-stats">
-      <div className="mx-auto max-w-7xl grid grid-cols-2 md:grid-cols-4 gap-y-12 gap-x-8">
-        {items.map((it, i) => (
-          <StatItem key={i} idx={i} v={it.v} suffix={it.suffix} label={it.label} inView={inView} delay={1400 + i * 200} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function StickyStory() {
+function ScrollStory() {
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end end"],
   });
-  const stepCount = STORY_STEPS.length;
+
+  const total = STORY_STEPS.length;
   const [active, setActive] = useState(0);
-  useMotionValueEvent(scrollYProgress, "change", (p) => {
-    const i = Math.min(stepCount - 1, Math.max(0, Math.floor(p * stepCount)));
-    if (i !== active) setActive(i);
-  });
-  const imgY = useTransform(scrollYProgress, [0, 1], ["0%", "-12%"]);
+
+  useEffect(() => {
+    return scrollYProgress.on("change", (p) => {
+      const i = Math.min(total - 1, Math.max(0, Math.floor(p * total * 0.9999)));
+      setActive((prev) => (prev === i ? prev : i));
+    });
+  }, [scrollYProgress, total]);
 
   return (
     <section
       ref={ref}
-      id="process"
-      className="relative bg-stone-950 text-white"
-      style={{ height: `${stepCount * 100}vh` }}
-      data-testid="section-process"
+      id="story"
+      className="relative bg-white text-stone-950"
+      style={{ height: `${total * 100}vh` }}
+      data-testid="section-story"
     >
       <div className="sticky top-0 h-screen flex items-stretch overflow-hidden">
-        <div className="grid grid-cols-1 md:grid-cols-2 w-full h-full">
-          {/* Image side */}
-          <div className="relative overflow-hidden bg-stone-900 hidden md:block">
-            <motion.img
-              style={{ y: imgY }}
-              src="/images/hero/install-moment-1600.webp"
-              srcSet="/images/hero/install-moment-800.webp 800w, /images/hero/install-moment-1600.webp 1600w"
-              sizes="50vw"
-              alt="Installer mounting an oak wardrobe panel"
-              loading="lazy"
-              decoding="async"
-              className="absolute inset-0 w-full h-full object-cover scale-110"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-stone-950/40 via-transparent to-stone-950/30" />
-            <div className="absolute bottom-8 left-8 right-8 flex items-end justify-between">
-              <div className="flex gap-2">
-                {STORY_STEPS.map((_, i) => (
-                  <div
-                    key={i}
-                    className={`h-[2px] w-12 transition-colors duration-500 ${i <= active ? "bg-amber-400" : "bg-white/15"}`}
-                  />
-                ))}
-              </div>
-              <div className="text-[11px] tracking-[0.3em] uppercase text-white/50 tabular-nums">
-                {String(active + 1).padStart(2, "0")} / {String(stepCount).padStart(2, "0")}
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-12 w-full h-full">
+          {/* Left — title */}
+          <div className="md:col-span-5 lg:col-span-4 px-6 md:px-12 lg:px-16 py-20 md:py-0 flex flex-col justify-center border-b md:border-b-0 md:border-r border-stone-200">
+            <p className="text-[11px] tracking-[0.35em] uppercase text-stone-500 mb-6">The Process</p>
+            <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em]">
+              From flat-pack chaos<br />
+              <span className="italic text-stone-500">to finished setup.</span>
+            </h2>
+            <div className="mt-12 flex gap-2" aria-hidden="true">
+              {STORY_STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-[2px] w-12 transition-colors duration-500 ${i <= active ? "bg-stone-950" : "bg-stone-200"}`}
+                />
+              ))}
             </div>
           </div>
 
-          {/* Copy side */}
-          <div className="relative flex items-center px-6 md:px-16 lg:px-24 bg-stone-950">
+          {/* Right — active step */}
+          <div className="md:col-span-7 lg:col-span-8 px-6 md:px-12 lg:px-24 flex items-center bg-stone-50">
             <AnimatePresence mode="wait">
               <motion.div
                 key={active}
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -24 }}
-                transition={{ duration: 0.7, ease: EASE }}
+                transition={{ duration: 0.6, ease: EASE }}
                 className="max-w-xl"
+                data-testid={`story-step-${active}`}
               >
-                <p className="text-[11px] tracking-[0.35em] uppercase text-amber-400 mb-6">
-                  {STORY_STEPS[active].kicker}
-                </p>
-                <h3 className="font-serif text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em] mb-8">
+                <div className="font-serif text-stone-300 text-[120px] md:text-[200px] leading-none tracking-tight">
+                  {STORY_STEPS[active].no}
+                </div>
+                <h3 className="mt-2 font-serif text-3xl md:text-5xl leading-[1.05] tracking-[-0.02em]">
                   {STORY_STEPS[active].title}
                 </h3>
-                <p className="text-stone-300 text-base md:text-lg leading-relaxed max-w-md">
+                <p className="mt-6 text-stone-600 text-base md:text-lg leading-relaxed max-w-md">
                   {STORY_STEPS[active].body}
                 </p>
               </motion.div>
@@ -541,246 +437,244 @@ function StickyStory() {
   );
 }
 
-function PricingTable() {
-  return (
-    <section id="pricing" className="bg-stone-950 py-32 px-6 lg:px-16 border-t border-white/5" data-testid="section-pricing">
-      <div className="mx-auto max-w-6xl">
-        <div className="grid md:grid-cols-12 gap-12 items-end mb-16">
-          <div className="md:col-span-7">
-            <p className="text-[11px] tracking-[0.35em] uppercase text-amber-400 mb-4">No surprises</p>
-            <h2 className="font-serif text-white text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em]">
-              The price you see is the price you pay.
-            </h2>
-          </div>
-          <div className="md:col-span-5 md:text-right">
-            <p className="text-stone-400 leading-relaxed">
-              Every item in our 250+ catalog has a published install and dismantle price.
-              Bundle dismantle + reinstall — get 40% off automatically.
-            </p>
-          </div>
-        </div>
+/* ─────────────────────── Services grid ─────────────────────── */
 
-        <div className="border-t border-white/10">
-          {PRICING.map((row, i) => (
-            <motion.div
-              key={row.item}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-10%" }}
-              transition={{ duration: 0.6, delay: i * 0.05, ease: EASE }}
-              className="grid grid-cols-12 items-baseline border-b border-white/10 py-6 group"
-              data-testid={`pricing-row-${i}`}
-            >
-              <div className="col-span-7 md:col-span-7 text-white text-base md:text-lg group-hover:text-amber-400 transition-colors">
-                {row.item}
-              </div>
-              <div className="col-span-2 md:col-span-2 text-stone-400 text-sm tracking-wide">
-                <span className="hidden md:inline text-[10px] uppercase tracking-[0.25em] text-stone-500 mr-2">Dism.</span>
-                ${row.dismantle}
-              </div>
-              <div className="col-span-3 md:col-span-3 text-right">
-                <span className="font-serif text-2xl md:text-3xl text-white tabular-nums">${row.install}</span>
-                <span className="block text-[10px] uppercase tracking-[0.25em] text-stone-500 mt-1">Install</span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+const SERVICES = [
+  {
+    icon: Hammer,
+    title: "Furniture Installation",
+    body: "Wardrobes, beds, tables, cabinets, shelving. Flat-pack and pre-assembled.",
+  },
+  {
+    icon: PackageOpen,
+    title: "Furniture Dismantling",
+    body: "Old units broken down properly for disposal, storage or relocation.",
+  },
+  {
+    icon: Building2,
+    title: "Office Furniture Setup",
+    body: "Workstations, conference tables, storage, partitions. Coordinated rollouts.",
+  },
+  {
+    icon: Sofa,
+    title: "Relocation Support",
+    body: "Carry, dismantle and reinstall when moving between units, floors or sites.",
+  },
+  {
+    icon: Home,
+    title: "Wardrobe / Bed / Table Assembly",
+    body: "IKEA, Castlery, Taobao, Lazada, Shopee — any brand, properly assembled.",
+  },
+  {
+    icon: RefreshCw,
+    title: "Repair & Adjustment",
+    body: "Fixings tightened, doors realigned, parts replaced where needed.",
+  },
+];
 
-        <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-stone-400">
-          <span className="flex items-center gap-2"><Check size={14} className="text-amber-400" /> $60 mobilisation per appointment</span>
-          <span className="flex items-center gap-2"><Check size={14} className="text-amber-400" /> Relocation transport from $58</span>
-          <span className="flex items-center gap-2"><Check size={14} className="text-amber-400" /> 40% off dismantle + reinstall bundle</span>
-        </div>
-
-        <div className="mt-12">
-          <MagneticButton href="/estimate" testid="pricing-cta" onClick={() => trackEvent("cta_estimate_pricing", "/")}>
-            See Your Itemised Quote <ArrowRight size={16} />
-          </MagneticButton>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ServicesGrid() {
+function Services() {
   return (
     <section id="services" className="bg-stone-950 py-32 px-6 lg:px-16" data-testid="section-services">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-16 max-w-3xl">
-          <p className="text-[11px] tracking-[0.35em] uppercase text-amber-400 mb-4">What we do</p>
-          <h2 className="font-serif text-white text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em]">
-            Six core services. <span className="italic text-white/70">One standard.</span>
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-white/10">
-          {SERVICES.map((s, i) => (
-            <motion.a
-              key={s.label}
-              href={s.slug}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-10%" }}
-              transition={{ duration: 0.7, delay: i * 0.06, ease: EASE }}
-              className="group relative bg-stone-950 p-10 hover:bg-stone-900 transition-colors duration-500 min-h-[260px] flex flex-col justify-between"
-              data-testid={`service-${i}`}
-            >
-              <div className="text-[11px] tracking-[0.3em] uppercase text-stone-500">
-                {String(i + 1).padStart(2, "0")}
-              </div>
-              <div className="mt-12">
-                <h3 className="font-serif text-2xl md:text-3xl text-white mb-2 leading-tight">{s.label}</h3>
-                <div className="flex items-baseline justify-between mt-4">
-                  <p className="text-amber-400 text-sm tracking-[0.15em] uppercase">{s.price}</p>
-                  <ArrowRight size={18} className="text-stone-500 group-hover:text-amber-400 group-hover:translate-x-1 transition-all" />
-                </div>
-              </div>
-            </motion.a>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function WorkReel() {
-  const ref = useRef<HTMLDivElement>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
-  const reduce = useReducedMotion();
-  const [maxShift, setMaxShift] = useState(0);
-  useEffect(() => {
-    function measure() {
-      if (!trackRef.current) return;
-      const trackWidth = trackRef.current.scrollWidth;
-      const viewportWidth = window.innerWidth;
-      setMaxShift(-Math.max(0, trackWidth - viewportWidth + 32));
-    }
-    measure();
-    window.addEventListener("resize", measure);
-    const t = window.setTimeout(measure, 400);
-    return () => { window.removeEventListener("resize", measure); window.clearTimeout(t); };
-  }, []);
-  const x = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : maxShift]);
-
-  return (
-    <section
-      ref={ref}
-      id="work"
-      className="relative bg-stone-950 border-t border-white/5"
-      style={{ height: "300vh" }}
-      data-testid="section-work"
-    >
-      <div className="sticky top-0 h-screen flex flex-col justify-center overflow-hidden">
-        <div className="px-6 lg:px-16 mb-10">
-          <p className="text-[11px] tracking-[0.35em] uppercase text-amber-400 mb-4">Recent work</p>
-          <h2 className="font-serif text-white text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em] max-w-2xl">
-            Real jobs. Real homes. <span className="italic text-white/70">Real results.</span>
-          </h2>
-        </div>
-        <motion.div ref={trackRef} style={{ x }} className="flex gap-8 px-6 lg:px-16 will-change-transform">
-          {WORK.map((w, i) => (
-            <figure key={w.src} className="flex-shrink-0 w-[300px] md:w-[420px]" data-testid={`work-${i}`}>
-              <div className="relative aspect-[4/5] overflow-hidden bg-stone-900">
-                <img
-                  src={w.src}
-                  alt={w.label}
-                  loading="lazy"
-                  decoding="async"
-                  width={840}
-                  height={1050}
-                  className="w-full h-full object-cover transition-transform duration-1000 hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-transparent to-transparent opacity-70" />
-              </div>
-              <figcaption className="mt-4 flex items-center gap-2 text-sm text-stone-400">
-                <MapPin size={12} className="text-amber-400" /> {w.label}
-              </figcaption>
-            </figure>
-          ))}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-function Testimonials() {
-  const { data: apiTestimonials = [] } = useQuery<{ name: string; loc: string; stars: number; date: string; text: string }[]>({
-    queryKey: ["/api/public/testimonials"],
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const list = (apiTestimonials.length >= 3 ? apiTestimonials.slice(0, 3) : FALLBACK_TESTIMONIALS).map((t: any) => ({
-    name: t.name,
-    loc: t.loc || "Singapore",
-    job: t.job || (t.stars ? `${t.stars}-star review` : "Verified customer"),
-    text: t.text,
-  }));
-
-  return (
-    <section className="bg-stone-950 py-32 px-6 lg:px-16 border-t border-white/5" data-testid="section-testimonials">
-      <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
-        <motion.div
-          initial={{ opacity: 0, clipPath: "inset(0 0 100% 0)" }}
-          whileInView={{ opacity: 1, clipPath: "inset(0 0 0% 0)" }}
-          viewport={{ once: true, margin: "-15%" }}
-          transition={{ duration: 1.4, ease: EASE }}
-          className="lg:col-span-5 relative"
-        >
-          <div className="relative aspect-[3/4] overflow-hidden bg-stone-900 border border-white/5">
-            <motion.img
-              src="/images/hero/toolkit-flatlay-1600.webp"
-              srcSet="/images/hero/toolkit-flatlay-800.webp 800w, /images/hero/toolkit-flatlay-1600.webp 1600w"
-              sizes="(min-width: 1024px) 40vw, 90vw"
-              alt="The TMG installer toolkit"
-              loading="lazy"
-              decoding="async"
-              className="w-full h-full object-cover"
-              initial={{ scale: 1.15 }}
-              whileInView={{ scale: 1 }}
-              viewport={{ once: true, margin: "-15%" }}
-              transition={{ duration: 2, ease: EASE }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-transparent to-transparent opacity-60" />
-            <div className="absolute bottom-6 left-6 right-6">
-              <p className="text-[10px] tracking-[0.3em] uppercase text-amber-400 mb-2">The Standard Kit</p>
-              <p className="font-serif text-white text-2xl italic leading-tight">Every job. Every time.</p>
-            </div>
+        <div className="grid md:grid-cols-12 gap-12 mb-20">
+          <div className="md:col-span-7">
+            <p className="text-[11px] tracking-[0.35em] uppercase text-white/55 mb-4">What we do</p>
+            <h2 className="font-serif text-white text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em]">
+              Six core services. <span className="italic text-white/65">One standard.</span>
+            </h2>
           </div>
-        </motion.div>
+          <div className="md:col-span-5 md:pt-10 text-stone-400 text-base leading-relaxed">
+            Every job — from a single bed frame to a 40-station office — runs through the
+            same coordination process. Clear quote, scheduled crew, photo handover.
+          </div>
+        </div>
 
-        <div className="lg:col-span-7 lg:pl-8">
-          <p className="text-[11px] tracking-[0.35em] uppercase text-amber-400 mb-6">From the customers</p>
-          <h2 className="font-serif text-white text-4xl md:text-5xl leading-[1.05] tracking-[-0.02em] mb-16 max-w-xl">
-            What it sounds like <span className="italic text-white/70">when the job is done right.</span>
-          </h2>
-          <div className="space-y-12">
-            {list.map((t, i) => (
-              <motion.figure
-                key={i}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-white/10">
+          {SERVICES.map((s, i) => {
+            const Icon = s.icon;
+            return (
+              <motion.div
+                key={s.title}
                 initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-10%" }}
-                transition={{ duration: 0.9, delay: i * 0.12, ease: EASE }}
-                className="border-t border-white/10 pt-8"
-                data-testid={`testimonial-${i}`}
+                transition={{ duration: 0.7, delay: i * 0.06, ease: EASE }}
+                className="group relative bg-stone-950 p-10 hover:bg-stone-900 transition-colors duration-500 min-h-[280px] flex flex-col justify-between"
+                data-testid={`service-${i}`}
               >
-                <div className="flex gap-1 mb-4">
-                  {[0,1,2,3,4].map(s => (
-                    <Star key={s} size={12} className="fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-                <blockquote className="font-serif text-white text-xl md:text-2xl leading-relaxed mb-6">
-                  &ldquo;{t.text}&rdquo;
-                </blockquote>
-                <figcaption className="flex items-baseline justify-between gap-4 flex-wrap">
-                  <div>
-                    <div className="text-white text-sm">{t.name}</div>
-                    <div className="text-stone-500 text-[11px] uppercase tracking-[0.25em] mt-1">{t.loc}</div>
+                <div className="flex items-start justify-between">
+                  <div className="text-[11px] tracking-[0.3em] uppercase text-stone-500">
+                    {String(i + 1).padStart(2, "0")}
                   </div>
-                  <div className="text-amber-400 text-[10px] uppercase tracking-[0.3em]">{t.job}</div>
-                </figcaption>
-              </motion.figure>
-            ))}
+                  <Icon size={22} className="text-white/50 group-hover:text-white transition-colors" />
+                </div>
+                <div className="mt-12">
+                  <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 leading-tight">
+                    {s.title}
+                  </h3>
+                  <p className="text-stone-400 text-sm leading-relaxed mb-6">{s.body}</p>
+                  <Link
+                    href="/estimate"
+                    className="inline-flex items-center gap-2 text-[11px] tracking-[0.25em] uppercase text-white border-b border-white/30 pb-1 hover:border-white transition w-fit"
+                    data-testid={`service-cta-${i}`}
+                    onClick={() => trackEvent("cta_estimate_service", "/", s.title)}
+                  >
+                    Get Quote <ArrowUpRight size={14} />
+                  </Link>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────── Why TMG ─────────────────────── */
+
+const WHY = [
+  { icon: Check, label: "Clear quote before work" },
+  { icon: Camera, label: "Photo-based assessment" },
+  { icon: Home, label: "Suitable for homes and offices" },
+  { icon: ShieldCheck, label: "Professional coordination" },
+  { icon: HeadphonesIcon, label: "WhatsApp support" },
+  { icon: Wrench, label: "Deposit-secured booking flow" },
+  { icon: Camera, label: "Completion photos where applicable" },
+];
+
+function WhyTMG() {
+  return (
+    <section id="why" className="bg-white text-stone-950 py-32 px-6 lg:px-16 border-t border-stone-200" data-testid="section-why">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid md:grid-cols-12 gap-16 items-end mb-20">
+          <div className="md:col-span-7">
+            <p className="text-[11px] tracking-[0.35em] uppercase text-stone-500 mb-4">Why TMG Install</p>
+            <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em]">
+              The standard <span className="italic text-stone-500">we hold ourselves to.</span>
+            </h2>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-stone-200">
+          {WHY.map((w, i) => {
+            const Icon = w.icon;
+            return (
+              <motion.div
+                key={w.label}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-10%" }}
+                transition={{ duration: 0.6, delay: i * 0.05, ease: EASE }}
+                className="bg-white p-8 md:p-10 flex items-start gap-5"
+                data-testid={`why-${i}`}
+              >
+                <div className="flex-shrink-0 w-10 h-10 rounded-full border border-stone-300 flex items-center justify-center">
+                  <Icon size={16} className="text-stone-950" />
+                </div>
+                <div>
+                  <div className="text-[10px] tracking-[0.3em] uppercase text-stone-400 mb-2">
+                    {String(i + 1).padStart(2, "0")}
+                  </div>
+                  <p className="text-stone-950 text-lg font-serif leading-snug">{w.label}</p>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────── Process (5 steps) ─────────────────────── */
+
+const PROCESS = [
+  { step: "Step 1", title: "Send job details", body: "Photos, item list, location. WhatsApp or web form." },
+  { step: "Step 2", title: "Receive estimate", body: "Reviewed by our team. Itemised pricing where possible." },
+  { step: "Step 3", title: "Confirm booking", body: "Deposit secures your slot. Schedule confirmed by WhatsApp." },
+  { step: "Step 4", title: "Team completes the work", body: "Trained crew, the right tools, packaging cleared." },
+  { step: "Step 5", title: "Final payment after completion", body: "If applicable. Handover photos sent on request." },
+];
+
+function Process() {
+  return (
+    <section className="bg-stone-950 text-white py-32 px-6 lg:px-16 border-t border-white/5" data-testid="section-process">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-20 max-w-3xl">
+          <p className="text-[11px] tracking-[0.35em] uppercase text-white/55 mb-4">A cleaner way to book</p>
+          <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em]">
+            A cleaner way to book <span className="italic text-white/65">furniture work.</span>
+          </h2>
+        </div>
+        <ol className="border-t border-white/10">
+          {PROCESS.map((p, i) => (
+            <motion.li
+              key={p.step}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-10%" }}
+              transition={{ duration: 0.7, delay: i * 0.08, ease: EASE }}
+              className="grid grid-cols-12 items-baseline gap-4 border-b border-white/10 py-8 group hover:bg-white/[0.02] transition-colors px-2"
+              data-testid={`process-${i}`}
+            >
+              <div className="col-span-2 text-[11px] tracking-[0.3em] uppercase text-white/45">{p.step}</div>
+              <div className="col-span-7 md:col-span-6 font-serif text-2xl md:text-3xl text-white group-hover:text-white">
+                {p.title}
+              </div>
+              <div className="col-span-3 md:col-span-4 text-stone-400 text-sm md:text-base leading-relaxed">
+                {p.body}
+              </div>
+            </motion.li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────── Business customers ─────────────────────── */
+
+function BusinessSection() {
+  return (
+    <section id="business" className="relative bg-white text-stone-950 py-32 px-6 lg:px-16 overflow-hidden border-t border-stone-200" data-testid="section-business">
+      <div className="mx-auto max-w-7xl grid md:grid-cols-12 gap-16 items-center">
+        <div className="md:col-span-7">
+          <p className="text-[11px] tracking-[0.35em] uppercase text-stone-500 mb-4">For Business</p>
+          <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em] mb-8">
+            For offices, landlords <span className="italic text-stone-500">and co-living operators.</span>
+          </h2>
+          <p className="text-stone-600 text-base md:text-lg leading-relaxed max-w-xl mb-10">
+            Need repeated installations, office desk setup, room turnover, bed frames,
+            wardrobes or workstation assembly? TMG Install supports recurring furniture
+            work with structured coordination.
+          </p>
+          <MagneticButton
+            href={WHATSAPP}
+            external
+            variant="dark"
+            testid="business-cta"
+            onClick={() => trackEvent("cta_business_quote", "/")}
+          >
+            Request Business Quote <ArrowRight size={16} />
+          </MagneticButton>
+        </div>
+        <div className="md:col-span-5">
+          <div className="aspect-[4/5] relative bg-stone-100 overflow-hidden border border-stone-200">
+            <img
+              src="/images/work/office-fitout-1600.webp"
+              srcSet="/images/work/office-fitout-800.webp 800w, /images/work/office-fitout-1600.webp 1600w"
+              sizes="(min-width: 1024px) 36vw, 90vw"
+              alt="A 20-station office fit-out completed by TMG Install"
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute bottom-6 left-6 right-6 text-white">
+              <div className="text-[10px] tracking-[0.3em] uppercase text-white/80 mb-1">Recent work</div>
+              <div className="font-serif text-2xl">20-station office · CBD</div>
+            </div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none" />
           </div>
         </div>
       </div>
@@ -788,53 +682,46 @@ function Testimonials() {
   );
 }
 
-function Coverage() {
+/* ─────────────────────── Final CTA ─────────────────────── */
+
+function FinalCTA() {
   return (
-    <section className="relative bg-stone-950 py-32 px-6 lg:px-16 overflow-hidden border-t border-white/5">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        whileInView={{ opacity: 1, scale: 1 }}
-        viewport={{ once: true, margin: "-10%" }}
-        transition={{ duration: 1.5, ease: EASE }}
-        className="absolute inset-0 z-0"
-      >
-        <img
-          src="/images/hero/hdb-isometric-1600.webp"
-          srcSet="/images/hero/hdb-isometric-800.webp 800w, /images/hero/hdb-isometric-1600.webp 1600w"
-          sizes="100vw"
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          decoding="async"
-          className="w-full h-full object-cover opacity-30"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/70 to-stone-950/40" />
-      </motion.div>
-      <div className="relative z-10 mx-auto max-w-3xl text-center">
-        <p className="text-[11px] tracking-[0.35em] uppercase text-amber-400 mb-4">Island-wide</p>
-        <h2 className="font-serif text-white text-4xl md:text-6xl leading-[1.05] tracking-[-0.02em] mb-6">
-          Every district. <span className="italic text-white/70">Every property type.</span>
+    <section className="relative bg-stone-950 text-white py-32 px-6 lg:px-16 overflow-hidden" data-testid="section-closing">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 opacity-[0.06]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
+          backgroundSize: "60px 60px",
+        }}
+      />
+      <div className="relative z-10 mx-auto max-w-5xl text-center">
+        <p className="text-[11px] tracking-[0.4em] uppercase text-white/50 mb-6">Ready when you are</p>
+        <h2 className="font-serif text-white text-4xl md:text-6xl lg:text-[80px] leading-[1.05] tracking-[-0.02em] mb-8">
+          Need furniture installed,<br />
+          <span className="italic text-white/80">dismantled or moved?</span>
         </h2>
-        <p className="text-stone-300 text-base md:text-lg max-w-xl mx-auto leading-relaxed mb-10">
-          HDBs, condominiums, landed properties, commercial spaces. Same-week scheduling.
-          MCST-compliant teams.
+        <p className="text-stone-300 text-base md:text-lg max-w-2xl mx-auto leading-relaxed mb-12">
+          Send us photos, item list and location. We will help estimate the work clearly
+          before confirmation.
         </p>
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-4">
           <MagneticButton
             href="/estimate"
-            testid="coverage-cta"
-            onClick={() => trackEvent("cta_estimate_coverage", "/")}
+            testid="closing-cta-quote"
+            onClick={() => trackEvent("cta_estimate_closing", "/")}
           >
-            Check Availability <ArrowRight size={16} />
+            Get Instant Quote <ArrowRight size={16} />
           </MagneticButton>
           <MagneticButton
             href={WHATSAPP}
             external
             variant="outline"
-            testid="coverage-whatsapp"
-            onClick={() => trackEvent("cta_whatsapp_coverage", "/")}
+            testid="closing-cta-whatsapp"
+            onClick={() => trackEvent("cta_whatsapp_closing", "/")}
           >
-            <MessageCircle size={16} /> Ask on WhatsApp
+            <MessageCircle size={16} /> WhatsApp Us
           </MagneticButton>
         </div>
       </div>
@@ -842,81 +729,48 @@ function Coverage() {
   );
 }
 
-function ClosingCTA() {
-  return (
-    <section className="relative bg-amber-500 text-stone-950 py-32 px-6 lg:px-16 overflow-hidden" data-testid="section-closing">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_50%,rgba(0,0,0,0.15),transparent_60%)]" />
-      <div className="relative z-10 mx-auto max-w-5xl text-center">
-        <p className="text-[11px] tracking-[0.4em] uppercase text-stone-950/60 mb-6">Ready when you are</p>
-        <h2 className="font-serif text-stone-950 text-5xl md:text-7xl lg:text-[88px] leading-[1] tracking-[-0.02em] mb-10">
-          Get an itemised quote <br className="hidden md:block" />
-          <span className="italic">in 60 seconds.</span>
-        </h2>
-        <div className="flex flex-wrap items-center justify-center gap-4">
-          <Link
-            href="/estimate"
-            className="inline-flex items-center gap-3 bg-stone-950 text-white px-10 py-5 rounded-full text-[13px] tracking-[0.2em] uppercase font-medium hover:bg-stone-900 transition-colors"
-            data-testid="closing-cta-quote"
-            onClick={() => trackEvent("cta_estimate_closing", "/")}
-          >
-            Get a Quote <ArrowRight size={16} />
-          </Link>
-          <a
-            href={WHATSAPP}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => trackEvent("cta_whatsapp_closing", "/")}
-            className="inline-flex items-center gap-3 bg-stone-950/10 text-stone-950 border border-stone-950/30 px-10 py-5 rounded-full text-[13px] tracking-[0.2em] uppercase font-medium hover:bg-stone-950/15 transition-colors"
-            data-testid="closing-cta-whatsapp"
-          >
-            <MessageCircle size={16} /> WhatsApp +65 8088 0757
-          </a>
-        </div>
-      </div>
-    </section>
-  );
-}
+/* ─────────────────────── Footer ─────────────────────── */
 
 function Footer() {
   return (
-    <footer className="bg-stone-950 border-t border-white/10 py-20 px-6 lg:px-16" data-testid="section-footer">
+    <footer className="bg-stone-950 text-white border-t border-white/10 py-20 px-6 lg:px-16" data-testid="section-footer">
       <div className="mx-auto max-w-7xl grid grid-cols-2 md:grid-cols-4 gap-12">
         <div className="col-span-2">
-          <div className="font-serif text-2xl tracking-[0.25em] uppercase text-white mb-4">TMG Install</div>
+          <div className="font-serif text-2xl tracking-[0.25em] uppercase mb-4">TMG Install</div>
           <p className="text-stone-500 text-sm max-w-sm leading-relaxed">
-            The Moving Guy Pte Ltd. Furniture installation, dismantling and relocation across
-            Singapore. Fixed prices, zero surprises.
+            The Moving Guy Pte Ltd. Furniture installation, dismantling and relocation
+            across Singapore. Clear quotes, professional coordination.
           </p>
         </div>
         <div>
           <h4 className="text-white text-[11px] uppercase tracking-[0.25em] mb-5">Services</h4>
           <ul className="space-y-3 text-sm text-stone-400">
-            <li><a href="/services/wardrobe-installation-singapore" className="hover:text-amber-400 transition">Wardrobe Installation</a></li>
-            <li><a href="/services/ikea-assembly-singapore" className="hover:text-amber-400 transition">IKEA Assembly</a></li>
-            <li><a href="/services/office-fit-out-singapore" className="hover:text-amber-400 transition">Office Fit-Out</a></li>
-            <li><a href="/services/furniture-relocation-singapore" className="hover:text-amber-400 transition">Furniture Relocation</a></li>
-            <li><a href="/services/gym-equipment-assembly-singapore" className="hover:text-amber-400 transition">Gym Equipment</a></li>
-            <li><a href="/services/bed-frame-installation-singapore" className="hover:text-amber-400 transition">Bed Frame Assembly</a></li>
+            <li><Link href="/estimate" className="hover:text-white transition">Furniture Installation</Link></li>
+            <li><Link href="/estimate" className="hover:text-white transition">Dismantling</Link></li>
+            <li><Link href="/estimate" className="hover:text-white transition">Office Setup</Link></li>
+            <li><Link href="/estimate" className="hover:text-white transition">Relocation Support</Link></li>
+            <li><Link href="/estimate" className="hover:text-white transition">Repair & Adjustment</Link></li>
           </ul>
         </div>
         <div>
           <h4 className="text-white text-[11px] uppercase tracking-[0.25em] mb-5">Contact</h4>
           <ul className="space-y-3 text-sm text-stone-400">
-            <li><a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="hover:text-amber-400 transition">WhatsApp +65 8088 0757</a></li>
+            <li><a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">WhatsApp +65 8088 0757</a></li>
             <li>7 Days a Week</li>
-            <li>Including Public Holidays</li>
-            <li><Link href="/terms" className="hover:text-amber-400 transition">Terms</Link></li>
-            <li><Link href="/privacy" className="hover:text-amber-400 transition">Privacy</Link></li>
+            <li><Link href="/terms" className="hover:text-white transition">Terms</Link></li>
+            <li><Link href="/privacy" className="hover:text-white transition">Privacy</Link></li>
           </ul>
         </div>
       </div>
       <div className="mx-auto max-w-7xl mt-16 pt-8 border-t border-white/5 flex flex-wrap items-center justify-between gap-4 text-xs text-stone-600">
         <span>© {new Date().getFullYear()} The Moving Guy Pte Ltd. All rights reserved.</span>
-        <span>Singapore · 28 districts · Same-week service</span>
+        <span>Singapore · Island-wide</span>
       </div>
     </footer>
   );
 }
+
+/* ─────────────────────── Sticky mobile CTA ─────────────────────── */
 
 function StickyMobileCTA() {
   const [show, setShow] = useState(false);
@@ -939,21 +793,21 @@ function StickyMobileCTA() {
           <div className="flex gap-3 pointer-events-auto">
             <Link
               href="/estimate"
-              className="flex-1 bg-amber-500 text-stone-950 text-center py-4 rounded-full text-[12px] tracking-[0.2em] uppercase font-medium"
+              className="flex-1 bg-white text-stone-950 text-center py-4 rounded-full text-[12px] tracking-[0.2em] uppercase font-medium"
               data-testid="mobile-sticky-quote"
               onClick={() => trackEvent("cta_estimate_sticky", "/")}
             >
-              Get a Quote
+              Quote
             </Link>
             <a
               href={WHATSAPP}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-white/10 text-white border border-white/20 px-5 py-4 rounded-full"
+              className="flex-1 bg-white/10 text-white border border-white/20 text-center py-4 rounded-full text-[12px] tracking-[0.2em] uppercase font-medium inline-flex items-center justify-center gap-2"
               data-testid="mobile-sticky-whatsapp"
               onClick={() => trackEvent("cta_whatsapp_sticky", "/")}
             >
-              <MessageCircle size={18} />
+              <MessageCircle size={16} /> WhatsApp
             </a>
           </div>
         </motion.div>
@@ -962,36 +816,43 @@ function StickyMobileCTA() {
   );
 }
 
+/* ─────────────────────── Top scroll progress ─────────────────────── */
+
 function ScrollProgress() {
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { damping: 30, stiffness: 200 });
   return (
     <motion.div
       style={{ scaleX }}
-      className="fixed top-0 inset-x-0 h-[2px] bg-amber-400 origin-left z-[60]"
+      className="fixed top-0 inset-x-0 h-[2px] bg-white origin-left z-[60]"
       data-testid="scroll-progress"
     />
   );
 }
 
+/* ─────────────────────── Promo bar ─────────────────────── */
+
 function PromoBar() {
   const { promo, visible } = usePromoBar();
   if (!visible || !promo) return null;
   return (
-    <div className="bg-amber-500 text-stone-950 text-center py-2 text-[11px] tracking-[0.2em] uppercase font-medium" data-testid="promo-bar">
+    <div
+      className="bg-white text-stone-950 text-center py-2 text-[11px] tracking-[0.2em] uppercase font-medium"
+      data-testid="promo-bar"
+    >
       Use code <span className="font-bold">{promo.code}</span> — {promo.discount}% off your installation
     </div>
   );
 }
 
-/* ------------------------------ Page ------------------------------ */
+/* ─────────────────────── Page ─────────────────────── */
 
 export default function LandingCinematic() {
   usePageTracker("/");
   useSEO({
     title: "TMG Install | Furniture Installation, Dismantling & Relocation Singapore",
     description:
-      "Singapore's furniture installation specialists. Wardrobe assembly, bed frames, IKEA flatpack, office fit-outs, gym equipment & relocation. Itemised quote in 60 seconds. Island-wide, 7 days.",
+      "Professional furniture installation, dismantling, relocation support and office setup in Singapore. Get a fast quote from TMG Install today.",
     canonical: "https://tmginstall.com/",
     jsonLd: [
       {
@@ -1007,19 +868,16 @@ export default function LandingCinematic() {
   });
 
   return (
-    <div className="bg-stone-950 text-white antialiased selection:bg-amber-400 selection:text-stone-950 font-sans">
+    <div className="bg-stone-950 text-white antialiased selection:bg-white selection:text-stone-950 font-sans">
       <PromoBar />
       <ScrollProgress />
-      <Hero />
-      <ServicesMarquee />
-      <Stats />
-      <ServicesGrid />
-      <StickyStory />
-      <PricingTable />
-      <WorkReel />
-      <Testimonials />
-      <Coverage />
-      <ClosingCTA />
+      <Hero3D />
+      <ScrollStory />
+      <Services />
+      <WhyTMG />
+      <Process />
+      <BusinessSection />
+      <FinalCTA />
       <Footer />
       <StickyMobileCTA />
     </div>

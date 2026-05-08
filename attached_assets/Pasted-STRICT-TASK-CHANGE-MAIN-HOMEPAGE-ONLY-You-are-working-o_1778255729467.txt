@@ -1,0 +1,264 @@
+STRICT TASK: CHANGE MAIN HOMEPAGE ONLY
+
+You are working on the existing TMG Install / tmginstall.com project.
+
+GOAL
+Redesign ONLY the main homepage to have a premium 3D scrolling concept inspired by https://paradisoinstitute.org.
+
+Use Paradiso Institute only as visual inspiration for:
+- Premium black/white design sense
+- Large clean typography
+- Smooth cinematic scroll
+- 3D rendering / animated object on scroll
+- Minimal luxury digital style
+
+DO NOT copy its code, layout, wording, assets, logo, animations, or brand identity.
+
+VERY IMPORTANT — STRICT SCOPE
+You must only modify the main landing page / homepage files.
+
+Allowed to edit only:
+- app/page.tsx OR pages/index.tsx, depending on current project structure
+- homepage-specific components only if they already belong to the main page
+- new components created only for the homepage, such as:
+  - components/home/Hero3D.tsx
+  - components/home/ThreeFurnitureScene.tsx
+  - components/home/HomeServices.tsx
+  - components/home/HomeProcess.tsx
+  - components/home/HomeCTA.tsx
+
+DO NOT modify:
+- Quote form backend
+- Quote submission logic
+- Supabase tables
+- Supabase functions
+- Stripe/payment logic
+- Admin dashboard
+- Staff portal
+- Customer portal
+- Booking system
+- Email functions
+- Existing API routes
+- Existing database schema
+- Existing authentication
+- Existing payment pages
+- Existing quote confirmation pages
+- Existing invoice logic
+- Existing job workflow
+
+If any existing CTA links to quote, WhatsApp, admin, or customer pages, keep the existing route/link exactly unless it is clearly broken.
+
+The homepage must act only as a visual/conversion upgrade.
+
+BUSINESS CONTENT
+Business name:
+TMG Install / The Moving Guy Pte Ltd
+
+Website:
+tmginstall.com
+
+WhatsApp:
++65 8088 0757
+
+WhatsApp CTA:
+https://wa.me/6580880757?text=Hi%20TMG%20Install%2C%20I%20would%20like%20to%20get%20a%20quote%20for%20furniture%20installation%20or%20relocation.
+
+Main services:
+- Furniture installation
+- Furniture dismantling
+- Furniture relocation support
+- Office furniture setup
+- Wardrobe assembly
+- Bed frame assembly
+- Table and cabinet assembly
+- Furniture repair / adjustment
+
+MAIN HOMEPAGE DESIGN
+Create a premium industrial black/white homepage.
+
+Visual direction:
+- Black background
+- White/off-white text
+- Large editorial headings
+- Thin grey borders
+- Subtle grid lines
+- Smooth scroll movement
+- Minimal but high-end
+- Professional, not childish
+- Looks like a premium tech-enabled furniture installation company
+
+3D SCROLL EFFECT
+Add a 3D scroll-rendering section on the homepage only.
+
+Use:
+- Three.js
+- @react-three/fiber
+- @react-three/drei
+- GSAP ScrollTrigger if compatible with current setup
+
+If packages are not installed, install only the necessary front-end packages:
+npm install three @react-three/fiber @react-three/drei gsap
+
+3D concept:
+Show abstract furniture parts floating in the hero:
+- Boards
+- Panels
+- Table legs
+- Screws/brackets
+
+On scroll:
+1. Parts start separated
+2. Parts move closer
+3. Parts align
+4. Parts become an assembled table / workstation / cabinet-style structure
+
+Use simple optimized geometry first.
+Do not use heavy GLB models in this phase.
+Do not add huge videos.
+Do not make animation slow.
+
+HOMEPAGE SECTIONS
+Keep the homepage focused on conversion.
+
+Section 1: Hero
+Headline:
+Furniture Installation, Dismantling & Relocation — Built Properly.
+
+Subheadline:
+TMG Install helps homes, offices, landlords and businesses handle furniture assembly, dismantling, relocation support and office setup with clear coordination and professional workmanship.
+
+Buttons:
+- Get Instant Quote
+- WhatsApp Us
+
+Use the existing quote route if the project already has one.
+Do not create a new backend quote system.
+
+Section 2: 3D Scroll Story
+Title:
+From flat-pack chaos to finished setup.
+
+Steps:
+01 Describe the job
+Send photos, item list and location.
+
+02 Get a clear estimate
+We review the work before confirmation.
+
+03 Install, dismantle or relocate
+Our team completes the job properly.
+
+Section 3: Services
+Cards:
+- Furniture Installation
+- Furniture Dismantling
+- Office Furniture Setup
+- Relocation Support
+- Wardrobe / Bed / Table Assembly
+- Repair & Adjustment
+
+Each card should have a short description and a small “Get Quote” link.
+
+Section 4: Why TMG Install
+Use these points:
+- Clear quote before work
+- Photo-based assessment
+- Suitable for homes and offices
+- Professional coordination
+- WhatsApp support
+- Deposit-secured booking flow
+- Completion photos where applicable
+
+Section 5: Process
+Title:
+A cleaner way to book furniture work.
+
+Steps:
+1. Send job details
+2. Receive estimate
+3. Confirm booking
+4. Team completes the work
+5. Final payment after completion, if applicable
+
+Section 6: Business Customers
+Title:
+For offices, landlords and co-living operators.
+
+Text:
+Need repeated installations, office desk setup, room turnover, bed frames, wardrobes or workstation assembly? TMG Install supports recurring furniture work with structured coordination.
+
+CTA:
+Request Business Quote
+
+Section 7: Final CTA
+Title:
+Need furniture installed, dismantled or moved?
+
+Text:
+Send us photos, item list and location. We will help estimate the work clearly before confirmation.
+
+Buttons:
+- Get Instant Quote
+- WhatsApp Us
+
+MOBILE REQUIREMENTS
+Mobile must be fast and clear.
+Add sticky mobile bottom CTA:
+- Quote
+- WhatsApp
+
+On mobile:
+- Reduce 3D quality
+- Reduce shadows
+- Reduce object count if needed
+- Do not block scrolling
+- Do not hide important text behind canvas
+
+If WebGL fails:
+Show a clean static fallback section instead of breaking the homepage.
+
+If user has reduced motion enabled:
+Disable heavy animation and show static furniture object.
+
+SEO
+Only update homepage SEO metadata if the homepage file controls it.
+
+Title:
+TMG Install | Furniture Installation, Dismantling & Relocation Singapore
+
+Description:
+Professional furniture installation, dismantling, relocation support and office setup in Singapore. Get a fast quote from TMG Install today.
+
+Do not change SEO settings for other pages.
+
+PERFORMANCE RULES
+- No heavy video background
+- No unnecessary pages
+- No backend changes
+- No database changes
+- No payment changes
+- Lazy load 3D component if possible
+- Keep homepage fast
+- Keep CTA always visible
+- Ensure npm run build passes
+
+FINAL CHECK BEFORE COMPLETION
+Before reporting done, verify:
+1. Only homepage-related files were changed.
+2. No backend files were touched.
+3. No Supabase files were touched.
+4. No Stripe/payment files were touched.
+5. No admin/staff/customer portal files were touched.
+6. Existing quote CTA still links correctly.
+7. Existing WhatsApp CTA works.
+8. Homepage works on desktop.
+9. Homepage works on mobile.
+10. npm run build passes.
+
+FINAL RESPONSE FORMAT
+When done, report:
+- Homepage files changed
+- New homepage components created
+- Packages installed
+- Confirmation that no backend/admin/staff/payment/quote logic was changed
+- How to test the homepage
