@@ -1303,8 +1303,8 @@ export async function seedDatabase() {
       { name: "Headboard (wall-mounted)", sku: "HEADBOAR-DIS-DISP", category: "Bedroom", serviceType: "dismantle_dispose", basePrice: "60" },
       { name: "Heavy-Duty Workbench or Workshop Table", sku: "HEAVYDUT-DISPOSE", category: "Office", serviceType: "dispose", basePrice: "80" },
       { name: "Heavy-Duty Workbench or Workshop Table", sku: "HEAVYDUT-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "135" },
-      { name: "Height-Adjustable Sit-Stand Desk", sku: "HEIGHTAD-DISPOSE", category: "Office", serviceType: "dispose", basePrice: "105" },
-      { name: "Height-Adjustable Sit-Stand Desk", sku: "HEIGHTAD-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "180" },
+      { name: "Height-Adjustable Sit-Stand Desk", sku: "HEIGHTAD-DISPOSE", category: "Office", serviceType: "dispose", basePrice: "60" },
+      { name: "Height-Adjustable Sit-Stand Desk", sku: "HEIGHTAD-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "100" },
       { name: "High Chair", sku: "HIGHCHAI-DISPOSE", category: "Baby & Kids", serviceType: "dispose", basePrice: "30" },
       { name: "High Chair", sku: "HIGHCHAI-DIS-DISP", category: "Baby & Kids", serviceType: "dismantle_dispose", basePrice: "35" },
       { name: "Hinged Door Wardrobe (2-door)", sku: "HINGEDDO-DISPOSE", category: "Wardrobes", serviceType: "dispose", basePrice: "65" },
@@ -2504,6 +2504,31 @@ export async function seedDatabase() {
     } as any);
 
     console.log("[startup] Round 24: Auditorium Chair (Fixed Seat) — install $50, dismantle $35, relocate $50, dispose $40, D+D $65.");
+  }
+
+  /* ── Round 25: Re-price Height-Adjustable Sit-Stand Desk dispose tiers ──
+     Previous prices ($105 dispose / $180 D+D) were the highest of any
+     office desk in the catalogue, despite the desk being similar in size
+     to an L-Shaped Executive Desk ($65 / $115). Re-aligned so that
+     dismantle+dispose lands at ~$100 — the same ballpark as Kids Study
+     Desk with Hutch ($110) and L-Shaped Executive Desk ($115). The
+     motor + steel frame still carries a small premium over a plain
+     Office Desk ($35 / $65). */
+  const r25 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "HEIGHTAD-R25-MARKER")).limit(1);
+  if (r25.length === 0) {
+    await db.update(catalogItems).set({ basePrice: "60.00" }).where(eq(catalogItems.sku, "HEIGHTAD-DISPOSE"));
+    await db.update(catalogItems).set({ basePrice: "100.00" }).where(eq(catalogItems.sku, "HEIGHTAD-DIS-DISP"));
+
+    await db.insert(catalogItems).values({
+      name: "__heightad_r25_marker__",
+      sku: "HEIGHTAD-R25-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 25: Height-Adjustable Sit-Stand Desk — dispose $105→$60, dismantle+dispose $180→$100.");
   }
 
 }
