@@ -632,129 +632,150 @@ function ChapterCard({
   );
 }
 
-/* ─────────────────────── 3D Scene — Scroll To Assemble ─────────────────────── */
+/* ─────────────────────── Floating 3D companion (page-wide) ───────────────────────
+   A fixed-position 3D widget that persists across the entire page.
+   Drives its assembly progress from total document scroll: at the top of
+   the page parts are scattered, at the bottom they have clicked together.
+   Desktop only — mobile already has a busy CTA stack and would be crowded. */
 
-function Scene3D() {
-  const sectionRef = useRef<HTMLElement>(null);
+function FloatingScene3D() {
   const progressRef = useRef(0);
   const reduce = useReducedMotion();
   const isMobile = useIsMobile();
-  const [showCanvas, setShowCanvas] = useState(false);
+  const [show, setShow] = useState(false);
   const [pct, setPct] = useState(0);
+  const [collapsed, setCollapsed] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
-  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ["start start", "end end"] });
-  const barScale = useTransform(scrollYProgress, [0.05, 0.95], [0, 1]);
-
-  // Drive the 3D progress ref + a React state mirror for the % readout
+  // Drive progress from whole-page scroll
   useEffect(() => {
-    return scrollYProgress.on("change", (v) => {
-      const p = reduce ? 1 : Math.max(0, Math.min(1, (v - 0.05) / 0.9));
-      progressRef.current = p;
-      setPct(Math.round(p * 100));
-    });
-  }, [scrollYProgress, reduce]);
+    if (reduce) {
+      progressRef.current = 1;
+      setPct(100);
+      return;
+    }
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const doc = document.documentElement;
+        const max = doc.scrollHeight - window.innerHeight;
+        const p = max > 0 ? Math.max(0, Math.min(1, window.scrollY / max)) : 0;
+        progressRef.current = p;
+        setPct(Math.round(p * 100));
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [reduce]);
 
-  // Defer canvas mount until idle so it doesn't block first paint
+  // Defer canvas until idle so it doesn't block first paint
   useEffect(() => {
     if (!hasWebGL()) return;
-    const ric: any = (window as any).requestIdleCallback || ((cb: any) => setTimeout(cb, 600));
-    const id = ric(() => setShowCanvas(true));
+    const ric: any = (window as any).requestIdleCallback || ((cb: any) => setTimeout(cb, 800));
+    const id = ric(() => setShow(true));
     return () => {
       const cic: any = (window as any).cancelIdleCallback;
       if (cic && id) cic(id);
     };
   }, []);
 
-  const canRender3D = showCanvas && hasWebGL();
+  // Hide on mobile and when not WebGL-capable (avoids fighting CTA stack on phones)
+  if (isMobile || dismissed || !hasWebGL()) return null;
 
   return (
-    <section
-      ref={sectionRef}
-      id="scene-3d"
-      className="relative h-[200vh] md:h-[260vh]"
-      style={{ background: PAPER, color: INK }}
-      data-testid="section-scene-3d"
+    <aside
+      className="fixed z-[55] pointer-events-auto"
+      style={{
+        right: 16,
+        bottom: 16,
+        width: collapsed ? 220 : 320,
+        transition: "width 220ms ease",
+      }}
+      aria-label="Live workstation assembly companion"
+      data-testid="floating-scene-3d"
     >
-      <div className="sticky top-0 h-screen w-full overflow-hidden">
-        <DotGrid opacity={0.45} />
-
-        {/* Top opener strip */}
-        <div className="absolute top-0 inset-x-0 z-[5] px-5 md:px-10 lg:px-14 pt-16 md:pt-20 pb-4 border-b" style={{ borderColor: LINE }}>
-          <div className="grid grid-cols-12 gap-3 md:gap-8 items-end">
-            <div className="col-span-12 md:col-span-4 flex flex-wrap items-center gap-2">
-              <Tag>§ 00</Tag>
-              <Tag accent>Scroll to assemble</Tag>
-            </div>
-            <div className="col-span-12 md:col-span-8">
-              <h2
-                className="font-serif italic tracking-[-0.03em] leading-[0.95] font-black"
-                style={{ fontSize: "clamp(28px, 5.5vw, 88px)" }}
-              >
-                Watch one come together.
-              </h2>
-            </div>
-          </div>
-        </div>
-
-        {/* Stage — the canvas fills the available middle area */}
-        <div className="absolute inset-0 pt-[150px] md:pt-[180px] pb-[110px] md:pb-[90px] z-[3] pointer-events-none">
-          {canRender3D ? (
-            <Suspense fallback={null}>
-              <ThreeFurnitureScene progressRef={progressRef} isMobile={isMobile} />
-            </Suspense>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <img
-                src="/images/work/wardrobe-install-team-800.webp"
-                alt="TMG install team assembling a workstation"
-                className="max-h-full max-w-full object-contain"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Floating editorial fragments */}
-        <div className="hidden md:block absolute top-[24%] left-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight max-w-[160px] pointer-events-none">
-          <AccentSquare /> <span className="ml-1">Workstation</span><br />
-          <span className="ml-[14px] block opacity-60">14 parts · 1 crew · 42 min</span>
-        </div>
-        <div className="hidden md:block absolute top-[24%] right-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight text-right max-w-[180px] pointer-events-none">
-          <span>Real build sequence</span><br />
-          <span className="opacity-60">Tools · brackets · bolts</span>
-        </div>
-
-        {/* Bottom HUD — % complete, parts list, progress bar */}
-        <div className="absolute bottom-0 inset-x-0 z-[6] px-5 md:px-10 lg:px-14 pb-4 md:pb-6 pt-3 border-t" style={{ borderColor: LINE, background: "rgba(250,250,247,0.85)", backdropFilter: "blur(6px)" }}>
-          <div className="flex items-center gap-3 md:gap-6">
-            <div className="flex items-baseline gap-2 flex-shrink-0">
-              <span
-                className="font-serif italic font-black tabular-nums leading-none"
-                style={{ fontSize: "clamp(28px, 5vw, 56px)" }}
-                data-testid="text-assembly-pct"
-              >
-                {String(pct).padStart(2, "0")}
-              </span>
-              <span className="text-[10px] md:text-[12px] tracking-[0.2em] uppercase font-bold opacity-60">% built</span>
-            </div>
-            <div className="flex-1 flex items-center gap-3 min-w-0">
-              <span className="hidden md:inline text-[10px] tracking-[0.2em] uppercase font-bold whitespace-nowrap">Parts → Place</span>
-              <div className="flex-1 h-[3px] bg-black/15 origin-left">
-                <motion.div style={{ scaleX: barScale, background: ACCENT }} className="h-[3px] origin-left" />
-              </div>
-              <span className="hidden md:inline text-[10px] tracking-[0.2em] uppercase font-bold whitespace-nowrap">Done</span>
-            </div>
-            <a
-              href="/estimate"
-              data-testid="cta-scene-quote"
-              className="hidden md:inline-flex items-center gap-2 px-3 py-2 text-[11px] tracking-[0.2em] uppercase font-bold flex-shrink-0 transition-transform hover:-translate-y-[1px]"
-              style={{ background: ACCENT, color: INK }}
+      <div
+        className="relative border shadow-[0_8px_28px_rgba(0,0,0,0.18)] overflow-hidden"
+        style={{ borderColor: "rgba(10,10,10,0.25)", background: PAPER }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-2.5 py-1.5 border-b text-[10px] tracking-[0.2em] uppercase font-bold" style={{ borderColor: LINE, background: INK, color: PAPER }}>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-[8px] h-[8px] rounded-full animate-pulse" style={{ background: ACCENT }} />
+            Live assembly
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCollapsed((v) => !v)}
+              className="px-1.5 py-0.5 hover:bg-white/10 transition"
+              aria-label={collapsed ? "Expand 3D" : "Collapse 3D"}
+              data-testid="button-floating-toggle"
             >
-              Book your job →
-            </a>
+              {collapsed ? "▢" : "—"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissed(true)}
+              className="px-1.5 py-0.5 hover:bg-white/10 transition"
+              aria-label="Close 3D"
+              data-testid="button-floating-close"
+            >
+              ✕
+            </button>
           </div>
+        </div>
+
+        {/* Canvas stage */}
+        {!collapsed && (
+          <div className="relative aspect-[4/3] w-full" style={{ background: "#f1efe7" }}>
+            {show ? (
+              <Suspense fallback={null}>
+                <ThreeFurnitureScene progressRef={progressRef} isMobile={false} />
+              </Suspense>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-[10px] tracking-[0.2em] uppercase font-bold opacity-50">
+                loading scene…
+              </div>
+            )}
+            <div className="absolute top-1.5 left-1.5 text-[9px] tracking-[0.2em] uppercase font-bold px-1.5 py-0.5" style={{ background: ACCENT, color: INK }}>
+              Workstation · 14 parts
+            </div>
+          </div>
+        )}
+
+        {/* Footer — % built + bar + CTA */}
+        <div className="px-2.5 py-2 border-t flex items-center gap-2" style={{ borderColor: LINE }}>
+          <span
+            className="font-serif italic font-black tabular-nums leading-none flex-shrink-0"
+            style={{ fontSize: 22 }}
+            data-testid="text-floating-pct"
+          >
+            {String(pct).padStart(2, "0")}
+          </span>
+          <span className="text-[9px] tracking-[0.2em] uppercase font-bold opacity-60 flex-shrink-0">% built</span>
+          <div className="flex-1 h-[3px] bg-black/15 min-w-0">
+            <div className="h-[3px]" style={{ width: `${pct}%`, background: ACCENT, transition: "width 120ms linear" }} />
+          </div>
+          <a
+            href="/estimate"
+            onClick={() => trackEvent("cta_floating_quote", "/")}
+            className="text-[10px] tracking-[0.2em] uppercase font-bold px-2 py-1 flex-shrink-0 transition-transform hover:-translate-y-[1px]"
+            style={{ background: INK, color: PAPER }}
+            data-testid="cta-floating-quote"
+          >
+            Quote →
+          </a>
         </div>
       </div>
-    </section>
+    </aside>
   );
 }
 
@@ -1544,7 +1565,6 @@ export default function LandingCinematic() {
       <ScrollProgress />
       <Hero />
       <Marquee />
-      <Scene3D />
       <AssemblyScroll />
       <Services />
       <WhyTMG />
@@ -1553,6 +1573,7 @@ export default function LandingCinematic() {
       <BusinessSection />
       <FinalCTA />
       <Footer />
+      <FloatingScene3D />
       <StickyMobileCTA />
     </div>
   );
