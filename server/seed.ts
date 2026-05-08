@@ -1230,8 +1230,8 @@ export async function seedDatabase() {
       { name: "Conference Table", sku: "CONFEREN-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "175" },
       { name: "Console / Hallway Table", sku: "CONSOLEH-DISPOSE", category: "Living Room", serviceType: "dispose", basePrice: "30" },
       { name: "Console / Hallway Table", sku: "CONSOLEH-DIS-DISP", category: "Living Room", serviceType: "dismantle_dispose", basePrice: "50" },
-      { name: "Corner Study Desk or L-Shaped", sku: "CORNERST-DISPOSE", category: "Study", serviceType: "dispose", basePrice: "50" },
-      { name: "Corner Study Desk or L-Shaped", sku: "CORNERST-DIS-DISP", category: "Study", serviceType: "dismantle_dispose", basePrice: "90" },
+      { name: "Corner Study Desk or L-Shaped", sku: "CORNERST-DISPOSE", category: "Study", serviceType: "dispose", basePrice: "40" },
+      { name: "Corner Study Desk or L-Shaped", sku: "CORNERST-DIS-DISP", category: "Study", serviceType: "dismantle_dispose", basePrice: "65" },
       { name: "Credenza / Office Storage Cabinet", sku: "CREDENZA-DISPOSE", category: "Office", serviceType: "dispose", basePrice: "50" },
       { name: "Credenza / Office Storage Cabinet", sku: "CREDENZA-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "90" },
       { name: "Curtain Track / Rod Installation", sku: "CURTAINT-DISPOSE", category: "Wall-Mounted", serviceType: "dispose", basePrice: "35" },
@@ -1301,10 +1301,10 @@ export async function seedDatabase() {
       { name: "Hanging Swing Chair or Hammock Chair", sku: "HANGINGS-DIS-DISP", category: "Rattan & Cane", serviceType: "dismantle_dispose", basePrice: "80" },
       { name: "Headboard (wall-mounted)", sku: "HEADBOAR-DISPOSE", category: "Bedroom", serviceType: "dispose", basePrice: "40" },
       { name: "Headboard (wall-mounted)", sku: "HEADBOAR-DIS-DISP", category: "Bedroom", serviceType: "dismantle_dispose", basePrice: "60" },
-      { name: "Heavy-Duty Workbench or Workshop Table", sku: "HEAVYDUT-DISPOSE", category: "Office", serviceType: "dispose", basePrice: "80" },
-      { name: "Heavy-Duty Workbench or Workshop Table", sku: "HEAVYDUT-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "135" },
-      { name: "Height-Adjustable Sit-Stand Desk", sku: "HEIGHTAD-DISPOSE", category: "Office", serviceType: "dispose", basePrice: "60" },
-      { name: "Height-Adjustable Sit-Stand Desk", sku: "HEIGHTAD-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "100" },
+      { name: "Heavy-Duty Workbench or Workshop Table", sku: "HEAVYDUT-DISPOSE", category: "Office", serviceType: "dispose", basePrice: "65" },
+      { name: "Heavy-Duty Workbench or Workshop Table", sku: "HEAVYDUT-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "100" },
+      { name: "Height-Adjustable Sit-Stand Desk", sku: "HEIGHTAD-DISPOSE", category: "Office", serviceType: "dispose", basePrice: "40" },
+      { name: "Height-Adjustable Sit-Stand Desk", sku: "HEIGHTAD-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "65" },
       { name: "High Chair", sku: "HIGHCHAI-DISPOSE", category: "Baby & Kids", serviceType: "dispose", basePrice: "30" },
       { name: "High Chair", sku: "HIGHCHAI-DIS-DISP", category: "Baby & Kids", serviceType: "dismantle_dispose", basePrice: "35" },
       { name: "Hinged Door Wardrobe (2-door)", sku: "HINGEDDO-DISPOSE", category: "Wardrobes", serviceType: "dispose", basePrice: "65" },
@@ -1371,8 +1371,8 @@ export async function seedDatabase() {
       { name: "Indoor Plant Stand or Pot Stand", sku: "INDOORPL-DIS-DISP", category: "Living Room", serviceType: "dismantle_dispose", basePrice: "30" },
       { name: "Kids Slide or Climber (indoor)", sku: "KIDSSLID-DISPOSE", category: "Baby & Kids", serviceType: "dispose", basePrice: "45" },
       { name: "Kids Slide or Climber (indoor)", sku: "KIDSSLID-DIS-DISP", category: "Baby & Kids", serviceType: "dismantle_dispose", basePrice: "75" },
-      { name: "Kids Study Desk with Hutch", sku: "KIDSSTUD-DISPOSE", category: "Kids", serviceType: "dispose", basePrice: "65" },
-      { name: "Kids Study Desk with Hutch", sku: "KIDSSTUD-DIS-DISP", category: "Kids", serviceType: "dismantle_dispose", basePrice: "110" },
+      { name: "Kids Study Desk with Hutch", sku: "KIDSSTUD-DISPOSE", category: "Kids", serviceType: "dispose", basePrice: "45" },
+      { name: "Kids Study Desk with Hutch", sku: "KIDSSTUD-DIS-DISP", category: "Kids", serviceType: "dismantle_dispose", basePrice: "75" },
       { name: "Kids Trampoline (indoor)", sku: "KIDSTRAM-DISPOSE", category: "Baby & Kids", serviceType: "dispose", basePrice: "40" },
       { name: "Kids Trampoline (indoor)", sku: "KIDSTRAM-DIS-DISP", category: "Baby & Kids", serviceType: "dismantle_dispose", basePrice: "65" },
       { name: "Kids Wardrobe (2-door)", sku: "KIDSWARD-DISPOSE", category: "Kids", serviceType: "dispose", basePrice: "65" },
@@ -1389,8 +1389,8 @@ export async function seedDatabase() {
       { name: "Kitchen Trolley / Cart", sku: "KITCHENT-DIS-DISP", category: "Kitchen", serviceType: "dismantle_dispose", basePrice: "40" },
       { name: "L-Shaped / Corner Sofa", sku: "LSHAPEDC-DISPOSE", category: "Sofas", serviceType: "dispose", basePrice: "65" },
       { name: "L-Shaped / Corner Sofa", sku: "LSHAPEDC-DIS-DISP", category: "Sofas", serviceType: "dismantle_dispose", basePrice: "110" },
-      { name: "L-Shaped Executive Desk", sku: "LSHAPEDE-DISPOSE", category: "Office", serviceType: "dispose", basePrice: "65" },
-      { name: "L-Shaped Executive Desk", sku: "LSHAPEDE-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "115" },
+      { name: "L-Shaped Executive Desk", sku: "LSHAPEDE-DISPOSE", category: "Office", serviceType: "dispose", basePrice: "50" },
+      { name: "L-Shaped Executive Desk", sku: "LSHAPEDE-DIS-DISP", category: "Office", serviceType: "dismantle_dispose", basePrice: "80" },
       { name: "Large Meeting Pod (8-Person)", sku: "LARGEMEE-DISPOSE", category: "Meeting Pods & Phone Booths", serviceType: "dispose", basePrice: "620" },
       { name: "Large Meeting Pod (8-Person)", sku: "LARGEMEE-DIS-DISP", category: "Meeting Pods & Phone Booths", serviceType: "dismantle_dispose", basePrice: "1040" },
       { name: "Large Planter Box or Garden Bed", sku: "LARGEPLA-DISPOSE", category: "Outdoor", serviceType: "dispose", basePrice: "35" },
@@ -2529,6 +2529,56 @@ export async function seedDatabase() {
     } as any);
 
     console.log("[startup] Round 25: Height-Adjustable Sit-Stand Desk — dispose $105→$60, dismantle+dispose $180→$100.");
+  }
+
+  /* ── Round 26: Re-price desks/tables so customer-visible TOTAL (labor +
+     mobilisation $39.90 + stairs $5) lands in a reasonable range, not
+     just the labor line.
+
+     Target customer total for a single mid-size office desk D+D = ~$110.
+     With $44.90 of fees baked in, that means labor must be ~$65.
+
+     Items adjusted (all are dispose / dismantle+dispose pairs):
+       Height-Adjustable Sit-Stand Desk    $60/$100  → $40/$65   (~$85/$110 total)
+       L-Shaped Executive Desk             $65/$115  → $50/$80   (~$95/$125 total — bigger, +$15)
+       Kids Study Desk with Hutch          $65/$110  → $45/$75   (~$90/$120 total)
+       Corner Study Desk or L-Shaped       $50/$90   → $40/$65   (~$85/$110 total)
+       Heavy-Duty Workbench / Workshop     $80/$135  → $65/$100  (~$110/$145 total — kept higher, genuinely larger)
+
+     Untouched on purpose:
+       Office Desk standard ($35/$65 → ~$80/$110 total) — already at target
+       IKEA Micke Desk ($30/$45 → ~$75/$90 total)       — small, correctly cheap
+       Study Desk standard ($35/$60 → ~$80/$105 total)  — already at target
+       Loft Bed with Desk — bed-class, not a desk
+  */
+  const r26 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "DESKREP-R26-MARKER")).limit(1);
+  if (r26.length === 0) {
+    const deskRepricing: Array<{ sku: string; price: string }> = [
+      { sku: "HEIGHTAD-DISPOSE",  price: "40.00" },
+      { sku: "HEIGHTAD-DIS-DISP", price: "65.00" },
+      { sku: "LSHAPEDE-DISPOSE",  price: "50.00" },
+      { sku: "LSHAPEDE-DIS-DISP", price: "80.00" },
+      { sku: "KIDSSTUD-DISPOSE",  price: "45.00" },
+      { sku: "KIDSSTUD-DIS-DISP", price: "75.00" },
+      { sku: "CORNERST-DISPOSE",  price: "40.00" },
+      { sku: "CORNERST-DIS-DISP", price: "65.00" },
+      { sku: "HEAVYDUT-DISPOSE",  price: "65.00" },
+      { sku: "HEAVYDUT-DIS-DISP", price: "100.00" },
+    ];
+    for (const d of deskRepricing) {
+      await db.update(catalogItems).set({ basePrice: d.price }).where(eq(catalogItems.sku, d.sku));
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__desk_reprice_r26_marker__",
+      sku: "DESKREP-R26-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log("[startup] Round 26: Desk dispose tiers re-priced so totals (incl. mobilisation) land $85–$145.");
   }
 
 }
