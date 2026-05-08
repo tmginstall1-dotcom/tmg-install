@@ -305,7 +305,7 @@ function TrustStripAnimated() {
       {/* Subtle amber shimmer rule at top */}
       <div className="absolute top-0 left-8 right-8 amber-shimmer-line opacity-50" />
       {/* Subtle amber orb centre */}
-      <div className="ambient-orb" style={{ left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: "600px", height: "200px", background: "radial-gradient(ellipse at 50% 50%, rgba(251,191,36,0.06) 0%, transparent 70%)" }} />
+      <div className="ambient-orb" style={{ left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: "600px", height: "200px", background: "radial-gradient(ellipse at 50% 50%, rgba(125,211,252,0.08) 0%, transparent 70%)" }} />
       <div className="max-w-6xl mx-auto relative">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-10 md:gap-0 md:divide-x md:divide-white/10">
           {/* 250+ */}
@@ -589,8 +589,8 @@ export default function Landing() {
           className="h-[2px]"
           style={{
             width: "0%",
-            background: "linear-gradient(to right, #f59e0b, #f97316, #fbbf24)",
-            boxShadow: "0 0 10px rgba(245, 158, 11, 0.8)",
+            background: "linear-gradient(to right, #7dd3fc, #38bdf8, #bae6fd)",
+            boxShadow: "0 0 10px rgba(125, 211, 252, 0.8)",
           }}
         />
       </div>
@@ -611,7 +611,7 @@ export default function Landing() {
         data-testid="amber-overlay"
         className="fixed inset-0 pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse 130% 90% at 50% 30%, rgba(245, 158, 11, 0.20) 0%, rgba(251, 146, 60, 0.08) 48%, transparent 80%)",
+          background: "radial-gradient(ellipse 130% 90% at 50% 30%, rgba(125, 211, 252, 0.18) 0%, rgba(56, 189, 248, 0.07) 48%, transparent 80%)",
           opacity: 0,
           zIndex: 2,
         }}
@@ -807,10 +807,10 @@ export default function Landing() {
                 <div className="absolute bottom-0 right-0 w-32 h-1 bg-amber-400/30" />
                 <div className="absolute bottom-0 right-0 w-1 h-32 bg-amber-400/30" />
                 {/* Ambient amber orb inside card */}
-                <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none" style={{ background: "radial-gradient(circle at 70% 20%, rgba(251,191,36,0.15) 0%, transparent 65%)" }} />
+                <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none" style={{ background: "radial-gradient(circle at 70% 20%, rgba(125,211,252,0.18) 0%, transparent 65%)" }} />
 
                 <div className="flex items-center gap-3 mb-10">
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_rgba(251,191,36,0.8)]" />
+                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_rgba(125,211,252,0.8)]" />
                   <span className="text-xs font-black text-amber-400 tracking-[0.25em] uppercase">Live Pricing Engine</span>
                 </div>
 
@@ -885,7 +885,7 @@ export default function Landing() {
           className="fixed top-24 right-4 sm:top-6 sm:right-6 items-center gap-2.5 px-4 py-2 border border-amber-400/40 bg-black/80 backdrop-blur-xl rounded-full shadow-lg shadow-amber-400/10 pointer-events-none select-none z-50"
           style={{ display: "none" }}
         >
-          <div className="animate-pulse w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+          <div className="animate-pulse w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(125,211,252,0.8)]" />
           <span
             ref={dismantleBadgeTextRef}
             className="text-xs font-black tracking-[0.2em] text-amber-400 uppercase"
@@ -911,7 +911,7 @@ export default function Landing() {
             {isLive && (
               <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center px-4 sm:px-6 bg-black/80 backdrop-blur-md border-r border-white/10">
                 <span className="flex items-center gap-2 text-[10px] sm:text-xs font-black tracking-[0.2em] uppercase text-amber-400 whitespace-nowrap">
-                  <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+                  <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(125,211,252,0.8)]" />
                   Live Jobs
                 </span>
               </div>
@@ -936,7 +936,7 @@ export default function Landing() {
 
       {/* ═══════════════════ HOW IT WORKS ════════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(251,191,36,0.05) 0%, transparent 70%)" }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(125,211,252,0.06) 0%, transparent 70%)" }} />
         <div className="max-w-6xl mx-auto relative">
           <motion.div {...fadeUpDelayed(0)} className="text-center mb-16 sm:mb-24">
             <p className="section-eyebrow mb-4 text-xs">Simple Process</p>
@@ -968,7 +968,7 @@ export default function Landing() {
             ].map(({ step, icon: Icon, title, desc }, i) => (
               <motion.div key={step} {...fadeUpDelayed(i * 0.15)} className="flex flex-col items-center text-center relative bg-white/5 md:bg-transparent p-8 md:p-0 rounded-2xl md:rounded-none border border-white/10 md:border-none">
                 <div className="relative mb-8">
-                  <div className="w-24 h-24 rounded-full border-2 border-amber-400/30 bg-black/50 shadow-[0_0_30px_rgba(251,191,36,0.1)] flex items-center justify-center relative z-10">
+                  <div className="w-24 h-24 rounded-full border-2 border-amber-400/30 bg-black/50 shadow-[0_0_30px_rgba(125,211,252,0.15)] flex items-center justify-center relative z-10">
                     <Icon className="w-10 h-10 text-amber-400" />
                     <div className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center text-black font-black text-xs shadow-lg shadow-amber-400/30">
                       {step}
@@ -984,7 +984,7 @@ export default function Landing() {
             <Link
               href="/estimate"
               onClick={() => trackEvent("cta_click", "/", "how_it_works_cta")}
-              className="group inline-flex items-center gap-3 px-10 py-5 bg-amber-400 text-black font-black text-sm uppercase tracking-[0.15em] hover:bg-amber-300 amber-glow-btn shadow-[0_0_40px_rgba(251,191,36,0.3)] w-full sm:w-auto justify-center"
+              className="group inline-flex items-center gap-3 px-10 py-5 bg-amber-400 text-black font-black text-sm uppercase tracking-[0.15em] hover:bg-amber-300 amber-glow-btn shadow-[0_0_40px_rgba(125,211,252,0.35)] w-full sm:w-auto justify-center"
             >
               Get My Instant Quote <ArrowRight className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
@@ -1158,7 +1158,7 @@ export default function Landing() {
                     {/* Ghost number background */}
                     <span className="absolute -bottom-4 right-2 font-heading font-bold text-8xl text-white/5 group-hover:text-amber-400/5 transition-colors duration-500 select-none pointer-events-none">{String(i + 1).padStart(2, "0")}</span>
                     
-                    <div className="w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center mb-6 group-hover:bg-amber-400 group-hover:border-amber-400 transition-all duration-500 shadow-[0_0_20px_rgba(251,191,36,0.1)] group-hover:shadow-[0_0_30px_rgba(251,191,36,0.4)]">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center mb-6 group-hover:bg-amber-400 group-hover:border-amber-400 transition-all duration-500 shadow-[0_0_20px_rgba(125,211,252,0.15)] group-hover:shadow-[0_0_30px_rgba(125,211,252,0.45)]">
                       <Icon className="w-8 h-8 text-amber-400 group-hover:text-black transition-colors duration-500" />
                     </div>
                     
@@ -1322,7 +1322,7 @@ export default function Landing() {
                 ]).map(({ n, icon: Icon, title, body, tag }, i) => (
                   <motion.div key={n} {...fadeUpDelayed(0.56 + i * 0.07)} className="bg-white/5 border border-white/10 rounded-2xl p-8 group hover:bg-white/10 transition-all relative overflow-hidden flex flex-col md:flex-row gap-8 items-start">
                     <div className="absolute right-0 bottom-0 text-[180px] leading-none font-heading font-bold text-white/5 group-hover:text-white/10 transition-colors pointer-events-none select-none translate-x-1/4 translate-y-1/4">{n}</div>
-                    <div className="w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center flex-shrink-0 relative z-10 shadow-[0_0_20px_rgba(251,191,36,0.1)]">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center flex-shrink-0 relative z-10 shadow-[0_0_20px_rgba(125,211,252,0.15)]">
                       <Icon className="w-8 h-8 text-amber-400" />
                     </div>
                     <div className="relative z-10">
@@ -1401,7 +1401,7 @@ export default function Landing() {
                 ]).map(({ n, title, body }) => (
                   <div key={n} className="flex gap-4 relative">
                     <div className="w-px bg-white/10 absolute left-4 top-10 bottom-[-24px] last:hidden" />
-                    <div className="w-8 h-8 rounded-full bg-black border border-amber-400/50 text-amber-400 flex items-center justify-center text-[10px] font-bold flex-shrink-0 z-10 shadow-[0_0_10px_rgba(251,191,36,0.2)]">
+                    <div className="w-8 h-8 rounded-full bg-black border border-amber-400/50 text-amber-400 flex items-center justify-center text-[10px] font-bold flex-shrink-0 z-10 shadow-[0_0_10px_rgba(125,211,252,0.25)]">
                       {n}
                     </div>
                     <div>
@@ -1615,7 +1615,7 @@ export default function Landing() {
                 <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400/5 blur-3xl rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none" />
                 
                 <div className="mb-8 relative z-10">
-                  <span className="inline-block px-3 py-1 bg-amber-400 text-black rounded-full text-xs font-black tracking-widest uppercase mb-4 shadow-[0_0_15px_rgba(251,191,36,0.3)]">Full Service</span>
+                  <span className="inline-block px-3 py-1 bg-amber-400 text-black rounded-full text-xs font-black tracking-widest uppercase mb-4 shadow-[0_0_15px_rgba(125,211,252,0.35)]">Full Service</span>
                   <p className="text-base text-white/80 font-body leading-relaxed">We dismantle at origin, transport, and perfectly reassemble at destination.</p>
                 </div>
                 
@@ -1797,16 +1797,16 @@ export default function Landing() {
       {/* ═════════════════════ BOTTOM CTA BAND ═════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-8 py-32 sm:py-48 relative overflow-hidden dot-grid-bg">
         {/* Ambient orbs */}
-        <div className="ambient-orb" style={{ left: "-5%", top: "50%", transform: "translateY(-50%)", width: "700px", height: "580px", background: "radial-gradient(ellipse at 40% 50%, rgba(251,191,36,0.16) 0%, transparent 62%)" }} />
+        <div className="ambient-orb" style={{ left: "-5%", top: "50%", transform: "translateY(-50%)", width: "700px", height: "580px", background: "radial-gradient(ellipse at 40% 50%, rgba(125,211,252,0.18) 0%, transparent 62%)" }} />
         <div className="ambient-orb" style={{ right: "-10%", top: "15%", width: "520px", height: "420px", background: "radial-gradient(ellipse at 60% 40%, rgba(99,102,241,0.07) 0%, transparent 65%)" }} />
-        <div className="ambient-orb" style={{ right: "5%", bottom: "-10%", width: "380px", height: "320px", background: "radial-gradient(ellipse at 50% 60%, rgba(251,191,36,0.06) 0%, transparent 65%)" }} />
+        <div className="ambient-orb" style={{ right: "5%", bottom: "-10%", width: "380px", height: "320px", background: "radial-gradient(ellipse at 50% 60%, rgba(125,211,252,0.08) 0%, transparent 65%)" }} />
 
         {/* Large ghost "60" — decorative type element */}
         <div
           className="absolute right-8 top-1/2 -translate-y-1/2 font-heading font-bold leading-none text-white pointer-events-none select-none hidden lg:block"
           style={{ fontSize: "clamp(180px,22vw,320px)", letterSpacing: "-0.05em", opacity: 0.03 }}
         >
-          60<span style={{ color: "rgba(251,191,36,0.9)" }}>s</span>
+          60<span style={{ color: "rgba(125,211,252,0.95)" }}>s</span>
         </div>
 
         <div className="max-w-6xl mx-auto relative z-10">
