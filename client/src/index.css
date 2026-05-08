@@ -53,6 +53,9 @@ body {
   :root {
     --font-heading: "TStar", "Teko", "Arial Narrow", sans-serif;
     --font-body: "Inter", system-ui, -apple-system, sans-serif;
+    /* Paradiso-style stack — Space Grotesk = F37 analog, DM Sans = editorial body. */
+    --font-paradiso: "Space Grotesk", "Inter", system-ui, sans-serif;
+    --font-paradiso-body: "DM Sans", "Inter", system-ui, sans-serif;
     --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
     /* Professional blue-tinted palette */

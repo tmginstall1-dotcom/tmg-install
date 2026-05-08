@@ -13,6 +13,7 @@ import { MeshDistortMaterial, Float } from "@react-three/drei";
 import * as THREE from "three";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
 import { useSEO } from "@/hooks/use-seo";
+import tmgLogo from "@assets/generated_images/tmg_icon_1024.png";
 
 /* ────────────────────────────────────────────────────────────────────────────
    TMG × PARADISO — editorial monochrome landing
@@ -439,7 +440,7 @@ export default function LandingParadiso() {
     <div
       ref={pageRef}
       className="bg-white text-black min-h-screen overflow-x-hidden relative"
-      style={{ fontFamily: "var(--font-body)" }}
+      style={{ fontFamily: "var(--font-paradiso-body)" }}
       data-testid="page-paradiso"
     >
       {/* Fixed 3D ink blob behind everything — drifts + rotates with scroll */}
@@ -448,21 +449,41 @@ export default function LandingParadiso() {
       <section className="relative min-h-[100svh] w-full overflow-hidden">
         <GridMarks />
 
-        {/* TOP-LEFT — dark patron/credit badge (paradiso style) */}
-        <div className="absolute left-0 top-0 z-20 max-w-[80vw] sm:max-w-[28rem]">
+        {/* TOP-LEFT — TMG logo mark + dark credit strip (paradiso patron style) */}
+        <div className="absolute left-0 top-0 z-20 flex items-stretch max-w-[92vw] sm:max-w-[34rem]">
+          <a
+            href="/"
+            aria-label="TMG Install — home"
+            className="block shrink-0 bg-black"
+            data-testid="link-logo"
+          >
+            <img
+              src={tmgLogo}
+              alt="TMG Install"
+              className="block h-12 w-12 sm:h-14 sm:w-14 object-cover"
+              loading="eager"
+              decoding="async"
+              data-testid="img-logo"
+            />
+          </a>
           <div
-            className="bg-black text-white px-3 py-2 text-[10px] sm:text-[11px] leading-snug"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="bg-black text-white px-3 py-2 text-[10px] sm:text-[11px] leading-snug flex items-center"
+            style={{ fontFamily: "var(--font-paradiso-body)" }}
             data-testid="credit-badge"
           >
-            <strong className="font-bold">TMG Install</strong> — Singapore
-            furniture installation, dismantling &amp; relocation.
-            <br />
-            Trusted by{" "}
-            <span className="text-[color:var(--accent)] font-bold" style={{ color: ACCENT }}>
-              5,000+ households
-            </span>{" "}
-            since 2018.
+            <span>
+              <strong className="font-semibold">TMG Install</strong> — Singapore
+              furniture installation, dismantling &amp; relocation.
+              <br />
+              Trusted by{" "}
+              <span
+                className="font-semibold"
+                style={{ color: ACCENT }}
+              >
+                5,000+ households
+              </span>{" "}
+              since 2018.
+            </span>
           </div>
         </div>
 
@@ -595,39 +616,97 @@ export default function LandingParadiso() {
           </span>
         </motion.div>
 
-        {/* CENTER — BIG BRUSH WORDMARK + letterspaced subtitle (scroll fades + lifts) */}
+        {/* CENTER — Conversion-focused headline.
+            Brush "tmg" demoted to a small ink accent above; the protagonist
+            is now a real, professional Space Grotesk display headline that
+            sells the service in one breath. Subtitle reinforces speed +
+            social proof; primary CTA sits directly under the fold. */}
         <motion.div
           style={{ y: yWordmark, opacity: opacityWordmark }}
-          className="relative z-[5] flex flex-col items-center justify-center min-h-[100svh] px-6"
+          className="relative z-[5] flex flex-col items-center justify-center min-h-[100svh] px-6 text-center"
         >
-          <Reveal delay={0.05}>
-            <h1
-              className="text-center text-black leading-[0.9]"
+          <Reveal delay={0.0}>
+            <span
+              aria-hidden="true"
+              className="block leading-none mb-2 sm:mb-4 text-black"
               style={{
                 fontFamily: BRUSH,
-                fontWeight: 400,
-                fontSize: "clamp(96px, 22vw, 360px)",
+                fontSize: "clamp(56px, 9vw, 140px)",
                 letterSpacing: "-0.01em",
+              }}
+              data-testid="hero-brushmark"
+            >
+              tmg
+            </span>
+          </Reveal>
+
+          <Reveal delay={0.08}>
+            <h1
+              className="text-black mx-auto"
+              style={{
+                fontFamily: "var(--font-paradiso)",
+                fontWeight: 500,
+                fontSize: "clamp(36px, 7vw, 112px)",
+                lineHeight: 0.95,
+                letterSpacing: "-0.035em",
+                maxWidth: "16ch",
               }}
               data-testid="hero-title"
             >
-              tmg
+              Furniture installation,
+              <br />
+              <span style={{ fontWeight: 700 }}>done same-day.</span>
             </h1>
           </Reveal>
 
           <Reveal delay={0.18}>
-            <div
-              className="text-center text-black mt-2 sm:mt-4"
+            <p
+              className="text-black/70 mt-5 sm:mt-7 mx-auto"
               style={{
-                fontFamily: "var(--font-body)",
+                fontFamily: "var(--font-paradiso-body)",
                 fontWeight: 400,
-                fontSize: "clamp(14px, 1.6vw, 22px)",
-                letterSpacing: "0.5em",
-                paddingLeft: "0.5em",
+                fontSize: "clamp(14px, 1.4vw, 18px)",
+                lineHeight: 1.5,
+                maxWidth: "44ch",
               }}
               data-testid="hero-subtitle"
             >
-              I N S T A L L E R S
+              Singapore&rsquo;s most trusted furniture installers. Quoted in
+              60&nbsp;seconds. Fixed price. No phone calls.
+            </p>
+          </Reveal>
+
+          <Reveal delay={0.28}>
+            <div className="mt-7 sm:mt-9 flex flex-col sm:flex-row items-center gap-3">
+              <a
+                href="/estimate"
+                className="inline-flex items-center justify-center bg-black text-white px-6 py-3 text-[13px] uppercase tracking-[0.18em] font-medium hover:bg-neutral-800 transition-colors"
+                style={{ fontFamily: "var(--font-paradiso)" }}
+                data-testid="button-quote"
+              >
+                Get my quote &nbsp;→
+              </a>
+              <a
+                href="https://wa.me/6580880757"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center bg-white text-black border border-black/20 px-6 py-3 text-[13px] uppercase tracking-[0.18em] font-medium hover:border-black transition-colors"
+                style={{ fontFamily: "var(--font-paradiso)" }}
+                data-testid="button-whatsapp"
+              >
+                Chat on WhatsApp
+              </a>
+            </div>
+          </Reveal>
+
+          <Reveal delay={0.36}>
+            <div
+              className="mt-6 text-[11px] uppercase tracking-[0.28em] text-black/50"
+              style={{ fontFamily: "var(--font-paradiso)" }}
+              data-testid="text-trust"
+            >
+              ★★★★★ &nbsp; 4.9 / 5 &nbsp;·&nbsp; 5,000+ Singapore homes
+              &nbsp;·&nbsp; Since 2018
             </div>
           </Reveal>
         </motion.div>

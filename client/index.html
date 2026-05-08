@@ -201,9 +201,12 @@
          Media query matches Tailwind's `sm:hidden` breakpoint (<640px) so we
          don't preload on tablets/desktops where the hero <img> is hidden. -->
     <link rel="preload" href="/work/office-fitout-800.webp" as="image" type="image/webp" fetchpriority="high" media="(max-width: 639px)" />
-    <!-- Google Fonts: non-blocking load (Teko 600+700 only · Inter 400-900) -->
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Teko:wght@600;700&family=Inter:wght@400;500;600;700;800;900&family=Rubik+Wet+Paint&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" />
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Teko:wght@600;700&family=Inter:wght@400;500;600;700;800;900&family=Rubik+Wet+Paint&display=swap" rel="stylesheet" /></noscript>
+    <!-- Google Fonts: Paradiso-style typography stack.
+         Space Grotesk = closest free analog to F37 (geometric grotesk used by Paradiso).
+         DM Sans = clean editorial body. Teko + Inter kept for legacy admin pages.
+         Rubik Wet Paint = brush ink accent for the wordmark. -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Teko:wght@600;700&family=Inter:wght@400;500;600;700;800;900&family=Rubik+Wet+Paint&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Teko:wght@600;700&family=Inter:wght@400;500;600;700;800;900&family=Rubik+Wet+Paint&display=swap" rel="stylesheet" /></noscript>
     <!-- Instant splash — visible before JS loads -->
     <style>
       html, body { margin: 0; padding: 0; background: #fff; overflow-x: hidden; }
