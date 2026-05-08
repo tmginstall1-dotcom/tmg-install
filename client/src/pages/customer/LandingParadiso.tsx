@@ -213,6 +213,80 @@ function BlackPill({
   );
 }
 
+/* ─── EdgePill — paradiso's signature label: a green chip welded to a
+     black extension bar that runs out to the screen edge. The bar gives
+     the page its "framing-tape" rhythm and is the single biggest visual
+     difference between paradiso and a generic floating-pill landing.
+     `side="left"` puts the pill on the left and the black bar on the
+     right of it (extending toward centre). `side="right"` mirrors. ─── */
+function EdgePill({
+  children,
+  href,
+  side,
+  bar = "12vw",
+  testId,
+  className = "",
+}: {
+  children: React.ReactNode;
+  href?: string;
+  side: "left" | "right";
+  bar?: string; // CSS length for the black extension bar
+  testId?: string;
+  className?: string;
+}) {
+  const pillBase =
+    "inline-flex items-center px-2.5 py-1 text-[10px] sm:text-[11px] font-bold tracking-[0.18em] uppercase text-black leading-none whitespace-nowrap";
+  const pillStyle: React.CSSProperties = { background: ACCENT };
+  const blackBar = (
+    <span
+      aria-hidden="true"
+      className="block bg-black self-stretch"
+      style={{ width: bar, height: "100%" }}
+    />
+  );
+  const inner =
+    side === "left" ? (
+      <>
+        <span className={pillBase} style={pillStyle}>
+          {children}
+        </span>
+        {blackBar}
+      </>
+    ) : (
+      <>
+        {blackBar}
+        <span className={pillBase} style={pillStyle}>
+          {children}
+        </span>
+      </>
+    );
+  const wrapCls = `inline-flex items-stretch h-[22px] sm:h-[24px] transition-transform duration-200 ease-out hover:-translate-y-0.5 ${className}`;
+  if (href) {
+    if (isInternalRoute(href)) {
+      return (
+        <Link href={href} data-testid={testId} className={wrapCls}>
+          {inner}
+        </Link>
+      );
+    }
+    return (
+      <a
+        href={href}
+        data-testid={testId}
+        className={wrapCls}
+        {...(isExternal(href) ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+      >
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <span data-testid={testId} className={wrapCls}>
+      {inner}
+    </span>
+  );
+}
+
 /* ─── WorkCard — editorial photo card used in the "Recent work" gallery.
      Image fills the cell at a deliberate aspect-ratio. A small tabular
      caption sits underneath. The whole card is a link to the estimate
@@ -807,28 +881,29 @@ export default function LandingParadiso() {
           </div>
         </div>
 
-        {/* ─── HIDDEN — kept as fallback noscript dateline. Removed in DOM
-             but the structural slot is preserved by the next siblings. ─── */}
-        {/* ─── TOP-RIGHT — live counter pills (paradiso "1 is here / N were here"). ─── */}
+        {/* ─── TOP-RIGHT — paradiso's two tiny stacked counter pills.
+             Each is a small green square holding two short lines of text
+             ("1 is / here", "8472 were / here"). Much more compact than
+             a normal pill — almost like type-set chips. ─── */}
         <div className="absolute right-3 sm:right-5 top-3 sm:top-4 z-30">
-          <div className="flex items-start gap-1.5" data-testid="live-counter">
+          <div className="flex items-start gap-1" data-testid="live-counter">
             <div
-              className="px-2 py-1.5 text-black"
-              style={{ background: ACCENT, minWidth: 44 }}
+              className="px-1.5 py-1 text-black"
+              style={{ background: ACCENT, minWidth: 36 }}
             >
               <div
-                className="text-[10px] leading-tight font-medium lowercase"
+                className="text-[10px] leading-[1.05] font-semibold lowercase"
                 style={{ fontFamily: "var(--font-paradiso)" }}
               >
                 <LiveNow />
               </div>
             </div>
             <div
-              className="px-2 py-1.5 text-black"
-              style={{ background: ACCENT, minWidth: 44 }}
+              className="px-1.5 py-1 text-black"
+              style={{ background: ACCENT, minWidth: 36 }}
             >
               <div
-                className="text-[10px] leading-tight font-medium lowercase"
+                className="text-[10px] leading-[1.05] font-semibold lowercase"
                 style={{ fontFamily: "var(--font-paradiso)" }}
               >
                 <LiveTotal />
@@ -837,33 +912,61 @@ export default function LandingParadiso() {
           </div>
         </div>
 
-        {/* ─── SCATTERED ACCENT PILLS — paradiso anchors short labels at
-             deliberate corners around the centre. Each pill marks a real
-             section of the page. ─── */}
-        <div className="absolute left-[16%] top-[14%] z-20 hidden sm:block">
-          <Pill href="#services" testId="pill-services">
+        {/* ─── HUGE PALE GHOST BACKGROUND WORD — paradiso has a giant
+             low-contrast "BE CRUDO" type bleeding across the upper half of
+             the hero, behind everything. Reads as "atmosphere", not
+             "label". We mirror that with "INSTALL" set in the brush face,
+             stretched to full viewport width and parked behind the wordmark. ─── */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-[18%] z-[5] pointer-events-none select-none overflow-hidden hidden md:block"
+          data-testid="hero-ghost-word"
+        >
+          <div
+            className="text-center"
+            style={{
+              fontFamily: BRUSH,
+              fontSize: "clamp(180px, 21vw, 380px)",
+              lineHeight: 0.85,
+              letterSpacing: "-0.04em",
+              color: "rgba(0,0,0,0.045)",
+              whiteSpace: "nowrap",
+              transform: "scaleX(1.18)",
+              transformOrigin: "center",
+            }}
+          >
+            install
+          </div>
+        </div>
+
+        {/* ─── EDGE-ANCHORED ACCENT PILLS — paradiso's signature: green
+             chips welded to black extension bars that reach toward the
+             centre. Anchored to the screen edges at deliberate vertical
+             rhythms. Each pill jumps to a real section anchor. ─── */}
+        <div className="absolute left-0 top-[13%] z-20 hidden sm:block">
+          <EdgePill href="#services" side="left" bar="9vw" testId="pill-services">
             Services
-          </Pill>
+          </EdgePill>
         </div>
-        <div className="absolute left-[42%] top-[10%] z-20 hidden md:block">
-          <Pill href="#how" testId="pill-process">
+        <div className="absolute left-0 top-[24%] z-20 hidden md:block">
+          <EdgePill href="#how" side="left" bar="14vw" testId="pill-process">
             The process
-          </Pill>
+          </EdgePill>
         </div>
-        <div className="absolute right-[14%] top-[22%] z-20 hidden sm:block">
-          <Pill href="#pricing" testId="pill-pricing">
+        <div className="absolute right-0 top-[36%] z-20 hidden sm:block">
+          <EdgePill href="#pricing" side="right" bar="11vw" testId="pill-pricing">
             Fixed pricing
-          </Pill>
+          </EdgePill>
         </div>
-        <div className="absolute left-[28%] bottom-[18%] z-20 hidden md:block">
-          <Pill href="#trust" testId="pill-trust">
+        <div className="absolute left-0 top-[58%] z-20 hidden md:block">
+          <EdgePill href="#trust" side="left" bar="10vw" testId="pill-trust">
             5,000+ jobs
-          </Pill>
+          </EdgePill>
         </div>
-        <div className="absolute right-[26%] bottom-[20%] z-20 hidden md:block">
-          <Pill href="#trust" testId="pill-insured">
+        <div className="absolute right-0 top-[72%] z-20 hidden md:block">
+          <EdgePill href="#trust" side="right" bar="13vw" testId="pill-insured">
             Fully insured
-          </Pill>
+          </EdgePill>
         </div>
 
         {/* ─── TINY EDITORIAL TEXT FRAGMENTS — paradiso scatters ultra-short
