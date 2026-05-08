@@ -11,6 +11,57 @@ const WHATSAPP = "https://wa.me/6580880757";
 const EMAIL = "sales@tmginstall.com";
 const CTA_URL = "/estimate";
 
+/* ── Per-service Open Graph imagery ───────────────────────────────────────────
+   Each landing page gets its own preview image when shared on WhatsApp,
+   Facebook, LinkedIn, Telegram, etc. Falls back to the brand OG image
+   for any slug that isn't mapped. */
+const OG_IMAGES: Record<string, string> = {
+  "ikea-assembly-singapore":                  "/work/ikea-boxes-800.webp",
+  "wardrobe-installation-singapore":          "/work/wardrobe-install-team-800.webp",
+  "bed-assembly-singapore":                   "/work/bed-completed-800.webp",
+  "tv-mounting-singapore":                    "/work/phone-booth-completed-800.webp",
+  "sofa-assembly-singapore":                  "/work/conference-table-800.webp",
+  "mattress-installation-singapore":          "/work/bed-assembly-800.webp",
+  "furniture-dismantling-singapore":          "/work/wardrobe-oak-800.webp",
+  "office-furniture-installation-singapore":  "/work/office-fitout-800.webp",
+  "furniture-relocation-singapore":           "/work/delivery-truck-800.webp",
+  "taobao-furniture-installation-singapore":  "/work/ikea-boxes-800.webp",
+  "castlery-furniture-assembly-singapore":    "/work/wardrobe-white-800.webp",
+  "hdb-moving-services-singapore":            "/work/delivery-truck-800.webp",
+  "condo-moving-services-singapore":          "/work/delivery-truck-800.webp",
+  "lazada-furniture-installation-singapore":  "/work/shelving-assembly-800.webp",
+  "shopee-furniture-installation-singapore":  "/work/shelving-assembly-800.webp",
+  "gym-equipment-installation-singapore":     "/work/office-pod-800.webp",
+};
+
+/* ── Single source of truth for sitemap + internal nav ─────────────────────── */
+export const SERVICE_PAGES: Array<{ slug: string; label: string; priority: number }> = [
+  { slug: "ikea-assembly-singapore",                 label: "IKEA Assembly Singapore",        priority: 0.9  },
+  { slug: "wardrobe-installation-singapore",         label: "Wardrobe Installation",          priority: 0.9  },
+  { slug: "bed-assembly-singapore",                  label: "Bed Assembly Singapore",         priority: 0.9  },
+  { slug: "tv-mounting-singapore",                   label: "TV Mounting Singapore",          priority: 0.9  },
+  { slug: "sofa-assembly-singapore",                 label: "Sofa Assembly Singapore",        priority: 0.9  },
+  { slug: "mattress-installation-singapore",         label: "Mattress Setup & Disposal",      priority: 0.85 },
+  { slug: "furniture-dismantling-singapore",         label: "Furniture Dismantling",          priority: 0.85 },
+  { slug: "office-furniture-installation-singapore", label: "Office Furniture Installation",  priority: 0.85 },
+  { slug: "furniture-relocation-singapore",          label: "Furniture Relocation",           priority: 0.85 },
+  { slug: "taobao-furniture-installation-singapore", label: "Taobao Furniture Installation",  priority: 0.9  },
+  { slug: "castlery-furniture-assembly-singapore",   label: "Castlery Furniture Assembly",    priority: 0.9  },
+  { slug: "hdb-moving-services-singapore",           label: "HDB Moving Services",            priority: 0.9  },
+  { slug: "condo-moving-services-singapore",         label: "Condo Moving Services",          priority: 0.9  },
+  { slug: "lazada-furniture-installation-singapore", label: "Lazada Furniture Installation",  priority: 0.85 },
+  { slug: "shopee-furniture-installation-singapore", label: "Shopee Furniture Installation",  priority: 0.85 },
+  { slug: "gym-equipment-installation-singapore",    label: "Gym Equipment Installation",     priority: 0.85 },
+];
+
+/* ── Reviews used both visually and in JSON-LD ──────────────────────────────── */
+const REVIEWS = [
+  { name: "Prapat S.",  loc: "Toa Payoh HDB",    stars: 5, date: "2026-03-15", text: "Fast, professional and reliable. The team assembled our entire IKEA PAX wardrobe in under 2 hours. Very neat job — no damage at all. Will definitely use again." },
+  { name: "Michelle T.", loc: "Tampines EC",      stars: 5, date: "2026-02-22", text: "Booked through the website and got a quote in 60 seconds — exactly as advertised. The installer arrived on time, worked efficiently and cleaned up everything. Highly recommend!" },
+  { name: "David K.",   loc: "Jurong West HDB",  stars: 5, date: "2026-03-28", text: "Got my TV wall-mounted on a concrete wall. The team brought all the right drill bits and secured it perfectly. Cable management looks super clean. Great service!" },
+  { name: "Rachel L.",  loc: "Bishan Condo",     stars: 5, date: "2026-01-18", text: "Needed same-day assembly for a new bed frame delivery. TMG Install accommodated us at short notice. The price was fair and the workmanship was excellent." },
+];
+
 function shell({
   title,
   description,
@@ -26,18 +77,36 @@ function shell({
   body: string;
   breadcrumb: string;
 }): string {
+  const slugMatch = canonical.match(/\/services\/([^/?#]+)/);
+  const slug = slugMatch ? slugMatch[1] : "";
+  const ogImagePath = OG_IMAGES[slug] || "/og-image.png";
+  const ogImageUrl = `${DOMAIN}${ogImagePath}`;
+
   const enrichedSchema = schema.map(item => {
-    if ((item as any)["@type"] === "Service" && !(item as any).aggregateRating) {
-      return {
-        ...item,
-        aggregateRating: {
+    if ((item as any)["@type"] === "Service") {
+      const enriched: any = { ...item };
+      if (!enriched.aggregateRating) {
+        enriched.aggregateRating = {
           "@type": "AggregateRating",
           "ratingValue": "4.9",
           "reviewCount": "127",
           "bestRating": "5",
           "worstRating": "1",
-        },
-      };
+        };
+      }
+      if (!enriched.review) {
+        enriched.review = REVIEWS.map(r => ({
+          "@type": "Review",
+          "author": { "@type": "Person", "name": r.name },
+          "reviewRating": { "@type": "Rating", "ratingValue": String(r.stars), "bestRating": "5" },
+          "reviewBody": r.text,
+          "datePublished": r.date,
+        }));
+      }
+      if (!enriched.image) {
+        enriched.image = ogImageUrl;
+      }
+      return enriched;
     }
     return item;
   });
@@ -57,12 +126,13 @@ function shell({
   <meta property="og:site_name" content="${BRAND}" />
   <meta property="og:title" content="${title}" />
   <meta property="og:description" content="${description}" />
-  <meta property="og:image" content="${DOMAIN}/og-image.png" />
+  <meta property="og:image" content="${ogImageUrl}" />
+  <meta property="og:image:alt" content="${title}" />
   <meta property="og:locale" content="en_SG" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${title}" />
   <meta name="twitter:description" content="${description}" />
-  <meta name="twitter:image" content="${DOMAIN}/og-image.png" />
+  <meta name="twitter:image" content="${ogImageUrl}" />
   <link rel="shortcut icon" href="/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -199,21 +269,7 @@ function shell({
     <div class="footer-services">
       <h3>Our Services</h3>
       <div class="footer-services-grid">
-        <a href="/services/ikea-assembly-singapore">→ IKEA Assembly Singapore</a>
-        <a href="/services/wardrobe-installation-singapore">→ Wardrobe Installation</a>
-        <a href="/services/bed-assembly-singapore">→ Bed Assembly Singapore</a>
-        <a href="/services/tv-mounting-singapore">→ TV Mounting Singapore</a>
-        <a href="/services/sofa-assembly-singapore">→ Sofa Assembly Singapore</a>
-        <a href="/services/mattress-installation-singapore">→ Mattress Setup & Disposal</a>
-        <a href="/services/furniture-dismantling-singapore">→ Furniture Dismantling</a>
-        <a href="/services/office-furniture-installation-singapore">→ Office Furniture Installation</a>
-        <a href="/services/furniture-relocation-singapore">→ Furniture Relocation</a>
-        <a href="/services/taobao-furniture-installation-singapore">→ Taobao Furniture Installation</a>
-        <a href="/services/castlery-furniture-assembly-singapore">→ Castlery Furniture Assembly</a>
-        <a href="/services/lazada-furniture-installation-singapore">→ Lazada Furniture Installation</a>
-        <a href="/services/shopee-furniture-installation-singapore">→ Shopee Furniture Installation</a>
-        <a href="/services/hdb-moving-services-singapore">→ HDB Moving Services</a>
-        <a href="/services/condo-moving-services-singapore">→ Condo Moving Services</a>
+        ${SERVICE_PAGES.map(p => `<a href="/services/${p.slug}">→ ${p.label}</a>`).join("\n        ")}
       </div>
     </div>
     <div class="footer-bottom">
@@ -2218,4 +2274,159 @@ export function shopeeFurnitureInstallationPage(): string {
   </main>`;
 
   return shell({ title, description, canonical, schema, body, breadcrumb: "Shopee Furniture Installation" });
+}
+
+/* ── Gym Equipment Installation ─────────────────────────────────────────────── */
+export function gymEquipmentInstallationPage(): string {
+  const title = "Gym Equipment Installation Singapore | TMG Install — From $90";
+  const description = "Professional home & commercial gym equipment installation in Singapore. Treadmills, multi-station gyms, power racks, smart mirrors, rowing machines and free-weight assemblies. Floor-protection, level-checking and safety bolts included. Same-day available island-wide.";
+  const canonical = `${DOMAIN}/services/gym-equipment-installation-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "Gym Equipment Installation Singapore",
+      "serviceType": "Gym Equipment Assembly & Installation",
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": {
+        "@type": "Offer",
+        "priceCurrency": "SGD",
+        "price": "90",
+        "priceSpecification": { "@type": "UnitPriceSpecification", "priceCurrency": "SGD", "price": "90", "unitText": "per item from" },
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How much does gym equipment installation cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "Gym equipment installation starts from $90. A treadmill is typically $90–$120. A multi-station home gym or power rack is $250–$500 depending on configuration. Smart mirrors (Mirror, Tonal, Tempo) are $180–$280 with secure wall-anchoring." } },
+        { "@type": "Question", "name": "Do you install equipment from Decathlon, Lifespan or BodyTone?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we install all major Singapore gym brands including Decathlon, Lifespan, BodyTone, Johnson, Sole Fitness, NordicTrack, Bowflex, Rogue, Eleiko and PRX." } },
+        { "@type": "Question", "name": "Can you wall-mount a smart mirror or pull-up bar?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. We use weight-rated anchors and stud-finders for HDB and condo walls. For doorway pull-up bars and TRX mounts we check the door frame load rating before installation." } },
+        { "@type": "Question", "name": "Do you provide floor protection?", "acceptedAnswer": { "@type": "Answer", "text": "We bring rubber matting to protect HDB tile and condo flooring during installation. We can also advise on permanent gym flooring tile placement." } },
+        { "@type": "Question", "name": "Do you level treadmills and rowers?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — every treadmill and rower is levelled before handover. Uneven setups cause belt-drift and accelerated wear, so we always test-run before leaving." } },
+        { "@type": "Question", "name": "Can you dismantle and move my home gym?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — full dismantle, transport, and reassembly at the new address. We label every bolt and bracket so reassembly is exact. See our furniture relocation page for details." } },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "Gym Equipment Installation Singapore", "item": canonical },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Gym Equipment Installation Singapore</div>
+    <h1>Professional <em>Gym Equipment Installation</em><br/>in Singapore</h1>
+    <p class="hero-desc">From a single treadmill to a full home-gym build-out — every bolt torqued, every machine levelled, every wall-mount safety-rated. HDB and condo specialists.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+
+    <div class="section">
+      <h2>What We Install</h2>
+      <p>Every brand, every category — from cardio to strength to recovery. Our team has installed gym equipment in HDB flats, condos, landed homes, commercial gyms and corporate wellness rooms across Singapore.</p>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">🏃</div><h3>Treadmills & Cardio</h3><p>Treadmills, ellipticals, stationary bikes, rowing machines, stair climbers — all major brands.</p></div>
+        <div class="service-card"><div class="service-card-icon">🏋️</div><h3>Multi-Station Gyms</h3><p>Smith machines, cable crossovers, functional trainers, all-in-one home gym systems.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔩</div><h3>Power Racks & Squat Cages</h3><p>Rogue, PRX, Eleiko, Bells Of Steel — anchored, levelled and load-tested.</p></div>
+        <div class="service-card"><div class="service-card-icon">🪞</div><h3>Smart Mirrors</h3><p>Mirror, Tonal, Tempo, Lululemon Studio Mirror — secure wall-anchoring with stud detection.</p></div>
+        <div class="service-card"><div class="service-card-icon">🥊</div><h3>Punching Bags & Mounts</h3><p>Ceiling and wall-mounted heavy bags, speed bags, TRX anchors, gymnastic rings.</p></div>
+        <div class="service-card"><div class="service-card-icon">🛡️</div><h3>Flooring & Mats</h3><p>Rubber tile installation, interlocking gym mats, treadmill noise-isolation pads.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Pricing Guide</h2>
+      <p>All prices are per item and include levelling, safety check and tidying-up. Get an <a href="${CTA_URL}" style="color:#3b82f6;font-weight:600;">instant itemised quote</a> for your full setup.</p>
+      <div class="pricing-table">
+        <div class="pricing-row"><span class="pricing-item">Treadmill (folding or full-size)</span><span class="pricing-price">from $90</span></div>
+        <div class="pricing-row"><span class="pricing-item">Stationary Bike / Spin Bike</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Rowing Machine (Concept2, WaterRower)</span><span class="pricing-price">from $90</span></div>
+        <div class="pricing-row"><span class="pricing-item">Multi-Station Home Gym</span><span class="pricing-price">from $250</span></div>
+        <div class="pricing-row"><span class="pricing-item">Power Rack / Squat Cage (anchored)</span><span class="pricing-price">from $300</span></div>
+        <div class="pricing-row"><span class="pricing-item">Smart Mirror (Mirror / Tonal / Tempo)</span><span class="pricing-price">from $180</span></div>
+        <div class="pricing-row"><span class="pricing-item">Pull-Up Bar (wall or doorway)</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Adjustable Bench / Free-Weight Rack</span><span class="pricing-price">from $90</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Why Choose TMG Install for Gym Equipment?</h2>
+      <h3>Safety-First Anchoring</h3>
+      <p>Heavy gym equipment that isn't anchored properly can topple — especially smart mirrors, power racks and cable machines. We use weight-rated anchors, stud detection and torque-spec'd bolts on every install. For HDB and condo concrete walls we use SDS-Plus drills and the right diameter sleeve anchors for the load.</p>
+      <h3>Levelled & Test-Run</h3>
+      <p>Every treadmill, rower and bike is levelled with a digital level and test-run for at least 3 minutes before handover. Uneven setups cause belt-drift and accelerated wear — and noise complaints from neighbours below in HDB blocks.</p>
+      <h3>Floor & Wall Protection</h3>
+      <p>We bring rubber matting and felt sliders so your tile, parquet or vinyl flooring is never scratched during installation. For mirrors and wall mounts we patch any pilot holes that aren't used.</p>
+      <h3>HDB & Condo Compliant</h3>
+      <p>We know which walls in standard HDB layouts are load-bearing vs partition, and we follow MCST requirements for condo installations including drilling time-windows. No noise complaints, no warning letters.</p>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">Do you install equipment from Decathlon, Lifespan or BodyTone?</div><div class="faq-a">Yes — we install all major Singapore gym brands including Decathlon, Lifespan, BodyTone, Johnson, Sole Fitness, NordicTrack, Bowflex, Rogue, Eleiko and PRX.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you wall-mount a smart mirror?</div><div class="faq-a">Yes. We use weight-rated anchors and stud-finders. Mirror, Tonal, Tempo and Lululemon Studio Mirror are all installed with the manufacturer's recommended hardware on HDB and condo walls.</div></div>
+      <div class="faq-item"><div class="faq-q">Will my power rack damage HDB flooring?</div><div class="faq-a">Not with proper protection. We install rubber base mats under every rack contact point. For permanent setups we can also lay 25mm rubber gym tile.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you dismantle and move my home gym?</div><div class="faq-a">Yes — full dismantle, transport and reassembly at the new address. Every bolt and bracket is bagged and labelled. See our <a href="/services/furniture-relocation-singapore" style="color:#3b82f6;font-weight:600;">furniture relocation</a> page.</div></div>
+      <div class="faq-item"><div class="faq-q">How long does a home gym installation take?</div><div class="faq-a">A treadmill is 45–60 minutes. A multi-station home gym is 3–5 hours. A full home-gym room build (rack + flooring + mirror + accessories) is typically a half-day with two installers.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you do commercial gym fit-outs?</div><div class="faq-a">Yes — we install for hotel gyms, condo facility gyms, corporate wellness rooms and personal training studios. WhatsApp us for site survey and bulk pricing.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>Ready to Build Your Home Gym?</h2>
+        <p>Instant fixed-price quote — no phone calls, no waiting. Book in 60 seconds.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "Gym Equipment Installation Singapore" });
+}
+
+/* ── Dynamic sitemap.xml — auto-generated from SERVICE_PAGES registry ───────── */
+export function sitemapXml(): string {
+  const today = new Date().toISOString().slice(0, 10);
+  const staticPages = [
+    { loc: `${DOMAIN}/`,         priority: "1.0",  changefreq: "weekly"  },
+    { loc: `${DOMAIN}/estimate`, priority: "0.95", changefreq: "monthly" },
+    { loc: `${DOMAIN}/services`, priority: "0.95", changefreq: "monthly" },
+  ];
+  const legalPages = [
+    { loc: `${DOMAIN}/terms`,    priority: "0.3",  changefreq: "yearly"  },
+    { loc: `${DOMAIN}/privacy`,  priority: "0.3",  changefreq: "yearly"  },
+  ];
+  const servicePages = SERVICE_PAGES.map(p => ({
+    loc: `${DOMAIN}/services/${p.slug}`,
+    priority: p.priority.toString(),
+    changefreq: "monthly",
+  }));
+  const all = [...staticPages, ...servicePages, ...legalPages];
+  const urls = all.map(u => `  <url>
+    <loc>${u.loc}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>${u.changefreq}</changefreq>
+    <priority>${u.priority}</priority>
+  </url>`).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}
+</urlset>`;
 }

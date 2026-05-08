@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { useLocation } from "wouter";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
+import { trackPixelEvent } from "@/lib/metaPixel";
 import { useSEO } from "@/hooks/use-seo";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -198,6 +199,7 @@ export default function EstimateWizard() {
     if (wizardStartFired.current) return;
     wizardStartFired.current = true;
     trackEvent("wizard_start", "/estimate");
+    trackPixelEvent("InitiateCheckout");
   }, []);
 
   // Resume from abandoned lead link (?resume=TOKEN)
@@ -853,6 +855,13 @@ export default function EstimateWizard() {
         });
       } catch (_) {}
       trackEvent("wizard_submit", "/estimate");
+      try {
+        trackPixelEvent("Lead", {
+          content_name: "Estimate Submitted",
+          value: typeof quote?.total === "number" ? quote.total : undefined,
+          currency: "SGD",
+        });
+      } catch (_) {}
 
       // Mark partial lead as completed so no re-engagement email is sent
       if (partialLeadToken) {
