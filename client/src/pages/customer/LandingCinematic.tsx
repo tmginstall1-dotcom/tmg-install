@@ -956,14 +956,22 @@ function PageBackgroundSequence() {
   const [ready, setReady] = useState(false);
   const [loaded, setLoaded] = useState(0);
 
-  // Preload every frame
+  // Preload frames AFTER first paint so the hero LCP isn't held back.
+  // Strategy: wait for window load + idle, then load progressively in two
+  // passes — every 4th frame first (for fast scrub coverage), then the rest.
   useEffect(() => {
     let cancelled = false;
     let count = 0;
-    const imgs: HTMLImageElement[] = [];
-    for (let i = 1; i <= SEQ_COUNT; i++) {
+    const imgs: HTMLImageElement[] = new Array(SEQ_COUNT);
+    imagesRef.current = imgs;
+
+    const loadOne = (i: number) => {
+      if (cancelled || imgs[i]) return;
       const img = new Image();
-      img.src = SEQ_PATH(i);
+      // Hint to the browser this is non-critical
+      try { (img as any).fetchPriority = "low"; } catch {}
+      (img as any).decoding = "async";
+      img.src = SEQ_PATH(i + 1);
       const onDone = () => {
         if (cancelled) return;
         count += 1;
@@ -972,11 +980,32 @@ function PageBackgroundSequence() {
       };
       img.onload = onDone;
       img.onerror = onDone;
-      imgs.push(img);
+      imgs[i] = img;
+    };
+
+    const start = () => {
+      if (cancelled) return;
+      // Pass 1: every 4th frame for fast scrub coverage
+      for (let i = 0; i < SEQ_COUNT; i += 4) loadOne(i);
+      // Pass 2: fill in the rest after a tick
+      setTimeout(() => {
+        if (cancelled) return;
+        for (let i = 0; i < SEQ_COUNT; i++) loadOne(i);
+      }, 250);
+    };
+
+    const ric: any = (window as any).requestIdleCallback || ((cb: any) => setTimeout(cb, 1200));
+    let rid: any;
+    if (document.readyState === "complete") {
+      rid = ric(start);
+    } else {
+      window.addEventListener("load", () => { rid = ric(start); }, { once: true });
     }
-    imagesRef.current = imgs;
+
     return () => {
       cancelled = true;
+      const cic: any = (window as any).cancelIdleCallback;
+      if (cic && rid) cic(rid);
     };
   }, []);
 
@@ -1066,8 +1095,8 @@ function PageBackgroundSequence() {
    Scroll UP → plays backward (install back). useSpring adds a tiny lag so it
    feels like film, not a stepped slideshow (Apple product-page pattern). */
 
-const SEQ_COUNT = 121;
-const SEQ_PATH = (i: number) => `/sequences/install/f_${String(i).padStart(3, "0")}.jpg`;
+const SEQ_COUNT = 60;
+const SEQ_PATH = (i: number) => `/sequences/install/f_${String(i).padStart(3, "0")}.webp`;
 
 function InstallSequence() {
   const sectionRef = useRef<HTMLElement>(null);
