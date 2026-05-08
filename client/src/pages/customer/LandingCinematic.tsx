@@ -617,7 +617,7 @@ function AssemblyScroll() {
     <section
       ref={sectionRef}
       id="assembly-scroll"
-      className="relative h-[220vh] md:h-[320vh]"
+      className="relative md:h-[320vh]"
       style={{ background: PAPER, color: INK }}
       data-testid="section-assembly"
     >
@@ -641,50 +641,82 @@ function AssemblyScroll() {
         </div>
       </div>
 
-      <div className="sticky top-0 h-screen w-full overflow-hidden">
+      {/* MOBILE — plain stacked cards, NO sticky, NO scroll choreography.
+           This guarantees there are zero blank zones on phones. */}
+      <div className="md:hidden relative pt-[160px]">
+        <DotGrid opacity={0.4} />
+        <div className="relative">
+          {STORY.map((s, i) => (
+            <article
+              key={`m-${s.no}`}
+              className="border-b"
+              style={{ borderColor: LINE }}
+              data-testid={`mobile-chapter-${i}`}
+            >
+              <div className="relative w-full aspect-[4/3] overflow-hidden bg-stone-200">
+                <img
+                  src={s.image}
+                  alt={s.caption}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-3 left-3 right-3 flex items-center justify-between text-[10px] tracking-[0.2em] uppercase font-bold text-white">
+                  <span className="flex items-center gap-1.5 bg-black/65 backdrop-blur-sm px-2 py-1">
+                    <AccentSquare /> {s.caption}
+                  </span>
+                  <span className="bg-black/65 backdrop-blur-sm px-2 py-1">0{i + 1} / 03</span>
+                </div>
+              </div>
+              <div className="px-6 py-10">
+                <div className="flex items-baseline gap-3 mb-4">
+                  <span
+                    className="font-serif italic font-black text-black/90"
+                    style={{ fontSize: "64px", lineHeight: 0.85 }}
+                  >
+                    {s.no}
+                  </span>
+                  <Tag accent>{s.code}</Tag>
+                </div>
+                <h3
+                  className="font-serif italic font-black tracking-[-0.02em] leading-[1.0] mb-4"
+                  style={{ fontSize: "30px" }}
+                >
+                  {s.title}
+                </h3>
+                <p className="text-black/65 text-base leading-relaxed">{s.body}</p>
+                <div className="mt-6 flex gap-2">
+                  {STORY.map((_, j) => (
+                    <div
+                      key={j}
+                      className="h-[3px] w-8"
+                      style={{ background: j === i ? ACCENT : "rgba(10,10,10,0.18)" }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      {/* DESKTOP — sticky scroll choreography */}
+      <div className="hidden md:block sticky top-0 h-screen w-full overflow-hidden">
         <DotGrid opacity={0.4} />
 
-        {/* Floating editorial fragments — desktop only, TMG service references */}
-        <div className="hidden md:block absolute top-[14%] left-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight max-w-[140px] pointer-events-none">
+        {/* Floating editorial fragments — TMG service references */}
+        <div className="absolute top-[14%] left-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight max-w-[140px] pointer-events-none">
           <AccentSquare /> <span className="ml-1">Wardrobes.</span><br />
           <span className="ml-[14px] block">Beds. Tables.</span>
           <span className="ml-[14px] block opacity-60">Office workstations.</span>
         </div>
-        <div className="hidden md:block absolute top-[14%] right-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight text-right max-w-[160px] pointer-events-none">
+        <div className="absolute top-[14%] right-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight text-right max-w-[160px] pointer-events-none">
           <span>Install · Dismantle</span><br />
           <span>Relocate · Repair</span><br />
           <span className="opacity-60">Singapore — island-wide</span>
         </div>
 
-        {/* MOBILE — clean column layout, no blank zones */}
-        <div className="md:hidden h-full flex flex-col px-5 pt-20 pb-6 gap-5 relative z-[3]">
-          <div className="relative w-full aspect-[4/3] border overflow-hidden flex-shrink-0" style={{ borderColor: LINE }}>
-            {STORY.map((s, i) => (
-              <ChapterMedia
-                key={`m-${s.no}`}
-                index={i}
-                scrollYProgress={scrollYProgress}
-                src={s.image}
-                caption={s.caption}
-              />
-            ))}
-          </div>
-          <div className="relative flex-1 min-h-0">
-            {STORY.map((s, i) => (
-              <ChapterCard key={`mc-${s.no}`} chapter={s} index={i} scrollYProgress={scrollYProgress} compact />
-            ))}
-          </div>
-          <div className="flex items-center gap-3 text-[10px] tracking-[0.18em] uppercase font-bold flex-shrink-0">
-            <span>From parts</span>
-            <div className="flex-1 h-[3px] origin-left bg-black/15">
-              <motion.div style={{ scaleX: completeBar, background: ACCENT }} className="h-[3px] origin-left" />
-            </div>
-            <span>Complete</span>
-          </div>
-        </div>
-
-        {/* DESKTOP — two-column grid */}
-        <div className="hidden md:grid grid-cols-12 h-full">
+        <div className="grid grid-cols-12 h-full">
           <div className="col-span-6 relative flex items-center px-10 lg:px-14 z-[3]">
             <div className="w-full relative">
               {STORY.map((s, i) => (
