@@ -942,6 +942,216 @@ function Scene3D() {
   );
 }
 
+/* ─────────────────────── InstallSequence — frame-scrub scroll animation ───────────────────────
+   Real-footage scroll scrubber. 121 JPG frames extracted from the install GIF
+   are preloaded into <Image> objects, then the current frame is drawn onto a
+   <canvas> based on scroll position. Scroll DOWN → plays forward (dismantle).
+   Scroll UP → plays backward (install back). useSpring adds a tiny lag so it
+   feels like film, not a stepped slideshow (Apple product-page pattern). */
+
+const SEQ_COUNT = 121;
+const SEQ_PATH = (i: number) => `/sequences/install/f_${String(i).padStart(3, "0")}.jpg`;
+
+function InstallSequence() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imagesRef = useRef<HTMLImageElement[]>([]);
+  const reduce = useReducedMotion();
+  const [ready, setReady] = useState(false);
+  const [loaded, setLoaded] = useState(0);
+  const [frameLabel, setFrameLabel] = useState(1);
+
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end end"],
+  });
+  // Smooth the raw scroll value so the playback feels like film
+  const smooth = useSpring(scrollYProgress, { stiffness: 120, damping: 28, mass: 0.4 });
+
+  // Preload every frame
+  useEffect(() => {
+    let cancelled = false;
+    let count = 0;
+    const imgs: HTMLImageElement[] = [];
+    for (let i = 1; i <= SEQ_COUNT; i++) {
+      const img = new Image();
+      img.src = SEQ_PATH(i);
+      img.onload = () => {
+        if (cancelled) return;
+        count += 1;
+        setLoaded(count);
+        if (count === SEQ_COUNT) setReady(true);
+      };
+      img.onerror = () => {
+        if (cancelled) return;
+        count += 1;
+        setLoaded(count);
+        if (count === SEQ_COUNT) setReady(true);
+      };
+      imgs.push(img);
+    }
+    imagesRef.current = imgs;
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Size the canvas to its container (DPR-aware for crispness)
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const resize = () => {
+      const rect = cv.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = Math.round(rect.width * dpr);
+      cv.height = Math.round(rect.height * dpr);
+    };
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, [ready]);
+
+  // Draw current frame onto the canvas as smoothed scroll changes
+  useEffect(() => {
+    const draw = (p: number) => {
+      const cv = canvasRef.current;
+      if (!cv) return;
+      const ctx = cv.getContext("2d");
+      if (!ctx) return;
+      const idx = Math.max(0, Math.min(SEQ_COUNT - 1, Math.round(p * (SEQ_COUNT - 1))));
+      const img = imagesRef.current[idx];
+      if (!img || !img.complete || img.naturalWidth === 0) return;
+      // contain-fit
+      const cw = cv.width;
+      const ch = cv.height;
+      const ir = img.naturalWidth / img.naturalHeight;
+      const cr = cw / ch;
+      let dw, dh, dx, dy;
+      if (ir > cr) {
+        dw = cw;
+        dh = cw / ir;
+      } else {
+        dh = ch;
+        dw = ch * ir;
+      }
+      dx = (cw - dw) / 2;
+      dy = (ch - dh) / 2;
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.drawImage(img, dx, dy, dw, dh);
+      setFrameLabel(idx + 1);
+    };
+
+    if (reduce) {
+      draw(1);
+      return;
+    }
+    // Initial draw
+    draw(smooth.get());
+    const unsub = smooth.on("change", draw);
+    return () => unsub();
+  }, [ready, reduce, smooth]);
+
+  const pctLoaded = Math.round((loaded / SEQ_COUNT) * 100);
+
+  return (
+    <section
+      ref={sectionRef}
+      id="install-sequence"
+      className="relative h-[220vh] md:h-[280vh]"
+      style={{ background: PAPER, color: INK }}
+      data-testid="section-install-sequence"
+    >
+      <div className="sticky top-0 h-screen w-full overflow-hidden">
+        <DotGrid opacity={0.4} />
+
+        {/* Top opener strip */}
+        <div className="absolute top-0 inset-x-0 z-[5] px-5 md:px-10 lg:px-14 pt-16 md:pt-20 pb-4 border-b" style={{ borderColor: LINE }}>
+          <div className="grid grid-cols-12 gap-3 md:gap-8 items-end">
+            <div className="col-span-12 md:col-span-4 flex flex-wrap items-center gap-2 mb-3 md:mb-0">
+              <Tag>§ 01</Tag>
+              <Tag accent>Scroll to install</Tag>
+            </div>
+            <div className="col-span-12 md:col-span-8">
+              <h2
+                className="font-serif italic tracking-[-0.03em] leading-[0.95] font-black"
+                style={{ fontSize: "clamp(28px, 5.5vw, 88px)" }}
+              >
+                Scroll down to install. Scroll up to dismantle.
+              </h2>
+            </div>
+          </div>
+        </div>
+
+        {/* The scrubbed canvas */}
+        <div className="absolute inset-0 pt-[150px] md:pt-[180px] pb-[110px] md:pb-[90px] z-[3]">
+          <canvas
+            ref={canvasRef}
+            className="w-full h-full block"
+            style={{ background: "#f1efe7" }}
+            data-testid="canvas-install-sequence"
+          />
+          {!ready && (
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] tracking-[0.2em] uppercase font-bold opacity-70">
+              loading sequence… {pctLoaded}%
+            </div>
+          )}
+        </div>
+
+        {/* Editorial chip labels */}
+        <div className="hidden md:block absolute top-[24%] left-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight max-w-[160px] pointer-events-none">
+          <AccentSquare /> <span className="ml-1">Real install footage</span><br />
+          <span className="ml-[14px] block opacity-60">TMG crew · Singapore</span>
+        </div>
+        <div className="hidden md:block absolute top-[24%] right-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight text-right max-w-[180px] pointer-events-none">
+          <span style={{ background: INK, color: PAPER, padding: "2px 6px" }}>Scrubbing</span>
+          <span className="block opacity-60 mt-1">{SEQ_COUNT} frames · 24 fps</span>
+        </div>
+
+        {/* Bottom HUD — frame counter + progress + CTA */}
+        <div className="absolute bottom-0 inset-x-0 z-[6] px-5 md:px-10 lg:px-14 pb-4 md:pb-6 pt-3 border-t" style={{ borderColor: LINE, background: "rgba(250,250,247,0.85)", backdropFilter: "blur(6px)" }}>
+          <div className="flex items-center gap-3 md:gap-6">
+            <div className="flex items-baseline gap-2 flex-shrink-0">
+              <span
+                className="font-serif italic font-black tabular-nums leading-none"
+                style={{ fontSize: "clamp(28px, 5vw, 56px)" }}
+                data-testid="text-seq-frame"
+              >
+                {String(frameLabel).padStart(3, "0")}
+              </span>
+              <span className="text-[10px] md:text-[12px] tracking-[0.2em] uppercase font-bold opacity-60">
+                / {SEQ_COUNT} frame
+              </span>
+            </div>
+            <div className="flex-1 flex items-center gap-3 min-w-0">
+              <span className="hidden md:inline text-[10px] tracking-[0.2em] uppercase font-bold whitespace-nowrap">Box</span>
+              <div className="flex-1 h-[3px] bg-black/15 origin-left">
+                <div
+                  className="h-[3px]"
+                  style={{
+                    width: `${(frameLabel / SEQ_COUNT) * 100}%`,
+                    background: ACCENT,
+                    transition: "width 80ms linear",
+                  }}
+                />
+              </div>
+              <span className="hidden md:inline text-[10px] tracking-[0.2em] uppercase font-bold whitespace-nowrap">Done</span>
+            </div>
+            <a
+              href="/estimate"
+              onClick={() => trackEvent("cta_seq_quote", "/")}
+              data-testid="cta-seq-quote"
+              className="hidden md:inline-flex items-center gap-2 px-3 py-2 text-[11px] tracking-[0.2em] uppercase font-bold flex-shrink-0 transition-transform hover:-translate-y-[1px]"
+              style={{ background: ACCENT, color: INK }}
+            >
+              Book your install →
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AssemblyScroll() {
   const sectionRef = useRef<HTMLElement>(null);
   const progressRef = useRef(0);
@@ -1728,6 +1938,7 @@ export default function LandingCinematic() {
       <ScrollProgress />
       <Hero />
       <Marquee />
+      <InstallSequence />
       <AssemblyScroll />
       <Services />
       <WhyTMG />
