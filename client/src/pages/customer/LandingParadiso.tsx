@@ -14,6 +14,11 @@ import * as THREE from "three";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
 import { useSEO } from "@/hooks/use-seo";
 import tmgLogo from "@assets/generated_images/tmg_icon_1024.png";
+import workWardrobeWood from "@assets/01a8aed4-9419-48c0-8d66-5586d2d67599_1774688688302.jpeg";
+import workWardrobeWhite from "@assets/62426ebb-051a-4898-809d-94840e3259db_1774688688302.jpeg";
+import workBedroomMassageChair from "@assets/76026a64-d9a1-4b57-9482-557bbaf4addd_1777034083394.jpeg";
+import workOfficeFitout from "@assets/36116e50-6291-442a-86cb-0ddc9540b6bc_1774689529777.jpeg";
+import workConferenceTable from "@assets/6219e4af-4150-47a9-8625-09448ff10459_1774689529777.jpeg";
 
 /* ────────────────────────────────────────────────────────────────────────────
    TMG × PARADISO — editorial monochrome landing
@@ -117,6 +122,91 @@ function BlackPill({
     <span data-testid={testId} className={`${base} ${className}`}>
       {children}
     </span>
+  );
+}
+
+/* ─── WorkCard — editorial photo card used in the "Recent work" gallery.
+     Image fills the cell at a deliberate aspect-ratio. A small tabular
+     caption sits underneath. The whole card is a link to the estimate
+     wizard so any photo doubles as a CTA. ─── */
+
+function WorkCard({
+  src,
+  alt,
+  location,
+  items,
+  date,
+  className = "",
+  testId,
+  tag,
+  tagAccent = false,
+}: {
+  src: string;
+  alt: string;
+  location: string;
+  items: string;
+  date: string;
+  className?: string;
+  testId?: string;
+  tag?: string;
+  tagAccent?: boolean;
+}) {
+  return (
+    <Link
+      href="/estimate"
+      data-testid={testId}
+      className={`group relative block overflow-hidden bg-neutral-100 ${className}`}
+    >
+      {/* The photo */}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-[1.04]"
+      />
+
+      {/* Top-left tag pill */}
+      {tag && (
+        <span
+          className={`absolute left-3 top-3 z-10 inline-block px-2 py-1 text-[10px] font-bold tracking-[0.18em] uppercase leading-none ${
+            tagAccent ? "text-black" : "bg-white text-black"
+          }`}
+          style={tagAccent ? { background: ACCENT } : undefined}
+        >
+          {tag}
+        </span>
+      )}
+
+      {/* Bottom caption strip — paradiso editorial caption */}
+      <div
+        className="absolute left-0 right-0 bottom-0 z-10 px-3 pt-8 pb-2.5 bg-gradient-to-t from-black/95 via-black/75 to-transparent"
+        style={{ fontFamily: "var(--font-paradiso)" }}
+      >
+        <div
+          className="flex items-baseline justify-between gap-3 text-white text-[10px] uppercase tracking-[0.2em]"
+        >
+          <span
+            className="font-semibold truncate"
+            dangerouslySetInnerHTML={{ __html: location }}
+          />
+          <span className="tabular-nums opacity-80 shrink-0">{date}</span>
+        </div>
+        <div
+          className="mt-0.5 text-white/85 text-[10px] tracking-[0.14em] uppercase truncate"
+          dangerouslySetInnerHTML={{ __html: items }}
+        />
+      </div>
+
+      {/* Hover-only "Get a quote ->" pill bottom-right */}
+      <span
+        className="absolute right-3 bottom-3 z-20 inline-block px-2 py-1 text-[10px] font-bold tracking-[0.18em] uppercase leading-none text-black opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all"
+        style={{ background: ACCENT }}
+        aria-hidden="true"
+      >
+        Get a quote &nbsp;&rarr;
+      </span>
+    </Link>
   );
 }
 
@@ -852,6 +942,159 @@ export default function LandingParadiso() {
           ))}
         </div>
       </div>
+
+      {/* ═══════════════════════ RECENT WORK ═══════════════════════
+           Real photos from real jobs — paradiso-style asymmetric grid
+           with a small editorial caption under each image. No stock,
+           no marketing renders. ─── */}
+      <section
+        id="work"
+        className="relative py-24 sm:py-32 px-4 sm:px-8 bg-white overflow-hidden"
+        data-testid="section-work"
+      >
+        <div className="relative max-w-6xl mx-auto">
+          {/* Section eyebrow pill */}
+          <div className="absolute -top-3 left-0">
+            <span
+              className="inline-block px-2.5 py-1 text-[10px] sm:text-[11px] font-bold tracking-[0.18em] uppercase text-black leading-none"
+              style={{ background: ACCENT }}
+            >
+              N&ordm; 02 &middot; Recent work
+            </span>
+          </div>
+
+          {/* Huge faded ghost type behind the headline */}
+          <span
+            aria-hidden="true"
+            className="absolute right-[-4%] top-[8%] hidden md:block uppercase font-black select-none whitespace-nowrap"
+            style={{
+              fontFamily: "var(--font-paradiso)",
+              fontSize: "16vw",
+              color: "rgba(0,0,0,0.04)",
+              letterSpacing: "-0.04em",
+              lineHeight: 0.85,
+            }}
+          >
+            On site.
+          </span>
+
+          {/* Section headline + lede */}
+          <Reveal>
+            <h2
+              className="font-black uppercase leading-[0.9] tracking-[-0.03em] mt-12 sm:mt-16 max-w-3xl text-black"
+              style={{
+                fontFamily: "var(--font-paradiso)",
+                fontSize: "clamp(40px, 7vw, 104px)",
+              }}
+              data-testid="text-work-title"
+            >
+              The job,
+              <br />
+              <span style={{ color: ACCENT }}>photographed.</span>
+            </h2>
+          </Reveal>
+
+          <Reveal delay={0.08}>
+            <p
+              className="mt-6 max-w-xl text-[14px] sm:text-[15px] leading-[1.55] text-black/70"
+              style={{ fontFamily: "var(--font-paradiso-body)" }}
+              data-testid="text-work-lede"
+            >
+              Every install is documented. These are real homes, real offices,
+              real teams &mdash; assembled, dismantled and shifted across
+              Singapore by our own crew. Tap any frame to start a quote.
+            </p>
+          </Reveal>
+
+          {/* Asymmetric editorial photo grid.
+              Mobile: simple stack. Desktop: 12-col layout where the
+              "tall" hero image takes 5 cols and 2 rows; the rest fill
+              4-col cells in a magazine rhythm. */}
+          <div className="mt-12 sm:mt-16 grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-5">
+            {/* HERO IMAGE — tall, left, 2 rows on desktop */}
+            <WorkCard
+              src={workBedroomMassageChair}
+              alt="Bedroom installation with massage chair, Singapore HDB"
+              location="Bishan, HDB &mdash; bedroom"
+              items="King bed &middot; massage chair"
+              date="Mar 2026"
+              testId="work-1"
+              className="md:col-span-5 md:row-span-2 aspect-[3/4]"
+              tag="Featured"
+              tagAccent
+            />
+
+            <WorkCard
+              src={workOfficeFitout}
+              alt="Office fit-out with cubicle desks and overhead cabinets"
+              location="CBD &mdash; office"
+              items="14&times; cubicle desks &middot; overhead units"
+              date="Feb 2026"
+              testId="work-2"
+              className="md:col-span-7 aspect-[16/10]"
+              tag="Office fit-out"
+            />
+
+            <WorkCard
+              src={workConferenceTable}
+              alt="TMG technician installing a modular conference table"
+              location="Tanjong Pagar &mdash; meeting room"
+              items="Modular conference table"
+              date="Feb 2026"
+              testId="work-3"
+              className="md:col-span-4 aspect-[4/5]"
+              tag="On the tools"
+            />
+
+            <WorkCard
+              src={workWardrobeWood}
+              alt="Two-door oak wardrobe with drawers, installed in HDB bedroom"
+              location="Sengkang &mdash; bedroom"
+              items="2-door wardrobe &middot; drawer base"
+              date="Jan 2026"
+              testId="work-4"
+              className="md:col-span-3 aspect-[4/5]"
+              tag="Wardrobes"
+            />
+
+            <WorkCard
+              src={workWardrobeWhite}
+              alt="Tall white three-door wardrobe with three-drawer base"
+              location="Punggol &mdash; kid's room"
+              items="3-door wardrobe &middot; 3-drawer base"
+              date="Jan 2026"
+              testId="work-5"
+              className="md:col-span-7 aspect-[16/10]"
+              tag="Wardrobes"
+            />
+          </div>
+
+          {/* Tabular caption strip below the grid — paradiso loves these */}
+          <div
+            className="mt-10 sm:mt-12 grid grid-cols-2 md:grid-cols-4 border-t border-black/15 text-[10px] uppercase tracking-[0.22em] text-black/70"
+            style={{ fontFamily: "var(--font-paradiso)" }}
+            data-testid="work-tabular"
+          >
+            {[
+              ["Jobs delivered", "5,000+"],
+              ["Damage rate", "&lt; 0.4%"],
+              ["On-time rate", "98.6%"],
+              ["Photos archived", "37,000+"],
+            ].map(([k, v], i) => (
+              <div
+                key={k}
+                className={`flex flex-col gap-1 px-3 py-4 border-b border-black/15 ${i > 0 ? "md:border-l border-black/10" : ""} ${i === 1 ? "border-l border-black/10" : ""} ${i === 3 ? "border-l border-black/10 md:border-l" : ""}`}
+              >
+                <span className="text-black/45">{k}</span>
+                <span
+                  className="text-black font-semibold tracking-[0.14em] text-[13px] sm:text-[15px] normal-case"
+                  dangerouslySetInnerHTML={{ __html: v }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ═══════════════════════ SERVICES ═══════════════════════ */}
       <section id="services" className="relative py-24 sm:py-36 px-4 sm:px-8">
