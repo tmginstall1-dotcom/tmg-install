@@ -334,19 +334,19 @@ function Hero() {
         <Counter />
       </div>
 
-      {/* INSTITUTE-style label (top-left below credit) */}
+      {/* Service label (top-left below credit) */}
       <div className="absolute top-[12%] md:top-[18%] left-4 md:left-[10%] z-20">
-        <Tag accent>STUDIO</Tag>
+        <Tag accent>INSTALLATIONS</Tag>
       </div>
 
-      {/* Mid-left fragment "An ethos" */}
-      <div className="hidden md:block absolute top-[34%] left-[8%] z-20 text-[10px] tracking-[0.18em] uppercase font-bold leading-tight">
-        <div>An<br />ethos.</div>
+      {/* Mid-left fragment — TMG service line */}
+      <div className="hidden md:block absolute top-[34%] left-[8%] z-20 text-[10px] tracking-[0.18em] uppercase font-bold leading-tight max-w-[140px]">
+        <div>Furniture<br />installation<br />& dismantling.</div>
       </div>
 
-      {/* Mid-right fragment "A craft" */}
-      <div className="hidden md:block absolute top-[34%] right-[8%] z-20 text-[10px] tracking-[0.18em] uppercase font-bold leading-tight text-right max-w-[110px]">
-        <div>A craft<br />of careful<br />assembly.</div>
+      {/* Mid-right fragment — coverage */}
+      <div className="hidden md:block absolute top-[34%] right-[8%] z-20 text-[10px] tracking-[0.18em] uppercase font-bold leading-tight text-right max-w-[140px]">
+        <div>Homes. Offices.<br />Move-outs.<br />Island-wide.</div>
       </div>
 
       {/* CENTER WORDMARK */}
@@ -408,7 +408,7 @@ function Hero() {
 
       {/* BOTTOM-RIGHT CTA cluster */}
       <div className="absolute bottom-4 right-3 md:bottom-8 md:right-6 z-20 flex flex-col items-end gap-1.5">
-        <div className="text-[10px] tracking-[0.18em] uppercase font-bold mb-1">An install.</div>
+        <div className="text-[10px] tracking-[0.18em] uppercase font-bold mb-1">Book your job.</div>
         <LinkTag
           href="/estimate"
           accent
@@ -472,10 +472,12 @@ const STORY = [
   },
 ];
 
+// True crossfade — next chapter's in/peak overlap previous chapter's
+// out/end so the stage is never blank during a transition.
 const SEGMENTS = [
-  { in: -0.05, peak: 0.0,  out: 0.30, end: 0.36 },
-  { in: 0.34,  peak: 0.42, out: 0.62, end: 0.68 },
-  { in: 0.66,  peak: 0.74, out: 1.0,  end: 1.06 },
+  { in: -0.05, peak: 0.0,  out: 0.32, end: 0.36 },
+  { in: 0.32,  peak: 0.36, out: 0.64, end: 0.68 },
+  { in: 0.64,  peak: 0.68, out: 1.0,  end: 1.05 },
 ];
 
 function ChapterMedia({
@@ -615,7 +617,7 @@ function AssemblyScroll() {
     <section
       ref={sectionRef}
       id="assembly-scroll"
-      className="relative h-[280vh] md:h-[360vh]"
+      className="relative h-[220vh] md:h-[320vh]"
       style={{ background: PAPER, color: INK }}
       data-testid="section-assembly"
     >
@@ -642,14 +644,16 @@ function AssemblyScroll() {
       <div className="sticky top-0 h-screen w-full overflow-hidden">
         <DotGrid opacity={0.4} />
 
-        {/* Floating editorial fragments — desktop only */}
-        <div className="hidden md:block absolute top-[14%] left-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight max-w-[120px] pointer-events-none">
-          <AccentSquare /> <span className="ml-1">A method.</span><br />
-          <span className="opacity-60">Step by step.</span>
+        {/* Floating editorial fragments — desktop only, TMG service references */}
+        <div className="hidden md:block absolute top-[14%] left-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight max-w-[140px] pointer-events-none">
+          <AccentSquare /> <span className="ml-1">Wardrobes.</span><br />
+          <span className="ml-[14px] block">Beds. Tables.</span>
+          <span className="ml-[14px] block opacity-60">Office workstations.</span>
         </div>
-        <div className="hidden md:block absolute top-[14%] right-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight text-right max-w-[140px] pointer-events-none">
-          <span>Real jobs.</span><br />
-          <span className="opacity-60">Singapore — 2024 / 25</span>
+        <div className="hidden md:block absolute top-[14%] right-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight text-right max-w-[160px] pointer-events-none">
+          <span>Install · Dismantle</span><br />
+          <span>Relocate · Repair</span><br />
+          <span className="opacity-60">Singapore — island-wide</span>
         </div>
 
         {/* MOBILE — clean column layout, no blank zones */}
