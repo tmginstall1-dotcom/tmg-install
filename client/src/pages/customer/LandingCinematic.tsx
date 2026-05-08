@@ -11,25 +11,14 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
-  Check,
   MessageCircle,
-  Camera,
-  Building2,
-  Home,
-  HeadphonesIcon,
-  ShieldCheck,
-  Wrench,
-  Hammer,
-  PackageOpen,
-  Sofa,
-  RefreshCw,
 } from "lucide-react";
 import { useSEO } from "@/hooks/use-seo";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
 
 /* ──────────────────────────────────────────────────────────────────
-   TMG INSTALL — CINEMATIC HOMEPAGE (paradiso-style scroll storytelling)
+   TMG INSTALL — EDITORIAL/CINEMATIC HOMEPAGE
    Scope: redesign of "/" only. No backend, schema, or portal changes.
    Existing CTAs preserved: /estimate (quote) and the WhatsApp link.
    ────────────────────────────────────────────────────────────────── */
@@ -41,9 +30,9 @@ const HERO_FALLBACK_1600 = "/images/hero/exploded-wardrobe-1600.webp";
 const HERO_FALLBACK_800 = "/images/hero/exploded-wardrobe-800.webp";
 
 const NEAR_BLACK = "#050505";
+const PAPER = "#ededea";
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-/* Lazy-loaded 3D scene — kept out of the initial JS payload */
 const ThreeFurnitureScene = lazy(() => import("@/components/home/ThreeFurnitureScene"));
 
 /* WebGL availability detection (cached) */
@@ -74,6 +63,44 @@ function useIsMobile() {
   return isMobile;
 }
 
+/* ─────────────────────── Reusable: tiny editorial label ─────────────────────── */
+
+function Label({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={`text-[10px] md:text-[11px] tracking-[0.4em] uppercase text-white/55 ${className}`}>
+      {children}
+    </span>
+  );
+}
+
+/* ─────────────────────── Reusable: word-by-word reveal ─────────────────────── */
+
+function RevealLine({
+  children,
+  delay = 0,
+  className = "",
+  as: As = "div",
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  className?: string;
+  as?: React.ElementType;
+}) {
+  const reduce = useReducedMotion();
+  return (
+    <As className={`overflow-hidden ${className}`}>
+      <motion.div
+        initial={reduce ? { y: 0, opacity: 1 } : { y: "100%", opacity: 0 }}
+        whileInView={{ y: "0%", opacity: 1 }}
+        viewport={{ once: true, margin: "-15%" }}
+        transition={{ duration: 1.05, delay, ease: EASE }}
+      >
+        {children}
+      </motion.div>
+    </As>
+  );
+}
+
 /* ─────────────────────── Magnetic CTA button ─────────────────────── */
 
 function MagneticButton({
@@ -86,7 +113,7 @@ function MagneticButton({
 }: {
   href: string;
   children: React.ReactNode;
-  variant?: "primary" | "ghost" | "outline" | "dark";
+  variant?: "primary" | "outline" | "dark";
   testid?: string;
   external?: boolean;
   onClick?: () => void;
@@ -118,9 +145,7 @@ function MagneticButton({
       ? "bg-white text-black hover:bg-stone-100"
       : variant === "dark"
       ? "bg-black text-white hover:bg-stone-900 border border-white/10"
-      : variant === "outline"
-      ? "bg-transparent text-white border border-white/30 hover:border-white hover:bg-white/5"
-      : "bg-transparent text-white hover:bg-white/5";
+      : "bg-transparent text-white border border-white/30 hover:border-white hover:bg-white/5";
 
   return (
     <a
@@ -132,7 +157,7 @@ function MagneticButton({
       onMouseMove={onMove}
       onMouseLeave={() => setPos({ x: 0, y: 0 })}
       data-testid={testid}
-      className={`group inline-flex items-center justify-center px-8 py-4 text-[12px] font-medium tracking-[0.18em] uppercase rounded-full transition-colors duration-300 ${cls}`}
+      className={`group inline-flex items-center justify-center px-9 py-[18px] text-[11px] font-medium tracking-[0.22em] uppercase rounded-full transition-colors duration-300 ${cls}`}
     >
       <motion.span
         animate={{ x: pos.x, y: pos.y }}
@@ -153,20 +178,20 @@ function TopNav() {
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, ease: EASE }}
-      className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-6 lg:px-12 py-5 text-white"
+      className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-6 md:px-10 lg:px-16 py-6 text-white"
       data-testid="nav-top"
     >
       <Link
         href="/"
-        className="font-serif text-xl tracking-[0.25em] uppercase text-white"
+        className="text-[11px] tracking-[0.4em] uppercase text-white"
         data-testid="link-home"
       >
-        TMG Install
+        TMG / INSTALL
       </Link>
-      <div className="hidden md:flex items-center gap-8 text-[11px] tracking-[0.25em] uppercase text-white/70">
+      <div className="hidden md:flex items-center gap-10 text-[10px] tracking-[0.35em] uppercase text-white/65">
         <a href="#assembly-scroll" className="hover:text-white transition" data-testid="nav-process">Process</a>
         <a href="#services" className="hover:text-white transition" data-testid="nav-services">Services</a>
-        <a href="#why" className="hover:text-white transition" data-testid="nav-why">Why TMG</a>
+        <a href="#why" className="hover:text-white transition" data-testid="nav-why">Index</a>
         <a href="#business" className="hover:text-white transition" data-testid="nav-business">Business</a>
       </div>
       <a
@@ -174,7 +199,7 @@ function TopNav() {
         target="_blank"
         rel="noopener noreferrer"
         onClick={() => trackEvent("cta_whatsapp_nav", "/")}
-        className="text-[11px] tracking-[0.25em] uppercase text-white border-b border-white/40 hover:border-white pb-1 transition"
+        className="text-[10px] tracking-[0.35em] uppercase text-white border-b border-white/40 hover:border-white pb-1 transition"
         data-testid="nav-whatsapp"
       >
         WhatsApp
@@ -183,15 +208,7 @@ function TopNav() {
   );
 }
 
-/* ─────────────────────── Pinned 3D + Story arc ───────────────────────
-   One unified section. The 3D canvas is pinned (sticky) and parts
-   assemble across the entire scroll arc:
-     0–18%  : hero (parts exploded, idle)
-     18–40% : chapter 01 DESCRIBE (parts begin to drift in)
-     40–65% : chapter 02 VERIFY  (parts rotate and align)
-     65–95% : chapter 03 COMPLETE (parts snap to assembled state)
-     95–100%: assembled idle
-   ─────────────────────────────────────────────────────────────────── */
+/* ─────────────────────── Pinned 3D + Story arc ─────────────────────── */
 
 const STORY_CHAPTERS = [
   {
@@ -222,24 +239,21 @@ function AssemblyScroll() {
   const [showCanvas, setShowCanvas] = useState(false);
   const [activeChapter, setActiveChapter] = useState(-1);
 
-  // Section is 5 viewports tall: 1 for hero, ~1.3 per chapter
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start start", "end end"],
   });
 
-  // Drive 3D progress: 0 at hero start, 1 by end of chapter 03 (95%)
   useEffect(() => {
     return scrollYProgress.on("change", (v) => {
       if (reduce) {
         progressRef.current = 1;
         return;
       }
-      // Map 0.18 → 0.95 to 0 → 1; before/after clamp
-      const mapped = Math.max(0, Math.min(1, (v - 0.18) / (0.95 - 0.18)));
+      // Stretch motion: parts begin moving immediately and finish at 92%.
+      const mapped = Math.max(0, Math.min(1, (v - 0.08) / (0.92 - 0.08)));
       progressRef.current = mapped;
 
-      // Active chapter highlight
       if (v < 0.22) setActiveChapter(-1);
       else if (v < 0.45) setActiveChapter(0);
       else if (v < 0.7) setActiveChapter(1);
@@ -247,7 +261,6 @@ function AssemblyScroll() {
     });
   }, [scrollYProgress, reduce]);
 
-  // Defer canvas mount until interactive
   useEffect(() => {
     if (!hasWebGL()) return;
     const ric: any =
@@ -261,27 +274,35 @@ function AssemblyScroll() {
 
   const showStaticFallback = !showCanvas || !hasWebGL();
 
-  // Hero copy fade — starts 1, fades to 0 by 12% scroll
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.12], [1, 0]);
-  const heroLift = useTransform(scrollYProgress, [0, 0.18], [0, -80]);
+  // Hero copy: fade and lift away as user enters the chapter zone
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.13], [1, 0]);
+  const heroLift = useTransform(scrollYProgress, [0, 0.18], [0, -100]);
 
-  // Chapter rail X-position: parts shift left when chapters appear (desktop)
-  const canvasShift = useTransform(scrollYProgress, [0.15, 0.4], ["0%", isMobile ? "0%" : "-12%"]);
+  // Parallax: canvas drifts subtly as chapters move through
+  const canvasShiftX = useTransform(scrollYProgress, [0.15, 0.95], ["0%", isMobile ? "0%" : "-8%"]);
+  const canvasShiftY = useTransform(scrollYProgress, [0.15, 0.95], ["0%", isMobile ? "0%" : "-4%"]);
+
+  // Title strip slow parallax
+  const titleParallax = useTransform(scrollYProgress, [0.13, 0.92], [0, -40]);
+
+  // Scroll progress bar inside the section
+  const sectionProgressScale = useTransform(scrollYProgress, [0.18, 0.95], [0, 1]);
 
   return (
     <section
       ref={sectionRef}
       id="assembly-scroll"
       className="relative"
-      style={{ height: "500vh", background: NEAR_BLACK }}
+      style={{ height: "560vh", background: NEAR_BLACK }}
       data-testid="section-assembly"
     >
       <TopNav />
-      {/* Sticky 3D + overlay text frame */}
+
+      {/* Sticky stage */}
       <div className="sticky top-0 h-screen w-full overflow-hidden">
         {/* 3D canvas (or static fallback) */}
         <motion.div
-          style={{ x: canvasShift }}
+          style={{ x: canvasShiftX, y: canvasShiftY }}
           className="absolute inset-0 z-0 pointer-events-none"
         >
           {showStaticFallback ? (
@@ -312,122 +333,146 @@ function AssemblyScroll() {
         </motion.div>
 
         {/* Vignette + grid overlay */}
-        <div className="absolute inset-0 z-[1] pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 0%, ${NEAR_BLACK}cc 80%)` }} />
+        <div className="absolute inset-0 z-[1] pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 0%, ${NEAR_BLACK}cc 85%)` }} />
         <div
           aria-hidden="true"
-          className="absolute inset-0 z-[1] opacity-[0.06] pointer-events-none"
+          className="absolute inset-0 z-[1] opacity-[0.05] pointer-events-none"
           style={{
             backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
-            backgroundSize: "80px 80px",
+              "linear-gradient(rgba(255,255,255,0.55) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.55) 1px, transparent 1px)",
+            backgroundSize: "120px 120px",
           }}
         />
 
-        {/* HERO copy (fades out as user enters chapter 01) */}
+        {/* Editorial frame: thin top + bottom + side rails */}
+        <div className="absolute inset-x-6 md:inset-x-10 lg:inset-x-16 top-20 md:top-24 bottom-12 md:bottom-16 border border-white/10 z-[2] pointer-events-none" />
+
+        {/* Left rail caption + section number */}
+        <div className="hidden md:flex absolute left-10 lg:left-20 top-32 lg:top-40 flex-col gap-3 z-[3] pointer-events-none">
+          <Label>§ 00 / Index</Label>
+          <Label>SG / Island-wide</Label>
+        </div>
+
+        {/* Right rail vertical text */}
+        <div className="hidden md:flex absolute right-10 lg:right-20 top-32 lg:top-40 z-[3] pointer-events-none">
+          <Label className="[writing-mode:vertical-rl] rotate-180">
+            EST. 2019 — TMG INSTALL — SINGAPORE
+          </Label>
+        </div>
+
+        {/* In-section progress meter (bottom of frame) */}
+        <div className="absolute bottom-16 md:bottom-20 left-6 md:left-10 lg:left-16 right-6 md:right-10 lg:right-16 z-[3] pointer-events-none">
+          <div className="flex items-center gap-4">
+            <Label>Assembly</Label>
+            <div className="flex-1 h-px bg-white/10 origin-left">
+              <motion.div style={{ scaleX: sectionProgressScale }} className="h-px bg-white origin-left" />
+            </div>
+            <Label>Complete</Label>
+          </div>
+        </div>
+
+        {/* HERO copy (fades out as user enters chapter zone) */}
         <motion.div
           style={{ opacity: heroOpacity, y: heroLift }}
-          className="absolute inset-0 z-20 flex flex-col justify-end px-6 lg:px-16 pb-24 md:pb-32 pointer-events-none"
+          className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-16 lg:px-24 pointer-events-none"
         >
-          <div className="max-w-6xl pointer-events-auto">
-            <p className="text-[11px] tracking-[0.4em] uppercase text-white/55 mb-6">
-              The Moving Guy · Singapore
-            </p>
-            <h1 className="font-serif text-white text-[42px] leading-[1.04] sm:text-6xl md:text-7xl lg:text-[88px] tracking-[-0.02em] max-w-5xl">
-              Furniture Installation,<br />
-              Dismantling & Relocation
-              <br />
-              <span className="italic text-white/85">— Built Properly.</span>
-            </h1>
-            <p className="mt-8 max-w-xl text-base md:text-lg text-stone-300 leading-relaxed">
-              TMG Install helps homes, offices, landlords and businesses handle furniture
-              assembly, dismantling, relocation support and office setup with clear
-              coordination and professional workmanship.
-            </p>
-            <div className="mt-10 flex flex-wrap items-center gap-4">
-              <MagneticButton
-                href="/estimate"
-                testid="hero-cta-quote"
-                onClick={() => trackEvent("cta_estimate_hero", "/")}
-              >
-                Get Instant Quote <ArrowRight size={16} className="-mr-1" />
-              </MagneticButton>
-              <MagneticButton
-                href={WHATSAPP}
-                external
-                variant="outline"
-                testid="hero-cta-whatsapp"
-                onClick={() => trackEvent("cta_whatsapp_hero", "/")}
-              >
-                <MessageCircle size={16} /> WhatsApp Us
-              </MagneticButton>
-            </div>
-          </div>
-          {/* Scroll cue */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.4, duration: 0.8 }}
-            className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/40 text-[10px] tracking-[0.4em] uppercase"
-            aria-hidden="true"
-          >
-            <motion.div
-              animate={{ y: [0, 6, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          <div className="max-w-[1400px] pointer-events-auto">
+            <RevealLine delay={0.1} className="mb-6 md:mb-8">
+              <Label>Singapore · Furniture installation studio</Label>
+            </RevealLine>
+            <h1
+              className="font-serif text-white tracking-[-0.035em] leading-[0.92]"
+              style={{ fontSize: "clamp(56px, 13vw, 220px)" }}
+              data-testid="hero-headline"
             >
-              Scroll
-            </motion.div>
-          </motion.div>
+              <RevealLine delay={0.15}>Furniture,</RevealLine>
+              <RevealLine delay={0.28}>
+                <span className="italic text-white/85">built properly.</span>
+              </RevealLine>
+            </h1>
+            <RevealLine delay={0.45} className="mt-10 md:mt-14">
+              <p className="max-w-xl text-base md:text-lg text-stone-300 leading-relaxed">
+                Installation, dismantling, relocation support and office setup for homes,
+                offices, landlords and businesses across Singapore.
+              </p>
+            </RevealLine>
+            <RevealLine delay={0.6} className="mt-10 md:mt-12">
+              <div className="flex flex-wrap items-center gap-4">
+                <MagneticButton
+                  href="/estimate"
+                  testid="hero-cta-quote"
+                  onClick={() => trackEvent("cta_estimate_hero", "/")}
+                >
+                  Get Instant Quote <ArrowRight size={16} className="-mr-1" />
+                </MagneticButton>
+                <MagneticButton
+                  href={WHATSAPP}
+                  external
+                  variant="outline"
+                  testid="hero-cta-whatsapp"
+                  onClick={() => trackEvent("cta_whatsapp_hero", "/")}
+                >
+                  <MessageCircle size={16} /> WhatsApp Us
+                </MagneticButton>
+              </div>
+            </RevealLine>
+          </div>
         </motion.div>
 
-        {/* CHAPTER overlay — title strip top-left, chapter content bottom-right */}
+        {/* CHAPTER overlay */}
         <div className="absolute inset-0 z-20 pointer-events-none">
-          {/* Story title strip — visible once user is past hero */}
+          {/* Story title — top left */}
           <motion.div
             style={{
+              y: titleParallax,
               opacity: useTransform(scrollYProgress, [0.13, 0.2, 0.92, 0.98], [0, 1, 1, 0]),
             }}
-            className="absolute top-24 md:top-28 left-6 lg:left-16 max-w-md"
+            className="absolute top-28 md:top-32 left-6 md:left-16 lg:left-24 max-w-[780px]"
           >
-            <p className="text-[11px] tracking-[0.4em] uppercase text-white/55 mb-3">The Process</p>
-            <h2 className="font-serif text-white text-3xl md:text-5xl leading-[1.05] tracking-[-0.02em]">
-              From flat-pack chaos<br />
-              <span className="italic text-white/65">to finished setup.</span>
+            <Label className="block mb-4">§ 01 / The Process</Label>
+            <h2
+              className="font-serif text-white tracking-[-0.03em] leading-[0.95]"
+              style={{ fontSize: "clamp(36px, 6vw, 96px)" }}
+            >
+              From flat-pack <span className="italic text-white/70">chaos</span><br />
+              to finished <span className="italic text-white/70">setup.</span>
             </h2>
-            <div className="mt-6 flex gap-2" aria-hidden="true">
+            <div className="mt-8 flex gap-2" aria-hidden="true">
               {STORY_CHAPTERS.map((_, i) => (
                 <div
                   key={i}
-                  className={`h-[2px] w-10 transition-colors duration-500 ${i <= activeChapter ? "bg-white" : "bg-white/20"}`}
+                  className={`h-[2px] w-12 transition-colors duration-500 ${i <= activeChapter ? "bg-white" : "bg-white/15"}`}
                 />
               ))}
             </div>
           </motion.div>
 
-          {/* Active chapter card — bottom right */}
-          <div className="absolute bottom-12 md:bottom-20 right-6 md:right-16 left-6 md:left-auto max-w-sm md:max-w-md pointer-events-auto">
+          {/* Active chapter — bottom right */}
+          <div className="absolute bottom-28 md:bottom-36 right-6 md:right-16 lg:right-24 left-6 md:left-auto max-w-md md:max-w-[440px] pointer-events-auto">
             <AnimatePresence mode="wait">
               {activeChapter >= 0 && (
                 <motion.div
                   key={activeChapter}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 36 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -30 }}
-                  transition={{ duration: 0.55, ease: EASE }}
-                  className="border border-white/10 bg-black/60 backdrop-blur-sm p-7 md:p-9"
+                  exit={{ opacity: 0, y: -36 }}
+                  transition={{ duration: 0.65, ease: EASE }}
+                  className="border-t border-white/30 pt-8 pr-2"
                   data-testid={`chapter-${activeChapter}`}
                 >
-                  <div className="flex items-baseline gap-3 mb-4">
-                    <span className="font-serif text-white/30 text-3xl md:text-4xl">
+                  <div className="flex items-baseline gap-3 mb-6">
+                    <span className="font-serif text-white text-5xl md:text-6xl">
                       {STORY_CHAPTERS[activeChapter].no}
                     </span>
-                    <span className="text-[11px] tracking-[0.35em] uppercase text-white/55">
-                      / {STORY_CHAPTERS[activeChapter].code}
-                    </span>
+                    <Label>/ {STORY_CHAPTERS[activeChapter].code}</Label>
                   </div>
-                  <h3 className="font-serif text-white text-2xl md:text-3xl leading-[1.1] tracking-[-0.01em]">
+                  <h3
+                    className="font-serif text-white leading-[0.95] tracking-[-0.02em]"
+                    style={{ fontSize: "clamp(28px, 3.6vw, 52px)" }}
+                  >
                     {STORY_CHAPTERS[activeChapter].title}
                   </h3>
-                  <p className="mt-4 text-stone-400 text-sm md:text-base leading-relaxed">
+                  <p className="mt-5 text-stone-400 text-sm md:text-base leading-relaxed max-w-sm">
                     {STORY_CHAPTERS[activeChapter].body}
                   </p>
                 </motion.div>
@@ -440,78 +485,117 @@ function AssemblyScroll() {
   );
 }
 
-/* ─────────────────────── Services grid ─────────────────────── */
+/* ─────────────────────── Section header (editorial) ─────────────────────── */
+
+function SectionHeader({
+  no,
+  eyebrow,
+  title,
+}: {
+  no: string;
+  eyebrow: string;
+  title: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-12 gap-4 md:gap-8 mb-20 md:mb-32">
+      <div className="col-span-12 md:col-span-3 lg:col-span-2 flex flex-col gap-3">
+        <Label>§ {no}</Label>
+        <Label>{eyebrow}</Label>
+      </div>
+      <div className="col-span-12 md:col-span-9 lg:col-span-10">
+        <RevealLine>
+          <h2
+            className="font-serif text-white tracking-[-0.03em] leading-[0.92]"
+            style={{ fontSize: "clamp(40px, 8vw, 144px)" }}
+          >
+            {title}
+          </h2>
+        </RevealLine>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────── Services (editorial rows, not cards) ─────────────────────── */
 
 const SERVICES = [
-  { icon: Hammer, title: "Furniture Installation", body: "Assembly for beds, wardrobes, tables, cabinets and more." },
-  { icon: PackageOpen, title: "Furniture Dismantling", body: "Careful dismantling for moving, replacement or storage." },
-  { icon: Building2, title: "Office Furniture Setup", body: "Workstations, office chairs, desks, pedestals and meeting room furniture." },
-  { icon: Sofa, title: "Relocation Support", body: "Move-related dismantling, assembly and furniture handling support." },
-  { icon: Home, title: "Wardrobe / Bed / Table Assembly", body: "Common home furniture installed with proper coordination." },
-  { icon: RefreshCw, title: "Repair & Adjustment", body: "Basic furniture adjustment, tightening and minor repair support." },
+  { n: "01", title: "Furniture Installation", body: "Assembly for beds, wardrobes, tables, cabinets and more.", tag: "RESIDENTIAL · COMMERCIAL" },
+  { n: "02", title: "Furniture Dismantling", body: "Careful dismantling for moving, replacement or storage.", tag: "DISPOSAL READY" },
+  { n: "03", title: "Office Furniture Setup", body: "Workstations, office chairs, desks, pedestals and meeting room furniture.", tag: "FIT-OUT" },
+  { n: "04", title: "Relocation Support", body: "Move-related dismantling, assembly and furniture handling support.", tag: "ON-SITE" },
+  { n: "05", title: "Wardrobe / Bed / Table Assembly", body: "Common home furniture installed with proper coordination.", tag: "FLAT-PACK" },
+  { n: "06", title: "Repair & Adjustment", body: "Basic furniture adjustment, tightening and minor repair support.", tag: "MAINTENANCE" },
 ];
 
 function Services() {
   return (
-    <section id="services" className="py-32 px-6 lg:px-16" style={{ background: NEAR_BLACK }} data-testid="section-services">
-      <div className="mx-auto max-w-7xl">
-        <div className="grid md:grid-cols-12 gap-12 mb-20">
-          <div className="md:col-span-7">
-            <p className="text-[11px] tracking-[0.35em] uppercase text-white/55 mb-4">What we do</p>
-            <h2 className="font-serif text-white text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em]">
-              Furniture work, <span className="italic text-white/65">handled properly.</span>
-            </h2>
-          </div>
-          <div className="md:col-span-5 md:pt-10 text-stone-400 text-base leading-relaxed">
-            Every job — from a single bed frame to a 40-station office — runs through the
-            same coordination process. Clear quote, scheduled crew, photo handover.
-          </div>
-        </div>
+    <section
+      id="services"
+      className="py-32 md:py-48 px-6 md:px-10 lg:px-16 border-t border-white/10"
+      style={{ background: NEAR_BLACK }}
+      data-testid="section-services"
+    >
+      <div className="mx-auto max-w-[1600px]">
+        <SectionHeader
+          no="02"
+          eyebrow="Services / Index"
+          title={
+            <>
+              Furniture work,<br />
+              <span className="italic text-white/65">handled properly.</span>
+            </>
+          }
+        />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-white/10">
-          {SERVICES.map((s, i) => {
-            const Icon = s.icon;
-            return (
-              <motion.div
-                key={s.title}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-10%" }}
-                transition={{ duration: 0.7, delay: i * 0.06, ease: EASE }}
-                className="group relative p-10 hover:translate-y-[-4px] transition-transform duration-500 min-h-[280px] flex flex-col justify-between"
-                style={{ background: NEAR_BLACK }}
-                data-testid={`service-${i}`}
+        <ol className="border-t border-white/15">
+          {SERVICES.map((s, i) => (
+            <motion.li
+              key={s.n}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-10%" }}
+              transition={{ duration: 0.7, delay: i * 0.06, ease: EASE }}
+              className="border-b border-white/15"
+              data-testid={`service-${i}`}
+            >
+              <Link
+                href="/estimate"
+                className="group grid grid-cols-12 gap-4 md:gap-8 py-10 md:py-14 hover:bg-white/[0.025] transition-colors duration-500"
+                onClick={() => trackEvent("cta_estimate_service", "/", s.title)}
+                data-testid={`service-cta-${i}`}
               >
-                <div className="flex items-start justify-between">
-                  <div className="text-[11px] tracking-[0.3em] uppercase text-stone-500">
-                    {String(i + 1).padStart(2, "0")}
-                  </div>
-                  <Icon size={22} className="text-white/40 group-hover:text-white transition-colors" strokeWidth={1.25} />
+                <div className="col-span-2 md:col-span-1 pt-2">
+                  <span className="font-serif text-white/40 text-xl md:text-2xl">{s.n}</span>
                 </div>
-                <div className="mt-12">
-                  <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 leading-tight">
+                <div className="col-span-10 md:col-span-7 lg:col-span-7">
+                  <h3
+                    className="font-serif text-white tracking-[-0.02em] leading-[0.98] group-hover:translate-x-2 transition-transform duration-500"
+                    style={{ fontSize: "clamp(28px, 4.5vw, 72px)" }}
+                  >
                     {s.title}
                   </h3>
-                  <p className="text-stone-400 text-sm leading-relaxed mb-6">{s.body}</p>
-                  <Link
-                    href="/estimate"
-                    className="inline-flex items-center gap-2 text-[11px] tracking-[0.25em] uppercase text-white border-b border-white/30 pb-1 hover:border-white transition w-fit"
-                    data-testid={`service-cta-${i}`}
-                    onClick={() => trackEvent("cta_estimate_service", "/", s.title)}
-                  >
-                    Get Quote <ArrowUpRight size={14} />
-                  </Link>
                 </div>
-              </motion.div>
-            );
-          })}
-        </div>
+                <div className="hidden md:flex md:col-span-3 lg:col-span-3 items-start pt-3">
+                  <p className="text-stone-400 text-sm md:text-base leading-relaxed">{s.body}</p>
+                </div>
+                <div className="hidden md:flex md:col-span-1 items-start justify-end pt-3 gap-3">
+                  <Label className="hidden lg:inline-block opacity-50 group-hover:opacity-100 transition">{s.tag}</Label>
+                  <ArrowUpRight size={22} strokeWidth={1.25} className="text-white/40 group-hover:text-white group-hover:rotate-45 transition-all duration-500 mt-1" />
+                </div>
+                {/* mobile body */}
+                <div className="md:hidden col-span-12 mt-3">
+                  <p className="text-stone-400 text-sm leading-relaxed">{s.body}</p>
+                </div>
+              </Link>
+            </motion.li>
+          ))}
+        </ol>
       </div>
     </section>
   );
 }
 
-/* ─────────────────────── Why TMG (large text blocks) ─────────────────────── */
+/* ─────────────────────── Why TMG (huge editorial list) ─────────────────────── */
 
 const WHY = [
   "Clear quote before work",
@@ -527,34 +611,43 @@ function WhyTMG() {
   return (
     <section
       id="why"
-      className="py-32 px-6 lg:px-16 border-t border-white/10"
+      className="py-32 md:py-48 px-6 md:px-10 lg:px-16 border-t border-white/10"
       style={{ background: NEAR_BLACK }}
       data-testid="section-why"
     >
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-20 max-w-3xl">
-          <p className="text-[11px] tracking-[0.35em] uppercase text-white/55 mb-4">Why TMG</p>
-          <h2 className="font-serif text-white text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em]">
-            Why customers choose <span className="italic text-white/65">TMG Install.</span>
-          </h2>
-        </div>
+      <div className="mx-auto max-w-[1600px]">
+        <SectionHeader
+          no="03"
+          eyebrow="Index / Why"
+          title={
+            <>
+              Why customers<br />
+              <span className="italic text-white/65">choose TMG.</span>
+            </>
+          }
+        />
 
-        <ol className="border-t border-white/10">
+        <ol className="border-t border-white/15">
           {WHY.map((label, i) => (
             <motion.li
               key={label}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-10%" }}
-              transition={{ duration: 0.6, delay: i * 0.05, ease: EASE }}
-              className="grid grid-cols-12 items-baseline gap-4 border-b border-white/10 py-7 md:py-9 group"
+              transition={{ duration: 0.65, delay: i * 0.05, ease: EASE }}
+              className="grid grid-cols-12 gap-4 md:gap-8 items-baseline border-b border-white/15 py-9 md:py-14 group"
               data-testid={`why-${i}`}
             >
-              <div className="col-span-2 md:col-span-1 text-[11px] tracking-[0.3em] uppercase text-white/40">
-                {String(i + 1).padStart(2, "0")}
+              <div className="col-span-2 md:col-span-1">
+                <span className="font-serif text-white/40 text-xl md:text-2xl">{String(i + 1).padStart(2, "0")}</span>
               </div>
-              <div className="col-span-10 md:col-span-11 font-serif text-white text-2xl md:text-4xl lg:text-5xl leading-[1.1] tracking-[-0.015em] group-hover:text-white transition-colors">
-                {label}
+              <div className="col-span-10 md:col-span-11">
+                <p
+                  className="font-serif text-white tracking-[-0.02em] leading-[1.0] group-hover:translate-x-2 transition-transform duration-500"
+                  style={{ fontSize: "clamp(28px, 5.2vw, 88px)" }}
+                >
+                  {label}
+                </p>
               </div>
             </motion.li>
           ))}
@@ -564,7 +657,7 @@ function WhyTMG() {
   );
 }
 
-/* ─────────────────────── Process (horizontal timeline desktop / vertical mobile) ─────────────────────── */
+/* ─────────────────────── Process (timeline) ─────────────────────── */
 
 const PROCESS = [
   { step: "01", title: "Send job details", body: "Photos, item list, location. WhatsApp or web form." },
@@ -577,22 +670,26 @@ const PROCESS = [
 function Process() {
   return (
     <section
-      className="py-32 px-6 lg:px-16 border-t border-white/10 overflow-hidden"
+      className="py-32 md:py-48 px-6 md:px-10 lg:px-16 border-t border-white/10 overflow-hidden"
       style={{ background: NEAR_BLACK }}
       data-testid="section-process"
     >
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-16 md:mb-24 max-w-3xl">
-          <p className="text-[11px] tracking-[0.35em] uppercase text-white/55 mb-4">A cleaner way to book</p>
-          <h2 className="font-serif text-white text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em]">
-            A cleaner way to book <span className="italic text-white/65">furniture work.</span>
-          </h2>
-        </div>
+      <div className="mx-auto max-w-[1600px]">
+        <SectionHeader
+          no="04"
+          eyebrow="Method / Booking"
+          title={
+            <>
+              A cleaner way to book<br />
+              <span className="italic text-white/65">furniture work.</span>
+            </>
+          }
+        />
 
         {/* Desktop horizontal timeline */}
         <div className="hidden md:block relative">
           <div className="absolute top-[34px] left-0 right-0 h-px bg-white/15" aria-hidden="true" />
-          <div className="grid grid-cols-5 gap-6">
+          <div className="grid grid-cols-5 gap-8 lg:gap-12">
             {PROCESS.map((p, i) => (
               <motion.div
                 key={p.step}
@@ -605,8 +702,8 @@ function Process() {
               >
                 <div className="relative z-10 flex flex-col items-start">
                   <div className="w-[14px] h-[14px] rounded-full bg-white border-4 border-[#050505] mb-1" />
-                  <div className="mt-6 text-[11px] tracking-[0.3em] uppercase text-white/45 mb-2">{p.step}</div>
-                  <h3 className="font-serif text-white text-xl lg:text-2xl leading-tight mb-3">{p.title}</h3>
+                  <div className="mt-8 text-[10px] tracking-[0.35em] uppercase text-white/45 mb-3">{p.step}</div>
+                  <h3 className="font-serif text-white text-2xl lg:text-[34px] leading-[1.05] tracking-[-0.015em] mb-4">{p.title}</h3>
                   <p className="text-stone-400 text-sm leading-relaxed">{p.body}</p>
                 </div>
               </motion.div>
@@ -614,7 +711,7 @@ function Process() {
           </div>
         </div>
 
-        {/* Mobile vertical stacked timeline */}
+        {/* Mobile vertical timeline */}
         <div className="md:hidden relative pl-8">
           <div className="absolute top-2 bottom-2 left-[7px] w-px bg-white/15" aria-hidden="true" />
           {PROCESS.map((p, i) => (
@@ -628,7 +725,7 @@ function Process() {
               data-testid={`process-mobile-${i}`}
             >
               <div className="absolute -left-8 top-2 w-[14px] h-[14px] rounded-full bg-white border-4 border-[#050505]" />
-              <div className="text-[11px] tracking-[0.3em] uppercase text-white/45 mb-2">{p.step}</div>
+              <div className="text-[10px] tracking-[0.35em] uppercase text-white/45 mb-2">{p.step}</div>
               <h3 className="font-serif text-white text-2xl leading-tight mb-3">{p.title}</h3>
               <p className="text-stone-400 text-sm leading-relaxed">{p.body}</p>
             </motion.div>
@@ -639,39 +736,49 @@ function Process() {
   );
 }
 
-/* ─────────────────────── Business customers ─────────────────────── */
+/* ─────────────────────── Business (paper-toned panel for contrast) ─────────────────────── */
 
 function BusinessSection() {
   return (
     <section
       id="business"
-      className="relative py-32 px-6 lg:px-16 overflow-hidden border-t border-white/10"
-      style={{ background: NEAR_BLACK }}
+      className="relative py-32 md:py-48 px-6 md:px-10 lg:px-16 overflow-hidden border-t border-white/10"
+      style={{ background: PAPER, color: NEAR_BLACK }}
       data-testid="section-business"
     >
-      <div className="mx-auto max-w-7xl grid md:grid-cols-12 gap-16 items-center">
+      <div className="mx-auto max-w-[1600px] grid md:grid-cols-12 gap-10 md:gap-16 items-center">
         <div className="md:col-span-7">
-          <p className="text-[11px] tracking-[0.35em] uppercase text-white/55 mb-4">For Business</p>
-          <h2 className="font-serif text-white text-4xl md:text-5xl lg:text-6xl leading-[1.05] tracking-[-0.02em] mb-8">
-            For offices, landlords <span className="italic text-white/65">and co-living operators.</span>
-          </h2>
-          <p className="text-stone-400 text-base md:text-lg leading-relaxed max-w-xl mb-10">
+          <div className="flex flex-col gap-3 mb-8">
+            <span className="text-[10px] md:text-[11px] tracking-[0.4em] uppercase text-black/55">§ 05</span>
+            <span className="text-[10px] md:text-[11px] tracking-[0.4em] uppercase text-black/55">For Business</span>
+          </div>
+          <RevealLine>
+            <h2
+              className="font-serif tracking-[-0.03em] leading-[0.95] mb-10 md:mb-14"
+              style={{ fontSize: "clamp(40px, 7vw, 120px)" }}
+            >
+              For offices, landlords<br />
+              <span className="italic text-black/55">and operators.</span>
+            </h2>
+          </RevealLine>
+          <p className="text-black/60 text-base md:text-lg leading-relaxed max-w-xl mb-12">
             Need repeated installations, office desk setup, room turnover, bed frames,
             wardrobes or workstation assembly? TMG Install supports recurring furniture
             work with structured coordination.
           </p>
-          <MagneticButton
+          <a
             href={WHATSAPP}
-            external
-            variant="primary"
-            testid="business-cta"
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={() => trackEvent("cta_business_quote", "/")}
+            className="inline-flex items-center justify-center px-9 py-[18px] text-[11px] font-medium tracking-[0.22em] uppercase rounded-full bg-black text-white hover:bg-stone-800 transition gap-3"
+            data-testid="business-cta"
           >
             Request Business Quote <ArrowRight size={16} />
-          </MagneticButton>
+          </a>
         </div>
         <div className="md:col-span-5">
-          <div className="aspect-[4/5] relative bg-stone-900 overflow-hidden border border-white/10">
+          <div className="aspect-[4/5] relative bg-stone-300 overflow-hidden border border-black/10">
             <img
               src="/images/work/office-fitout-1600.webp"
               srcSet="/images/work/office-fitout-800.webp 800w, /images/work/office-fitout-1600.webp 1600w"
@@ -679,10 +786,10 @@ function BusinessSection() {
               alt="A 20-station office fit-out completed by TMG Install"
               loading="lazy"
               decoding="async"
-              className="w-full h-full object-cover opacity-90"
+              className="w-full h-full object-cover"
             />
             <div className="absolute bottom-6 left-6 right-6 text-white">
-              <div className="text-[10px] tracking-[0.3em] uppercase text-white/80 mb-1">Recent work</div>
+              <div className="text-[10px] tracking-[0.35em] uppercase text-white/85 mb-1">Recent work</div>
               <div className="font-serif text-2xl">20-station office · CBD</div>
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
@@ -698,76 +805,100 @@ function BusinessSection() {
 function FinalCTA() {
   return (
     <section
-      className="relative py-32 px-6 lg:px-16 overflow-hidden border-t border-white/10"
+      className="relative py-32 md:py-48 px-6 md:px-10 lg:px-16 overflow-hidden border-t border-white/10"
       style={{ background: NEAR_BLACK }}
       data-testid="section-closing"
     >
       <div
         aria-hidden="true"
-        className="absolute inset-0 opacity-[0.05]"
+        className="absolute inset-0 opacity-[0.04]"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
+            "linear-gradient(rgba(255,255,255,0.55) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.55) 1px, transparent 1px)",
+          backgroundSize: "120px 120px",
         }}
       />
-      <div className="relative z-10 mx-auto max-w-5xl text-center">
-        <p className="text-[11px] tracking-[0.4em] uppercase text-white/50 mb-6">Ready when you are</p>
-        <h2 className="font-serif text-white text-4xl md:text-6xl lg:text-[80px] leading-[1.05] tracking-[-0.02em] mb-8">
-          Need furniture installed,<br />
-          <span className="italic text-white/80">dismantled or moved?</span>
-        </h2>
-        <p className="text-stone-400 text-base md:text-lg max-w-2xl mx-auto leading-relaxed mb-12">
-          Send us photos, item list and location. We will help estimate the work clearly
-          before confirmation.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-4">
-          <MagneticButton
-            href="/estimate"
-            testid="closing-cta-quote"
-            onClick={() => trackEvent("cta_estimate_closing", "/")}
-          >
-            Get Instant Quote <ArrowRight size={16} />
-          </MagneticButton>
-          <MagneticButton
-            href={WHATSAPP}
-            external
-            variant="outline"
-            testid="closing-cta-whatsapp"
-            onClick={() => trackEvent("cta_whatsapp_closing", "/")}
-          >
-            <MessageCircle size={16} /> WhatsApp Us
-          </MagneticButton>
+      <div className="relative z-10 mx-auto max-w-[1600px]">
+        <div className="grid grid-cols-12 gap-4 md:gap-8 mb-16">
+          <div className="col-span-12 md:col-span-3 lg:col-span-2 flex flex-col gap-3">
+            <Label>§ 06</Label>
+            <Label>Closing</Label>
+          </div>
+          <div className="col-span-12 md:col-span-9 lg:col-span-10">
+            <RevealLine>
+              <h2
+                className="font-serif text-white tracking-[-0.035em] leading-[0.9]"
+                style={{ fontSize: "clamp(48px, 10vw, 200px)" }}
+              >
+                Need furniture<br />
+                installed,<br />
+                <span className="italic text-white/65">moved or removed?</span>
+              </h2>
+            </RevealLine>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 gap-4 md:gap-8 items-end mt-20 border-t border-white/15 pt-12">
+          <div className="col-span-12 md:col-span-7 lg:col-span-6 md:col-start-4 lg:col-start-3">
+            <p className="text-stone-300 text-base md:text-lg max-w-xl leading-relaxed mb-10">
+              Send us photos, item list and location. We will help estimate the work clearly
+              before confirmation.
+            </p>
+            <div className="flex flex-wrap items-center gap-4">
+              <MagneticButton
+                href="/estimate"
+                testid="closing-cta-quote"
+                onClick={() => trackEvent("cta_estimate_closing", "/")}
+              >
+                Get Instant Quote <ArrowRight size={16} />
+              </MagneticButton>
+              <MagneticButton
+                href={WHATSAPP}
+                external
+                variant="outline"
+                testid="closing-cta-whatsapp"
+                onClick={() => trackEvent("cta_whatsapp_closing", "/")}
+              >
+                <MessageCircle size={16} /> WhatsApp Us
+              </MagneticButton>
+            </div>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-/* ─────────────────────── Footer (minimal) ─────────────────────── */
+/* ─────────────────────── Footer ─────────────────────── */
 
 function Footer() {
   return (
     <footer
-      className="border-t border-white/10 py-16 px-6 lg:px-16"
+      className="border-t border-white/10 py-16 md:py-20 px-6 md:px-10 lg:px-16"
       style={{ background: NEAR_BLACK }}
       data-testid="section-footer"
     >
-      <div className="mx-auto max-w-7xl flex flex-col md:flex-row items-start md:items-end justify-between gap-8">
-        <div>
-          <div className="font-serif text-2xl tracking-[0.25em] uppercase text-white mb-3">TMG Install</div>
-          <p className="text-stone-500 text-sm">The Moving Guy Pte Ltd · Singapore</p>
+      <div className="mx-auto max-w-[1600px] grid grid-cols-12 gap-4 md:gap-8 items-end">
+        <div className="col-span-12 md:col-span-6">
+          <div
+            className="font-serif text-white tracking-[-0.03em] leading-[0.9]"
+            style={{ fontSize: "clamp(40px, 8vw, 120px)" }}
+          >
+            TMG <span className="italic text-white/55">/ Install</span>
+          </div>
+          <p className="text-stone-500 text-sm mt-6 max-w-sm">The Moving Guy Pte Ltd · Singapore · Island-wide</p>
         </div>
-        <div className="text-sm text-stone-400 space-y-2">
+        <div className="col-span-12 md:col-span-6 md:text-right text-sm text-stone-400 space-y-2">
           <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition" data-testid="footer-whatsapp">
-            WhatsApp: +65 8088 0757
+            WhatsApp · +65 8088 0757
           </a>
           <Link href="/terms" className="block hover:text-white transition">Terms</Link>
           <Link href="/privacy" className="block hover:text-white transition">Privacy</Link>
         </div>
       </div>
-      <div className="mx-auto max-w-7xl mt-12 pt-8 border-t border-white/5 text-xs text-stone-600">
-        © {new Date().getFullYear()} The Moving Guy Pte Ltd. All rights reserved.
+      <div className="mx-auto max-w-[1600px] mt-12 pt-8 border-t border-white/10 flex flex-wrap items-center justify-between gap-4 text-xs text-stone-600">
+        <span>© {new Date().getFullYear()} The Moving Guy Pte Ltd</span>
+        <span>SG / Built properly</span>
       </div>
     </footer>
   );
@@ -840,10 +971,10 @@ function PromoBar() {
   if (!visible || !promo) return null;
   return (
     <div
-      className="bg-white text-black text-center py-2 text-[11px] tracking-[0.2em] uppercase font-medium relative z-[70]"
+      className="bg-white text-black text-center py-2 text-[10px] tracking-[0.35em] uppercase font-medium relative z-[70]"
       data-testid="promo-bar"
     >
-      Use code <span className="font-bold">{promo.code}</span> — {promo.discount}% off your installation
+      Use code <span className="font-bold">{promo.code}</span> · {promo.discount}% off your installation
     </div>
   );
 }
@@ -878,7 +1009,6 @@ export default function LandingCinematic() {
       <PromoBar />
       <ScrollProgress />
       <AssemblyScroll />
-      {/* TopNav is rendered inside AssemblyScroll so it scrolls away with the hero */}
       <Services />
       <WhyTMG />
       <Process />
