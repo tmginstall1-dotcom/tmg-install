@@ -652,37 +652,43 @@ function AssemblyScroll() {
           <span className="opacity-60">Singapore — 2024 / 25</span>
         </div>
 
-        <div className="grid grid-cols-12 h-full">
-          {/* LEFT — chapter copy */}
-          <div className="col-span-12 md:col-span-6 relative flex items-center px-6 md:px-10 lg:px-14 pt-16 md:pt-0 z-[3]">
-            {/* Mobile-only image stack stacks above the text card */}
-            <div className="md:hidden absolute inset-x-6 top-[14%] aspect-[4/3] border" style={{ borderColor: LINE }}>
-              {STORY.map((s, i) => (
-                <ChapterMedia
-                  key={`m-${s.no}`}
-                  index={i}
-                  scrollYProgress={scrollYProgress}
-                  src={s.image}
-                  caption={s.caption}
-                />
-              ))}
+        {/* MOBILE — clean column layout, no blank zones */}
+        <div className="md:hidden h-full flex flex-col px-5 pt-20 pb-6 gap-5 relative z-[3]">
+          <div className="relative w-full aspect-[4/3] border overflow-hidden flex-shrink-0" style={{ borderColor: LINE }}>
+            {STORY.map((s, i) => (
+              <ChapterMedia
+                key={`m-${s.no}`}
+                index={i}
+                scrollYProgress={scrollYProgress}
+                src={s.image}
+                caption={s.caption}
+              />
+            ))}
+          </div>
+          <div className="relative flex-1 min-h-0">
+            {STORY.map((s, i) => (
+              <ChapterCard key={`mc-${s.no}`} chapter={s} index={i} scrollYProgress={scrollYProgress} compact />
+            ))}
+          </div>
+          <div className="flex items-center gap-3 text-[10px] tracking-[0.18em] uppercase font-bold flex-shrink-0">
+            <span>From parts</span>
+            <div className="flex-1 h-[3px] origin-left bg-black/15">
+              <motion.div style={{ scaleX: completeBar, background: ACCENT }} className="h-[3px] origin-left" />
             </div>
-            {/* Mobile chapter card sits below the image */}
-            <div className="md:hidden absolute inset-x-6 bottom-[8%]">
-              {STORY.map((s, i) => (
-                <ChapterCard key={`mc-${s.no}`} chapter={s} index={i} scrollYProgress={scrollYProgress} compact />
-              ))}
-            </div>
-            {/* Desktop chapter cards */}
-            <div className="hidden md:block w-full relative">
+            <span>Complete</span>
+          </div>
+        </div>
+
+        {/* DESKTOP — two-column grid */}
+        <div className="hidden md:grid grid-cols-12 h-full">
+          <div className="col-span-6 relative flex items-center px-10 lg:px-14 z-[3]">
+            <div className="w-full relative">
               {STORY.map((s, i) => (
                 <ChapterCard key={s.no} chapter={s} index={i} scrollYProgress={scrollYProgress} />
               ))}
             </div>
           </div>
-
-          {/* RIGHT — desktop image stack with progress bar */}
-          <div className="hidden md:block md:col-span-6 relative border-l" style={{ borderColor: LINE }}>
+          <div className="col-span-6 relative border-l" style={{ borderColor: LINE }}>
             {STORY.map((s, i) => (
               <ChapterMedia
                 key={`d-${s.no}`}
