@@ -324,10 +324,10 @@ function Hero() {
       <DotGrid opacity={0.55} />
 
       {/* Top-left credit panel (black with white text — Paradiso-style) */}
-      <div className="absolute top-3 left-3 md:top-5 md:left-6 z-30 max-w-[260px] md:max-w-[340px]">
-        <div className="bg-black text-white text-[9px] md:text-[10px] tracking-[0.18em] leading-snug px-2.5 py-1.5">
-          Coordinated by <span className="font-bold">The Moving Guy Pte Ltd.</span><br />
-          Singapore — island-wide <span style={{ color: ACCENT }}>·</span> est. 2019.
+      <div className="absolute top-3 left-3 md:top-5 md:left-6 z-30 max-w-[210px] md:max-w-[340px]">
+        <div className="bg-black text-white text-[9px] md:text-[10px] tracking-[0.16em] leading-snug px-2.5 py-1.5">
+          <span className="font-bold">The Moving Guy Pte Ltd.</span><br />
+          Singapore <span style={{ color: ACCENT }}>·</span> est. 2019
         </div>
       </div>
 
@@ -351,34 +351,37 @@ function Hero() {
         <div>Homes. Offices.<br />Move-outs.<br />Island-wide.</div>
       </div>
 
-      {/* CENTER WORDMARK */}
-      <div className="absolute inset-0 flex items-center justify-center z-10 px-4 pointer-events-none">
+      {/* CENTER WORDMARK — mobile pushed up so it doesn't fight the CTA */}
+      <div className="absolute inset-x-0 top-[26%] md:top-auto md:inset-0 md:flex md:items-center md:justify-center z-10 px-4 pointer-events-none">
         <div className="text-center">
           <Reveal delay={0.05}>
             <h1
-              className="font-serif italic tracking-[-0.04em] leading-[0.85] text-black"
-              style={{ fontSize: "clamp(96px, 22vw, 360px)", fontWeight: 900 }}
+              className="font-serif italic tracking-[-0.04em] leading-[0.82] text-black"
+              style={{ fontSize: "clamp(110px, 28vw, 360px)", fontWeight: 900 }}
               data-testid="hero-headline"
             >
               TMG
             </h1>
           </Reveal>
-          <Reveal delay={0.18} className="mt-3 md:mt-5">
-            <div className="text-[12px] md:text-[18px] tracking-[0.55em] uppercase font-bold">
-              Install <span style={{ color: ACCENT }}>·</span> Singapore
+          <Reveal delay={0.18} className="mt-2 md:mt-5">
+            <div className="text-[11px] md:text-[18px] tracking-[0.42em] md:tracking-[0.55em] uppercase font-bold">
+              Install <span style={{ color: ACCENT }}>·</span> Dismantle <span style={{ color: ACCENT }}>·</span> Relocate
+            </div>
+            <div className="mt-1 text-[10px] md:text-[12px] tracking-[0.3em] uppercase font-bold opacity-60">
+              Singapore — island-wide
             </div>
           </Reveal>
         </div>
       </div>
 
-      {/* Bottom outline ghost text */}
-      <div className="absolute bottom-[34%] md:bottom-[28%] inset-x-0 z-[5] pointer-events-none flex justify-center px-2">
+      {/* Ghost outline headline — sits between wordmark and CTA */}
+      <div className="absolute top-[58%] md:top-auto md:bottom-[28%] inset-x-0 z-[5] pointer-events-none flex justify-center px-2">
         <div
           className="font-serif italic tracking-[-0.04em] leading-[0.85] whitespace-nowrap"
           style={{
-            fontSize: "clamp(48px, 12vw, 220px)",
+            fontSize: "clamp(54px, 14vw, 220px)",
             color: "transparent",
-            WebkitTextStroke: "1px rgba(10,10,10,0.18)",
+            WebkitTextStroke: "1px rgba(10,10,10,0.22)",
             fontWeight: 900,
           }}
         >
@@ -386,8 +389,8 @@ function Hero() {
         </div>
       </div>
 
-      {/* Mid-left mini nav tag */}
-      <div className="absolute top-[55%] left-4 md:left-[8%] z-20 flex flex-col gap-1.5 items-start">
+      {/* Mid-left mini nav tag — DESKTOP ONLY (was overlapping ghost text on mobile) */}
+      <div className="hidden md:flex absolute top-[55%] left-[8%] z-20 flex-col gap-1.5 items-start">
         <a href="#services">
           <Tag>SERVICES →</Tag>
         </a>
@@ -478,10 +481,10 @@ function Hero() {
         </div>
       </div>
 
-      {/* Bottom strip */}
-      <div className="absolute bottom-0 inset-x-0 z-10 px-4 md:px-6 py-2 md:py-3 border-t flex items-center justify-between text-[10px] tracking-[0.18em] uppercase font-bold" style={{ borderColor: LINE, background: PAPER }}>
+      {/* Bottom strip — DESKTOP ONLY (mobile shows phone in CTA cluster) */}
+      <div className="hidden md:flex absolute bottom-0 inset-x-0 z-10 px-4 md:px-6 py-2 md:py-3 border-t items-center justify-between text-[10px] tracking-[0.18em] uppercase font-bold" style={{ borderColor: LINE, background: PAPER }}>
         <span className="flex items-center gap-1.5"><AccentSquare /> Open for jobs</span>
-        <span className="hidden md:inline">Scroll for the process</span>
+        <span>Scroll for the process</span>
         <span>+65 8088 0757</span>
       </div>
     </section>
