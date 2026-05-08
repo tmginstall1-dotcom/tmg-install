@@ -1,0 +1,266 @@
+You are working on the existing TMG Install / tmginstall.com project.
+
+TASK:
+Create a new premium main homepage design inspired by the structure and editorial feeling of Paradiso Institute, but DO NOT copy their wording, images, logo, fonts, exact layout, or brand identity. Use it only as a reference for the style: bold typography, editorial manifesto sections, strong black/white contrast, large scrolling sections, service pillars, and a powerful CTA.
+
+VERY IMPORTANT STRICT SCOPE:
+- Edit the homepage/main landing page only.
+- Do NOT change Supabase schema, Edge Functions, quote logic, payment logic, booking logic, auth, admin dashboard, staff dashboard, or database tables.
+- Do NOT remove existing quote form routes, WhatsApp links, SEO setup, analytics tags, or conversion tracking.
+- Do NOT rename existing routes unless absolutely necessary.
+- Preserve all existing working CTAs and quote submission flow.
+- If unsure, keep existing logic untouched and only improve the visual homepage layer.
+
+BRAND:
+Business name: TMG Install
+Website: tmginstall.com
+WhatsApp: +65 8088 0757
+Main services:
+1. Furniture installation
+2. Furniture dismantling
+3. Office furniture setup
+4. Relocation support
+5. Furniture repair / handyman support
+6. B2B office and co-living furniture support
+
+DESIGN DIRECTION:
+Create a premium, professional, editorial-style homepage for a Singapore furniture installation and relocation company.
+
+The design should feel:
+- Premium
+- Bold
+- Trustworthy
+- Modern
+- Industrial
+- Clean
+- High-conversion
+- Mobile-first
+- Commercial grade
+
+Use a visual direction similar to:
+- Big black/white sections
+- Oversized typography
+- Short punchy statements
+- Editorial grid layout
+- Service “pillar” sections
+- Smooth scroll reveal animations
+- Strong CTA blocks
+- Minimal but powerful copy
+- Professional trade/service brand feeling
+
+Do NOT make it look like a charity, school, art institute, or luxury fashion site. It must still clearly sell furniture installation and relocation services.
+
+HOMEPAGE STRUCTURE:
+
+1. HERO SECTION
+Create a bold hero section with large typography.
+
+Hero copy direction:
+“Furniture Installation.
+Dismantling.
+Relocation.
+Done Properly.”
+
+Subtext:
+“TMG Install helps homes, offices, landlords, and businesses handle furniture assembly, dismantling, relocation, and setup with clear pricing and reliable workmanship.”
+
+Primary CTA:
+“Get Instant Quote”
+
+Secondary CTA:
+“WhatsApp Us”
+
+Add small live/location style detail inspired by the reference, but adapted to TMG:
+“Singapore”
+“Fast response via WhatsApp”
+“Residential • Office • B2B”
+
+Hero should have a high-end editorial look with subtle motion, not messy.
+
+2. MANIFESTO SECTION
+Create a strong brand statement section using short lines:
+
+“Most furniture problems are not just about tools.
+They are about planning.
+Protection.
+Timing.
+And getting the job done without damage.”
+
+Then:
+“We built TMG Install for customers who want the work handled properly from first quote to final installation.”
+
+Use large type, lots of spacing, and smooth scroll reveal.
+
+3. TRUST / PROBLEM SECTION
+Create a section explaining why customers choose TMG:
+
+Heading:
+“Built for real furniture jobs.”
+
+Include 4 blocks:
+- Clear itemised quotes
+- Installation and dismantling support
+- Office and home furniture setup
+- WhatsApp-first customer coordination
+
+Add short descriptions under each.
+
+4. FIVE SERVICE PILLARS SECTION
+Inspired by the reference page’s pillar structure, create a “5 Core Services” section.
+
+Pillar 1:
+“Furniture Installation”
+Description: Assembly for beds, wardrobes, tables, chairs, cabinets, office furniture, and more.
+
+Pillar 2:
+“Dismantling”
+Description: Safe dismantling for moving, disposal preparation, renovation, or storage.
+
+Pillar 3:
+“Relocation Support”
+Description: Van-based furniture relocation with careful handling, loading, and setup support.
+
+Pillar 4:
+“Office Setup”
+Description: Workstations, office chairs, meeting tables, pedestals, and business furniture setup.
+
+Pillar 5:
+“Repair & Adjustment”
+Description: Basic furniture repair, tightening, alignment, and handyman support where suitable.
+
+Each pillar should have:
+- Number label: ONE, TWO, THREE, FOUR, FIVE
+- Large heading
+- Short paragraph
+- Optional icon or minimal line graphic
+- Smooth hover effect
+
+5. PROCESS SECTION
+Create a clear conversion process:
+
+Heading:
+“How it works”
+
+Step 1: Send job details
+“Tell us what needs to be installed, dismantled, moved, or repaired.”
+
+Step 2: Upload photos
+“Photos help us quote accurately and avoid surprise charges.”
+
+Step 3: Receive quote
+“We provide a clear estimate before confirming the job.”
+
+Step 4: Confirm booking
+“Secure your slot and our team handles the work.”
+
+Use clean horizontal cards on desktop and stacked cards on mobile.
+
+6. IMAGE / VISUAL SECTION
+Create a strong visual section with placeholders if no real images exist.
+
+Use professional image placeholders or existing project images only if already available in the project.
+
+Image direction:
+- Worker assembling furniture
+- Office setup
+- Wardrobe/bed installation
+- Moving van / relocation support
+
+Do NOT use random copyrighted images from the internet.
+If no images are available, use clean dark gradient panels with subtle furniture/tool line illustrations.
+
+7. B2B SECTION
+Create a section for business customers:
+
+Heading:
+“Furniture support for offices, landlords, and operators.”
+
+Copy:
+“From one-time furniture setup to recurring support for office moves, co-living units, rental properties, and commercial spaces, TMG Install helps teams reduce downtime and coordinate work smoothly.”
+
+CTA:
+“Request B2B Quote”
+
+8. FINAL CTA SECTION
+Create a strong final section:
+
+Heading:
+“Need furniture work done properly?”
+
+Subtext:
+“Send us your item list, photos, and location. We’ll help you estimate the job clearly before confirmation.”
+
+Buttons:
+“Get Instant Quote”
+“WhatsApp +65 8088 0757”
+
+9. FOOTER
+Keep footer clean and professional.
+
+Include:
+- TMG Install
+- The Moving Guy Pte Ltd if already used in project
+- Services
+- WhatsApp
+- Website
+- Singapore service area
+- Copyright
+
+STYLE REQUIREMENTS:
+- Use black, white, charcoal, and subtle metallic/industrial grey.
+- Accent color can be electric blue, safety orange, or lime green, but use sparingly.
+- Typography should be large, clean, and bold.
+- Homepage must look premium, not cheap.
+- Use strong spacing and clean layout.
+- Must be fully responsive on mobile, tablet, and desktop.
+- Mobile CTA must be easy to tap.
+- Keep WhatsApp CTA visible but not blocking content.
+- Page speed and SEO must remain strong.
+
+ANIMATION REQUIREMENTS:
+- Add subtle scroll reveal animations.
+- Add smooth hover transitions.
+- Avoid heavy 3D libraries unless already installed.
+- Do not add slow, heavy, unnecessary animation.
+- Respect performance.
+
+SEO REQUIREMENTS:
+Update homepage metadata only if applicable:
+Title:
+“TMG Install | Furniture Installation, Dismantling & Relocation Singapore”
+
+Description:
+“TMG Install provides furniture installation, dismantling, office setup, relocation support, and handyman services in Singapore. Get a fast quote online or via WhatsApp.”
+
+Main keywords:
+- furniture installation Singapore
+- furniture dismantling Singapore
+- furniture assembly Singapore
+- office furniture setup Singapore
+- furniture relocation Singapore
+- handyman furniture service Singapore
+
+TECHNICAL REQUIREMENTS:
+- Use existing project framework and styling system.
+- If the project uses React components, create clean reusable sections.
+- If Tailwind is used, use Tailwind classes.
+- Do not introduce unnecessary dependencies.
+- Do not break existing routing.
+- Do not touch backend files.
+- Do not touch quote submission logic.
+- Do not change environment variables.
+- Do not remove existing analytics or tracking scripts.
+- Keep accessibility: proper headings, contrast, aria-labels for CTA buttons.
+- Test mobile layout carefully.
+
+DELIVERABLE:
+After implementation, provide a short report:
+1. Files changed
+2. What sections were added
+3. What existing logic was preserved
+4. Any assumptions made
+5. How to test the homepage and quote buttons
+
+IMPORTANT:
+This must be an original TMG Install homepage inspired by the reference style, not a copy.
+Focus on lead generation, trust, and premium service positioning.

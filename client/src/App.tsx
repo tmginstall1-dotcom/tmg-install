@@ -13,7 +13,7 @@ import { StaffBottomNav } from "@/components/layout/StaffBottomNav";
 import { AdminBottomNav } from "@/components/layout/AdminBottomNav";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
-import LandingParadiso from "@/pages/customer/LandingParadiso";
+import LandingHome from "@/pages/customer/LandingHome";
 
 const QuoteStatus = lazy(() => import("@/pages/customer/QuoteStatus"));
 const StatusRedirect = lazy(() => import("@/pages/customer/StatusRedirect"));
@@ -132,7 +132,7 @@ function Router() {
       <AdminBottomNav />
       <Suspense fallback={<PageLoader />}>
         <Switch>
-          <Route path="/" component={LandingParadiso} />
+          <Route path="/" component={LandingHome} />
           <Route path="/estimate" component={EstimateWizard} />
           <Route path="/quotes/:id" component={QuoteStatus} />
           <Route path="/status/:refNo" component={StatusRedirect} />
