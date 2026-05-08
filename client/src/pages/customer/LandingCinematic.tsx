@@ -214,7 +214,7 @@ function Marquee() {
     <section
       aria-label="What we install"
       className="relative overflow-hidden border-y"
-      style={{ background: PAPER, borderColor: LINE }}
+      style={{ background: "rgba(250,250,247,0.86)", borderColor: LINE }}
       data-testid="section-marquee"
     >
       <div className="flex gap-12 py-4 md:py-6 whitespace-nowrap animate-tmg-marquee">
@@ -318,7 +318,7 @@ function Hero() {
   return (
     <section
       className="relative min-h-[100svh] w-full overflow-hidden"
-      style={{ background: PAPER, color: INK }}
+      style={{ background: "rgba(250,250,247,0.86)", color: INK }}
       data-testid="section-hero"
     >
       <DotGrid opacity={0.55} />
@@ -465,7 +465,7 @@ function Hero() {
             onClick={() => trackEvent("cta_call_hero", "/")}
             data-testid="hero-cta-call"
             className="flex items-center justify-center gap-2 px-3 py-3 text-[11px] tracking-[0.2em] uppercase font-bold transition-transform duration-200 hover:-translate-y-[1px] border-2"
-            style={{ background: PAPER, color: INK, borderColor: INK }}
+            style={{ background: "rgba(250,250,247,0.86)", color: INK, borderColor: INK }}
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.37 1.9.72 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0122 16.92z"/>
@@ -826,7 +826,7 @@ function Scene3D() {
       ref={sectionRef}
       id="scene-3d"
       className="relative py-16 md:py-28"
-      style={{ background: PAPER, color: INK }}
+      style={{ background: "rgba(250,250,247,0.86)", color: INK }}
       data-testid="section-scene-3d"
     >
       <DotGrid opacity={0.4} />
@@ -939,6 +939,123 @@ function Scene3D() {
         </div>
       </div>
     </section>
+  );
+}
+
+/* ─────────────────────── PageBackgroundSequence — fixed canvas behind everything ───────────────────────
+   The 121-frame install sequence painted into a viewport-sized <canvas> that
+   is `position: fixed` BEHIND every section. Frame index is driven by the
+   user's TOTAL page scroll. Top of page → frame 1 (boxed). Bottom of page →
+   frame 121 (assembled). All section backgrounds above are semi-transparent
+   so the desk is faintly visible no matter where the user scrolls. */
+
+function PageBackgroundSequence() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imagesRef = useRef<HTMLImageElement[]>([]);
+  const reduce = useReducedMotion();
+  const [ready, setReady] = useState(false);
+  const [loaded, setLoaded] = useState(0);
+
+  // Preload every frame
+  useEffect(() => {
+    let cancelled = false;
+    let count = 0;
+    const imgs: HTMLImageElement[] = [];
+    for (let i = 1; i <= SEQ_COUNT; i++) {
+      const img = new Image();
+      img.src = SEQ_PATH(i);
+      const onDone = () => {
+        if (cancelled) return;
+        count += 1;
+        setLoaded(count);
+        if (count === SEQ_COUNT) setReady(true);
+      };
+      img.onload = onDone;
+      img.onerror = onDone;
+      imgs.push(img);
+    }
+    imagesRef.current = imgs;
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Size the canvas to viewport (DPR-aware)
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = Math.round(window.innerWidth * dpr);
+      cv.height = Math.round(window.innerHeight * dpr);
+      drawAt(currentP());
+    };
+    const currentP = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      return max > 0 ? Math.max(0, Math.min(1, window.scrollY / max)) : 0;
+    };
+    const drawAt = (p: number) => {
+      const ctx = cv.getContext("2d");
+      if (!ctx) return;
+      const idx = reduce
+        ? SEQ_COUNT - 1
+        : Math.max(0, Math.min(SEQ_COUNT - 1, Math.round(p * (SEQ_COUNT - 1))));
+      const img = imagesRef.current[idx];
+      if (!img || !img.complete || img.naturalWidth === 0) return;
+      const cw = cv.width;
+      const ch = cv.height;
+      const ir = img.naturalWidth / img.naturalHeight;
+      const cr = cw / ch;
+      let dw, dh, dx, dy;
+      // contain-fit so the whole desk is visible
+      if (ir > cr) {
+        dw = cw;
+        dh = cw / ir;
+      } else {
+        dh = ch;
+        dw = ch * ir;
+      }
+      dx = (cw - dw) / 2;
+      dy = (ch - dh) / 2;
+      ctx.fillStyle = "#f1efe7";
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.drawImage(img, dx, dy, dw, dh);
+    };
+
+    resize();
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => drawAt(currentP()));
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", resize);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", resize);
+      cancelAnimationFrame(raf);
+    };
+  }, [ready, reduce]);
+
+  return (
+    <>
+      <div
+        aria-hidden
+        className="fixed inset-0 z-0 pointer-events-none"
+        style={{ background: "#f1efe7" }}
+      >
+        <canvas ref={canvasRef} className="w-full h-full block" />
+      </div>
+      {!ready && (
+        <div
+          className="fixed bottom-3 left-3 z-[60] text-[10px] tracking-[0.2em] uppercase font-bold px-2 py-1"
+          style={{ background: INK, color: PAPER }}
+          data-testid="text-bg-loading"
+        >
+          loading sequence… {Math.round((loaded / SEQ_COUNT) * 100)}%
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1058,7 +1175,7 @@ function InstallSequence() {
       ref={sectionRef}
       id="install-sequence"
       className="relative h-[220vh] md:h-[280vh]"
-      style={{ background: PAPER, color: INK }}
+      style={{ background: "rgba(250,250,247,0.86)", color: INK }}
       data-testid="section-install-sequence"
     >
       <div className="sticky top-0 h-screen w-full overflow-hidden">
@@ -1189,7 +1306,7 @@ function AssemblyScroll() {
       ref={sectionRef}
       id="assembly-scroll"
       className="relative md:h-[320vh]"
-      style={{ background: PAPER, color: INK }}
+      style={{ background: "rgba(250,250,247,0.86)", color: INK }}
       data-testid="section-assembly"
     >
       {/* Section opener strip */}
@@ -1377,7 +1494,7 @@ function Services() {
     <section
       id="services"
       className="relative py-28 md:py-40 px-6 md:px-10 lg:px-14"
-      style={{ background: PAPER, color: INK, borderTop: `1px solid ${LINE}` }}
+      style={{ background: "rgba(250,250,247,0.86)", color: INK, borderTop: `1px solid ${LINE}` }}
       data-testid="section-services"
     >
       <DotGrid opacity={0.35} />
@@ -1456,7 +1573,7 @@ function WhyTMG() {
     <section
       id="why"
       className="relative py-28 md:py-40 px-6 md:px-10 lg:px-14"
-      style={{ background: PAPER, color: INK, borderTop: `1px solid ${LINE}` }}
+      style={{ background: "rgba(250,250,247,0.86)", color: INK, borderTop: `1px solid ${LINE}` }}
       data-testid="section-why"
     >
       <DotGrid opacity={0.35} />
@@ -1522,7 +1639,7 @@ function IndexStrip() {
   return (
     <section
       className="relative py-20 md:py-32 px-6 md:px-10 lg:px-14 overflow-hidden"
-      style={{ background: PAPER, color: INK, borderTop: `1px solid ${LINE}` }}
+      style={{ background: "rgba(250,250,247,0.86)", color: INK, borderTop: `1px solid ${LINE}` }}
       data-testid="section-index"
     >
       <DotGrid opacity={0.32} />
@@ -1671,7 +1788,7 @@ function BusinessSection() {
     <section
       id="business"
       className="relative py-28 md:py-40 px-6 md:px-10 lg:px-14 overflow-hidden"
-      style={{ background: PAPER, color: INK }}
+      style={{ background: "rgba(250,250,247,0.86)", color: INK }}
       data-testid="section-business"
     >
       <DotGrid opacity={0.35} />
@@ -1931,14 +2048,15 @@ export default function LandingCinematic() {
 
   return (
     <div
-      className="antialiased selection:bg-black selection:text-white font-sans"
-      style={{ background: PAPER, color: INK }}
+      className="antialiased selection:bg-black selection:text-white font-sans relative"
+      style={{ background: "#f1efe7", color: INK }}
     >
+      <PageBackgroundSequence />
+      <div className="relative z-10">
       <PromoBar />
       <ScrollProgress />
       <Hero />
       <Marquee />
-      <InstallSequence />
       <AssemblyScroll />
       <Services />
       <WhyTMG />
@@ -1947,6 +2065,7 @@ export default function LandingCinematic() {
       <BusinessSection />
       <FinalCTA />
       <Footer />
+      </div>
       <StickyMobileCTA />
     </div>
   );
