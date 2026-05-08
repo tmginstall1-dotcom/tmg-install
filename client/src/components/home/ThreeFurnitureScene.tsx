@@ -4,12 +4,10 @@ import { useRef, useMemo, Suspense } from "react";
 import * as THREE from "three";
 import { useReducedMotion } from "framer-motion";
 
-/* Scroll-driven 3D scene: abstract furniture parts assemble from a wide
-   exploded diagram into a clean workstation. progress (0..1) is fed in
-   via a ref so the scene reads scroll without re-rendering React.
-
-   Motion is intentionally large and obvious: parts begin scattered far
-   off-axis with steep rotations, then converge on assembled positions. */
+/* Scroll-driven 3D scene tuned for an OFF-WHITE editorial background.
+   Materials are darker/metallic so parts read on a light page.
+   progress (0..1) is fed in via a ref so the scene reads scroll
+   without re-rendering React. */
 
 type PartSpec = {
   end: [number, number, number];
@@ -22,41 +20,40 @@ type PartSpec = {
   roughness?: number;
 };
 
-/* Workstation: top + 4 legs + 2 cross brackets + back panel + monitor stand + 4 bolts.
-   startOffset distances ~doubled vs. the previous pass for dramatic explosion. */
+/* Workstation: top + 4 legs + 2 brackets + back panel + monitor stand + 4 bolts */
 const PARTS: PartSpec[] = [
-  // table top
+  // table top — dark walnut/charcoal, reads cleanly on paper bg
   { end: [0, 0.3, 0], endRot: [0, 0, 0], size: [4.4, 0.18, 2.0],
-    startOffset: [-6, 7, 2], startRot: [1.4, 0.9, -0.6], color: "#e9e7e2", roughness: 0.4 },
-  // legs — fly in from far corners
+    startOffset: [-6, 7, 2], startRot: [1.4, 0.9, -0.6], color: "#1f1c1a", roughness: 0.45, metalness: 0.1 },
+  // legs — black metal
   { end: [-1.9, -0.95, -0.85], endRot: [0, 0, 0], size: [0.18, 2.4, 0.18],
-    startOffset: [-8, -4, -6], startRot: [1.0, 1.6, 0.7], color: "#1a1a1a", metalness: 0.6 },
+    startOffset: [-8, -4, -6], startRot: [1.0, 1.6, 0.7], color: "#0a0a0a", metalness: 0.7, roughness: 0.35 },
   { end: [ 1.9, -0.95, -0.85], endRot: [0, 0, 0], size: [0.18, 2.4, 0.18],
-    startOffset: [ 8, -4, -6], startRot: [-1.2, 1.4, 0.9], color: "#1a1a1a", metalness: 0.6 },
+    startOffset: [ 8, -4, -6], startRot: [-1.2, 1.4, 0.9], color: "#0a0a0a", metalness: 0.7, roughness: 0.35 },
   { end: [-1.9, -0.95,  0.85], endRot: [0, 0, 0], size: [0.18, 2.4, 0.18],
-    startOffset: [-8,  6,  6], startRot: [1.3, -1.6, 0.5], color: "#1a1a1a", metalness: 0.6 },
+    startOffset: [-8,  6,  6], startRot: [1.3, -1.6, 0.5], color: "#0a0a0a", metalness: 0.7, roughness: 0.35 },
   { end: [ 1.9, -0.95,  0.85], endRot: [0, 0, 0], size: [0.18, 2.4, 0.18],
-    startOffset: [ 8,  6,  6], startRot: [-1.0, -1.4, 1.1], color: "#1a1a1a", metalness: 0.6 },
-  // cross brackets
+    startOffset: [ 8,  6,  6], startRot: [-1.0, -1.4, 1.1], color: "#0a0a0a", metalness: 0.7, roughness: 0.35 },
+  // brackets — brushed steel
   { end: [0, -1.7, -0.85], endRot: [0, 0, 0], size: [3.4, 0.1, 0.1],
-    startOffset: [-5, -7, -4], startRot: [1.2, 0.9, 1.6], color: "#888", metalness: 0.5 },
+    startOffset: [-5, -7, -4], startRot: [1.2, 0.9, 1.6], color: "#5a5a5a", metalness: 0.65, roughness: 0.4 },
   { end: [0, -1.7,  0.85], endRot: [0, 0, 0], size: [3.4, 0.1, 0.1],
-    startOffset: [ 5, -7,  4], startRot: [-1.0, -1.2, -1.4], color: "#888", metalness: 0.5 },
-  // back panel
+    startOffset: [ 5, -7,  4], startRot: [-1.0, -1.2, -1.4], color: "#5a5a5a", metalness: 0.65, roughness: 0.4 },
+  // back panel — charcoal
   { end: [0, -0.6, -0.92], endRot: [0, 0, 0], size: [3.6, 1.2, 0.05],
-    startOffset: [0, 9, -7], startRot: [-1.6, 0.6, 0.3], color: "#d0cdc4" },
+    startOffset: [0, 9, -7], startRot: [-1.6, 0.6, 0.3], color: "#2a2724", roughness: 0.55, metalness: 0.1 },
   // monitor stand
   { end: [0, 0.7, -0.4], endRot: [0, 0, 0], size: [1.4, 0.6, 0.06],
-    startOffset: [6, 7, 4], startRot: [1.1, -1.2, 0.7], color: "#2a2a2a", metalness: 0.4 },
-  // bolts
+    startOffset: [6, 7, 4], startRot: [1.1, -1.2, 0.7], color: "#161616", metalness: 0.6, roughness: 0.4 },
+  // bolts — gold (only color accent on the page)
   { end: [-1.85, 0.42, -0.8], endRot: [0, 0, 0], size: [0.12, 0.04, 0.12],
-    startOffset: [-4, 3, 4], startRot: [2.4, 1.0, 1.6], color: "#c8a14a", metalness: 0.7 },
+    startOffset: [-4, 3, 4], startRot: [2.4, 1.0, 1.6], color: "#b8893d", metalness: 0.85, roughness: 0.25 },
   { end: [ 1.85, 0.42, -0.8], endRot: [0, 0, 0], size: [0.12, 0.04, 0.12],
-    startOffset: [ 4, 3, 4], startRot: [-2.0, 1.4, -1.2], color: "#c8a14a", metalness: 0.7 },
+    startOffset: [ 4, 3, 4], startRot: [-2.0, 1.4, -1.2], color: "#b8893d", metalness: 0.85, roughness: 0.25 },
   { end: [-1.85, 0.42,  0.8], endRot: [0, 0, 0], size: [0.12, 0.04, 0.12],
-    startOffset: [-4, 4, -4], startRot: [1.8, -1.0, 1.4], color: "#c8a14a", metalness: 0.7 },
+    startOffset: [-4, 4, -4], startRot: [1.8, -1.0, 1.4], color: "#b8893d", metalness: 0.85, roughness: 0.25 },
   { end: [ 1.85, 0.42,  0.8], endRot: [0, 0, 0], size: [0.12, 0.04, 0.12],
-    startOffset: [ 4, 4, -4], startRot: [-2.2, -0.8, -1.0], color: "#c8a14a", metalness: 0.7 },
+    startOffset: [ 4, 4, -4], startRot: [-2.2, -0.8, -1.0], color: "#b8893d", metalness: 0.85, roughness: 0.25 },
 ];
 
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -70,8 +67,6 @@ function Part({ spec, progress }: { spec: PartSpec; progress: React.MutableRefOb
     if (!ref.current) return;
     const p = THREE.MathUtils.clamp(progress.current, 0, 1);
     const e = easeOutCubic(p);
-    // Assembled-state idle drift adds a gentle floating breath (only past 90% so it's
-    // imperceptible during the assembly itself).
     const idle = p > 0.9 ? (p - 0.9) * 10 : 0;
     const breath = Math.sin(state.clock.elapsedTime * 0.5) * 0.02 * idle;
 
@@ -95,7 +90,7 @@ function Part({ spec, progress }: { spec: PartSpec; progress: React.MutableRefOb
     <mesh ref={ref} castShadow receiveShadow>
       <boxGeometry args={spec.size} />
       <meshStandardMaterial
-        color={spec.color || "#e9e7e2"}
+        color={spec.color || "#1f1c1a"}
         roughness={spec.roughness ?? 0.5}
         metalness={spec.metalness ?? 0.2}
       />
@@ -106,7 +101,6 @@ function Part({ spec, progress }: { spec: PartSpec; progress: React.MutableRefOb
 function Rig({ progress }: { progress: React.MutableRefObject<number> }) {
   useFrame((state) => {
     const p = THREE.MathUtils.clamp(progress.current, 0, 1);
-    // Dramatic dolly: start far back and tilted, push in and centre as parts assemble.
     const targetX = (1 - p) * 3.8 + Math.sin(state.clock.elapsedTime * 0.18) * (0.4 + (1 - p) * 0.6);
     const targetY = 2.6 - p * 1.2;
     const targetZ = 11 - p * 4.5;
@@ -141,23 +135,22 @@ export default function ThreeFurnitureScene({
       frameloop={reduce ? "demand" : "always"}
     >
       <Suspense fallback={null}>
-        {/* Studio-style three-point lighting in cool/warm contrast */}
-        <ambientLight intensity={0.3} />
+        {/* Soft daylight studio for light-page reading */}
+        <ambientLight intensity={0.55} />
         <directionalLight
           position={[6, 9, 4]}
-          intensity={1.6}
+          intensity={1.1}
           color="#ffffff"
           castShadow={!isMobile}
           shadow-mapSize-width={isMobile ? 512 : 1024}
           shadow-mapSize-height={isMobile ? 512 : 1024}
         />
-        <directionalLight position={[-7, 3, -4]} intensity={0.55} color="#9aa6b2" />
-        <directionalLight position={[0, -3, 8]} intensity={0.25} color="#c8a14a" />
+        <directionalLight position={[-7, 3, -4]} intensity={0.4} color="#ffffff" />
         {parts.map((p, i) => (
           <Part key={i} spec={p} progress={ref} />
         ))}
         {!isMobile && (
-          <ContactShadows position={[0, -2.2, 0]} opacity={0.55} scale={14} blur={2.8} far={5} />
+          <ContactShadows position={[0, -2.2, 0]} opacity={0.35} scale={14} blur={3.2} far={5} />
         )}
         <Environment preset="studio" />
         <Rig progress={ref} />

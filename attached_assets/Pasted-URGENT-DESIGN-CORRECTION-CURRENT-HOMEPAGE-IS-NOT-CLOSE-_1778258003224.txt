@@ -1,0 +1,366 @@
+URGENT DESIGN CORRECTION — CURRENT HOMEPAGE IS NOT CLOSE TO PARADISO STYLE
+
+The current TMG Install homepage does NOT look close enough to paradisoinstitute.org.
+
+Current problem:
+It looks like a dark hero poster with random floating planks.
+That is not the reference style.
+
+The reference concept is not just “black background + 3D.”
+The reference feeling should be:
+- editorial
+- typographic
+- institutional
+- structured
+- scroll-led
+- minimal
+- design-system driven
+- premium whitespace
+- section rhythm
+- subtle but controlled 3D / motion
+
+Fix ONLY the main homepage.
+
+STRICT SCOPE
+Do NOT touch:
+- backend
+- Supabase
+- Stripe
+- admin dashboard
+- staff portal
+- customer portal
+- quote backend
+- payment logic
+- booking logic
+- API routes
+- database schema
+- email functions
+
+Only edit:
+- homepage file
+- homepage-only components
+- homepage-only CSS
+- package.json only if required for homepage animation packages
+
+REFERENCE
+Use https://paradisoinstitute.org as visual/motion inspiration only.
+
+Do NOT copy:
+- exact code
+- exact assets
+- exact wording
+- exact logo
+- exact brand identity
+
+But match the design language much more closely.
+
+IMPORTANT CHANGE OF DIRECTION
+Stop making it look like a dark handyman/3D poster.
+
+Create a Paradiso-style editorial homepage for TMG Install using:
+- large clean typography
+- strong typographic hierarchy
+- structured full-screen sections
+- thin grid lines
+- top/bottom spacing
+- page-like editorial layout
+- clean black/white or off-white/black contrast
+- scroll chapters
+- controlled 3D movement
+
+DESIGN SYSTEM
+
+Use this visual system:
+
+Background:
+- Main background should be off-white / very light grey OR alternate between off-white and black sections.
+- Do not keep the whole site as one dark poster.
+- Use black text on light sections.
+- Use black sections only for contrast moments.
+
+Typography:
+- Huge sans-serif editorial headings.
+- Very large section numbers.
+- Uppercase spaced labels.
+- Paragraphs should be smaller, clean and controlled.
+- Avoid normal template-style headings.
+
+Grid:
+- Add visible thin grid lines.
+- Use large border boxes.
+- Use structured columns.
+- Use section dividers.
+- Use “institutional layout” rather than normal service cards.
+
+NAVIGATION
+Create a very minimal top nav similar in feeling to an editorial/institute site.
+
+Left:
+TMG / INSTALL
+
+Right:
+SERVICES
+PROCESS
+BUSINESS
+QUOTE
+WHATSAPP
+
+Keep it thin, clean, uppercase, spaced letters.
+
+HERO SECTION — MUST CHANGE
+
+The current hero is too much like a dark poster.
+
+Rebuild hero like this:
+
+- Full viewport
+- Light/off-white background preferred
+- Huge black typography
+- Thin grid overlay
+- Editorial label:
+  SINGAPORE / FURNITURE INSTALLATION STUDIO
+
+Main headline:
+Furniture work,
+built properly.
+
+Use line break like:
+Furniture work,
+built properly.
+
+Subheadline:
+Installation, dismantling, relocation support and office setup for homes, offices, landlords and businesses across Singapore.
+
+CTA:
+GET INSTANT QUOTE
+WHATSAPP US
+
+3D visual:
+Do NOT let 3D dominate the page.
+Place a controlled abstract furniture assembly diagram on the side or behind at low opacity.
+It should look intentional, not random planks.
+
+3D should be:
+- exploded diagram style
+- clean object parts
+- technical furniture assembly feel
+- subtle motion
+- not covering text
+- not too dark
+- not random
+
+ABOVE THE FOLD REQUIREMENT
+When opened on mobile, user must see:
+- TMG / INSTALL
+- hero label
+- main headline
+- short paragraph
+- at least one CTA button
+
+If CTA is below the fold, fix spacing.
+
+SCROLL STORY SECTION — MAKE THIS THE MAIN PARADISO-LIKE EXPERIENCE
+
+Create a proper editorial scroll section.
+
+Section title:
+From parts to finished setup.
+
+Use three full-screen chapters:
+
+01 / DESCRIBE
+Send photos, item list and location.
+
+02 / VERIFY
+We review the work and provide a clear estimate before confirmation.
+
+03 / COMPLETE
+Our team installs, dismantles or relocates your furniture properly.
+
+Layout:
+- Left side: giant chapter number and text
+- Right side: sticky 3D assembly diagram
+- Thin grid lines across the section
+- Each chapter fills most of the viewport
+- The 3D diagram remains sticky while text scrolls
+
+Motion:
+The furniture assembly must visibly transform:
+- Chapter 01: parts separated
+- Chapter 02: parts halfway aligned
+- Chapter 03: completed assembled furniture/workstation structure
+
+This must be obvious.
+Not just small rotation.
+Not just floating.
+The parts must move from exploded positions into final positions.
+
+3D OBJECT REQUIREMENT
+Use simple geometry:
+- tabletop panel
+- side panel
+- support rail
+- 4 legs
+- screws/brackets
+
+Final shape should look like a clean table/workstation/cabinet frame.
+
+Use:
+- React Three Fiber
+- Three.js
+- GSAP ScrollTrigger
+
+Do not use heavy GLB.
+Do not use video.
+Do not use random long planks.
+
+EDITORIAL SERVICES SECTION
+
+The service section must NOT look like normal handyman cards.
+
+Use Paradiso-style section structure:
+- Large section heading
+- Big numbered rows
+- Thin borders
+- Minimal text
+- Hover reveal
+
+Title:
+Furniture work, handled properly.
+
+Rows:
+01 Furniture Installation
+Beds, wardrobes, tables, cabinets and home furniture assembled with proper coordination.
+
+02 Furniture Dismantling
+Careful dismantling for moving, replacement or storage.
+
+03 Office Furniture Setup
+Workstations, office chairs, desks, pedestals and meeting room furniture.
+
+04 Relocation Support
+Move-related dismantling, assembly and furniture handling support.
+
+05 Wardrobe / Bed / Table Assembly
+Common home furniture installed clearly and professionally.
+
+06 Repair & Adjustment
+Basic adjustment, tightening and minor repair support.
+
+Each row has a small GET QUOTE link.
+
+WHY TMG SECTION
+
+Make this more editorial, not card-based.
+
+Title:
+Built for clear coordination.
+
+Use large split layout:
+Left: big statement
+Right: short proof points
+
+Proof points:
+- Clear quote before work
+- Photo-based assessment
+- Suitable for homes and offices
+- Professional job coordination
+- WhatsApp support
+- Deposit-secured booking flow
+- Completion photos where applicable
+
+PROCESS SECTION
+
+Use a clean editorial timeline.
+
+Title:
+A cleaner way to book furniture work.
+
+Steps:
+01 Send job details
+02 Receive estimate
+03 Confirm booking
+04 Team completes the work
+05 Final payment after completion, if applicable
+
+BUSINESS SECTION
+
+Title:
+For offices, landlords and co-living operators.
+
+Text:
+Need repeated installations, office desk setup, room turnover, bed frames, wardrobes or workstation assembly? TMG Install supports recurring furniture work with structured coordination.
+
+CTA:
+REQUEST BUSINESS QUOTE
+
+FINAL CTA SECTION
+
+Use strong black/white contrast.
+
+Title:
+Need furniture installed, dismantled or moved?
+
+Text:
+Send us photos, item list and location. We will help estimate the work clearly before confirmation.
+
+Buttons:
+GET INSTANT QUOTE
+WHATSAPP US
+
+MOBILE DESIGN
+Mobile must not look cramped.
+
+Rules:
+- Reduce top bar height
+- Reduce 3D opacity
+- 3D must never block text
+- CTA must appear early
+- Sticky bottom CTA:
+  QUOTE | WHATSAPP
+- Scroll story can stack:
+  text first, 3D below or sticky behind at low opacity
+- Keep all typography responsive
+
+REMOVE / FIX CURRENT ISSUES
+Fix these current problems:
+- Remove the feeling of random floating planks
+- Remove overly dark poster-only style
+- Reduce promo bar height or hide promo bar on mobile
+- Make CTA visible above the fold
+- Make layout more like an editorial/institutional site
+- Add real scroll chapters
+- Make 3D transform with purpose
+- Make services section less like normal template cards
+
+ACCEPTANCE STANDARD
+The homepage should look like:
+“Paradiso Institute-style editorial scroll website, rebuilt originally for TMG Install.”
+
+It should NOT look like:
+- dark poster with planks
+- normal handyman website
+- generic 3D landing page
+- template service page
+- blank canvas
+- random 3D background
+
+BUILD CHECK
+After changes:
+- Run npm run build
+- Check mobile
+- Check desktop
+- Check console errors
+- Check quote CTA
+- Check WhatsApp CTA
+- Confirm only homepage-related files changed
+- Confirm no backend/admin/staff/Supabase/Stripe/payment/quote logic changed
+
+FINAL REPORT
+Report:
+1. Files changed
+2. Components changed
+3. How the design now matches Paradiso-style better
+4. How the 3D scroll assembly works
+5. Confirmation that only homepage was changed
+6. npm run build result
