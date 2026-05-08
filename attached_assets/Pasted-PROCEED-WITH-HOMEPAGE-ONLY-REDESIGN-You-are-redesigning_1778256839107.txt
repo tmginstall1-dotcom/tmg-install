@@ -1,0 +1,336 @@
+PROCEED WITH HOMEPAGE-ONLY REDESIGN.
+
+You are redesigning ONLY the main homepage of TMG Install / tmginstall.com.
+
+Reference:
+https://paradisoinstitute.org
+
+IMPORTANT:
+Do not copy Paradiso’s exact code, assets, logo, wording, or brand.
+But match the same level of design feeling:
+- Editorial black/white minimalism
+- Huge typography
+- Premium negative space
+- Smooth cinematic scroll
+- Sticky 3D visual behavior
+- Section-by-section storytelling
+- Thin borders / grid lines
+- High-end digital studio feeling
+
+This must NOT look like a generic handyman website.
+This must look like a premium tech-enabled furniture installation company.
+
+STRICT SCOPE:
+Only edit the homepage and homepage-only components.
+
+Allowed:
+- app/page.tsx OR pages/index.tsx
+- components/home/*
+- homepage CSS/global styles only if necessary
+- package.json only to install frontend animation/3D packages
+
+Allowed packages:
+npm install three @react-three/fiber @react-three/drei gsap
+
+Do NOT edit:
+- Supabase files
+- Stripe files
+- API routes
+- Admin dashboard
+- Staff portal
+- Customer portal
+- Booking pages
+- Quote backend logic
+- Database schema
+- Email functions
+- Payment pages
+- Invoice pages
+- Authentication
+
+MAIN DESIGN DIRECTION
+
+Create the homepage as a scroll-driven cinematic landing page.
+
+Overall style:
+- Background: #050505 / near black
+- Text: off-white
+- Accent: light grey / metallic grey
+- Thin borders
+- Oversized typography
+- Minimal icons
+- Smooth transitions
+- Industrial premium feeling
+- No childish graphics
+- No colorful handyman template
+- No huge video background
+
+The homepage should feel like:
+“Paradiso-style cultural institute website, rebuilt for a premium Singapore furniture installation and relocation company.”
+
+HOMEPAGE STRUCTURE
+
+SECTION 1 — HERO
+
+Layout:
+- Full viewport height
+- Sticky/fixed 3D canvas behind or beside text
+- Large typographic headline
+- Top navigation minimal
+- Strong CTA buttons
+
+Hero headline:
+Furniture Installation, Dismantling & Relocation — Built Properly.
+
+Subheadline:
+TMG Install helps homes, offices, landlords and businesses handle furniture assembly, dismantling, relocation support and office setup with clear coordination and professional workmanship.
+
+Buttons:
+Primary: Get Instant Quote
+Secondary: WhatsApp Us
+
+Use existing quote route from audit.
+Use this WhatsApp if existing one is missing:
+https://wa.me/6580880757?text=Hi%20TMG%20Install%2C%20I%20would%20like%20to%20get%20a%20quote%20for%20furniture%20installation%20or%20relocation.
+
+Hero 3D:
+Floating furniture assembly parts:
+- wood/metal panels
+- table legs
+- screws
+- brackets
+- cabinet board pieces
+
+At first load, the parts float apart like an exploded assembly diagram.
+
+SECTION 2 — SCROLL ASSEMBLY STORY
+
+Make this section feel like Paradiso-style scroll storytelling.
+
+Title:
+From flat-pack chaos to finished setup.
+
+Create 3 large scroll chapters:
+01 / DESCRIBE
+Send photos, item list and location.
+
+02 / VERIFY
+We review the work and provide a clear estimate before confirmation.
+
+03 / COMPLETE
+Our team installs, dismantles or relocates your furniture properly.
+
+Motion behavior:
+As user scrolls through these chapters, the 3D furniture parts gradually assemble.
+
+Scroll progress:
+- 0%: exploded parts floating apart
+- 30%: parts rotate closer
+- 60%: panels align
+- 85%: object becomes recognizable table/workstation/cabinet
+- 100%: completed clean furniture structure with subtle idle rotation
+
+SECTION 3 — SERVICES GRID
+
+Use premium card grid.
+No cheap-looking icons.
+
+Title:
+Furniture work, handled properly.
+
+Cards:
+1. Furniture Installation
+Assembly for beds, wardrobes, tables, cabinets and more.
+
+2. Furniture Dismantling
+Careful dismantling for moving, replacement or storage.
+
+3. Office Furniture Setup
+Workstations, office chairs, desks, pedestals and meeting room furniture.
+
+4. Relocation Support
+Move-related dismantling, assembly and furniture handling support.
+
+5. Wardrobe / Bed / Table Assembly
+Common home furniture installed with proper coordination.
+
+6. Repair & Adjustment
+Basic furniture adjustment, tightening and minor repair support.
+
+Each card:
+- thin border
+- dark background
+- hover movement
+- small “Get Quote” link to existing quote route
+
+SECTION 4 — WHY TMG
+
+Title:
+Why customers choose TMG Install
+
+Use large text blocks, not basic icon cards.
+
+Points:
+- Clear quote before work
+- Photo-based assessment
+- Suitable for homes, offices, landlords and operators
+- Professional job coordination
+- WhatsApp support
+- Deposit-secured booking flow
+- Completion photos where applicable
+
+SECTION 5 — PROCESS
+
+Title:
+A cleaner way to book furniture work.
+
+Process:
+01 Send job details
+02 Receive estimate
+03 Confirm booking
+04 Team completes the work
+05 Final payment after completion, if applicable
+
+Style:
+Use horizontal timeline on desktop.
+Use vertical stacked timeline on mobile.
+
+SECTION 6 — BUSINESS CUSTOMERS
+
+Title:
+For offices, landlords and co-living operators.
+
+Text:
+Need repeated installations, office desk setup, room turnover, bed frames, wardrobes or workstation assembly? TMG Install supports recurring furniture work with structured coordination.
+
+CTA:
+Request Business Quote
+
+SECTION 7 — FINAL CTA
+
+Title:
+Need furniture installed, dismantled or moved?
+
+Text:
+Send us photos, item list and location. We will help estimate the work clearly before confirmation.
+
+Buttons:
+Get Instant Quote
+WhatsApp Us
+
+FOOTER
+
+Keep minimal:
+TMG Install / The Moving Guy Pte Ltd
+Singapore
+WhatsApp: +65 8088 0757
+
+3D IMPLEMENTATION REQUIREMENTS
+
+Create homepage-only component:
+components/home/ThreeFurnitureScene.tsx
+
+Must include:
+"use client"
+
+Use React Three Fiber.
+Use simple geometry first.
+Do not use heavy GLB models.
+Do not add video.
+Do not import huge assets.
+
+Use:
+- BoxGeometry for panels
+- CylinderGeometry for screws/legs
+- MeshStandardMaterial
+- AmbientLight
+- DirectionalLight
+- Optional ContactShadows only if performance remains good
+
+Use GSAP ScrollTrigger to drive the animation.
+Clean up ScrollTrigger on component unmount.
+Do not create memory leaks.
+
+Important:
+The 3D scene must be connected to the scroll-story section.
+Use an id such as:
+id="assembly-scroll"
+
+Canvas must not block clicking CTA buttons.
+Set pointer-events carefully.
+
+MOBILE REQUIREMENTS
+
+On mobile:
+- Keep 3D lighter
+- Reduce DPR
+- Reduce shadows
+- Reduce object count if needed
+- Do not hijack scrolling
+- CTA must be visible
+- Text must be readable
+
+Add sticky mobile CTA bottom bar:
+Left: Quote
+Right: WhatsApp
+
+If WebGL fails:
+Show a static premium fallback graphic/card:
+“Furniture assembly, handled properly.”
+
+If prefers-reduced-motion is enabled:
+Disable scroll animation.
+Show assembled furniture object statically.
+
+SEO REQUIREMENTS
+
+Only update homepage metadata if homepage controls it.
+
+Title:
+TMG Install | Furniture Installation, Dismantling & Relocation Singapore
+
+Description:
+Professional furniture installation, dismantling, relocation support and office setup in Singapore. Get a fast quote from TMG Install today.
+
+Do not change SEO for other pages.
+
+DESIGN QUALITY REQUIREMENTS
+
+The result must not look generic.
+
+Avoid:
+- blue handyman template
+- random stock photos
+- cheap gradient backgrounds
+- too many icons
+- cluttered sections
+- heavy video
+- childish 3D
+
+Must include:
+- strong visual hierarchy
+- giant typography
+- clean black/white contrast
+- smooth scroll feel
+- premium spacing
+- 3D object that actually changes with scroll
+- conversion CTA always clear
+
+PERFORMANCE REQUIREMENTS
+
+Before completion:
+- npm run build must pass
+- Homepage must load without console errors
+- 3D must not crash
+- Mobile must remain usable
+- Do not introduce backend errors
+- Do not change unrelated files
+
+FINAL RESPONSE
+
+When finished, report:
+1. Files changed
+2. New homepage components created
+3. Packages installed
+4. Confirmation that no backend/admin/staff/Supabase/Stripe/quote logic was changed
+5. How to test
+6. Any limitations
