@@ -1728,7 +1728,6 @@ export default function LandingCinematic() {
       <ScrollProgress />
       <Hero />
       <Marquee />
-      <Scene3D />
       <AssemblyScroll />
       <Services />
       <WhyTMG />
