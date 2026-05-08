@@ -166,6 +166,69 @@ function Reveal({
   );
 }
 
+/* ─────────────────────── Ghost outlined headline ─────────────────────── */
+
+function GhostHeadline({
+  children,
+  size = "clamp(64px, 14vw, 240px)",
+  className = "",
+  stroke = "rgba(10,10,10,0.18)",
+}: {
+  children: React.ReactNode;
+  size?: string;
+  className?: string;
+  stroke?: string;
+}) {
+  return (
+    <div
+      className={`font-serif italic font-black tracking-[-0.04em] leading-[0.85] whitespace-nowrap select-none pointer-events-none ${className}`}
+      style={{
+        fontSize: size,
+        color: "transparent",
+        WebkitTextStroke: `1px ${stroke}`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ─────────────────────── Marquee ticker ─────────────────────── */
+
+const TICKER_ITEMS = [
+  "INSTALL",
+  "DISMANTLE",
+  "RELOCATE",
+  "OFFICE FIT-OUT",
+  "WARDROBES",
+  "BEDS",
+  "TABLES",
+  "WORKSTATIONS",
+  "REPAIR",
+  "MOVE-IN READY",
+];
+
+function Marquee() {
+  const items = [...TICKER_ITEMS, ...TICKER_ITEMS];
+  return (
+    <section
+      aria-label="What we install"
+      className="relative overflow-hidden border-y"
+      style={{ background: PAPER, borderColor: LINE }}
+      data-testid="section-marquee"
+    >
+      <div className="flex gap-12 py-4 md:py-6 whitespace-nowrap animate-tmg-marquee">
+        {items.map((it, i) => (
+          <div key={i} className="flex items-center gap-12 text-[11px] md:text-[14px] tracking-[0.3em] uppercase font-bold">
+            <span className="flex items-center gap-3"><AccentSquare /> {it}</span>
+            <span className="font-serif italic font-black text-[24px] md:text-[36px] leading-none -mt-[2px]">·</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /* ─────────────────────── HERO (cover-poster composition) ─────────────────────── */
 
 function Counter() {
@@ -409,12 +472,17 @@ function ChapterCard({
   index: number;
   scrollYProgress: MotionValue<number>;
 }) {
-  const startV = 0.08 + index * 0.28;
-  const peak = startV + 0.08;
-  const fadeOut = startV + 0.22;
-  const end = startV + 0.3;
-  const opacity = useTransform(scrollYProgress, [startV, peak, fadeOut, end], [0, 1, 1, 0]);
-  const y = useTransform(scrollYProgress, [startV, peak, fadeOut, end], [40, 0, 0, -40]);
+  // Chapter 01 is visible immediately on entering the section so there is
+  // no blank gap during the early scroll. Each chapter then occupies
+  // roughly a third of the section's scroll length.
+  const SEGMENTS = [
+    { in: -0.05, peak: 0.0,  out: 0.30, end: 0.36 },
+    { in: 0.34,  peak: 0.42, out: 0.62, end: 0.68 },
+    { in: 0.66,  peak: 0.74, out: 1.0,  end: 1.06 },
+  ];
+  const seg = SEGMENTS[index];
+  const opacity = useTransform(scrollYProgress, [seg.in, seg.peak, seg.out, seg.end], [0, 1, 1, 0]);
+  const y = useTransform(scrollYProgress, [seg.in, seg.peak, seg.out, seg.end], [40, 0, 0, -40]);
   return (
     <motion.div
       style={{ opacity, y }}
@@ -505,6 +573,22 @@ function AssemblyScroll() {
 
       <div className="sticky top-0 h-screen w-full overflow-hidden">
         <DotGrid opacity={0.4} />
+
+        {/* Backdrop ghost-text rotating with chapters */}
+        <div className="absolute inset-0 z-[1] pointer-events-none flex items-end justify-center pb-10 md:pb-14 overflow-hidden">
+          <GhostHeadline size="clamp(80px, 18vw, 320px)">From parts. Properly built.</GhostHeadline>
+        </div>
+
+        {/* Floating editorial fragments */}
+        <div className="hidden md:block absolute top-[18%] left-[6%] z-[2] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight max-w-[120px] pointer-events-none">
+          <AccentSquare /> <span className="ml-1">A method.</span><br />
+          <span className="opacity-60">Step by step.</span>
+        </div>
+        <div className="hidden md:block absolute top-[18%] right-[6%] z-[2] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight text-right max-w-[140px] pointer-events-none">
+          <span>Fig. 02 / Workstation</span><br />
+          <span className="opacity-60">Drawing — exploded view</span>
+        </div>
+
         <div className="grid grid-cols-12 h-full">
           <div className="col-span-12 md:col-span-6 relative flex items-center px-6 md:px-10 lg:px-14 pt-16 md:pt-0">
             {STORY.map((s, i) => (
@@ -732,6 +816,86 @@ function WhyTMG() {
               ))}
             </ol>
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────── INDEX STRIP (editorial filler) ─────────────────────── */
+
+const INDEX_ROWS = [
+  { no: "I", label: "Furniture Installation", meta: "Residential / Commercial" },
+  { no: "II", label: "Furniture Dismantling", meta: "Disposal-ready" },
+  { no: "III", label: "Office Fit-out & Workstations", meta: "Recurring projects" },
+  { no: "IV", label: "Relocation Support", meta: "Island-wide" },
+  { no: "V", label: "Repair & Adjustment", meta: "On-site" },
+];
+
+function IndexStrip() {
+  return (
+    <section
+      className="relative py-20 md:py-32 px-6 md:px-10 lg:px-14 overflow-hidden"
+      style={{ background: PAPER, color: INK, borderTop: `1px solid ${LINE}` }}
+      data-testid="section-index"
+    >
+      <DotGrid opacity={0.32} />
+      <div className="relative mx-auto max-w-[1600px]">
+        <div className="grid grid-cols-12 gap-4 md:gap-8 mb-10 md:mb-16 items-end">
+          <div className="col-span-12 md:col-span-4 flex flex-wrap items-center gap-2 mb-4 md:mb-0">
+            <Tag>§ 03·5</Tag>
+            <Tag accent>Index</Tag>
+          </div>
+          <div className="col-span-12 md:col-span-8 flex items-end justify-between gap-4">
+            <Reveal>
+              <h3
+                className="font-serif italic font-black tracking-[-0.025em] leading-[0.95]"
+                style={{ fontSize: "clamp(28px, 4.4vw, 64px)" }}
+              >
+                Contents.
+              </h3>
+            </Reveal>
+            <div className="text-[10px] tracking-[0.2em] uppercase font-bold opacity-55 hidden md:block">
+              06 ENTRIES
+            </div>
+          </div>
+        </div>
+
+        <ol className="border-t" style={{ borderColor: LINE }}>
+          {INDEX_ROWS.map((r, i) => (
+            <motion.li
+              key={r.no}
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-10%" }}
+              transition={{ duration: 0.5, delay: i * 0.05, ease: EASE }}
+              className="grid grid-cols-12 gap-4 items-baseline border-b py-5 md:py-7 group"
+              style={{ borderColor: LINE_LIGHT }}
+              data-testid={`index-row-${i}`}
+            >
+              <div className="col-span-1 font-serif italic font-black text-black/45 text-base md:text-lg">{r.no}</div>
+              <div className="col-span-7 md:col-span-6 font-serif italic font-black text-black tracking-[-0.015em]" style={{ fontSize: "clamp(20px, 2.4vw, 36px)" }}>
+                {r.label}
+              </div>
+              <div className="hidden md:block md:col-span-4 text-[11px] tracking-[0.2em] uppercase font-bold opacity-55">
+                {r.meta}
+              </div>
+              <div className="col-span-4 md:col-span-1 flex justify-end">
+                <Link
+                  href="/estimate"
+                  data-testid={`index-cta-${i}`}
+                  onClick={() => trackEvent("cta_estimate_index", "/", r.label)}
+                >
+                  <Tag accent>QUOTE →</Tag>
+                </Link>
+              </div>
+            </motion.li>
+          ))}
+        </ol>
+
+        {/* Bottom outline ghost text */}
+        <div className="mt-12 md:mt-16 overflow-hidden">
+          <GhostHeadline size="clamp(56px, 14vw, 220px)">Furniture, properly.</GhostHeadline>
         </div>
       </div>
     </section>
@@ -1068,9 +1232,11 @@ export default function LandingCinematic() {
       <PromoBar />
       <ScrollProgress />
       <Hero />
+      <Marquee />
       <AssemblyScroll />
       <Services />
       <WhyTMG />
+      <IndexStrip />
       <Process />
       <BusinessSection />
       <FinalCTA />

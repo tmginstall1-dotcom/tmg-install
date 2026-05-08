@@ -1,5 +1,17 @@
 /* Fonts loaded via index.html link tag for optimal performance */
 
+@keyframes tmg-marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-tmg-marquee {
+  animation: tmg-marquee 38s linear infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-tmg-marquee { animation: none; }
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
