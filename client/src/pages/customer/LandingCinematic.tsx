@@ -448,45 +448,113 @@ const STORY = [
     code: "DESCRIBE",
     title: "Send the details.",
     body: "Photos, item list, pickup or install address. Send it via WhatsApp or our web form — whichever is faster for you.",
+    image: "/images/work/ikea-boxes-800.webp",
+    image2x: "/images/work/ikea-boxes-800.webp",
+    caption: "Fig. 01 — Parts received",
   },
   {
     no: "02",
     code: "VERIFY",
     title: "Receive a clear estimate.",
     body: "Our team reviews the work before confirmation. You see what's covered, what isn't, and what it costs.",
+    image: "/images/work/wardrobe-install-team-800.webp",
+    image2x: "/images/work/wardrobe-install-team-800.webp",
+    caption: "Fig. 02 — Crew on site",
   },
   {
     no: "03",
     code: "COMPLETE",
     title: "Install, dismantle or relocate.",
     body: "A trained crew arrives on schedule, completes the work properly, and clears the packaging on the way out.",
+    image: "/images/work/office-fitout-1600.webp",
+    image2x: "/images/work/office-fitout-1600.webp",
+    caption: "Fig. 03 — Office handover",
   },
 ];
+
+const SEGMENTS = [
+  { in: -0.05, peak: 0.0,  out: 0.30, end: 0.36 },
+  { in: 0.34,  peak: 0.42, out: 0.62, end: 0.68 },
+  { in: 0.66,  peak: 0.74, out: 1.0,  end: 1.06 },
+];
+
+function ChapterMedia({
+  index,
+  scrollYProgress,
+  src,
+  caption,
+}: {
+  index: number;
+  scrollYProgress: MotionValue<number>;
+  src: string;
+  caption: string;
+}) {
+  const seg = SEGMENTS[index];
+  const opacity = useTransform(scrollYProgress, [seg.in, seg.peak, seg.out, seg.end], [0, 1, 1, 0]);
+  const scale = useTransform(scrollYProgress, [seg.in, seg.peak, seg.out, seg.end], [1.06, 1, 1, 1.04]);
+  return (
+    <motion.div style={{ opacity }} className="absolute inset-0">
+      <motion.img
+        src={src}
+        alt={caption}
+        loading="lazy"
+        decoding="async"
+        style={{ scale }}
+        className="w-full h-full object-cover"
+      />
+      <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-[10px] tracking-[0.2em] uppercase font-bold text-white">
+        <span className="flex items-center gap-1.5 bg-black/65 backdrop-blur-sm px-2 py-1">
+          <AccentSquare /> {caption}
+        </span>
+        <span className="bg-black/65 backdrop-blur-sm px-2 py-1">0{index + 1} / 03</span>
+      </div>
+    </motion.div>
+  );
+}
 
 function ChapterCard({
   chapter,
   index,
   scrollYProgress,
+  compact = false,
 }: {
   chapter: typeof STORY[number];
   index: number;
   scrollYProgress: MotionValue<number>;
+  compact?: boolean;
 }) {
-  // Chapter 01 is visible immediately on entering the section so there is
-  // no blank gap during the early scroll. Each chapter then occupies
-  // roughly a third of the section's scroll length.
-  const SEGMENTS = [
-    { in: -0.05, peak: 0.0,  out: 0.30, end: 0.36 },
-    { in: 0.34,  peak: 0.42, out: 0.62, end: 0.68 },
-    { in: 0.66,  peak: 0.74, out: 1.0,  end: 1.06 },
-  ];
   const seg = SEGMENTS[index];
   const opacity = useTransform(scrollYProgress, [seg.in, seg.peak, seg.out, seg.end], [0, 1, 1, 0]);
   const y = useTransform(scrollYProgress, [seg.in, seg.peak, seg.out, seg.end], [40, 0, 0, -40]);
+  if (compact) {
+    return (
+      <motion.div
+        style={{ opacity, y }}
+        className="absolute inset-x-0"
+        data-testid={`chapter-mobile-${index}`}
+      >
+        <div className="flex items-baseline gap-3 mb-3">
+          <span className="font-serif italic font-black text-black/90" style={{ fontSize: "56px", lineHeight: 0.85 }}>
+            {chapter.no}
+          </span>
+          <Tag accent>{chapter.code}</Tag>
+        </div>
+        <h3 className="font-serif italic font-black tracking-[-0.02em] leading-[1.0] mb-3" style={{ fontSize: "26px" }}>
+          {chapter.title}
+        </h3>
+        <p className="text-black/65 text-sm leading-relaxed">{chapter.body}</p>
+        <div className="mt-4 flex gap-2">
+          {STORY.map((_, j) => (
+            <div key={j} className="h-[3px] w-8" style={{ background: j === index ? ACCENT : "rgba(10,10,10,0.18)" }} />
+          ))}
+        </div>
+      </motion.div>
+    );
+  }
   return (
     <motion.div
       style={{ opacity, y }}
-      className="absolute inset-x-6 md:inset-x-10 lg:inset-x-14 max-w-[640px]"
+      className="absolute inset-x-0 max-w-[560px]"
       data-testid={`chapter-${index}`}
     >
       <div className="flex items-baseline gap-4 mb-6 md:mb-10">
@@ -547,8 +615,8 @@ function AssemblyScroll() {
     <section
       ref={sectionRef}
       id="assembly-scroll"
-      className="relative"
-      style={{ height: "420vh", background: PAPER, color: INK }}
+      className="relative h-[280vh] md:h-[360vh]"
+      style={{ background: PAPER, color: INK }}
       data-testid="section-assembly"
     >
       {/* Section opener strip */}
@@ -574,58 +642,63 @@ function AssemblyScroll() {
       <div className="sticky top-0 h-screen w-full overflow-hidden">
         <DotGrid opacity={0.4} />
 
-        {/* Backdrop ghost-text rotating with chapters */}
-        <div className="absolute inset-0 z-[1] pointer-events-none flex items-end justify-center pb-10 md:pb-14 overflow-hidden">
-          <GhostHeadline size="clamp(80px, 18vw, 320px)">From parts. Properly built.</GhostHeadline>
-        </div>
-
-        {/* Floating editorial fragments */}
-        <div className="hidden md:block absolute top-[18%] left-[6%] z-[2] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight max-w-[120px] pointer-events-none">
+        {/* Floating editorial fragments — desktop only */}
+        <div className="hidden md:block absolute top-[14%] left-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight max-w-[120px] pointer-events-none">
           <AccentSquare /> <span className="ml-1">A method.</span><br />
           <span className="opacity-60">Step by step.</span>
         </div>
-        <div className="hidden md:block absolute top-[18%] right-[6%] z-[2] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight text-right max-w-[140px] pointer-events-none">
-          <span>Fig. 02 / Workstation</span><br />
-          <span className="opacity-60">Drawing — exploded view</span>
+        <div className="hidden md:block absolute top-[14%] right-[6%] z-[6] text-[10px] tracking-[0.2em] uppercase font-bold leading-tight text-right max-w-[140px] pointer-events-none">
+          <span>Real jobs.</span><br />
+          <span className="opacity-60">Singapore — 2024 / 25</span>
         </div>
 
         <div className="grid grid-cols-12 h-full">
-          <div className="col-span-12 md:col-span-6 relative flex items-center px-6 md:px-10 lg:px-14 pt-16 md:pt-0">
-            {STORY.map((s, i) => (
-              <ChapterCard key={s.no} chapter={s} index={i} scrollYProgress={scrollYProgress} />
-            ))}
+          {/* LEFT — chapter copy */}
+          <div className="col-span-12 md:col-span-6 relative flex items-center px-6 md:px-10 lg:px-14 pt-16 md:pt-0 z-[3]">
+            {/* Mobile-only image stack stacks above the text card */}
+            <div className="md:hidden absolute inset-x-6 top-[14%] aspect-[4/3] border" style={{ borderColor: LINE }}>
+              {STORY.map((s, i) => (
+                <ChapterMedia
+                  key={`m-${s.no}`}
+                  index={i}
+                  scrollYProgress={scrollYProgress}
+                  src={s.image}
+                  caption={s.caption}
+                />
+              ))}
+            </div>
+            {/* Mobile chapter card sits below the image */}
+            <div className="md:hidden absolute inset-x-6 bottom-[8%]">
+              {STORY.map((s, i) => (
+                <ChapterCard key={`mc-${s.no}`} chapter={s} index={i} scrollYProgress={scrollYProgress} compact />
+              ))}
+            </div>
+            {/* Desktop chapter cards */}
+            <div className="hidden md:block w-full relative">
+              {STORY.map((s, i) => (
+                <ChapterCard key={s.no} chapter={s} index={i} scrollYProgress={scrollYProgress} />
+              ))}
+            </div>
           </div>
+
+          {/* RIGHT — desktop image stack with progress bar */}
           <div className="hidden md:block md:col-span-6 relative border-l" style={{ borderColor: LINE }}>
-            <div className="absolute inset-0">
-              {showStaticFallback ? (
-                <img src="/images/hero/exploded-wardrobe-1600.webp" alt="" className="w-full h-full object-cover" />
-              ) : (
-                <Suspense fallback={null}>
-                  <ThreeFurnitureScene progressRef={progressRef} isMobile={false} />
-                </Suspense>
-              )}
-            </div>
-            <div className="absolute top-6 left-6 right-6 flex items-center justify-between pointer-events-none text-[10px] tracking-[0.18em] uppercase font-bold">
-              <span className="flex items-center gap-1.5"><AccentSquare /> Fig. 02 — Workstation</span>
-              <span>Exploded → Assembled</span>
-            </div>
-            <div className="absolute bottom-6 left-6 right-6 flex items-center gap-3 pointer-events-none text-[10px] tracking-[0.18em] uppercase font-bold">
-              <span>Assembly</span>
-              <div className="flex-1 h-[3px] origin-left" style={{ background: "rgba(10,10,10,0.15)" }}>
+            {STORY.map((s, i) => (
+              <ChapterMedia
+                key={`d-${s.no}`}
+                index={i}
+                scrollYProgress={scrollYProgress}
+                src={s.image2x}
+                caption={s.caption}
+              />
+            ))}
+            <div className="absolute bottom-6 left-6 right-6 flex items-center gap-3 pointer-events-none text-[10px] tracking-[0.18em] uppercase font-bold text-white z-[4]">
+              <span className="bg-black/65 backdrop-blur-sm px-2 py-1">From parts</span>
+              <div className="flex-1 h-[3px] origin-left bg-white/30">
                 <motion.div style={{ scaleX: completeBar, background: ACCENT }} className="h-[3px] origin-left" />
               </div>
-              <span>Complete</span>
+              <span className="bg-black/65 backdrop-blur-sm px-2 py-1">Complete</span>
             </div>
-          </div>
-          {/* Mobile faint backdrop */}
-          <div className="md:hidden absolute inset-0 z-0 opacity-15 pointer-events-none">
-            {showStaticFallback ? (
-              <img src="/images/hero/exploded-wardrobe-800.webp" alt="" className="w-full h-full object-cover" />
-            ) : (
-              <Suspense fallback={null}>
-                <ThreeFurnitureScene progressRef={progressRef} isMobile={true} />
-              </Suspense>
-            )}
           </div>
         </div>
       </div>
@@ -1020,24 +1093,43 @@ function BusinessSection() {
           </LinkTag>
         </div>
         <div className="md:col-span-5">
-          <div className="aspect-[4/5] relative bg-stone-300 overflow-hidden border" style={{ borderColor: LINE }}>
-            <img
-              src="/images/work/office-fitout-1600.webp"
-              srcSet="/images/work/office-fitout-800.webp 800w, /images/work/office-fitout-1600.webp 1600w"
-              sizes="(min-width: 1024px) 36vw, 90vw"
-              alt="A 20-station office fit-out completed by TMG Install"
-              loading="lazy"
-              decoding="async"
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute top-3 left-3 flex items-center gap-2">
-              <Tag accent>RECENT</Tag>
-            </div>
-            <div className="absolute bottom-6 left-6 right-6 text-white">
-              <div className="text-[10px] tracking-[0.35em] uppercase text-white/85 mb-1">20-station office</div>
-              <div className="font-serif italic text-2xl font-black">CBD fit-out</div>
-            </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { src: "/images/work/office-fitout-800.webp", tag: "OFFICE", label: "20-station fit-out", aspect: "aspect-[4/5]" },
+              { src: "/images/work/wardrobe-install-team-800.webp", tag: "WARDROBE", label: "4-door oak install", aspect: "aspect-[4/5]" },
+              { src: "/images/work/phone-booth-completed-800.webp", tag: "PHONE BOOTH", label: "Acoustic pod", aspect: "aspect-[4/5]" },
+              { src: "/images/work/bed-completed-800.webp", tag: "BED", label: "Bed frame · master room", aspect: "aspect-[4/5]" },
+            ].map((it, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-10%" }}
+                transition={{ duration: 0.6, delay: i * 0.08, ease: EASE }}
+                className={`relative ${it.aspect} bg-stone-300 overflow-hidden border`}
+                style={{ borderColor: LINE }}
+                data-testid={`gallery-${i}`}
+              >
+                <img
+                  src={it.src}
+                  alt={it.label}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-2 left-2">
+                  <Tag accent>{it.tag}</Tag>
+                </div>
+                <div className="absolute bottom-3 left-3 right-3 text-white">
+                  <div className="text-[10px] tracking-[0.25em] uppercase text-white/85 font-bold">{it.label}</div>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none" />
+              </motion.div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[10px] tracking-[0.2em] uppercase font-bold opacity-65">
+            <span className="flex items-center gap-1.5"><AccentSquare /> Recent installs</span>
+            <span>Selected · 2024 / 25</span>
           </div>
         </div>
       </div>
