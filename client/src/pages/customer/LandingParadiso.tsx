@@ -335,8 +335,9 @@ function GhostType({
 /* ─── 3D INK BLOB — scroll-driven floating shape (paradiso-style) ────── */
 
 /* Inner mesh that reads scroll progress + clock for animation. The blob is
-   a distorted icosahedron with a matte black material — reads as a giant
-   ink/brush mass that breathes and rotates as you scroll. */
+   a heavily-distorted icosahedron with a matte black material — reads as
+   a giant ink/brush mass that breathes and slowly rotates behind the
+   centred wordmark, paradiso-style. */
 function InkBlobMesh({ scrollY }: { scrollY: MotionValue<number> }) {
   const meshRef = useRef<THREE.Mesh | null>(null);
   const distortRef = useRef<any>(null);
@@ -347,35 +348,36 @@ function InkBlobMesh({ scrollY }: { scrollY: MotionValue<number> }) {
     const t = state.clock.getElapsedTime();
     const s = scrollY.get(); // 0 → 1 over the page
 
-    // Rotate continuously + react to scroll
-    m.rotation.x = t * 0.18 + s * Math.PI * 1.4;
-    m.rotation.y = t * 0.22 + s * Math.PI * 2.2;
-    m.rotation.z = Math.sin(t * 0.3) * 0.15;
+    // Slow continuous rotation + scroll-coupled spin
+    m.rotation.x = t * 0.14 + s * Math.PI * 1.2;
+    m.rotation.y = t * 0.18 + s * Math.PI * 1.8;
+    m.rotation.z = Math.sin(t * 0.25) * 0.18;
 
-    // Drift across the viewport as scroll progresses (right → left)
-    m.position.x = 0.6 - s * 1.4;
-    m.position.y = -0.3 + Math.sin(t * 0.6) * 0.12 - s * 0.6;
-    // Gentle scale pulse
-    const k = 1 + Math.sin(t * 0.9) * 0.04 + s * 0.25;
+    // Stay roughly centred; drift slightly with scroll instead of leaving
+    m.position.x = Math.sin(t * 0.3) * 0.08 - s * 0.3;
+    m.position.y = Math.sin(t * 0.5) * 0.1 - s * 0.5;
+
+    // Gentle breathing scale
+    const k = 1 + Math.sin(t * 0.8) * 0.05 + s * 0.15;
     m.scale.set(k, k, k);
 
-    // Distortion modulates with scroll for an organic ink-like feel
+    // Heavier distortion → reads as an organic ink mass, not a sphere
     if (distortRef.current) {
-      distortRef.current.distort = 0.42 + Math.sin(t * 0.7) * 0.06 + s * 0.18;
+      distortRef.current.distort = 0.55 + Math.sin(t * 0.6) * 0.08 + s * 0.15;
     }
   });
 
   return (
-    <Float speed={1.4} rotationIntensity={0.2} floatIntensity={0.6}>
-      <mesh ref={meshRef} position={[0.6, -0.3, 0]} scale={1.6}>
-        <icosahedronGeometry args={[1, 24]} />
+    <Float speed={1.2} rotationIntensity={0.15} floatIntensity={0.5}>
+      <mesh ref={meshRef} position={[0, 0, 0]} scale={2.1}>
+        <icosahedronGeometry args={[1, 32]} />
         <MeshDistortMaterial
           ref={distortRef}
           color="#000000"
-          roughness={0.55}
-          metalness={0.1}
-          distort={0.42}
-          speed={1.6}
+          roughness={0.7}
+          metalness={0.05}
+          distort={0.55}
+          speed={1.4}
         />
       </mesh>
     </Float>
@@ -405,15 +407,15 @@ function useHasWebGL() {
 /* CSS fallback — animated radial-gradient blob that drifts with scroll.
    No WebGL needed. Looks like a soft ink stain breathing in the background. */
 function InkBlobCSS({ scrollY }: { scrollY: MotionValue<number> }) {
-  const x = useTransform(scrollY, [0, 1], ["10vw", "-30vw"]);
-  const y = useTransform(scrollY, [0, 1], ["-5vh", "-40vh"]);
-  const rotate = useTransform(scrollY, [0, 1], [0, 220]);
-  const scale = useTransform(scrollY, [0, 1], [1, 1.4]);
+  const x = useTransform(scrollY, [0, 1], ["0vw", "-20vw"]);
+  const y = useTransform(scrollY, [0, 1], ["0vh", "-30vh"]);
+  const rotate = useTransform(scrollY, [0, 1], [0, 180]);
+  const scale = useTransform(scrollY, [0, 1], [1, 1.25]);
   return (
     <div
       aria-hidden="true"
-      className="fixed inset-0 pointer-events-none overflow-hidden"
-      style={{ zIndex: 1 }}
+      className="absolute inset-0 pointer-events-none overflow-hidden"
+      style={{ zIndex: 4 }}
       data-testid="ink-blob-css"
     >
       <motion.div
@@ -423,47 +425,58 @@ function InkBlobCSS({ scrollY }: { scrollY: MotionValue<number> }) {
           rotate,
           scale,
           position: "absolute",
-          left: "30%",
-          top: "30%",
-          width: "60vw",
-          height: "60vw",
+          left: "50%",
+          top: "50%",
+          translateX: "-50%",
+          translateY: "-50%",
+          width: "min(70vw, 720px)",
+          height: "min(70vw, 720px)",
           background:
-            "radial-gradient(closest-side, rgba(0,0,0,0.16), rgba(0,0,0,0.08) 45%, rgba(0,0,0,0) 70%)",
-          filter: "blur(8px)",
+            "radial-gradient(closest-side, rgba(0,0,0,0.92), rgba(0,0,0,0.55) 45%, rgba(0,0,0,0) 70%)",
+          filter: "blur(2px)",
           borderRadius: "50% 38% 62% 44% / 48% 56% 40% 52%",
-          animation: "blobMorph 16s ease-in-out infinite",
+          animation: "blobMorph 14s ease-in-out infinite",
         }}
       />
     </div>
   );
 }
 
-/* Full-bleed Canvas wrapper — fixed behind the hero, low z-index, low
-   opacity so the brush wordmark stays the protagonist. Falls back to CSS
-   when WebGL is unavailable. */
+/* Full-bleed Canvas wrapper. Lives ABSOLUTELY inside the hero (not fixed
+   to the viewport) so the page bg-white can never paint over it, and the
+   blob clearly reads as the dark "ink mass" behind the centred brush
+   wordmark — paradiso's signature: a single heavy black shape that
+   breathes and rotates, with the wordmark sitting on top. */
 function InkBlob3D({ scrollY }: { scrollY: MotionValue<number> }) {
   const hasWebGL = useHasWebGL();
+  const [crashed, setCrashed] = useState(false);
 
-  if (!hasWebGL) return <InkBlobCSS scrollY={scrollY} />;
+  if (!hasWebGL || crashed) return <InkBlobCSS scrollY={scrollY} />;
 
   return (
     <div
       aria-hidden="true"
-      className="fixed inset-0 pointer-events-none"
-      style={{ zIndex: 1, opacity: 0.22 }}
+      className="absolute inset-0 pointer-events-none"
+      style={{ zIndex: 4, opacity: 0.92 }}
       data-testid="ink-blob-3d"
     >
       <Canvas
         camera={{ position: [0, 0, 4.2], fov: 45 }}
-        gl={{ antialias: true, alpha: true, failIfMajorPerformanceCaveat: false }}
+        gl={{
+          antialias: true,
+          alpha: true,
+          failIfMajorPerformanceCaveat: false,
+          preserveDrawingBuffer: false,
+        }}
         dpr={[1, 1.6]}
         onCreated={({ gl }) => {
           gl.setClearColor(0x000000, 0);
         }}
+        onError={() => setCrashed(true)}
       >
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[5, 5, 5]} intensity={1.1} />
-        <directionalLight position={[-5, -3, 2]} intensity={0.4} color="#888" />
+        <ambientLight intensity={0.55} />
+        <directionalLight position={[5, 5, 5]} intensity={0.9} />
+        <directionalLight position={[-5, -3, 2]} intensity={0.35} color="#888" />
         <Suspense fallback={null}>
           <InkBlobMesh scrollY={scrollY} />
         </Suspense>
@@ -518,14 +531,9 @@ export default function LandingParadiso() {
     mass: 0.4,
   });
 
-  // Parallax transforms — scattered fragments and ghosts move at different
-  // speeds as you scroll, so the layout feels alive (paradiso effect).
-  const yEthos = useTransform(smoothScroll, [0, 1], [0, -180]);
-  const yFeeling = useTransform(smoothScroll, [0, 1], [0, -260]);
-  const yCraft = useTransform(smoothScroll, [0, 1], [0, -120]);
-  const yPromise = useTransform(smoothScroll, [0, 1], [0, -340]);
+  // Parallax transforms — used by the centred wordmark, the bottom
+  // running phrase and the ghost mirrors as you scroll.
   const yGhostL = useTransform(smoothScroll, [0, 1], [0, -420]);
-  const yGhostR = useTransform(smoothScroll, [0, 1], [0, -500]);
   const xBleed = useTransform(smoothScroll, [0, 1], ["0%", "-55%"]);
   const yWordmark = useTransform(smoothScroll, [0, 0.5], [0, -120]);
   const opacityWordmark = useTransform(smoothScroll, [0, 0.35], [1, 0.15]);
@@ -537,30 +545,31 @@ export default function LandingParadiso() {
       style={{ fontFamily: "var(--font-paradiso-body)" }}
       data-testid="page-paradiso"
     >
-      {/* Fixed 3D ink blob behind everything — drifts + rotates with scroll */}
-      <InkBlob3D scrollY={smoothScroll} />
-
       {/* Single global registration-mark canvas — fixed behind every
           section so the marks read as one continuous "paper grain" instead
-          of restarting at each section. Below the ink blob, above the bg. */}
+          of restarting at each section. */}
       <div className="fixed inset-0 z-[0] pointer-events-none">
+        <GridMarks />
       </div>
 
       {/* ═══════════════════════ HERO ═══════════════════════ */}
-      <section className="relative min-h-[100svh] w-full overflow-hidden border-b border-black/10">
+      <section className="relative min-h-[100svh] w-full overflow-hidden border-b border-black/10 bg-white">
 
-        {/* ─── TOP MASTHEAD STRIP — editorial dateline running across the top.
-             Tabular columns separated by faint vertical rules; reads like the
-             header of a printed broadsheet, not a marketing hero. ─── */}
+        {/* ─── 3D ink mass — sits behind the centred brush wordmark. Below
+             text (z-4) but above the page bg. WebGL with CSS fallback. ─── */}
+        <InkBlob3D scrollY={smoothScroll} />
+
+        {/* ─── TOP-LEFT — tiny black credit bar (paradiso "patron" block).
+             Logo chip + two-line studio credential, set in a small typeface
+             with bold green accent words. ─── */}
         <div
-          className="absolute left-0 right-0 top-0 z-30 hidden md:grid grid-cols-[auto_1fr_auto_auto_auto] items-center text-[10px] uppercase tracking-[0.22em] text-black/70 border-b border-black/10 bg-white/85 backdrop-blur-[2px]"
-          style={{ fontFamily: "var(--font-paradiso)" }}
-          data-testid="masthead"
+          className="absolute left-0 top-0 z-30 flex items-stretch bg-black"
+          data-testid="credit-bar"
         >
           <Link
             href="/"
             aria-label="TMG Install — home"
-            className="flex items-center gap-2.5 px-4 py-2.5 border-r border-black/10 bg-black"
+            className="flex items-center justify-center px-2.5 py-2.5 border-r border-white/10"
             data-testid="link-logo"
           >
             <img
@@ -571,56 +580,29 @@ export default function LandingParadiso() {
               decoding="async"
               data-testid="img-logo"
             />
-            <span className="text-white font-semibold tracking-[0.24em]">
-              TMG &middot; INSTALL
-            </span>
-          </Link>
-          <div className="px-4 py-2.5 truncate">
-            An installation studio &mdash; Singapore, since 2018.
-          </div>
-          <div className="px-4 py-2.5 border-l border-black/10">
-            Issue&nbsp;N<span className="lowercase">&ordm;</span>&nbsp;
-            <span className="text-black font-semibold">047</span>
-          </div>
-          <div className="px-4 py-2.5 border-l border-black/10">
-            Island-wide
-          </div>
-          <div className="px-4 py-2.5 border-l border-black/10">
-            <DateLine />
-          </div>
-        </div>
-
-        {/* Mobile masthead — keep the editorial dateline + issue Nº so the
-            bespoke detail isn't lost on small viewports. */}
-        <div className="md:hidden absolute left-0 right-0 top-0 z-30 flex items-stretch border-b border-black/10 bg-white">
-          <Link
-            href="/"
-            aria-label="TMG Install — home"
-            className="flex items-center gap-2 bg-black px-3 py-2 shrink-0"
-            data-testid="link-logo-mobile"
-          >
-            <img src={tmgLogo} alt="TMG Install" className="h-6 w-6" />
-            <span
-              className="text-white text-[10px] tracking-[0.24em] font-semibold"
-              style={{ fontFamily: "var(--font-paradiso)" }}
-            >
-              TMG &middot; INSTALL
-            </span>
           </Link>
           <div
-            className="flex-1 px-3 py-2 text-[9px] uppercase tracking-[0.22em] text-black/70 self-center truncate"
+            className="px-3 py-2 text-white text-[10px] sm:text-[11px] leading-[1.35] tracking-[0.04em] max-w-[20rem] sm:max-w-[26rem]"
             style={{ fontFamily: "var(--font-paradiso)" }}
           >
-            <span className="hidden xs:inline">Singapore &middot; </span>
-            N<span className="lowercase">&ordm;</span>&nbsp;
-            <span className="text-black font-semibold">047</span>
-            &nbsp;&middot;&nbsp;
-            <DateLine />
+            Furniture installation, dismantling and relocation,
+            <br />
+            specified and executed by{" "}
+            <span style={{ color: ACCENT }} className="font-semibold">
+              TMG&nbsp;INSTALL
+            </span>
+            . Singapore, since{" "}
+            <span style={{ color: ACCENT }} className="font-semibold">
+              2018
+            </span>
+            .
           </div>
         </div>
 
-        {/* ─── TOP-RIGHT — live counter pills (kept, but smaller + offset). ─── */}
-        <div className="absolute right-3 sm:right-5 top-14 sm:top-16 z-20">
+        {/* ─── HIDDEN — kept as fallback noscript dateline. Removed in DOM
+             but the structural slot is preserved by the next siblings. ─── */}
+        {/* ─── TOP-RIGHT — live counter pills (paradiso "1 is here / N were here"). ─── */}
+        <div className="absolute right-3 sm:right-5 top-3 sm:top-4 z-30">
           <div className="flex items-start gap-1.5" data-testid="live-counter">
             <div
               className="px-2 py-1.5 text-black"
@@ -647,259 +629,197 @@ export default function LandingParadiso() {
           </div>
         </div>
 
-        {/* ─── LEFT EDGE — vertical rotated runner. Sits in the gutter like
-             a magazine spine. Anchored bottom-left so it can't clip the
-             masthead, and rotated through its own centre so the text reads
-             bottom-to-top. ─── */}
-        <div
-          aria-hidden="true"
-          className="hidden lg:flex absolute left-2 bottom-24 z-20 items-center justify-center"
-          style={{
-            height: "60vh",
-            width: "1.25rem",
-          }}
-        >
-          <div
-            className="text-[10px] uppercase tracking-[0.42em] text-black/55 whitespace-nowrap"
-            style={{
-              fontFamily: "var(--font-paradiso)",
-              writingMode: "vertical-rl",
-              transform: "rotate(180deg)",
-            }}
-            data-testid="text-spine"
-          >
-            Furniture &middot; Installation &middot; Dismantling &middot;
-            Relocation &nbsp;&mdash;&nbsp; SG
-          </div>
+        {/* ─── SCATTERED ACCENT PILLS — paradiso anchors short labels at
+             deliberate corners around the centre. Each pill marks a real
+             section of the page. ─── */}
+        <div className="absolute left-[16%] top-[14%] z-20 hidden sm:block">
+          <Pill href="#services" testId="pill-services">
+            Services
+          </Pill>
+        </div>
+        <div className="absolute left-[42%] top-[10%] z-20 hidden md:block">
+          <Pill href="#how" testId="pill-process">
+            The process
+          </Pill>
+        </div>
+        <div className="absolute right-[14%] top-[22%] z-20 hidden sm:block">
+          <Pill href="#pricing" testId="pill-pricing">
+            Fixed pricing
+          </Pill>
+        </div>
+        <div className="absolute left-[14%] bottom-[26%] z-20 hidden md:block">
+          <Pill href="#trust" testId="pill-trust">
+            5,000+ jobs
+          </Pill>
+        </div>
+        <div className="absolute right-[18%] bottom-[28%] z-20 hidden md:block">
+          <Pill href="#trust" testId="pill-insured">
+            Fully insured
+          </Pill>
         </div>
 
-        {/* ─── RIGHT EDGE — numbered service index. Tabular, hairline-ruled,
-             exactly the kind of detail templates never bother to make. ─── */}
+        {/* ─── TINY EDITORIAL TEXT FRAGMENTS — paradiso scatters ultra-short
+             prose like "An ethos…", "A feeling…" at the corners. Reads as
+             a magazine sidebar, not as marketing copy. ─── */}
         <div
-          className="hidden lg:block absolute right-6 top-1/2 z-20 -translate-y-1/2 w-[14rem]"
-          data-testid="index-services"
+          className="absolute left-[28%] top-[14%] z-20 hidden lg:block max-w-[8rem] text-[11px] leading-[1.35] text-black/85"
+          style={{ fontFamily: "var(--font-paradiso)" }}
+          data-testid="fragment-1"
         >
-          <div
-            className="text-[10px] uppercase tracking-[0.28em] text-black/50 mb-3"
-            style={{ fontFamily: "var(--font-paradiso)" }}
-          >
-            Index &mdash; what we install
-          </div>
-          <ul
-            className="border-t border-black/15"
-            style={{ fontFamily: "var(--font-paradiso)" }}
-          >
-            {[
-              ["01", "Wardrobes & PAX", "from $90"],
-              ["02", "Bed frames", "from $80"],
-              ["03", "TV wall mounts", "from $120"],
-              ["04", "Office fit-outs", "quoted"],
-              ["05", "Dismantle & move", "from $260"],
-            ].map(([n, label, price]) => (
-              <li
-                key={n}
-                className="flex items-baseline gap-3 border-b border-black/15 py-2 text-[12px]"
-                data-testid={`row-service-${n}`}
-              >
-                <span className="text-[10px] tabular-nums text-black/50 w-5">
-                  {n}
-                </span>
-                <span className="flex-1 text-black">{label}</span>
-                <span className="text-[10px] uppercase tracking-[0.18em] text-black/55 tabular-nums">
-                  {price}
-                </span>
-              </li>
-            ))}
-          </ul>
+          A studio,
+          <br />
+          not a marketplace.
+        </div>
+        <div
+          className="absolute right-[28%] top-[18%] z-20 hidden lg:block max-w-[8rem] text-[11px] leading-[1.35] text-black/85 text-right"
+          style={{ fontFamily: "var(--font-paradiso)" }}
+          data-testid="fragment-2"
+        >
+          A craft,
+          <br />
+          not a side-hustle.
+        </div>
+        <div
+          className="absolute left-[36%] bottom-[22%] z-20 hidden lg:block max-w-[10rem] text-[11px] leading-[1.35] text-black/85"
+          style={{ fontFamily: "var(--font-paradiso)" }}
+          data-testid="fragment-3"
+        >
+          An installation,
+          <br />
+          not a delivery drop-off.
         </div>
 
-        {/* ─── GHOST BRUSH WORDMARK — single huge "INSTALL" sitting behind
-             the headline, scroll-translated. Replaces the matched-pair
-             BUILD/MOVE which felt symmetrical and template-like. ─── */}
-        <motion.div
-          aria-hidden="true"
-          style={{ y: yGhostL, x: xBleed }}
-          className="absolute -left-[6%] top-[28%] z-[2] pointer-events-none select-none"
-        >
-          <span
-            className="block uppercase leading-[0.85] whitespace-nowrap"
-            style={{
-              fontFamily: BRUSH,
-              fontSize: "32vw",
-              color: "rgba(0,0,0,0.045)",
-            }}
-          >
-            install
-          </span>
-        </motion.div>
-
-        {/* ─── EDITORIAL HEADLINE BLOCK — anchored bottom-left of the hero.
-             Off-center on purpose; the brush "tmg" overlaps the headline so
-             the brand and message read as one composition, not stacked
-             marketing-deck slides. ─── */}
+        {/* ─── CENTRAL BRUSH WORDMARK — the protagonist of the page.
+             Pale ghost duplicates float on either side. The 3D ink mass
+             behind it (z-4) reads as the brush's own ink rolling and
+             breathing. The wordmark itself sits at z-10 to stay legible. ─── */}
         <motion.div
           style={{ y: yWordmark, opacity: opacityWordmark }}
-          className="absolute inset-0 z-[5] flex items-end"
+          className="absolute inset-0 z-[25] flex flex-col items-center justify-center pointer-events-none px-6"
+          data-testid="hero-wordmark"
         >
-          <div className="w-full max-w-[1400px] mx-auto px-5 sm:px-10 lg:pl-20 lg:pr-72 pb-16 sm:pb-20 lg:pb-24 pt-28 sm:pt-32">
-            <div className="grid grid-cols-12 gap-x-4">
-              {/* Column eyebrow + headline */}
-              <div className="col-span-12 lg:col-span-9 relative">
-                <Reveal delay={0}>
-                  <div className="flex items-center gap-3 mb-5 sm:mb-7">
-                    <span
-                      className="inline-block w-8 h-px bg-black"
-                      aria-hidden="true"
-                    />
-                    <span
-                      className="text-[10px] uppercase tracking-[0.32em] text-black/70"
-                      style={{ fontFamily: "var(--font-paradiso)" }}
-                      data-testid="eyebrow"
-                    >
-                      Chapter 01 &mdash; The job, done right.
-                    </span>
-                  </div>
-                </Reveal>
+          {/* Ghost mirror — left */}
+          <span
+            aria-hidden="true"
+            className="absolute left-[-6%] top-[28%] hidden md:block select-none"
+            style={{
+              fontFamily: BRUSH,
+              fontSize: "clamp(180px, 22vw, 360px)",
+              color: "rgba(0,0,0,0.05)",
+              lineHeight: 0.9,
+              transform: "rotate(-4deg)",
+            }}
+          >
+            tmg
+          </span>
+          {/* Ghost mirror — right */}
+          <span
+            aria-hidden="true"
+            className="absolute right-[-6%] top-[28%] hidden md:block select-none"
+            style={{
+              fontFamily: BRUSH,
+              fontSize: "clamp(180px, 22vw, 360px)",
+              color: "rgba(0,0,0,0.05)",
+              lineHeight: 0.9,
+              transform: "rotate(4deg) scaleX(-1)",
+            }}
+          >
+            tmg
+          </span>
 
-                {/* Brush mark sits behind the headline at upper-left */}
-                <span
-                  aria-hidden="true"
-                  className="absolute -top-2 sm:-top-6 -left-2 sm:-left-4 z-0 block leading-none text-black/[0.08] select-none pointer-events-none"
-                  style={{
-                    fontFamily: BRUSH,
-                    fontSize: "clamp(120px, 18vw, 280px)",
-                    transform: "rotate(-2deg)",
-                  }}
-                  data-testid="hero-brushmark"
-                >
-                  tmg
-                </span>
+          {/* Main brush wordmark */}
+          <Reveal delay={0.05}>
+            <h1
+              className="text-black select-none m-0"
+              style={{
+                fontFamily: BRUSH,
+                fontSize: "clamp(140px, 26vw, 460px)",
+                lineHeight: 0.85,
+                letterSpacing: "-0.02em",
+              }}
+              data-testid="hero-title"
+            >
+              tmg
+            </h1>
+          </Reveal>
 
-                <Reveal delay={0.08}>
-                  <h1
-                    className="relative z-[1] text-black"
-                    style={{
-                      fontFamily: "var(--font-paradiso)",
-                      fontWeight: 500,
-                      fontSize: "clamp(44px, 9vw, 152px)",
-                      lineHeight: 0.92,
-                      letterSpacing: "-0.045em",
-                    }}
-                    data-testid="hero-title"
-                  >
-                    Furniture,
-                    <br />
-                    <span className="inline-flex items-baseline gap-3 sm:gap-5 flex-wrap">
-                      <span style={{ fontWeight: 700 }}>installed</span>
-                      <span
-                        className="inline-block align-middle"
-                        style={{
-                          background: ACCENT,
-                          height: "0.72em",
-                          width: "0.72em",
-                          transform: "translateY(-0.06em)",
-                        }}
-                        aria-hidden="true"
-                      />
-                    </span>
-                    <br />
-                    <span
-                      className="italic"
-                      style={{ fontWeight: 400, letterSpacing: "-0.04em" }}
-                    >
-                      same-day.
-                    </span>
-                  </h1>
-                </Reveal>
-
-                {/* Lede + meta — magazine-style two-column rhythm */}
-                <div className="mt-7 sm:mt-9 grid sm:grid-cols-[1fr_auto] gap-x-10 gap-y-5 max-w-[44rem]">
-                  <Reveal delay={0.16}>
-                    <p
-                      className="text-[14px] sm:text-[16px] leading-[1.55] text-black/75"
-                      style={{ fontFamily: "var(--font-paradiso-body)" }}
-                      data-testid="hero-lede"
-                    >
-                      We are a small Singapore studio of fitters, dismantlers
-                      and movers. We quote you a fixed price in sixty seconds,
-                      then turn up on the day with the right drill bits, the
-                      right paperwork and a clean pair of shoes.
-                    </p>
-                  </Reveal>
-                  <Reveal delay={0.22}>
-                    <dl
-                      className="grid grid-cols-2 sm:grid-cols-1 gap-y-2 gap-x-6 text-[10px] uppercase tracking-[0.22em] tabular-nums"
-                      style={{ fontFamily: "var(--font-paradiso)" }}
-                      data-testid="hero-meta"
-                    >
-                      <div className="flex sm:flex-col gap-1">
-                        <dt className="text-black/45">From</dt>
-                        <dd className="text-black font-semibold">$80 / job</dd>
-                      </div>
-                      <div className="flex sm:flex-col gap-1">
-                        <dt className="text-black/45">Slot</dt>
-                        <dd className="text-black font-semibold">Today</dd>
-                      </div>
-                      <div className="flex sm:flex-col gap-1">
-                        <dt className="text-black/45">Rated</dt>
-                        <dd className="text-black font-semibold">4.9 / 5</dd>
-                      </div>
-                    </dl>
-                  </Reveal>
-                </div>
-
-                {/* CUSTOM CTAs — text + animated rule + arrow.
-                    Deliberately not boxy buttons; reads like footnoted
-                    actions in an editorial layout. */}
-                <Reveal delay={0.32}>
-                  <div className="mt-10 sm:mt-12 flex flex-col sm:flex-row sm:items-end gap-6 sm:gap-12">
-                    <RuleLink
-                      href="/estimate"
-                      label="Get my quote"
-                      sub="Sixty-second estimator &middot; no calls"
-                      primary
-                      testId="cta-quote"
-                    />
-                    <RuleLink
-                      href="https://wa.me/6580880757"
-                      label="Talk on WhatsApp"
-                      sub="Reply within minutes &middot; 8am&ndash;8pm"
-                      testId="cta-whatsapp"
-                    />
-                  </div>
-                </Reveal>
-              </div>
+          {/* Letter-spaced subline — paradiso's "INSTITUTE" treatment */}
+          <Reveal delay={0.18}>
+            <div
+              className="-mt-2 sm:-mt-3 text-black"
+              style={{
+                fontFamily: "var(--font-paradiso)",
+                fontSize: "clamp(18px, 3.4vw, 48px)",
+                letterSpacing: "0.42em",
+                fontWeight: 300,
+                paddingLeft: "0.42em",
+              }}
+              data-testid="hero-subtitle"
+            >
+              INSTALL
             </div>
-          </div>
+          </Reveal>
         </motion.div>
 
-        {/* ─── BOTTOM TABULAR STRIP — runs across the full width above the
-             marquee. Pure typographic information; no decoration. ─── */}
+        {/* ─── BOTTOM-LEFT — small live caption card (paradiso has a tiny
+             "LIVE 14:25 — Barcelona" video card; we mirror with a small
+             "live job" status card). Pure type, no media. ─── */}
         <div
-          className="absolute left-0 right-0 bottom-0 z-[6] border-t border-black/15 bg-white/80 backdrop-blur-[2px]"
-          data-testid="hero-tabular"
+          className="absolute left-3 sm:left-5 bottom-3 sm:bottom-5 z-30 flex items-stretch"
+          data-testid="live-job"
         >
-          <div className="grid grid-cols-2 md:grid-cols-4 text-[10px] uppercase tracking-[0.22em] text-black/70"
+          <div
+            className="px-2 py-1.5 text-[10px] tracking-[0.22em] uppercase font-semibold text-black"
+            style={{ background: ACCENT, fontFamily: "var(--font-paradiso)" }}
+          >
+            Live
+          </div>
+          <div
+            className="bg-black text-white px-2.5 py-1.5 text-[10px] uppercase tracking-[0.22em]"
             style={{ fontFamily: "var(--font-paradiso)" }}
           >
-            {[
-              ["Coverage", "Island-wide SG"],
-              ["Lead time", "Same / next day"],
-              ["Pricing", "Fixed, upfront"],
-              ["Insurance", "$1M public liability"],
-            ].map(([k, v], i) => (
-              <div
-                key={k}
-                className={`flex items-baseline gap-3 px-4 py-3 ${i > 0 ? "border-l border-black/10" : ""} ${i > 1 ? "md:border-l border-l-0" : ""}`}
-              >
-                <span className="text-black/45 w-20 shrink-0">{k}</span>
-                <span className="text-black font-semibold tracking-[0.18em]">
-                  {v}
-                </span>
-              </div>
-            ))}
+            <span className="text-white/60">Now &mdash;</span>{" "}
+            <span className="text-white">2 PAX wardrobes, Bishan</span>
           </div>
         </div>
+
+        {/* ─── BOTTOM-RIGHT — anchored CTA pills. ─── */}
+        <div
+          className="absolute right-3 sm:right-5 bottom-3 sm:bottom-5 z-30 flex items-center gap-1.5"
+          data-testid="hero-ctas"
+        >
+          <BlackPill href="/estimate" testId="cta-quote">
+            Get a quote &nbsp;→
+          </BlackPill>
+          <Pill
+            href="https://wa.me/6580880757"
+            testId="cta-whatsapp"
+          >
+            WhatsApp
+          </Pill>
+        </div>
+
+        {/* ─── BOTTOM RUNNING PHRASE — huge faded uppercase line that
+             scrolls horizontally across the lower edge of the hero.
+             Paradiso has "BEFORE REASON, BEFORE…" — ours is editorial
+             language that reads as an axiom, not a tagline. ─── */}
+        <motion.div
+          aria-hidden="true"
+          style={{ x: xBleed, y: yGhostL }}
+          className="absolute left-0 right-0 bottom-12 sm:bottom-16 z-[3] pointer-events-none select-none overflow-hidden"
+        >
+          <div
+            className="whitespace-nowrap uppercase font-semibold text-black/[0.08]"
+            style={{
+              fontFamily: "var(--font-paradiso)",
+              fontSize: "clamp(72px, 12vw, 200px)",
+              letterSpacing: "-0.04em",
+              lineHeight: 0.9,
+            }}
+          >
+            Measure twice. Drill once. Install for life.
+          </div>
+        </motion.div>
       </section>
       {/* ═══════════════════════ MARQUEE STRIP ═══════════════════════ */}
       <div
