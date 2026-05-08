@@ -18,6 +18,42 @@ uri = "file://client/public/apple-touch-icon.png"
 type = "image"
 title = "tmg apple icon clean"
 
+[[generated]]
+id = "aqJQxFBrfH20A06EozIEo"
+uri = "file://artifacts/mockup-sandbox/public/images/hero/exploded-wardrobe.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "K4pcd1Q56rvvwnQI_Hvo6"
+uri = "file://artifacts/mockup-sandbox/public/images/hero/precision-bolt.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "7qTFgNsvHllOR3b8nFyzu"
+uri = "file://artifacts/mockup-sandbox/public/images/hero/hdb-isometric.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "g-_L26eOn45VBYBEgH6ge"
+uri = "file://artifacts/mockup-sandbox/public/images/hero/toolkit-flatlay.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "5qFsvRtYjD7v4_gIpG1ie"
+uri = "file://artifacts/mockup-sandbox/public/images/hero/abstract-chrome.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "x_HWXFn7DibhG2BhgcRky"
+uri = "file://artifacts/mockup-sandbox/public/images/hero/install-moment.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "z9UFy2TtkCJgeQIoNx0Xi"
 uri = "file://attached_assets/tmg_icon.png"
