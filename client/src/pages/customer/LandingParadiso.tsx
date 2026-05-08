@@ -360,7 +360,7 @@ export default function LandingParadiso() {
           </Pill>
         </div>
         <div className="absolute right-4 sm:right-6 bottom-4 sm:bottom-6 z-10 flex gap-1.5">
-          <Pill testId="pill-whatsapp-hero" href="https://wa.me/6588888888">
+          <Pill testId="pill-whatsapp-hero" href="https://wa.me/6580880757">
             WHATSAPP US
           </Pill>
           <Pill testId="pill-quote-hero" href="/estimate">
@@ -418,7 +418,7 @@ export default function LandingParadiso() {
               <span aria-hidden="true">→</span>
             </Link>
             <a
-              href="https://wa.me/6588888888"
+              href="https://wa.me/6580880757"
               target="_blank"
               rel="noopener noreferrer"
               data-testid="button-hero-whatsapp"
@@ -935,7 +935,7 @@ export default function LandingParadiso() {
               Start your quote →
             </Link>
             <a
-              href="https://wa.me/6588888888"
+              href="https://wa.me/6580880757"
               target="_blank"
               rel="noopener noreferrer"
               data-testid="button-final-whatsapp"
@@ -978,7 +978,7 @@ export default function LandingParadiso() {
               Privacy
             </Link>
             <a
-              href="https://wa.me/6588888888"
+              href="https://wa.me/6580880757"
               data-testid="link-footer-whatsapp"
               className="px-2.5 py-1 text-[10px] font-bold tracking-[0.18em] uppercase text-black"
               style={{ background: ACCENT }}
