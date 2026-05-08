@@ -711,3 +711,41 @@ body {
     animation-play-state: paused !important;
   }
 }
+
+/* ── Igloo experience overlay support ── */
+@keyframes iglooPulse {
+  0%   { transform: scale(1);    opacity: 0.6; }
+  70%  { transform: scale(1.55); opacity: 0;   }
+  100% { transform: scale(1.55); opacity: 0;   }
+}
+
+/* On narrow viewports the WhatsApp widget owns the bottom-right corner; lift
+   the sound toggle further so it never overlaps or competes with the primary
+   conversion CTA. */
+@media (max-width: 640px) {
+  .igloo-sound-toggle {
+    bottom: 184px !important;
+    right: 16px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .igloo-sound-toggle * { animation: none !important; }
+}
+
+/* When the custom cursor is active on desktop, hide the native cursor everywhere
+   — but only on devices that actually have a fine pointer (not touch). */
+@media (hover: hover) and (pointer: fine) {
+  html.igloo-cursor-active,
+  html.igloo-cursor-active body,
+  html.igloo-cursor-active * {
+    cursor: none !important;
+  }
+  /* Re-enable native cursor inside form inputs & textareas for usability */
+  html.igloo-cursor-active input,
+  html.igloo-cursor-active textarea,
+  html.igloo-cursor-active select,
+  html.igloo-cursor-active [contenteditable="true"] {
+    cursor: text !important;
+  }
+}

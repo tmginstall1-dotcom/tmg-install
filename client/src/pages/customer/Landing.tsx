@@ -35,8 +35,9 @@ import { useQuery } from "@tanstack/react-query";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 
-const PageBgScene    = lazy(() => import("@/components/ui/page-bg-scene"));
-const WhatsAppWidget = lazy(() => import("@/components/WhatsAppWidget"));
+const PageBgScene      = lazy(() => import("@/components/ui/page-bg-scene"));
+const WhatsAppWidget   = lazy(() => import("@/components/WhatsAppWidget"));
+const IglooExperience  = lazy(() => import("@/components/ui/igloo-experience"));
 
 /* Sync media-query check at module load — used to skip the heavy 3D
    background canvas on mobile (saves ~30 KB JS + a continuous canvas
@@ -605,6 +606,13 @@ export default function Landing() {
         </Suspense>
       )}
 
+      {/* Igloo atmosphere overlay (snow, cursor, ambient sound, scroll chapters)
+          — mounts on every device; each sub-component handles its own mobile/
+          reduced-motion gating internally. */}
+      <Suspense fallback={null}>
+        <IglooExperience />
+      </Suspense>
+
       {/* ── Warm amber dismantle wash — fades in as scroll deepens ── */}
       <div
         ref={amberOverlayRef}
@@ -618,7 +626,7 @@ export default function Landing() {
       />
 
       {/* ═══════════════════════════ HERO ═══════════════════════════ */}
-      <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-24 sm:pb-32 lg:pt-36 lg:pb-52">
+      <section id="hero" className="relative overflow-hidden px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-24 sm:pb-32 lg:pt-36 lg:pb-52">
         <div className="absolute inset-0 pointer-events-none select-none">
           {/* subtle vignette top */}
           <div className="absolute top-0 inset-x-0 h-40 opacity-60"
@@ -935,7 +943,7 @@ export default function Landing() {
       <TrustStripAnimated />
 
       {/* ═══════════════════ HOW IT WORKS ════════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10 relative overflow-hidden">
+      <section id="how" className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(125,211,252,0.06) 0%, transparent 70%)" }} />
         <div className="max-w-6xl mx-auto relative">
           <motion.div {...fadeUpDelayed(0)} className="text-center mb-16 sm:mb-24">
@@ -1128,7 +1136,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════ WHAT WE HANDLE ══════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10">
+      <section id="services" className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-16">
             <p className="section-eyebrow mb-4 text-xs">
@@ -1417,7 +1425,7 @@ export default function Landing() {
       </section>
 
       {/* ════════════════════ PRICING GUIDE ════════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-36 border-b border-white/10 bg-black/30 backdrop-blur-sm">
+      <section id="pricing" className="px-4 sm:px-6 lg:px-8 py-24 sm:py-36 border-b border-white/10 bg-black/30 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="mb-12 sm:mb-16">
             <p className="section-eyebrow mb-4 text-xs">
@@ -1664,7 +1672,7 @@ export default function Landing() {
       </section>
 
       {/* ═══════════════════ CUSTOMER REVIEWS ══════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10">
+      <section id="trust" className="px-4 sm:px-6 lg:px-8 py-24 sm:py-32 border-b border-white/10">
         <div className="max-w-6xl mx-auto">
           <motion.div {...fadeUpDelayed(0)} className="text-center mb-14">
             <p className="section-eyebrow mb-4 text-xs">Customer Reviews</p>
@@ -1795,7 +1803,7 @@ export default function Landing() {
       </section>
 
       {/* ═════════════════════ BOTTOM CTA BAND ═════════════════════ */}
-      <section className="px-4 sm:px-6 lg:px-8 py-32 sm:py-48 relative overflow-hidden dot-grid-bg">
+      <section id="cta" className="px-4 sm:px-6 lg:px-8 py-32 sm:py-48 relative overflow-hidden dot-grid-bg">
         {/* Ambient orbs */}
         <div className="ambient-orb" style={{ left: "-5%", top: "50%", transform: "translateY(-50%)", width: "700px", height: "580px", background: "radial-gradient(ellipse at 40% 50%, rgba(125,211,252,0.18) 0%, transparent 62%)" }} />
         <div className="ambient-orb" style={{ right: "-10%", top: "15%", width: "520px", height: "420px", background: "radial-gradient(ellipse at 60% 40%, rgba(99,102,241,0.07) 0%, transparent 65%)" }} />
