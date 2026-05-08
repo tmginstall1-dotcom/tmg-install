@@ -13,7 +13,7 @@ import { StaffBottomNav } from "@/components/layout/StaffBottomNav";
 import { AdminBottomNav } from "@/components/layout/AdminBottomNav";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
-import LandingHome from "@/pages/customer/LandingHome";
+import Landing from "@/pages/customer/Landing";
 
 const QuoteStatus = lazy(() => import("@/pages/customer/QuoteStatus"));
 const StatusRedirect = lazy(() => import("@/pages/customer/StatusRedirect"));
@@ -119,20 +119,17 @@ function AppResumeRefetcher() {
 }
 
 function Router() {
-  const [location] = useLocation();
-  // Pages that opt out of the global navbar / promo bar (full-bleed editorial layouts).
-  const hideNavbar = location === "/";
   return (
     <>
       <NativeRedirect />
       <AppResumeRefetcher />
-      {!hideNavbar && <Navbar />}
+      <Navbar />
       <AdminSidebar />
       <StaffBottomNav />
       <AdminBottomNav />
       <Suspense fallback={<PageLoader />}>
         <Switch>
-          <Route path="/" component={LandingHome} />
+          <Route path="/" component={Landing} />
           <Route path="/estimate" component={EstimateWizard} />
           <Route path="/quotes/:id" component={QuoteStatus} />
           <Route path="/status/:refNo" component={StatusRedirect} />

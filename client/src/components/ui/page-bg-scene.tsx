@@ -13,9 +13,8 @@ type V3   = [number, number, number];
 type Edge = [number, number];
 
 /* Two-tone palette: structural (deep amber) / detail (bright gold) */
-/* Igloo ice palette — cool sky-blue replaces former amber/gold render tones */
-const AMB  = (a: number) => `rgba(125,211,252,${a.toFixed(3)})`;
-const GOLD = (a: number) => `rgba(186,230,253,${a.toFixed(3)})`;
+const AMB  = (a: number) => `rgba(251,191,36,${a.toFixed(3)})`;
+const GOLD = (a: number) => `rgba(255,218,90,${a.toFixed(3)})`;
 
 const easeIO = (t: number): number =>
   t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
@@ -629,14 +628,14 @@ export default function PageBgScene() {
         /* 3-tone cel-shade buckets: highlight / midtone / shadow */
         let r: number, g: number, b: number;
         if (shade > 0.72) {
-          /* Highlight — icy white-blue (was warm cream) */
-          r = 224; g = 240; b = 255;
+          /* Highlight — warm cream */
+          r = 248; g = 204; b = 112;
         } else if (shade > 0.46) {
-          /* Midtone — sky blue (was amber) */
-          r = 96;  g = 158; b = 210;
+          /* Midtone — amber */
+          r = 176; g = 108; b = 36;
         } else {
-          /* Shadow — deep slate (was deep umber) */
-          r = 14;  g = 28;  b = 50;
+          /* Shadow — deep umber */
+          r = 48;  g = 26;  b = 10;
         }
 
         ctx.fillStyle = `rgba(${r},${g},${b},${fillA.toFixed(3)})`;
@@ -663,7 +662,7 @@ export default function PageBgScene() {
             ctx.clip();
 
             /* Light gold hatching reads against dark fill — like ink lines on toned paper */
-            ctx.strokeStyle = `rgba(165,225,255,${(0.46 * alpha).toFixed(3)})`;
+            ctx.strokeStyle = `rgba(232,184,92,${(0.42 * alpha).toFixed(3)})`;
             ctx.lineWidth = 0.7;
             ctx.lineCap = "butt";
             const GAP = 7;
@@ -678,7 +677,7 @@ export default function PageBgScene() {
 
             /* Cross-hatch on the very darkest faces for deeper shadow texture */
             if (shade < 0.30) {
-              ctx.strokeStyle = `rgba(140,195,235,${(0.32 * alpha).toFixed(3)})`;
+              ctx.strokeStyle = `rgba(220,168,76,${(0.30 * alpha).toFixed(3)})`;
               for (let d = minX; d < maxX + h; d += GAP) {
                 ctx.beginPath();
                 ctx.moveTo(d, minY);
@@ -707,11 +706,11 @@ export default function PageBgScene() {
       dl.forEach(({ x1,y1,x2,y2,a,lw,kind }) => {
         if (kind === 'silh') {
           /* Bold inked silhouette — the dominant outline */
-          ctx.strokeStyle = `rgba(220,242,255,${Math.min(1, a * 1.30).toFixed(3)})`;
+          ctx.strokeStyle = `rgba(255,232,162,${Math.min(1, a * 1.30).toFixed(3)})`;
           ctx.lineWidth   = lw * 2.05;
         } else if (kind === 'int') {
           /* Internal seam between visible faces — quiet amber */
-          ctx.strokeStyle = `rgba(110,170,215,${(a * 0.55).toFixed(3)})`;
+          ctx.strokeStyle = `rgba(196,138,52,${(a * 0.55).toFixed(3)})`;
           ctx.lineWidth   = Math.max(0.5, lw * 0.85);
         } else {
           /* Decorative detail — thin gold sketch */

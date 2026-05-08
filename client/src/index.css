@@ -25,25 +25,8 @@ video::-webkit-media-controls-overlay-enclosure {
 
 /* 3D background scene support — dark canvas visible through transparent sections */
 html {
-  /* Igloo-inspired cool monochrome backdrop — deep slate with soft icy halo */
-  background:
-    radial-gradient(ellipse 120% 70% at 50% 0%, rgba(125, 211, 252, 0.06) 0%, transparent 55%),
-    radial-gradient(ellipse at 50% 0%, #0b1426 0%, #050810 55%, #02040a 100%);
+  background: radial-gradient(ellipse at 50% 0%, #12122a 0%, #030308 55%, #000000 100%);
   background-attachment: fixed;
-}
-
-/* Subtle film-grain noise overlay — adds the tactile, atmospheric feel of igloo.inc.
-   Pure CSS / inline SVG, no extra HTTP request, ~2KB and GPU-cheap. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.045;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  background-size: 160px 160px;
 }
 body {
   background: transparent;
@@ -53,9 +36,6 @@ body {
   :root {
     --font-heading: "TStar", "Teko", "Arial Narrow", sans-serif;
     --font-body: "Inter", system-ui, -apple-system, sans-serif;
-    /* Paradiso-style stack — Space Grotesk = F37 analog, DM Sans = editorial body. */
-    --font-paradiso: "Space Grotesk", "Inter", system-ui, sans-serif;
-    --font-paradiso-body: "DM Sans", "Inter", system-ui, sans-serif;
     --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
     /* Professional blue-tinted palette */
@@ -309,7 +289,7 @@ body {
     inset 0 1px 0 rgba(255,255,255,0.12),
     inset 0 -1px 0 rgba(0,0,0,0.12),
     0 24px 48px rgba(0,0,0,0.30),
-    0 0 80px rgba(186,230,253,0.05);
+    0 0 80px rgba(251,191,36,0.05);
 }
 
 /* ── Marquee animation ── */
@@ -353,25 +333,25 @@ body {
   display: block;
   width: 18px;
   height: 2px;
-  background: rgba(186, 230, 253, 0.70);
+  background: rgba(251, 191, 36, 0.70);
   flex-shrink: 0;
 }
 
 /* ── Amber glow — primary CTA button ── */
 .amber-glow-btn {
-  box-shadow: 0 2px 20px rgba(186, 230, 253, 0.22);
+  box-shadow: 0 2px 20px rgba(251, 191, 36, 0.22);
   transition: box-shadow 0.3s ease, background 0.2s ease !important;
 }
 .amber-glow-btn:hover {
-  box-shadow: 0 4px 40px rgba(186, 230, 253, 0.55), 0 2px 14px rgba(0, 0, 0, 0.40) !important;
+  box-shadow: 0 4px 40px rgba(251, 191, 36, 0.55), 0 2px 14px rgba(0, 0, 0, 0.40) !important;
 }
 
 /* ── Icon box — amber tinted square container ── */
 .icon-box-amber {
   width: 44px;
   height: 44px;
-  background: rgba(186, 230, 253, 0.08);
-  border: 1px solid rgba(186, 230, 253, 0.22);
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -379,8 +359,8 @@ body {
   transition: background 0.3s ease, border-color 0.3s ease;
 }
 .group:hover .icon-box-amber {
-  background: rgba(186, 230, 253, 0.18);
-  border-color: rgba(186, 230, 253, 0.46);
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.46);
 }
 
 /* ── Glass card amber hover glow ── */
@@ -388,13 +368,13 @@ body {
   transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .glass-card-amber-hover:hover {
-  border-color: rgba(186, 230, 253, 0.18) !important;
-  box-shadow: 0 0 36px rgba(186, 230, 253, 0.06), inset 0 1px 0 rgba(186, 230, 253, 0.06);
+  border-color: rgba(251, 191, 36, 0.18) !important;
+  box-shadow: 0 0 36px rgba(251, 191, 36, 0.06), inset 0 1px 0 rgba(251, 191, 36, 0.06);
 }
 
 /* ── Warm gradient text ── */
 .text-gradient-warm {
-  background: linear-gradient(160deg, #ffffff 30%, rgba(224, 242, 254, 0.85) 100%);
+  background: linear-gradient(160deg, #ffffff 30%, rgba(255, 245, 200, 0.82) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -407,14 +387,14 @@ body {
 }
 .amber-shimmer-line {
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(186,230,253,0.75) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(251,191,36,0.75) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 3.5s linear infinite;
 }
 
 /* ── Ambient amber radial glow blob ── */
 .amber-ambient-glow {
-  background: radial-gradient(ellipse 70% 50% at 50% 50%, rgba(186, 230, 253, 0.12) 0%, transparent 70%);
+  background: radial-gradient(ellipse 70% 50% at 50% 50%, rgba(251, 191, 36, 0.12) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -442,7 +422,7 @@ body {
 
 /* ── Rich amber gradient text (yellow → orange) ── */
 .text-amber-gradient {
-  background: linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 45%, #38bdf8 100%);
+  background: linear-gradient(135deg, #fde68a 0%, #f59e0b 45%, #ea580c 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -459,8 +439,8 @@ body {
 
 /* ── Amber glow pulse ── */
 @keyframes glowPulse {
-  0%,100% { box-shadow: 0 0 20px rgba(186,230,253,0.15), 0 0 60px rgba(186,230,253,0.06); }
-  50%     { box-shadow: 0 0 40px rgba(186,230,253,0.40), 0 0 100px rgba(186,230,253,0.12); }
+  0%,100% { box-shadow: 0 0 20px rgba(251,191,36,0.15), 0 0 60px rgba(251,191,36,0.06); }
+  50%     { box-shadow: 0 0 40px rgba(251,191,36,0.40), 0 0 100px rgba(251,191,36,0.12); }
 }
 .glow-pulse-amber {
   animation: glowPulse 3.5s ease-in-out infinite;
@@ -477,9 +457,9 @@ body {
   padding: 1px;
   background: linear-gradient(
     140deg,
-    rgba(186,230,253,0.40) 0%,
+    rgba(251,191,36,0.40) 0%,
     rgba(255,255,255,0.10) 45%,
-    rgba(186,230,253,0.15) 100%
+    rgba(251,191,36,0.15) 100%
   );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask:         linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -509,14 +489,14 @@ body {
   transition: color 0.5s ease;
 }
 .group:hover .service-num {
-  color: rgba(186,230,253,0.10);
+  color: rgba(251,191,36,0.10);
 }
 
 /* ── Decorative quotation mark for review cards ── */
 .quote-mark-deco {
   font-size: 110px;
   line-height: 1;
-  color: rgba(186,230,253,0.14);
+  color: rgba(251,191,36,0.14);
   position: absolute;
   top: -10px;
   left: 20px;
@@ -555,7 +535,7 @@ body {
     90deg,
     rgba(255,255,255,0.65) 0%,
     #ffffff 35%,
-    rgba(186,230,253,0.92) 60%,
+    rgba(251,191,36,0.92) 60%,
     rgba(255,255,255,0.65) 100%
   );
   background-size: 250% auto;
@@ -567,16 +547,16 @@ body {
 
 /* ── Stat card highlight border ── */
 .stat-card-highlight {
-  background: linear-gradient(135deg, rgba(186,230,253,0.08) 0%, rgba(255,255,255,0.03) 100%);
-  border: 1px solid rgba(186,230,253,0.20);
-  box-shadow: 0 0 40px rgba(186,230,253,0.06), inset 0 1px 0 rgba(186,230,253,0.10);
+  background: linear-gradient(135deg, rgba(251,191,36,0.08) 0%, rgba(255,255,255,0.03) 100%);
+  border: 1px solid rgba(251,191,36,0.20);
+  box-shadow: 0 0 40px rgba(251,191,36,0.06), inset 0 1px 0 rgba(251,191,36,0.10);
 }
 
 /* ── Review star row ── */
 .star-row {
   display: flex;
   gap: 3px;
-  color: #7dd3fc;
+  color: #f59e0b;
 }
 
 /* ── Magnetic button wrapper ── */
@@ -592,8 +572,8 @@ body {
   flex-wrap: wrap;
   gap: 8px;
   padding: 6px 14px 6px 8px;
-  background: rgba(186,230,253,0.10);
-  border: 1px solid rgba(186,230,253,0.30);
+  background: rgba(251,191,36,0.10);
+  border: 1px solid rgba(251,191,36,0.30);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -601,7 +581,7 @@ body {
 /* ── Horizontal rule amber fade ── */
 .amber-rule {
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(186,230,253,0.35) 30%, rgba(186,230,253,0.35) 70%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(251,191,36,0.35) 30%, rgba(251,191,36,0.35) 70%, transparent 100%);
   border: none;
   margin: 0;
 }
@@ -637,74 +617,6 @@ body {
   contain-intrinsic-size: 0 600px;
 }
 
-/* ══════════════════════════════════════════════════
-   IGLOO ICE PALETTE — global override of Tailwind amber-*
-   Re-targets the warm gold accent palette to a cool monochrome
-   sky/cyan ice palette across every component using Tailwind's
-   amber-* utilities, without touching any JSX.
-══════════════════════════════════════════════════ */
-.text-amber-100  { color: #f0f9ff !important; }
-.text-amber-200  { color: #e0f2fe !important; }
-.text-amber-300  { color: #bae6fd !important; }
-.text-amber-400  { color: #7dd3fc !important; }
-.text-amber-500  { color: #38bdf8 !important; }
-.text-amber-600  { color: #0ea5e9 !important; }
-
-.bg-amber-100  { background-color: #f0f9ff !important; }
-.bg-amber-200  { background-color: #e0f2fe !important; }
-.bg-amber-300  { background-color: #bae6fd !important; }
-.bg-amber-400  { background-color: #7dd3fc !important; }
-.bg-amber-500  { background-color: #38bdf8 !important; }
-.bg-amber-600  { background-color: #0ea5e9 !important; }
-
-.border-amber-200  { border-color: #e0f2fe !important; }
-.border-amber-300  { border-color: #bae6fd !important; }
-.border-amber-400  { border-color: #7dd3fc !important; }
-.border-amber-500  { border-color: #38bdf8 !important; }
-
-.hover\:bg-amber-300:hover  { background-color: #bae6fd !important; }
-.hover\:bg-amber-400:hover  { background-color: #7dd3fc !important; }
-.hover\:border-amber-400:hover { border-color: #7dd3fc !important; }
-.hover\:text-amber-400:hover  { color: #7dd3fc !important; }
-
-/* Translucent variants (Tailwind's amber-XXX/NN syntax) */
-.text-amber-300\/80 { color: rgba(186, 230, 253, 0.80) !important; }
-.text-amber-400\/60 { color: rgba(125, 211, 252, 0.60) !important; }
-.text-amber-400\/70 { color: rgba(125, 211, 252, 0.70) !important; }
-.text-amber-400\/80 { color: rgba(125, 211, 252, 0.80) !important; }
-
-.bg-amber-400\/5   { background-color: rgba(125, 211, 252, 0.05) !important; }
-.bg-amber-400\/10  { background-color: rgba(125, 211, 252, 0.10) !important; }
-.bg-amber-400\/20  { background-color: rgba(125, 211, 252, 0.20) !important; }
-.bg-amber-400\/30  { background-color: rgba(125, 211, 252, 0.30) !important; }
-.bg-amber-400\/40  { background-color: rgba(125, 211, 252, 0.40) !important; }
-.bg-amber-400\/50  { background-color: rgba(125, 211, 252, 0.50) !important; }
-.bg-amber-400\/80  { background-color: rgba(125, 211, 252, 0.85) !important; }
-
-.border-amber-400\/20 { border-color: rgba(125, 211, 252, 0.20) !important; }
-.border-amber-400\/30 { border-color: rgba(125, 211, 252, 0.30) !important; }
-.border-amber-400\/40 { border-color: rgba(125, 211, 252, 0.40) !important; }
-.border-amber-400\/50 { border-color: rgba(125, 211, 252, 0.50) !important; }
-
-.text-amber-400\/5  { color: rgba(125, 211, 252, 0.05) !important; }
-.shadow-amber-400\/10 { --tw-shadow-color: rgba(125, 211, 252, 0.10) !important; }
-.shadow-amber-400\/30 { --tw-shadow-color: rgba(125, 211, 252, 0.30) !important; }
-.shadow-amber-400\/40 { --tw-shadow-color: rgba(125, 211, 252, 0.40) !important; }
-.group-hover\:bg-amber-400:hover,
-.group:hover .group-hover\:bg-amber-400 { background-color: #7dd3fc !important; }
-.group-hover\:border-amber-400:hover,
-.group:hover .group-hover\:border-amber-400 { border-color: #7dd3fc !important; }
-.group-hover\:text-amber-300:hover,
-.group:hover .group-hover\:text-amber-300 { color: #bae6fd !important; }
-.group-hover\:text-amber-400\/5:hover,
-.group:hover .group-hover\:text-amber-400\/5 { color: rgba(125, 211, 252, 0.05) !important; }
-
-.hover\:bg-amber-400\/10:hover { background-color: rgba(125, 211, 252, 0.10) !important; }
-
-/* Yellow utilities (used in some warning chips) — keep slightly warmer for legibility */
-.text-yellow-400 { color: #facc15 !important; }
-.bg-yellow-400  { background-color: #facc15 !important; }
-
 /* ── Accessibility: respect reduced-motion preference ── */
 @media (prefers-reduced-motion: reduce) {
   .float-anim {
@@ -712,66 +624,5 @@ body {
   }
   .marquee-track {
     animation-play-state: paused !important;
-  }
-}
-
-/* ── Igloo experience overlay support ── */
-@keyframes iglooPulse {
-  0%   { transform: scale(1);    opacity: 0.6; }
-  70%  { transform: scale(1.55); opacity: 0;   }
-  100% { transform: scale(1.55); opacity: 0;   }
-}
-
-/* On narrow viewports the WhatsApp widget owns the bottom-right corner; lift
-   the sound toggle further so it never overlaps or competes with the primary
-   conversion CTA. */
-@media (max-width: 640px) {
-  .igloo-sound-toggle {
-    bottom: 184px !important;
-    right: 16px !important;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .igloo-sound-toggle * { animation: none !important; }
-}
-
-/* When the custom cursor is active on desktop, hide the native cursor everywhere
-   — but only on devices that actually have a fine pointer (not touch). */
-@media (hover: hover) and (pointer: fine) {
-  html.igloo-cursor-active,
-  html.igloo-cursor-active body,
-  html.igloo-cursor-active * {
-    cursor: none !important;
-  }
-  /* Re-enable native cursor inside form inputs & textareas for usability */
-  html.igloo-cursor-active input,
-  html.igloo-cursor-active textarea,
-  html.igloo-cursor-active select,
-  html.igloo-cursor-active [contenteditable="true"] {
-    cursor: text !important;
-  }
-}
-
-/* Paradiso ink-blob (CSS fallback when WebGL is unavailable) */
-@keyframes blobMorph {
-  0%, 100% { border-radius: 50% 38% 62% 44% / 48% 56% 40% 52%; }
-  33%      { border-radius: 38% 62% 44% 56% / 56% 44% 60% 40%; }
-  66%      { border-radius: 60% 40% 52% 48% / 44% 60% 38% 62%; }
-}
-
-/* Paradiso landing — hide native cursor on fine-pointer devices so the
-   custom green-dot cursor is the only one visible. Re-enable text cursor
-   inside form fields for usability. */
-@media (hover: hover) and (pointer: fine) {
-  .paradiso-cursor,
-  .paradiso-cursor * {
-    cursor: none !important;
-  }
-  .paradiso-cursor input,
-  .paradiso-cursor textarea,
-  .paradiso-cursor select,
-  .paradiso-cursor [contenteditable="true"] {
-    cursor: text !important;
   }
 }
