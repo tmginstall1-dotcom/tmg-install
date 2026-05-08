@@ -1,0 +1,73 @@
+Build a single-page React + Vite + Tailwind landing site called HERO_CANVAS.
+No backend. No router. No CMS. One file: src/App.tsx.
+
+Visual language (inspired by editorial poster design — paper background, ink black,
+electric green accent):
+- Background color: #fafaf7 ("paper")
+- Text/ink color: #0a0a0a
+- Accent color: #2af56a
+- Typography: serif italic black for display (use "Instrument Serif" via Google Fonts);
+  uppercase grotesk bold tracked at 0.18em–0.55em for labels (use "Inter" 700/900).
+- Dot-grid covering every section as the base layer:
+    background-image: radial-gradient(circle, rgba(10,10,10,0.18) 1px, transparent 1px);
+    background-size: 28px 28px;
+
+HERO (100svh, sticky composition, no Three.js):
+1. Centered display wordmark (you choose the brand word, single word, ~10 letters).
+   - Font-size clamp(110px, 28vw, 360px), italic, weight 900, leading 0.82.
+   - Wrap each letter in its own <motion.span> and parallax each letter independently
+     using useScroll + useTransform: alternate letters drift y: [0, ±60px] and
+     rotate: [0, ±2deg] across the first 60% of section scroll. Whole wordmark
+     scales from 1.0 → 0.86 over 0..1 scroll progress.
+2. A second copy of the SAME word behind it as a "ghost echo":
+   - color: transparent, -webkit-text-stroke: 1px rgba(10,10,10,0.22)
+   - font-size 1.6× the main wordmark, opacity 0.7 → 0.0 across scroll.
+3. Tagline directly under wordmark: "Install · Dismantle · Relocate" with a green
+   center dot (the accent color), letter-spacing 0.42em.
+4. 6 floating editorial label chips placed at fixed top%/left% percentages around
+   the hero (top-3 left-3, top-3 right-3, top-[18%] left-[10%], top-[34%] right-[8%],
+   bottom-[10%] left-[6%], bottom-[10%] right-[6%]). Each chip is a
+   <motion.div> with `useTransform(scrollYProgress, [0,1], [0, ±120])` on Y,
+   each at a different rate so they parallax at different speeds. Half are
+   black background / white text, half are accent-green / black text.
+5. Bottom-left "live tile": 280px-wide aspect-4/3 box with a looping muted
+   <video> autoplay tag (use a placeholder color block if no video). Top-left
+   pulsing green dot + label "Recent · LIVE", bottom caption "Fig. 01".
+6. Bottom-right CTA stack: one full-width green button "Get my free quote →"
+   (h-16, italic serif 32px), then a 2-col row of secondary buttons
+   "WhatsApp" (black) and "Call now" (paper with 2px black border).
+7. Counter chip top-right that count-ups from 0 → 5642 over 1.6s using
+   requestAnimationFrame.
+
+SECOND SECTION ("THE PROCESS", height 320vh, sticky-pinned scroll story):
+- One <section> at h-[320vh]. Inside it, one sticky div at top-0 h-screen.
+- The sticky div is a 2-column grid (image right / chapter copy left).
+- 3 chapters defined as an array. Each chapter has number ("01","02","03"),
+  code ("DESCRIBE","VERIFY","COMPLETE"), title, body, and image URL.
+- Use useScroll with target: sectionRef and offset: ["start start","end end"].
+- Define SEGMENTS where each chapter's opacity crossfades to the next with
+  ZERO blank window: chapter N's "out/end" overlaps chapter N+1's "in/peak".
+- A thin progress bar at the bottom of the right image column animated with
+  scaleX from 0 → 1 across the section, with labels "From parts" → "Complete".
+
+THIRD SECTION (marquee ticker):
+- horizontal infinite scroll of service words separated by italic serif dots,
+  CSS @keyframes translateX -50% over 30s linear infinite. Duplicate the array
+  in JSX so the loop is seamless.
+
+REQUIREMENTS / GUARDRAILS:
+- Use Framer Motion for ALL scroll choreography (useScroll, useTransform, motion.div).
+  No Three.js, no GSAP, no Lenis.
+- Mobile (≤768px): the second section's sticky scroll is REPLACED with a plain
+  stacked column of 3 cards (image on top, copy below). Do not use sticky on mobile.
+- iOS-safe: use `min-h-[100svh]` not `min-h-screen` for the hero.
+- Add data-testid to every interactive element using the pattern
+  `{action}-{target}` (e.g. button-quote, link-whatsapp).
+- All copy you invent should be short, declarative, lowercase-italic-serif for
+  display, uppercase-bold-tracked for labels.
+- Do not use any external image, video, or font asset that requires a license —
+  use placeholder color blocks (bg-stone-200 / bg-neutral-900) or generate
+  abstract SVG patterns with <pattern> / <feTurbulence> for any image slot.
+- Keep everything in one file under 600 lines.
+
+When done, run npm run build and confirm zero errors.
