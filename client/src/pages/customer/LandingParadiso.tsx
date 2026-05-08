@@ -137,6 +137,100 @@ function TinyLabel({
   );
 }
 
+/* ─── DateLine — live "Wed 08 May 26" dateline for the masthead ─────── */
+
+function DateLine() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const day = now.toLocaleDateString("en-SG", { weekday: "short" });
+  const date = now.toLocaleDateString("en-SG", {
+    day: "2-digit",
+    month: "short",
+    year: "2-digit",
+  });
+  return (
+    <span className="tabular-nums">
+      {day}&nbsp;&middot;&nbsp;{date}
+    </span>
+  );
+}
+
+/* ─── RuleLink — editorial CTA: text + animated underline + arrow.
+       Behaves like a footnoted action in a printed layout, not a button. */
+
+function RuleLink({
+  href,
+  label,
+  sub,
+  primary = false,
+  testId,
+}: {
+  href: string;
+  label: string;
+  sub?: string;
+  primary?: boolean;
+  testId?: string;
+}) {
+  const isExt = isExternal(href);
+  const internal = isInternalRoute(href) && !isExt;
+  const inner = (
+    <span
+      className="group inline-flex flex-col gap-2 cursor-pointer"
+      data-testid={testId}
+    >
+      <span
+        className={`flex items-baseline gap-3 ${primary ? "text-black" : "text-black/80"}`}
+        style={{ fontFamily: "var(--font-paradiso)" }}
+      >
+        <span
+          className={`${primary ? "text-[22px] sm:text-[28px] font-semibold" : "text-[18px] sm:text-[22px] font-medium"} tracking-[-0.01em] leading-none`}
+        >
+          {label}
+        </span>
+        <span
+          aria-hidden="true"
+          className="inline-block transition-transform duration-300 ease-out group-hover:translate-x-2"
+          style={{ fontSize: primary ? "22px" : "18px", lineHeight: 1 }}
+        >
+          →
+        </span>
+      </span>
+      <span
+        className={`block h-px ${primary ? "bg-black" : "bg-black/40"} origin-left transition-transform duration-500 ease-out group-hover:scale-x-110`}
+        style={{ width: primary ? "11rem" : "9rem" }}
+        aria-hidden="true"
+      />
+      {sub ? (
+        <span
+          className="text-[10px] uppercase tracking-[0.22em] text-black/70"
+          style={{ fontFamily: "var(--font-paradiso)" }}
+        >
+          {sub}
+        </span>
+      ) : null}
+    </span>
+  );
+  if (internal) {
+    return (
+      <Link href={href} className="inline-block">
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <a
+      href={href}
+      className="inline-block"
+      {...(isExt ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+    >
+      {inner}
+    </a>
+  );
+}
+
 /* ─── Background — registration-mark grid (paradiso's tiny + crosses) ── */
 
 function GridMarks() {
@@ -445,58 +539,96 @@ export default function LandingParadiso() {
     >
       {/* Fixed 3D ink blob behind everything — drifts + rotates with scroll */}
       <InkBlob3D scrollY={smoothScroll} />
-      {/* ═══════════════════════ HERO ═══════════════════════ */}
-      <section className="relative min-h-[100svh] w-full overflow-hidden">
-        <GridMarks />
 
-        {/* TOP-LEFT — TMG logo mark + dark credit strip (paradiso patron style) */}
-        <div className="absolute left-0 top-0 z-20 flex items-stretch max-w-[92vw] sm:max-w-[34rem]">
-          <a
+      {/* Single global registration-mark canvas — fixed behind every
+          section so the marks read as one continuous "paper grain" instead
+          of restarting at each section. Below the ink blob, above the bg. */}
+      <div className="fixed inset-0 z-[0] pointer-events-none">
+      </div>
+
+      {/* ═══════════════════════ HERO ═══════════════════════ */}
+      <section className="relative min-h-[100svh] w-full overflow-hidden border-b border-black/10">
+
+        {/* ─── TOP MASTHEAD STRIP — editorial dateline running across the top.
+             Tabular columns separated by faint vertical rules; reads like the
+             header of a printed broadsheet, not a marketing hero. ─── */}
+        <div
+          className="absolute left-0 right-0 top-0 z-30 hidden md:grid grid-cols-[auto_1fr_auto_auto_auto] items-center text-[10px] uppercase tracking-[0.22em] text-black/70 border-b border-black/10 bg-white/85 backdrop-blur-[2px]"
+          style={{ fontFamily: "var(--font-paradiso)" }}
+          data-testid="masthead"
+        >
+          <Link
             href="/"
             aria-label="TMG Install — home"
-            className="block shrink-0 bg-black"
+            className="flex items-center gap-2.5 px-4 py-2.5 border-r border-black/10 bg-black"
             data-testid="link-logo"
           >
             <img
               src={tmgLogo}
               alt="TMG Install"
-              className="block h-12 w-12 sm:h-14 sm:w-14 object-cover"
+              className="h-7 w-7 object-cover"
               loading="eager"
               decoding="async"
               data-testid="img-logo"
             />
-          </a>
-          <div
-            className="bg-black text-white px-3 py-2 text-[10px] sm:text-[11px] leading-snug flex items-center"
-            style={{ fontFamily: "var(--font-paradiso-body)" }}
-            data-testid="credit-badge"
-          >
-            <span>
-              <strong className="font-semibold">TMG Install</strong> — Singapore
-              furniture installation, dismantling &amp; relocation.
-              <br />
-              Trusted by{" "}
-              <span
-                className="font-semibold"
-                style={{ color: ACCENT }}
-              >
-                5,000+ households
-              </span>{" "}
-              since 2018.
+            <span className="text-white font-semibold tracking-[0.24em]">
+              TMG &middot; INSTALL
             </span>
+          </Link>
+          <div className="px-4 py-2.5 truncate">
+            An installation studio &mdash; Singapore, since 2018.
+          </div>
+          <div className="px-4 py-2.5 border-l border-black/10">
+            Issue&nbsp;N<span className="lowercase">&ordm;</span>&nbsp;
+            <span className="text-black font-semibold">047</span>
+          </div>
+          <div className="px-4 py-2.5 border-l border-black/10">
+            Island-wide
+          </div>
+          <div className="px-4 py-2.5 border-l border-black/10">
+            <DateLine />
           </div>
         </div>
 
-        {/* TOP-RIGHT — live counter (lowercase paradiso style) */}
-        <div className="absolute right-3 sm:right-5 top-3 sm:top-5 z-20">
-          <div className="flex items-start gap-2" data-testid="live-counter">
+        {/* Mobile masthead — keep the editorial dateline + issue Nº so the
+            bespoke detail isn't lost on small viewports. */}
+        <div className="md:hidden absolute left-0 right-0 top-0 z-30 flex items-stretch border-b border-black/10 bg-white">
+          <Link
+            href="/"
+            aria-label="TMG Install — home"
+            className="flex items-center gap-2 bg-black px-3 py-2 shrink-0"
+            data-testid="link-logo-mobile"
+          >
+            <img src={tmgLogo} alt="TMG Install" className="h-6 w-6" />
+            <span
+              className="text-white text-[10px] tracking-[0.24em] font-semibold"
+              style={{ fontFamily: "var(--font-paradiso)" }}
+            >
+              TMG &middot; INSTALL
+            </span>
+          </Link>
+          <div
+            className="flex-1 px-3 py-2 text-[9px] uppercase tracking-[0.22em] text-black/70 self-center truncate"
+            style={{ fontFamily: "var(--font-paradiso)" }}
+          >
+            <span className="hidden xs:inline">Singapore &middot; </span>
+            N<span className="lowercase">&ordm;</span>&nbsp;
+            <span className="text-black font-semibold">047</span>
+            &nbsp;&middot;&nbsp;
+            <DateLine />
+          </div>
+        </div>
+
+        {/* ─── TOP-RIGHT — live counter pills (kept, but smaller + offset). ─── */}
+        <div className="absolute right-3 sm:right-5 top-14 sm:top-16 z-20">
+          <div className="flex items-start gap-1.5" data-testid="live-counter">
             <div
               className="px-2 py-1.5 text-black"
               style={{ background: ACCENT, minWidth: 44 }}
             >
               <div
                 className="text-[10px] leading-tight font-medium lowercase"
-                style={{ fontFamily: "var(--font-body)" }}
+                style={{ fontFamily: "var(--font-paradiso)" }}
               >
                 <LiveNow />
               </div>
@@ -507,7 +639,7 @@ export default function LandingParadiso() {
             >
               <div
                 className="text-[10px] leading-tight font-medium lowercase"
-                style={{ fontFamily: "var(--font-body)" }}
+                style={{ fontFamily: "var(--font-paradiso)" }}
               >
                 <LiveTotal />
               </div>
@@ -515,233 +647,260 @@ export default function LandingParadiso() {
           </div>
         </div>
 
-        {/* SCATTERED ITALIC FRAGMENTS (paradiso "An ethos…") — parallax-scrolled */}
-        <motion.div
-          style={{ y: yEthos }}
-          className="absolute left-[18%] top-[8%] z-10 hidden sm:block"
-        >
-          <p
-            className="text-[11px] leading-snug max-w-[10ch] text-black/70"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            An ethos<span className="opacity-50">…</span>
-          </p>
-        </motion.div>
-        <motion.div
-          style={{ y: yFeeling }}
-          className="absolute right-[14%] top-[16%] z-10 hidden sm:block text-right"
-        >
-          <p
-            className="text-[11px] leading-snug max-w-[12ch] text-black/70"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            A feeling<span className="opacity-50">…</span>
-          </p>
-        </motion.div>
-        <motion.div
-          style={{ y: yCraft }}
-          className="absolute left-[8%] bottom-[24%] z-10 hidden md:block"
-        >
-          <p
-            className="text-[11px] leading-snug max-w-[16ch] text-black/70"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            A craft.
-          </p>
-        </motion.div>
-        <motion.div
-          style={{ y: yPromise }}
-          className="absolute right-[10%] bottom-[20%] z-10 hidden md:block text-right"
-        >
-          <p
-            className="text-[11px] leading-snug max-w-[16ch] text-black/70"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            A promise.
-          </p>
-        </motion.div>
-
-        {/* ASYMMETRIC SCATTERED PILLS (no symmetric corner grid) */}
-        <div className="absolute left-[14%] top-[14%] z-10">
-          <Pill testId="pill-installers">INSTALLERS</Pill>
-        </div>
-        <div className="absolute left-[8%] top-[40%] z-10 hidden sm:block">
-          <Pill testId="pill-team">FOUNDING TEAM</Pill>
-        </div>
-        <div className="absolute right-[20%] top-[34%] z-10 hidden sm:block">
-          <BlackPill testId="pill-book" href="/estimate">
-            BOOK NOW!
-          </BlackPill>
-        </div>
-        <div className="absolute right-[6%] bottom-[6%] z-10 flex flex-col items-end gap-1">
-          <Pill testId="pill-membership" href="#trust">
-            MEMBERSHIP
-          </Pill>
-          <Pill testId="pill-governance" href="/terms">
-            GOVERNANCE
-          </Pill>
-        </div>
-
-        {/* GHOST BRUSH WORDMARKS — translate vertically with scroll */}
-        <motion.div
-          aria-hidden="true"
-          style={{ y: yGhostL }}
-          className="absolute -left-[4%] top-[18%] z-[2] pointer-events-none select-none"
-        >
-          <span
-            className="block uppercase leading-[0.85] whitespace-nowrap"
-            style={{
-              fontFamily: BRUSH,
-              fontSize: "28vw",
-              color: "rgba(0,0,0,0.05)",
-            }}
-          >
-            BUILD
-          </span>
-        </motion.div>
-        <motion.div
-          aria-hidden="true"
-          style={{ y: yGhostR }}
-          className="absolute -right-[6%] top-[22%] z-[2] pointer-events-none select-none"
-        >
-          <span
-            className="block uppercase leading-[0.85] whitespace-nowrap"
-            style={{
-              fontFamily: BRUSH,
-              fontSize: "28vw",
-              color: "rgba(0,0,0,0.05)",
-            }}
-          >
-            MOVE
-          </span>
-        </motion.div>
-
-        {/* CENTER — Conversion-focused headline.
-            Brush "tmg" demoted to a small ink accent above; the protagonist
-            is now a real, professional Space Grotesk display headline that
-            sells the service in one breath. Subtitle reinforces speed +
-            social proof; primary CTA sits directly under the fold. */}
-        <motion.div
-          style={{ y: yWordmark, opacity: opacityWordmark }}
-          className="relative z-[5] flex flex-col items-center justify-center min-h-[100svh] px-6 text-center"
-        >
-          <Reveal delay={0.0}>
-            <span
-              aria-hidden="true"
-              className="block leading-none mb-2 sm:mb-4 text-black"
-              style={{
-                fontFamily: BRUSH,
-                fontSize: "clamp(56px, 9vw, 140px)",
-                letterSpacing: "-0.01em",
-              }}
-              data-testid="hero-brushmark"
-            >
-              tmg
-            </span>
-          </Reveal>
-
-          <Reveal delay={0.08}>
-            <h1
-              className="text-black mx-auto"
-              style={{
-                fontFamily: "var(--font-paradiso)",
-                fontWeight: 500,
-                fontSize: "clamp(36px, 7vw, 112px)",
-                lineHeight: 0.95,
-                letterSpacing: "-0.035em",
-                maxWidth: "16ch",
-              }}
-              data-testid="hero-title"
-            >
-              Furniture installation,
-              <br />
-              <span style={{ fontWeight: 700 }}>done same-day.</span>
-            </h1>
-          </Reveal>
-
-          <Reveal delay={0.18}>
-            <p
-              className="text-black/70 mt-5 sm:mt-7 mx-auto"
-              style={{
-                fontFamily: "var(--font-paradiso-body)",
-                fontWeight: 400,
-                fontSize: "clamp(14px, 1.4vw, 18px)",
-                lineHeight: 1.5,
-                maxWidth: "44ch",
-              }}
-              data-testid="hero-subtitle"
-            >
-              Singapore&rsquo;s most trusted furniture installers. Quoted in
-              60&nbsp;seconds. Fixed price. No phone calls.
-            </p>
-          </Reveal>
-
-          <Reveal delay={0.28}>
-            <div className="mt-7 sm:mt-9 flex flex-col sm:flex-row items-center gap-3">
-              <a
-                href="/estimate"
-                className="inline-flex items-center justify-center bg-black text-white px-6 py-3 text-[13px] uppercase tracking-[0.18em] font-medium hover:bg-neutral-800 transition-colors"
-                style={{ fontFamily: "var(--font-paradiso)" }}
-                data-testid="button-quote"
-              >
-                Get my quote &nbsp;→
-              </a>
-              <a
-                href="https://wa.me/6580880757"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center bg-white text-black border border-black/20 px-6 py-3 text-[13px] uppercase tracking-[0.18em] font-medium hover:border-black transition-colors"
-                style={{ fontFamily: "var(--font-paradiso)" }}
-                data-testid="button-whatsapp"
-              >
-                Chat on WhatsApp
-              </a>
-            </div>
-          </Reveal>
-
-          <Reveal delay={0.36}>
-            <div
-              className="mt-6 text-[11px] uppercase tracking-[0.28em] text-black/50"
-              style={{ fontFamily: "var(--font-paradiso)" }}
-              data-testid="text-trust"
-            >
-              ★★★★★ &nbsp; 4.9 / 5 &nbsp;·&nbsp; 5,000+ Singapore homes
-              &nbsp;·&nbsp; Since 2018
-            </div>
-          </Reveal>
-        </motion.div>
-
-        {/* BOTTOM TYPOGRAPHIC BLEED — huge faded line that slides horizontally on scroll */}
+        {/* ─── LEFT EDGE — vertical rotated runner. Sits in the gutter like
+             a magazine spine. Anchored bottom-left so it can't clip the
+             masthead, and rotated through its own centre so the text reads
+             bottom-to-top. ─── */}
         <div
           aria-hidden="true"
-          className="absolute left-0 right-0 bottom-0 pointer-events-none select-none overflow-hidden"
+          className="hidden lg:flex absolute left-2 bottom-24 z-20 items-center justify-center"
+          style={{
+            height: "60vh",
+            width: "1.25rem",
+          }}
         >
-          <motion.div
-            style={{ x: xBleed }}
-            className="whitespace-nowrap"
+          <div
+            className="text-[10px] uppercase tracking-[0.42em] text-black/55 whitespace-nowrap"
+            style={{
+              fontFamily: "var(--font-paradiso)",
+              writingMode: "vertical-rl",
+              transform: "rotate(180deg)",
+            }}
+            data-testid="text-spine"
           >
-            <span
-              className="inline-block"
-              style={{
-                fontFamily: "var(--font-heading)",
-                fontWeight: 700,
-                fontSize: "clamp(56px, 12vw, 200px)",
-                lineHeight: 0.9,
-                letterSpacing: "-0.02em",
-                color: "rgba(0,0,0,0.06)",
-                textTransform: "uppercase",
-                transform: "translateY(28%)",
-                paddingLeft: "5vw",
-                paddingRight: "5vw",
-              }}
-            >
-              Before the delivery, before the install, before the home —
-              precision. Before the delivery, before the install —
-            </span>
-          </motion.div>
+            Furniture &middot; Installation &middot; Dismantling &middot;
+            Relocation &nbsp;&mdash;&nbsp; SG
+          </div>
+        </div>
+
+        {/* ─── RIGHT EDGE — numbered service index. Tabular, hairline-ruled,
+             exactly the kind of detail templates never bother to make. ─── */}
+        <div
+          className="hidden lg:block absolute right-6 top-1/2 z-20 -translate-y-1/2 w-[14rem]"
+          data-testid="index-services"
+        >
+          <div
+            className="text-[10px] uppercase tracking-[0.28em] text-black/50 mb-3"
+            style={{ fontFamily: "var(--font-paradiso)" }}
+          >
+            Index &mdash; what we install
+          </div>
+          <ul
+            className="border-t border-black/15"
+            style={{ fontFamily: "var(--font-paradiso)" }}
+          >
+            {[
+              ["01", "Wardrobes & PAX", "from $90"],
+              ["02", "Bed frames", "from $80"],
+              ["03", "TV wall mounts", "from $120"],
+              ["04", "Office fit-outs", "quoted"],
+              ["05", "Dismantle & move", "from $260"],
+            ].map(([n, label, price]) => (
+              <li
+                key={n}
+                className="flex items-baseline gap-3 border-b border-black/15 py-2 text-[12px]"
+                data-testid={`row-service-${n}`}
+              >
+                <span className="text-[10px] tabular-nums text-black/50 w-5">
+                  {n}
+                </span>
+                <span className="flex-1 text-black">{label}</span>
+                <span className="text-[10px] uppercase tracking-[0.18em] text-black/55 tabular-nums">
+                  {price}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* ─── GHOST BRUSH WORDMARK — single huge "INSTALL" sitting behind
+             the headline, scroll-translated. Replaces the matched-pair
+             BUILD/MOVE which felt symmetrical and template-like. ─── */}
+        <motion.div
+          aria-hidden="true"
+          style={{ y: yGhostL, x: xBleed }}
+          className="absolute -left-[6%] top-[28%] z-[2] pointer-events-none select-none"
+        >
+          <span
+            className="block uppercase leading-[0.85] whitespace-nowrap"
+            style={{
+              fontFamily: BRUSH,
+              fontSize: "32vw",
+              color: "rgba(0,0,0,0.045)",
+            }}
+          >
+            install
+          </span>
+        </motion.div>
+
+        {/* ─── EDITORIAL HEADLINE BLOCK — anchored bottom-left of the hero.
+             Off-center on purpose; the brush "tmg" overlaps the headline so
+             the brand and message read as one composition, not stacked
+             marketing-deck slides. ─── */}
+        <motion.div
+          style={{ y: yWordmark, opacity: opacityWordmark }}
+          className="absolute inset-0 z-[5] flex items-end"
+        >
+          <div className="w-full max-w-[1400px] mx-auto px-5 sm:px-10 lg:pl-20 lg:pr-72 pb-16 sm:pb-20 lg:pb-24 pt-28 sm:pt-32">
+            <div className="grid grid-cols-12 gap-x-4">
+              {/* Column eyebrow + headline */}
+              <div className="col-span-12 lg:col-span-9 relative">
+                <Reveal delay={0}>
+                  <div className="flex items-center gap-3 mb-5 sm:mb-7">
+                    <span
+                      className="inline-block w-8 h-px bg-black"
+                      aria-hidden="true"
+                    />
+                    <span
+                      className="text-[10px] uppercase tracking-[0.32em] text-black/70"
+                      style={{ fontFamily: "var(--font-paradiso)" }}
+                      data-testid="eyebrow"
+                    >
+                      Chapter 01 &mdash; The job, done right.
+                    </span>
+                  </div>
+                </Reveal>
+
+                {/* Brush mark sits behind the headline at upper-left */}
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-2 sm:-top-6 -left-2 sm:-left-4 z-0 block leading-none text-black/[0.08] select-none pointer-events-none"
+                  style={{
+                    fontFamily: BRUSH,
+                    fontSize: "clamp(120px, 18vw, 280px)",
+                    transform: "rotate(-2deg)",
+                  }}
+                  data-testid="hero-brushmark"
+                >
+                  tmg
+                </span>
+
+                <Reveal delay={0.08}>
+                  <h1
+                    className="relative z-[1] text-black"
+                    style={{
+                      fontFamily: "var(--font-paradiso)",
+                      fontWeight: 500,
+                      fontSize: "clamp(44px, 9vw, 152px)",
+                      lineHeight: 0.92,
+                      letterSpacing: "-0.045em",
+                    }}
+                    data-testid="hero-title"
+                  >
+                    Furniture,
+                    <br />
+                    <span className="inline-flex items-baseline gap-3 sm:gap-5 flex-wrap">
+                      <span style={{ fontWeight: 700 }}>installed</span>
+                      <span
+                        className="inline-block align-middle"
+                        style={{
+                          background: ACCENT,
+                          height: "0.72em",
+                          width: "0.72em",
+                          transform: "translateY(-0.06em)",
+                        }}
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <br />
+                    <span
+                      className="italic"
+                      style={{ fontWeight: 400, letterSpacing: "-0.04em" }}
+                    >
+                      same-day.
+                    </span>
+                  </h1>
+                </Reveal>
+
+                {/* Lede + meta — magazine-style two-column rhythm */}
+                <div className="mt-7 sm:mt-9 grid sm:grid-cols-[1fr_auto] gap-x-10 gap-y-5 max-w-[44rem]">
+                  <Reveal delay={0.16}>
+                    <p
+                      className="text-[14px] sm:text-[16px] leading-[1.55] text-black/75"
+                      style={{ fontFamily: "var(--font-paradiso-body)" }}
+                      data-testid="hero-lede"
+                    >
+                      We are a small Singapore studio of fitters, dismantlers
+                      and movers. We quote you a fixed price in sixty seconds,
+                      then turn up on the day with the right drill bits, the
+                      right paperwork and a clean pair of shoes.
+                    </p>
+                  </Reveal>
+                  <Reveal delay={0.22}>
+                    <dl
+                      className="grid grid-cols-2 sm:grid-cols-1 gap-y-2 gap-x-6 text-[10px] uppercase tracking-[0.22em] tabular-nums"
+                      style={{ fontFamily: "var(--font-paradiso)" }}
+                      data-testid="hero-meta"
+                    >
+                      <div className="flex sm:flex-col gap-1">
+                        <dt className="text-black/45">From</dt>
+                        <dd className="text-black font-semibold">$80 / job</dd>
+                      </div>
+                      <div className="flex sm:flex-col gap-1">
+                        <dt className="text-black/45">Slot</dt>
+                        <dd className="text-black font-semibold">Today</dd>
+                      </div>
+                      <div className="flex sm:flex-col gap-1">
+                        <dt className="text-black/45">Rated</dt>
+                        <dd className="text-black font-semibold">4.9 / 5</dd>
+                      </div>
+                    </dl>
+                  </Reveal>
+                </div>
+
+                {/* CUSTOM CTAs — text + animated rule + arrow.
+                    Deliberately not boxy buttons; reads like footnoted
+                    actions in an editorial layout. */}
+                <Reveal delay={0.32}>
+                  <div className="mt-10 sm:mt-12 flex flex-col sm:flex-row sm:items-end gap-6 sm:gap-12">
+                    <RuleLink
+                      href="/estimate"
+                      label="Get my quote"
+                      sub="Sixty-second estimator &middot; no calls"
+                      primary
+                      testId="cta-quote"
+                    />
+                    <RuleLink
+                      href="https://wa.me/6580880757"
+                      label="Talk on WhatsApp"
+                      sub="Reply within minutes &middot; 8am&ndash;8pm"
+                      testId="cta-whatsapp"
+                    />
+                  </div>
+                </Reveal>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ─── BOTTOM TABULAR STRIP — runs across the full width above the
+             marquee. Pure typographic information; no decoration. ─── */}
+        <div
+          className="absolute left-0 right-0 bottom-0 z-[6] border-t border-black/15 bg-white/80 backdrop-blur-[2px]"
+          data-testid="hero-tabular"
+        >
+          <div className="grid grid-cols-2 md:grid-cols-4 text-[10px] uppercase tracking-[0.22em] text-black/70"
+            style={{ fontFamily: "var(--font-paradiso)" }}
+          >
+            {[
+              ["Coverage", "Island-wide SG"],
+              ["Lead time", "Same / next day"],
+              ["Pricing", "Fixed, upfront"],
+              ["Insurance", "$1M public liability"],
+            ].map(([k, v], i) => (
+              <div
+                key={k}
+                className={`flex items-baseline gap-3 px-4 py-3 ${i > 0 ? "border-l border-black/10" : ""} ${i > 1 ? "md:border-l border-l-0" : ""}`}
+              >
+                <span className="text-black/45 w-20 shrink-0">{k}</span>
+                <span className="text-black font-semibold tracking-[0.18em]">
+                  {v}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
-
       {/* ═══════════════════════ MARQUEE STRIP ═══════════════════════ */}
       <div
         className="relative border-y border-black/10 overflow-hidden"
@@ -776,7 +935,6 @@ export default function LandingParadiso() {
 
       {/* ═══════════════════════ SERVICES ═══════════════════════ */}
       <section id="services" className="relative py-24 sm:py-36 px-4 sm:px-8">
-        <GridMarks />
         <div className="relative max-w-6xl mx-auto">
           {/* Section eyebrow as paradiso pill in top-left of section */}
           <div className="absolute -top-3 left-0">
@@ -966,7 +1124,6 @@ export default function LandingParadiso() {
 
       {/* ═══════════════════════ PRICING ═══════════════════════ */}
       <section id="pricing" className="relative py-24 sm:py-36 px-4 sm:px-8">
-        <GridMarks />
         <div className="relative max-w-6xl mx-auto">
           <div className="absolute -top-3 left-0">
             <Pill testId="pill-section-pricing">03 · PRICING</Pill>
@@ -1091,7 +1248,6 @@ export default function LandingParadiso() {
 
       {/* ═══════════════════════ TRUST ═══════════════════════ */}
       <section id="trust" className="relative py-24 sm:py-36 px-4 sm:px-8 bg-neutral-50">
-        <GridMarks />
         <div className="relative max-w-6xl mx-auto">
           <div className="absolute -top-3 left-0">
             <Pill testId="pill-section-trust">04 · TRUSTED</Pill>
@@ -1199,7 +1355,6 @@ export default function LandingParadiso() {
 
       {/* ═══════════════════════ FINAL CTA ═══════════════════════ */}
       <section className="relative py-32 sm:py-48 px-4 sm:px-8 overflow-hidden bg-white">
-        <GridMarks />
 
         <GhostType
           className="text-[22vw] -left-[2%] top-[10%]"
