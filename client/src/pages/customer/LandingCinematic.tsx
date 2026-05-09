@@ -10,6 +10,9 @@ import {
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { ArrowRight, ArrowUpRight, MessageCircle } from "lucide-react";
 import { SiFacebook, SiInstagram } from "react-icons/si";
+import carousellIconUrl from "@assets/IMG_7888_1778312370948.jpeg";
+import facebookIconUrl from "@assets/IMG_7889_1778312370948.jpeg";
+import instagramIconUrl from "@assets/IMG_7890_1778312370948.jpeg";
 import { useSEO } from "@/hooks/use-seo";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
@@ -1957,71 +1960,54 @@ function FinalCTA() {
 
 /* ─────────────────────── Footer ─────────────────────── */
 
-/* Carousell brand mark — red rounded square with the white "C" letterform.
-   Designed to read like the official Carousell app icon on dark backgrounds.
-   Solid brand colour (#FF5C00) so it sits alongside Facebook blue and the
-   Instagram gradient as a recognisable platform mark. */
-function CarousellMark({ className = "" }: { className?: string }) {
+/* Hand-drawn social tile — wraps the official app icon (passed as src) inside
+   a slightly rotated, rough-edged frame so the row reads "sketched into a
+   notebook" rather than a pasted screenshot. The wobble + dashed sketch
+   border + inked underline give the editorial hand-drawn feel. */
+function HandDrawnIcon({
+  src,
+  alt,
+  className = "",
+  rotate = 0,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  rotate?: number;
+}) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 32 32"
-      xmlns="http://www.w3.org/2000/svg"
+    <span
+      className={`relative inline-block ${className}`}
+      style={{ transform: `rotate(${rotate}deg)` }}
       aria-hidden="true"
     >
-      <rect width="32" height="32" rx="7.5" fill="#FF5C00" />
-      <path
-        d="M21.4 11.6a8 8 0 1 0 0 8.8"
-        stroke="#FFFFFF"
-        strokeWidth="3.4"
-        strokeLinecap="round"
+      {/* Sketch-style dashed frame sitting just behind the icon */}
+      <span
+        className="absolute -inset-1.5 rounded-[14px] border border-dashed border-white/30 pointer-events-none"
+        style={{ transform: `rotate(${-rotate * 1.4}deg)` }}
+      />
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-[12px] object-cover shadow-[0_2px_0_0_rgba(255,255,255,0.08),0_8px_24px_-8px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+      />
+      {/* Wobbly hand-drawn underline */}
+      <svg
+        className="absolute left-1 right-1 -bottom-2 w-[calc(100%-8px)] h-2 text-white/40"
+        viewBox="0 0 60 8"
         fill="none"
-      />
-    </svg>
-  );
-}
-
-/* Facebook brand tile — blue rounded square with the white "f". */
-function FacebookTile({ className = "" }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 32 32"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <rect width="32" height="32" rx="7.5" fill="#1877F2" />
-      <path
-        d="M19.6 17.5l.7-4.4h-4.2v-2.9c0-1.2.6-2.4 2.5-2.4h2V4.1S18.8 3.8 17 3.8c-3.6 0-6 2.2-6 6.2v3.5H7v4.4h4v10.6c.8.1 1.7.2 2.5.2s1.7-.1 2.5-.2V17.5h3.6z"
-        fill="#FFFFFF"
-      />
-    </svg>
-  );
-}
-
-/* Instagram brand tile — pink/orange gradient rounded square with the camera glyph. */
-function InstagramTile({ className = "" }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 32 32"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="ig-grad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#FEDA77" />
-          <stop offset="25%" stopColor="#F58529" />
-          <stop offset="50%" stopColor="#DD2A7B" />
-          <stop offset="75%" stopColor="#8134AF" />
-          <stop offset="100%" stopColor="#515BD4" />
-        </linearGradient>
-      </defs>
-      <rect width="32" height="32" rx="7.5" fill="url(#ig-grad)" />
-      <rect x="7.5" y="7.5" width="17" height="17" rx="5" fill="none" stroke="#FFFFFF" strokeWidth="2" />
-      <circle cx="16" cy="16" r="4" fill="none" stroke="#FFFFFF" strokeWidth="2" />
-      <circle cx="21.2" cy="10.8" r="1.2" fill="#FFFFFF" />
-    </svg>
+        preserveAspectRatio="none"
+      >
+        <path
+          d="M2 5 C 12 1, 22 7, 32 4 S 52 6, 58 3"
+          stroke="currentColor"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+        />
+      </svg>
+    </span>
   );
 }
 
@@ -2051,13 +2037,15 @@ function Footer() {
     label,
     testId,
     eventName,
-    Tile,
+    src,
+    rotate,
   }: {
     href: string;
     label: string;
     testId: string;
     eventName: string;
-    Tile: (p: { className?: string }) => JSX.Element;
+    src: string;
+    rotate: number;
   }) => (
     <a
       href={href}
@@ -2067,9 +2055,9 @@ function Footer() {
       title={label}
       data-testid={testId}
       onClick={() => trackEvent(eventName, "/")}
-      className="block transition-transform hover:-translate-y-0.5 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-black rounded-lg"
+      className="inline-block p-1.5 transition-transform hover:-translate-y-1 hover:rotate-0 focus:outline-none focus:ring-2 focus:ring-white/40 rounded-xl"
     >
-      <Tile className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg shadow-sm" />
+      <HandDrawnIcon src={src} alt={`${label} icon`} rotate={rotate} />
     </a>
   );
 
@@ -2187,10 +2175,10 @@ function Footer() {
             <div className="text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-5 flex items-center gap-2">
               <AccentSquare /> Follow
             </div>
-            <div className="flex items-center gap-3 sm:gap-4">
-              <SocialIcon href={FACEBOOK_URL}  label="Facebook"  testId="social-facebook"  eventName="social_facebook"  Tile={FacebookTile} />
-              <SocialIcon href={INSTAGRAM_URL} label="Instagram" testId="social-instagram" eventName="social_instagram" Tile={InstagramTile} />
-              <SocialIcon href={CAROUSELL_URL} label="Carousell" testId="social-carousell" eventName="social_carousell" Tile={CarousellMark} />
+            <div className="flex items-center gap-4 sm:gap-5 pt-1 pb-2">
+              <SocialIcon href={FACEBOOK_URL}  label="Facebook"  testId="social-facebook"  eventName="social_facebook"  src={facebookIconUrl}  rotate={-4} />
+              <SocialIcon href={INSTAGRAM_URL} label="Instagram" testId="social-instagram" eventName="social_instagram" src={instagramIconUrl} rotate={2}  />
+              <SocialIcon href={CAROUSELL_URL} label="Carousell" testId="social-carousell" eventName="social_carousell" src={carousellIconUrl} rotate={-2} />
             </div>
             <p className="text-stone-500 text-[11px] mt-4 leading-relaxed tracking-wide space-y-0.5">
               <span className="block">facebook.com/tmginstall</span>
