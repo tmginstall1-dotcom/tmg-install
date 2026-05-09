@@ -2012,9 +2012,9 @@ function Footer() {
                 aria-label="TMG Install on Facebook"
                 data-testid="social-facebook"
                 onClick={() => trackEvent("social_facebook", "/")}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-12 sm:h-auto sm:px-4 sm:py-3 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-10 sm:h-auto sm:px-4 sm:py-2.5 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
               >
-                <SiFacebook className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+                <SiFacebook className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Facebook</span>
               </a>
               <a
@@ -2024,9 +2024,9 @@ function Footer() {
                 aria-label="TMG Install on Instagram"
                 data-testid="social-instagram"
                 onClick={() => trackEvent("social_instagram", "/")}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-12 sm:h-auto sm:px-4 sm:py-3 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-10 sm:h-auto sm:px-4 sm:py-2.5 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
               >
-                <SiInstagram className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+                <SiInstagram className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Instagram</span>
               </a>
               <a
@@ -2036,9 +2036,9 @@ function Footer() {
                 aria-label="TMG Install on Carousell"
                 data-testid="social-carousell"
                 onClick={() => trackEvent("social_carousell", "/")}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-12 sm:h-auto sm:px-4 sm:py-3 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-10 sm:h-auto sm:px-4 sm:py-2.5 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
               >
-                <CarousellMark className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+                <CarousellMark className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Carousell</span>
               </a>
             </div>
