@@ -85,25 +85,24 @@ export function Navbar() {
             </button>
           </div>
         )}
-        {/* Main nav */}
+        {/* Main nav — matches homepage editorial / paper aesthetic */}
         <nav className={`transition-all duration-300 ${
           scrolled
-            ? "bg-white/90 backdrop-blur-md border-b border-black/8 shadow-[0_1px_12px_rgba(0,0,0,0.05)]"
-            : "bg-white border-b border-black/6"
+            ? "bg-[#f1efe7]/95 backdrop-blur-md border-b border-black/15"
+            : "bg-[#f1efe7] border-b border-black/12"
         }`}>
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
             <Link href="/">
-              <span className="brand-title text-black cursor-pointer">TMG INSTALL</span>
+              <span className="brand-title text-black cursor-pointer tracking-[0.04em]">TMG INSTALL</span>
             </Link>
             <div className="flex items-center gap-2">
               <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" data-testid="nav-whatsapp"
-                className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-black/60 border border-black/12 hover:border-black/30 hover:text-black transition-all">
+                className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 text-[11px] font-black uppercase tracking-[0.15em] text-black/65 border border-black/20 hover:border-black hover:text-black transition-all">
                 <MessageCircle className="w-3.5 h-3.5" />
-                WhatsApp Us
+                WhatsApp
               </a>
               <Link href="/estimate" data-testid="nav-get-estimate"
-                className="px-5 py-2 bg-black text-white text-sm font-semibold hover:bg-black/85 transition-colors"
-                style={{ letterSpacing: "0.02em" }}>
+                className="px-5 py-2 bg-black text-white text-[11px] font-black uppercase tracking-[0.15em] hover:bg-neutral-800 transition-colors">
                 Get Estimate
               </Link>
             </div>

@@ -8,6 +8,7 @@ import {
   type MotionValue,
 } from "framer-motion";
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import PageBackgroundSequence from "@/components/PageBackgroundSequence";
 import { ArrowRight, ArrowUpRight, MessageCircle } from "lucide-react";
 import { useSEO } from "@/hooks/use-seo";
 import { usePromoBar } from "@/hooks/use-promo-bar";
@@ -949,7 +950,7 @@ function Scene3D() {
    frame 121 (assembled). All section backgrounds above are semi-transparent
    so the desk is faintly visible no matter where the user scrolls. */
 
-function PageBackgroundSequence() {
+function _PageBackgroundSequenceLegacy_unused() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imagesRef = useRef<HTMLImageElement[]>([]);
   const reduce = useReducedMotion();

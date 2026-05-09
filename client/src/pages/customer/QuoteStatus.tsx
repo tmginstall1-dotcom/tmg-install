@@ -1,4 +1,5 @@
 import { useParams, useLocation } from "wouter";
+import PageBackgroundSequence from "@/components/PageBackgroundSequence";
 import { useQuote, useRescheduleBooking } from "@/hooks/use-quotes";
 import { useSEO } from "@/hooks/use-seo";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -174,12 +175,13 @@ export default function QuoteStatus() {
 
   return (
     <>
-    <div className="min-h-screen pt-20 pb-24 bg-[#f1efe7] text-black">
+    <PageBackgroundSequence />
+    <div className="relative z-10 min-h-screen pt-20 pb-24 text-black">
 
       {/* Payment verification overlay */}
       {verifying && (
         <div className="fixed inset-0 z-50 bg-[#f1efe7]/95 backdrop-blur-sm flex items-center justify-center">
-          <div className="border border-black/12 bg-white p-10 text-center shadow-[0_8px_48px_rgba(0,0,0,0.08)]">
+          <div className="border border-black/15 bg-[rgba(250,250,247,0.92)] p-10 text-center shadow-[0_8px_48px_rgba(0,0,0,0.08)]">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-black" />
             <p className="font-bold text-lg text-black">Confirming your payment…</p>
             <p className="text-black/50 text-sm mt-1">Please wait a moment.</p>
@@ -236,7 +238,7 @@ export default function QuoteStatus() {
                 <p className="text-white/60 text-xs mt-0.5">Follow the steps below to complete your deposit</p>
               </div>
             </div>
-            <div className="bg-white px-5 py-5">
+            <div className="bg-[rgba(250,250,247,0.88)] px-5 py-5">
               <div className="space-y-4">
                 {/* Step 1 */}
                 <div className="flex items-start gap-4">
@@ -316,7 +318,7 @@ export default function QuoteStatus() {
                 <p className="text-white/55 text-xs mt-0.5">Your quote is in — here's what to expect</p>
               </div>
             </div>
-            <div className="bg-white px-5 py-5 space-y-4">
+            <div className="bg-[rgba(250,250,247,0.88)] px-5 py-5 space-y-4">
               {[
                 {
                   num: 1,
