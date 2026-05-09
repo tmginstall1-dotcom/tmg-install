@@ -1957,18 +1957,27 @@ function FinalCTA() {
 
 /* ─────────────────────── Footer ─────────────────────── */
 
-/* Carousell logo — inline SVG (react-icons/si has no Carousell glyph).
-   Simple "C" mark in the brand red, small enough not to bloat bundle. */
+/* Carousell mark — inline SVG (react-icons/si has no Carousell glyph).
+   Stylised shopping-bag with a "C" handle, evoking the brand mark.
+   Uses currentColor so it can be tinted via Tailwind text-* classes. */
 function CarousellMark({ className = "" }: { className?: string }) {
   return (
     <svg
       className={className}
       viewBox="0 0 24 24"
-      fill="currentColor"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 16.5c-3.59 0-6.5-2.91-6.5-6.5S8.41 5.5 12 5.5c1.99 0 3.77.9 4.95 2.32l-2.31 1.94A3.49 3.49 0 0 0 12 8.5c-1.93 0-3.5 1.57-3.5 3.5s1.57 3.5 3.5 3.5c1.05 0 1.99-.46 2.64-1.19l2.31 1.94A6.49 6.49 0 0 1 12 18.5z" />
+      {/* Bag body */}
+      <path d="M4 8h16l-1.2 11.2a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8z" />
+      {/* "C" handle that doubles as Carousell letterform */}
+      <path d="M9 8a3 3 0 0 1 6 0" />
+      <path d="M14.5 13.5a2.5 2.5 0 1 1 0-3" />
     </svg>
   );
 }
@@ -1997,56 +2006,54 @@ function Footer() {
             The Moving Guy Pte Ltd · Singapore · Island-wide
           </p>
 
-          {/* Social row — Facebook · Instagram · Carousell */}
-          <div className="mt-9 max-w-[520px]">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-4">
+          {/* Social row — borderless icon links arranged on a clean baseline */}
+          <div className="mt-9">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-5">
               <AccentSquare /> Follow Us
             </div>
-            {/* Mobile: 3 square icon-only buttons (always fit any phone width).
-                Desktop (sm+): icon + label horizontal chips. */}
-            <div className="flex items-center gap-2.5 sm:gap-3 w-full sm:max-w-md">
+            <div className="flex items-center gap-7 sm:gap-8">
               <a
                 href={FACEBOOK_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="TMG Install on Facebook"
+                title="Facebook"
                 data-testid="social-facebook"
                 onClick={() => trackEvent("social_facebook", "/")}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-10 sm:h-auto sm:px-4 sm:py-2.5 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+                className="text-stone-300 hover:text-white transition-colors"
               >
-                <SiFacebook className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Facebook</span>
+                <SiFacebook className="w-[22px] h-[22px]" />
               </a>
               <a
                 href={INSTAGRAM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="TMG Install on Instagram"
+                title="Instagram"
                 data-testid="social-instagram"
                 onClick={() => trackEvent("social_instagram", "/")}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-10 sm:h-auto sm:px-4 sm:py-2.5 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+                className="text-stone-300 hover:text-white transition-colors"
               >
-                <SiInstagram className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Instagram</span>
+                <SiInstagram className="w-[22px] h-[22px]" />
               </a>
               <a
                 href={CAROUSELL_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="TMG Install on Carousell"
+                title="Carousell"
                 data-testid="social-carousell"
                 onClick={() => trackEvent("social_carousell", "/")}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-10 sm:h-auto sm:px-4 sm:py-2.5 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+                className="text-stone-300 hover:text-white transition-colors"
               >
-                <CarousellMark className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Carousell</span>
+                <CarousellMark className="w-[22px] h-[22px]" />
               </a>
             </div>
-            <p className="text-stone-500 text-[11px] sm:text-xs mt-4 leading-relaxed">
+            <p className="text-stone-500 text-[11px] sm:text-xs mt-5 leading-relaxed tracking-wide">
               <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmginstall</a>
-              <span className="mx-1.5 text-stone-700">/</span>
+              <span className="mx-2 text-stone-700">·</span>
               <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmginstall.sg</a>
-              <span className="mx-1.5 text-stone-700">/</span>
+              <span className="mx-2 text-stone-700">·</span>
               <a href={CAROUSELL_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmg_01f647</a>
             </p>
           </div>
