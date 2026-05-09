@@ -9,6 +9,7 @@ import {
 } from "framer-motion";
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { ArrowRight, ArrowUpRight, MessageCircle } from "lucide-react";
+import { SiFacebook, SiInstagram } from "react-icons/si";
 import { useSEO } from "@/hooks/use-seo";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
@@ -286,8 +287,7 @@ function HeroTile3D() {
           key={s.src}
           src={s.src}
           alt={s.label}
-          loading="lazy"
-          decoding="async"
+          loading="lazy" decoding="async"
           className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
           style={{ opacity: idx === i ? 1 : 0 }}
         />
@@ -550,8 +550,7 @@ function ChapterMedia({
       <motion.img
         src={src}
         alt={caption}
-        loading="lazy"
-        decoding="async"
+        loading="lazy" decoding="async"
         style={{ scale }}
         className="w-full h-full object-cover"
       />
@@ -1383,8 +1382,7 @@ function AssemblyScroll() {
                 <img
                   src={s.image}
                   alt={s.caption}
-                  loading="lazy"
-                  decoding="async"
+                  loading="lazy" decoding="async"
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute top-3 left-3 right-3 flex items-center justify-between text-[10px] tracking-[0.2em] uppercase font-bold text-white">
@@ -1881,8 +1879,7 @@ function BusinessSection() {
                 <img
                   src={it.src}
                   alt={it.label}
-                  loading="lazy"
-                  decoding="async"
+                  loading="lazy" decoding="async"
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute top-2 left-2">
@@ -1960,7 +1957,27 @@ function FinalCTA() {
 
 /* ─────────────────────── Footer ─────────────────────── */
 
+/* Carousell logo — inline SVG (react-icons/si has no Carousell glyph).
+   Simple "C" mark in the brand red, small enough not to bloat bundle. */
+function CarousellMark({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 16.5c-3.59 0-6.5-2.91-6.5-6.5S8.41 5.5 12 5.5c1.99 0 3.77.9 4.95 2.32l-2.31 1.94A3.49 3.49 0 0 0 12 8.5c-1.93 0-3.5 1.57-3.5 3.5s1.57 3.5 3.5 3.5c1.05 0 1.99-.46 2.64-1.19l2.31 1.94A6.49 6.49 0 0 1 12 18.5z" />
+    </svg>
+  );
+}
+
 function Footer() {
+  const FACEBOOK_URL = "https://www.facebook.com/tmginstall";
+  const INSTAGRAM_URL = "https://www.instagram.com/tmginstall";
+  const CAROUSELL_URL = "https://www.carousell.sg/u/tmg_01f647/";
+
   return (
     <footer
       className="relative border-t border-white/10 py-14 md:py-20 px-6 md:px-10 lg:px-14"
@@ -1976,10 +1993,62 @@ function Footer() {
             TMG <span className="text-white/55">/ Install</span>
           </div>
           <p className="text-stone-400 text-sm mt-6 max-w-sm">The Moving Guy Pte Ltd · Singapore · Island-wide</p>
+
+          {/* Social row — Facebook · Instagram · Carousell */}
+          <div className="mt-7">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-stone-400 mb-3">
+              <AccentSquare /> Follow Us
+            </div>
+            <div className="flex items-center gap-3">
+              <a
+                href={FACEBOOK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="TMG Install on Facebook"
+                data-testid="social-facebook"
+                onClick={() => trackEvent("social_facebook", "/")}
+                className="inline-flex items-center gap-2 px-3 py-2 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+              >
+                <SiFacebook className="w-4 h-4" /> <span>Facebook</span>
+              </a>
+              <a
+                href={INSTAGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="TMG Install on Instagram"
+                data-testid="social-instagram"
+                onClick={() => trackEvent("social_instagram", "/")}
+                className="inline-flex items-center gap-2 px-3 py-2 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+              >
+                <SiInstagram className="w-4 h-4" /> <span>Instagram</span>
+              </a>
+              <a
+                href={CAROUSELL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="TMG Install on Carousell"
+                data-testid="social-carousell"
+                onClick={() => trackEvent("social_carousell", "/")}
+                className="inline-flex items-center gap-2 px-3 py-2 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+              >
+                <CarousellMark className="w-4 h-4" /> <span>Carousell</span>
+              </a>
+            </div>
+            <p className="text-stone-500 text-xs mt-3">
+              <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">facebook.com/tmginstall</a>
+              <span className="mx-2 text-stone-600">·</span>
+              <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmginstall</a>
+              <span className="mx-2 text-stone-600">·</span>
+              <a href={CAROUSELL_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">carousell.sg/u/tmg_01f647</a>
+            </p>
+          </div>
         </div>
         <div className="col-span-12 md:col-span-6 md:text-right text-sm text-stone-300 space-y-2">
           <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition" data-testid="footer-whatsapp">
             WhatsApp · +65 8088 0757
+          </a>
+          <a href="mailto:sales@tmginstall.com" className="block hover:text-white transition" data-testid="footer-email">
+            sales@tmginstall.com
           </a>
           <Link href="/terms" className="block hover:text-white transition">Terms</Link>
           <Link href="/privacy" className="block hover:text-white transition">Privacy</Link>
