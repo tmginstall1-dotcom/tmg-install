@@ -51,7 +51,7 @@ export default function FloatingScrollCloud({
   amplitudeX = 80,
   amplitudeY = 14,
   scrollPeriod = 1400,
-  visibilityClass = "hidden md:block",
+  visibilityClass = "hidden sm:block",
 }: Props) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
