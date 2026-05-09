@@ -40,15 +40,8 @@ A promotional code system allows for discount codes with usage limits, tracked v
 ### Catalog UX
 The customer estimator's category tabs have been updated to improve discoverability, specifically ensuring that mattress sizes are visible under the "Beds" tab.
 
-## Planned Features (not yet built)
-
-### Per-job staff transport allowance
-- On every job, admin sees a toggle: "Pay $8 transport allowance to assigned staff? Yes / No"
-- Default behaviour: opt-in (admin ticks when applicable)
-- Amount: fixed at $8 per job (single flat rate, not per-staff or per-day)
-- The allowance is logged against the assigned staff member for that job
-- At month end, all transport allowance entries are summed and shown as a separate line on that staff member's payslip
-- Touches: jobs schema (new boolean field), admin job-detail UI (the toggle), payslip generator (new line item)
+### Per-job Staff Transport Allowance
+Admins can toggle "Pay $8 transport allowance to assigned staff" on each job (in the QuoteDetail edit form). When enabled, every staff member who worked the job — either the single assigned staff or every member of the assigned team — receives $8 for that job. The payslip generator sums these entries within the pay period and shows them as a separate "Transport Allowance" line on the payslip (both on-screen and on the printed PDF).
 
 ## External Dependencies
 

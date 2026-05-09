@@ -733,6 +733,7 @@ export default function AdminQuoteDetail() {
       dropoffAddress: quote.dropoffAddress || '',
       transportFee: quote.transportFee || '0',
       notes: quote.notes || '',
+      staffTransportAllowance: !!quote.staffTransportAllowance,
     });
     setEditItems((quote.items || []).filter((item: any) => item.serviceType !== 'discount').map((item: any) => ({
       catalogItemId: item.catalogItemId,
@@ -1389,13 +1390,27 @@ export default function AdminQuoteDetail() {
                   </div>
 
                   <div className="mt-5 pt-5 border-t border-zinc-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                      <label className="text-xs font-medium text-zinc-500 block mb-1.5">Transport Fee</label>
-                      <div className="relative w-32">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">$</span>
-                        <input type="number" min="0" step="0.01" value={editQuoteData.transportFee || '0'} onChange={e => setEditQuoteData({ ...editQuoteData, transportFee: e.target.value })}
-                          className="h-9 w-full pl-6 pr-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-xs font-medium text-zinc-500 block mb-1.5">Transport Fee</label>
+                        <div className="relative w-32">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">$</span>
+                          <input type="number" min="0" step="0.01" value={editQuoteData.transportFee || '0'} onChange={e => setEditQuoteData({ ...editQuoteData, transportFee: e.target.value })}
+                            className="h-9 w-full pl-6 pr-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+                        </div>
                       </div>
+                      <label className="flex items-start gap-2.5 cursor-pointer select-none" data-testid="toggle-staff-transport-allowance">
+                        <input
+                          type="checkbox"
+                          checked={!!editQuoteData.staffTransportAllowance}
+                          onChange={e => setEditQuoteData({ ...editQuoteData, staffTransportAllowance: e.target.checked })}
+                          className="mt-0.5 w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-zinc-900">Pay $8 transport allowance to assigned staff</span>
+                          <span className="block text-xs text-zinc-500 mt-0.5">Adds $8 to the assigned staff's monthly payslip for this job.</span>
+                        </span>
+                      </label>
                     </div>
                     
                     <div className="text-right w-full sm:w-auto bg-zinc-50 p-4 rounded-xl border border-zinc-200">

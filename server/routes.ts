@@ -39,7 +39,7 @@ import { calcTransportFee, calcOvertimeCharge, PricingConfig, bulkWeightedQty } 
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable } from "@shared/schema";
 import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable, aiFeatureFlags, customerRatings } from "@shared/schema";
-import { eq, and, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
+import { eq, and, or, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
 
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 
@@ -2679,19 +2679,44 @@ export async function registerRoutes(
       }
       const mealAllowance = mealAllowanceDays * 8;
 
+      // Per-job staff transport allowance: $8 for every job in the period where
+      // admin enabled the toggle AND this staff was on the job — either as the
+      // single assigned staff (assignedStaffId) or as a member of the assigned
+      // team (assignedTeamId matches the staff's teamId). Each crew member on a
+      // team-assigned job receives $8.
+      const periodStartDate = new Date(periodStart + "T00:00:00");
+      const periodEndDate   = new Date(periodEnd   + "T23:59:59");
+      const staffTeamId = (staffMember as any).teamId as number | null | undefined;
+      const onJobCondition = staffTeamId
+        ? or(
+            eq(quotesTable.assignedStaffId, userId),
+            eq(quotesTable.assignedTeamId, staffTeamId),
+          )
+        : eq(quotesTable.assignedStaffId, userId);
+      const transportJobs = await db
+        .select({ id: quotesTable.id })
+        .from(quotesTable)
+        .where(and(
+          onJobCondition,
+          eq(quotesTable.staffTransportAllowance, true),
+          gte(quotesTable.scheduledAt, periodStartDate),
+          lte(quotesTable.scheduledAt, periodEndDate),
+        ));
+      const transportAllowance = transportJobs.length * 8;
+
       let basicPay = 0, regularPay = 0, overtimePay = 0, grossPay = 0;
       if (isMonthly) {
-        // Basic salary (fixed) + regular hrs × hourly rate + OT hrs × OT rate + meal allowance
+        // Basic salary (fixed) + regular hrs × hourly rate + OT hrs × OT rate + meal + transport
         basicPay    = monthlyRate;
         regularPay  = regularHours * hourlyRate;
         overtimePay = overtimeHours * overtimeRate;
-        grossPay    = basicPay + regularPay + overtimePay + mealAllowance;
+        grossPay    = basicPay + regularPay + overtimePay + mealAllowance + transportAllowance;
       } else {
-        // Purely hourly: regular hrs × hourly rate + OT hrs × OT rate + meal allowance
+        // Purely hourly: regular hrs × hourly rate + OT hrs × OT rate + meal + transport
         basicPay    = 0;
         regularPay  = regularHours * hourlyRate;
         overtimePay = overtimeHours * overtimeRate;
-        grossPay    = regularPay + overtimePay + mealAllowance;
+        grossPay    = regularPay + overtimePay + mealAllowance + transportAllowance;
       }
 
       // Fetch unpaid leave deductions in period
@@ -2730,6 +2755,7 @@ export async function registerRoutes(
         regularPay: regularPay.toFixed(2),
         overtimePay: overtimePay.toFixed(2),
         mealAllowance: mealAllowance.toFixed(2),
+        transportAllowance: transportAllowance.toFixed(2),
         leaveDeduction: leaveDeduction.toFixed(2),
         loanDeduction: loanDeduction.toFixed(2),
         grossPay: Math.max(0, grossPay).toFixed(2),
@@ -4466,6 +4492,7 @@ ${systemPrompt}` });
           transportFee: z.string().optional(),
           selectedServices: z.string().optional(),
           notes: z.string().optional(),
+          staffTransportAllowance: z.boolean().optional(),
           scheduledAt: z.string().datetime().optional().nullable().transform(v => v ? new Date(v) : v),
           timeWindow: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/, "Invalid time window").optional().nullable(),
           // Allow admin to flip the status when "marking as pending date confirmation"

@@ -125,6 +125,9 @@ export const payslips = pgTable("payslips", {
   regularPay: numeric("regular_pay").default("0"),
   overtimePay: numeric("overtime_pay").default("0"),
   mealAllowance: numeric("meal_allowance").default("0"),
+  // Sum of $8 per-job transport reimbursements for jobs in the pay period
+  // where admin enabled `staffTransportAllowance` on the job.
+  transportAllowance: numeric("transport_allowance").default("0"),
   leaveDeduction: numeric("leave_deduction").default("0"),
   loanDeduction: numeric("loan_deduction").default("0"),
   grossPay: numeric("gross_pay").default("0"),
@@ -353,6 +356,10 @@ export const quotes = pgTable("quotes", {
 
   // Automated reminders
   dayBeforeReminderAt: timestamp("day_before_reminder_at"), // null = not yet sent
+
+  // Per-job staff transport allowance: when true, assigned staff receive a $8
+  // transport reimbursement that's summed onto their monthly payslip.
+  staffTransportAllowance: boolean("staff_transport_allowance").default(false),
 
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({

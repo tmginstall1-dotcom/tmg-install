@@ -12,6 +12,7 @@ interface PayslipData {
   regularPay: string;
   overtimePay: string;
   mealAllowance: string;
+  transportAllowance?: string;
   leaveDeduction: string;
   loanDeduction?: string;
   grossPay: string;
@@ -50,12 +51,14 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, loa
   const otH    = parseFloat(payslip.overtimeHours  || "0");
   const otP    = parseFloat(payslip.overtimePay    || "0");
   const meal   = parseFloat(payslip.mealAllowance  || "0");
+  const transp = parseFloat(payslip.transportAllowance || "0");
   const leave  = parseFloat(payslip.leaveDeduction || "0");
   const loan   = parseFloat(payslip.loanDeduction  || "0");
   const gross  = parseFloat(payslip.grossPay       || "0");
 
-  const totalEarnings = basic + regP + otP + meal;
+  const totalEarnings = basic + regP + otP + meal + transp;
   const mealDays      = meal > 0 ? Math.round(meal / 8) : 0;
+  const transpJobs    = transp > 0 ? Math.round(transp / 8) : 0;
 
   const isMonthly = (payslip.isMonthlyBased !== undefined)
     ? payslip.isMonthlyBased
@@ -288,6 +291,11 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, loa
         <td>Meal Allowance <span class="note">${mealDays} day${mealDays !== 1 ? "s" : ""} × S$8.00</span></td>
         <td class="amt">${sg(meal)}</td>
       </tr>` : ""}
+      ${transp > 0 ? `
+      <tr class="row">
+        <td>Transport Allowance <span class="note">${transpJobs} job${transpJobs !== 1 ? "s" : ""} × S$8.00</span></td>
+        <td class="amt">${sg(transp)}</td>
+      </tr>` : ""}
       <tr class="total-row">
         <td>Total Earnings</td>
         <td class="amt">${sg(totalEarnings)}</td>
@@ -477,6 +485,12 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, loa
                 <tr className="border-b border-black/[0.05]">
                   <td className="py-2">Meal Allowance <span className="text-black/35 text-[11px]">{mealDays} day{mealDays !== 1 ? "s" : ""} × S$8.00</span></td>
                   <td className="py-2 text-right font-mono font-bold">{sg(meal)}</td>
+                </tr>
+              )}
+              {transp > 0 && (
+                <tr className="border-b border-black/[0.05]">
+                  <td className="py-2">Transport Allowance <span className="text-black/35 text-[11px]">{transpJobs} job{transpJobs !== 1 ? "s" : ""} × S$8.00</span></td>
+                  <td className="py-2 text-right font-mono font-bold">{sg(transp)}</td>
                 </tr>
               )}
               <tr>
