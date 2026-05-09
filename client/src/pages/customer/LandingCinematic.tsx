@@ -2001,75 +2001,83 @@ function HandDrawnIcon({
   );
 }
 
-/* Carousell app icon — red squircle with a white "C" on the left and the
-   camera-flash sunburst on the right. Drawn from the supplied reference. */
-function CarousellLogo() {
+/* Shared squircle background with a soft top-edge gloss + bottom shadow so
+   each tile reads as a real iOS-style app icon rather than a flat sticker. */
+function IconSquircle({ children, fill }: { children: React.ReactNode; fill: string }) {
   return (
     <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" className="w-full h-full block">
-      <rect width="64" height="64" rx="14" fill="#EF3D23" />
-      {/* The "C" — open on the right */}
+      <defs>
+        <linearGradient id="tile-gloss" x1="50%" y1="0%" x2="50%" y2="100%">
+          <stop offset="0%"  stopColor="#FFFFFF" stopOpacity="0.18" />
+          <stop offset="40%" stopColor="#FFFFFF" stopOpacity="0" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0.18" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="15" fill={fill} />
+      {children}
+      <rect width="64" height="64" rx="15" fill="url(#tile-gloss)" />
+    </svg>
+  );
+}
+
+/* Carousell app icon — red squircle, camera silhouette with shutter tab,
+   white "C" on the left and a tight sunburst inside the camera body. */
+function CarousellLogo() {
+  return (
+    <IconSquircle fill="#EF3D23">
+      {/* Shutter tab on top */}
+      <rect x="36" y="13" width="11" height="5" rx="1.6" fill="#FFFFFF" />
+      {/* Camera body */}
+      <rect x="14" y="17" width="36" height="32" rx="6" fill="#FFFFFF" />
+      {/* Inner cut-out so it reads as a frame */}
+      <rect x="17" y="20" width="30" height="26" rx="4" fill="#EF3D23" />
+      {/* The "C" mark */}
       <path
-        d="M34 21 a 12 12 0 1 0 0 22"
+        d="M30 26 a 6 6 0 1 0 0 14"
         stroke="#FFFFFF"
-        strokeWidth="5.6"
+        strokeWidth="3.2"
         strokeLinecap="round"
         fill="none"
       />
-      {/* Camera flash rays radiating from the C's opening */}
-      <g stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round">
-        <line x1="40" y1="32" x2="46" y2="32" />
-        <line x1="39" y1="27" x2="44.5" y2="24.5" />
-        <line x1="39" y1="37" x2="44.5" y2="39.5" />
-        <line x1="37" y1="23.5" x2="40" y2="19" />
-        <line x1="37" y1="40.5" x2="40" y2="45" />
+      {/* Sunburst rays beside the C */}
+      <g stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round">
+        <line x1="35" y1="33" x2="40" y2="33" />
+        <line x1="34.4" y1="29.4" x2="38.6" y2="27.4" />
+        <line x1="34.4" y1="36.6" x2="38.6" y2="38.6" />
+        <line x1="33" y1="27" x2="34.6" y2="24" />
+        <line x1="33" y1="39" x2="34.6" y2="42" />
       </g>
-    </svg>
+    </IconSquircle>
   );
 }
 
-/* Facebook app icon — blue squircle with white "f" that hangs off the bottom. */
+/* Facebook app icon — blue squircle with the official "f" glyph centered. */
 function FacebookLogo() {
   return (
-    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" className="w-full h-full block">
-      <defs>
-        <linearGradient id="fb-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#2A8BFF" />
-          <stop offset="100%" stopColor="#0E5FD8" />
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="14" fill="url(#fb-grad)" />
-      {/* Stylised "f" — thicker stem, hooked top, descender below the baseline */}
-      <path
-        d="M40 21 h-4.4 c-3 0-4.4 1.7-4.4 4.4 V31 H27 v6.4 h4.2 V58 c0.9 0.1 1.8 0.2 2.6 0.2 c1.6 0 3.1-0.2 4.6-0.6 V37.4 h4.6 l1.2-6.4 H38.4 v-3.6 c0-1.4 0.6-2 1.8-2 H40 V21 z"
-        fill="#FFFFFF"
-      />
-    </svg>
+    <div
+      className="w-full h-full flex items-end justify-center pb-0.5"
+      style={{
+        background: "linear-gradient(180deg, #2A8BFF 0%, #0E5FD8 100%)",
+        borderRadius: 0,
+      }}
+    >
+      <SiFacebook className="w-[78%] h-[78%] -mb-[6%] text-white drop-shadow-[0_1px_0_rgba(0,0,0,0.08)]" />
+    </div>
   );
 }
 
-/* Instagram app icon — magenta→orange→yellow gradient squircle with the
-   white camera glyph (rounded square + lens + small accent dot). */
+/* Instagram app icon — sunset gradient squircle with the official camera glyph. */
 function InstagramLogo() {
   return (
-    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" className="w-full h-full block">
-      <defs>
-        <radialGradient id="ig-grad" cx="30%" cy="107%" r="135%">
-          <stop offset="0%"  stopColor="#FFD86B" />
-          <stop offset="20%" stopColor="#FCAF45" />
-          <stop offset="40%" stopColor="#F77737" />
-          <stop offset="55%" stopColor="#E1306C" />
-          <stop offset="75%" stopColor="#C13584" />
-          <stop offset="100%" stopColor="#5851DB" />
-        </radialGradient>
-      </defs>
-      <rect width="64" height="64" rx="14" fill="url(#ig-grad)" />
-      {/* Outer camera frame */}
-      <rect x="14" y="14" width="36" height="36" rx="10" fill="none" stroke="#FFFFFF" strokeWidth="3.4" />
-      {/* Lens */}
-      <circle cx="32" cy="32" r="8" fill="none" stroke="#FFFFFF" strokeWidth="3.4" />
-      {/* Top-right accent */}
-      <circle cx="42.5" cy="21.5" r="2.2" fill="#FFFFFF" />
-    </svg>
+    <div
+      className="w-full h-full flex items-center justify-center"
+      style={{
+        background:
+          "radial-gradient(circle at 30% 107%, #FFD86B 0%, #FCAF45 18%, #F77737 35%, #E1306C 55%, #C13584 75%, #5851DB 100%)",
+      }}
+    >
+      <SiInstagram className="w-[72%] h-[72%] text-white drop-shadow-[0_1px_0_rgba(0,0,0,0.1)]" />
+    </div>
   );
 }
 
