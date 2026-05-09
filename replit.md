@@ -40,6 +40,16 @@ A promotional code system allows for discount codes with usage limits, tracked v
 ### Catalog UX
 The customer estimator's category tabs have been updated to improve discoverability, specifically ensuring that mattress sizes are visible under the "Beds" tab.
 
+## Planned Features (not yet built)
+
+### Per-job staff transport allowance
+- On every job, admin sees a toggle: "Pay $8 transport allowance to assigned staff? Yes / No"
+- Default behaviour: opt-in (admin ticks when applicable)
+- Amount: fixed at $8 per job (single flat rate, not per-staff or per-day)
+- The allowance is logged against the assigned staff member for that job
+- At month end, all transport allowance entries are summed and shown as a separate line on that staff member's payslip
+- Touches: jobs schema (new boolean field), admin job-detail UI (the toggle), payslip generator (new line item)
+
 ## External Dependencies
 
 - **PostgreSQL**: Primary relational database.
