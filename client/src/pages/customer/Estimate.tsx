@@ -1098,43 +1098,46 @@ export default function EstimateWizard() {
                           tabIndex={isCovered ? -1 : 0}
                           className={`group relative border p-5 text-left transition-all duration-150 ${
                             isCovered
-                              ? "border-emerald-400/60 bg-emerald-50/50 cursor-default"
+                              ? "border-black/15 bg-[rgba(250,250,247,0.88)] cursor-default"
                               : active
-                                ? "border-black bg-black/[0.025]"
-                                : "border-black/10 bg-white hover:border-black/30 hover:bg-slate-50"
+                                ? "border-black border-l-[3px] bg-[rgba(250,250,247,0.92)]"
+                                : "border-black/12 bg-[rgba(250,250,247,0.85)] hover:border-black/35"
                           }`}
+                          style={active ? { borderLeftColor: EST_ACCENT, borderLeftWidth: 3 } : undefined}
                         >
                           <div className="flex items-start gap-4">
                             <div className={`w-12 h-12 flex items-center justify-center flex-shrink-0 transition-colors ${
                               isCovered
-                                ? "bg-emerald-500 text-white"
+                                ? "text-black"
                                 : active ? "bg-black text-white" : "bg-black/[0.05] text-black/50"
-                            }`}>
+                            }`}
+                            style={isCovered ? { background: EST_ACCENT } : undefined}
+                            >
                               {isCovered ? <Check className="w-6 h-6" /> : icon}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <p className={`font-black text-base uppercase tracking-[0.04em] ${isCovered ? "text-emerald-900/70 line-through decoration-2 decoration-emerald-600/40" : ""}`}>{label}</p>
+                                <p className={`font-black text-base uppercase tracking-[0.04em] ${isCovered ? "text-black/55 line-through decoration-2 decoration-black/30" : ""}`}>{label}</p>
                                 {isBundle && !isCovered && (
-                                  <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.06em] bg-emerald-600 text-white">ALL-IN-ONE BUNDLE</span>
+                                  <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.18em] uppercase text-black" style={{ background: EST_ACCENT }}>ALL-IN-ONE BUNDLE</span>
                                 )}
                                 {!isCovered && (
-                                  <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.04em] bg-black/[0.05] text-black/40">{priceHint}</span>
+                                  <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.18em] uppercase bg-black/[0.05] text-black/55">{priceHint}</span>
                                 )}
                                 {isCovered && (
-                                  <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.06em] bg-emerald-600 text-white">INCLUDED IN RELOCATION</span>
+                                  <span className="text-[10px] font-black px-2 py-0.5 tracking-[0.18em] uppercase text-black" style={{ background: EST_ACCENT }}>INCLUDED IN RELOCATION</span>
                                 )}
                               </div>
-                              <p className={`text-sm mt-0.5 ${isCovered ? "text-emerald-900/60" : "text-black/45"}`}>{desc}</p>
+                              <p className={`text-sm mt-0.5 ${isCovered ? "text-black/45" : "text-black/45"}`}>{desc}</p>
 
                               {/* Bundle includes — only on the Relocation card */}
                               {isBundle && bundleItems && (
                                 <div className="mt-3 pt-3 border-t border-black/10">
-                                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-black/40 mb-2">What's included:</p>
+                                  <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-black/55 mb-2"><EstAccentSquare /> What's included</p>
                                   <div className="flex flex-wrap gap-1.5">
                                     {bundleItems.map(b => (
-                                      <span key={b} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800">
-                                        <Check className="w-3 h-3" /> {b}
+                                      <span key={b} className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 border border-black/15 bg-[rgba(250,250,247,0.7)] text-black">
+                                        <Check className="w-3 h-3" style={{ color: EST_ACCENT === "#2af56a" ? "#0a8a3c" : EST_ACCENT }} /> {b}
                                       </span>
                                     ))}
                                   </div>
@@ -2317,23 +2320,24 @@ export default function EstimateWizard() {
         <div className="flex items-center justify-between mt-4 gap-4">
           {step > 1 ? (
             <button onClick={back} data-testid="button-back"
-              className="flex items-center gap-2 px-6 py-3 border border-black/15 font-black text-xs uppercase tracking-[0.1em] hover:bg-slate-50 hover:border-black/30 transition-colors">
+              className="flex items-center gap-2 px-5 py-3 border border-black/30 text-black font-black text-[11px] uppercase tracking-[0.22em] hover:bg-black hover:text-white hover:border-black transition-colors">
               <ChevronLeft className="w-4 h-4" /> Back
             </button>
           ) : <div />}
 
           {step < 5 ? (
             <button onClick={next} disabled={!canNext()} data-testid="button-next"
-              className="bg-black text-white flex items-center gap-2 px-8 py-3 font-black text-xs uppercase tracking-[0.1em] hover:bg-neutral-800 disabled:opacity-35 disabled:cursor-not-allowed transition-colors">
-              {step === 1 ? "Next: Address" : step === 2 ? "Next: Add Items" : step === 3 ? `Continue (${items.length} item${items.length !== 1 ? "s" : ""})` : "Next: Review"}
-              <ChevronRight className="w-4 h-4" />
+              className="bg-black text-white flex items-center gap-2 px-7 py-3 font-black text-[11px] uppercase tracking-[0.22em] hover:bg-neutral-800 disabled:opacity-35 disabled:cursor-not-allowed transition-colors">
+              {step === 1 ? "Next" : step === 2 ? "Add Items" : step === 3 ? `Continue · ${items.length}` : "Review"}
+              <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
               data-testid="button-submit"
-              className="bg-black text-white flex items-center gap-2 px-8 py-3 font-black text-xs uppercase tracking-[0.1em] hover:bg-neutral-800 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
+              className="text-black flex items-center gap-2 px-7 py-3 font-black text-[11px] uppercase tracking-[0.22em] hover:opacity-90 disabled:opacity-35 disabled:cursor-not-allowed transition-opacity"
+              style={{ background: EST_ACCENT }}
             >
               {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</> : <>Request My Quote <ArrowRight className="w-4 h-4" /></>}
             </button>
