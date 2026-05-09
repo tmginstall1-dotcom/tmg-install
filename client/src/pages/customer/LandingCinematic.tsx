@@ -10,9 +10,6 @@ import {
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { ArrowRight, ArrowUpRight, MessageCircle } from "lucide-react";
 import { SiFacebook, SiInstagram } from "react-icons/si";
-import carousellIconUrl from "@assets/IMG_7888_1778312370948.jpeg";
-import facebookIconUrl from "@assets/IMG_7889_1778312370948.jpeg";
-import instagramIconUrl from "@assets/IMG_7890_1778312370948.jpeg";
 import { useSEO } from "@/hooks/use-seo";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
@@ -1960,18 +1957,15 @@ function FinalCTA() {
 
 /* ─────────────────────── Footer ─────────────────────── */
 
-/* Hand-drawn social tile — wraps the official app icon (passed as src) inside
-   a slightly rotated, rough-edged frame so the row reads "sketched into a
-   notebook" rather than a pasted screenshot. The wobble + dashed sketch
-   border + inked underline give the editorial hand-drawn feel. */
+/* Hand-drawn social tile — wraps a brand-icon SVG inside a slightly rotated,
+   dashed sketch frame with a wobbly inked underline. Reads as if the app
+   icons were sketched into a notebook instead of pasted screenshots. */
 function HandDrawnIcon({
-  src,
-  alt,
+  children,
   className = "",
   rotate = 0,
 }: {
-  src: string;
-  alt: string;
+  children: React.ReactNode;
   className?: string;
   rotate?: number;
 }) {
@@ -1983,16 +1977,12 @@ function HandDrawnIcon({
     >
       {/* Sketch-style dashed frame sitting just behind the icon */}
       <span
-        className="absolute -inset-1.5 rounded-[14px] border border-dashed border-white/30 pointer-events-none"
+        className="absolute -inset-1.5 rounded-[16px] border border-dashed border-white/30 pointer-events-none"
         style={{ transform: `rotate(${-rotate * 1.4}deg)` }}
       />
-      <img
-        src={src}
-        alt={alt}
-        loading="lazy"
-        decoding="async"
-        className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-[12px] object-cover shadow-[0_2px_0_0_rgba(255,255,255,0.08),0_8px_24px_-8px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
-      />
+      <span className="relative block w-11 h-11 sm:w-12 sm:h-12 rounded-[14px] overflow-hidden shadow-[0_2px_0_0_rgba(255,255,255,0.06),0_8px_24px_-8px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
+        {children}
+      </span>
       {/* Wobbly hand-drawn underline */}
       <svg
         className="absolute left-1 right-1 -bottom-2 w-[calc(100%-8px)] h-2 text-white/40"
@@ -2008,6 +1998,78 @@ function HandDrawnIcon({
         />
       </svg>
     </span>
+  );
+}
+
+/* Carousell app icon — red squircle with a white "C" on the left and the
+   camera-flash sunburst on the right. Drawn from the supplied reference. */
+function CarousellLogo() {
+  return (
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" className="w-full h-full block">
+      <rect width="64" height="64" rx="14" fill="#EF3D23" />
+      {/* The "C" — open on the right */}
+      <path
+        d="M34 21 a 12 12 0 1 0 0 22"
+        stroke="#FFFFFF"
+        strokeWidth="5.6"
+        strokeLinecap="round"
+        fill="none"
+      />
+      {/* Camera flash rays radiating from the C's opening */}
+      <g stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round">
+        <line x1="40" y1="32" x2="46" y2="32" />
+        <line x1="39" y1="27" x2="44.5" y2="24.5" />
+        <line x1="39" y1="37" x2="44.5" y2="39.5" />
+        <line x1="37" y1="23.5" x2="40" y2="19" />
+        <line x1="37" y1="40.5" x2="40" y2="45" />
+      </g>
+    </svg>
+  );
+}
+
+/* Facebook app icon — blue squircle with white "f" that hangs off the bottom. */
+function FacebookLogo() {
+  return (
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" className="w-full h-full block">
+      <defs>
+        <linearGradient id="fb-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#2A8BFF" />
+          <stop offset="100%" stopColor="#0E5FD8" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="14" fill="url(#fb-grad)" />
+      {/* Stylised "f" — thicker stem, hooked top, descender below the baseline */}
+      <path
+        d="M40 21 h-4.4 c-3 0-4.4 1.7-4.4 4.4 V31 H27 v6.4 h4.2 V58 c0.9 0.1 1.8 0.2 2.6 0.2 c1.6 0 3.1-0.2 4.6-0.6 V37.4 h4.6 l1.2-6.4 H38.4 v-3.6 c0-1.4 0.6-2 1.8-2 H40 V21 z"
+        fill="#FFFFFF"
+      />
+    </svg>
+  );
+}
+
+/* Instagram app icon — magenta→orange→yellow gradient squircle with the
+   white camera glyph (rounded square + lens + small accent dot). */
+function InstagramLogo() {
+  return (
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" className="w-full h-full block">
+      <defs>
+        <radialGradient id="ig-grad" cx="30%" cy="107%" r="135%">
+          <stop offset="0%"  stopColor="#FFD86B" />
+          <stop offset="20%" stopColor="#FCAF45" />
+          <stop offset="40%" stopColor="#F77737" />
+          <stop offset="55%" stopColor="#E1306C" />
+          <stop offset="75%" stopColor="#C13584" />
+          <stop offset="100%" stopColor="#5851DB" />
+        </radialGradient>
+      </defs>
+      <rect width="64" height="64" rx="14" fill="url(#ig-grad)" />
+      {/* Outer camera frame */}
+      <rect x="14" y="14" width="36" height="36" rx="10" fill="none" stroke="#FFFFFF" strokeWidth="3.4" />
+      {/* Lens */}
+      <circle cx="32" cy="32" r="8" fill="none" stroke="#FFFFFF" strokeWidth="3.4" />
+      {/* Top-right accent */}
+      <circle cx="42.5" cy="21.5" r="2.2" fill="#FFFFFF" />
+    </svg>
   );
 }
 
@@ -2037,14 +2099,14 @@ function Footer() {
     label,
     testId,
     eventName,
-    src,
+    Logo,
     rotate,
   }: {
     href: string;
     label: string;
     testId: string;
     eventName: string;
-    src: string;
+    Logo: () => JSX.Element;
     rotate: number;
   }) => (
     <a
@@ -2057,7 +2119,9 @@ function Footer() {
       onClick={() => trackEvent(eventName, "/")}
       className="inline-block p-1.5 transition-transform hover:-translate-y-1 hover:rotate-0 focus:outline-none focus:ring-2 focus:ring-white/40 rounded-xl"
     >
-      <HandDrawnIcon src={src} alt={`${label} icon`} rotate={rotate} />
+      <HandDrawnIcon rotate={rotate}>
+        <Logo />
+      </HandDrawnIcon>
     </a>
   );
 
@@ -2176,9 +2240,9 @@ function Footer() {
               <AccentSquare /> Follow
             </div>
             <div className="flex items-center gap-4 sm:gap-5 pt-1 pb-2">
-              <SocialIcon href={FACEBOOK_URL}  label="Facebook"  testId="social-facebook"  eventName="social_facebook"  src={facebookIconUrl}  rotate={-4} />
-              <SocialIcon href={INSTAGRAM_URL} label="Instagram" testId="social-instagram" eventName="social_instagram" src={instagramIconUrl} rotate={2}  />
-              <SocialIcon href={CAROUSELL_URL} label="Carousell" testId="social-carousell" eventName="social_carousell" src={carousellIconUrl} rotate={-2} />
+              <SocialIcon href={FACEBOOK_URL}  label="Facebook"  testId="social-facebook"  eventName="social_facebook"  Logo={FacebookLogo}  rotate={-4} />
+              <SocialIcon href={INSTAGRAM_URL} label="Instagram" testId="social-instagram" eventName="social_instagram" Logo={InstagramLogo} rotate={2}  />
+              <SocialIcon href={CAROUSELL_URL} label="Carousell" testId="social-carousell" eventName="social_carousell" Logo={CarousellLogo} rotate={-2} />
             </div>
             <p className="text-stone-500 text-[11px] mt-4 leading-relaxed tracking-wide space-y-0.5">
               <span className="block">facebook.com/tmginstall</span>
