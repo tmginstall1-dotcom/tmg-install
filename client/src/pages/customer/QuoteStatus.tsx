@@ -20,6 +20,58 @@ import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 const WHATSAPP_HREF = "https://wa.me/6580880757?text=hi";
 const WHATSAPP_DISPLAY = "+65 8088 0757";
 
+/* ─────────────────── Editorial primitives (mirror homepage) ───────────────────
+   Inlined here so the quote page matches the editorial language of "/"
+   without coupling the two files: signature install-green ACCENT,
+   AccentSquare, DotGrid backdrop, Tag chip. Same tokens as LandingCinematic.
+   ────────────────────────────────────────────────────────────────────────── */
+const ACCENT = "#2af56a";
+const INK = "#0a0a0a";
+const PAPER = "#fafaf7";
+
+function AccentSquare({ className = "" }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-block w-[10px] h-[10px] shrink-0 ${className}`}
+      style={{ background: ACCENT }}
+    />
+  );
+}
+
+function DotGrid({ opacity = 0.55, size = 32 }: { opacity?: number; size?: number }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute inset-0 pointer-events-none"
+      style={{
+        opacity,
+        backgroundImage: "radial-gradient(circle, rgba(10,10,10,0.22) 1px, transparent 1px)",
+        backgroundSize: `${size}px ${size}px`,
+      }}
+    />
+  );
+}
+
+function Tag({
+  children,
+  accent = false,
+  className = "",
+}: {
+  children: React.ReactNode;
+  accent?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-[4px] text-[10px] tracking-[0.2em] uppercase font-bold leading-none ${className}`}
+      style={accent ? { background: ACCENT, color: INK } : { background: INK, color: PAPER }}
+    >
+      {children}
+    </span>
+  );
+}
+
 function formatMoney(amount: string | number | null | undefined) {
   return new Intl.NumberFormat("en-SG", { style: "currency", currency: "SGD" }).format(Number(amount || 0));
 }
@@ -192,10 +244,10 @@ export default function QuoteStatus() {
 
         {/* Payment verified banner */}
         {paymentVerified && (
-          <motion.div {...fadeUp()} className="mb-8 flex items-center gap-3 border border-black/12 px-5 py-4 bg-black/[0.02]">
+          <motion.div {...fadeUp()} className="mb-8 flex items-center gap-3 border border-black/12 border-l-[3px] px-5 py-4 bg-black/[0.02]" style={{ borderLeftColor: ACCENT }}>
             <CheckCircle2 className="w-5 h-5 text-black shrink-0" />
             <div>
-              <p className="font-bold text-black text-sm">Payment received</p>
+              <p className="font-bold text-black text-sm flex items-center gap-2"><AccentSquare /> Payment received</p>
               {quote && ["final_paid", "closed", "completed", "in_progress", "assigned"].includes(quote.status) ? (
                 <p className="text-xs text-black/50 mt-0.5">Your final payment has been confirmed. Thank you for choosing TMG Install!</p>
               ) : (
@@ -206,24 +258,30 @@ export default function QuoteStatus() {
         )}
 
         {/* ═══ HEADER ═══ */}
-        <motion.div {...fadeUp()} className="mb-12 border-b border-black/10 pb-10">
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-black/35 mb-3" style={{ letterSpacing: "0.18em" }}>
-            TMG Install · Quote Reference
-          </p>
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div>
-              <h1 className="font-heading text-4xl sm:text-5xl font-black text-black tracking-tight mb-3">
-                {quote.referenceNo}
-              </h1>
-              <StatusBadge status={quote.status} className="text-xs px-3 py-1" />
-              {statusMessages[quote.status] && (
-                <p className="text-sm text-black/50 max-w-md leading-relaxed mt-4">
-                  {statusMessages[quote.status]}
-                </p>
-              )}
-            </div>
-            <div className="hidden sm:block shrink-0 self-end">
-              <EditorialPaperStack size="sm" />
+        <motion.div {...fadeUp()} className="relative mb-12 border-b border-black/10 pb-10 overflow-hidden">
+          <DotGrid opacity={0.35} />
+          <div className="relative">
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-black/35 mb-3 flex items-center gap-2" style={{ letterSpacing: "0.18em" }}>
+              <AccentSquare /> TMG Install · Quote Reference
+            </p>
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                  <h1 className="font-heading text-4xl sm:text-5xl font-black text-black tracking-tight">
+                    {quote.referenceNo}
+                  </h1>
+                  <Tag accent>SG</Tag>
+                </div>
+                <StatusBadge status={quote.status} className="text-xs px-3 py-1" />
+                {statusMessages[quote.status] && (
+                  <p className="text-sm text-black/50 max-w-md leading-relaxed mt-4">
+                    {statusMessages[quote.status]}
+                  </p>
+                )}
+              </div>
+              <div className="hidden sm:block shrink-0 self-end">
+                <EditorialPaperStack size="sm" />
+              </div>
             </div>
           </div>
         </motion.div>
@@ -405,7 +463,7 @@ export default function QuoteStatus() {
               <div className="px-6 py-4 border-b border-black/8 flex items-center gap-2">
                 <Package className="w-4 h-4 text-black/40" />
                 <p className="text-[10px] font-semibold tracking-widest uppercase text-black/60" style={{ letterSpacing: "0.15em" }}>
-                  Itemised Breakdown
+                  <span className="inline-flex items-center gap-2"><AccentSquare /> Itemised Breakdown</span>
                 </p>
               </div>
               <div className="px-6 py-5 space-y-0">
@@ -449,7 +507,7 @@ export default function QuoteStatus() {
               <div className="px-6 py-4 border-b border-black/8 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-black/40" />
                 <p className="text-[10px] font-semibold tracking-widest uppercase text-black/60" style={{ letterSpacing: "0.15em" }}>
-                  Job Details
+                  <span className="inline-flex items-center gap-2"><AccentSquare /> Job Details</span>
                 </p>
               </div>
               <div className="px-6 py-5 grid sm:grid-cols-2 gap-5">
@@ -501,8 +559,8 @@ export default function QuoteStatus() {
               {quote.scheduledAt && ["deposit_paid", "booked", "assigned", "in_progress", "completed", "final_payment_requested"].includes(quote.status) && (
                 <div className="mx-6 mb-5 border border-black/12 bg-black/[0.025] p-4">
                   <p className="text-[10px] font-semibold tracking-widest uppercase text-black/40 mb-3" style={{ letterSpacing: "0.15em" }}>
-                    Confirmed Appointment
-                  </p>
+                  <span className="inline-flex items-center gap-2"><AccentSquare /> Confirmed Appointment</span>
+                </p>
                   <div className="flex items-center gap-2 font-bold text-sm text-black">
                     <CalendarDays className="w-4 h-4 text-black/40" />
                     {format(new Date(quote.scheduledAt), "EEEE, MMMM d, yyyy")}
@@ -518,8 +576,8 @@ export default function QuoteStatus() {
               {quote.status === "booking_requested" && quote.scheduledAt && (
                 <div className="mx-6 mb-5 border border-black/12 bg-black/[0.025] p-4">
                   <p className="text-[10px] font-semibold tracking-widest uppercase text-black/40 mb-3" style={{ letterSpacing: "0.15em" }}>
-                    Pending Confirmation
-                  </p>
+                  <span className="inline-flex items-center gap-2"><AccentSquare /> Pending Confirmation</span>
+                </p>
                   <div className="flex items-center gap-2 font-bold text-sm text-black">
                     <CalendarDays className="w-4 h-4 text-black/40" />
                     {format(new Date(quote.scheduledAt), "EEEE, MMMM d, yyyy")}
@@ -613,8 +671,8 @@ export default function QuoteStatus() {
                 <div className="px-6 py-4 border-b border-black/8 flex items-center gap-2">
                   <Image className="w-4 h-4 text-black/40" />
                   <p className="text-[10px] font-semibold tracking-widest uppercase text-black/60" style={{ letterSpacing: "0.15em" }}>
-                    Work Photos
-                  </p>
+                  <span className="inline-flex items-center gap-2"><AccentSquare /> Work Photos</span>
+                </p>
                   <span className="ml-auto text-[10px] text-black/30 font-semibold">{workPhotos.length} photo{workPhotos.length !== 1 ? "s" : ""}</span>
                 </div>
                 <div className="p-4">
@@ -653,7 +711,7 @@ export default function QuoteStatus() {
             <motion.div {...fadeUp(0.15)} className="bg-black text-white shadow-[0_8px_40px_rgba(0,0,0,0.18)] overflow-hidden">
               <div className="px-6 py-5 border-b border-white/10">
                 <p className="text-[10px] font-semibold tracking-widest uppercase text-white/40" style={{ letterSpacing: "0.18em" }}>
-                  Payment Summary
+                  <span className="inline-flex items-center gap-2"><AccentSquare /> Payment Summary</span>
                 </p>
               </div>
               <div className="px-6 py-5 space-y-3">
