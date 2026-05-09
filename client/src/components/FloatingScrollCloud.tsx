@@ -51,7 +51,7 @@ export default function FloatingScrollCloud({
   amplitudeX = 80,
   amplitudeY = 14,
   scrollPeriod = 1400,
-  visibilityClass = "hidden sm:block",
+  visibilityClass = "block",
 }: Props) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
@@ -103,18 +103,22 @@ export default function FloatingScrollCloud({
     <div
       ref={wrapRef}
       aria-hidden="true"
-      className={`pointer-events-none fixed z-[15] ${visibilityClass}`}
+      className={`pointer-events-none fixed z-[15] floating-scroll-cloud ${visibilityClass}`}
       style={{
         top: `${topPct}vh`,
         ...sideStyle,
         perspective: "900px",
         perspectiveOrigin: "50% 50%",
-        width: 200,
-        height: 200,
         opacity: 0.92,
       }}
       data-testid="floating-scroll-cloud"
     >
+      <style>{`
+        .floating-scroll-cloud { width: 132px; height: 132px; }
+        @media (min-width: 640px) {
+          .floating-scroll-cloud { width: 200px; height: 200px; }
+        }
+      `}</style>
       <div
         ref={innerRef}
         style={{

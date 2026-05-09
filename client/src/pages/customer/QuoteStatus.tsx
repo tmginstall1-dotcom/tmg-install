@@ -229,7 +229,7 @@ export default function QuoteStatus() {
   return (
     <>
     {/* Floating CSS-3D cloud — drifts left↔right with scroll, desktop only */}
-    <FloatingScrollCloud side="left" topPct={48} />
+    <FloatingScrollCloud side="left" topPct={62} />
     <div className="relative z-10 min-h-screen pt-20 pb-24 text-black" style={{ background: "#f1efe7" }}>
 
       {/* Payment verification overlay */}

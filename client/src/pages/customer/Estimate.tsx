@@ -966,7 +966,7 @@ export default function EstimateWizard() {
   return (
     <>
     {/* Floating CSS-3D cloud — drifts left↔right with scroll, desktop only */}
-    <FloatingScrollCloud side="right" topPct={42} />
+    <FloatingScrollCloud side="right" topPct={62} />
     <div className={`relative z-10 min-h-screen pb-20 text-black ${promoVisible ? "pt-24" : "pt-16"}`} style={{ background: "#f1efe7" }}>
       {/* Trust microbar — editorial style (matches homepage) */}
       <div className="bg-black/[0.025] border-b border-black/10 py-2.5">
