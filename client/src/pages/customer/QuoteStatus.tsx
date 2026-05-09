@@ -1,5 +1,6 @@
 import { useParams, useLocation } from "wouter";
 import EditorialPaperStack from "@/components/EditorialPaperStack";
+import FloatingScrollCloud from "@/components/FloatingScrollCloud";
 import { useQuote, useRescheduleBooking } from "@/hooks/use-quotes";
 import { useSEO } from "@/hooks/use-seo";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -227,6 +228,8 @@ export default function QuoteStatus() {
 
   return (
     <>
+    {/* Floating CSS-3D cloud — drifts left↔right with scroll, desktop only */}
+    <FloatingScrollCloud side="left" topPct={48} />
     <div className="relative z-10 min-h-screen pt-20 pb-24 text-black" style={{ background: "#f1efe7" }}>
 
       {/* Payment verification overlay */}
