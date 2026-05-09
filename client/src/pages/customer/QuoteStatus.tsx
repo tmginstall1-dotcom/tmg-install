@@ -819,7 +819,7 @@ export default function QuoteStatus() {
     {/* ─── Photo Lightbox ─── */}
     {lightboxUrl && (
       <div
-        className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+        className="fixed inset-0 z-50 tmg-scrim flex items-center justify-center p-4"
         onClick={() => setLightboxUrl(null)}
         data-testid="lightbox-overlay"
       >

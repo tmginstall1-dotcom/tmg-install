@@ -2256,7 +2256,7 @@ export default function EstimateWizard() {
 
     {/* Terms & Conditions Modal */}
     {showTermsModal && (
-      <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowTermsModal(false)}>
+      <div className="fixed inset-0 z-50 tmg-scrim flex items-center justify-center p-4" onClick={() => setShowTermsModal(false)}>
         <div
           className="bg-[#fafaf7] border border-black/20 max-w-2xl w-full max-h-[85vh] flex flex-col"
           onClick={e => e.stopPropagation()}
@@ -2368,7 +2368,7 @@ export default function EstimateWizard() {
 
     {/* ── Partial Lead Capture Modal ── */}
     {showCaptureModal && (
-      <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      <div className="fixed inset-0 z-50 tmg-scrim flex items-end sm:items-center justify-center p-0 sm:p-4"
         onClick={() => saveCaptureAndNext(true)}>
         <motion.div
           initial={{ y: 60, opacity: 0 }}

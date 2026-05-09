@@ -37,7 +37,7 @@ video::-webkit-media-controls-overlay-enclosure {
 
 /* 3D background scene support — dark canvas visible through transparent sections */
 html {
-  background: radial-gradient(ellipse at 50% 0%, #12122a 0%, #030308 55%, #000000 100%);
+  background: #f1efe7;
   background-attachment: fixed;
 }
 body {
@@ -651,14 +651,32 @@ section[data-testid^="section-"] {
   backface-visibility: hidden;
 }
 
-/* ── GPU layer promotion for translucent paper surfaces on form pages
-   (Estimate, QuoteStatus). Same pattern as section[data-testid^="section-"]
-   above — promotes each card to its own composited layer so the install
-   sequence canvas behind it doesn't trigger CPU repaints when the user
-   scrolls or types. Targets the bracketed Tailwind arbitrary-value bg
-   classes used by those pages' card wrappers. ── */
+/* ── Frosted-paper card surfaces (used across homepage sections, estimate
+   wizard cards, and quote status panels). Combines:
+   - GPU layer promotion (translateZ + contain) so the install-sequence
+     canvas behind doesn't force CPU repaints on scroll
+   - backdrop-filter blur for soft "frosted glass on cream paper" depth —
+     the desk reads through subtly, not literally, giving cards a polished
+     pro-design feel instead of a washy transparent look
+   - hairline inset to suggest material edge without a hard border
+   - whisper shadow for very faint elevation against the canvas behind ── */
 [class*="bg-[rgba(250,250,247"] {
   transform: translateZ(0);
   contain: paint;
   backface-visibility: hidden;
+  -webkit-backdrop-filter: saturate(140%) blur(10px);
+  backdrop-filter: saturate(140%) blur(10px);
+  box-shadow:
+    inset 0 0 0 1px rgba(10, 10, 10, 0.04),
+    0 1px 0 rgba(10, 10, 10, 0.02),
+    0 12px 32px -16px rgba(10, 10, 10, 0.08);
+}
+
+/* ── Modal scrim shared across customer-facing dialogs. Blurs whatever sits
+   behind (the install-sequence canvas + page content) and dims with INK
+   instead of pure black for a refined, paper-aware feel. ── */
+.tmg-scrim {
+  background: rgba(10, 10, 10, 0.42);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
