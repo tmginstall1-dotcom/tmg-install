@@ -933,7 +933,7 @@ export default function EstimateWizard() {
 
   return (
     <>
-    <div className={`min-h-screen pb-20 bg-white ${promoVisible ? "pt-24" : "pt-16"}`}>
+    <div className={`min-h-screen pb-20 bg-[#f1efe7] text-black ${promoVisible ? "pt-24" : "pt-16"}`}>
       {/* Trust microbar */}
       <div className="bg-black/[0.025] border-b border-black/8 py-2">
         <div className="max-w-2xl mx-auto px-4">
@@ -952,7 +952,7 @@ export default function EstimateWizard() {
       </div>
 
       {/* Step indicator */}
-      <div className={`sticky z-40 bg-white border-b border-black/10 ${promoVisible ? "top-24" : "top-16"}`}>
+      <div className={`sticky z-40 bg-[#f1efe7]/95 backdrop-blur border-b border-black/15 ${promoVisible ? "top-24" : "top-16"}`}>
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-2">
             {STEPS.map((s, i) => (

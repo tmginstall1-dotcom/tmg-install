@@ -156,7 +156,7 @@ export default function QuoteStatus() {
   // ── Loading ──────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="min-h-screen pt-32 flex items-center justify-center bg-white">
+      <div className="min-h-screen pt-32 flex items-center justify-center bg-[#f1efe7]">
         <div className="w-10 h-10 border-2 border-black border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -164,7 +164,7 @@ export default function QuoteStatus() {
 
   if (!quote) {
     return (
-      <div className="min-h-screen pt-32 text-center px-4 bg-white">
+      <div className="min-h-screen pt-32 text-center px-4 bg-[#f1efe7]">
         <p className="text-xs font-semibold tracking-widest uppercase text-black/40 mb-4" style={{ letterSpacing: "0.15em" }}>Error</p>
         <h2 className="text-3xl font-bold text-black">Quote not found</h2>
         <p className="mt-2 text-black/50">The reference number may be invalid.</p>
@@ -174,11 +174,11 @@ export default function QuoteStatus() {
 
   return (
     <>
-    <div className="min-h-screen pt-20 pb-24 bg-white text-black">
+    <div className="min-h-screen pt-20 pb-24 bg-[#f1efe7] text-black">
 
       {/* Payment verification overlay */}
       {verifying && (
-        <div className="fixed inset-0 z-50 bg-white/90 backdrop-blur-sm flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-[#f1efe7]/95 backdrop-blur-sm flex items-center justify-center">
           <div className="border border-black/12 bg-white p-10 text-center shadow-[0_8px_48px_rgba(0,0,0,0.08)]">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-black" />
             <p className="font-bold text-lg text-black">Confirming your payment…</p>
