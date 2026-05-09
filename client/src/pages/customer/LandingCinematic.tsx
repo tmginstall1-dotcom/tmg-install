@@ -8,7 +8,6 @@ import {
   type MotionValue,
 } from "framer-motion";
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
-import PageBackgroundSequence from "@/components/PageBackgroundSequence";
 import { ArrowRight, ArrowUpRight, MessageCircle } from "lucide-react";
 import { useSEO } from "@/hooks/use-seo";
 import { usePromoBar } from "@/hooks/use-promo-bar";
@@ -2090,7 +2089,6 @@ export default function LandingCinematic() {
       className="antialiased selection:bg-black selection:text-white font-sans relative"
       style={{ background: "#f1efe7", color: INK }}
     >
-      <PageBackgroundSequence />
       <div className="relative z-10">
       <PromoBar />
       <ScrollProgress />

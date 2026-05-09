@@ -1,5 +1,5 @@
 import { useParams, useLocation } from "wouter";
-import PageBackgroundSequence from "@/components/PageBackgroundSequence";
+import EditorialPaperStack from "@/components/EditorialPaperStack";
 import { useQuote, useRescheduleBooking } from "@/hooks/use-quotes";
 import { useSEO } from "@/hooks/use-seo";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -175,8 +175,7 @@ export default function QuoteStatus() {
 
   return (
     <>
-    <PageBackgroundSequence />
-    <div className="relative z-10 min-h-screen pt-20 pb-24 text-black">
+    <div className="relative z-10 min-h-screen pt-20 pb-24 text-black" style={{ background: "#f1efe7" }}>
 
       {/* Payment verification overlay */}
       {verifying && (
@@ -217,12 +216,15 @@ export default function QuoteStatus() {
                 {quote.referenceNo}
               </h1>
               <StatusBadge status={quote.status} className="text-xs px-3 py-1" />
+              {statusMessages[quote.status] && (
+                <p className="text-sm text-black/50 max-w-md leading-relaxed mt-4">
+                  {statusMessages[quote.status]}
+                </p>
+              )}
             </div>
-            {statusMessages[quote.status] && (
-              <p className="text-sm text-black/50 max-w-xs sm:text-right leading-relaxed">
-                {statusMessages[quote.status]}
-              </p>
-            )}
+            <div className="hidden sm:block shrink-0 self-end">
+              <EditorialPaperStack size="sm" />
+            </div>
           </div>
         </motion.div>
 

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import PageBackgroundSequence from "@/components/PageBackgroundSequence";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { useLocation } from "wouter";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
@@ -934,8 +933,7 @@ export default function EstimateWizard() {
 
   return (
     <>
-    <PageBackgroundSequence />
-    <div className={`relative z-10 min-h-screen pb-20 text-black ${promoVisible ? "pt-24" : "pt-16"}`}>
+    <div className={`relative z-10 min-h-screen pb-20 text-black ${promoVisible ? "pt-24" : "pt-16"}`} style={{ background: "#f1efe7" }}>
       {/* Trust microbar */}
       <div className="bg-black/[0.025] border-b border-black/8 py-2">
         <div className="max-w-2xl mx-auto px-4">
