@@ -40,10 +40,12 @@ video::-webkit-media-controls-overlay-enclosure {
 html {
   background: #f1efe7;
   background-attachment: fixed;
-  /* Bulletproof guard: never allow horizontal scrolling anywhere on the
-     site. Any overflowing element (image, marquee, footer chip, etc.)
-     will be clipped at the viewport edge instead of pushing the whole
-     document wider than the screen. */
+  /* Site-wide guard: never allow horizontal scrolling. Any overflowing
+     element gets clipped at the viewport edge instead of pushing the
+     whole document wider than the screen. NOTE: do not add a global
+     `* { min-width: 0 }` rule here — it breaks the marquee (items
+     shrink below their content width and the text glyphs overlap).
+     Use targeted min-w-0 on flex/grid children that need it instead. */
   overflow-x: hidden;
   max-width: 100vw;
 }
@@ -51,11 +53,6 @@ body {
   background: #f1efe7;
   overflow-x: hidden;
   max-width: 100vw;
-}
-/* Stop any element from forcing horizontal scroll due to long
-   unbreakable strings (URLs, emails, IDs) on small screens. */
-* {
-  min-width: 0;
 }
 
 @layer base {

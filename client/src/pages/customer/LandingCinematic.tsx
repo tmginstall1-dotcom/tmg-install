@@ -2002,7 +2002,9 @@ function Footer() {
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-4">
               <AccentSquare /> Follow Us
             </div>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full">
+            {/* Mobile: 3 square icon-only buttons (always fit any phone width).
+                Desktop (sm+): icon + label horizontal chips. */}
+            <div className="flex items-center gap-2.5 sm:gap-3 w-full sm:max-w-md">
               <a
                 href={FACEBOOK_URL}
                 target="_blank"
@@ -2010,10 +2012,10 @@ function Footer() {
                 aria-label="TMG Install on Facebook"
                 data-testid="social-facebook"
                 onClick={() => trackEvent("social_facebook", "/")}
-                className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-3 py-3 sm:py-3 w-full min-w-0 overflow-hidden border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[9px] sm:text-[11px] font-bold uppercase tracking-[0.08em] sm:tracking-[0.18em]"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-12 sm:h-auto sm:px-4 sm:py-3 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
               >
-                <SiFacebook className="w-4 h-4 shrink-0" />
-                <span className="truncate max-w-full">Facebook</span>
+                <SiFacebook className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="hidden sm:inline">Facebook</span>
               </a>
               <a
                 href={INSTAGRAM_URL}
@@ -2022,10 +2024,10 @@ function Footer() {
                 aria-label="TMG Install on Instagram"
                 data-testid="social-instagram"
                 onClick={() => trackEvent("social_instagram", "/")}
-                className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-3 py-3 sm:py-3 w-full min-w-0 overflow-hidden border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[9px] sm:text-[11px] font-bold uppercase tracking-[0.08em] sm:tracking-[0.18em]"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-12 sm:h-auto sm:px-4 sm:py-3 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
               >
-                <SiInstagram className="w-4 h-4 shrink-0" />
-                <span className="truncate max-w-full">Instagram</span>
+                <SiInstagram className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="hidden sm:inline">Instagram</span>
               </a>
               <a
                 href={CAROUSELL_URL}
@@ -2034,10 +2036,10 @@ function Footer() {
                 aria-label="TMG Install on Carousell"
                 data-testid="social-carousell"
                 onClick={() => trackEvent("social_carousell", "/")}
-                className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-3 py-3 sm:py-3 w-full min-w-0 overflow-hidden border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[9px] sm:text-[11px] font-bold uppercase tracking-[0.08em] sm:tracking-[0.18em]"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-12 sm:h-auto sm:px-4 sm:py-3 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
               >
-                <CarousellMark className="w-4 h-4 shrink-0" />
-                <span className="truncate max-w-full">Carousell</span>
+                <CarousellMark className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="hidden sm:inline">Carousell</span>
               </a>
             </div>
             <p className="text-stone-500 text-[11px] sm:text-xs mt-4 leading-relaxed">
