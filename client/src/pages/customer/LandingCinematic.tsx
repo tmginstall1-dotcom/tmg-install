@@ -1976,7 +1976,7 @@ function CarousellMark({ className = "" }: { className?: string }) {
 function Footer() {
   const FACEBOOK_URL = "https://www.facebook.com/share/18XRT74vTT/?mibextid=wwXIfr";
   const INSTAGRAM_URL = "https://www.instagram.com/tmginstall.sg?igsh=MTN3NjN0MHR3YmMwMw%3D%3D&utm_source=qr";
-  const CAROUSELL_URL = "https://www.carousell.sg/u/tmg_01f647/";
+  const CAROUSELL_URL = "https://carousell.app.link/DcX5hMEHZ2b";
 
   return (
     <footer
@@ -2039,7 +2039,7 @@ function Footer() {
               <span className="mx-2 text-stone-600">·</span>
               <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmginstall.sg</a>
               <span className="mx-2 text-stone-600">·</span>
-              <a href={CAROUSELL_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">carousell.sg/u/tmg_01f647</a>
+              <a href={CAROUSELL_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">tmginstall.com on Carousell</a>
             </p>
           </div>
         </div>
