@@ -1984,22 +1984,25 @@ function Footer() {
       style={{ background: INK, color: PAPER }}
       data-testid="section-footer"
     >
-      <div className="mx-auto max-w-[1600px] grid grid-cols-12 gap-4 md:gap-8 items-end">
-        <div className="col-span-12 md:col-span-6">
+      <div className="mx-auto max-w-[1600px] grid grid-cols-12 gap-10 md:gap-8 items-start">
+        {/* Left column — wordmark + tagline + social */}
+        <div className="col-span-12 md:col-span-7">
           <div
             className="font-serif italic font-black text-white tracking-[-0.03em] leading-[0.9]"
-            style={{ fontSize: "clamp(36px, 7vw, 100px)" }}
+            style={{ fontSize: "clamp(44px, 8vw, 100px)" }}
           >
             TMG <span className="text-white/55">/ Install</span>
           </div>
-          <p className="text-stone-400 text-sm mt-6 max-w-sm">The Moving Guy Pte Ltd · Singapore · Island-wide</p>
+          <p className="text-stone-400 text-sm mt-5 max-w-sm leading-relaxed">
+            The Moving Guy Pte Ltd · Singapore · Island-wide
+          </p>
 
           {/* Social row — Facebook · Instagram · Carousell */}
-          <div className="mt-7">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-stone-400 mb-3">
+          <div className="mt-9 max-w-[520px]">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-4">
               <AccentSquare /> Follow Us
             </div>
-            <div className="flex items-center gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               <a
                 href={FACEBOOK_URL}
                 target="_blank"
@@ -2007,9 +2010,10 @@ function Footer() {
                 aria-label="TMG Install on Facebook"
                 data-testid="social-facebook"
                 onClick={() => trackEvent("social_facebook", "/")}
-                className="inline-flex items-center gap-2 px-3 py-2 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+                className="group inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2.5 sm:py-3 min-w-0 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.1em] sm:tracking-[0.18em]"
               >
-                <SiFacebook className="w-4 h-4" /> <span>Facebook</span>
+                <SiFacebook className="w-4 h-4 shrink-0" />
+                <span className="truncate">Facebook</span>
               </a>
               <a
                 href={INSTAGRAM_URL}
@@ -2018,9 +2022,10 @@ function Footer() {
                 aria-label="TMG Install on Instagram"
                 data-testid="social-instagram"
                 onClick={() => trackEvent("social_instagram", "/")}
-                className="inline-flex items-center gap-2 px-3 py-2 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+                className="group inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2.5 sm:py-3 min-w-0 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.1em] sm:tracking-[0.18em]"
               >
-                <SiInstagram className="w-4 h-4" /> <span>Instagram</span>
+                <SiInstagram className="w-4 h-4 shrink-0" />
+                <span className="truncate">Instagram</span>
               </a>
               <a
                 href={CAROUSELL_URL}
@@ -2029,33 +2034,56 @@ function Footer() {
                 aria-label="TMG Install on Carousell"
                 data-testid="social-carousell"
                 onClick={() => trackEvent("social_carousell", "/")}
-                className="inline-flex items-center gap-2 px-3 py-2 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[11px] font-bold uppercase tracking-[0.18em]"
+                className="group inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2.5 sm:py-3 min-w-0 border border-white/20 hover:border-white hover:bg-white hover:text-black text-stone-200 transition-all text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.1em] sm:tracking-[0.18em]"
               >
-                <CarousellMark className="w-4 h-4" /> <span>Carousell</span>
+                <CarousellMark className="w-4 h-4 shrink-0" />
+                <span className="truncate">Carousell</span>
               </a>
             </div>
-            <p className="text-stone-500 text-xs mt-3">
-              <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">facebook.com/tmginstall</a>
-              <span className="mx-2 text-stone-600">·</span>
+            <p className="text-stone-500 text-[11px] sm:text-xs mt-4 leading-relaxed">
+              <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmginstall</a>
+              <span className="mx-1.5 text-stone-700">/</span>
               <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmginstall.sg</a>
-              <span className="mx-2 text-stone-600">·</span>
-              <a href={CAROUSELL_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">tmginstall.com on Carousell</a>
+              <span className="mx-1.5 text-stone-700">/</span>
+              <a href={CAROUSELL_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmg_01f647</a>
             </p>
           </div>
         </div>
-        <div className="col-span-12 md:col-span-6 md:text-right text-sm text-stone-300 space-y-2">
-          <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition" data-testid="footer-whatsapp">
-            WhatsApp · +65 8088 0757
-          </a>
-          <a href="mailto:sales@tmginstall.com" className="block hover:text-white transition" data-testid="footer-email">
-            sales@tmginstall.com
-          </a>
-          <Link href="/terms" className="block hover:text-white transition">Terms</Link>
-          <Link href="/privacy" className="block hover:text-white transition">Privacy</Link>
+
+        {/* Right column — contact + legal */}
+        <div className="col-span-12 md:col-span-5 md:text-right">
+          <div className="text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-4 flex md:justify-end items-center gap-2">
+            <AccentSquare /> Contact
+          </div>
+          <div className="space-y-2.5 text-sm text-stone-300">
+            <a
+              href={WHATSAPP}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block hover:text-white transition"
+              data-testid="footer-whatsapp"
+            >
+              WhatsApp · +65 8088 0757
+            </a>
+            <a
+              href="mailto:sales@tmginstall.com"
+              className="block hover:text-white transition break-all md:break-normal"
+              data-testid="footer-email"
+            >
+              sales@tmginstall.com
+            </a>
+          </div>
+          <div className="h-px bg-white/10 my-5 md:ml-auto md:w-32" />
+          <div className="space-y-2.5 text-sm text-stone-400">
+            <Link href="/terms" className="block hover:text-white transition" data-testid="footer-terms">Terms</Link>
+            <Link href="/privacy" className="block hover:text-white transition" data-testid="footer-privacy">Privacy</Link>
+          </div>
         </div>
       </div>
-      <div className="mx-auto max-w-[1600px] mt-12 pt-8 border-t border-white/10 flex flex-wrap items-center justify-between gap-4 text-xs text-stone-500">
-        <span>© {new Date().getFullYear()} The Moving Guy Pte Ltd</span>
+
+      {/* Bottom bar — copyright + signature */}
+      <div className="mx-auto max-w-[1600px] mt-14 md:mt-16 pt-7 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-stone-500 uppercase tracking-[0.18em]">
+        <span data-testid="footer-copyright">© {new Date().getFullYear()} The Moving Guy Pte Ltd · UEN 202424156H</span>
         <span className="flex items-center gap-2"><AccentSquare /> Built properly</span>
       </div>
     </footer>
