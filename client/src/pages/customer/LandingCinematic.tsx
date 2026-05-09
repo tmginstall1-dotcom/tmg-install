@@ -1974,7 +1974,7 @@ function CarousellMark({ className = "" }: { className?: string }) {
 }
 
 function Footer() {
-  const FACEBOOK_URL = "https://www.facebook.com/tmginstall";
+  const FACEBOOK_URL = "https://www.facebook.com/share/18XRT74vTT/?mibextid=wwXIfr";
   const INSTAGRAM_URL = "https://www.instagram.com/tmginstall";
   const CAROUSELL_URL = "https://www.carousell.sg/u/tmg_01f647/";
 
