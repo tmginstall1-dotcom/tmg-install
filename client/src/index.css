@@ -35,13 +35,14 @@ video::-webkit-media-controls-overlay-enclosure {
   pointer-events: none !important;
 }
 
-/* 3D background scene support — dark canvas visible through transparent sections */
+/* Editorial paper surface — applied to BOTH html and body so iOS Safari
+   overscroll/bounce never reveals a blank white area beneath the page. */
 html {
   background: #f1efe7;
   background-attachment: fixed;
 }
 body {
-  background: transparent;
+  background: #f1efe7;
 }
 
 @layer base {

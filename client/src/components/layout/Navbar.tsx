@@ -48,15 +48,50 @@ export function Navbar() {
 
   // Customer nav
   if (isCustomerArea) {
-    const tickerText = promo && promoVisible
-      ? `🎉 LAUNCH OFFER · Use code ${promo.code} at checkout · $${promo.discount} OFF · ${promo.remaining} of ${promo.maxUses} slots remaining · Get your discount now → · 🎉 LAUNCH OFFER · Use code ${promo.code} at checkout · $${promo.discount} OFF · ${promo.remaining} of ${promo.maxUses} slots remaining · Get your discount now → ·`
-      : "";
+    const ACCENT = "#2af56a";
+    const tickerSegments = promo && promoVisible
+      ? [
+          { kind: "tag" as const, text: "Launch Offer" },
+          { kind: "text" as const, text: "Use code" },
+          { kind: "code" as const, text: promo.code },
+          { kind: "text" as const, text: `$${promo.discount} off` },
+          { kind: "text" as const, text: `${promo.remaining} of ${promo.maxUses} slots remaining` },
+          { kind: "text" as const, text: "Get your discount now →" },
+        ]
+      : [];
+
+    const renderTicker = (keyPrefix: string) => (
+      <div className="flex items-center shrink-0">
+        {tickerSegments.map((seg, i) => (
+          <span key={`${keyPrefix}-${i}`} className="flex items-center">
+            {seg.kind === "tag" ? (
+              <span
+                className="inline-block text-[10px] font-black uppercase tracking-[0.22em] px-2 py-[3px] mx-3 text-black"
+                style={{ background: ACCENT }}
+              >
+                {seg.text}
+              </span>
+            ) : seg.kind === "code" ? (
+              <span
+                className="inline-block text-[10px] font-black uppercase tracking-[0.22em] px-2 py-[3px] mx-3 border"
+                style={{ borderColor: ACCENT, color: ACCENT }}
+              >
+                {seg.text}
+              </span>
+            ) : (
+              <span className="text-white text-[11px] font-bold uppercase tracking-[0.18em] mx-3">{seg.text}</span>
+            )}
+            <span className="text-white/40 mx-1" aria-hidden="true">·</span>
+          </span>
+        ))}
+      </div>
+    );
 
     return (
       <div className="fixed top-0 left-0 right-0 z-50">
-        {/* Promo announcement bar */}
+        {/* Promo announcement bar — INK + ACCENT (matches homepage editorial system) */}
         {promoVisible && promo && (
-          <div className="relative overflow-hidden h-10 flex items-center bg-amber-500" data-testid="promo-bar">
+          <div className="relative overflow-hidden h-10 flex items-center bg-black border-b border-white/10" data-testid="promo-bar">
             <style>{`
               @keyframes promo-scroll {
                 0% { transform: translateX(0); }
@@ -65,20 +100,23 @@ export function Navbar() {
               .promo-ticker {
                 display: flex;
                 white-space: nowrap;
-                animation: promo-scroll 28s linear infinite;
+                animation: promo-scroll 38s linear infinite;
               }
               .promo-ticker:hover {
                 animation-play-state: paused;
               }
             `}</style>
-            <div className="promo-ticker select-none pr-8">
-              <span className="text-white font-semibold text-sm tracking-wide px-8">{tickerText}</span>
-              <span className="text-white font-semibold text-sm tracking-wide px-8">{tickerText}</span>
+            <div className="promo-ticker select-none pr-12">
+              {renderTicker("a")}
+              {renderTicker("b")}
             </div>
             <button
               onClick={dismissPromo}
               data-testid="promo-bar-dismiss"
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/70 hover:text-black transition-colors"
+              style={{}}
+              onMouseEnter={(e) => { e.currentTarget.style.background = ACCENT; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               aria-label="Dismiss offer"
             >
               <X className="w-4 h-4" />
