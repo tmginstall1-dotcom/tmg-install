@@ -1957,27 +1957,70 @@ function FinalCTA() {
 
 /* ─────────────────────── Footer ─────────────────────── */
 
-/* Carousell mark — inline SVG (react-icons/si has no Carousell glyph).
-   Stylised shopping-bag with a "C" handle, evoking the brand mark.
-   Uses currentColor so it can be tinted via Tailwind text-* classes. */
+/* Carousell brand mark — red rounded square with the white "C" letterform.
+   Designed to read like the official Carousell app icon on dark backgrounds.
+   Solid brand colour (#FF5C00) so it sits alongside Facebook blue and the
+   Instagram gradient as a recognisable platform mark. */
 function CarousellMark({ className = "" }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      viewBox="0 0 32 32"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      {/* Bag body */}
-      <path d="M4 8h16l-1.2 11.2a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8z" />
-      {/* "C" handle that doubles as Carousell letterform */}
-      <path d="M9 8a3 3 0 0 1 6 0" />
-      <path d="M14.5 13.5a2.5 2.5 0 1 1 0-3" />
+      <rect width="32" height="32" rx="7.5" fill="#FF5C00" />
+      <path
+        d="M21.4 11.6a8 8 0 1 0 0 8.8"
+        stroke="#FFFFFF"
+        strokeWidth="3.4"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+/* Facebook brand tile — blue rounded square with the white "f". */
+function FacebookTile({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 32 32"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <rect width="32" height="32" rx="7.5" fill="#1877F2" />
+      <path
+        d="M19.6 17.5l.7-4.4h-4.2v-2.9c0-1.2.6-2.4 2.5-2.4h2V4.1S18.8 3.8 17 3.8c-3.6 0-6 2.2-6 6.2v3.5H7v4.4h4v10.6c.8.1 1.7.2 2.5.2s1.7-.1 2.5-.2V17.5h3.6z"
+        fill="#FFFFFF"
+      />
+    </svg>
+  );
+}
+
+/* Instagram brand tile — pink/orange gradient rounded square with the camera glyph. */
+function InstagramTile({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 32 32"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="ig-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#FEDA77" />
+          <stop offset="25%" stopColor="#F58529" />
+          <stop offset="50%" stopColor="#DD2A7B" />
+          <stop offset="75%" stopColor="#8134AF" />
+          <stop offset="100%" stopColor="#515BD4" />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="7.5" fill="url(#ig-grad)" />
+      <rect x="7.5" y="7.5" width="17" height="17" rx="5" fill="none" stroke="#FFFFFF" strokeWidth="2" />
+      <circle cx="16" cy="16" r="4" fill="none" stroke="#FFFFFF" strokeWidth="2" />
+      <circle cx="21.2" cy="10.8" r="1.2" fill="#FFFFFF" />
     </svg>
   );
 }
@@ -1987,113 +2030,181 @@ function Footer() {
   const INSTAGRAM_URL = "https://www.instagram.com/tmginstall.sg?igsh=MTN3NjN0MHR3YmMwMw%3D%3D&utm_source=qr";
   const CAROUSELL_URL = "https://carousell.app.link/DcX5hMEHZ2b";
 
+  type FooterLink = { label: string; href: string; testId: string; external?: boolean };
+
+  const SERVICES: FooterLink[] = [
+    { label: "Furniture installation", href: "/estimate", testId: "footer-link-install" },
+    { label: "Dismantle & reinstall", href: "/estimate", testId: "footer-link-dr" },
+    { label: "Relocation & carry only", href: "/estimate", testId: "footer-link-relocate" },
+    { label: "Office fit-out", href: "/estimate", testId: "footer-link-office" },
+  ];
+
+  const COMPANY: FooterLink[] = [
+    { label: "Get a quote", href: "/estimate", testId: "footer-link-quote" },
+    { label: "WhatsApp us", href: WHATSAPP, testId: "footer-link-whatsapp", external: true },
+    { label: "Terms", href: "/terms", testId: "footer-link-terms" },
+    { label: "Privacy", href: "/privacy", testId: "footer-link-privacy" },
+  ];
+
+  const SocialIcon = ({
+    href,
+    label,
+    testId,
+    eventName,
+    Tile,
+  }: {
+    href: string;
+    label: string;
+    testId: string;
+    eventName: string;
+    Tile: (p: { className?: string }) => JSX.Element;
+  }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`TMG Install on ${label}`}
+      title={label}
+      data-testid={testId}
+      onClick={() => trackEvent(eventName, "/")}
+      className="block transition-transform hover:-translate-y-0.5 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-black rounded-lg"
+    >
+      <Tile className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg shadow-sm" />
+    </a>
+  );
+
   return (
     <footer
-      className="relative border-t border-white/10 py-14 md:py-20 px-6 md:px-10 lg:px-14"
+      className="relative border-t border-white/10 pt-14 md:pt-20 pb-10 md:pb-12 px-6 md:px-10 lg:px-14"
       style={{ background: INK, color: PAPER }}
       data-testid="section-footer"
     >
-      <div className="mx-auto max-w-[1600px] grid grid-cols-12 gap-10 md:gap-8 items-start">
-        {/* Left column — wordmark + tagline + social */}
-        <div className="col-span-12 md:col-span-7">
-          <div
-            className="font-serif italic font-black text-white tracking-[-0.03em] leading-[0.9]"
-            style={{ fontSize: "clamp(44px, 8vw, 100px)" }}
-          >
-            TMG <span className="text-white/55">/ Install</span>
-          </div>
-          <p className="text-stone-400 text-sm mt-5 max-w-sm leading-relaxed">
-            The Moving Guy Pte Ltd · Singapore · Island-wide
-          </p>
+      <div className="mx-auto max-w-[1600px]">
 
-          {/* Social row — borderless icon links arranged on a clean baseline */}
-          <div className="mt-9">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-5">
-              <AccentSquare /> Follow Us
+        {/* ── Top row: brand block + CTA pill ── */}
+        <div className="grid grid-cols-12 gap-8 md:gap-10 items-start pb-12 md:pb-16 border-b border-white/10">
+          <div className="col-span-12 md:col-span-7">
+            <div
+              className="font-serif italic font-black text-white tracking-[-0.03em] leading-[0.88]"
+              style={{ fontSize: "clamp(44px, 8vw, 104px)" }}
+            >
+              TMG <span className="text-white/55">/ Install</span>
             </div>
-            <div className="flex items-center gap-7 sm:gap-8">
-              <a
-                href={FACEBOOK_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="TMG Install on Facebook"
-                title="Facebook"
-                data-testid="social-facebook"
-                onClick={() => trackEvent("social_facebook", "/")}
-                className="text-stone-300 hover:text-white transition-colors"
-              >
-                <SiFacebook className="w-[22px] h-[22px]" />
-              </a>
-              <a
-                href={INSTAGRAM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="TMG Install on Instagram"
-                title="Instagram"
-                data-testid="social-instagram"
-                onClick={() => trackEvent("social_instagram", "/")}
-                className="text-stone-300 hover:text-white transition-colors"
-              >
-                <SiInstagram className="w-[22px] h-[22px]" />
-              </a>
-              <a
-                href={CAROUSELL_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="TMG Install on Carousell"
-                title="Carousell"
-                data-testid="social-carousell"
-                onClick={() => trackEvent("social_carousell", "/")}
-                className="text-stone-300 hover:text-white transition-colors"
-              >
-                <CarousellMark className="w-[22px] h-[22px]" />
-              </a>
+            <p className="text-stone-300 text-base sm:text-lg mt-5 max-w-md leading-relaxed">
+              Singapore's furniture installation, dismantle and relocation team.
+              Island-wide. Built properly.
+            </p>
+          </div>
+          <div className="col-span-12 md:col-span-5 md:text-right md:pt-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-4 flex md:justify-end items-center gap-2">
+              <AccentSquare /> Ready when you are
             </div>
-            <p className="text-stone-500 text-[11px] sm:text-xs mt-5 leading-relaxed tracking-wide">
-              <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmginstall</a>
-              <span className="mx-2 text-stone-700">·</span>
-              <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmginstall.sg</a>
-              <span className="mx-2 text-stone-700">·</span>
-              <a href={CAROUSELL_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition">@tmg_01f647</a>
+            <Link
+              href="/estimate"
+              data-testid="footer-cta-quote"
+              onClick={() => trackEvent("cta_estimate_footer", "/")}
+              className="inline-flex items-center gap-3 px-6 py-3.5 text-[12px] font-bold uppercase tracking-[0.22em] transition-transform hover:-translate-y-0.5"
+              style={{ background: ACCENT, color: INK }}
+            >
+              Get a free quote
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <div className="mt-3 text-[11px] uppercase tracking-[0.2em] text-stone-500 md:text-right">
+              60-second form · No payment up front
+            </div>
+          </div>
+        </div>
+
+        {/* ── Mid row: 4-column nav grid ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 md:gap-8 py-12 md:py-14">
+          {/* Services */}
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-5 flex items-center gap-2">
+              <AccentSquare /> Services
+            </div>
+            <ul className="space-y-3 text-sm text-stone-300">
+              {SERVICES.map((l) => (
+                <li key={l.label}>
+                  <Link href={l.href} data-testid={l.testId} className="hover:text-white transition-colors">
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Company */}
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-5 flex items-center gap-2">
+              <AccentSquare /> Company
+            </div>
+            <ul className="space-y-3 text-sm text-stone-300">
+              {COMPANY.map((l) =>
+                l.external ? (
+                  <li key={l.label}>
+                    <a href={l.href} target="_blank" rel="noopener noreferrer" data-testid={l.testId} className="hover:text-white transition-colors">
+                      {l.label}
+                    </a>
+                  </li>
+                ) : (
+                  <li key={l.label}>
+                    <Link href={l.href} data-testid={l.testId} className="hover:text-white transition-colors">
+                      {l.label}
+                    </Link>
+                  </li>
+                )
+              )}
+            </ul>
+          </div>
+
+          {/* Contact */}
+          <div className="col-span-2 md:col-span-1">
+            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-5 flex items-center gap-2">
+              <AccentSquare /> Contact
+            </div>
+            <ul className="space-y-3 text-sm text-stone-300">
+              <li>
+                <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors block" data-testid="footer-whatsapp">
+                  <span className="block text-stone-500 text-[10px] uppercase tracking-[0.22em] mb-0.5">WhatsApp</span>
+                  +65 8088 0757
+                </a>
+              </li>
+              <li>
+                <a href="mailto:sales@tmginstall.com" className="hover:text-white transition-colors block break-all md:break-normal" data-testid="footer-email">
+                  <span className="block text-stone-500 text-[10px] uppercase tracking-[0.22em] mb-0.5">Email</span>
+                  sales@tmginstall.com
+                </a>
+              </li>
+              <li>
+                <span className="block text-stone-500 text-[10px] uppercase tracking-[0.22em] mb-0.5">Office</span>
+                <span className="text-stone-300">160 Robinson Road, #14-04<br />Singapore 068914</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Follow */}
+          <div className="col-span-2 md:col-span-1">
+            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-5 flex items-center gap-2">
+              <AccentSquare /> Follow
+            </div>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <SocialIcon href={FACEBOOK_URL}  label="Facebook"  testId="social-facebook"  eventName="social_facebook"  Tile={FacebookTile} />
+              <SocialIcon href={INSTAGRAM_URL} label="Instagram" testId="social-instagram" eventName="social_instagram" Tile={InstagramTile} />
+              <SocialIcon href={CAROUSELL_URL} label="Carousell" testId="social-carousell" eventName="social_carousell" Tile={CarousellMark} />
+            </div>
+            <p className="text-stone-500 text-[11px] mt-4 leading-relaxed tracking-wide space-y-0.5">
+              <span className="block">facebook.com/tmginstall</span>
+              <span className="block">@tmginstall.sg</span>
+              <span className="block">carousell.sg/u/tmg_01f647</span>
             </p>
           </div>
         </div>
 
-        {/* Right column — contact + legal */}
-        <div className="col-span-12 md:col-span-5 md:text-right">
-          <div className="text-[10px] font-black uppercase tracking-[0.28em] text-stone-400 mb-4 flex md:justify-end items-center gap-2">
-            <AccentSquare /> Contact
-          </div>
-          <div className="space-y-2.5 text-sm text-stone-300">
-            <a
-              href={WHATSAPP}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block hover:text-white transition"
-              data-testid="footer-whatsapp"
-            >
-              WhatsApp · +65 8088 0757
-            </a>
-            <a
-              href="mailto:sales@tmginstall.com"
-              className="block hover:text-white transition break-all md:break-normal"
-              data-testid="footer-email"
-            >
-              sales@tmginstall.com
-            </a>
-          </div>
-          <div className="h-px bg-white/10 my-5 md:ml-auto md:w-32" />
-          <div className="space-y-2.5 text-sm text-stone-400">
-            <Link href="/terms" className="block hover:text-white transition" data-testid="footer-terms">Terms</Link>
-            <Link href="/privacy" className="block hover:text-white transition" data-testid="footer-privacy">Privacy</Link>
-          </div>
+        {/* ── Bottom bar ── */}
+        <div className="pt-7 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-stone-500 uppercase tracking-[0.2em]">
+          <span data-testid="footer-copyright">© {new Date().getFullYear()} The Moving Guy Pte Ltd · UEN 202424156H</span>
+          <span className="flex items-center gap-2"><AccentSquare /> Built properly · Singapore</span>
         </div>
-      </div>
-
-      {/* Bottom bar — copyright + signature */}
-      <div className="mx-auto max-w-[1600px] mt-14 md:mt-16 pt-7 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-stone-500 uppercase tracking-[0.18em]">
-        <span data-testid="footer-copyright">© {new Date().getFullYear()} The Moving Guy Pte Ltd · UEN 202424156H</span>
-        <span className="flex items-center gap-2"><AccentSquare /> Built properly</span>
       </div>
     </footer>
   );
