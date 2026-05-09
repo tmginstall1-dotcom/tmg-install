@@ -16,6 +16,37 @@ import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import type { CatalogItem } from "@shared/schema";
 import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, requiresSpecialHandling, type PricingCatalogEntry } from "@shared/pricing";
 
+/* ─────────────────── Editorial primitives (mirror homepage) ───────────────────
+   Inlined here so the estimate wizard matches the editorial language of "/"
+   without coupling files: signature install-green ACCENT, AccentSquare,
+   DotGrid backdrop. Same tokens as LandingCinematic + QuoteStatus.
+   ────────────────────────────────────────────────────────────────────────── */
+const EST_ACCENT = "#2af56a";
+
+function EstAccentSquare({ className = "" }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-block w-[10px] h-[10px] shrink-0 ${className}`}
+      style={{ background: EST_ACCENT }}
+    />
+  );
+}
+
+function EstDotGrid({ opacity = 0.4, size = 28 }: { opacity?: number; size?: number }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute inset-0 pointer-events-none"
+      style={{
+        opacity,
+        backgroundImage: "radial-gradient(circle, rgba(10,10,10,0.22) 1px, transparent 1px)",
+        backgroundSize: `${size}px ${size}px`,
+      }}
+    />
+  );
+}
+
 type ServiceType = "install" | "dismantle" | "relocate" | "dispose" | "dismantle_dispose";
 
 interface LineItem {
@@ -934,19 +965,25 @@ export default function EstimateWizard() {
   return (
     <>
     <div className={`relative z-10 min-h-screen pb-20 text-black ${promoVisible ? "pt-24" : "pt-16"}`} style={{ background: "#f1efe7" }}>
-      {/* Trust microbar */}
-      <div className="bg-black/[0.025] border-b border-black/8 py-2">
+      {/* Trust microbar — editorial style (matches homepage) */}
+      <div className="bg-black/[0.025] border-b border-black/10 py-2.5">
         <div className="max-w-2xl mx-auto px-4">
-          <div className="flex items-center justify-center gap-3 sm:gap-5 flex-wrap">
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-black/40">
-              <Star className="w-3 h-3 text-amber-500 fill-amber-500" /> 4.9★ · 127 reviews
+          <div className="flex items-center justify-center gap-3 sm:gap-4 flex-wrap">
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-black/55">
+              <Star className="w-3 h-3 text-black fill-black" /> 4.9 · 127 Reviews
             </span>
-            <span className="text-black/12 text-xs hidden sm:block">|</span>
-            <span className="text-[10px] font-black uppercase tracking-[0.1em] text-black/40">⚡ 60s quote</span>
-            <span className="text-black/12 text-xs hidden sm:block">|</span>
-            <span className="text-[10px] font-black uppercase tracking-[0.1em] text-black/40">🛡️ Fully insured</span>
-            <span className="text-black/12 text-xs hidden sm:block">|</span>
-            <span className="hidden sm:block text-[10px] font-black uppercase tracking-[0.1em] text-black/40">🏙️ Island-wide</span>
+            <span className="hidden sm:inline-block w-px h-3 bg-black/15" />
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-black/55">
+              <EstAccentSquare /> 60s Quote
+            </span>
+            <span className="hidden sm:inline-block w-px h-3 bg-black/15" />
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-black/55">
+              <EstAccentSquare /> Fully Insured
+            </span>
+            <span className="hidden sm:inline-block w-px h-3 bg-black/15" />
+            <span className="hidden sm:flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-black/55">
+              <EstAccentSquare /> Island-Wide
+            </span>
           </div>
         </div>
       </div>
@@ -986,10 +1023,24 @@ export default function EstimateWizard() {
             {/* ── STEP 1: Select Services ── */}
             {step === 1 && (
               <div className="space-y-6">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-3">Step 1 of 5</p>
-                  <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">What do you need?</h2>
-                  <p className="text-sm text-black/45">Select one or more services — you can mix and match.</p>
+                <div className="relative overflow-hidden -mx-4 px-4 pb-2">
+
+                  <EstDotGrid opacity={0.32} />
+
+                  <div className="relative">
+
+                    <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-black/45 mb-3">
+
+                      <EstAccentSquare /> Step 1 of 5
+
+                    </p>
+
+                    <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">What do you need?</h2>
+
+                    <p className="text-sm text-black/45">Select one or more services — you can mix and match.</p>
+
+                  </div>
+
                 </div>
                 <div className="grid grid-cols-1 gap-3">
                   {(() => {
@@ -1214,14 +1265,28 @@ export default function EstimateWizard() {
             {/* ── STEP 2: Address ── */}
             {step === 2 && (
               <div className="space-y-6">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-3">Step 2 of 5</p>
-                  <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">
+                <div className="relative overflow-hidden -mx-4 px-4 pb-2">
+
+                  <EstDotGrid opacity={0.32} />
+
+                  <div className="relative">
+
+                    <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-black/45 mb-3">
+
+                      <EstAccentSquare /> Step 2 of 5
+
+                    </p>
+
+                    <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">
                     {isRelocation ? "Pickup & Dropoff" : "Service Location"}
                   </h2>
-                  <p className="text-sm text-black/45">
+
+                    <p className="text-sm text-black/45">
                     {isRelocation ? "Where should we pick up and deliver?" : "Where will the work take place?"}
                   </p>
+
+                  </div>
+
                 </div>
                 <div className="bg-[rgba(250,250,247,0.88)] border border-black/12 p-6 space-y-5">
                   {isRelocation ? (
@@ -1315,10 +1380,24 @@ export default function EstimateWizard() {
             {/* ── STEP 3: Items ── */}
             {step === 3 && (
               <div className="space-y-5">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-3">Step 3 of 5</p>
-                  <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">Add Your Items</h2>
-                  <p className="text-sm text-black/45">Search our catalog, paste a list, or upload a photo.</p>
+                <div className="relative overflow-hidden -mx-4 px-4 pb-2">
+
+                  <EstDotGrid opacity={0.32} />
+
+                  <div className="relative">
+
+                    <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-black/45 mb-3">
+
+                      <EstAccentSquare /> Step 3 of 5
+
+                    </p>
+
+                    <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">Add Your Items</h2>
+
+                    <p className="text-sm text-black/45">Search our catalog, paste a list, or upload a photo.</p>
+
+                  </div>
+
                 </div>
 
                 {/* Catalog Browse */}
@@ -1833,10 +1912,24 @@ export default function EstimateWizard() {
             {/* ── STEP 4: Schedule ── */}
             {step === 4 && (
               <div className="space-y-5">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-3">Step 4 of 5</p>
-                  <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">Pick a Slot</h2>
-                  <p className="text-sm text-black/45">Select a date, then choose your preferred time window.</p>
+                <div className="relative overflow-hidden -mx-4 px-4 pb-2">
+
+                  <EstDotGrid opacity={0.32} />
+
+                  <div className="relative">
+
+                    <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-black/45 mb-3">
+
+                      <EstAccentSquare /> Step 4 of 5
+
+                    </p>
+
+                    <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">Pick a Slot</h2>
+
+                    <p className="text-sm text-black/45">Select a date, then choose your preferred time window.</p>
+
+                  </div>
+
                 </div>
 
                 <SlotPicker
@@ -1873,10 +1966,24 @@ export default function EstimateWizard() {
             {/* ── STEP 5: Review ── */}
             {step === 5 && (
               <div className="space-y-6">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/35 mb-3">Step 5 of 5</p>
-                  <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">Your Details</h2>
-                  <p className="text-sm text-black/45">Review your estimate and enter your contact info.</p>
+                <div className="relative overflow-hidden -mx-4 px-4 pb-2">
+
+                  <EstDotGrid opacity={0.32} />
+
+                  <div className="relative">
+
+                    <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-black/45 mb-3">
+
+                      <EstAccentSquare /> Step 5 of 5
+
+                    </p>
+
+                    <h2 className="font-heading text-4xl font-black uppercase tracking-[-0.02em] text-black mb-1">Your Details</h2>
+
+                    <p className="text-sm text-black/45">Review your estimate and enter your contact info.</p>
+
+                  </div>
+
                 </div>
 
                 {/* Customer details form */}
