@@ -43,6 +43,10 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// Build the allowed-origin set from hard-coded defaults plus any extra origins
+// supplied at runtime via APP_URL (single URL) or ALLOWED_ORIGINS_EXTRA
+// (comma-separated list).  This lets production deployments override the
+// default Replit URL without a code change.
 const ALLOWED_ORIGINS = new Set([
   "capacitor://localhost",
   "http://localhost",
@@ -50,6 +54,17 @@ const ALLOWED_ORIGINS = new Set([
   "http://localhost:5000",
   "https://tmg-install-project--tmginstall.replit.app",
 ]);
+if (process.env.APP_URL) {
+  try { ALLOWED_ORIGINS.add(new URL(process.env.APP_URL).origin); } catch { /* ignore malformed */ }
+}
+if (process.env.ALLOWED_ORIGINS_EXTRA) {
+  for (const raw of process.env.ALLOWED_ORIGINS_EXTRA.split(",")) {
+    const trimmed = raw.trim();
+    if (trimmed) {
+      try { ALLOWED_ORIGINS.add(new URL(trimmed).origin); } catch { /* ignore malformed */ }
+    }
+  }
+}
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   const origin = req.headers.origin as string | undefined;
@@ -98,9 +113,51 @@ app.use(session({
     secure: process.env.NODE_ENV === "production",
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    sameSite: "lax",
   },
 }));
+
+// ── CSRF: Origin / Referer enforcement ───────────────────────────────────────
+// State-changing requests to /api/* must originate from an allowed origin.
+// Safe methods (GET, HEAD, OPTIONS) are exempted, as are inbound webhook paths
+// that legitimately arrive from external services (Stripe, Meta WhatsApp).
+const CSRF_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const CSRF_WEBHOOK_EXEMPT = [
+  "/api/webhooks/stripe",
+  "/api/webhooks/whatsapp",
+];
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (CSRF_SAFE_METHODS.has(req.method)) return next();
+  if (CSRF_WEBHOOK_EXEMPT.some((p) => req.path === p || req.path.startsWith(p + "/"))) return next();
+  if (!req.path.startsWith("/api/")) return next();
+
+  const origin = req.headers.origin as string | undefined;
+  const referer = req.headers.referer as string | undefined;
+
+  if (origin) {
+    if (!ALLOWED_ORIGINS.has(origin)) {
+      res.status(403).json({ error: "Forbidden: cross-site request rejected" });
+      return;
+    }
+  } else if (referer) {
+    try {
+      const refOrigin = new URL(referer).origin;
+      if (!ALLOWED_ORIGINS.has(refOrigin)) {
+        res.status(403).json({ error: "Forbidden: cross-site request rejected" });
+        return;
+      }
+    } catch {
+      res.status(403).json({ error: "Forbidden: invalid Referer header" });
+      return;
+    }
+  }
+  // Requests with neither Origin nor Referer (e.g. same-origin server-to-server
+  // calls from the same host, curl health checks, or Capacitor native requests
+  // with no browser header) are allowed through — browser-initiated cross-site
+  // attacks always include one of these two headers.
+  next();
+});
 
 app.use(
   express.json({
