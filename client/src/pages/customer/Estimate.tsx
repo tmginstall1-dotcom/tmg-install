@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { useLocation } from "wouter";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
@@ -131,37 +132,89 @@ function AddressInput({ value, onSelect, placeholder, label, required }: {
   placeholder?: string; label: string; required?: boolean;
 }) {
   const [show, setShow] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { suggestions, loading } = useAddressSuggestions(value);
-  useEffect(() => {
-    function handler(e: MouseEvent) { if (!ref.current?.contains(e.target as Node)) setShow(false); }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+
+  // Recompute dropdown position relative to input
+  const updateRect = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setRect({ left: r.left, top: r.bottom, width: r.width });
   }, []);
+
+  useEffect(() => {
+    if (!show) return;
+    updateRect();
+    window.addEventListener("scroll", updateRect, true);
+    window.addEventListener("resize", updateRect);
+    return () => {
+      window.removeEventListener("scroll", updateRect, true);
+      window.removeEventListener("resize", updateRect);
+    };
+  }, [show, updateRect, suggestions.length]);
+
+  // Outside-click / outside-touch closes dropdown
+  useEffect(() => {
+    function handler(e: Event) {
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setShow(false);
+    }
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
+  }, []);
+
   return (
-    <div ref={ref} className="relative">
+    <div ref={wrapRef} className="relative">
       <label className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 block mb-2">{label}{required && <span className="text-black ml-1">*</span>}</label>
       <div className="relative">
-        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30" />
+        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30 pointer-events-none" />
         <input
+          ref={inputRef}
           required={required}
           value={value}
-          onChange={e => { onSelect(e.target.value); setShow(true); }}
-          onFocus={() => setShow(true)}
+          onChange={e => { onSelect(e.target.value); setShow(true); updateRect(); }}
+          onFocus={() => { setShow(true); updateRect(); }}
           placeholder={placeholder || "Start typing an address…"}
           data-testid={`input-address-${label.toLowerCase().replace(/\s+/g, "-")}`}
           className="w-full pl-9 pr-4 py-3 bg-white border border-black/10 focus:border-black outline-none transition-all text-sm"
         />
-        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-black/30" />}
+        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-black/30 pointer-events-none" />}
       </div>
-      {show && suggestions.length > 0 && (
-        <div className="absolute z-50 top-full mt-0.5 left-0 right-0 bg-[rgba(250,250,247,0.88)] border border-black/12 overflow-hidden">
+      {show && suggestions.length > 0 && rect && typeof document !== "undefined" && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{
+            position: "fixed",
+            left: rect.left,
+            top: rect.top + 2,
+            width: rect.width,
+            zIndex: 9999,
+            maxHeight: "50vh",
+            overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
+          }}
+          className="bg-white border border-black/15 shadow-lg"
+        >
           {suggestions.map((s, i) => (
-            <button key={i} type="button" onMouseDown={() => { onSelect(s.address, s.lat, s.lng); setShow(false); }}
-              className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm border-b border-black/6 last:border-0 transition-colors"
+            <button
+              key={i}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onSelect(s.address, s.lat, s.lng); setShow(false); }}
+              className="w-full text-left px-4 py-3 hover:bg-slate-50 active:bg-slate-100 text-sm text-black border-b border-black/10 last:border-0 transition-colors"
             >{s.address}</button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
