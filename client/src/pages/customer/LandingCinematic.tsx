@@ -606,9 +606,10 @@ function ChapterCard({
   return (
     <motion.div
       style={{ opacity, y }}
-      className="absolute inset-x-0 max-w-[560px]"
+      className="absolute inset-0 flex items-center px-10 lg:px-14"
       data-testid={`chapter-${index}`}
     >
+     <div className="w-full max-w-[560px]">
       <div className="flex items-baseline gap-4 mb-6 md:mb-10">
         <span className="font-serif italic font-black text-black/90" style={{ fontSize: "clamp(64px, 9vw, 160px)", lineHeight: 0.85 }}>
           {chapter.no}
@@ -627,6 +628,7 @@ function ChapterCard({
           <div key={j} className="h-[3px] w-12" style={{ background: j === index ? ACCENT : "rgba(10,10,10,0.18)" }} />
         ))}
       </div>
+     </div>
     </motion.div>
   );
 }
@@ -1441,12 +1443,10 @@ function AssemblyScroll() {
         </div>
 
         <div className="grid grid-cols-12 h-full">
-          <div className="col-span-6 relative flex items-center px-10 lg:px-14 z-[3]">
-            <div className="w-full relative">
-              {STORY.map((s, i) => (
-                <ChapterCard key={s.no} chapter={s} index={i} scrollYProgress={scrollYProgress} />
-              ))}
-            </div>
+          <div className="col-span-6 relative z-[3]">
+            {STORY.map((s, i) => (
+              <ChapterCard key={s.no} chapter={s} index={i} scrollYProgress={scrollYProgress} />
+            ))}
           </div>
           <div className="col-span-6 relative border-l" style={{ borderColor: LINE }}>
             {STORY.map((s, i) => (
