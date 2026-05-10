@@ -1428,8 +1428,16 @@ function AssemblyScroll() {
         </div>
       </div>
 
-      {/* DESKTOP — sticky scroll choreography */}
-      <div className="hidden md:block sticky top-0 h-screen w-full overflow-hidden">
+      {/* DESKTOP — sticky scroll choreography.
+           Sticky pin uses 100vh + 100dvh fallback so the stage always fills
+           the viewport. Inside, the two columns are absolutely positioned
+           against the sticky parent so they cannot collapse to content
+           height — that collapse was the cause of the white band the user
+           kept seeing under the chapter content. */}
+      <div
+        className="hidden md:block sticky top-0 w-full overflow-hidden"
+        style={{ height: "100vh", minHeight: "100dvh" }}
+      >
         <DotGrid opacity={0.4} />
 
         {/* Floating editorial fragments — TMG service references */}
@@ -1444,29 +1452,33 @@ function AssemblyScroll() {
           <span className="opacity-60">Singapore — island-wide</span>
         </div>
 
-        <div className="flex w-full h-screen">
-          <div className="relative w-1/2 h-screen z-[3]">
-            {STORY.map((s, i) => (
-              <ChapterCard key={s.no} chapter={s} index={i} scrollYProgress={scrollYProgress} />
-            ))}
-          </div>
-          <div className="relative w-1/2 h-screen border-l" style={{ borderColor: LINE }}>
-            {STORY.map((s, i) => (
-              <ChapterMedia
-                key={`d-${s.no}`}
-                index={i}
-                scrollYProgress={scrollYProgress}
-                src={s.image2x}
-                caption={s.caption}
-              />
-            ))}
-            <div className="absolute bottom-6 left-6 right-6 flex items-center gap-3 pointer-events-none text-[10px] tracking-[0.18em] uppercase font-bold text-white z-[4]">
-              <span className="bg-black/65 backdrop-blur-sm px-2 py-1">From parts</span>
-              <div className="flex-1 h-[3px] origin-left bg-white/30">
-                <motion.div style={{ scaleX: completeBar, background: ACCENT }} className="h-[3px] origin-left" />
-              </div>
-              <span className="bg-black/65 backdrop-blur-sm px-2 py-1">Complete</span>
+        {/* LEFT column — chapter cards. Pinned to the sticky stage edges. */}
+        <div className="absolute top-0 bottom-0 left-0 w-1/2 z-[3]">
+          {STORY.map((s, i) => (
+            <ChapterCard key={s.no} chapter={s} index={i} scrollYProgress={scrollYProgress} />
+          ))}
+        </div>
+
+        {/* RIGHT column — chapter media. Pinned to the sticky stage edges. */}
+        <div
+          className="absolute top-0 bottom-0 right-0 w-1/2 border-l"
+          style={{ borderColor: LINE }}
+        >
+          {STORY.map((s, i) => (
+            <ChapterMedia
+              key={`d-${s.no}`}
+              index={i}
+              scrollYProgress={scrollYProgress}
+              src={s.image2x}
+              caption={s.caption}
+            />
+          ))}
+          <div className="absolute bottom-6 left-6 right-6 flex items-center gap-3 pointer-events-none text-[10px] tracking-[0.18em] uppercase font-bold text-white z-[4]">
+            <span className="bg-black/65 backdrop-blur-sm px-2 py-1">From parts</span>
+            <div className="flex-1 h-[3px] origin-left bg-white/30">
+              <motion.div style={{ scaleX: completeBar, background: ACCENT }} className="h-[3px] origin-left" />
             </div>
+            <span className="bg-black/65 backdrop-blur-sm px-2 py-1">Complete</span>
           </div>
         </div>
       </div>
