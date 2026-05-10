@@ -1679,12 +1679,18 @@ export async function registerRoutes(
 
   // -- Staff Routes --
   app.get(api.staff.list.path, async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const staff = await storage.getStaffMembers();
     res.json(staff);
   });
 
   // Create staff member (admin only)
   app.post("/api/admin/staff", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const { username, password, name } = z.object({
         username: z.string().min(2),
@@ -1751,12 +1757,18 @@ export async function registerRoutes(
   });
 
   // -- Team Routes --
-  app.get("/api/teams", async (_req, res) => {
+  app.get("/api/teams", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const data = await storage.getTeams();
     res.json(data);
   });
 
   app.post("/api/teams", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const data = z.object({ name: z.string().min(1), color: z.string().optional() }).parse(req.body);
       const team = await storage.createTeam({ name: data.name, color: data.color || "#6366f1" });
@@ -1765,6 +1777,9 @@ export async function registerRoutes(
   });
 
   app.patch("/api/teams/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const data = z.object({ name: z.string().min(1).optional(), color: z.string().optional() }).parse(req.body);
@@ -1774,6 +1789,9 @@ export async function registerRoutes(
   });
 
   app.delete("/api/teams/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       await storage.deleteTeam(parseInt(req.params.id));
       res.json({ ok: true });
@@ -1781,6 +1799,9 @@ export async function registerRoutes(
   });
 
   app.post("/api/teams/:id/assign", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const teamId = parseInt(req.params.id);
       const { userId } = z.object({ userId: z.number() }).parse(req.body);
@@ -1790,6 +1811,9 @@ export async function registerRoutes(
   });
 
   app.post("/api/staff/:id/unassign-team", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       await storage.assignUserToTeam(parseInt(req.params.id), null);
       res.json({ ok: true });
@@ -2538,12 +2562,17 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/attendance/amendments", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const amendments = await storage.getPendingAmendments();
     res.json(amendments);
   });
 
   app.patch("/api/admin/attendance/amendments/:id", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const { status, adminNote } = z.object({
@@ -2585,6 +2614,9 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/leave", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const status = req.query.status as string | undefined;
     const leaves = await storage.getAllLeaveRequests(status);
     res.json(leaves);
@@ -2592,6 +2624,8 @@ export async function registerRoutes(
 
   app.patch("/api/admin/leave/:id", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const { status, adminNote } = z.object({
@@ -2605,6 +2639,9 @@ export async function registerRoutes(
 
   // -- Pay Settings --
   app.patch("/api/admin/pay-settings/:userId", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const userId = parseInt(req.params.userId);
       const data = z.object({
@@ -2621,6 +2658,9 @@ export async function registerRoutes(
 
   // -- Payslip Routes --
   app.get("/api/admin/payslips", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const userId = req.query.userId ? parseInt(req.query.userId as string) : undefined;
     const slips = await storage.getAllPayslips(userId);
     res.json(slips);
@@ -2636,6 +2676,8 @@ export async function registerRoutes(
 
   app.post("/api/admin/payslips/generate", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const callerGen = await storage.getUserById(req.session.userId);
+    if (!callerGen || callerGen.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const { userId, periodStart, periodEnd, notes } = z.object({
         userId: z.number(),
@@ -2776,6 +2818,9 @@ export async function registerRoutes(
   });
 
   app.delete("/api/admin/payslips/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       await storage.deletePayslip(parseInt(req.params.id));
       res.json({ ok: true });
@@ -2785,6 +2830,8 @@ export async function registerRoutes(
   // ── Staff Loans ────────────────────────────────────────────────────────────
   app.get("/api/admin/staff-loans", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const userId = req.query.userId ? parseInt(req.query.userId as string) : undefined;
     const loans = await storage.getStaffLoans(userId);
     res.json(loans);
@@ -2792,6 +2839,8 @@ export async function registerRoutes(
 
   app.post("/api/admin/staff-loans", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const { userId, description, totalAmount, monthlyRepayment, startDate } = z.object({
         userId: z.number(),
@@ -2815,6 +2864,8 @@ export async function registerRoutes(
 
   app.patch("/api/admin/staff-loans/:id", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const { description, monthlyRepayment, remainingBalance, isActive } = z.object({
         description: z.string().min(1).optional(),
@@ -2834,6 +2885,8 @@ export async function registerRoutes(
 
   app.delete("/api/admin/staff-loans/:id", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       await storage.deleteStaffLoan(parseInt(req.params.id));
       res.json({ ok: true });
@@ -2888,6 +2941,9 @@ export async function registerRoutes(
 
   // Admin: list all receipts with optional date filters
   app.get("/api/admin/receipts", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const filters: { year?: number; month?: number; day?: number } = {};
     if (req.query.year) filters.year = parseInt(req.query.year as string);
     if (req.query.month) filters.month = parseInt(req.query.month as string);
@@ -2899,6 +2955,9 @@ export async function registerRoutes(
 
   // Admin: get full file data for a single receipt (for PDF download)
   app.get("/api/admin/receipts/:id/file", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const receipt = await storage.getReceiptById(parseInt(req.params.id));
     if (!receipt) return res.status(404).json({ message: "Not found" });
     res.json({ fileData: receipt.fileData, fileType: receipt.fileType, fileName: receipt.fileName });
@@ -2969,6 +3028,8 @@ Category rules:
   // Admin: manually create a receipt for any staff member (auto-approved)
   app.post("/api/admin/receipts", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const body = z.object({
         userId:      z.number().int().positive(),
@@ -2999,6 +3060,8 @@ Category rules:
   // Admin: approve or reject a receipt
   app.patch("/api/admin/receipts/:id/status", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const { status, adminNote } = z.object({
         status: z.enum(["approved", "rejected"]),
