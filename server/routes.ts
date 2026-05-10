@@ -3206,6 +3206,9 @@ Category rules:
 
   // -- Quotes Routes --
   app.get(api.quotes.list.path, async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const status = req.query.status as string | undefined;
     const quotes = await storage.getQuotes(status);
     res.json(quotes);
@@ -3214,6 +3217,9 @@ Category rules:
   // Look up a quote by reference number — used for /status/:refNo redirects
   app.get("/api/quotes/by-ref/:refNo", async (req, res) => {
     try {
+      // Public: refNo is a 48-bit random token — knowing it proves ownership.
+      // Return only the numeric id so the frontend can redirect to the quote page.
+      // Admin callers receive this same minimal response; full detail comes via GET /api/quotes/:id.
       const quotes = await storage.getQuotes();
       const quote = quotes.find(q => q.referenceNo === req.params.refNo);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
@@ -3233,7 +3239,7 @@ Category rules:
       const [quote] = await db.select().from(quotesTable).where(eq(quotesTable.referenceNo, refNo)).limit(1);
       if (!quote) return res.redirect(`${APP_URL}/quotes`);
 
-      const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+      const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
       let amount: number;
       let description: string;
       let stripeType: string;
@@ -3683,7 +3689,7 @@ ${systemPrompt}` });
         })).optional().default([]),
       }).parse(req.body);
 
-      const refNo = `TMG-${randomBytes(4).toString("hex").toUpperCase()}`;
+      const refNo = `TMG-${randomBytes(6).toString("hex").toUpperCase()}`;
       const phone = body.customerPhone.replace(/\D/g, "");
 
       let scheduledAt: Date | undefined;
@@ -3803,6 +3809,9 @@ ${systemPrompt}` });
   });
 
   app.get("/api/quotes/schedule", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const callerSched = await storage.getUserById(req.session.userId);
+    if (!callerSched || callerSched.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const pending = await storage.getQuotesByStatuses(['booking_requested']);
       const confirmed = await storage.getQuotesByStatuses(['booked', 'assigned', 'in_progress', 'deposit_paid']);
@@ -3816,7 +3825,39 @@ ${systemPrompt}` });
     const id = parseInt(req.params.id);
     const quote = await storage.getQuote(id);
     if (!quote) return res.status(404).json({ message: "Quote not found" });
-    res.json(quote);
+
+    if (req.session?.userId) {
+      // Authenticated path: admin or assigned staff
+      const caller = await storage.getUserById(req.session.userId);
+      if (!caller) return res.status(401).json({ message: "Not logged in" });
+      if (caller.role !== "admin") {
+        const teammateIds = await storage.getTeammateIds(caller.id);
+        const isAssigned = quote.assignedStaffId != null && teammateIds.includes(quote.assignedStaffId);
+        if (!isAssigned) return res.status(403).json({ message: "Forbidden" });
+      }
+      return res.json(quote);
+    }
+
+    // Unauthenticated customer path: require referenceNo as ownership proof
+    const refParam = req.query.ref as string | undefined;
+    if (!refParam || refParam !== quote.referenceNo) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    // Return quote with staff PII stripped using explicit typed projection
+    type PublicUser = { id: number; name: string; role: string; teamId: number | null };
+    function toPublicUser(u: typeof usersTable.$inferSelect): PublicUser {
+      return { id: u.id, name: u.name, role: u.role, teamId: u.teamId ?? null };
+    }
+    const publicQuote = {
+      ...quote,
+      assignedStaff: quote.assignedStaff ? toPublicUser(quote.assignedStaff) : undefined,
+      assignedTeam: quote.assignedTeam ? {
+        ...quote.assignedTeam,
+        members: quote.assignedTeam.members?.map(toPublicUser),
+      } : undefined,
+    };
+    return res.json(publicQuote);
   });
 
   // AI quote from text description
@@ -3894,7 +3935,7 @@ ${systemPrompt}` });
         }];
       }
 
-      const referenceNo = `TMG-${randomBytes(4).toString('hex').toUpperCase()}`;
+      const referenceNo = `TMG-${randomBytes(6).toString('hex').toUpperCase()}`;
 
       // ── Callout fee (non-relocation jobs) ────────────────────────────────────
       const hasRelocation = aiParsedItems.some(i => i.serviceType === "relocate");
@@ -3971,6 +4012,9 @@ ${systemPrompt}` });
 
   // Update status (generic)
   app.patch(api.quotes.updateStatus.path, async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const callerStatus = await storage.getUserById(req.session.userId);
+    if (!callerStatus || callerStatus.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const input = api.quotes.updateStatus.input.parse(req.body);
@@ -4033,7 +4077,7 @@ ${systemPrompt}` });
       // Send deposit request when admin sets status to deposit_requested
       if (input.status === "deposit_requested" && quote.customer) {
         const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.5;
-        const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+        const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
         const stripeUrl = await createStripePaymentLink(
           `Deposit for ${quote.referenceNo} — TMG Install`,
           depositAmt,
@@ -4136,6 +4180,9 @@ ${systemPrompt}` });
 
   // Customer pays deposit (mock)
   app.patch(api.quotes.updatePayment.path, async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const callerPayment = await storage.getUserById(req.session.userId);
+    if (!callerPayment || callerPayment.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const input = api.quotes.updatePayment.input.parse(req.body);
@@ -4182,7 +4229,7 @@ ${systemPrompt}` });
       const quote = await storage.getQuote(id);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
 
-      const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+      const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
       let amount: number;
       let description: string;
 
@@ -4216,13 +4263,34 @@ ${systemPrompt}` });
   app.post("/api/quotes/:id/verify-payment", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { session_id } = z.object({ session_id: z.string() }).parse(req.body);
+      const { session_id, referenceNo: vpRefNo } = z.object({
+        session_id: z.string(),
+        referenceNo: z.string().optional(),
+      }).parse(req.body);
+
+      // Ownership proof: admin session OR matching referenceNo
+      const vpQuote = await storage.getQuote(id);
+      if (!vpQuote) return res.status(404).json({ message: "Quote not found" });
+      if (req.session?.userId) {
+        const callerVp = await storage.getUserById(req.session.userId);
+        if (!callerVp || callerVp.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+      } else {
+        if (!vpRefNo || vpRefNo !== vpQuote.referenceNo) {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+      }
 
       if (!stripe) return res.status(500).json({ message: "Stripe not configured" });
 
       const session = await stripe.checkout.sessions.retrieve(session_id);
       if (session.payment_status !== "paid") {
         return res.status(400).json({ message: "Payment not completed" });
+      }
+
+      // Stripe session binding: ensure this Stripe session belongs to the requested quote
+      const metaQuoteId = session.metadata?.quoteId;
+      if (!metaQuoteId || parseInt(metaQuoteId) !== id) {
+        return res.status(403).json({ message: "Payment session does not match this quote" });
       }
 
       const { type } = session.metadata || {};
@@ -4287,13 +4355,25 @@ ${systemPrompt}` });
   app.post("/api/quotes/:id/booking-request", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { scheduledAt, timeWindow } = z.object({
+      const { scheduledAt, timeWindow, referenceNo } = z.object({
         scheduledAt: z.string(),
-        timeWindow: z.string()
+        timeWindow: z.string(),
+        referenceNo: z.string().optional(),
       }).parse(req.body);
 
       const existingQuote = await storage.getQuote(id);
       if (!existingQuote) return res.status(404).json({ message: "Quote not found" });
+
+      // Authenticated path: only admins may act on behalf of a customer
+      if (req.session?.userId) {
+        const callerBr = await storage.getUserById(req.session.userId);
+        if (!callerBr || callerBr.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+      } else {
+        // Unauthenticated customer: require referenceNo as ownership proof
+        if (!referenceNo || referenceNo !== existingQuote.referenceNo) {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+      }
 
       // Only allow if deposit is paid and no pending/confirmed booking
       if (!['deposit_paid', 'booking_requested'].includes(existingQuote.status)) {
@@ -4325,6 +4405,9 @@ ${systemPrompt}` });
 
   // Admin confirms booking
   app.post("/api/quotes/:id/booking-confirm", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const callerBooking = await storage.getUserById(req.session.userId);
+    if (!callerBooking || callerBooking.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const quote = await storage.confirmBooking(id);
@@ -4350,13 +4433,25 @@ ${systemPrompt}` });
   app.post("/api/quotes/:id/booking-reschedule", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { scheduledAt, timeWindow } = z.object({
+      const { scheduledAt, timeWindow, referenceNo: rescheduleRef } = z.object({
         scheduledAt: z.string(),
-        timeWindow: z.string()
+        timeWindow: z.string(),
+        referenceNo: z.string().optional(),
       }).parse(req.body);
 
       const existingQuote = await storage.getQuote(id);
       if (!existingQuote) return res.status(404).json({ message: "Quote not found" });
+
+      // Authenticated path: only admins may reschedule on behalf of a customer
+      if (req.session?.userId) {
+        const callerRs = await storage.getUserById(req.session.userId);
+        if (!callerRs || callerRs.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+      } else {
+        // Unauthenticated customer: require referenceNo as ownership proof
+        if (!rescheduleRef || rescheduleRef !== existingQuote.referenceNo) {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+      }
 
       // Must be booked (confirmed) to reschedule
       if (!['booked'].includes(existingQuote.status)) {
@@ -4406,6 +4501,9 @@ ${systemPrompt}` });
 
   // Legacy booking update (kept for backward compatibility)
   app.patch(api.quotes.updateBooking.path, async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const callerUpdateBooking = await storage.getUserById(req.session.userId);
+    if (!callerUpdateBooking || callerUpdateBooking.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const input = api.quotes.updateBooking.input.parse(req.body);
@@ -4419,6 +4517,7 @@ ${systemPrompt}` });
 
   // Staff: Arrived check-in (GPS + photos)
   app.post("/api/quotes/:id/arrived", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
     try {
       const id = parseInt(req.params.id);
       const { gpsLat, gpsLng, photoUrls, note } = z.object({
@@ -4446,6 +4545,7 @@ ${systemPrompt}` });
 
   // Staff: Completed check-out (GPS + photos)
   app.post("/api/quotes/:id/completed-checkout", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
     try {
       const id = parseInt(req.params.id);
       const { gpsLat, gpsLng, photoUrls, note } = z.object({
@@ -4528,6 +4628,9 @@ ${systemPrompt}` });
 
   // Admin: Edit quote before deposit
   app.patch("/api/quotes/:id/edit", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const callerEdit = await storage.getUserById(req.session.userId);
+    if (!callerEdit || callerEdit.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const existing = await storage.getQuote(id);
@@ -4586,6 +4689,9 @@ ${systemPrompt}` });
 
   // Admin: Save additional post-job charges (overtime, access issues, extra items)
   app.patch("/api/quotes/:id/additional-charges", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const callerCharges = await storage.getUserById(req.session.userId);
+    if (!callerCharges || callerCharges.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const { additionalCharge, additionalChargeNote } = z.object({
@@ -4603,6 +4709,9 @@ ${systemPrompt}` });
 
   // Admin: Request final payment (email for real emails, WhatsApp for chatbot customers)
   app.post("/api/quotes/:id/request-final-payment", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const callerFinalPay = await storage.getUserById(req.session.userId);
+    if (!callerFinalPay || callerFinalPay.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const quote = await storage.getQuote(id);
@@ -4618,7 +4727,7 @@ ${systemPrompt}` });
       const finalAmount = parseFloat(quote.finalAmount || "0") > 0
         ? parseFloat(quote.finalAmount!)
         : Math.max(0, totalAmt - depositPaid);
-      const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+      const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
       const stripeUrl = await createStripePaymentLink(
         `Balance Payment for ${quote.referenceNo} — TMG Install`,
         finalAmount,
@@ -4752,6 +4861,9 @@ ${systemPrompt}` });
   // also stamp finalPaidAt / depositPaidAt (if missing) and paymentStatus, otherwise
   // the invoice / receipt endpoint can't serve the case afterwards.
   app.post("/api/quotes/:id/close", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const callerClose = await storage.getUserById(req.session.userId);
+    if (!callerClose || callerClose.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const id = parseInt(req.params.id);
       const { reason } = z.object({ reason: z.string().optional() }).parse(req.body);
@@ -5112,7 +5224,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
       const depositAmount = (grandTotal * 0.50).toFixed(2);
       const finalAmount = (grandTotal * 0.50).toFixed(2);
-      const referenceNo = `TMG-${Date.now().toString(36).toUpperCase()}`;
+      const referenceNo = `TMG-${randomBytes(6).toString("hex").toUpperCase()}`;
 
       // Hold expiry: 48 hours from submission
       const slotHeldUntil = new Date(Date.now() + 48 * 60 * 60 * 1000);
@@ -6840,7 +6952,7 @@ Return ONLY valid JSON.`,
           };
         });
 
-        const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
+        const refNo = `TMG-${randomBytes(6).toString("hex").toUpperCase()}`;
 
         // ── D&R bundle discount: 40% off dismantle when same quote has both dismantle AND install ──
         const drPctWA = PricingConfig.fallback.relocateDRDiscount;
@@ -7101,7 +7213,7 @@ Return ONLY valid JSON.`,
           `3️⃣ Our crew arrives on the day — all done! 🎉\n\n` +
           `💳 *Pay deposit now:* Our team will send the PayNow / card link shortly.\n\n` +
           `Need to add or change anything? Just reply here! 😊\n\n` +
-          `Track your quote: ${APP_URL}/quotes/${quote.id}`
+          `Track your quote: ${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`
         );
 
         // Notify admin
@@ -7283,7 +7395,7 @@ Respond directly — no JSON, just the message text.`,
       if (!quote) return res.status(404).json({ message: "Quote not found" });
 
       const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.5;
-      const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+      const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
       const stripeUrl = await createStripePaymentLink(
         `Deposit for ${quote.referenceNo} — TMG Install`,
         depositAmt,
@@ -7397,7 +7509,7 @@ Respond directly — no JSON, just the message text.`,
       : `${APP_URL}/pay/${quote.referenceNo}`;
 
     // Generate fresh Stripe link so the snippet works even after old links expire.
-    const quotePageUrl = `${APP_URL}/quotes/${quote.id}`;
+    const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
     const stripeUrl = await createStripePaymentLink(
       type === "final"
         ? `Balance Payment for ${quote.referenceNo} — TMG Install`
@@ -8854,7 +8966,7 @@ Respond directly — no JSON, just the message text.`,
     const laborTotalWithSurcharges = laborSubtotalAdmin + floorSurcharge + accessSurcharge;
     const grandTotal = laborSubtotalAdmin + floorSurcharge + accessSurcharge + transportFee + calloutFeeAdmin;
 
-    const refNo = `TMG-${randomBytes(2).toString("hex").toUpperCase()}`;
+    const refNo = `TMG-${randomBytes(6).toString("hex").toUpperCase()}`;
     const finalStructuredState = (session as any).structuredState
       ? (() => { try { return JSON.parse((session as any).structuredState); } catch { return null; } })()
       : null;
@@ -8933,7 +9045,7 @@ Respond directly — no JSON, just the message text.`,
         `💰 *Total: $${grandTotal.toFixed(2)}*\n` +
         `⬇️ *Deposit (50%): $${adminDepositAmt}*\n\n` +
         `To confirm your booking, please make the *50% deposit ($${adminDepositAmt})* via PayNow/bank transfer — our team will send payment details shortly.\n\n` +
-        `Track your quote: ${APP_URL}/quotes/${quote.id}\n\n` +
+        `Track your quote: ${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}\n\n` +
         `Thanks for choosing TMG Install! 🙏 Reply *hi* anytime for a new quote.`
       );
     } catch (waErr) {

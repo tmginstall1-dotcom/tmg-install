@@ -91,7 +91,8 @@ const fadeUp = (delay = 0) => ({
 export default function QuoteStatus() {
   const params = useParams();
   const id = params.id!;
-  const { data: quote, isLoading } = useQuote(id);
+  const refNo = new URLSearchParams(window.location.search).get("ref") ?? undefined;
+  const { data: quote, isLoading } = useQuote(id, refNo);
   useSEO({
     title: quote ? `Quote ${quote.referenceNo} | TMG Install` : "Your Quote | TMG Install",
     description: "View your furniture installation quote status, pay your deposit, and manage your booking with TMG Install.",
@@ -132,10 +133,15 @@ export default function QuoteStatus() {
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
-    if (p.get("payment_success") === "1" && p.get("session_id")) {
+    const sessionId = p.get("session_id");
+    if (p.get("payment_success") === "1" && sessionId) {
       setVerifying(true);
-      window.history.replaceState({}, "", window.location.pathname);
-      apiRequest("POST", `/api/quotes/${id}/verify-payment`, { session_id: p.get("session_id") })
+      // Remove transient payment params but preserve ?ref= so unauthenticated quote access stays valid
+      p.delete("payment_success");
+      p.delete("session_id");
+      const cleanSearch = p.toString() ? `?${p.toString()}` : "";
+      window.history.replaceState({}, "", window.location.pathname + cleanSearch);
+      apiRequest("POST", `/api/quotes/${id}/verify-payment`, { session_id: sessionId, referenceNo: refNo })
         .then(() => {
           setPaymentVerified(true);
           queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
@@ -165,7 +171,7 @@ export default function QuoteStatus() {
   const handleReschedule = async () => {
     if (!rescheduleDate || !rescheduleTime) return toast({ title: "Please select a new date and time slot", variant: "destructive" });
     try {
-      await rescheduleMutation.mutateAsync({ id, scheduledAt: new Date(rescheduleDate).toISOString(), timeWindow: rescheduleTime });
+      await rescheduleMutation.mutateAsync({ id, scheduledAt: new Date(rescheduleDate).toISOString(), timeWindow: rescheduleTime, referenceNo: quote?.referenceNo });
       setShowReschedule(false);
       toast({ title: "Reschedule Requested", description: "Pending admin confirmation. You'll receive a confirmation email." });
     } catch (e: any) {

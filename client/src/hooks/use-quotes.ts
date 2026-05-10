@@ -40,12 +40,13 @@ export function useSchedule() {
   });
 }
 
-export function useQuote(id: string | number) {
+export function useQuote(id: string | number, refNo?: string) {
   return useQuery({
-    queryKey: [api.quotes.get.path, id],
+    queryKey: [api.quotes.get.path, id, refNo],
     queryFn: async () => {
       if (!id) return null;
-      const url = `${API_BASE}${buildUrl(api.quotes.get.path, { id })}`;
+      const base = `${API_BASE}${buildUrl(api.quotes.get.path, { id })}`;
+      const url = refNo ? `${base}?ref=${encodeURIComponent(refNo)}` : base;
       const res = await fetch(url, { credentials: "include" });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch quote");
@@ -175,11 +176,11 @@ export function useConfirmBooking() {
 export function useRescheduleBooking() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, scheduledAt, timeWindow }: { id: number | string; scheduledAt: string; timeWindow: string }) => {
+    mutationFn: async ({ id, scheduledAt, timeWindow, referenceNo }: { id: number | string; scheduledAt: string; timeWindow: string; referenceNo?: string }) => {
       const res = await fetch(`${API_BASE}/api/quotes/${id}/booking-reschedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduledAt, timeWindow }),
+        body: JSON.stringify({ scheduledAt, timeWindow, referenceNo }),
         credentials: "include",
       });
       if (!res.ok) {

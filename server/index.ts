@@ -560,6 +560,33 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
       );
     `));
 
+    // ── One-time migration: rotate weak reference numbers to 48-bit random values ─
+    // Weak refs: timestamp-based (TMG-digits) or short hex (TMG-XXXX / TMG-XXXXXXXX)
+    // Strong refs: exactly 12 uppercase hex chars after TMG- (= randomBytes(6))
+    await withRetry(() => pool.query(`
+      DO $$
+      DECLARE
+        q   RECORD;
+        new_ref TEXT;
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM app_settings WHERE key = 'mig_rotate_weak_refs_v1') THEN
+          FOR q IN
+            SELECT id FROM quotes
+            WHERE reference_no !~ '^TMG-[0-9A-F]{12}$'
+          LOOP
+            LOOP
+              new_ref := 'TMG-' || upper(left(md5(random()::text || q.id::text || clock_timestamp()::text), 12));
+              EXIT WHEN NOT EXISTS (SELECT 1 FROM quotes WHERE reference_no = new_ref);
+            END LOOP;
+            UPDATE quotes SET reference_no = new_ref WHERE id = q.id;
+          END LOOP;
+          INSERT INTO app_settings (key, value)
+            VALUES ('mig_rotate_weak_refs_v1', 'done')
+            ON CONFLICT (key) DO NOTHING;
+        END IF;
+      END $$;
+    `));
+
     console.log("[startup] DB schema ready, TMG50 seeded.");
     await pool.end();
   } catch (e: any) {

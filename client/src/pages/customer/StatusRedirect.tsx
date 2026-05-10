@@ -11,7 +11,7 @@ export default function StatusRedirect() {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.id) {
-          setLocation(`/quotes/${data.id}`, { replace: true });
+          setLocation(`/quotes/${data.id}?ref=${encodeURIComponent(refNo)}`, { replace: true });
         } else {
           setLocation("/", { replace: true });
         }
