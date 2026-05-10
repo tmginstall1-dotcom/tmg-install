@@ -351,26 +351,28 @@ function Hero() {
         <div>Homes. Offices.<br />Move-outs.<br />Island-wide.</div>
       </div>
 
-      {/* CENTER WORDMARK — mobile pushed up so it doesn't fight the CTA */}
+      {/* CENTER WORDMARK — mobile pushed up so it doesn't fight the CTA.
+          Rendered directly (no scroll-reveal) since the hero is above the
+          fold on first paint — wrapping these in <Reveal> caused the
+          IntersectionObserver to miss the initial mount at scrollY=0,
+          leaving the entire centre of the hero blank. */}
       <div className="absolute inset-x-0 top-[26%] md:top-auto md:inset-0 md:flex md:items-center md:justify-center z-10 px-4 pointer-events-none">
         <div className="text-center">
-          <Reveal delay={0.05}>
-            <h1
-              className="font-serif italic tracking-[-0.04em] leading-[0.82] text-black"
-              style={{ fontSize: "clamp(110px, 28vw, 360px)", fontWeight: 900 }}
-              data-testid="hero-headline"
-            >
-              TMG
-            </h1>
-          </Reveal>
-          <Reveal delay={0.18} className="mt-2 md:mt-5">
+          <h1
+            className="font-serif italic tracking-[-0.04em] leading-[0.82] text-black"
+            style={{ fontSize: "clamp(110px, 28vw, 360px)", fontWeight: 900 }}
+            data-testid="hero-headline"
+          >
+            TMG
+          </h1>
+          <div className="mt-2 md:mt-5">
             <div className="text-[11px] md:text-[18px] tracking-[0.42em] md:tracking-[0.55em] uppercase font-bold">
               Install <span style={{ color: ACCENT }}>·</span> Dismantle <span style={{ color: ACCENT }}>·</span> Relocate
             </div>
             <div className="mt-1 text-[10px] md:text-[12px] tracking-[0.3em] uppercase font-bold opacity-60">
               Singapore — island-wide
             </div>
-          </Reveal>
+          </div>
         </div>
       </div>
 
