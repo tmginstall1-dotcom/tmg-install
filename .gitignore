@@ -7,6 +7,5 @@ vite.config.ts.*
 # Android keystore files (contains private signing keys — never commit)
 *.keystore
 *.keystore.b64
-!android/app/tmg-staff-release.keystore.b64
-# The release keystore for CI builds is committed intentionally (internal-use app)
-!android/app/tmg-staff-release.keystore
+# Firebase service account credentials — store in FIREBASE_SERVICE_ACCOUNT env var
+attached_assets/*firebase-adminsdk*.json
