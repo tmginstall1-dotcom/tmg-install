@@ -1442,13 +1442,13 @@ function AssemblyScroll() {
           <span className="opacity-60">Singapore — island-wide</span>
         </div>
 
-        <div className="grid grid-cols-12 h-full">
-          <div className="col-span-6 relative z-[3]">
+        <div className="flex w-full h-screen">
+          <div className="relative w-1/2 h-screen z-[3]">
             {STORY.map((s, i) => (
               <ChapterCard key={s.no} chapter={s} index={i} scrollYProgress={scrollYProgress} />
             ))}
           </div>
-          <div className="col-span-6 relative border-l" style={{ borderColor: LINE }}>
+          <div className="relative w-1/2 h-screen border-l" style={{ borderColor: LINE }}>
             {STORY.map((s, i) => (
               <ChapterMedia
                 key={`d-${s.no}`}
