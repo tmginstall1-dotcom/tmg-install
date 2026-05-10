@@ -111,21 +111,20 @@ jobs:
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 90
 
-      # ── Release APK (always built — uses committed keystore for consistent signing) ─
-      # The keystore android/app/tmg-staff-release.keystore is committed to the repo.
-      # If KEYSTORE_BASE64 secret is set it overrides this with a more secure key (CI secret).
-      # Without consistent signing, Android rejects updates with "package conflicts" error.
+      # ── Release APK — requires keystore secrets ───────────────────────────────
+      # KEYSTORE_BASE64, KEYSTORE_PASSWORD, and KEY_ALIAS must be set as
+      # GitHub Actions repository secrets. The keystore is never committed to the repo.
       - name: Build Release APK (signed — for direct install)
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
         run: |
           cd android
           ./gradlew assembleRelease --no-daemon
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
           KEYSTORE_PATH: ${{ github.workspace }}/android/app/tmg-staff-release.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'TMGInstall2024!' }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'tmg-staff' }}
 
       - name: Upload Signed Release APK
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: tmg-staff-release-apk
@@ -135,10 +134,12 @@ jobs:
       # ── Publish APK to GitHub Releases (permanent public download link) ───────
 
       - name: Prepare APK for release (consistent filename)
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
         run: |
           cp android/app/build/outputs/apk/release/app-release.apk tmg-install.apk
 
       - name: Publish APK as GitHub Release (latest-build)
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-build
@@ -157,12 +158,15 @@ jobs:
       # ── Auto-notify server: staff apps show update banner immediately ──────────
 
       - name: Notify server of new build (OTA auto-update)
+        if: ${{ secrets.BUILD_WEBHOOK_TOKEN != '' }}
+        env:
+          BUILD_WEBHOOK_TOKEN: ${{ secrets.BUILD_WEBHOOK_TOKEN }}
         run: |
           RUN_NUM=${{ github.run_number }}
           RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             "https://tmg-install-project--tmginstall.replit.app/api/system/build-complete" \
             -H "Content-Type: application/json" \
-            -d "{\"token\":\"71b6a589b4d46338fa149e8371ddaa9878f71a07ad831cada2864bd3231178b1\",\"version\":\"v1.0.${RUN_NUM}\",\"apkUrl\":\"https://github.com/tmginstall1-dotcom/tmg-install/releases/download/latest-build/tmg-install.apk\"}")
+            -d "{\"token\":\"${BUILD_WEBHOOK_TOKEN}\",\"version\":\"v1.0.${RUN_NUM}\",\"apkUrl\":\"https://github.com/tmginstall1-dotcom/tmg-install/releases/download/latest-build/tmg-install.apk\"}")
           echo "Server response HTTP: $RESULT"
           if [ "$RESULT" = "200" ]; then
             echo "Server notified — v1.0.${RUN_NUM} is now the latest version"

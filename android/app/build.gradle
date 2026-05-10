@@ -38,11 +38,19 @@ android {
     // set the environment variables before running ./gradlew assembleRelease.
     signingConfigs {
         release {
-            def keystoreFile = System.getenv("KEYSTORE_PATH") ?: "${projectDir}/tmg-staff-release.keystore"
-            storeFile file(keystoreFile)
-            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "TMGInstall2024!"
-            keyAlias System.getenv("KEY_ALIAS") ?: "tmg-staff"
-            keyPassword System.getenv("KEYSTORE_PASSWORD") ?: "TMGInstall2024!"
+            def ksPath = System.getenv("KEYSTORE_PATH")
+            def ksPassword = System.getenv("KEYSTORE_PASSWORD")
+            def ksAlias = System.getenv("KEY_ALIAS")
+            if (!ksPath || !ksPassword || !ksAlias) {
+                throw new GradleException(
+                    "Release signing requires KEYSTORE_PATH, KEYSTORE_PASSWORD, and KEY_ALIAS " +
+                    "environment variables. Set them from GitHub Actions secrets before building."
+                )
+            }
+            storeFile file(ksPath)
+            storePassword ksPassword
+            keyAlias ksAlias
+            keyPassword ksPassword
         }
     }
 

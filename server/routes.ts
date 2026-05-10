@@ -8370,8 +8370,11 @@ Respond directly — no JSON, just the message text.`,
   // Called by the GitHub Actions workflow after APK is published.
   // No admin session needed — protected by BUILD_WEBHOOK_TOKEN.
   app.post("/api/system/build-complete", async (req, res) => {
-    const FALLBACK_TOKEN = "71b6a589b4d46338fa149e8371ddaa9878f71a07ad831cada2864bd3231178b1";
-    const expectedToken = process.env.BUILD_WEBHOOK_TOKEN || FALLBACK_TOKEN;
+    const expectedToken = process.env.BUILD_WEBHOOK_TOKEN;
+    if (!expectedToken) {
+      console.error("[Build] BUILD_WEBHOOK_TOKEN env var is not set — webhook disabled");
+      return res.status(503).json({ message: "Webhook not configured" });
+    }
     const { token, version, apkUrl } = req.body as { token?: string; version?: string; apkUrl?: string };
     if (!token || token !== expectedToken) {
       return res.status(401).json({ message: "Unauthorized" });
