@@ -3220,8 +3220,13 @@ Category rules:
       // Public: refNo is a 48-bit random token — knowing it proves ownership.
       // Return only the numeric id so the frontend can redirect to the quote page.
       // Admin callers receive this same minimal response; full detail comes via GET /api/quotes/:id.
+      // Also matches legacyReferenceNos so old customer-facing links keep working.
+      const refParam = req.params.refNo;
       const quotes = await storage.getQuotes();
-      const quote = quotes.find(q => q.referenceNo === req.params.refNo);
+      const quote = quotes.find(q =>
+        q.referenceNo === refParam ||
+        (q.legacyReferenceNos ?? []).includes(refParam)
+      );
       if (!quote) return res.status(404).json({ message: "Quote not found" });
       res.json({ id: quote.id });
     } catch (err) {
@@ -3236,7 +3241,12 @@ Category rules:
     try {
       const refNo = req.params.ref.toUpperCase();
       const isFinal = req.query.type === "final";
-      const [quote] = await db.select().from(quotesTable).where(eq(quotesTable.referenceNo, refNo)).limit(1);
+      const [quote] = await db.select().from(quotesTable).where(
+        or(
+          eq(quotesTable.referenceNo, refNo),
+          drizzleSql`${quotesTable.legacyReferenceNos} @> ARRAY[${refNo}]::text[]`
+        )
+      ).limit(1);
       if (!quote) return res.redirect(`${APP_URL}/quotes`);
 
       const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
@@ -3277,7 +3287,12 @@ Category rules:
   app.get("/api/public/track/:referenceNo", async (req, res) => {
     try {
       const refNo = req.params.referenceNo.toUpperCase();
-      const [quote] = await db.select().from(quotesTable).where(eq(quotesTable.referenceNo, refNo)).limit(1);
+      const [quote] = await db.select().from(quotesTable).where(
+        or(
+          eq(quotesTable.referenceNo, refNo),
+          drizzleSql`${quotesTable.legacyReferenceNos} @> ARRAY[${refNo}]::text[]`
+        )
+      ).limit(1);
       if (!quote) return res.status(404).json({ message: "Job not found" });
 
       let installerName: string | null = null;
@@ -3320,6 +3335,7 @@ Category rules:
         updates: publicUpdates,
       });
     } catch (err) {
+      console.error("[public/track] error:", err);
       res.status(500).json({ message: "Internal error" });
     }
   });
@@ -3838,9 +3854,12 @@ ${systemPrompt}` });
       return res.json(quote);
     }
 
-    // Unauthenticated customer path: require referenceNo as ownership proof
+    // Unauthenticated customer path: require referenceNo as ownership proof.
+    // Accept either the current referenceNo or any legacyReferenceNos the
+    // customer was previously sent — both are 48-bit-or-stronger tokens.
     const refParam = req.query.ref as string | undefined;
-    if (!refParam || refParam !== quote.referenceNo) {
+    const legacyOk = !!refParam && (quote.legacyReferenceNos ?? []).includes(refParam);
+    if (!refParam || (refParam !== quote.referenceNo && !legacyOk)) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -7742,7 +7761,12 @@ Respond directly — no JSON, just the message text.`,
     try {
       const refNo = String(req.params.refNo || "").toUpperCase();
       if (!refNo) return res.status(400).json({ message: "Invalid reference" });
-      const [row] = await db.select().from(quotesTable).where(eq(quotesTable.referenceNo, refNo)).limit(1);
+      const [row] = await db.select().from(quotesTable).where(
+        or(
+          eq(quotesTable.referenceNo, refNo),
+          drizzleSql`${quotesTable.legacyReferenceNos} @> ARRAY[${refNo}]::text[]`
+        )
+      ).limit(1);
       if (!row) return res.status(404).json({ message: "Invoice not found" });
       let quote = await storage.getQuote(row.id);
       if (!quote) return res.status(404).json({ message: "Invoice not found" });

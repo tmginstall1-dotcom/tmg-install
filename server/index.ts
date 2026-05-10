@@ -644,6 +644,64 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
       END $$;
     `));
 
+    // ── Add legacy_reference_nos column (idempotent) ─────────────────────────
+    // Stores previously-issued reference numbers so old customer-facing links
+    // (e.g. WhatsApp/email tracking links) still resolve to the same quote
+    // after the weak-ref rotation migration above replaced their referenceNo.
+    await withRetry(() => pool.query(`
+      ALTER TABLE quotes
+        ADD COLUMN IF NOT EXISTS legacy_reference_nos TEXT[];
+    `));
+    await withRetry(() => pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_quotes_legacy_reference_nos
+        ON quotes USING GIN (legacy_reference_nos);
+    `));
+
+    // ── One-time backfill: known legacy refs whose owners were already sent
+    // links before the v1 rotation migration ran. Each entry maps a current
+    // (post-rotation) referenceNo → the legacy refNo to preserve. Add new
+    // mappings here as customers report broken old links.
+    //
+    // The migration flag is only set to "done" if the UPDATE actually
+    // affected a row. If the target row is missing (e.g. when running
+    // against an environment where the post-rotation refNo differs), the
+    // flag stores "skipped" so the next deploy will retry rather than
+    // silently swallow the remediation.
+    await withRetry(() => pool.query(`
+      DO $$
+      DECLARE
+        rows_updated INT;
+        flag_value TEXT;
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM app_settings WHERE key = 'mig_backfill_legacy_refs_v1') THEN
+          UPDATE quotes
+             SET legacy_reference_nos = ARRAY(
+               SELECT DISTINCT x FROM unnest(
+                 COALESCE(legacy_reference_nos, ARRAY[]::TEXT[]) || ARRAY['TMG-MOQZ8VQG']
+               ) AS x
+             )
+           WHERE reference_no = 'TMG-858D61DC693D';
+          GET DIAGNOSTICS rows_updated = ROW_COUNT;
+          IF rows_updated > 0 THEN
+            flag_value := 'done';
+          ELSE
+            flag_value := 'skipped:no-target-row';
+            RAISE NOTICE '[mig_backfill_legacy_refs_v1] target row TMG-858D61DC693D not found in this DB; will retry on next start';
+          END IF;
+          INSERT INTO app_settings (key, value)
+            VALUES ('mig_backfill_legacy_refs_v1', flag_value)
+            ON CONFLICT (key) DO NOTHING;
+        END IF;
+      END $$;
+    `));
+    // Allow retry: if the previous attempt was skipped because the target
+    // row didn't exist yet, clear the flag so the next startup retries.
+    await withRetry(() => pool.query(`
+      DELETE FROM app_settings
+        WHERE key = 'mig_backfill_legacy_refs_v1'
+          AND value LIKE 'skipped:%';
+    `));
+
     console.log("[startup] DB schema ready, TMG50 seeded.");
     await pool.end();
   } catch (e: any) {

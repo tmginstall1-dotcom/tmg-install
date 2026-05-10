@@ -293,6 +293,11 @@ export type WhatsAppSession = typeof whatsappSessions.$inferSelect;
 export const quotes = pgTable("quotes", {
   id: serial("id").primaryKey(),
   referenceNo: text("reference_no").notNull().unique(),
+  // Old reference numbers that previously identified this quote. When the
+  // weak-ref rotation migration replaced the customer-facing referenceNo,
+  // the original value(s) are kept here so that links/emails/WhatsApp
+  // messages already in customers' hands still resolve to the same quote.
+  legacyReferenceNos: text("legacy_reference_nos").array(),
   customerId: integer("customer_id").references(() => customers.id),
   serviceAddress: text("service_address").notNull(),
   status: text("status").notNull().default("submitted"),
