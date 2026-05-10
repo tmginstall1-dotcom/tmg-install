@@ -899,7 +899,7 @@ export default function EstimateWizard() {
         fetch(`/api/partial-leads/${partialLeadToken}/complete`, { method: "POST" }).catch(() => {});
       }
 
-      setLocation(`/quotes/${quote.id}`);
+      setLocation(`/quotes/${quote.id}?ref=${encodeURIComponent(quote.referenceNo)}`);
     } catch (err: any) {
       setSubmitError(err.message || "Failed to submit. Please try again.");
       setIsSubmitting(false);
