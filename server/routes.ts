@@ -7,7 +7,7 @@ import { servicesHubPage, ikeaAssemblyPage, wardrobeInstallationPage, bedAssembl
 import { api } from "@shared/routes";
 import { initVapid, getVapidPublicKey, addSubscription, removeSubscription, sendPushToAdmins } from "./push";
 import { z } from "zod";
-import { randomBytes } from "crypto";
+import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { execSync } from "child_process";
 import fs from "fs";
 import os from "os";
@@ -5399,6 +5399,29 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
   // ── WhatsApp Incoming Message Handler (POST) ──────────────────────────────
   app.post("/api/webhooks/whatsapp", async (req, res) => {
+    // ── Verify Meta's X-Hub-Signature-256 HMAC before processing anything ─────
+    const appSecret = process.env.META_APP_SECRET;
+    if (!appSecret) {
+      console.error("[WhatsApp] META_APP_SECRET not configured — rejecting all webhook POSTs");
+      return res.status(500).json({ message: "Webhook secret not configured" });
+    }
+    const sigHeader = Array.isArray(req.headers["x-hub-signature-256"])
+      ? req.headers["x-hub-signature-256"][0]
+      : req.headers["x-hub-signature-256"];
+    const rawBody = req.rawBody as Buffer | undefined;
+    if (!sigHeader || !rawBody) {
+      console.warn("[WhatsApp] Webhook rejected — missing signature or raw body");
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    const expected = "sha256=" + createHmac("sha256", appSecret).update(rawBody).digest("hex");
+    const sigBuf = Buffer.from(sigHeader);
+    const expBuf = Buffer.from(expected);
+    const signaturesMatch = sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
+    if (!signaturesMatch) {
+      console.warn("[WhatsApp] Webhook rejected — HMAC signature mismatch");
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     res.status(200).json({ status: "ok" }); // Always ack quickly
 
     try {
@@ -8176,6 +8199,9 @@ Respond directly — no JSON, just the message text.`,
 
   // ── Admin: WhatsApp Token Settings ────────────────────────────────────────
   app.post("/api/admin/settings/whatsapp-token", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const callerWt = await storage.getUserById(req.session.userId);
+    if (!callerWt || callerWt.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const { token } = req.body as { token?: string };
     if (!token || typeof token !== "string" || token.trim().length < 20) {
       return res.status(400).json({ message: "Invalid token" });
@@ -8190,7 +8216,10 @@ Respond directly — no JSON, just the message text.`,
   });
 
   // ── WhatsApp token status check ────────────────────────────────────────────
-  app.get("/api/admin/whatsapp/token-status", async (_req, res) => {
+  app.get("/api/admin/whatsapp/token-status", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const callerTs = await storage.getUserById(req.session.userId);
+    if (!callerTs || callerTs.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const token = await getAccessToken();
       if (!token) return res.json({ status: "missing", message: "No token configured" });
@@ -8589,6 +8618,9 @@ Respond directly — no JSON, just the message text.`,
 
   // ── Subscribe WABA to app webhook (required for Cloud API to send messages) ─
   app.post("/api/admin/whatsapp/subscribe-waba", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const callerSw = await storage.getUserById(req.session.userId);
+    if (!callerSw || callerSw.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const token = await getAccessToken();
     if (!token) return res.status(500).json({ message: "No WhatsApp access token configured" });
     const WABA_ID = "2118758868886697";
