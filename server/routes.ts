@@ -3848,8 +3848,9 @@ ${systemPrompt}` });
       if (!caller) return res.status(401).json({ message: "Not logged in" });
       if (caller.role !== "admin") {
         const teammateIds = await storage.getTeammateIds(caller.id);
-        const isAssigned = quote.assignedStaffId != null && teammateIds.includes(quote.assignedStaffId);
-        if (!isAssigned) return res.status(403).json({ message: "Forbidden" });
+        const isAssignedToStaff = quote.assignedStaffId != null && teammateIds.includes(quote.assignedStaffId);
+        const isAssignedToTeam = quote.assignedTeamId != null && caller.teamId != null && quote.assignedTeamId === caller.teamId;
+        if (!isAssignedToStaff && !isAssignedToTeam) return res.status(403).json({ message: "Forbidden" });
       }
       return res.json(quote);
     }
