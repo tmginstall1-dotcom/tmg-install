@@ -1296,7 +1296,7 @@ export default function AdminQuoteDetail() {
     .footer {
       margin-top: 18px; padding-top: 14px;
       border-top: 1px solid var(--line);
-      display: grid; grid-template-columns: 1fr 220px; gap: 24px;
+      display: grid; grid-template-columns: 1fr 280px; gap: 24px;
       align-items: flex-end;
       page-break-inside: avoid; break-inside: avoid;
     }
@@ -1308,28 +1308,30 @@ export default function AdminQuoteDetail() {
     .sig-box {
       position: relative;
       border: 1px solid var(--line); border-radius: 6px;
-      padding: 10px 16px 12px; background: #fff;
-      display: flex; flex-direction: column; align-items: stretch;
+      padding: 14px 16px 14px; background: #fff;
+      min-height: 110px;
+      display: flex; flex-direction: column; align-items: stretch; justify-content: flex-end;
       overflow: visible;
     }
-    .sig-line { height: 36px; border-bottom: 1px solid var(--line-2); margin-bottom: 6px; }
+    .sig-line { height: 40px; border-bottom: 1px solid var(--line-2); margin-bottom: 8px; }
     .sig-label {
-      font-size: 8.5px; color: var(--muted); text-align: center;
+      font-size: 8.5px; color: var(--muted); text-align: left;
       font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
-      line-height: 1.4;
+      line-height: 1.5;
+      max-width: 60%;
     }
     .sig-label .sig-name { display: block; color: var(--ink); font-weight: 700; margin-bottom: 1px; letter-spacing: 0.04em; }
+    .sig-label.sig-label-center { text-align: center; max-width: 100%; }
 
     /* Company rubber stamp — slightly rotated, semi-transparent navy ink.
-       All fill/stroke is set as SVG attributes (not CSS) because iOS Safari's
-       print engine often ignores CSS classes inside SVG, which previously made
-       the stamp render as a solid black disc. */
+       All fill/stroke is inline SVG attributes (not CSS) because iOS Safari's
+       print engine ignores CSS classes inside SVG. */
     .company-stamp {
       position: absolute;
-      top: -8px; right: 4px;
-      width: 104px; height: 104px;
-      transform: rotate(-12deg);
-      opacity: 0.82;
+      top: 4px; right: 6px;
+      width: 96px; height: 96px;
+      transform: rotate(-8deg);
+      opacity: 0.85;
       pointer-events: none;
     }
     .company-stamp svg { width: 100%; height: 100%; display: block; overflow: visible; }
@@ -1533,32 +1535,44 @@ export default function AdminQuoteDetail() {
       <div class="company-stamp" aria-hidden="true">
         <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
           <defs>
-            <path id="tmgStampTopArc" d="M 18,60 A 42,42 0 0 1 102,60" fill="none" />
-            <path id="tmgStampBottomArc" d="M 22,60 A 38,38 0 0 0 98,60" fill="none" />
+            <!-- Larger radius arcs so curved text sits cleanly between the two rings -->
+            <path id="tmgStampTopArc" d="M 16,60 A 44,44 0 0 1 104,60" fill="none" />
+            <path id="tmgStampBottomArc" d="M 20,60 A 40,40 0 0 0 100,60" fill="none" />
           </defs>
-          <circle cx="60" cy="60" r="54" fill="none" stroke="#1a3a7a" stroke-width="2.6" />
-          <circle cx="60" cy="60" r="46" fill="none" stroke="#1a3a7a" stroke-width="1" />
-          <text fill="#1a3a7a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="9.4" letter-spacing="1.2">
+          <!-- Outer thick ring -->
+          <circle cx="60" cy="60" r="55" fill="none" stroke="#15407a" stroke-width="2.4" />
+          <!-- Inner thin ring (defines the text band) -->
+          <circle cx="60" cy="60" r="38" fill="none" stroke="#15407a" stroke-width="0.9" />
+          <!-- Curved top text: company name -->
+          <text fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="8.2" letter-spacing="1.6">
             <textPath xlink:href="#tmgStampTopArc" href="#tmgStampTopArc" startOffset="50%" text-anchor="middle">
               THE MOVING GUY PTE LTD
             </textPath>
           </text>
-          <text fill="#1a3a7a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="6.8" letter-spacing="1.4">
+          <!-- Curved bottom text: UEN -->
+          <text fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="6.4" letter-spacing="1.8">
             <textPath xlink:href="#tmgStampBottomArc" href="#tmgStampBottomArc" startOffset="50%" text-anchor="middle">
-              UEN 202424156H \u2022 SINGAPORE
+              UEN 202424156H \u00B7 SINGAPORE
             </textPath>
           </text>
-          <line x1="24" y1="56" x2="96" y2="56" stroke="#1a3a7a" stroke-width="0.8" />
-          <line x1="24" y1="74" x2="96" y2="74" stroke="#1a3a7a" stroke-width="0.8" />
-          <text x="60" y="69" text-anchor="middle" fill="#1a3a7a" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="10.5" letter-spacing="1.4">AUTHORISED</text>
+          <!-- Side stars separating top and bottom text bands -->
+          <text x="9" y="63" text-anchor="middle" fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-size="8" font-weight="700">\u2605</text>
+          <text x="111" y="63" text-anchor="middle" fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-size="8" font-weight="700">\u2605</text>
+          <!-- Center block: thin horizontal rules + AUTHORISED -->
+          <line x1="30" y1="54" x2="90" y2="54" stroke="#15407a" stroke-width="0.7" />
+          <line x1="30" y1="76" x2="90" y2="76" stroke="#15407a" stroke-width="0.7" />
+          <text x="60" y="63" text-anchor="middle" fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="9.4" letter-spacing="1.6">AUTHORISED</text>
+          <text x="60" y="73" text-anchor="middle" fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="6.4" letter-spacing="1.8">SIGNATORY</text>
         </svg>
-      </div>` : ""}
+      </div>
       <div class="sig-line"></div>
       <div class="sig-label">
-        ${isInvoiceDoc
-          ? `<span class="sig-name">The Moving Guy Pte Ltd</span>Authorised Signatory`
-          : `<span class="sig-name">Customer</span>Signature &amp; Date`}
-      </div>
+        <span class="sig-name">The Moving Guy Pte Ltd</span>Authorised Signatory
+      </div>` : `
+      <div class="sig-line"></div>
+      <div class="sig-label sig-label-center">
+        <span class="sig-name">Customer</span>Signature &amp; Date
+      </div>`}
     </div>
   </div>
 
