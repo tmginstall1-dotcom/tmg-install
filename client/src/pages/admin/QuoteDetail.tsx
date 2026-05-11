@@ -1270,27 +1270,27 @@ export default function AdminQuoteDetail() {
 
     /* ── Terms & Conditions ────────────────────────────────────── */
     .tnc {
-      margin-top: 14px;
-      padding: 12px 14px;
+      margin-top: 12px;
+      padding: 8px 12px 9px;
       border: 1px solid var(--line);
       border-radius: 6px;
       page-break-inside: avoid; break-inside: avoid;
     }
     .tnc h3 {
-      font-size: 8.5px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.16em; color: var(--muted);
-      padding-bottom: 6px; margin-bottom: 8px;
+      font-size: 7px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.18em; color: var(--muted);
+      padding-bottom: 4px; margin-bottom: 5px;
       border-bottom: 1px solid var(--line);
     }
     .tnc ol {
-      padding-left: 14px;
-      column-count: 2; column-gap: 18px; column-rule: 1px solid var(--line);
+      padding-left: 11px;
+      column-count: 2; column-gap: 14px; column-rule: 1px solid var(--line);
     }
     .tnc li {
-      font-size: 8.5px; color: var(--ink-2); line-height: 1.6;
-      margin-bottom: 4px; break-inside: avoid;
+      font-size: 6.2px; color: var(--ink-2); line-height: 1.35;
+      margin-bottom: 1.5px; break-inside: avoid;
     }
-    .tnc li strong { color: var(--ink); }
+    .tnc li strong { color: var(--ink); font-weight: 600; }
 
     /* ── Footer ────────────────────────────────────────────────── */
     .footer {
