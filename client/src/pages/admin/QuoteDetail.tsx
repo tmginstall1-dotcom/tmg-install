@@ -1014,82 +1014,322 @@ export default function AdminQuoteDetail() {
   <meta charset="UTF-8" />
   <title>${q.referenceNo}</title>
   <style>
+    /* === TMG Install — professional invoice / quotation print template === */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    @page { size: A4; margin: 8mm; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11.5px; color: #111; background: #fff; padding: 18px 22px; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #000; }
-    .company h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
-    .company p { font-size: 10px; color: #555; margin-top: 2px; line-height: 1.5; }
-    .doc-meta { text-align: right; }
-    .doc-meta .ref { font-size: 16px; font-weight: 700; font-family: monospace; }
-    .doc-meta .label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #888; }
-    .doc-meta .status { display: inline-block; background: #000; color: #fff; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 99px; margin-top: 4px; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }
-    .card { background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px; page-break-inside: avoid; break-inside: avoid; }
-    .card-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
-    .card p { font-size: 11px; line-height: 1.6; color: #222; }
-    .card strong { color: #000; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-    th { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #666; font-weight: 700; text-align: left; padding: 8px 10px; border-bottom: 2px solid #000; }
-    th:last-child, td:last-child { text-align: right; }
-    th:nth-child(2), td:nth-child(2) { text-align: center; width: 60px; }
-    th:nth-child(3), td:nth-child(3) { text-align: right; width: 90px; }
-    td { padding: 6px 10px; border-bottom: 1px solid #eee; font-size: 11px; color: #333; vertical-align: top; }
-    tr { page-break-inside: avoid; break-inside: avoid; }
-    tr:last-child td { border-bottom: none; }
-    thead { display: table-header-group; }
-    .totals { margin-left: auto; width: 280px; page-break-inside: avoid; break-inside: avoid; }
-    .totals-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 11px; color: #444; }
-    .totals-row.grand { font-size: 15px; font-weight: 800; color: #000; border-top: 2px solid #000; margin-top: 6px; padding-top: 8px; }
-    .payment-section { margin-top: 14px; display: flex; gap: 16px; align-items: flex-start; padding: 10px 14px; background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; page-break-inside: avoid; break-inside: avoid; page-break-before: avoid; break-before: avoid; }
-    .payment-details { flex: 1; }
-    .payment-details h3 { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 6px; }
-    .payment-details table { margin-bottom: 0; }
-    .payment-details table th, .payment-details table td { padding: 2px 8px; font-size: 10px; border-bottom: none; text-align: left; }
-    .payment-details table th { width: 110px; color: #888; font-weight: 600; background: none; border: none; }
-    .payment-details table td { color: #111; font-weight: 500; }
-    .qr-block { text-align: center; flex-shrink: 0; }
-    .qr-block img { width: 100px; height: 80px; display: block; object-fit: contain; background: #fff; }
-    .qr-block p { font-size: 8px; color: #999; margin-top: 2px; }
-    .tnc { margin-top: 14px; padding: 10px 14px; border: 1px solid #e5e5e5; border-radius: 8px; page-break-inside: avoid; break-inside: avoid; }
-    .tnc h3 { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
-    .tnc ol { padding-left: 14px; }
-    .tnc li { font-size: 9px; color: #555; line-height: 1.7; }
-    .footer { margin-top: 14px; padding-top: 10px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: flex-end; page-break-inside: avoid; break-inside: avoid; }
-    .footer p { font-size: 9px; color: #999; line-height: 1.7; }
-    .sig-box { border: 1px dashed #ccc; border-radius: 6px; padding: 10px 16px; min-width: 180px; }
-    .sig-box .sig-label { font-size: 9px; color: #999; margin-top: 24px; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
-    .badge-paid { background: #dcfce7; color: #166534; }
-    .badge-partial { background: #fef9c3; color: #713f12; }
-    .badge-unpaid { background: #fee2e2; color: #991b1b; }
+    @page { size: A4; margin: 10mm; }
+
+    :root {
+      --ink: #0f172a;          /* slate-900 — headings, total */
+      --ink-2: #334155;        /* slate-700 — body */
+      --muted: #64748b;        /* slate-500 — labels */
+      --muted-2: #94a3b8;      /* slate-400 — small print */
+      --line: #e2e8f0;         /* slate-200 — dividers */
+      --line-2: #cbd5e1;       /* slate-300 — strong dividers */
+      --bg-soft: #f8fafc;      /* slate-50 — card fill */
+      --bg-soft-2: #f1f5f9;    /* slate-100 — table head */
+      --accent: #0f172a;       /* charcoal — primary */
+      --accent-2: #1e293b;     /* slate-800 — secondary */
+      --green: #166534;
+      --green-soft: #dcfce7;
+      --green-line: #86efac;
+      --amber: #b45309;
+      --amber-soft: #fef3c7;
+      --red: #991b1b;
+      --red-soft: #fee2e2;
+    }
+
+    html, body { background: #fff; }
+    body {
+      font-family: 'Inter', 'Helvetica Neue', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 11px;
+      line-height: 1.55;
+      color: var(--ink-2);
+      padding: 24px 28px;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: 'tnum' 1, 'lnum' 1;
+    }
+
+    /* numerical text: tabular figures so currency lines up cleanly */
+    .num, td.amount, .totals-row span:last-child, .pay-grid dd {
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      padding-bottom: 14px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+      position: relative;
+    }
+    .header::after {
+      content: "";
+      position: absolute; left: 0; right: 0; bottom: -1px; height: 3px;
+      background: var(--accent);
+      width: 56px;
+    }
+    .brand { display: flex; align-items: flex-start; gap: 12px; }
+    .brand-mark {
+      width: 40px; height: 40px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 16px; letter-spacing: -0.02em;
+      flex-shrink: 0;
+    }
+    .company h1 {
+      font-size: 17px; font-weight: 700; letter-spacing: -0.015em;
+      color: var(--ink); line-height: 1.2;
+    }
+    .company .tagline {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--muted); margin-top: 2px; font-weight: 600;
+    }
+    .company p.contact {
+      font-size: 9.5px; color: var(--muted); margin-top: 6px; line-height: 1.55;
+    }
+
+    .doc-meta { text-align: right; min-width: 200px; }
+    .doc-meta .label {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.18em; color: var(--muted);
+    }
+    .doc-meta .ref {
+      font-size: 18px; font-weight: 700; color: var(--ink);
+      letter-spacing: -0.01em; font-feature-settings: 'tnum' 1;
+      margin-top: 2px;
+    }
+    .doc-meta .sub-ref {
+      font-size: 9px; color: var(--muted-2); margin-top: 2px;
+      font-feature-settings: 'tnum' 1;
+    }
+    .meta-grid {
+      margin-top: 8px;
+      display: grid; grid-template-columns: auto auto; gap: 2px 10px;
+      justify-content: end; font-size: 9.5px;
+    }
+    .meta-grid dt { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 8.5px; font-weight: 600; }
+    .meta-grid dd { color: var(--ink); font-weight: 600; text-align: right; }
+
+    /* ── Cards (Bill To / Job Details) ─────────────────────────── */
+    .grid2 {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: var(--bg-soft);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px 14px;
+      page-break-inside: avoid; break-inside: avoid;
+    }
+    .card-title {
+      font-size: 8.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.16em; color: var(--muted);
+      padding-bottom: 6px; margin-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    .card p { font-size: 10.5px; line-height: 1.6; color: var(--ink-2); margin: 0; }
+    .card p + p { margin-top: 1px; }
+    .card .name { font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+    .card .kv { display: flex; gap: 6px; }
+    .card .kv .k { color: var(--muted); font-weight: 600; min-width: 78px; }
+    .card .kv .v { color: var(--ink); flex: 1; }
+
+    /* ── Items table ───────────────────────────────────────────── */
+    table.items { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    table.items thead th {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--muted); font-weight: 700; text-align: left;
+      padding: 9px 12px;
+      background: var(--bg-soft-2);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    table.items thead th:nth-child(1) { width: auto; }
+    table.items thead th:nth-child(2) { width: 50px; text-align: center; }
+    table.items thead th:nth-child(3) { width: 90px; text-align: right; }
+    table.items thead th:nth-child(4) { width: 100px; text-align: right; }
+    table.items tbody td {
+      padding: 8px 12px; font-size: 10.5px; color: var(--ink-2);
+      vertical-align: top; border-bottom: 1px solid var(--line);
+    }
+    table.items tbody td:first-child { color: var(--ink); font-weight: 500; }
+    table.items tbody td:nth-child(2) { text-align: center; color: var(--ink); }
+    table.items tbody td:nth-child(3),
+    table.items tbody td:nth-child(4) { text-align: right; font-variant-numeric: tabular-nums; }
+    table.items tbody td:nth-child(4) { color: var(--ink); font-weight: 600; }
+    table.items tbody tr:last-child td { border-bottom: 1px solid var(--line-2); }
+    table.items tr { page-break-inside: avoid; break-inside: avoid; }
+    table.items thead { display: table-header-group; }
+    .item-remark { font-size: 9px; color: var(--muted); margin-top: 3px; line-height: 1.5; font-style: italic; }
+
+    /* ── Totals ────────────────────────────────────────────────── */
+    .totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+    .totals {
+      width: 320px;
+      page-break-inside: avoid; break-inside: avoid;
+    }
+    .totals-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 4px 0; font-size: 10.5px; color: var(--muted);
+    }
+    .totals-row span:last-child { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+    .totals-row.grand {
+      margin-top: 6px; padding-top: 10px;
+      border-top: 1.5px solid var(--ink);
+      font-size: 12px; color: var(--ink); font-weight: 700;
+    }
+    .totals-row.grand span:last-child { font-size: 16px; font-weight: 800; color: var(--ink); }
+    .amount-due {
+      margin-top: 10px; padding: 12px 14px;
+      border: 1.5px solid var(--ink); border-radius: 6px;
+      background: var(--ink); color: #fff;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .amount-due .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 700; opacity: 0.75; }
+    .amount-due .amt { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .amount-due .due-date { font-size: 9px; opacity: 0.7; margin-top: 2px; }
+
+    .paid-stamp {
+      margin-top: 10px; padding: 14px;
+      border: 2px solid var(--green-line);
+      background: var(--green-soft);
+      border-radius: 6px; text-align: center;
+    }
+    .paid-stamp .big { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; color: var(--green); text-transform: uppercase; }
+    .paid-stamp .sub { font-size: 9.5px; color: var(--green); margin-top: 4px; opacity: 0.85; }
+    .paid-split { display: flex; gap: 18px; justify-content: center; margin-top: 8px; font-size: 9.5px; color: var(--green); }
+
+    .deposit-note {
+      margin-top: 8px; padding: 8px 12px;
+      border: 1px solid var(--amber); background: var(--amber-soft);
+      border-radius: 6px; display: flex; justify-content: space-between; align-items: center;
+      font-size: 10px; color: var(--amber); font-weight: 600;
+    }
+
+    /* ── Payment section ───────────────────────────────────────── */
+    .payment-section {
+      margin-top: 4px;
+      display: grid; grid-template-columns: 1fr 150px; gap: 18px;
+      padding: 14px 16px;
+      background: var(--bg-soft);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      page-break-inside: avoid; break-inside: avoid;
+      page-break-before: avoid; break-before: avoid;
+    }
+    .payment-section h3 {
+      font-size: 8.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.16em; color: var(--muted);
+      padding-bottom: 6px; margin-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    .pay-grid {
+      display: grid; grid-template-columns: 90px 1fr;
+      gap: 4px 10px; font-size: 10px;
+    }
+    .pay-grid dt { color: var(--muted); font-weight: 600; }
+    .pay-grid dd { color: var(--ink); font-weight: 600; }
+    .pay-note {
+      margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line);
+      font-size: 9px; color: var(--muted); line-height: 1.55;
+    }
+    .pay-note strong { color: var(--ink); }
+    .qr-block {
+      text-align: center; padding: 8px;
+      background: #fff; border: 1px solid var(--line); border-radius: 6px;
+      align-self: start;
+    }
+    .qr-block img { width: 110px; height: 110px; display: block; object-fit: contain; margin: 0 auto; }
+    .qr-block .qr-label { font-size: 8.5px; color: var(--muted); margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    /* ── Terms & Conditions ────────────────────────────────────── */
+    .tnc {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      page-break-inside: avoid; break-inside: avoid;
+    }
+    .tnc h3 {
+      font-size: 8.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.16em; color: var(--muted);
+      padding-bottom: 6px; margin-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    .tnc ol {
+      padding-left: 14px;
+      column-count: 2; column-gap: 18px; column-rule: 1px solid var(--line);
+    }
+    .tnc li {
+      font-size: 8.5px; color: var(--ink-2); line-height: 1.6;
+      margin-bottom: 4px; break-inside: avoid;
+    }
+    .tnc li strong { color: var(--ink); }
+
+    /* ── Footer ────────────────────────────────────────────────── */
+    .footer {
+      margin-top: 16px; padding-top: 12px;
+      border-top: 1px solid var(--line);
+      display: grid; grid-template-columns: 1fr 200px; gap: 18px;
+      align-items: flex-end;
+      page-break-inside: avoid; break-inside: avoid;
+    }
+    .thanks {
+      font-size: 11px; font-weight: 700; color: var(--ink); margin-bottom: 4px;
+    }
+    .footer p { font-size: 8.5px; color: var(--muted); line-height: 1.7; }
+    .sig-box {
+      border: 1px solid var(--line); border-radius: 6px;
+      padding: 12px 14px; background: var(--bg-soft);
+    }
+    .sig-line { height: 32px; border-bottom: 1px solid var(--line-2); margin-bottom: 4px; }
+    .sig-label { font-size: 8.5px; color: var(--muted); text-align: center; font-weight: 600; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+    .badge-paid { background: var(--green-soft); color: var(--green); }
+    .badge-partial { background: var(--amber-soft); color: var(--amber); }
+    .badge-unpaid { background: var(--red-soft); color: var(--red); }
+    .badge-status { background: var(--ink); color: #fff; padding: 3px 10px; }
+
     @media print {
-      @page { size: A4; margin: 8mm; }
+      @page { size: A4; margin: 10mm; }
       html, body { padding: 0; margin: 0; }
-      body { padding: 6mm 8mm; }
+      body { padding: 4mm 6mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       button { display: none; }
-      .card, .tnc, .payment-section, .totals, .footer, tr { page-break-inside: avoid; break-inside: avoid; }
-      .totals { page-break-after: avoid; break-after: avoid; }
+      .card, .tnc, .payment-section, .totals, .footer, table.items tr { page-break-inside: avoid; break-inside: avoid; }
+      .totals-wrap { page-break-after: avoid; break-after: avoid; }
       .payment-section { page-break-before: avoid; break-before: avoid; }
+      .tnc li { break-inside: avoid; }
       thead { display: table-header-group; }
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="company">
-      <h1>The Moving Guy Pte Ltd</h1>
-      <p>UEN: 202424156H &nbsp;|&nbsp; 160 Robinson Road #14-04, Singapore 068914<br/>+65 8088 0757 &nbsp;|&nbsp; sales@tmginstall.com &nbsp;|&nbsp; tmginstall.com</p>
+    <div class="brand">
+      <div class="brand-mark">TMG</div>
+      <div class="company">
+        <h1>The Moving Guy Pte Ltd</h1>
+        <div class="tagline">Furniture Installation · Singapore</div>
+        <p class="contact">UEN 202424156H · 160 Robinson Road #14-04, Singapore 068914<br/>+65 8088 0757 · sales@tmginstall.com · tmginstall.com</p>
+      </div>
     </div>
     <div class="doc-meta">
       <div class="label">${docType}</div>
       <div class="ref">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</div>
-      ${isInvoiceDoc ? `<div style="font-size:9px;color:#888;margin-top:3px;">Job Ref: ${esc(q.referenceNo)}</div>` : ""}
-      <div style="font-size:9px;color:#666;margin-top:6px;">
-        <div><strong>Issued:</strong> ${esc(issuedDate)}</div>
-        ${isInvoiceDoc && !isFullyPaid ? `<div><strong>Due:</strong> ${esc(dueDate)} (Net 30)</div>` : ""}
-      </div>
-      <div class="status">${(q.status || "").replace(/_/g, " ")}</div>
+      ${isInvoiceDoc ? `<div class="sub-ref">Job Ref · ${esc(q.referenceNo)}</div>` : ""}
+      <dl class="meta-grid">
+        <dt>Issued</dt><dd>${esc(issuedDate)}</dd>
+        ${isInvoiceDoc && !isFullyPaid ? `<dt>Due</dt><dd>${esc(dueDate)}</dd><dt>Terms</dt><dd>Net 30</dd>` : ""}
+        <dt>Status</dt><dd><span class="badge badge-status">${(q.status || "").replace(/_/g, " ")}</span></dd>
+      </dl>
     </div>
   </div>
 
@@ -1102,43 +1342,43 @@ export default function AdminQuoteDetail() {
     const escAddr = (v: any) => esc(v).replace(/\n/g, "<br/>");
     const billToHtml = isCommercial
       ? `
-        ${billingCompanyName ? `<p><strong>${esc(billingCompanyName)}</strong></p>` : `<p><strong>${esc(q.customer?.name || "—")}</strong></p>`}
-        ${billingCompanyUen ? `<p>UEN: ${esc(billingCompanyUen)}</p>` : ""}
+        <p class="name">${esc(billingCompanyName || q.customer?.name || "—")}</p>
+        ${billingCompanyUen ? `<p class="kv"><span class="k">UEN</span><span class="v">${esc(billingCompanyUen)}</span></p>` : ""}
         ${billingAddress ? `<p>${escAddr(billingAddress)}</p>` : ""}
-        ${q.customer?.name && billingCompanyName ? `<p style="margin-top:6px;">Attn: ${esc(q.customer.name)}</p>` : ""}
-        ${q.customer?.phone ? `<p>${esc(q.customer.phone)}</p>` : ""}
-        ${showCustomerEmail ? `<p>${esc(q.customer.email)}</p>` : ""}
-        ${q.poNumber ? `<p style="margin-top:6px;"><strong>PO No.:</strong> ${esc(q.poNumber)}</p>` : ""}
+        ${q.customer?.name && billingCompanyName ? `<p class="kv" style="margin-top:6px;"><span class="k">Attn</span><span class="v">${esc(q.customer.name)}</span></p>` : ""}
+        ${q.customer?.phone ? `<p class="kv"><span class="k">Phone</span><span class="v">${esc(q.customer.phone)}</span></p>` : ""}
+        ${showCustomerEmail ? `<p class="kv"><span class="k">Email</span><span class="v">${esc(q.customer.email)}</span></p>` : ""}
+        ${q.poNumber ? `<p class="kv" style="margin-top:6px;"><span class="k">PO No.</span><span class="v">${esc(q.poNumber)}</span></p>` : ""}
       `
       : `
-        <p><strong>${esc(q.customer?.name || "—")}</strong></p>
+        <p class="name">${esc(q.customer?.name || "—")}</p>
         ${billingAddress ? `<p>${escAddr(billingAddress)}</p>` : ""}
-        ${q.customer?.phone ? `<p>${esc(q.customer.phone)}</p>` : ""}
-        ${showCustomerEmail ? `<p>${esc(q.customer.email)}</p>` : ""}
+        ${q.customer?.phone ? `<p class="kv"><span class="k">Phone</span><span class="v">${esc(q.customer.phone)}</span></p>` : ""}
+        ${showCustomerEmail ? `<p class="kv"><span class="k">Email</span><span class="v">${esc(q.customer.email)}</span></p>` : ""}
       `;
     return `
   <div class="grid2">
     <div class="card">
-      <div class="card-title">Bill To${isCommercial ? " (Commercial)" : ""}</div>
+      <div class="card-title">Bill To${isCommercial ? " · Commercial" : ""}</div>
       ${billToHtml}
     </div>
     <div class="card">
       <div class="card-title">Job Details</div>
-      <p><strong>Service Address:</strong> ${esc(address)}</p>
-      ${scheduledDate ? `<p><strong>Date:</strong> ${esc(scheduledDate)}${q.timeWindow ? ` · ${esc(q.timeWindow)}` : ""}</p>` : ""}
-      ${services.length ? `<p><strong>Services:</strong> ${esc(services.join(", "))}</p>` : ""}
-      ${q.notes ? `<p><strong>Notes:</strong> ${esc(q.notes)}</p>` : ""}
+      <p class="kv"><span class="k">Service At</span><span class="v">${esc(address)}</span></p>
+      ${scheduledDate ? `<p class="kv"><span class="k">Scheduled</span><span class="v">${esc(scheduledDate)}${q.timeWindow ? ` · ${esc(q.timeWindow)}` : ""}</span></p>` : ""}
+      ${services.length ? `<p class="kv"><span class="k">Services</span><span class="v">${esc(services.join(", "))}</span></p>` : ""}
+      ${q.notes ? `<p class="kv"><span class="k">Notes</span><span class="v">${esc(q.notes)}</span></p>` : ""}
     </div>
   </div>`;
   })()}
 
-  <table>
+  <table class="items">
     <thead>
       <tr>
         <th>Description</th>
         <th>Qty</th>
-        <th>Unit Price</th>
-        <th>Subtotal</th>
+        <th>Unit Price (S$)</th>
+        <th>Amount (S$)</th>
       </tr>
     </thead>
     <tbody>
@@ -1146,79 +1386,73 @@ export default function AdminQuoteDetail() {
         ? items.map((item: any) => `
         <tr>
           <td>
-            ${formatItemDescription(item, items)}
-            ${item.remark ? `<div style="font-size:9px;color:#888;margin-top:3px;line-height:1.5;">${item.remark}</div>` : ""}
+            ${esc(formatItemDescription(item, items))}
+            ${item.remark ? `<div class="item-remark">${esc(item.remark)}</div>` : ""}
           </td>
           <td>${item.quantity}</td>
-          <td>S$${Number(item.unitPrice || 0).toFixed(2)}</td>
-          <td>S$${Number(item.subtotal || 0).toFixed(2)}</td>
+          <td>${Number(item.unitPrice || 0).toFixed(2)}</td>
+          <td>${Number(item.subtotal || 0).toFixed(2)}</td>
         </tr>`).join("")
-        : '<tr><td colspan="4" style="text-align:center;color:#999;padding:20px">No line items</td></tr>'
+        : '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:24px;font-style:italic;">No line items</td></tr>'
       }
     </tbody>
   </table>
 
-  <div class="totals">
-    ${Number(q.discount || 0) > 0 ? `<div class="totals-row"><span>Discount</span><span>−S$${Number(q.discount).toFixed(2)}</span></div>` : ""}
-    ${Number(q.transportFee || 0) > 0 ? `<div class="totals-row"><span>Transport</span><span>S$${Number(q.transportFee).toFixed(2)}</span></div>` : ""}
-    ${Number(q.promoDiscount || 0) > 0 ? `<div class="totals-row"><span>Promo (${q.promoCode || ""})</span><span>−S$${Number(q.promoDiscount).toFixed(2)}</span></div>` : ""}
-    <div class="totals-row grand"><span>Total</span><span>S$${Number(q.total || 0).toFixed(2)}</span></div>
-    ${isFullyPaid ? `
-    <div class="totals-row" style="margin-top:12px;border-top:2px solid #16a34a;padding-top:10px;">
-      <span style="font-size:11px;font-weight:700;color:#15803d;">① Deposit (50%)</span>
-      <span style="font-size:11px;font-weight:700;color:#15803d;">S$${depositAmt.toFixed(2)} ✓</span>
+  <div class="totals-wrap">
+    <div class="totals">
+      ${Number(q.discount || 0) > 0 ? `<div class="totals-row"><span>Discount</span><span>−S$${Number(q.discount).toFixed(2)}</span></div>` : ""}
+      ${Number(q.transportFee || 0) > 0 ? `<div class="totals-row"><span>Transport</span><span>S$${Number(q.transportFee).toFixed(2)}</span></div>` : ""}
+      ${Number(q.promoDiscount || 0) > 0 ? `<div class="totals-row"><span>Promo (${esc(q.promoCode || "")})</span><span>−S$${Number(q.promoDiscount).toFixed(2)}</span></div>` : ""}
+      <div class="totals-row grand"><span>Total</span><span>S$${Number(q.total || 0).toFixed(2)}</span></div>
+      ${isFullyPaid ? `
+      <div class="paid-stamp">
+        <div class="big">✓ Paid in Full</div>
+        <div class="sub">Both deposit and balance received. Thank you for your business.</div>
+        <div class="paid-split">
+          <span>Deposit · <strong>S$${depositAmt.toFixed(2)}</strong></span>
+          <span>Balance · <strong>S$${balanceAmt.toFixed(2)}</strong></span>
+        </div>
+      </div>` : isDepositPaid ? `
+      <div class="totals-row" style="margin-top:8px;color:var(--green);">
+        <span>Deposit Received</span><span>−S$${depositAmt.toFixed(2)}</span>
+      </div>
+      <div class="amount-due">
+        <div>
+          <div class="lbl">Balance Due</div>
+          <div class="due-date">on completion${isInvoiceDoc && !isFullyPaid ? ` · by ${esc(dueDate)}` : ""}</div>
+        </div>
+        <div class="amt">S$${balanceAmt.toFixed(2)}</div>
+      </div>` : `
+      <div class="amount-due">
+        <div>
+          <div class="lbl">${isInvoiceDoc ? "Amount Due" : "Total Payable"}</div>
+          ${isInvoiceDoc ? `<div class="due-date">By ${esc(dueDate)} · Net 30</div>` : `<div class="due-date">50% deposit to confirm booking</div>`}
+        </div>
+        <div class="amt">S$${Number(q.total || 0).toFixed(2)}</div>
+      </div>`}
     </div>
-    <div class="totals-row" style="padding-top:4px;">
-      <span style="font-size:11px;font-weight:700;color:#15803d;">② Balance (50%)</span>
-      <span style="font-size:11px;font-weight:700;color:#15803d;">S$${balanceAmt.toFixed(2)} ✓</span>
-    </div>
-    <div style="margin-top:8px;background:#dcfce7;border:1.5px solid #16a34a;border-radius:8px;padding:8px 12px;text-align:center;">
-      <span style="font-size:13px;font-weight:800;color:#15803d;letter-spacing:0.05em;">✅ FULLY PAID — CASE CLOSED</span>
-    </div>` : isDepositPaid ? `
-    <div class="totals-row" style="margin-top:12px;border-top:2px solid #ca8a04;padding-top:10px;">
-      <span style="font-size:11px;font-weight:700;color:#15803d;">① Deposit (50%)</span>
-      <span style="font-size:11px;font-weight:700;color:#15803d;">S$${depositAmt.toFixed(2)} ✓ PAID</span>
-    </div>
-    <div class="totals-row" style="padding-top:4px;">
-      <span style="font-size:11px;font-weight:700;color:#b45309;">② Balance (50%) — DUE ON COMPLETION</span>
-      <span style="font-size:12px;font-weight:800;color:#b45309;">S$${balanceAmt.toFixed(2)}</span>
-    </div>` : `
-    <div class="totals-row" style="margin-top:8px;">
-      <span>Payment</span>
-      <span><span class="badge badge-unpaid">UNPAID</span></span>
-    </div>`}
   </div>
 
   <!-- Payment Details -->
-  ${isFullyPaid ? `
-  <div class="payment-section" style="background:#f0fdf4;border-color:#86efac;margin-top:24px;">
-    <div style="flex:1;text-align:center;padding:8px 0;">
-      <div style="font-size:18px;font-weight:800;color:#15803d;margin-bottom:4px;">✅ RECEIPT — PAID IN FULL</div>
-      <div style="font-size:10px;color:#166534;">Both deposit and final balance have been received. Thank you!</div>
-      <div style="margin-top:10px;display:flex;justify-content:center;gap:32px;font-size:10px;color:#15803d;">
-        <span>Deposit: <strong>S$${depositAmt.toFixed(2)}</strong></span>
-        <span>Balance: <strong>S$${balanceAmt.toFixed(2)}</strong></span>
-        <span>Total: <strong>S$${totalAmt.toFixed(2)}</strong></span>
-      </div>
-    </div>
-  </div>` : `
+  ${isFullyPaid ? "" : `
   <div class="payment-section">
     <div class="payment-details">
       <h3>Payment Details${isDepositPaid ? ' — Balance Due' : ''}</h3>
-      <table>
-        <tr><th>Bank</th><td>OCBC Bank</td></tr>
-        <tr><th>Account No.</th><td>596795617001</td></tr>
-        <tr><th>Account Name</th><td>The Moving Guy Pte. Ltd.</td></tr>
-        <tr><th>Currency</th><td>SGD</td></tr>
-        <tr><th>PayNow (UEN)</th><td>202424156H</td></tr>
-      </table>
-      <p style="margin-top:10px;font-size:9px;color:#555;">
-        Please include your <strong>reference number (${q.referenceNo})</strong> in the payment remarks.
-      </p>
+      <dl class="pay-grid">
+        <dt>Bank</dt><dd>OCBC Bank</dd>
+        <dt>Account No.</dt><dd>596-795617-001</dd>
+        <dt>Account Name</dt><dd>The Moving Guy Pte. Ltd.</dd>
+        <dt>Currency</dt><dd>SGD</dd>
+        <dt>PayNow (UEN)</dt><dd>202424156H</dd>
+      </dl>
+      <div class="pay-note">
+        Please include the reference <strong>${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</strong> in your payment remarks.
+        ${isInvoiceDoc ? `Email remittance advice to <strong>sales@tmginstall.com</strong>.` : ""}
+      </div>
     </div>
     <div class="qr-block">
       <img src="${window.location.origin}/paynow-qr.png" alt="PayNow QR Code" />
-      <p>Scan to Pay via PayNow</p>
+      <div class="qr-label">PayNow</div>
     </div>
   </div>`}
 
@@ -1249,10 +1483,12 @@ export default function AdminQuoteDetail() {
 
   <div class="footer">
     <div>
-      <p>Generated ${new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" })} &nbsp;·&nbsp; TMG Install Pte Ltd &nbsp;·&nbsp; UEN 202424156H<br/>+65 8088 0757 &nbsp;·&nbsp; sales@tmginstall.com &nbsp;·&nbsp; tmginstall.com</p>
+      <div class="thanks">${isInvoiceDoc ? "Thank you for your business." : "We appreciate the opportunity to quote for you."}</div>
+      <p>Generated ${esc(new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" }))} · TMG Install Pte Ltd · UEN 202424156H<br/>+65 8088 0757 · sales@tmginstall.com · tmginstall.com</p>
     </div>
     <div class="sig-box">
-      <div class="sig-label">${isInvoiceDoc ? "Authorised by TMG Install Pte Ltd" : "Customer Signature &amp; Date"}</div>
+      <div class="sig-line"></div>
+      <div class="sig-label">${isInvoiceDoc ? "Authorised Signatory · TMG Install Pte Ltd" : "Customer Signature &amp; Date"}</div>
     </div>
   </div>
 
