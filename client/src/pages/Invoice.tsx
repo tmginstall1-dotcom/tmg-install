@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { Printer, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
+import { formatItemDescription } from "@/lib/itemLabel";
 
 const CO   = "The Moving Guy Pte Ltd";
 const UEN  = "202424156H";
@@ -14,6 +15,7 @@ type InvoiceItem = {
   id: number;
   detectedName: string | null;
   originalDescription: string | null;
+  serviceType: string | null;
   quantity: number;
   unitPrice: string;
   subtotal: string;
@@ -241,7 +243,7 @@ export default function Invoice() {
                   )}
                   {data.items.map((it, i) => (
                     <tr key={it.id} style={{ background: i % 2 ? "#f9fafb" : "#fff" }} data-testid={`row-invoice-item-${it.id}`}>
-                      <td className="px-3 py-2 align-top text-gray-800">{it.detectedName || it.originalDescription || "Service"}</td>
+                      <td className="px-3 py-2 align-top text-gray-800">{formatItemDescription(it, data.items)}</td>
                       <td className="px-3 py-2 text-center align-top text-gray-700">{it.quantity}</td>
                       <td className="px-3 py-2 text-right align-top text-gray-700">{money(it.unitPrice)}</td>
                       <td className="px-3 py-2 text-right align-top font-semibold text-gray-900">{money(it.subtotal)}</td>

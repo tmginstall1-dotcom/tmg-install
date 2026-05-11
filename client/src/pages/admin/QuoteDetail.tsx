@@ -13,6 +13,7 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { formatItemDescription } from "@/lib/itemLabel";
 import { calcOvertimeCharge, PricingConfig } from "@shared/pricing";
 import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
 import { InvoiceMessageDialog } from "@/components/shared/InvoiceMessageDialog";
@@ -1015,7 +1016,7 @@ export default function AdminQuoteDetail() {
         ? items.map((item: any) => `
         <tr>
           <td>
-            ${item.detectedName || item.originalDescription || "—"}
+            ${formatItemDescription(item, items)}
             ${item.remark ? `<div style="font-size:9px;color:#888;margin-top:3px;line-height:1.5;">${item.remark}</div>` : ""}
           </td>
           <td>${item.quantity}</td>

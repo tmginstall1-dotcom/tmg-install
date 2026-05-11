@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
 import { Printer, ArrowLeft, X, SlidersHorizontal, Search, MapPin, Clock, CheckCircle2, FileText } from "lucide-react";
 import { useState, useMemo } from "react";
+import { formatItemDescription } from "@/lib/itemLabel";
 
 /* ─── Constants ─────────────────────────────────────────────── */
 const CO   = "The Moving Guy Pte Ltd";
@@ -137,7 +138,7 @@ function DetailPanel({ q }: { q: any }) {
                 <tbody className="divide-y divide-gray-50">
                   {items.map((it: any) => (
                     <tr key={it.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 text-gray-800">{it.detectedName || it.originalDescription}</td>
+                      <td className="px-3 py-2 text-gray-800">{formatItemDescription(it, items)}</td>
                       <td className="px-3 py-2 text-right text-gray-600">{it.quantity}</td>
                       <td className="px-3 py-2 text-right text-gray-600">{money(it.unitPrice)}</td>
                       <td className="px-3 py-2 text-right font-bold text-gray-900">{money(it.subtotal)}</td>
@@ -366,7 +367,7 @@ function PrintJob({ q, today }: { q: any; today: string }) {
             )}
             {items.map((it: any, ii: number) => (
               <tr key={it.id} style={{ background: ii % 2 ? "#f9fafb" : "#fff" }}>
-                <td style={s.tdCell}>{it.detectedName || it.originalDescription}</td>
+                <td style={s.tdCell}>{formatItemDescription(it, items)}</td>
                 <td style={{ ...s.tdCell, textAlign: "center" }}>{it.quantity}</td>
                 <td style={{ ...s.tdCell, textAlign: "right" }}>{money(it.unitPrice)}</td>
                 <td style={{ ...s.tdCell, textAlign: "right", fontWeight: 700 }}>{money(it.subtotal)}</td>
