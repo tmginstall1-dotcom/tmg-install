@@ -455,12 +455,29 @@ export async function sendWhatsAppPaymentLink(
   referenceNo: string,
   depositAmount: string,
   paymentLink: string,
-  opts?: { customerName?: string; preferredDate?: string; preferredTimeWindow?: string }
+  opts?: {
+    customerName?: string;
+    scheduledAt?: Date | string | null;
+    timeWindow?: string | null;
+    preferredDate?: string;
+    preferredTimeWindow?: string;
+  }
 ): Promise<void> {
   const name = opts?.customerName ? `Hi *${opts.customerName}* 👋` : "Hi there 👋";
-  const slotLine = opts?.preferredDate
-    ? `📅 Your reserved slot: *${opts.preferredDate}${opts.preferredTimeWindow ? ` (${opts.preferredTimeWindow})` : ""}*\n\n`
-    : "";
+  // Prefer admin-confirmed scheduledAt/timeWindow over the customer's original
+  // preferredDate so reschedules are reflected in customer messages.
+  let slotLine = "";
+  if (opts?.scheduledAt) {
+    const d = new Date(opts.scheduledAt as any);
+    const sg = new Date(d.getTime() + 8 * 60 * 60 * 1000);
+    const yyyy = sg.getUTCFullYear();
+    const mm = String(sg.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(sg.getUTCDate()).padStart(2, "0");
+    const tw = opts.timeWindow || "";
+    slotLine = `📅 Your reserved slot: *${yyyy}-${mm}-${dd}${tw ? ` (${tw})` : ""}*\n\n`;
+  } else if (opts?.preferredDate) {
+    slotLine = `📅 Your reserved slot: *${opts.preferredDate}${opts.preferredTimeWindow ? ` (${opts.preferredTimeWindow})` : ""}*\n\n`;
+  }
 
   const msg =
     `${name}\n\n` +

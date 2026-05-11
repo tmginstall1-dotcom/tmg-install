@@ -330,6 +330,25 @@ function fmtDate(dateStr: string): string {
   });
 }
 
+// Pull the slot date+time-window for a customer email, preferring the
+// admin-confirmed scheduledAt/timeWindow over the customer's original
+// preferredDate/preferredTimeWindow so reschedules are reflected.
+function quoteSlotForEmail(quote: any): { slotDate: string | null; timeWindow: string } {
+  if (quote?.scheduledAt) {
+    const d = new Date(quote.scheduledAt);
+    // SG-local YYYY-MM-DD
+    const sg = new Date(d.getTime() + 8 * 60 * 60 * 1000);
+    const yyyy = sg.getUTCFullYear();
+    const mm = String(sg.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(sg.getUTCDate()).padStart(2, "0");
+    return { slotDate: fmtDate(`${yyyy}-${mm}-${dd}`), timeWindow: quote.timeWindow || "" };
+  }
+  if (quote?.preferredDate && quote.preferredDate.toLowerCase() !== "flexible") {
+    return { slotDate: fmtDate(quote.preferredDate), timeWindow: quote.preferredTimeWindow || "" };
+  }
+  return { slotDate: null, timeWindow: "" };
+}
+
 function fmtDateTime(isoStr: string): string {
   return new Date(isoStr).toLocaleDateString("en-SG", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -379,7 +398,7 @@ export function estimateSubmittedEmail(quote: any): string {
 
 export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl?: string): string {
   const c = quote.customer;
-  const slotDate = quote.preferredDate ? fmtDate(quote.preferredDate) : null;
+  const { slotDate, timeWindow: slotTimeWindow } = quoteSlotForEmail(quote);
   const depositAmt = `$${Number(quote.depositAmount || 0).toFixed(2)}`;
   const PAYNOW_UEN = "202424156H";
   const PAYNOW_NAME = "TMG Install by The Moving Guy Pte Ltd";
@@ -420,7 +439,7 @@ export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl
     ${refBlock(quote.referenceNo)}
 
     ${slotDate ? section("Your Slot", `
-      ${dateBox(slotDate, quote.preferredTimeWindow || '')}
+      ${dateBox(slotDate, slotTimeWindow)}
       <p style="${FONT}font-size:12px;color:#aaaaaa;margin:10px 0 0;line-height:1.6;">This slot is provisionally reserved. Pay the deposit before it expires to guarantee your preferred date and time.</p>
     `) : ''}
 
@@ -459,14 +478,14 @@ export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl
 
 export function depositReceivedEmail(quote: any): string {
   const c = quote.customer;
-  const slotDate = quote.preferredDate ? fmtDate(quote.preferredDate) : null;
+  const { slotDate, timeWindow: slotTimeWindow } = quoteSlotForEmail(quote);
 
   return shell("Booking Confirmed", `
     ${greeting(c?.name, `We've received your deposit — thank you. Your booking is now confirmed and our team has been notified. A technician will be assigned to your job and you'll receive your appointment confirmation shortly.`)}
 
     ${refBlock(quote.referenceNo)}
 
-    ${slotDate ? section("Your Appointment", dateBox(slotDate, quote.preferredTimeWindow || '')) : ''}
+    ${slotDate ? section("Your Appointment", dateBox(slotDate, slotTimeWindow)) : ''}
 
     ${section("Payment Summary", `
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">

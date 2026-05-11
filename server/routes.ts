@@ -53,6 +53,29 @@ function normalizeSGPhone(raw: string | null | undefined): string {
   return digits;
 }
 
+// Format the "📅 Slot:" line for customer payment messages, preferring the
+// admin-confirmed scheduledAt/timeWindow over the customer's original
+// preferredDate/preferredTimeWindow so reschedules are reflected. Returns ""
+// when no date is set so callers can include it unconditionally.
+function formatSlotLineForQuote(quote: { scheduledAt?: Date | string | null; timeWindow?: string | null; preferredDate?: string | null; preferredTimeWindow?: string | null }): string {
+  if (quote.scheduledAt) {
+    const d = new Date(quote.scheduledAt as any);
+    // SG-local YYYY-MM-DD (UTC+08:00) so the date matches what the admin sees.
+    const sgMs = d.getTime() + 8 * 60 * 60 * 1000;
+    const sgDate = new Date(sgMs);
+    const yyyy = sgDate.getUTCFullYear();
+    const mm = String(sgDate.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(sgDate.getUTCDate()).padStart(2, "0");
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const tw = quote.timeWindow || "";
+    return `📅 *Slot: ${dateStr}${tw ? ` (${tw})` : ""}*\n`;
+  }
+  if (quote.preferredDate) {
+    return `📅 *Slot: ${quote.preferredDate}${quote.preferredTimeWindow ? ` (${quote.preferredTimeWindow})` : ""}*\n`;
+  }
+  return "";
+}
+
 // ── WhatsApp payment blocks ────────────────────────────────────────────────────
 // Shared "how to pay" block used in both deposit and final payment messages.
 // payUrl should always be the clean short URL (e.g. https://tmginstall.com/pay/TMG-XXXX)
@@ -4133,9 +4156,7 @@ ${systemPrompt}` });
         const waPhone2 = rawWaPhone2 ? normalizeSGPhone(rawWaPhone2) : null;
         if (waPhone2) {
           const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
-          const slotLine = quote.preferredDate
-            ? `📅 *Slot: ${quote.preferredDate}${quote.preferredTimeWindow ? ` (${quote.preferredTimeWindow})` : ""}*\n`
-            : "";
+          const slotLine = formatSlotLineForQuote(quote);
           const waMsg =
             `Hi *${quote.customer.name || "there"}* 👋\n\n` +
             `Your quote *${quote.referenceNo}* has been approved by TMG Install!\n\n` +
@@ -7398,6 +7419,8 @@ Respond directly — no JSON, just the message text.`,
       const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
       await sendWhatsAppPaymentLink(phone, quote.referenceNo, depositAmountStr, shortPayUrl, {
         customerName: (quote as any).customer?.name || undefined,
+        scheduledAt: (quote as any).scheduledAt || undefined,
+        timeWindow: (quote as any).timeWindow || undefined,
         preferredDate: (quote as any).preferredDate || undefined,
         preferredTimeWindow: (quote as any).preferredTimeWindow || undefined,
       });
@@ -7477,9 +7500,7 @@ Respond directly — no JSON, just the message text.`,
       if (rawResendPhone) {
         const waResendPhone = normalizeSGPhone(rawResendPhone);
         const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
-        const resendSlotLine = quote.preferredDate
-          ? `📅 *Slot: ${quote.preferredDate}${quote.preferredTimeWindow ? ` (${quote.preferredTimeWindow})` : ""}*\n`
-          : "";
+        const resendSlotLine = formatSlotLineForQuote(quote);
         const waResendMsg =
           `Hi *${quote.customer?.name || "there"}* 👋\n\n` +
           `Friendly reminder from *TMG Install* — your quote *${quote.referenceNo}* is approved and awaiting your deposit.\n\n` +
@@ -7564,9 +7585,7 @@ Respond directly — no JSON, just the message text.`,
     const paymentLink = stripeUrl || quotePageUrl;
 
     const customerName = quote.customer?.name || "there";
-    const slotLine = quote.preferredDate
-      ? `📅 *Slot: ${quote.preferredDate}${quote.preferredTimeWindow ? ` (${quote.preferredTimeWindow})` : ""}*\n`
-      : "";
+    const slotLine = formatSlotLineForQuote(quote);
 
     const text = type === "final"
       ? (
