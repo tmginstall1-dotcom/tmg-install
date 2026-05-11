@@ -12,9 +12,12 @@
 //   "Disposal of BROR shelf"
 //   "Dismantling & Disposal of Bookshelf"
 //
-// For manually-keyed lines (serviceType "manual") or any unknown service
-// type we just show the name — admins can type the full description in
-// the item name field.
+// For manually-keyed lines (serviceType "manual" or unknown) we still
+// produce a verb-noun description so commercial / BCA invoices read
+// consistently. Default verb is "Installation of …" (TMG's primary service)
+// unless the admin already typed a recognised verb at the start of the
+// item name (e.g. "Site survey fee", "Delivery charge"), in which case
+// the typed name is shown verbatim.
 
 const SERVICE_VERBS: Record<string, string> = {
   install: "Installation",
@@ -24,8 +27,30 @@ const SERVICE_VERBS: Record<string, string> = {
   dismantle_dispose: "Dismantling & Disposal",
 };
 
+// Words/phrases an admin might already type at the start of a manual
+// line, meaning we should NOT prepend "Installation of …" again.
+const MANUAL_VERB_PREFIXES = [
+  "installation", "install",
+  "dismantling", "dismantle",
+  "reinstallation", "reinstall",
+  "relocation", "relocate", "moving", "move",
+  "disposal", "dispose", "removal", "remove",
+  "delivery", "deliver",
+  "site survey", "survey", "inspection", "consultation",
+  "repair", "service", "servicing", "maintenance",
+  "transport", "transportation", "travel",
+  "additional", "extra", "ad-hoc", "adhoc",
+  "labour", "labor", "manpower", "handyman",
+  "charge", "charges", "fee", "fees", "allowance", "discount",
+];
+
 function itemKey(it: any): string {
   return String(it?.detectedName || it?.originalDescription || "").trim().toLowerCase();
+}
+
+function startsWithKnownVerb(name: string): boolean {
+  const lower = name.trim().toLowerCase();
+  return MANUAL_VERB_PREFIXES.some(p => lower === p || lower.startsWith(p + " ") || lower.startsWith(p + ":"));
 }
 
 export function formatItemServiceLabel(item: any, allItems: any[] = []): string {
@@ -40,7 +65,13 @@ export function formatItemServiceLabel(item: any, allItems: any[] = []): string 
 }
 
 export function formatItemDescription(item: any, allItems: any[] = []): string {
-  const name = item?.detectedName || item?.originalDescription || "Service";
+  const name = String(item?.detectedName || item?.originalDescription || "Service").trim();
   const verb = formatItemServiceLabel(item, allItems);
-  return verb ? `${verb} of ${name}` : name;
+  if (verb) return `${verb} of ${name}`;
+  // Manual or unknown service type: default to "Installation of …" so the
+  // BCA-style verb-noun format is consistent across every invoice line.
+  // If the admin already typed a recognised verb (e.g. "Site survey fee"),
+  // show the name verbatim.
+  if (startsWithKnownVerb(name)) return name;
+  return `Installation of ${name}`;
 }

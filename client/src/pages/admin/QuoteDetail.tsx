@@ -977,6 +977,37 @@ export default function AdminQuoteDetail() {
     const depositAmt = Number(q.depositAmount || 0) > 0 ? Number(q.depositAmount) : totalAmt * 0.5;
     const balanceAmt = Number(q.finalAmount || 0) > 0 ? Number(q.finalAmount) : totalAmt * 0.5;
 
+    // Decide what kind of document this print is. Commercial customers
+    // pay against an INVOICE (B2B norm: vendor issues invoice, customer
+    // pays per terms). Residential customers receive a QUOTATION first
+    // and only get an INVOICE / RECEIPT once the job is done.
+    //
+    //  • QUOTATION  — pre-deposit, awaiting customer approval
+    //  • JOB ORDER  — residential, deposit cleared, work scheduled
+    //  • TAX INVOICE — commercial booked-and-onwards, OR any job that
+    //                  has reached the completion / paid stages
+    const isCommercialDoc = (q.invoiceType === "commercial");
+    const PRE_BOOKING = ['submitted', 'under_review', 'approved', 'deposit_requested'];
+    const COMPLETED = ['job_completed', 'completed', 'final_paid', 'closed', 'awaiting_final_payment'];
+    let docType: "QUOTATION" | "JOB ORDER" | "TAX INVOICE";
+    if (isFullyPaid || COMPLETED.includes(q.status)) docType = "TAX INVOICE";
+    else if (isCommercialDoc && !PRE_BOOKING.includes(q.status)) docType = "TAX INVOICE";
+    else if (!PRE_BOOKING.includes(q.status)) docType = "JOB ORDER";
+    else docType = "QUOTATION";
+    const isInvoiceDoc = docType === "TAX INVOICE";
+    // Stable invoice number: TMG-MOJN5PS9 → INV-MOJN5PS9
+    const refTail = String(q.referenceNo || "").replace(/^TMG-?/i, "");
+    const invoiceNo = `INV-${refTail || q.id}`;
+    const issuedDate = isFullyPaid && q.finalPaidAt
+      ? new Date(q.finalPaidAt).toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" })
+      : new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" });
+    // Net 14 payment terms for commercial invoices
+    const dueDate = (() => {
+      const base = isFullyPaid && q.finalPaidAt ? new Date(q.finalPaidAt) : new Date();
+      base.setDate(base.getDate() + 14);
+      return base.toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" });
+    })();
+
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -993,7 +1024,7 @@ export default function AdminQuoteDetail() {
     .doc-meta .label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #888; }
     .doc-meta .status { display: inline-block; background: #000; color: #fff; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 99px; margin-top: 4px; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
-    .card { background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; padding: 14px 16px; }
+    .card { background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; padding: 14px 16px; page-break-inside: avoid; break-inside: avoid; }
     .card-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
     .card p { font-size: 11px; line-height: 1.6; color: #222; }
     .card strong { color: #000; }
@@ -1003,11 +1034,13 @@ export default function AdminQuoteDetail() {
     th:nth-child(2), td:nth-child(2) { text-align: center; width: 60px; }
     th:nth-child(3), td:nth-child(3) { text-align: right; width: 90px; }
     td { padding: 9px 10px; border-bottom: 1px solid #eee; font-size: 11px; color: #333; vertical-align: top; }
+    tr { page-break-inside: avoid; break-inside: avoid; }
     tr:last-child td { border-bottom: none; }
-    .totals { margin-left: auto; width: 280px; }
+    thead { display: table-header-group; }
+    .totals { margin-left: auto; width: 280px; page-break-inside: avoid; break-inside: avoid; }
     .totals-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 11px; color: #444; }
     .totals-row.grand { font-size: 15px; font-weight: 800; color: #000; border-top: 2px solid #000; margin-top: 6px; padding-top: 8px; }
-    .payment-section { margin-top: 32px; display: flex; gap: 24px; align-items: flex-start; padding: 16px 18px; background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; }
+    .payment-section { margin-top: 32px; display: flex; gap: 24px; align-items: flex-start; padding: 16px 18px; background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; page-break-inside: avoid; break-inside: avoid; }
     .payment-details { flex: 1; }
     .payment-details h3 { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
     .payment-details table { margin-bottom: 0; }
@@ -1017,11 +1050,11 @@ export default function AdminQuoteDetail() {
     .qr-block { text-align: center; flex-shrink: 0; }
     .qr-block img { width: 130px; height: 100px; display: block; object-fit: contain; background: #fff; }
     .qr-block p { font-size: 8px; color: #999; margin-top: 4px; }
-    .tnc { margin-top: 24px; padding: 14px 18px; border: 1px solid #e5e5e5; border-radius: 8px; }
+    .tnc { margin-top: 24px; padding: 14px 18px; border: 1px solid #e5e5e5; border-radius: 8px; page-break-inside: avoid; break-inside: avoid; }
     .tnc h3 { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
     .tnc ol { padding-left: 14px; }
     .tnc li { font-size: 9px; color: #555; line-height: 1.7; }
-    .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: flex-end; }
+    .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: flex-end; page-break-inside: avoid; break-inside: avoid; }
     .footer p { font-size: 9px; color: #999; line-height: 1.7; }
     .sig-box { border: 1px dashed #ccc; border-radius: 6px; padding: 10px 16px; min-width: 180px; }
     .sig-box .sig-label { font-size: 9px; color: #999; margin-top: 24px; }
@@ -1029,7 +1062,12 @@ export default function AdminQuoteDetail() {
     .badge-paid { background: #dcfce7; color: #166534; }
     .badge-partial { background: #fef9c3; color: #713f12; }
     .badge-unpaid { background: #fee2e2; color: #991b1b; }
-    @media print { body { padding: 20px; } button { display: none; } }
+    @media print {
+      body { padding: 20px; }
+      button { display: none; }
+      .card, .tnc, .payment-section, .totals, .footer, tr { page-break-inside: avoid; break-inside: avoid; }
+      thead { display: table-header-group; }
+    }
   </style>
 </head>
 <body>
@@ -1039,8 +1077,13 @@ export default function AdminQuoteDetail() {
       <p>UEN: 202424156H &nbsp;|&nbsp; 160 Robinson Road #14-04, Singapore 068914<br/>+65 8088 0757 &nbsp;|&nbsp; sales@tmginstall.com &nbsp;|&nbsp; tmginstall.com</p>
     </div>
     <div class="doc-meta">
-      <div class="label">Job Order / Quotation</div>
-      <div class="ref">${q.referenceNo}</div>
+      <div class="label">${docType}</div>
+      <div class="ref">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</div>
+      ${isInvoiceDoc ? `<div style="font-size:9px;color:#888;margin-top:3px;">Job Ref: ${esc(q.referenceNo)}</div>` : ""}
+      <div style="font-size:9px;color:#666;margin-top:6px;">
+        <div><strong>Issued:</strong> ${esc(issuedDate)}</div>
+        ${isInvoiceDoc && !isFullyPaid ? `<div><strong>Due:</strong> ${esc(dueDate)} (Net 14)</div>` : ""}
+      </div>
       <div class="status">${(q.status || "").replace(/_/g, " ")}</div>
     </div>
   </div>
@@ -1178,6 +1221,15 @@ export default function AdminQuoteDetail() {
   <div class="tnc">
     <h3>Terms &amp; Conditions</h3>
     <ol>
+      ${isInvoiceDoc ? `
+      <li><strong>Payment Terms:</strong> Net 14 days from invoice date${isFullyPaid ? "" : ` — payment due by <strong>${esc(dueDate)}</strong>`}. Please quote the invoice number <strong>${esc(invoiceNo)}</strong> in the payment remarks.</li>
+      <li>Late payments may incur a <strong>1.5% per month</strong> administrative charge on the outstanding balance.</li>
+      <li>Goods and services described above have been delivered / completed as agreed. Any defect claim must be raised in writing within <strong>7 days</strong> of completion.</li>
+      <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable.</li>
+      <li>TMG Install is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
+      <li>Any additional work not stated in this invoice has been agreed upon separately in writing.</li>
+      <li>All prices are in Singapore Dollars (SGD) and are <strong>not subject to GST</strong> (TMG Install Pte Ltd is not GST-registered).</li>
+      ` : `
       <li>This quotation is valid for <strong>14 days</strong> from the date of issue.</li>
       <li><strong>Payment Terms:</strong> 50% deposit is required to confirm the booking. The remaining balance is payable upon completion of the installation.</li>
       <li>Rescheduling with less than <strong>24 hours' notice</strong> may incur a cancellation/admin fee.</li>
@@ -1186,6 +1238,7 @@ export default function AdminQuoteDetail() {
       <li>Customer is responsible for ensuring clear access to the premises on the scheduled date and time.</li>
       <li>Any additional work not stated in this quotation will be charged separately and agreed upon in writing.</li>
       <li>All prices are in Singapore Dollars (SGD) and are <strong>not subject to GST</strong> (we are not GST-registered).</li>
+      `}
     </ol>
   </div>
 
@@ -1194,7 +1247,7 @@ export default function AdminQuoteDetail() {
       <p>Generated ${new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" })} &nbsp;·&nbsp; TMG Install Pte Ltd &nbsp;·&nbsp; UEN 202424156H<br/>+65 8088 0757 &nbsp;·&nbsp; sales@tmginstall.com &nbsp;·&nbsp; tmginstall.com</p>
     </div>
     <div class="sig-box">
-      <div class="sig-label">Customer Signature &amp; Date</div>
+      <div class="sig-label">${isInvoiceDoc ? "Authorised by TMG Install Pte Ltd" : "Customer Signature &amp; Date"}</div>
     </div>
   </div>
 
