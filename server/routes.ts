@@ -7811,6 +7811,8 @@ Respond directly — no JSON, just the message text.`,
   // the admin can copy/paste into WhatsApp, SMS or email.
   app.get("/api/admin/quotes/:id/invoice-message", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
     try {

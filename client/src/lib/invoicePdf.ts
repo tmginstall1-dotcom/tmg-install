@@ -235,17 +235,21 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
   const colSubX   = marginX + contentW - 2;
   const headerH   = 7;
 
+  const drawTableHeader = (atY: number): number => {
+    doc.setFillColor(17, 17, 17);
+    doc.rect(marginX, atY, contentW, headerH, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("Item / Description", colDescX, atY + 4.7);
+    doc.text("Qty", colQtyX, atY + 4.7, { align: "center" });
+    doc.text("Unit Price", colPriceX, atY + 4.7, { align: "right" });
+    doc.text("Subtotal", colSubX, atY + 4.7, { align: "right" });
+    return atY + headerH;
+  };
+
   // Header row (black)
-  doc.setFillColor(17, 17, 17);
-  doc.rect(marginX, y, contentW, headerH, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.text("Item / Description", colDescX, y + 4.7);
-  doc.text("Qty", colQtyX, y + 4.7, { align: "center" });
-  doc.text("Unit Price", colPriceX, y + 4.7, { align: "right" });
-  doc.text("Subtotal", colSubX, y + 4.7, { align: "right" });
-  y += headerH;
+  y = drawTableHeader(y);
 
   // Body rows
   doc.setFont("helvetica", "normal");
@@ -261,10 +265,14 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
       const wrapped = doc.splitTextToSize(desc, contentW - 60);
       const rowH = Math.max(7, wrapped.length * 4 + 3);
 
-      // Page break check
+      // Page break check — re-draw the table header on the new page so
+      // multi-page invoices stay readable.
       if (y + rowH > pageH - 35) {
         doc.addPage();
         y = 14;
+        y = drawTableHeader(y);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
       }
 
       // Row background
