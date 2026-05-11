@@ -1320,33 +1320,19 @@ export default function AdminQuoteDetail() {
     }
     .sig-label .sig-name { display: block; color: var(--ink); font-weight: 700; margin-bottom: 1px; letter-spacing: 0.04em; }
 
-    /* Company rubber stamp — slightly rotated, semi-transparent navy ink so it
-       sits naturally over the signature line without obscuring text. */
+    /* Company rubber stamp — slightly rotated, semi-transparent navy ink.
+       All fill/stroke is set as SVG attributes (not CSS) because iOS Safari's
+       print engine often ignores CSS classes inside SVG, which previously made
+       the stamp render as a solid black disc. */
     .company-stamp {
       position: absolute;
-      top: -10px; right: 6px;
-      width: 96px; height: 96px;
-      transform: rotate(-14deg);
-      opacity: 0.78;
-      pointer-events: none;
-      mix-blend-mode: multiply;
-      filter: drop-shadow(0 0 0.4px rgba(20, 50, 110, 0.35));
-    }
-    .company-stamp svg { width: 100%; height: 100%; display: block; }
-    .stamp-ink { fill: none; stroke: #1a3a7a; }
-    .stamp-text { fill: #1a3a7a; font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 800; }
-    /* Faux ink-bleed irregularity */
-    .stamp-noise {
-      position: absolute; inset: 0;
-      background:
-        radial-gradient(circle at 32% 40%, rgba(255,255,255,0.45) 0 1.2px, transparent 1.4px),
-        radial-gradient(circle at 64% 28%, rgba(255,255,255,0.35) 0 0.9px, transparent 1.1px),
-        radial-gradient(circle at 48% 70%, rgba(255,255,255,0.4) 0 1px, transparent 1.2px),
-        radial-gradient(circle at 22% 66%, rgba(255,255,255,0.3) 0 0.8px, transparent 1px),
-        radial-gradient(circle at 76% 58%, rgba(255,255,255,0.32) 0 0.9px, transparent 1.1px);
-      border-radius: 50%;
+      top: -8px; right: 4px;
+      width: 104px; height: 104px;
+      transform: rotate(-12deg);
+      opacity: 0.82;
       pointer-events: none;
     }
+    .company-stamp svg { width: 100%; height: 100%; display: block; overflow: visible; }
 
     .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
     .badge-paid { background: var(--green-soft); color: var(--green); }
@@ -1545,33 +1531,27 @@ export default function AdminQuoteDetail() {
     <div class="sig-box">
       ${isInvoiceDoc ? `
       <div class="company-stamp" aria-hidden="true">
-        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
           <defs>
-            <path id="stampTopArc" d="M 18,60 A 42,42 0 0 1 102,60" />
-            <path id="stampBottomArc" d="M 22,60 A 38,38 0 0 0 98,60" />
+            <path id="tmgStampTopArc" d="M 18,60 A 42,42 0 0 1 102,60" fill="none" />
+            <path id="tmgStampBottomArc" d="M 22,60 A 38,38 0 0 0 98,60" fill="none" />
           </defs>
-          <!-- Outer ring -->
-          <circle class="stamp-ink" cx="60" cy="60" r="54" stroke-width="2.4" />
-          <!-- Inner ring -->
-          <circle class="stamp-ink" cx="60" cy="60" r="46" stroke-width="1" />
-          <!-- Curved company name (top) -->
-          <text class="stamp-text" font-size="9.6" letter-spacing="1.4">
-            <textPath href="#stampTopArc" startOffset="50%" text-anchor="middle">
+          <circle cx="60" cy="60" r="54" fill="none" stroke="#1a3a7a" stroke-width="2.6" />
+          <circle cx="60" cy="60" r="46" fill="none" stroke="#1a3a7a" stroke-width="1" />
+          <text fill="#1a3a7a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="9.4" letter-spacing="1.2">
+            <textPath xlink:href="#tmgStampTopArc" href="#tmgStampTopArc" startOffset="50%" text-anchor="middle">
               THE MOVING GUY PTE LTD
             </textPath>
           </text>
-          <!-- Curved UEN (bottom, flipped) -->
-          <text class="stamp-text" font-size="7.2" letter-spacing="1.6">
-            <textPath href="#stampBottomArc" startOffset="50%" text-anchor="middle">
-              ★  UEN 202424156H  ★  SINGAPORE  ★
+          <text fill="#1a3a7a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="6.8" letter-spacing="1.4">
+            <textPath xlink:href="#tmgStampBottomArc" href="#tmgStampBottomArc" startOffset="50%" text-anchor="middle">
+              UEN 202424156H \u2022 SINGAPORE
             </textPath>
           </text>
-          <!-- Center -->
-          <line class="stamp-ink" x1="22" y1="58" x2="98" y2="58" stroke-width="0.8" />
-          <line class="stamp-ink" x1="22" y1="74" x2="98" y2="74" stroke-width="0.8" />
-          <text class="stamp-text" x="60" y="70" text-anchor="middle" font-size="11" letter-spacing="1.6">AUTHORISED</text>
+          <line x1="24" y1="56" x2="96" y2="56" stroke="#1a3a7a" stroke-width="0.8" />
+          <line x1="24" y1="74" x2="96" y2="74" stroke="#1a3a7a" stroke-width="0.8" />
+          <text x="60" y="69" text-anchor="middle" fill="#1a3a7a" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="10.5" letter-spacing="1.4">AUTHORISED</text>
         </svg>
-        <div class="stamp-noise"></div>
       </div>` : ""}
       <div class="sig-line"></div>
       <div class="sig-label">
