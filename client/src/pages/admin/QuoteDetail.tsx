@@ -47,25 +47,53 @@ function ScheduleEditor({
   quoteId,
   scheduledAt,
   timeWindow,
+  preferredDate,
+  preferredTimeWindow,
   currentStatus,
 }: {
   quoteId: number;
   scheduledAt: string | Date | null | undefined;
   timeWindow: string | null | undefined;
+  preferredDate?: string | null;
+  preferredTimeWindow?: string | null;
   currentStatus: string;
 }) {
   const { toast } = useToast();
-  const initialDate = scheduledAt ? format(new Date(scheduledAt), "yyyy-MM-dd") : "";
-  const initialTw = timeWindow || "09:00-12:00";
+
+  // Pre-deposit statuses use preferredDate / preferredTimeWindow; once the
+  // booking is real (deposit paid onwards) we use scheduledAt / timeWindow.
+  // The editor falls back to the preferred values so admins can change a
+  // requested date even before deposit has been received.
+  const isPreBooking = ['submitted', 'under_review', 'approved', 'deposit_requested'].includes(currentStatus);
+  const preferredDateNorm = preferredDate && preferredDate.toLowerCase() !== 'flexible'
+    ? preferredDate
+    : '';
+
+  const computeInitialDate = () => {
+    if (scheduledAt) return format(new Date(scheduledAt), "yyyy-MM-dd");
+    if (preferredDateNorm) {
+      try { return format(new Date(preferredDateNorm + "T12:00:00"), "yyyy-MM-dd"); }
+      catch { return ""; }
+    }
+    return "";
+  };
+  const computeInitialTw = () => {
+    const tw = scheduledAt ? timeWindow : (timeWindow || preferredTimeWindow);
+    return tw && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(tw) ? tw : "09:00-12:00";
+  };
+
+  const initialDate = computeInitialDate();
+  const initialTw = computeInitialTw();
   const [editing, setEditing] = useState(false);
   const [dateVal, setDateVal] = useState(initialDate);
   const [twVal, setTwVal] = useState(initialTw);
 
   // Resync local state if the upstream quote changes (e.g. after another save).
   useEffect(() => {
-    setDateVal(scheduledAt ? format(new Date(scheduledAt), "yyyy-MM-dd") : "");
-    setTwVal(timeWindow || "09:00-12:00");
-  }, [scheduledAt, timeWindow]);
+    setDateVal(computeInitialDate());
+    setTwVal(computeInitialTw());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduledAt, timeWindow, preferredDate, preferredTimeWindow]);
 
   const save = useMutation({
     mutationFn: async (mode: "save" | "pending") => {
@@ -86,6 +114,8 @@ function ScheduleEditor({
       const scheduledAtIso = new Date(isoLocalSg).toISOString();
       // If we're saving a fresh date for a job that was sitting in booking_pending,
       // promote it back to "booked" so the badge stops saying "Pending Date Confirmation".
+      // For pre-deposit statuses (e.g. deposit_requested) we leave the status alone —
+      // the customer still needs to pay the deposit.
       const statusFlip = (currentStatus === "booking_pending") ? { status: "booked" as const } : {};
       return apiRequest("PATCH", `/api/quotes/${quoteId}/edit`, {
         quoteUpdates: { scheduledAt: scheduledAtIso, timeWindow: twVal, ...statusFlip },
@@ -103,15 +133,26 @@ function ScheduleEditor({
   });
 
   if (!editing) {
+    const displayDate = scheduledAt
+      ? `${format(new Date(scheduledAt), 'EEE, MMM d')} · ${timeWindow || "—"}`
+      : preferredDateNorm
+        ? (() => {
+            try {
+              const d = format(new Date(preferredDateNorm + "T12:00:00"), 'EEE, MMM d');
+              return `${d} · ${preferredTimeWindow || timeWindow || "—"} (requested)`;
+            } catch { return `${preferredDateNorm} (requested)`; }
+          })()
+        : null;
+    const headerLabel = scheduledAt ? "Confirmed Date" : (isPreBooking ? "Requested Date" : "Confirmed Date");
     return (
       <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-zinc-500 mb-1.5">Confirmed Date</p>
-            {scheduledAt ? (
+            <p className="text-xs font-medium text-zinc-500 mb-1.5">{headerLabel}</p>
+            {displayDate ? (
               <p className="font-semibold text-zinc-900 text-sm flex items-center gap-1.5" data-testid="text-confirmed-date">
                 <Calendar className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                <span>{format(new Date(scheduledAt), 'EEE, MMM d')} · {timeWindow || "—"}</span>
+                <span>{displayDate}</span>
               </p>
             ) : (
               <p className="text-amber-700 text-sm font-medium flex items-center gap-1.5" data-testid="text-pending-date">
@@ -176,14 +217,16 @@ function ScheduleEditor({
           Cancel
         </button>
       </div>
-      <button
-        onClick={() => save.mutate("pending")}
-        disabled={save.isPending}
-        data-testid="button-mark-pending-date"
-        className="w-full h-10 px-4 rounded-lg bg-white border border-amber-300 text-amber-700 hover:bg-amber-50 text-sm font-medium disabled:opacity-50 transition-colors"
-      >
-        {save.isPending && save.variables === "pending" ? "Saving…" : "Mark as Pending — date to be confirmed"}
-      </button>
+      {!isPreBooking && (
+        <button
+          onClick={() => save.mutate("pending")}
+          disabled={save.isPending}
+          data-testid="button-mark-pending-date"
+          className="w-full h-10 px-4 rounded-lg bg-white border border-amber-300 text-amber-700 hover:bg-amber-50 text-sm font-medium disabled:opacity-50 transition-colors"
+        >
+          {save.isPending && save.variables === "pending" ? "Saving…" : "Mark as Pending — date to be confirmed"}
+        </button>
+      )}
     </div>
   );
 }
@@ -1807,12 +1850,25 @@ export default function AdminQuoteDetail() {
                   </div>
                 )}
 
+                {['submitted', 'under_review', 'approved', 'deposit_requested'].includes(quote.status) && (
+                  <ScheduleEditor
+                    quoteId={quote.id}
+                    scheduledAt={quote.scheduledAt}
+                    timeWindow={quote.timeWindow}
+                    preferredDate={quote.preferredDate}
+                    preferredTimeWindow={quote.preferredTimeWindow}
+                    currentStatus={quote.status}
+                  />
+                )}
+
                 {['deposit_paid', 'booking_pending', 'booked', 'assigned', 'in_progress'].includes(quote.status) && (
                   <div className="space-y-4">
                     <ScheduleEditor
                       quoteId={quote.id}
                       scheduledAt={quote.scheduledAt}
                       timeWindow={quote.timeWindow}
+                      preferredDate={quote.preferredDate}
+                      preferredTimeWindow={quote.preferredTimeWindow}
                       currentStatus={quote.status}
                     />
                     
