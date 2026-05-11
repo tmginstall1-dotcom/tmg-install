@@ -90,11 +90,18 @@ function ScheduleEditor({
   const [editing, setEditing] = useState(false);
   const [dateVal, setDateVal] = useState(initialDate);
   const [twVal, setTwVal] = useState(initialTw);
+  // We need a separate flag for custom mode because a custom range can
+  // legitimately equal a preset (e.g. someone typing 09:00–17:00 manually),
+  // and conversely picking Custom while currently on Full Day must NOT collapse
+  // back to Full Day. Without this flag the Custom inputs never appear.
+  const [customMode, setCustomMode] = useState(!TIME_PRESETS.includes(initialTw));
 
   // Resync local state if the upstream quote changes (e.g. after another save).
   useEffect(() => {
+    const fresh = computeInitialTw();
     setDateVal(computeInitialDate());
-    setTwVal(computeInitialTw());
+    setTwVal(fresh);
+    setCustomMode(!TIME_PRESETS.includes(fresh));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scheduledAt, timeWindow, preferredDate, preferredTimeWindow]);
 
@@ -188,16 +195,25 @@ function ScheduleEditor({
           className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 text-left focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {(() => {
-          const isCustom = !TIME_PRESETS.includes(twVal);
-          const [startVal, endVal] = (twVal && twVal.includes("-")) ? twVal.split("-") : ["09:00", "17:00"];
+          const [startVal, endVal] = (twVal && twVal.includes("-")) ? twVal.split("-") : ["09:00", "18:00"];
+          // Show Custom in the dropdown whenever the user is in custom mode OR the
+          // saved value isn't a preset (e.g. an admin previously saved 09:00–18:00).
+          const showAsCustom = customMode || !TIME_PRESETS.includes(twVal);
           return (
             <>
               <select
-                value={isCustom ? CUSTOM_TW : twVal}
+                value={showAsCustom ? CUSTOM_TW : twVal}
                 onChange={e => {
                   if (e.target.value === CUSTOM_TW) {
-                    setTwVal(`${startVal}-${endVal}`);
+                    setCustomMode(true);
+                    // Seed with a non-preset range (an hour of overtime past Full Day)
+                    // so the inputs render and the user immediately sees a custom value
+                    // rather than collapsing back to "Full Day".
+                    if (TIME_PRESETS.includes(twVal)) {
+                      setTwVal("09:00-18:00");
+                    }
                   } else {
+                    setCustomMode(false);
                     setTwVal(e.target.value);
                   }
                 }}
@@ -209,7 +225,7 @@ function ScheduleEditor({
                 ))}
                 <option value={CUSTOM_TW}>Custom (overtime)…</option>
               </select>
-              {isCustom && (
+              {showAsCustom && (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-[11px] font-medium text-zinc-500 mb-1 block">Start</label>

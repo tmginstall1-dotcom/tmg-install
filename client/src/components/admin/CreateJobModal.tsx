@@ -135,6 +135,7 @@ export function CreateJobModal({ open, onClose }: Props) {
   const [services, setServices]               = useState<string[]>([]);
   const [scheduledDate, setScheduledDate]     = useState("");
   const [timeWindow, setTimeWindow]           = useState("09:00-12:00");
+  const [twCustomMode, setTwCustomMode]       = useState(false);
 
   // Items & pricing
   const [items, setItems]                     = useState<LineItem[]>([{ id: genId(), description: "", quantity: 1, unitPrice: "" }]);
@@ -409,7 +410,7 @@ export function CreateJobModal({ open, onClose }: Props) {
     setServiceAddress(""); setDropoffAddress("");
     setPickupFloor(""); setDropoffFloor(""); setPickupLift(null); setDropoffLift(null);
     setIncludeDismantle(false); setIncludeAssembly(false);
-    setServices([]); setScheduledDate(""); setTimeWindow("09:00-12:00");
+    setServices([]); setScheduledDate(""); setTimeWindow("09:00-12:00"); setTwCustomMode(false);
     setItems([{ id: genId(), description: "", quantity: 1, unitPrice: "" }]);
     setManualTotal(""); setDepositAmountInput(""); setPaymentStatus("unpaid"); setAssignedStaffId("");
     setSourceChannel("whatsapp"); setNotes("");
@@ -875,17 +876,27 @@ export function CreateJobModal({ open, onClose }: Props) {
                 <div>
                   <Label className="text-xs text-zinc-500 mb-1.5 block">Time Window</Label>
                   {(() => {
-                    const isCustom = !TIME_PRESETS.includes(timeWindow);
-                    const [startVal, endVal] = (timeWindow && timeWindow.includes("-")) ? timeWindow.split("-") : ["09:00", "17:00"];
+                    const [startVal, endVal] = (timeWindow && timeWindow.includes("-")) ? timeWindow.split("-") : ["09:00", "18:00"];
+                    // Show as Custom whenever the user toggled custom mode OR the saved value
+                    // isn't one of the presets. We need a separate flag because a custom range
+                    // can legitimately equal a preset (and picking Custom while currently on
+                    // Full Day must keep the custom inputs visible).
+                    const showAsCustom = twCustomMode || !TIME_PRESETS.includes(timeWindow);
                     return (
                       <div className="space-y-2">
                         <select
                           data-testid="select-time-window"
-                          value={isCustom ? CUSTOM_TW : timeWindow}
+                          value={showAsCustom ? CUSTOM_TW : timeWindow}
                           onChange={e => {
                             if (e.target.value === CUSTOM_TW) {
-                              setTimeWindow(`${startVal}-${endVal}`);
+                              setTwCustomMode(true);
+                              // Seed with a non-preset range so the Custom inputs render
+                              // immediately instead of collapsing back to the matching preset.
+                              if (TIME_PRESETS.includes(timeWindow)) {
+                                setTimeWindow("09:00-18:00");
+                              }
                             } else {
+                              setTwCustomMode(false);
                               setTimeWindow(e.target.value);
                             }
                           }}
@@ -897,7 +908,7 @@ export function CreateJobModal({ open, onClose }: Props) {
                           ))}
                           <option value={CUSTOM_TW}>Custom (overtime)…</option>
                         </select>
-                        {isCustom && scheduledDate && (
+                        {showAsCustom && scheduledDate && (
                           <div className="grid grid-cols-2 gap-2">
                             <Input
                               type="time"
