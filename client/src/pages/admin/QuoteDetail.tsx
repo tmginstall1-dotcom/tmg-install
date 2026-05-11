@@ -43,6 +43,8 @@ const TIME_WINDOWS = [
   { value: "13:00-17:00", label: "Afternoon (13:00 – 17:00)" },
   { value: "09:00-17:00", label: "Full Day (09:00 – 17:00)" },
 ];
+const TIME_PRESETS = TIME_WINDOWS.map(t => t.value);
+const CUSTOM_TW = "__custom__";
 
 function ScheduleEditor({
   quoteId,
@@ -185,16 +187,55 @@ function ScheduleEditor({
           data-testid="input-scheduled-date"
           className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 text-left focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <select
-          value={twVal}
-          onChange={e => setTwVal(e.target.value)}
-          data-testid="select-time-window"
-          className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {TIME_WINDOWS.map(tw => (
-            <option key={tw.value} value={tw.value}>{tw.label}</option>
-          ))}
-        </select>
+        {(() => {
+          const isCustom = !TIME_PRESETS.includes(twVal);
+          const [startVal, endVal] = (twVal && twVal.includes("-")) ? twVal.split("-") : ["09:00", "17:00"];
+          return (
+            <>
+              <select
+                value={isCustom ? CUSTOM_TW : twVal}
+                onChange={e => {
+                  if (e.target.value === CUSTOM_TW) {
+                    setTwVal(`${startVal}-${endVal}`);
+                  } else {
+                    setTwVal(e.target.value);
+                  }
+                }}
+                data-testid="select-time-window"
+                className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {TIME_WINDOWS.map(tw => (
+                  <option key={tw.value} value={tw.value}>{tw.label}</option>
+                ))}
+                <option value={CUSTOM_TW}>Custom (overtime)…</option>
+              </select>
+              {isCustom && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-medium text-zinc-500 mb-1 block">Start</label>
+                    <input
+                      type="time"
+                      value={startVal}
+                      onChange={e => setTwVal(`${e.target.value}-${endVal}`)}
+                      data-testid="input-time-start"
+                      className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-zinc-500 mb-1 block">End (overtime allowed)</label>
+                    <input
+                      type="time"
+                      value={endVal}
+                      onChange={e => setTwVal(`${startVal}-${e.target.value}`)}
+                      data-testid="input-time-end"
+                      className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <button

@@ -27,6 +27,8 @@ const TIME_WINDOWS = [
   { value: "13:00-17:00", label: "Afternoon  (13:00 – 17:00)" },
   { value: "09:00-17:00", label: "Full Day  (09:00 – 17:00)" },
 ];
+const TIME_PRESETS = TIME_WINDOWS.map(t => t.value);
+const CUSTOM_TW = "__custom__";
 
 const SOURCE_OPTIONS = [
   { value: "phone",      label: "📞  Phone Call" },
@@ -872,17 +874,50 @@ export function CreateJobModal({ open, onClose }: Props) {
                 </div>
                 <div>
                   <Label className="text-xs text-zinc-500 mb-1.5 block">Time Window</Label>
-                  <select
-                    data-testid="select-time-window"
-                    value={timeWindow}
-                    onChange={e => setTimeWindow(e.target.value)}
-                    disabled={!scheduledDate}
-                    className="h-9 w-full px-3 border border-zinc-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
-                  >
-                    {TIME_WINDOWS.map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
+                  {(() => {
+                    const isCustom = !TIME_PRESETS.includes(timeWindow);
+                    const [startVal, endVal] = (timeWindow && timeWindow.includes("-")) ? timeWindow.split("-") : ["09:00", "17:00"];
+                    return (
+                      <div className="space-y-2">
+                        <select
+                          data-testid="select-time-window"
+                          value={isCustom ? CUSTOM_TW : timeWindow}
+                          onChange={e => {
+                            if (e.target.value === CUSTOM_TW) {
+                              setTimeWindow(`${startVal}-${endVal}`);
+                            } else {
+                              setTimeWindow(e.target.value);
+                            }
+                          }}
+                          disabled={!scheduledDate}
+                          className="h-9 w-full px-3 border border-zinc-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
+                        >
+                          {TIME_WINDOWS.map(t => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                          <option value={CUSTOM_TW}>Custom (overtime)…</option>
+                        </select>
+                        {isCustom && scheduledDate && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              type="time"
+                              value={startVal}
+                              onChange={e => setTimeWindow(`${e.target.value}-${endVal}`)}
+                              data-testid="input-time-start"
+                              className="h-9 text-sm border-zinc-300"
+                            />
+                            <Input
+                              type="time"
+                              value={endVal}
+                              onChange={e => setTimeWindow(`${startVal}-${e.target.value}`)}
+                              data-testid="input-time-end"
+                              className="h-9 text-sm border-zinc-300"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </Section>
