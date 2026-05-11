@@ -1001,10 +1001,10 @@ export default function AdminQuoteDetail() {
     const issuedDate = isFullyPaid && q.finalPaidAt
       ? new Date(q.finalPaidAt).toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" })
       : new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" });
-    // Net 14 payment terms for commercial invoices
+    // Net 30 payment terms for commercial invoices
     const dueDate = (() => {
       const base = isFullyPaid && q.finalPaidAt ? new Date(q.finalPaidAt) : new Date();
-      base.setDate(base.getDate() + 14);
+      base.setDate(base.getDate() + 30);
       return base.toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" });
     })();
 
@@ -1015,46 +1015,47 @@ export default function AdminQuoteDetail() {
   <title>${q.referenceNo}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 32px; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 2px solid #000; }
+    @page { size: A4; margin: 8mm; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11.5px; color: #111; background: #fff; padding: 18px 22px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #000; }
     .company h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
     .company p { font-size: 10px; color: #555; margin-top: 2px; line-height: 1.5; }
     .doc-meta { text-align: right; }
     .doc-meta .ref { font-size: 16px; font-weight: 700; font-family: monospace; }
     .doc-meta .label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #888; }
     .doc-meta .status { display: inline-block; background: #000; color: #fff; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 99px; margin-top: 4px; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
-    .card { background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; padding: 14px 16px; page-break-inside: avoid; break-inside: avoid; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }
+    .card { background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px; page-break-inside: avoid; break-inside: avoid; }
     .card-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
     .card p { font-size: 11px; line-height: 1.6; color: #222; }
     .card strong { color: #000; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
     th { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #666; font-weight: 700; text-align: left; padding: 8px 10px; border-bottom: 2px solid #000; }
     th:last-child, td:last-child { text-align: right; }
     th:nth-child(2), td:nth-child(2) { text-align: center; width: 60px; }
     th:nth-child(3), td:nth-child(3) { text-align: right; width: 90px; }
-    td { padding: 9px 10px; border-bottom: 1px solid #eee; font-size: 11px; color: #333; vertical-align: top; }
+    td { padding: 6px 10px; border-bottom: 1px solid #eee; font-size: 11px; color: #333; vertical-align: top; }
     tr { page-break-inside: avoid; break-inside: avoid; }
     tr:last-child td { border-bottom: none; }
     thead { display: table-header-group; }
     .totals { margin-left: auto; width: 280px; page-break-inside: avoid; break-inside: avoid; }
     .totals-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 11px; color: #444; }
     .totals-row.grand { font-size: 15px; font-weight: 800; color: #000; border-top: 2px solid #000; margin-top: 6px; padding-top: 8px; }
-    .payment-section { margin-top: 32px; display: flex; gap: 24px; align-items: flex-start; padding: 16px 18px; background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; page-break-inside: avoid; break-inside: avoid; }
+    .payment-section { margin-top: 14px; display: flex; gap: 16px; align-items: flex-start; padding: 10px 14px; background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; page-break-inside: avoid; break-inside: avoid; page-break-before: avoid; break-before: avoid; }
     .payment-details { flex: 1; }
-    .payment-details h3 { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
+    .payment-details h3 { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 6px; }
     .payment-details table { margin-bottom: 0; }
-    .payment-details table th, .payment-details table td { padding: 3px 8px; font-size: 10px; border-bottom: none; text-align: left; }
+    .payment-details table th, .payment-details table td { padding: 2px 8px; font-size: 10px; border-bottom: none; text-align: left; }
     .payment-details table th { width: 110px; color: #888; font-weight: 600; background: none; border: none; }
     .payment-details table td { color: #111; font-weight: 500; }
     .qr-block { text-align: center; flex-shrink: 0; }
-    .qr-block img { width: 130px; height: 100px; display: block; object-fit: contain; background: #fff; }
-    .qr-block p { font-size: 8px; color: #999; margin-top: 4px; }
-    .tnc { margin-top: 24px; padding: 14px 18px; border: 1px solid #e5e5e5; border-radius: 8px; page-break-inside: avoid; break-inside: avoid; }
+    .qr-block img { width: 100px; height: 80px; display: block; object-fit: contain; background: #fff; }
+    .qr-block p { font-size: 8px; color: #999; margin-top: 2px; }
+    .tnc { margin-top: 14px; padding: 10px 14px; border: 1px solid #e5e5e5; border-radius: 8px; page-break-inside: avoid; break-inside: avoid; }
     .tnc h3 { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 8px; }
     .tnc ol { padding-left: 14px; }
     .tnc li { font-size: 9px; color: #555; line-height: 1.7; }
-    .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: flex-end; page-break-inside: avoid; break-inside: avoid; }
+    .footer { margin-top: 14px; padding-top: 10px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: flex-end; page-break-inside: avoid; break-inside: avoid; }
     .footer p { font-size: 9px; color: #999; line-height: 1.7; }
     .sig-box { border: 1px dashed #ccc; border-radius: 6px; padding: 10px 16px; min-width: 180px; }
     .sig-box .sig-label { font-size: 9px; color: #999; margin-top: 24px; }
@@ -1063,9 +1064,13 @@ export default function AdminQuoteDetail() {
     .badge-partial { background: #fef9c3; color: #713f12; }
     .badge-unpaid { background: #fee2e2; color: #991b1b; }
     @media print {
-      body { padding: 20px; }
+      @page { size: A4; margin: 8mm; }
+      html, body { padding: 0; margin: 0; }
+      body { padding: 6mm 8mm; }
       button { display: none; }
       .card, .tnc, .payment-section, .totals, .footer, tr { page-break-inside: avoid; break-inside: avoid; }
+      .totals { page-break-after: avoid; break-after: avoid; }
+      .payment-section { page-break-before: avoid; break-before: avoid; }
       thead { display: table-header-group; }
     }
   </style>
@@ -1082,7 +1087,7 @@ export default function AdminQuoteDetail() {
       ${isInvoiceDoc ? `<div style="font-size:9px;color:#888;margin-top:3px;">Job Ref: ${esc(q.referenceNo)}</div>` : ""}
       <div style="font-size:9px;color:#666;margin-top:6px;">
         <div><strong>Issued:</strong> ${esc(issuedDate)}</div>
-        ${isInvoiceDoc && !isFullyPaid ? `<div><strong>Due:</strong> ${esc(dueDate)} (Net 14)</div>` : ""}
+        ${isInvoiceDoc && !isFullyPaid ? `<div><strong>Due:</strong> ${esc(dueDate)} (Net 30)</div>` : ""}
       </div>
       <div class="status">${(q.status || "").replace(/_/g, " ")}</div>
     </div>
@@ -1222,7 +1227,7 @@ export default function AdminQuoteDetail() {
     <h3>Terms &amp; Conditions</h3>
     <ol>
       ${isInvoiceDoc ? `
-      <li><strong>Payment Terms:</strong> Net 14 days from invoice date${isFullyPaid ? "" : ` — payment due by <strong>${esc(dueDate)}</strong>`}. Please quote the invoice number <strong>${esc(invoiceNo)}</strong> in the payment remarks.</li>
+      <li><strong>Payment Terms:</strong> Net 30 days from invoice date${isFullyPaid ? "" : ` — payment due by <strong>${esc(dueDate)}</strong>`}. Please quote the invoice number <strong>${esc(invoiceNo)}</strong> in the payment remarks.</li>
       <li>Late payments may incur a <strong>1.5% per month</strong> administrative charge on the outstanding balance.</li>
       <li>Goods and services described above have been delivered / completed as agreed. Any defect claim must be raised in writing within <strong>7 days</strong> of completion.</li>
       <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable.</li>
