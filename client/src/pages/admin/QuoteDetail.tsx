@@ -1014,7 +1014,7 @@ export default function AdminQuoteDetail() {
   <meta charset="UTF-8" />
   <title>${q.referenceNo}</title>
   <style>
-    /* === TMG Install — professional invoice / quotation print template === */
+    /* === The Moving Guy Pte Ltd — professional invoice / quotation print template === */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     @page { size: A4; margin: 10mm; }
 
@@ -1072,26 +1072,28 @@ export default function AdminQuoteDetail() {
       background: var(--accent);
       width: 56px;
     }
-    .brand { display: flex; align-items: flex-start; gap: 12px; }
+    .brand { display: flex; align-items: stretch; gap: 14px; }
     .brand-mark {
-      width: 40px; height: 40px;
+      width: 46px; height: 46px;
       background: var(--accent);
       color: #fff;
       border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 16px; letter-spacing: -0.02em;
+      font-weight: 800; font-size: 15px; letter-spacing: 0.02em;
       flex-shrink: 0;
+      font-family: 'Inter', 'Helvetica Neue', sans-serif;
     }
+    .company { display: flex; flex-direction: column; justify-content: center; }
     .company h1 {
-      font-size: 17px; font-weight: 700; letter-spacing: -0.015em;
-      color: var(--ink); line-height: 1.2;
+      font-size: 19px; font-weight: 700; letter-spacing: -0.02em;
+      color: var(--ink); line-height: 1.15;
     }
     .company .tagline {
-      font-size: 9px; text-transform: uppercase; letter-spacing: 0.14em;
-      color: var(--muted); margin-top: 2px; font-weight: 600;
+      font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.18em;
+      color: var(--muted); margin-top: 3px; font-weight: 600;
     }
     .company p.contact {
-      font-size: 9.5px; color: var(--muted); margin-top: 6px; line-height: 1.55;
+      font-size: 9.5px; color: var(--muted); margin-top: 7px; line-height: 1.6;
     }
 
     .doc-meta { text-align: right; min-width: 200px; }
@@ -1275,22 +1277,29 @@ export default function AdminQuoteDetail() {
 
     /* ── Footer ────────────────────────────────────────────────── */
     .footer {
-      margin-top: 16px; padding-top: 12px;
+      margin-top: 18px; padding-top: 14px;
       border-top: 1px solid var(--line);
-      display: grid; grid-template-columns: 1fr 200px; gap: 18px;
+      display: grid; grid-template-columns: 1fr 220px; gap: 24px;
       align-items: flex-end;
       page-break-inside: avoid; break-inside: avoid;
     }
     .thanks {
-      font-size: 11px; font-weight: 700; color: var(--ink); margin-bottom: 4px;
+      font-size: 12px; font-weight: 700; color: var(--ink);
+      margin-bottom: 6px; letter-spacing: -0.01em;
     }
     .footer p { font-size: 8.5px; color: var(--muted); line-height: 1.7; }
     .sig-box {
       border: 1px solid var(--line); border-radius: 6px;
-      padding: 12px 14px; background: var(--bg-soft);
+      padding: 10px 16px 12px; background: #fff;
+      display: flex; flex-direction: column; align-items: stretch;
     }
-    .sig-line { height: 32px; border-bottom: 1px solid var(--line-2); margin-bottom: 4px; }
-    .sig-label { font-size: 8.5px; color: var(--muted); text-align: center; font-weight: 600; }
+    .sig-line { height: 36px; border-bottom: 1px solid var(--line-2); margin-bottom: 6px; }
+    .sig-label {
+      font-size: 8.5px; color: var(--muted); text-align: center;
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+      line-height: 1.4;
+    }
+    .sig-label .sig-name { display: block; color: var(--ink); font-weight: 700; margin-bottom: 1px; letter-spacing: 0.04em; }
 
     .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
     .badge-paid { background: var(--green-soft); color: var(--green); }
@@ -1465,15 +1474,15 @@ export default function AdminQuoteDetail() {
       <li>Late payments may incur a <strong>1.5% per month</strong> administrative charge on the outstanding balance.</li>
       <li>Goods and services described above have been delivered / completed as agreed. Any defect claim must be raised in writing within <strong>7 days</strong> of completion.</li>
       <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable.</li>
-      <li>TMG Install is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
+      <li>The Moving Guy Pte Ltd is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
       <li>Any additional work not stated in this invoice has been agreed upon separately in writing.</li>
-      <li>All prices are in Singapore Dollars (SGD) and are <strong>not subject to GST</strong> (TMG Install Pte Ltd is not GST-registered).</li>
+      <li>All prices are in Singapore Dollars (SGD) and are <strong>not subject to GST</strong> (The Moving Guy Pte Ltd is not GST-registered).</li>
       ` : `
       <li>This quotation is valid for <strong>14 days</strong> from the date of issue.</li>
       <li><strong>Payment Terms:</strong> 50% deposit is required to confirm the booking. The remaining balance is payable upon completion of the installation.</li>
       <li>Rescheduling with less than <strong>24 hours' notice</strong> may incur a cancellation/admin fee.</li>
       <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable.</li>
-      <li>TMG Install is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
+      <li>The Moving Guy Pte Ltd is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
       <li>Customer is responsible for ensuring clear access to the premises on the scheduled date and time.</li>
       <li>Any additional work not stated in this quotation will be charged separately and agreed upon in writing.</li>
       <li>All prices are in Singapore Dollars (SGD) and are <strong>not subject to GST</strong> (we are not GST-registered).</li>
@@ -1484,11 +1493,15 @@ export default function AdminQuoteDetail() {
   <div class="footer">
     <div>
       <div class="thanks">${isInvoiceDoc ? "Thank you for your business." : "We appreciate the opportunity to quote for you."}</div>
-      <p>Generated ${esc(new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" }))} · TMG Install Pte Ltd · UEN 202424156H<br/>+65 8088 0757 · sales@tmginstall.com · tmginstall.com</p>
+      <p>Generated ${esc(new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" }))} · The Moving Guy Pte Ltd · UEN 202424156H<br/>+65 8088 0757 · sales@tmginstall.com · tmginstall.com</p>
     </div>
     <div class="sig-box">
       <div class="sig-line"></div>
-      <div class="sig-label">${isInvoiceDoc ? "Authorised Signatory · TMG Install Pte Ltd" : "Customer Signature &amp; Date"}</div>
+      <div class="sig-label">
+        ${isInvoiceDoc
+          ? `<span class="sig-name">The Moving Guy Pte Ltd</span>Authorised Signatory`
+          : `<span class="sig-name">Customer</span>Signature &amp; Date`}
+      </div>
     </div>
   </div>
 
