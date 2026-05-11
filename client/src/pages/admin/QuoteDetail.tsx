@@ -1328,10 +1328,10 @@ export default function AdminQuoteDetail() {
        print engine ignores CSS classes inside SVG. */
     .company-stamp {
       position: absolute;
-      top: 4px; right: 6px;
-      width: 96px; height: 96px;
-      transform: rotate(-8deg);
-      opacity: 0.85;
+      top: 2px; right: 4px;
+      width: 108px; height: 108px;
+      transform: rotate(-6deg);
+      opacity: 0.88;
       pointer-events: none;
     }
     .company-stamp svg { width: 100%; height: 100%; display: block; overflow: visible; }
@@ -1535,34 +1535,35 @@ export default function AdminQuoteDetail() {
       <div class="company-stamp" aria-hidden="true">
         <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
           <defs>
-            <!-- Larger radius arcs so curved text sits cleanly between the two rings -->
-            <path id="tmgStampTopArc" d="M 16,60 A 44,44 0 0 1 104,60" fill="none" />
-            <path id="tmgStampBottomArc" d="M 20,60 A 40,40 0 0 0 100,60" fill="none" />
+            <!-- Top text path: r=42, sweep=1 (clockwise via top). Glyphs extend
+                 OUTWARD from the path, sitting in the band r=42..r=49.5. -->
+            <path id="tmgStampTopArc" d="M 18,60 A 42,42 0 0 1 102,60" fill="none" />
+            <!-- Bottom text path: r=53, sweep=1 (counterclockwise via bottom).
+                 Glyphs extend INWARD (toward center), sitting in r=47..r=53.
+                 This pattern keeps both text bands inside the outer ring. -->
+            <path id="tmgStampBottomArc" d="M 7,60 A 53,53 0 0 1 113,60" fill="none" />
           </defs>
           <!-- Outer thick ring -->
-          <circle cx="60" cy="60" r="55" fill="none" stroke="#15407a" stroke-width="2.4" />
-          <!-- Inner thin ring (defines the text band) -->
-          <circle cx="60" cy="60" r="38" fill="none" stroke="#15407a" stroke-width="0.9" />
-          <!-- Curved top text: company name -->
-          <text fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="8.2" letter-spacing="1.6">
+          <circle cx="60" cy="60" r="56" fill="none" stroke="#15407a" stroke-width="2.4" />
+          <!-- Inner thin ring -->
+          <circle cx="60" cy="60" r="39" fill="none" stroke="#15407a" stroke-width="0.9" />
+          <!-- Top curved text: company name -->
+          <text fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="7.4" letter-spacing="1.3">
             <textPath xlink:href="#tmgStampTopArc" href="#tmgStampTopArc" startOffset="50%" text-anchor="middle">
               THE MOVING GUY PTE LTD
             </textPath>
           </text>
-          <!-- Curved bottom text: UEN -->
-          <text fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="6.4" letter-spacing="1.8">
+          <!-- Bottom curved text: UEN \u00B7 SINGAPORE -->
+          <text fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="6" letter-spacing="1.5">
             <textPath xlink:href="#tmgStampBottomArc" href="#tmgStampBottomArc" startOffset="50%" text-anchor="middle">
               UEN 202424156H \u00B7 SINGAPORE
             </textPath>
           </text>
-          <!-- Side stars separating top and bottom text bands -->
-          <text x="9" y="63" text-anchor="middle" fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-size="8" font-weight="700">\u2605</text>
-          <text x="111" y="63" text-anchor="middle" fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-size="8" font-weight="700">\u2605</text>
-          <!-- Center block: thin horizontal rules + AUTHORISED -->
-          <line x1="30" y1="54" x2="90" y2="54" stroke="#15407a" stroke-width="0.7" />
-          <line x1="30" y1="76" x2="90" y2="76" stroke="#15407a" stroke-width="0.7" />
-          <text x="60" y="63" text-anchor="middle" fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="9.4" letter-spacing="1.6">AUTHORISED</text>
-          <text x="60" y="73" text-anchor="middle" fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="6.4" letter-spacing="1.8">SIGNATORY</text>
+          <!-- Center block: thin rules safely inside inner ring r=39 -->
+          <line x1="32" y1="55" x2="88" y2="55" stroke="#15407a" stroke-width="0.6" />
+          <line x1="32" y1="76" x2="88" y2="76" stroke="#15407a" stroke-width="0.6" />
+          <text x="60" y="65" text-anchor="middle" fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="8.6" letter-spacing="1.3">AUTHORISED</text>
+          <text x="60" y="73" text-anchor="middle" fill="#15407a" font-family="Helvetica, Arial, sans-serif" font-weight="600" font-size="5.4" letter-spacing="1.4">SIGNATORY</text>
         </svg>
       </div>
       <div class="sig-line"></div>
