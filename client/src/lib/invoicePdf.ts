@@ -34,6 +34,11 @@ export type InvoicePdfData = {
   customerName: string;
   customerEmail: string | null;
   customerPhone: string | null;
+  invoiceType?: "residential" | "commercial";
+  billingAddress?: string | null;
+  billingCompanyName?: string | null;
+  billingCompanyUen?: string | null;
+  poNumber?: string | null;
   serviceAddress: string | null;
   pickupAddress: string | null;
   dropoffAddress: string | null;
@@ -155,17 +160,23 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
   const labelColor: [number, number, number] = [156, 163, 175];     // gray-400
   const bodyColor: [number, number, number] = [55, 65, 81];         // gray-700
 
+  const isCommercial = data.invoiceType === "commercial";
+  const showEmail = !!(data.customerEmail && !data.customerEmail.includes("@tmginstall.com"));
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
   doc.setTextColor(...labelColor);
-  doc.text("BILL TO", marginX, y);
+  doc.text(isCommercial ? "BILL TO (COMMERCIAL)" : "BILL TO", marginX, y);
   doc.text("JOB REFERENCE", marginX + colW, y);
   y += 4;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(17, 17, 17);
-  doc.text(data.customerName || "—", marginX, y);
+  const billToName = isCommercial
+    ? (data.billingCompanyName || data.customerName || "—")
+    : (data.customerName || "—");
+  doc.text(billToName, marginX, y);
 
   doc.setFont("courier", "bold");
   doc.setFontSize(10);
@@ -179,8 +190,34 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
 
   // Bill-to extra lines
   let leftY = y;
-  if (data.customerEmail) { doc.text(data.customerEmail, marginX, leftY); leftY += 4; }
-  if (data.customerPhone) { doc.text(data.customerPhone, marginX, leftY); leftY += 4; }
+  if (isCommercial) {
+    if (data.billingCompanyUen) { doc.text(`UEN: ${data.billingCompanyUen}`, marginX, leftY); leftY += 4; }
+    if (data.billingAddress) {
+      const addrLines = doc.splitTextToSize(data.billingAddress, colW - 4);
+      doc.text(addrLines, marginX, leftY);
+      leftY += addrLines.length * 4;
+    }
+    if (data.billingCompanyName && data.customerName) {
+      doc.text(`Attn: ${data.customerName}`, marginX, leftY); leftY += 4;
+    }
+    if (data.customerPhone) { doc.text(data.customerPhone, marginX, leftY); leftY += 4; }
+    if (showEmail) { doc.text(data.customerEmail!, marginX, leftY); leftY += 4; }
+    if (data.poNumber) {
+      leftY += 1;
+      doc.setFont("helvetica", "bold");
+      doc.text(`PO No.: ${data.poNumber}`, marginX, leftY);
+      doc.setFont("helvetica", "normal");
+      leftY += 4;
+    }
+  } else {
+    if (data.billingAddress) {
+      const addrLines = doc.splitTextToSize(data.billingAddress, colW - 4);
+      doc.text(addrLines, marginX, leftY);
+      leftY += addrLines.length * 4;
+    }
+    if (data.customerPhone) { doc.text(data.customerPhone, marginX, leftY); leftY += 4; }
+    if (showEmail) { doc.text(data.customerEmail!, marginX, leftY); leftY += 4; }
+  }
 
   // Job-reference extra lines
   let rightY = y;

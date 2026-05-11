@@ -29,6 +29,11 @@ type InvoicePayload = {
   customerName: string;
   customerEmail: string | null;
   customerPhone: string | null;
+  invoiceType?: "residential" | "commercial";
+  billingAddress?: string | null;
+  billingCompanyName?: string | null;
+  billingCompanyUen?: string | null;
+  poNumber?: string | null;
   serviceAddress: string | null;
   pickupAddress: string | null;
   dropoffAddress: string | null;
@@ -207,28 +212,63 @@ export default function Invoice() {
             )}
 
             {/* Bill To + Job */}
-            <div className="px-7 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Bill To</div>
-                <div className="text-sm font-semibold text-gray-900" data-testid="text-invoice-customer-name">{data.customerName}</div>
-                {data.customerEmail && <div className="text-[12px] text-gray-600 mt-0.5">{data.customerEmail}</div>}
-                {data.customerPhone && <div className="text-[12px] text-gray-600 mt-0.5">{data.customerPhone}</div>}
-              </div>
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Job Reference</div>
-                <div className="text-sm font-mono font-bold text-blue-700" data-testid="text-invoice-ref-no">{data.referenceNo}</div>
-                {data.scheduledAt && (
-                  <div className="text-[12px] text-gray-600 mt-1">
-                    Service date: <span className="font-medium text-gray-800">{dt(data.scheduledAt)}{data.timeWindow ? ` · ${data.timeWindow}` : ""}</span>
+            {(() => {
+              const isCommercial = data.invoiceType === "commercial";
+              const showEmail = data.customerEmail && !data.customerEmail.includes("@tmginstall.com");
+              return (
+                <div className="px-7 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                      Bill To{isCommercial ? " (Commercial)" : ""}
+                    </div>
+                    {isCommercial ? (
+                      <>
+                        <div className="text-sm font-semibold text-gray-900" data-testid="text-invoice-customer-name">
+                          {data.billingCompanyName || data.customerName}
+                        </div>
+                        {data.billingCompanyUen && (
+                          <div className="text-[12px] text-gray-700 mt-0.5">UEN: {data.billingCompanyUen}</div>
+                        )}
+                        {data.billingAddress && (
+                          <div className="text-[12px] text-gray-700 mt-1 whitespace-pre-line">{data.billingAddress}</div>
+                        )}
+                        {data.billingCompanyName && data.customerName && (
+                          <div className="text-[12px] text-gray-700 mt-1">Attn: {data.customerName}</div>
+                        )}
+                        {data.customerPhone && <div className="text-[12px] text-gray-600 mt-0.5">{data.customerPhone}</div>}
+                        {showEmail && <div className="text-[12px] text-gray-600 mt-0.5">{data.customerEmail}</div>}
+                        {data.poNumber && (
+                          <div className="text-[12px] text-gray-700 mt-1.5"><span className="font-semibold">PO No.:</span> {data.poNumber}</div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm font-semibold text-gray-900" data-testid="text-invoice-customer-name">{data.customerName}</div>
+                        {data.billingAddress && (
+                          <div className="text-[12px] text-gray-700 mt-1 whitespace-pre-line">{data.billingAddress}</div>
+                        )}
+                        {data.customerPhone && <div className="text-[12px] text-gray-600 mt-0.5">{data.customerPhone}</div>}
+                        {showEmail && <div className="text-[12px] text-gray-600 mt-0.5">{data.customerEmail}</div>}
+                      </>
+                    )}
                   </div>
-                )}
-                {data.completedAt && (
-                  <div className="text-[12px] text-gray-600 mt-0.5">
-                    Completed: <span className="font-medium text-gray-800">{dt(data.completedAt)}</span>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Job Reference</div>
+                    <div className="text-sm font-mono font-bold text-blue-700" data-testid="text-invoice-ref-no">{data.referenceNo}</div>
+                    {data.scheduledAt && (
+                      <div className="text-[12px] text-gray-600 mt-1">
+                        Service date: <span className="font-medium text-gray-800">{dt(data.scheduledAt)}{data.timeWindow ? ` · ${data.timeWindow}` : ""}</span>
+                      </div>
+                    )}
+                    {data.completedAt && (
+                      <div className="text-[12px] text-gray-600 mt-0.5">
+                        Completed: <span className="font-medium text-gray-800">{dt(data.completedAt)}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              );
+            })()}
 
             {/* Service location */}
             <div className="px-7 pb-5">

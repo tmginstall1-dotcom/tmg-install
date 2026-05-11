@@ -4690,7 +4690,9 @@ ${systemPrompt}` });
           name: z.string().optional(),
           email: z.string().email().optional(),
           phone: z.string().optional(),
-          companyName: z.string().optional(),
+          companyName: z.string().nullable().optional(),
+          companyUen: z.string().nullable().optional(),
+          billingAddress: z.string().nullable().optional(),
         }).optional(),
         quoteUpdates: z.object({
           serviceAddress: z.string().optional(),
@@ -4706,6 +4708,12 @@ ${systemPrompt}` });
           // (in_progress/booked/assigned → booking_pending) or after picking a new
           // date for a job currently sitting in booking_pending (booking_pending → booked).
           status: z.enum(['booking_pending', 'booked']).optional(),
+          // Invoice / billing presentation
+          invoiceType: z.enum(['residential', 'commercial']).optional(),
+          billingAddress: z.string().nullable().optional(),
+          billingCompanyName: z.string().nullable().optional(),
+          billingCompanyUen: z.string().nullable().optional(),
+          poNumber: z.string().nullable().optional(),
         }).optional(),
         items: z.array(z.object({
           catalogItemId: z.number().nullable().optional(),
@@ -7722,6 +7730,21 @@ Respond directly — no JSON, just the message text.`,
       subtotal: String(it.subtotal || "0"),
     }));
 
+    // Resolve billing presentation. Each quote can override the customer's
+    // default billing details. Falls back to customer profile, then to the
+    // service address as a last resort so old quotes still render.
+    const cust: any = (quote as any).customer || {};
+    const invoiceType: "residential" | "commercial" =
+      ((quote as any).invoiceType === "commercial") ? "commercial" : "residential";
+    const billingAddress =
+      (quote as any).billingAddress
+      || cust.billingAddress
+      || quote.serviceAddress
+      || null;
+    const billingCompanyName = (quote as any).billingCompanyName || cust.companyName || null;
+    const billingCompanyUen  = (quote as any).billingCompanyUen  || cust.companyUen  || null;
+    const poNumber = (quote as any).poNumber || null;
+
     return {
       referenceNo: quote.referenceNo,
       invoiceNo,
@@ -7729,6 +7752,13 @@ Respond directly — no JSON, just the message text.`,
       customerName: quote.customer?.name || "—",
       customerEmail: quote.customer?.email || null,
       customerPhone: quote.customerWhatsappPhone || quote.customer?.phone || null,
+      // Billing presentation (separate from work-site address)
+      invoiceType,
+      billingAddress,
+      billingCompanyName,
+      billingCompanyUen,
+      poNumber,
+      // Work-site / service location (where the staff actually go)
       serviceAddress: quote.serviceAddress || null,
       pickupAddress: quote.pickupAddress || null,
       dropoffAddress: quote.dropoffAddress || null,

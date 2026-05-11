@@ -770,6 +770,9 @@ export default function AdminQuoteDetail() {
       name: quote.customer?.name || '',
       email: quote.customer?.email || '',
       phone: quote.customer?.phone || '',
+      companyName: quote.customer?.companyName || '',
+      companyUen: quote.customer?.companyUen || '',
+      billingAddress: quote.customer?.billingAddress || '',
     });
     setEditQuoteData({
       serviceAddress: quote.serviceAddress || '',
@@ -778,6 +781,11 @@ export default function AdminQuoteDetail() {
       transportFee: quote.transportFee || '0',
       notes: quote.notes || '',
       staffTransportAllowance: !!quote.staffTransportAllowance,
+      invoiceType: (quote.invoiceType === 'commercial') ? 'commercial' : 'residential',
+      billingAddress: quote.billingAddress || '',
+      billingCompanyName: quote.billingCompanyName || '',
+      billingCompanyUen: quote.billingCompanyUen || '',
+      poNumber: quote.poNumber || '',
     });
     setEditItems((quote.items || []).filter((item: any) => item.serviceType !== 'discount').map((item: any) => ({
       catalogItemId: item.catalogItemId,
@@ -912,6 +920,16 @@ export default function AdminQuoteDetail() {
     const scheduledDate = q.scheduledAt ? new Date(q.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : null;
     const address = q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress || "—");
 
+    // Escape user-controlled values before interpolation into the printable
+    // HTML template (this template is opened via window.open in the admin's
+    // browser, so unescaped customer/billing input would be an XSS risk).
+    const esc = (v: any) => String(v ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
     const isFullyPaid = !!(q.finalPaidAt) || q.paymentStatus === "paid_in_full";
     const isDepositPaid = !!(q.depositPaidAt) || q.paymentStatus === "deposit_paid";
     const totalAmt = Number(q.total || 0);
@@ -986,21 +1004,44 @@ export default function AdminQuoteDetail() {
     </div>
   </div>
 
+  ${(() => {
+    const isCommercial = (q.invoiceType === "commercial");
+    const billingCompanyName = q.billingCompanyName || q.customer?.companyName || "";
+    const billingCompanyUen  = q.billingCompanyUen  || q.customer?.companyUen  || "";
+    const billingAddress     = q.billingAddress     || q.customer?.billingAddress || address || "";
+    const showCustomerEmail  = q.customer?.email && !q.customer.email.includes("@tmginstall.com");
+    const escAddr = (v: any) => esc(v).replace(/\n/g, "<br/>");
+    const billToHtml = isCommercial
+      ? `
+        ${billingCompanyName ? `<p><strong>${esc(billingCompanyName)}</strong></p>` : `<p><strong>${esc(q.customer?.name || "—")}</strong></p>`}
+        ${billingCompanyUen ? `<p>UEN: ${esc(billingCompanyUen)}</p>` : ""}
+        ${billingAddress ? `<p>${escAddr(billingAddress)}</p>` : ""}
+        ${q.customer?.name && billingCompanyName ? `<p style="margin-top:6px;">Attn: ${esc(q.customer.name)}</p>` : ""}
+        ${q.customer?.phone ? `<p>${esc(q.customer.phone)}</p>` : ""}
+        ${showCustomerEmail ? `<p>${esc(q.customer.email)}</p>` : ""}
+        ${q.poNumber ? `<p style="margin-top:6px;"><strong>PO No.:</strong> ${esc(q.poNumber)}</p>` : ""}
+      `
+      : `
+        <p><strong>${esc(q.customer?.name || "—")}</strong></p>
+        ${billingAddress ? `<p>${escAddr(billingAddress)}</p>` : ""}
+        ${q.customer?.phone ? `<p>${esc(q.customer.phone)}</p>` : ""}
+        ${showCustomerEmail ? `<p>${esc(q.customer.email)}</p>` : ""}
+      `;
+    return `
   <div class="grid2">
     <div class="card">
-      <div class="card-title">Customer</div>
-      <p><strong>${q.customer?.name || "—"}</strong></p>
-      <p>${q.customer?.phone || "—"}</p>
-      <p>${q.customer?.email ? q.customer.email.includes("@tmginstall.com") ? "" : q.customer.email : ""}</p>
+      <div class="card-title">Bill To${isCommercial ? " (Commercial)" : ""}</div>
+      ${billToHtml}
     </div>
     <div class="card">
       <div class="card-title">Job Details</div>
-      <p><strong>Address:</strong> ${address}</p>
-      ${scheduledDate ? `<p><strong>Date:</strong> ${scheduledDate}${q.timeWindow ? ` · ${q.timeWindow}` : ""}</p>` : ""}
-      ${services.length ? `<p><strong>Services:</strong> ${services.join(", ")}</p>` : ""}
-      ${q.notes ? `<p><strong>Notes:</strong> ${q.notes}</p>` : ""}
+      <p><strong>Service Address:</strong> ${esc(address)}</p>
+      ${scheduledDate ? `<p><strong>Date:</strong> ${esc(scheduledDate)}${q.timeWindow ? ` · ${esc(q.timeWindow)}` : ""}</p>` : ""}
+      ${services.length ? `<p><strong>Services:</strong> ${esc(services.join(", "))}</p>` : ""}
+      ${q.notes ? `<p><strong>Notes:</strong> ${esc(q.notes)}</p>` : ""}
     </div>
-  </div>
+  </div>`;
+  })()}
 
   <table>
     <thead>
@@ -1271,6 +1312,101 @@ export default function AdminQuoteDetail() {
                       rows={3}
                       className="w-full p-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
                       placeholder="Internal admin notes..." />
+                  </div>
+
+                  {/* ── Invoice / Billing Presentation ──────────────────────── */}
+                  <div className="border-t border-zinc-200 pt-4 mt-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-700">Billing & Invoice</h3>
+                      <div className="inline-flex rounded-lg border border-zinc-300 p-0.5 bg-zinc-50">
+                        <button type="button"
+                          onClick={() => setEditQuoteData({ ...editQuoteData, invoiceType: 'residential' })}
+                          className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${editQuoteData.invoiceType === 'residential' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}
+                          data-testid="button-invoice-type-residential">
+                          Residential
+                        </button>
+                        <button type="button"
+                          onClick={() => setEditQuoteData({ ...editQuoteData, invoiceType: 'commercial' })}
+                          className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${editQuoteData.invoiceType === 'commercial' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}
+                          data-testid="button-invoice-type-commercial">
+                          Commercial
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-xs font-medium text-zinc-500 mb-1.5 block">
+                          Billing Address (this quote)
+                          <span className="text-zinc-400 font-normal"> — overrides customer default. Leave blank to use customer's saved billing address, then service address.</span>
+                        </label>
+                        <textarea value={editQuoteData.billingAddress || ''} onChange={e => setEditQuoteData({ ...editQuoteData, billingAddress: e.target.value })}
+                          rows={2}
+                          className="w-full p-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
+                          placeholder="e.g. 160 Robinson Road #14-04, Singapore 068914"
+                          data-testid="input-billing-address" />
+                      </div>
+
+                      {editQuoteData.invoiceType === 'commercial' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div>
+                            <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Company Name (this quote)</label>
+                            <input value={editQuoteData.billingCompanyName || ''} onChange={e => setEditQuoteData({ ...editQuoteData, billingCompanyName: e.target.value })}
+                              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                              placeholder="ABC Pte Ltd"
+                              data-testid="input-billing-company-name" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-zinc-500 mb-1.5 block">UEN (this quote)</label>
+                            <input value={editQuoteData.billingCompanyUen || ''} onChange={e => setEditQuoteData({ ...editQuoteData, billingCompanyUen: e.target.value })}
+                              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                              placeholder="202012345A"
+                              data-testid="input-billing-company-uen" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-zinc-500 mb-1.5 block">PO Number <span className="text-zinc-400 font-normal">(optional)</span></label>
+                            <input value={editQuoteData.poNumber || ''} onChange={e => setEditQuoteData({ ...editQuoteData, poNumber: e.target.value })}
+                              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                              placeholder="PO-2025-001"
+                              data-testid="input-po-number" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Customer-profile defaults — saved on the customer record so future quotes inherit them. */}
+                      <div className="border-t border-dashed border-zinc-200 pt-4 mt-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+                          Customer Profile Defaults
+                          <span className="text-zinc-400 font-normal normal-case tracking-normal"> — used when this quote leaves the fields above blank, and applied to future quotes for this customer.</span>
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Default Billing Address</label>
+                            <textarea value={editCustomer.billingAddress || ''} onChange={e => setEditCustomer({ ...editCustomer, billingAddress: e.target.value })}
+                              rows={2}
+                              className="w-full p-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
+                              placeholder="Customer's standard billing address"
+                              data-testid="input-customer-billing-address" />
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Default Company Name</label>
+                              <input value={editCustomer.companyName || ''} onChange={e => setEditCustomer({ ...editCustomer, companyName: e.target.value })}
+                                className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                placeholder="ABC Pte Ltd"
+                                data-testid="input-customer-company-name" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Default UEN</label>
+                              <input value={editCustomer.companyUen || ''} onChange={e => setEditCustomer({ ...editCustomer, companyUen: e.target.value })}
+                                className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                placeholder="202012345A"
+                                data-testid="input-customer-company-uen" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (

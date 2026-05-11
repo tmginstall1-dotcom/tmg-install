@@ -155,7 +155,11 @@ export const customers = pgTable("customers", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone").notNull(),
+  // Default billing-side details. Each quote may override these so a customer
+  // can be billed under a different company / address per job if needed.
   companyName: text("company_name"),
+  companyUen: text("company_uen"),
+  billingAddress: text("billing_address"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -365,6 +369,15 @@ export const quotes = pgTable("quotes", {
   // Per-job staff transport allowance: when true, assigned staff receive a $8
   // transport reimbursement that's summed onto their monthly payslip.
   staffTransportAllowance: boolean("staff_transport_allowance").default(false),
+
+  // Invoice / quotation billing presentation. The work-site address (above)
+  // is where staff actually go; these fields determine how the customer is
+  // billed on the printed Quotation / Invoice / Receipt.
+  invoiceType: text("invoice_type").default("residential"), // 'residential' | 'commercial'
+  billingAddress: text("billing_address"),                  // overrides customer.billingAddress
+  billingCompanyName: text("billing_company_name"),         // overrides customer.companyName
+  billingCompanyUen: text("billing_company_uen"),           // overrides customer.companyUen
+  poNumber: text("po_number"),                              // commercial PO reference
 
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({

@@ -1,20 +1,27 @@
-// Build a professional, customer-facing description for a quote / invoice
-// line item. Includes the service type so customers can tell at a glance
-// whether the line is for installation, dismantling, reinstallation, etc.
+// Build a professional, BCA-style customer-facing description for a quote /
+// invoice line item. The format is verb-then-noun ("Installation of X",
+// "Dismantling of X") so commercial customers can map each line to the
+// service rendered. TMG only provides install / dismantle / relocate
+// services — we do not sell furniture.
 //
 // Example outputs:
-//   "Height adjustable desk — Installation"
-//   "Height adjustable desk — Dismantle"
-//   "Height adjustable desk — Reinstall"        (when same item also has a Dismantle line)
-//   "BROR shelf — Removal & Disposal"
-//   "Sofa — Relocation"
+//   "Installation of Height adjustable desk"
+//   "Dismantling of Height adjustable desk"
+//   "Reinstallation of Height adjustable desk"  (when same item also has a Dismantling line)
+//   "Relocation of Sofa"
+//   "Disposal of BROR shelf"
+//   "Dismantling & Disposal of Bookshelf"
+//
+// For manually-keyed lines (serviceType "manual") or any unknown service
+// type we just show the name — admins can type the full description in
+// the item name field.
 
-const SERVICE_TYPE_LABELS: Record<string, string> = {
+const SERVICE_VERBS: Record<string, string> = {
   install: "Installation",
-  dismantle: "Dismantle",
+  dismantle: "Dismantling",
   relocate: "Relocation",
-  dispose: "Removal & Disposal",
-  dismantle_dispose: "Dismantle & Disposal",
+  dispose: "Disposal",
+  dismantle_dispose: "Dismantling & Disposal",
 };
 
 function itemKey(it: any): string {
@@ -27,13 +34,13 @@ export function formatItemServiceLabel(item: any, allItems: any[] = []): string 
   if (st === "install") {
     const key = itemKey(item);
     const hasDismantle = !!key && allItems.some(o => o !== item && o?.serviceType === "dismantle" && itemKey(o) === key);
-    return hasDismantle ? "Reinstall" : "Installation";
+    return hasDismantle ? "Reinstallation" : "Installation";
   }
-  return SERVICE_TYPE_LABELS[st] || st;
+  return SERVICE_VERBS[st] || "";
 }
 
 export function formatItemDescription(item: any, allItems: any[] = []): string {
   const name = item?.detectedName || item?.originalDescription || "Service";
-  const label = formatItemServiceLabel(item, allItems);
-  return label ? `${name} — ${label}` : name;
+  const verb = formatItemServiceLabel(item, allItems);
+  return verb ? `${verb} of ${name}` : name;
 }
