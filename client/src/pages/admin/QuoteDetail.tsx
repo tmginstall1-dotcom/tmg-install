@@ -1538,10 +1538,11 @@ export default function AdminQuoteDetail() {
             <!-- Top text path: r=42, sweep=1 (clockwise via top). Glyphs extend
                  OUTWARD from the path, sitting in the band r=42..r=49.5. -->
             <path id="tmgStampTopArc" d="M 18,60 A 42,42 0 0 1 102,60" fill="none" />
-            <!-- Bottom text path: r=53, sweep=1 (counterclockwise via bottom).
-                 Glyphs extend INWARD (toward center), sitting in r=47..r=53.
-                 This pattern keeps both text bands inside the outer ring. -->
-            <path id="tmgStampBottomArc" d="M 7,60 A 53,53 0 0 1 113,60" fill="none" />
+            <!-- Bottom text path: r=53, sweep=0 = counterclockwise via BOTTOM
+                 (sweep=1 wrongly went via top, putting text upside-down on top).
+                 Going left-to-right via bottom, text glyphs sit ABOVE the path
+                 = toward center, occupying band r=47..r=53. Reads upright. -->
+            <path id="tmgStampBottomArc" d="M 7,60 A 53,53 0 0 0 113,60" fill="none" />
           </defs>
           <!-- Outer thick ring -->
           <circle cx="60" cy="60" r="56" fill="none" stroke="#15407a" stroke-width="2.4" />
