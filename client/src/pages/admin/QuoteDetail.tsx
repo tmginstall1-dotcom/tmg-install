@@ -8,7 +8,7 @@ import {
   ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
   DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
   ClipboardList, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
-  Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles, FileText, Copy,
+  Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles, FileText, Copy, Users,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -590,9 +590,10 @@ export default function AdminQuoteDetail() {
   const [editItems, setEditItems] = useState<any[]>([]);
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [waPhoneOverride, setWaPhoneOverride] = useState(""); // for web quotes with no stored WA phone
-  const [waSentAt, setWaSentAt] = useState<Date | null>(null); // tracks last WA send
-  const [emailSentAt, setEmailSentAt] = useState<Date | null>(null); // tracks last email send
+  // These setters are still called from send-handlers; the values are no longer
+  // displayed but the state writes are kept to avoid behavioural drift.
+  const [, setWaSentAt] = useState<Date | null>(null);
+  const [, setEmailSentAt] = useState<Date | null>(null);
   const [jobMinutes, setJobMinutes] = useState(""); // actual job duration in minutes (for overtime calc)
   const [addChargeNote, setAddChargeNote] = useState(""); // additional charge note
   const [addChargeCustom, setAddChargeCustom] = useState(""); // override amount for non-overtime charges
@@ -820,7 +821,7 @@ export default function AdminQuoteDetail() {
     ? parseFloat(quote.finalAmount!)
     : quoteTotal * 0.5;
 
-  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booked', 'assigned', 'closed', 'final_paid'].includes(quote.status);
+  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booked', 'booking_pending', 'assigned', 'in_progress', 'completed', 'final_payment_requested', 'closed', 'final_paid'].includes(quote.status);
 
   const handleStartEdit = () => {
     setEditCustomer({
@@ -1538,13 +1539,15 @@ export default function AdminQuoteDetail() {
       {/* Sticky Header */}
       <div className="sticky top-14 z-30 bg-white border-b border-zinc-200 px-3 sm:px-6 py-2 sm:py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <Link href="/admin">
-              <button className="inline-flex items-center justify-center w-8 h-8 shrink-0 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors">
-                <ArrowLeft className="w-4 h-4" />
-              </button>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Link
+              href="/admin"
+              data-testid="link-back-to-admin"
+              className="inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
             </Link>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                 <span className="text-[11px] text-zinc-500 font-mono tracking-wider">{quote.referenceNo}</span>
                 <StatusBadge status={quote.status} />
@@ -1555,12 +1558,19 @@ export default function AdminQuoteDetail() {
               <h1 className="text-sm sm:text-base font-semibold text-zinc-900 truncate">{quote.customer?.name}</h1>
             </div>
           </div>
-          
-          <div className="flex items-center gap-1 shrink-0">
-            {canEdit && !isEditing && !['closed', 'final_paid', 'cancelled'].includes(quote.status) && (
-              <button onClick={handleStartEdit} data-testid="button-edit-quote"
-                className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs sm:text-sm font-medium transition-colors">
-                <Edit2 className="w-3.5 h-3.5 text-zinc-400" />
+
+          {/* Action toolbar — Edit always shown first when allowed so it remains visible
+              on narrow iOS screens. Touch targets sized h-10 to meet mobile guidelines. */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {canEdit && !isEditing && quote.status !== 'cancelled' && (
+              <button
+                onClick={handleStartEdit}
+                data-testid="button-edit-quote"
+                title="Edit quote"
+                aria-label="Edit quote"
+                className="inline-flex items-center justify-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 active:bg-zinc-100 text-sm font-medium transition-colors"
+              >
+                <Edit2 className="w-4 h-4" />
                 <span className="hidden sm:inline">Edit</span>
               </button>
             )}
@@ -1573,14 +1583,16 @@ export default function AdminQuoteDetail() {
                   if (reason === null) return;
                   reopenJob.mutate(reason || undefined);
                 }}
-                className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 text-xs sm:text-sm font-medium transition-colors disabled:opacity-50"
+                title="Reopen job"
+                aria-label="Reopen job"
+                className="inline-flex items-center justify-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 active:bg-amber-200 text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {reopenJob.isPending ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-4 h-4" />
                 )}
-                <span>Reopen</span>
+                <span className="hidden sm:inline">Reopen</span>
               </button>
             )}
             {quote.status !== "cancelled" && (quote.finalPaidAt || quote.paymentStatus === "paid_in_full" || ["closed", "final_paid"].includes(quote.status)) && (
@@ -1588,9 +1600,10 @@ export default function AdminQuoteDetail() {
                 onClick={() => setShowInvoiceDialog(true)}
                 data-testid="button-send-invoice"
                 title="Send invoice / receipt to customer"
-                className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-700 hover:bg-emerald-100 text-xs sm:text-sm font-medium transition-colors"
+                aria-label="Send invoice"
+                className="inline-flex items-center justify-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 text-sm font-medium transition-colors"
               >
-                <FileText className="w-3.5 h-3.5" />
+                <FileText className="w-4 h-4" />
                 <span className="hidden sm:inline">Invoice</span>
               </button>
             )}
@@ -1598,17 +1611,20 @@ export default function AdminQuoteDetail() {
               onClick={handlePrintQuote}
               data-testid="button-print-quote"
               title="Print / Download PDF"
-              className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs sm:text-sm font-medium transition-colors"
+              aria-label="Print"
+              className="inline-flex items-center justify-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 active:bg-zinc-100 text-sm font-medium transition-colors"
             >
-              <Printer className="w-3.5 h-3.5 text-zinc-400" />
+              <Printer className="w-4 h-4" />
               <span className="hidden sm:inline">Print</span>
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
               data-testid="button-delete-quote"
-              className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg bg-white border border-zinc-200 text-red-500 hover:bg-red-50 text-xs sm:text-sm font-medium transition-colors"
+              title="Delete quote"
+              aria-label="Delete quote"
+              className="inline-flex items-center justify-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 rounded-lg bg-white border border-zinc-300 text-red-600 hover:bg-red-50 active:bg-red-100 text-sm font-medium transition-colors"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
               <span className="hidden sm:inline">Delete</span>
             </button>
           </div>
@@ -2376,12 +2392,13 @@ export default function AdminQuoteDetail() {
                     <div className="space-y-2">
                       <label className="text-xs font-medium text-zinc-500">Assign Staff or Team</label>
                       <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)}
-                        className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                        data-testid="select-assignee"
+                        className="h-10 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
                         <option value="">Select...</option>
                         {teamsList.length > 0 && (
                           <optgroup label="Teams">
                             {teamsList.map((t: any) => (
-                              <option key={`team:${t.id}`} value={`team:${t.id}`}>👥 {t.name}</option>
+                              <option key={`team:${t.id}`} value={`team:${t.id}`}>{t.name}</option>
                             ))}
                           </optgroup>
                         )}
@@ -2392,14 +2409,17 @@ export default function AdminQuoteDetail() {
                         </optgroup>
                       </select>
                       <button onClick={handleAssign} disabled={updateStatus.isPending || !selectedAssignee}
-                        className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors disabled:opacity-50">
+                        data-testid="button-update-assignment"
+                        className="inline-flex items-center justify-center w-full gap-2 h-10 px-4 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors disabled:opacity-50">
                         <UserPlus className="w-4 h-4" /> Update Assignment
                       </button>
                     </div>
 
                     {(quote as any).assignedTeam && (
                       <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                        <div className="w-8 h-8 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700">👥</div>
+                        <div className="w-8 h-8 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700">
+                          <Users className="w-4 h-4" />
+                        </div>
                         <div>
                           <p className="text-sm font-semibold text-indigo-900">{(quote as any).assignedTeam.name}</p>
                           <p className="text-xs text-indigo-700">Team Assigned</p>
@@ -2448,7 +2468,14 @@ export default function AdminQuoteDetail() {
                           onClick={() => resetDeposit.mutate()}
                           disabled={resetDeposit.isPending}
                           className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors disabled:opacity-50">
-                          {resetDeposit.isPending ? "Resetting…" : "↺ Reset & Re-send Deposit Link"}
+                          {resetDeposit.isPending ? (
+                            "Resetting…"
+                          ) : (
+                            <>
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              Reset & Re-send Deposit Link
+                            </>
+                          )}
                         </button>
                       </div>
                     )}
@@ -2481,21 +2508,16 @@ export default function AdminQuoteDetail() {
                 )}
 
                 {quote.status === 'in_progress' && (
-                  <div className="space-y-3">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-3">
-                      <Zap className="w-5 h-5 text-blue-500 shrink-0" />
-                      <p className="text-sm font-medium text-blue-800">Job currently in progress by field team.</p>
-                    </div>
-                    <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
-                      className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                        <CheckCircle2 className="w-4 h-4" /> Mark Done & Request Final Payment
-                    </button>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-3">
+                    <Zap className="w-5 h-5 text-blue-500 shrink-0" />
+                    <p className="text-sm font-medium text-blue-800">Job currently in progress by field team.</p>
                   </div>
                 )}
 
                 {quote.status === 'completed' && (
                   <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
-                    className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                    data-testid="button-request-final-payment"
+                    className="inline-flex items-center justify-center w-full gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
                     <DollarSign className="w-4 h-4" /> Request Final Payment (Stripe / PayNow)
                   </button>
                 )}
