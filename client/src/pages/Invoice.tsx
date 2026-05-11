@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
-import { Printer, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Printer, Loader2, AlertCircle, CheckCircle2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
+import { downloadInvoicePdf } from "@/lib/invoicePdf";
 
 const CO   = "The Moving Guy Pte Ltd";
 const UEN  = "202424156H";
@@ -75,12 +76,18 @@ export default function Invoice() {
     return () => { cancelled = true; };
   }, [refNo]);
 
-  // Auto-print when ?print=1 is in the URL
+  // Auto-print when ?print=1 / Auto-download PDF when ?download=1 is in the URL
   useEffect(() => {
     if (!data) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("print") === "1") {
       const t = setTimeout(() => window.print(), 350);
+      return () => clearTimeout(t);
+    }
+    if (params.get("download") === "1") {
+      const t = setTimeout(() => {
+        try { downloadInvoicePdf(data); } catch (e) { console.error("PDF download failed", e); }
+      }, 350);
       return () => clearTimeout(t);
     }
   }, [data]);
@@ -105,15 +112,26 @@ export default function Invoice() {
             <h1 className="text-base font-bold text-gray-900">Invoice</h1>
             <p className="text-[12px] text-gray-500">{refNo}</p>
           </div>
-          <button
-            onClick={() => window.print()}
-            disabled={!data}
-            className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-800 disabled:opacity-50 transition-colors"
-            data-testid="button-print-invoice"
-          >
-            <Printer className="w-4 h-4" />
-            Print / Save as PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => data && downloadInvoicePdf(data)}
+              disabled={!data}
+              className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              data-testid="button-download-invoice-pdf"
+            >
+              <Download className="w-4 h-4" />
+              Download PDF
+            </button>
+            <button
+              onClick={() => window.print()}
+              disabled={!data}
+              className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+              data-testid="button-print-invoice"
+            >
+              <Printer className="w-4 h-4" />
+              Print
+            </button>
+          </div>
         </div>
 
         {/* Loading */}

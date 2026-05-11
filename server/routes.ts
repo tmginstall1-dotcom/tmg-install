@@ -7834,14 +7834,14 @@ Respond directly — no JSON, just the message text.`,
       const customerName = payload.customerName !== "—" ? payload.customerName : "there";
       const text =
         `Hi *${customerName}* 🙏\n\n` +
-        `As requested, here is your invoice / receipt for *${payload.referenceNo}* — payment received in full.\n\n` +
+        `Please find your invoice / receipt for *${payload.referenceNo}* attached — payment received in full.\n\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
         `🧾 *Invoice ${payload.invoiceNo}*\n` +
         `*Total Paid: S$${Number(payload.total).toFixed(2)}*\n` +
         `✅ PAID IN FULL\n` +
         `━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `View / download your invoice here:\n${viewUrl}\n\n` +
-        `_Tap "Print / Save as PDF" on the page to keep a copy._\n\n` +
+        `A PDF copy is attached to this chat for your records. ` +
+        `You can also view it online here:\n${viewUrl}\n\n` +
         `Thank you again for choosing TMG Install! 💪`;
 
       const rawPhone = payload.customerPhone || "";

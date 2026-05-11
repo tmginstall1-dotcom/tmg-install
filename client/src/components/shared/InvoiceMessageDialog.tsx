@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, MessageCircle, Mail, X, Check, Loader2, ExternalLink, FileText } from "lucide-react";
+import { Copy, MessageCircle, Mail, X, Check, Loader2, ExternalLink, FileText, Download } from "lucide-react";
 
 type InvoiceMessagePayload = {
   text: string;
@@ -109,6 +109,20 @@ export function InvoiceMessageDialog({ open, onClose, fetchUrl }: Props) {
           {data && (
             <>
               <a
+                href={`${data.viewUrl}?download=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors shadow-sm"
+                data-testid="link-download-invoice-pdf"
+              >
+                <span className="flex items-center gap-2">
+                  <Download className="w-4 h-4" />
+                  Download PDF (to attach in WhatsApp)
+                </span>
+                <ExternalLink className="w-4 h-4" />
+              </a>
+
+              <a
                 href={data.viewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -117,7 +131,7 @@ export function InvoiceMessageDialog({ open, onClose, fetchUrl }: Props) {
               >
                 <span className="flex items-center gap-2">
                   <FileText className="w-4 h-4" />
-                  Open invoice in a new tab
+                  Preview invoice in a new tab
                 </span>
                 <ExternalLink className="w-4 h-4" />
               </a>
@@ -202,7 +216,7 @@ export function InvoiceMessageDialog({ open, onClose, fetchUrl }: Props) {
               )}
             </div>
             <p className="text-[11px] text-gray-400 text-center leading-snug">
-              The link opens a printable invoice page the customer can save as PDF.
+              Tap "Download PDF" first to save the file, then attach it in the WhatsApp chat after the message is sent.
             </p>
           </div>
         )}
