@@ -68,7 +68,13 @@ export function useSEO({
 
     document.title = finalTitle;
     setMeta('meta[name="description"]', "content", desc);
-    setMeta('meta[name="robots"]', "content", noIndex ? "noindex, nofollow" : "index, follow");
+    setMeta(
+      'meta[name="robots"]',
+      "content",
+      noIndex
+        ? "noindex, nofollow"
+        : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+    );
     setMeta('link[rel="canonical"]', "href", canon);
 
     setMeta('meta[property="og:title"]', "content", ogT);
@@ -95,7 +101,11 @@ export function useSEO({
     return () => {
       document.title = DEFAULT_TITLE;
       setMeta('meta[name="description"]', "content", DEFAULT_DESCRIPTION);
-      setMeta('meta[name="robots"]', "content", "index, follow");
+      setMeta(
+        'meta[name="robots"]',
+        "content",
+        "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      );
       setMeta('link[rel="canonical"]', "href", DEFAULT_CANONICAL);
       setMeta('meta[property="og:title"]', "content", DEFAULT_TITLE);
       setMeta('meta[property="og:description"]', "content", DEFAULT_DESCRIPTION);
