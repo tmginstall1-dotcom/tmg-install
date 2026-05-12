@@ -926,17 +926,37 @@ export default function EstimateWizard() {
       if (!res.ok) { const e = await res.json(); throw new Error(e.message || "Submission failed"); }
       const quote = await res.json();
 
-      // Google Ads conversion tracking — fires on successful estimate submission only
+      // Google Ads conversion tracking — fires on successful estimate submission only.
+      // Lead conversion (NOT a purchase): TMG customers don't pay on the website;
+      // payment is collected later after admin review. Once-only guard keyed by the
+      // quote reference / id prevents double-counting if this branch ever re-runs.
       try {
-        (window as any).gtag?.("event", "conversion", {
-          send_to: "AW-18012639714/zTxuCNC63IccEOKjjI1D",
-          value: 1.0,
-          currency: "SGD",
-        });
-        (window as any).gtag?.("event", "conversion", {
-          send_to: "AW-18012639714/g1fTCM6xsYscEOKjjI1D",
-          transaction_id: "",
-        });
+        const conversionTxnId: string = quote?.referenceNo || (quote?.id != null ? String(quote.id) : "");
+        const firedKey = "tmg_gads_lead_fired";
+        const alreadyFired = (() => {
+          try { return conversionTxnId && sessionStorage.getItem(firedKey) === conversionTxnId; }
+          catch { return false; }
+        })();
+        if (!alreadyFired && typeof window !== "undefined" && typeof (window as any).gtag === "function") {
+          // Existing conversion (left untouched per scope)
+          (window as any).gtag("event", "conversion", {
+            send_to: "AW-18012639714/zTxuCNC63IccEOKjjI1D",
+            value: 1.0,
+            currency: "SGD",
+          });
+          // Estimate Form Submitted (Lead) conversion
+          const leadPayload: Record<string, any> = {
+            send_to: "AW-18012639714/g1fTCM6xsYscEOKjjI1D",
+            value: 1.0,
+            currency: "SGD",
+          };
+          if (conversionTxnId) leadPayload.transaction_id = conversionTxnId;
+          (window as any).gtag("event", "conversion", leadPayload);
+          try { if (conversionTxnId) sessionStorage.setItem(firedKey, conversionTxnId); } catch {}
+          if (import.meta.env.DEV) {
+            console.log("[gads] estimate lead conversion fired", { txn: conversionTxnId || "(none)" });
+          }
+        }
       } catch (_) {}
       trackEvent("wizard_submit", "/estimate");
       try {

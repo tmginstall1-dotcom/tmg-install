@@ -1,0 +1,44 @@
+STRICT GOOGLE ADS ESTIMATE FORM CONVERSION PATCH ONLY.
+
+Goal:
+Track Google Ads conversion only when a customer successfully submits the TMG estimate / quote request form.
+
+Important:
+TMG customers do NOT pay immediately on the website. Payment happens later after admin review by email or WhatsApp. Therefore this conversion must be treated as a Lead / Estimate Form Submitted conversion, NOT Purchase.
+
+Google Ads conversion:
+send_to: AW-18012639714/g1fTCM6xsYscEOKjjI1D
+currency: SGD
+default value: 1.0
+
+Rules:
+1. Do NOT fire this conversion on homepage, quote form page load, WhatsApp click, booking page, payment page, or payment success page.
+2. Fire only after the estimate/quote form submission has successfully completed and the backend has created the request/quote record.
+3. If a quote/reference ID is returned after successful submission, use it as transaction_id to prevent duplicate counting.
+4. If no quote/reference ID is available, omit transaction_id or use a safe generated submission reference. Do not leave broken undefined values.
+5. Keep the existing sitewide Google tag. Do not duplicate the Google tag if it already exists.
+6. Do not change unrelated UI, quote logic, pricing logic, database schema, payment logic, booking logic, email logic, or admin workflow.
+7. Add a guard so the conversion fires once only per successful form submission.
+8. Add a console log only in development mode if needed; no noisy logs in production.
+
+Implementation:
+Find the estimate/quote form submit handler.
+After the submit API returns success, call:
+
+if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+  window.gtag('event', 'conversion', {
+    send_to: 'AW-18012639714/g1fTCM6xsYscEOKjjI1D',
+    value: 1.0,
+    currency: 'SGD',
+    transaction_id: quoteReferenceId
+  });
+}
+
+If quoteReferenceId is missing, use the created quote/request id if available. If no reliable id exists, omit transaction_id.
+
+Report back:
+- Exact file(s) changed
+- Exact submit handler where conversion fires
+- What transaction_id is used
+- Confirmation that it fires only after successful form submission
+- Confirmation that it does not fire on payment, page load, WhatsApp click, or failed submissions
