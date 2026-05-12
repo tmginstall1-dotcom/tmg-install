@@ -938,12 +938,16 @@ export default function EstimateWizard() {
           catch { return false; }
         })();
         if (!alreadyFired && typeof window !== "undefined" && typeof (window as any).gtag === "function") {
-          // Existing conversion (left untouched per scope)
-          (window as any).gtag("event", "conversion", {
+          // Submit Lead Form conversion — fires only after backend confirms the
+          // quote was created. transaction_id uses the real quote reference / id
+          // returned by /api/quotes/wizard so Google Ads dedupes duplicates.
+          const submitLeadPayload: Record<string, any> = {
             send_to: "AW-18012639714/zTxuCNC63IccEOKjjI1D",
             value: 1.0,
             currency: "SGD",
-          });
+          };
+          if (conversionTxnId) submitLeadPayload.transaction_id = conversionTxnId;
+          (window as any).gtag("event", "conversion", submitLeadPayload);
           // Estimate Form Submitted (Lead) conversion
           const leadPayload: Record<string, any> = {
             send_to: "AW-18012639714/g1fTCM6xsYscEOKjjI1D",
