@@ -938,27 +938,34 @@ export default function EstimateWizard() {
           catch { return false; }
         })();
         if (!alreadyFired && typeof window !== "undefined" && typeof (window as any).gtag === "function") {
-          // Submit Lead Form conversion — fires only after backend confirms the
-          // quote was created. transaction_id uses the real quote reference / id
-          // returned by /api/quotes/wizard so Google Ads dedupes duplicates.
-          const submitLeadPayload: Record<string, any> = {
-            send_to: "AW-18012639714/zTxuCNC63IccEOKjjI1D",
-            value: 1.0,
-            currency: "SGD",
-          };
-          if (conversionTxnId) submitLeadPayload.transaction_id = conversionTxnId;
-          (window as any).gtag("event", "conversion", submitLeadPayload);
-          // Estimate Form Submitted (Lead) conversion
-          const leadPayload: Record<string, any> = {
-            send_to: "AW-18012639714/g1fTCM6xsYscEOKjjI1D",
-            value: 1.0,
-            currency: "SGD",
-          };
-          if (conversionTxnId) leadPayload.transaction_id = conversionTxnId;
-          (window as any).gtag("event", "conversion", leadPayload);
-          try { if (conversionTxnId) sessionStorage.setItem(firedKey, conversionTxnId); } catch {}
-          if (import.meta.env.DEV) {
-            console.log("[gads] estimate lead conversion fired", { txn: conversionTxnId || "(none)" });
+          // Safety guard: do NOT fire any Google Ads lead conversion unless we
+          // have a real backend-issued identifier (referenceNo or numeric id).
+          // Without it we cannot dedupe in Google Ads, so skip entirely.
+          if (!conversionTxnId) {
+            if (import.meta.env.DEV) {
+              console.log("[gads] estimate lead conversion SKIPPED — no quote referenceNo or id in response");
+            }
+          } else {
+            // Submit Lead Form conversion — fires only after backend confirms the
+            // quote was created. transaction_id uses the real quote reference / id
+            // returned by /api/quotes/wizard so Google Ads dedupes duplicates.
+            (window as any).gtag("event", "conversion", {
+              send_to: "AW-18012639714/zTxuCNC63IccEOKjjI1D",
+              value: 1.0,
+              currency: "SGD",
+              transaction_id: conversionTxnId,
+            });
+            // Estimate Form Submitted (Lead) conversion
+            (window as any).gtag("event", "conversion", {
+              send_to: "AW-18012639714/g1fTCM6xsYscEOKjjI1D",
+              value: 1.0,
+              currency: "SGD",
+              transaction_id: conversionTxnId,
+            });
+            try { sessionStorage.setItem(firedKey, conversionTxnId); } catch {}
+            if (import.meta.env.DEV) {
+              console.log("[gads] estimate lead conversion fired", { txn: conversionTxnId });
+            }
           }
         }
       } catch (_) {}
