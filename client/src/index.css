@@ -166,6 +166,20 @@ body {
     text-transform: uppercase;
   }
 
+  /* LandingCinematic hero TMG wordmark — mobile shrunk so the new
+     above-the-fold inline CTA fits within the first viewport on
+     iOS Safari (with both bars visible) without altering the
+     desktop appearance. */
+  .hero-h1-responsive {
+    font-size: clamp(96px, 26vw, 360px);
+    font-weight: 900;
+  }
+  @media (min-width: 768px) {
+    .hero-h1-responsive {
+      font-size: clamp(110px, 28vw, 360px);
+    }
+  }
+
   /* Section headings H2 */
   .section-title {
     font-family: var(--font-heading);

@@ -351,19 +351,22 @@ function Hero() {
         <div>Homes. Offices.<br />Move-outs.<br />Island-wide.</div>
       </div>
 
-      {/* CENTER WORDMARK — mobile pushed up so it doesn't fight the CTA.
-          Rendered directly (no scroll-reveal) since the hero is above the
-          fold on first paint — wrapping these in <Reveal> caused the
-          IntersectionObserver to miss the initial mount at scrollY=0,
-          leaving the entire centre of the hero blank. */}
-      <div className="absolute inset-x-0 top-[26%] md:top-auto md:inset-0 md:flex md:items-center md:justify-center z-10 px-4 pointer-events-none">
-        <div className="text-center">
+      {/* CENTER WORDMARK — mobile pushed up so the inline above-the-fold CTA
+          underneath always lands within the viewport even on iOS Safari with
+          both browser bars visible. Rendered directly (no scroll-reveal)
+          since the hero is above the fold on first paint. */}
+      <div className="absolute inset-x-0 top-[22%] md:top-auto md:inset-0 md:flex md:items-center md:justify-center z-10 px-4 pointer-events-none">
+        <div className="text-center w-full max-w-[640px] mx-auto">
+          {/* SEO H1 — visible "TMG" + sr-only keyword extension so crawlers
+              read a real, keyword-rich H1 without disturbing the design. */}
           <h1
-            className="font-serif italic tracking-[-0.04em] leading-[0.82] text-black"
-            style={{ fontSize: "clamp(110px, 28vw, 360px)", fontWeight: 900 }}
+            className="font-serif italic tracking-[-0.04em] leading-[0.82] text-black hero-h1-responsive"
             data-testid="hero-headline"
           >
-            TMG
+            <span aria-hidden="true">TMG</span>
+            <span className="sr-only">
+              TMG Install — Furniture Installation, Dismantling &amp; Relocation in Singapore
+            </span>
           </h1>
           <div className="mt-2 md:mt-5">
             <div className="text-[11px] md:text-[18px] tracking-[0.42em] md:tracking-[0.55em] uppercase font-bold">
@@ -373,11 +376,40 @@ function Hero() {
               Singapore — island-wide
             </div>
           </div>
+
+          {/* ── MOBILE-ONLY ABOVE-THE-FOLD CTA ──
+              Placed directly under the wordmark so it's *guaranteed* visible
+              within the first viewport on every mobile device, regardless of
+              iOS Safari's collapsing URL bar / bottom toolbar behaviour.
+              Desktop has its own bottom-right CTA cluster. */}
+          <div className="md:hidden mt-5 pointer-events-auto flex flex-col items-center gap-2">
+            <a
+              href="/estimate"
+              onClick={(e) => {
+                e.preventDefault();
+                trackEvent("cta_estimate_hero", "/");
+                window.location.assign("/estimate");
+              }}
+              data-testid="hero-cta-quote-inline"
+              aria-label="Get a free instant furniture installation quote"
+              className="group inline-flex items-center justify-center gap-2 w-full max-w-[320px] px-6 py-4 font-bold text-[14px] tracking-[0.18em] uppercase transition-transform duration-200 active:scale-[0.98] shadow-[0_6px_0_rgba(0,0,0,0.92)] hover:shadow-[0_4px_0_rgba(0,0,0,0.92)] hover:-translate-y-[2px]"
+              style={{ background: ACCENT, color: INK, border: "2px solid " + INK }}
+            >
+              Get my free quote
+              <span className="text-[18px] font-black transition-transform duration-200 group-hover:translate-x-1">→</span>
+            </a>
+            <div className="flex items-center justify-center gap-3 text-[10px] tracking-[0.18em] uppercase font-bold opacity-75">
+              <span>60-second form</span>
+              <span aria-hidden="true">·</span>
+              <span>No payment up front</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Ghost outline headline — sits between wordmark and CTA */}
-      <div className="absolute top-[58%] md:top-auto md:bottom-[28%] inset-x-0 z-[5] pointer-events-none flex justify-center px-2">
+      {/* Ghost outline headline — DESKTOP ONLY. On mobile it collided with
+          the new above-the-fold inline CTA below the wordmark. */}
+      <div className="hidden md:flex absolute md:top-auto md:bottom-[28%] inset-x-0 z-[5] pointer-events-none justify-center px-2">
         <div
           className="font-serif italic tracking-[-0.04em] leading-[0.85] whitespace-nowrap"
           style={{
@@ -415,13 +447,17 @@ function Hero() {
 
       {/* BOTTOM-RIGHT CTA cluster — high-conversion stack */}
       <div className="absolute bottom-3 left-3 right-3 md:bottom-8 md:left-auto md:right-6 md:w-[340px] z-20">
-        {/* Microcopy line — value + reassurance */}
-        <div className="flex items-center justify-between mb-2 text-[10px] tracking-[0.2em] uppercase font-bold">
+        {/* Microcopy line — value + reassurance. Desktop only — on mobile
+            the inline above-the-fold CTA already carries this microcopy. */}
+        <div className="hidden md:flex items-center justify-between mb-2 text-[10px] tracking-[0.2em] uppercase font-bold">
           <span className="flex items-center gap-1.5"><AccentSquare /> Free quote · 60-second form</span>
           <span className="opacity-60 hidden sm:inline">No payment up front</span>
         </div>
 
-        {/* Primary CTA — big, bold, full-width green block */}
+        {/* Primary CTA — big, bold, full-width green block.
+            Hidden on mobile to avoid duplicating the inline above-the-fold
+            CTA inside the wordmark block (single canonical quote action +
+            single tracking event per device class). */}
         <a
           href="/estimate"
           onClick={(e) => {
@@ -430,7 +466,7 @@ function Hero() {
             window.location.assign("/estimate");
           }}
           data-testid="hero-cta-quote"
-          className="group relative block w-full text-left transition-transform duration-200 hover:-translate-y-[2px] active:translate-y-0"
+          className="group relative hidden md:block w-full text-left transition-transform duration-200 hover:-translate-y-[2px] active:translate-y-0"
           style={{ background: ACCENT, color: INK }}
         >
           <div className="flex items-stretch">
