@@ -16,6 +16,7 @@ import {
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import type { CatalogItem } from "@shared/schema";
 import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, requiresSpecialHandling, type PricingCatalogEntry } from "@shared/pricing";
+import { buildHandoffWaUrl, type HandoffPayload } from "@shared/whatsapp-handoff";
 
 /* ─────────────────── Editorial primitives (mirror homepage) ───────────────────
    Inlined here so the estimate wizard matches the editorial language of "/"
@@ -2557,32 +2558,49 @@ export default function EstimateWizard() {
 
         {/* WhatsApp escape hatch — step 5 only · prefilled with everything we
             already know about the customer's request so they don't have to
-            re-type it on WhatsApp. */}
+            re-type it on WhatsApp. The same message is logged server-side via
+            POST /api/whatsapp/handoff so the admin inbox shows the full quote
+            context the moment the customer's first message lands. */}
         {step === 5 && (() => {
           const slotLabel = slotDateStr && slotTime
             ? `${new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short" })} · ${TIME_SLOTS.find(t => t.value === slotTime)?.label || slotTime}`
             : "";
-          const serviceLabels: Record<string, string> = { install: "Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal", dismantle_dispose: "Dismantle + Dispose" };
-          const itemLines = items.slice(0, 8).map(i => `• ${i.name} ×${i.quantity}`);
-          if (items.length > 8) itemLines.push(`• … +${items.length - 8} more`);
-          const lines = [
-            "Hi TMG Install — I started a quote on your site:",
-            "",
-            services.length ? `Services: ${services.map(s => serviceLabels[s] || s).join(", ")}` : "",
-            isRelocation
-              ? (pickupAddress ? `Pickup: ${pickupAddress}` : "")
-              : (serviceAddress ? `Address: ${serviceAddress}` : ""),
-            isRelocation && dropoffAddress ? `Dropoff: ${dropoffAddress}` : "",
-            slotLabel ? `Preferred slot: ${slotLabel}` : "",
-            itemLines.length ? "" : "",
-            itemLines.length ? "Items:" : "",
-            ...itemLines,
-            "",
-            total > 0 ? `Estimated total: $${grandTotalAfterPromo.toFixed(2)}` : "",
-            "",
-            "Could you help me confirm?",
-          ].filter(Boolean);
-          const waHref = `https://wa.me/6580880757?text=${encodeURIComponent(lines.join("\n"))}`;
+          const serviceLabelMap: Record<string, string> = { install: "Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal", dismantle_dispose: "Dismantle + Dispose" };
+          const handoffPayload: HandoffPayload = {
+            source: "estimate_step5",
+            services,
+            serviceLabels: services.map(s => serviceLabelMap[s] || s),
+            pickupAddress: pickupAddress || "",
+            dropoffAddress: dropoffAddress || "",
+            serviceAddress: serviceAddress || "",
+            isRelocation,
+            liftAvailable: floors[0]?.hasLift === true ? "yes" : floors[0]?.hasLift === false ? "no" : "",
+            floorLevel: floors[0]?.level || "",
+            stairsAnswer: stairsAnswer || "",
+            items: items.map(i => ({ name: i.name, quantity: i.quantity })),
+            slotDate: slotDateStr || "",
+            slotLabel,
+            estimatedTotal: total > 0 ? grandTotalAfterPromo : undefined,
+            customerName: name?.trim() || "",
+            customerPhone: phone?.trim() || "",
+            customerEmail: email?.trim() || "",
+            promoCode: promoStatus === "valid" && promoCode ? promoCode : "",
+            pageContext: "estimate",
+          };
+          const waHref = buildHandoffWaUrl(handoffPayload);
+          const handleHandoffClick = () => {
+            trackEvent("cta_click", "/estimate", "whatsapp_escape_step5");
+            // Fire-and-forget — don't block the wa.me open on this. The browser
+            // navigates away to WhatsApp regardless of the fetch outcome.
+            try {
+              const body = JSON.stringify(handoffPayload);
+              if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+                navigator.sendBeacon("/api/whatsapp/handoff", new Blob([body], { type: "application/json" }));
+              } else {
+                fetch("/api/whatsapp/handoff", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+              }
+            } catch { /* never block the WhatsApp open */ }
+          };
           return (
             <div className="text-center mt-3">
               <a
@@ -2590,7 +2608,7 @@ export default function EstimateWizard() {
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="link-whatsapp-escape"
-                onClick={() => trackEvent("cta_click", "/estimate", "whatsapp_escape_step5")}
+                onClick={handleHandoffClick}
                 className="inline-flex items-center gap-1.5 text-xs text-black/35 hover:text-black/60 transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5" />

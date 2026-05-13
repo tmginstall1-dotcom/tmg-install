@@ -8493,6 +8493,85 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── WhatsApp handoff (Phase 3) ────────────────────────────────────────────
+  // Customer clicks "Prefer to chat? WhatsApp us" on the estimate page. The
+  // server is the canonical formatter for the message and logs the handoff to
+  // the AI audit trail so admins have server-side visibility (audit dashboard)
+  // even before the customer actually sends the prefilled wa.me message.
+  //
+  // Why we do NOT pre-seed the inbox keyed off `customerPhone`: that endpoint
+  // is unauthenticated and any caller could spoof a phone number to pollute or
+  // mis-attribute messages in another customer's conversation. The audit log
+  // entry (with the phone tail only) is sufficient — the customer's real
+  // inbound WhatsApp message will land in the inbox within minutes and the
+  // existing webhook/agent flow handles enrichment from there.
+  //
+  // Why we do NOT proactively push a Meta API message: Meta's 24-hour
+  // customer-service window blocks cold sends from a business number, so a
+  // log-only handoff is the correct shape here.
+  const HANDOFF_RL = new Map<string, { count: number; windowStart: number }>();
+  const HANDOFF_RL_WINDOW_MS = 60_000;
+  const HANDOFF_RL_MAX = 6; // 6 handoff posts per IP per minute is plenty
+  app.post("/api/whatsapp/handoff", async (req, res) => {
+    try {
+      // ── Per-IP rate limit ──────────────────────────────────────────────────
+      const ip = (req.headers["x-forwarded-for"]?.toString().split(",")[0].trim() || req.socket.remoteAddress || "unknown");
+      const now = Date.now();
+      const bucket = HANDOFF_RL.get(ip);
+      if (!bucket || now - bucket.windowStart > HANDOFF_RL_WINDOW_MS) {
+        HANDOFF_RL.set(ip, { count: 1, windowStart: now });
+      } else {
+        bucket.count += 1;
+        if (bucket.count > HANDOFF_RL_MAX) {
+          return res.status(429).json({ ok: false, error: "Too many requests" });
+        }
+      }
+      // Opportunistic cleanup so the map doesn't grow unbounded
+      if (HANDOFF_RL.size > 5000) {
+        for (const [k, v] of Array.from(HANDOFF_RL.entries())) {
+          if (now - v.windowStart > HANDOFF_RL_WINDOW_MS) HANDOFF_RL.delete(k);
+        }
+      }
+
+      const { handoffPayloadSchema, buildHandoffMessage, buildHandoffWaUrl } = await import("@shared/whatsapp-handoff");
+      const parsed = handoffPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ ok: false, error: "Invalid handoff payload" });
+      }
+      const payload = parsed.data;
+      const message = buildHandoffMessage(payload);
+      const waUrl = buildHandoffWaUrl(payload);
+
+      // Audit trail — non-PII metadata only. No name, no address, no email.
+      try {
+        await db.insert(aiAuditLogTable).values({
+          actionType: "whatsapp_handoff_started",
+          actor: "customer",
+          module: "estimate_flow",
+          summary: `Customer started WhatsApp handoff from ${payload.source}`,
+          detail: {
+            source: payload.source,
+            services: payload.services,
+            itemCount: payload.items.length,
+            estimatedTotal: payload.estimatedTotal ?? null,
+            hasAddress: Boolean(payload.serviceAddress || payload.pickupAddress),
+            hasSlot: Boolean(payload.slotLabel),
+            hasContact: Boolean(payload.customerPhone || payload.customerEmail),
+            phoneTail: payload.customerPhone ? payload.customerPhone.replace(/[^0-9]/g, "").slice(-4) : null,
+          },
+          outcome: "success",
+        });
+      } catch (e) {
+        console.warn("[handoff] audit log failed (non-fatal):", e);
+      }
+
+      return res.json({ ok: true, waUrl, messagePreview: message.slice(0, 400) });
+    } catch (err) {
+      console.error("[handoff] unexpected error:", err);
+      return res.status(500).json({ ok: false, error: "Handoff failed" });
+    }
+  });
+
   // ── Promo code routes ─────────────────────────────────────────────────────
 
   // GET /api/promo-bar — public: returns active promo info for the banner
