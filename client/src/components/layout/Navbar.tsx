@@ -91,7 +91,7 @@ export function Navbar() {
       <div className="fixed top-0 left-0 right-0 z-50">
         {/* Promo announcement bar — INK + ACCENT (matches homepage editorial system) */}
         {promoVisible && promo && (
-          <div className="relative overflow-hidden h-10 flex items-center bg-black border-b border-white/10" data-testid="promo-bar">
+          <div className="relative overflow-hidden h-7 sm:h-10 flex items-center bg-black border-b border-white/10" data-testid="promo-bar">
             <style>{`
               @keyframes promo-scroll {
                 0% { transform: translateX(0); }

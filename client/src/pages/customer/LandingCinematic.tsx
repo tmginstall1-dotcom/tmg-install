@@ -401,7 +401,7 @@ function Hero() {
             <div className="flex items-center justify-center gap-3 text-[10px] tracking-[0.18em] uppercase font-bold opacity-75">
               <span>60-second form</span>
               <span aria-hidden="true">·</span>
-              <span>No payment up front</span>
+              <span>Pay only after we confirm</span>
             </div>
           </div>
         </div>
@@ -451,7 +451,7 @@ function Hero() {
             the inline above-the-fold CTA already carries this microcopy. */}
         <div className="hidden md:flex items-center justify-between mb-2 text-[10px] tracking-[0.2em] uppercase font-bold">
           <span className="flex items-center gap-1.5"><AccentSquare /> Free quote · 60-second form</span>
-          <span className="opacity-60 hidden sm:inline">No payment up front</span>
+          <span className="opacity-60 hidden sm:inline">Pay only after we confirm</span>
         </div>
 
         {/* Primary CTA — big, bold, full-width green block.
@@ -2220,7 +2220,7 @@ function Footer() {
               <ArrowRight className="w-4 h-4" />
             </Link>
             <div className="mt-3 text-[11px] uppercase tracking-[0.2em] text-stone-500 md:text-right">
-              60-second form · No payment up front
+              60-second form · Pay only after we confirm
             </div>
           </div>
         </div>
@@ -2384,7 +2384,7 @@ function PromoBar() {
       className="hidden md:flex items-center justify-center gap-3 bg-black text-white text-center py-[6px] text-[10px] tracking-[0.35em] uppercase font-bold relative z-[70]"
       data-testid="promo-bar"
     >
-      <AccentSquare /> Use code <span className="font-black" style={{ color: ACCENT }}>{promo.code}</span> · {promo.discount}% off your installation
+      <AccentSquare /> Use code <span className="font-black" style={{ color: ACCENT }}>{promo.code}</span> · ${promo.discount} off your installation
     </div>
   );
 }

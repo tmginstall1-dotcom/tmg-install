@@ -1,0 +1,57 @@
+You are improving the quote process for tmginstall.com.
+
+Goal:
+Clean up and improve the estimate/quote flow so it feels more trustworthy, consistent, and conversion-focused, especially on mobile.
+
+Please inspect the existing codebase first and preserve the current visual identity. Do not rebuild the site from scratch.
+
+Tasks:
+1. Fix promo consistency:
+   - Ensure TMG50 is described the same way everywhere.
+   - Use "$50 off" consistently unless the codebase already clearly implements 50% off.
+   - Update homepage, banner, estimate page, and review step copy.
+
+2. Clarify quote vs booking/payment language:
+   - The site should not say "No payment up front" if the review step says "Deposit due now."
+   - Change wording to make the process clear:
+     "Submit request → TMG confirms by WhatsApp → deposit secures your slot."
+   - On the estimate review step, replace "Deposit due now" with wording like:
+     "Deposit after confirmation (50%)"
+   - Make clear that submitting the quote request does not charge the customer.
+
+3. Fix the automatic floor/access fee:
+   - Do not automatically add "Stairs / Floor Access" unless the customer has answered an access question.
+   - Add simple access fields before calculating this fee:
+     - Lift available? Yes/No
+     - Floor level
+     - Any stairs or difficult access? Yes/No/Not sure
+   - If access fee is estimated, label it clearly as an estimate.
+
+4. Improve save-progress prompt:
+   - Do not interrupt the main flow with an email save prompt before scheduling.
+   - Move it later, make it less prominent, or only show it as an optional secondary action.
+   - Keep the main path focused on completing the quote.
+
+5. Improve WhatsApp fallback:
+   - Make the WhatsApp link include the customer’s selected service, address/postal code, items, preferred date/time, and estimated total when available.
+   - Use this as an abandonment-safe fallback, not just a generic “hi” message.
+
+6. Improve mobile layout:
+   - Make the promo banner shorter on mobile inside the quote flow.
+   - Ensure buttons, item cards, step indicators, and bottom CTAs do not feel cramped.
+   - Keep the primary CTA visible and easy to tap.
+
+7. Final review step:
+   - Add a short “What happens next” section:
+     - We review your request
+     - We confirm details and slot by WhatsApp
+     - Deposit secures the booking
+     - Balance is paid after completion
+   - Keep the estimate summary clear and avoid surprising charges.
+
+After changes:
+- Run the project locally.
+- Check desktop and mobile layouts.
+- Test the full quote flow from service selection to final review.
+- Fix any TypeScript, lint, or build errors.
+- Summarize what files changed and what was improved.

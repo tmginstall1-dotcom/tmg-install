@@ -328,8 +328,15 @@ export default function EstimateWizard() {
   const [distanceKm, setDistanceKm] = useState(0);
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [distanceError, setDistanceError] = useState("");
-  const [floors, setFloors] = useState<Floor[]>([{ level: "1", hasLift: true }]);
+  // Default to ground floor (level 0) so we never auto-add a floor surcharge
+  // before the customer has actually told us about lift/stairs/floor.
+  const [floors, setFloors] = useState<Floor[]>([{ level: "0", hasLift: true }]);
   const [accessDifficulty, setAccessDifficulty] = useState<"easy" | "medium" | "hard">("easy");
+  // Tracks whether the customer has explicitly answered the access questions.
+  // When false, any computed floor/access fee is shown as an *estimate* and
+  // we surface a "confirmed on-site" caveat in the review summary.
+  const [accessAnswered, setAccessAnswered] = useState(false);
+  const [stairsAnswer, setStairsAnswer] = useState<"no" | "yes" | "unsure" | null>(null);
   // Step 3
   const [items, setItems] = useState<LineItem[]>([]);
 
@@ -1003,11 +1010,10 @@ export default function EstimateWizard() {
   const goNext = () => setStep(s => Math.min(s + 1, 5) as 1 | 2 | 3 | 4 | 5);
 
   const next = () => {
-    if (step === 3 && !captureShown) {
-      setCaptureShown(true);
-      setShowCaptureModal(true);
-      return;
-    }
+    // The save-progress modal previously interrupted Step 3 → 4 (before
+    // scheduling). That broke the user's flow at the highest-intent moment.
+    // It's now an explicit, optional secondary action triggered from a small
+    // inline link on Step 3 — `next()` just advances the wizard.
     goNext();
   };
 
@@ -1048,7 +1054,7 @@ export default function EstimateWizard() {
 
   return (
     <>
-    <div className={`relative z-10 min-h-screen pb-20 text-black ${promoVisible ? "pt-24" : "pt-16"}`} style={{ background: "#f1efe7" }}>
+    <div className={`relative z-10 min-h-screen pb-20 text-black ${promoVisible ? "pt-[84px] sm:pt-24" : "pt-16"}`} style={{ background: "#f1efe7" }}>
       {/* Trust microbar — editorial style (matches homepage) */}
       <div className="bg-black/[0.025] border-b border-black/10 py-2.5">
         <div className="max-w-2xl mx-auto px-4">
@@ -1073,7 +1079,7 @@ export default function EstimateWizard() {
       </div>
 
       {/* Step indicator */}
-      <div className={`sticky z-40 bg-[#f1efe7]/95 backdrop-blur border-b border-black/15 ${promoVisible ? "top-24" : "top-16"}`}>
+      <div className={`sticky z-40 bg-[#f1efe7]/95 backdrop-blur border-b border-black/15 ${promoVisible ? "top-[84px] sm:top-24" : "top-16"}`}>
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-2">
             {STEPS.map((s, i) => (
@@ -1458,7 +1464,80 @@ export default function EstimateWizard() {
                       </div>
                     </>
                   ) : (
-                    <AddressInput required label="Service Address" value={serviceAddress} onSelect={(addr) => setServiceAddress(addr)} placeholder="e.g. 100 Beach Road Singapore 189702" />
+                    <>
+                      <AddressInput required label="Service Address" value={serviceAddress} onSelect={(addr) => setServiceAddress(addr)} placeholder="e.g. 100 Beach Road Singapore 189702" />
+
+                      {/* Access questions — gate floor / stairs surcharge until
+                          the customer has actually answered. Without these
+                          inputs we previously auto-added a Stairs/Floor Access
+                          fee on every job, which was confusing. */}
+                      <div className="border-t border-black/8 pt-5 space-y-5">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-2">Lift available?</p>
+                          <div className="flex gap-2">
+                            {[
+                              { v: true, l: "Yes" },
+                              { v: false, l: "No" },
+                            ].map(opt => {
+                              const active = accessAnswered && floors[0]?.hasLift === opt.v;
+                              return (
+                                <button key={String(opt.v)} type="button" data-testid={`lift-${opt.l.toLowerCase()}`}
+                                  onClick={() => {
+                                    setFloors([{ level: floors[0]?.level || "0", hasLift: opt.v }]);
+                                    setAccessAnswered(true);
+                                  }}
+                                  className={`flex-1 py-2.5 text-xs font-black uppercase tracking-[0.08em] transition-all border ${
+                                    active ? "border-black bg-black/[0.03] text-black" : "border-black/10 bg-white text-black/40 hover:border-black/30 hover:bg-slate-50"
+                                  }`}
+                                >{opt.l}</button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-2">Floor level</p>
+                          <input
+                            type="number" min="0" max="50"
+                            value={floors[0]?.level ?? "0"}
+                            onChange={e => {
+                              setFloors([{ level: e.target.value, hasLift: floors[0]?.hasLift ?? true }]);
+                              setAccessAnswered(true);
+                            }}
+                            placeholder="e.g. 1 (ground = 0)"
+                            className="w-32 px-3 py-2.5 bg-white border border-black/10 text-center outline-none focus:border-black text-sm"
+                            data-testid="input-floor-level-single"
+                          />
+                          <p className="text-[11px] text-black/40 mt-1.5">Use 0 for ground floor / landed.</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-2">Any stairs or difficult access?</p>
+                          <div className="flex gap-2">
+                            {([
+                              { v: "no", l: "No", diff: "easy" as const },
+                              { v: "yes", l: "Yes", diff: "hard" as const },
+                              { v: "unsure", l: "Not sure", diff: "medium" as const },
+                            ] as const).map(opt => {
+                              const active = stairsAnswer === opt.v;
+                              return (
+                                <button key={opt.v} type="button" data-testid={`stairs-${opt.v}`}
+                                  onClick={() => {
+                                    setStairsAnswer(opt.v);
+                                    setAccessDifficulty(opt.diff);
+                                    setAccessAnswered(true);
+                                  }}
+                                  className={`flex-1 py-2.5 text-xs font-black uppercase tracking-[0.08em] transition-all border ${
+                                    active ? "border-black bg-black/[0.03] text-black" : "border-black/10 bg-white text-black/40 hover:border-black/30 hover:bg-slate-50"
+                                  }`}
+                                >{opt.l}</button>
+                              );
+                            })}
+                          </div>
+                          {stairsAnswer === "unsure" && (
+                            <p className="text-[11px] text-amber-700 mt-2 leading-relaxed">We'll confirm access on-site — any extra fee is shown as an estimate until then.</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -2328,8 +2407,18 @@ export default function EstimateWizard() {
                           </p>
                         </div>
                       )}
-                      <div className="flex justify-between text-black/45"><span>Deposit due now (50%)</span><span className="font-black">${effectiveDeposit.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-black/45"><span>Deposit after confirmation (50%)</span><span className="font-black">${effectiveDeposit.toFixed(2)}</span></div>
                       <div className="flex justify-between text-black/45"><span>Balance on completion (50%)</span><span>${effectiveFinal.toFixed(2)}</span></div>
+                      <div className="flex items-start gap-2 text-[11px] text-black/55 leading-relaxed mt-2 border-t border-black/8 pt-3">
+                        <Check className="w-3.5 h-3.5 text-black/40 shrink-0 mt-0.5" />
+                        <span>Submitting this request <strong>does not charge you</strong>. We'll confirm details &amp; your slot by WhatsApp first — only then does the deposit secure your booking.</span>
+                      </div>
+                      {pricingResult.feeLines.some(f => f.label.toLowerCase().includes('stairs') || f.label.toLowerCase().includes('access')) && !accessAnswered && (
+                        <div className="flex items-start gap-2 text-[11px] text-amber-700 leading-relaxed mt-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span>Floor / access fee shown is an <strong>estimate</strong> — confirmed on-site once we see the building.</span>
+                        </div>
+                      )}
                       {pricingResult.requiresAdminReview && (
                         <div className="mt-2 flex items-start gap-2 border border-black/10 bg-black/[0.015] px-3 py-2">
                           <AlertCircle className="w-4 h-4 text-black/40 shrink-0 mt-0.5" />
@@ -2338,6 +2427,30 @@ export default function EstimateWizard() {
                       )}
                     </div>
                   </div>
+                </div>
+
+                {/* What happens next — sets clear expectations so the customer
+                    knows submitting is a request, not a charge. */}
+                <div className="bg-[rgba(250,250,247,0.88)] border border-black/12 p-6" data-testid="section-what-happens-next">
+                  <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-black/50 mb-4">
+                    <EstAccentSquare /> What Happens Next
+                  </p>
+                  <ol className="space-y-3">
+                    {[
+                      { n: 1, t: "We review your request", d: "Usually within a few hours during business hours." },
+                      { n: 2, t: "We confirm details & slot by WhatsApp", d: "Final pricing locked in once we agree on the schedule." },
+                      { n: 3, t: "Deposit secures the booking", d: "50% deposit only after you've confirmed — sent via PayNow or card link." },
+                      { n: 4, t: "Balance is paid after completion", d: "Once the job is done and you're happy with the work." },
+                    ].map(s => (
+                      <li key={s.n} className="flex items-start gap-3">
+                        <span className="w-6 h-6 shrink-0 bg-black text-white text-[11px] font-black flex items-center justify-center mt-0.5">{s.n}</span>
+                        <div className="min-w-0">
+                          <p className="font-black text-sm text-black uppercase tracking-[0.04em]">{s.t}</p>
+                          <p className="text-xs text-black/50 mt-0.5 leading-relaxed">{s.d}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
 
                 {submitError && (
@@ -2428,22 +2541,64 @@ export default function EstimateWizard() {
           )}
         </div>
 
-        {/* WhatsApp escape hatch — step 5 only */}
-        {step === 5 && (
+        {/* Save-progress secondary link — step 3 only, optional + low-emphasis */}
+        {step === 3 && items.length > 0 && (
           <div className="text-center mt-3">
-            <a
-              href="https://wa.me/6580880757?text=Hi%2C+I%27d+like+a+furniture+installation+quote"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="link-whatsapp-escape"
-              onClick={() => trackEvent("cta_click", "/estimate", "whatsapp_escape_step5")}
-              className="inline-flex items-center gap-1.5 text-xs text-black/35 hover:text-black/60 transition-colors"
+            <button
+              type="button"
+              data-testid="button-save-progress"
+              onClick={() => { setCaptureShown(true); setShowCaptureModal(true); }}
+              className="inline-flex items-center gap-1.5 text-xs text-black/40 hover:text-black/70 transition-colors underline underline-offset-2"
             >
-              <MessageCircle className="w-3.5 h-3.5" />
-              Prefer to chat? WhatsApp us instead
-            </a>
+              Email me my progress so I can finish later (optional)
+            </button>
           </div>
         )}
+
+        {/* WhatsApp escape hatch — step 5 only · prefilled with everything we
+            already know about the customer's request so they don't have to
+            re-type it on WhatsApp. */}
+        {step === 5 && (() => {
+          const slotLabel = slotDateStr && slotTime
+            ? `${new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short" })} · ${TIME_SLOTS.find(t => t.value === slotTime)?.label || slotTime}`
+            : "";
+          const serviceLabels: Record<string, string> = { install: "Installation", dismantle: "Dismantling", relocate: "Relocation", dispose: "Disposal", dismantle_dispose: "Dismantle + Dispose" };
+          const itemLines = items.slice(0, 8).map(i => `• ${i.name} ×${i.quantity}`);
+          if (items.length > 8) itemLines.push(`• … +${items.length - 8} more`);
+          const lines = [
+            "Hi TMG Install — I started a quote on your site:",
+            "",
+            services.length ? `Services: ${services.map(s => serviceLabels[s] || s).join(", ")}` : "",
+            isRelocation
+              ? (pickupAddress ? `Pickup: ${pickupAddress}` : "")
+              : (serviceAddress ? `Address: ${serviceAddress}` : ""),
+            isRelocation && dropoffAddress ? `Dropoff: ${dropoffAddress}` : "",
+            slotLabel ? `Preferred slot: ${slotLabel}` : "",
+            itemLines.length ? "" : "",
+            itemLines.length ? "Items:" : "",
+            ...itemLines,
+            "",
+            total > 0 ? `Estimated total: $${grandTotalAfterPromo.toFixed(2)}` : "",
+            "",
+            "Could you help me confirm?",
+          ].filter(Boolean);
+          const waHref = `https://wa.me/6580880757?text=${encodeURIComponent(lines.join("\n"))}`;
+          return (
+            <div className="text-center mt-3">
+              <a
+                href={waHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="link-whatsapp-escape"
+                onClick={() => trackEvent("cta_click", "/estimate", "whatsapp_escape_step5")}
+                className="inline-flex items-center gap-1.5 text-xs text-black/35 hover:text-black/60 transition-colors"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                Prefer to chat? WhatsApp us with these details
+              </a>
+            </div>
+          );
+        })()}
       </div>
     </div>
 
