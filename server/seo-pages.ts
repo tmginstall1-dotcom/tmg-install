@@ -366,7 +366,7 @@ export function ikeaAssemblyPage(): string {
       "@context": "https://schema.org",
       "@type": "FAQPage",
       "mainEntity": [
-        { "@type": "Question", "name": "How much does IKEA assembly cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "IKEA assembly in Singapore starts from $60 per item. A PAX wardrobe is typically $80–$150 depending on size and configuration. Get an instant itemised quote at tmginstall.com/estimate." } },
+        { "@type": "Question", "name": "How much does IKEA assembly cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "IKEA assembly in Singapore starts from $60 per item for small pieces. A PAX wardrobe is typically $150–$200 depending on size and configuration. Get an instant itemised quote at tmginstall.com/estimate." } },
         { "@type": "Question", "name": "Do you assemble all IKEA furniture?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we assemble all IKEA flat-pack furniture including PAX, KALLAX, BILLY, MALM, HEMNES, BRIMNES, LACK, ALEX, TROFAST, and more." } },
         { "@type": "Question", "name": "How long does IKEA assembly take?", "acceptedAnswer": { "@type": "Answer", "text": "A single IKEA item typically takes 30–60 minutes. A full PAX wardrobe with doors and drawers takes 1.5–3 hours depending on configuration." } },
         { "@type": "Question", "name": "Do you provide same-day IKEA assembly?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, subject to availability. Book early and select your preferred time slot when you get a quote." } },
@@ -414,8 +414,8 @@ export function ikeaAssemblyPage(): string {
       <h2>Pricing Guide</h2>
       <p>All prices are per item. Get an <a href="${CTA_URL}" style="color:#3b82f6;font-weight:600;">instant itemised quote</a> for your full order.</p>
       <div class="pricing-table">
-        <div class="pricing-row"><span class="pricing-item">PAX Wardrobe (single, no doors)</span><span class="pricing-price">from $80</span></div>
-        <div class="pricing-row"><span class="pricing-item">PAX Wardrobe (with doors)</span><span class="pricing-price">from $120</span></div>
+        <div class="pricing-row"><span class="pricing-item">PAX Wardrobe (single, no doors)</span><span class="pricing-price">from $150</span></div>
+        <div class="pricing-row"><span class="pricing-item">PAX Wardrobe (with doors)</span><span class="pricing-price">from $180</span></div>
         <div class="pricing-row"><span class="pricing-item">BILLY / KALLAX Shelving Unit</span><span class="pricing-price">from $60</span></div>
         <div class="pricing-row"><span class="pricing-item">Bed Frame (MALM, HEMNES, etc.)</span><span class="pricing-price">from $80</span></div>
         <div class="pricing-row"><span class="pricing-item">Dining Table & Chairs (set)</span><span class="pricing-price">from $80</span></div>
@@ -439,7 +439,7 @@ export function ikeaAssemblyPage(): string {
 
     <div class="section">
       <h2>Frequently Asked Questions</h2>
-      <div class="faq-item"><div class="faq-q">How much does IKEA assembly cost in Singapore?</div><div class="faq-a">Assembly starts from $40 per small item and $60–$150 for larger pieces like PAX wardrobes. Get an itemised quote instantly at tmginstall.com/estimate — no phone call needed.</div></div>
+      <div class="faq-item"><div class="faq-q">How much does IKEA assembly cost in Singapore?</div><div class="faq-a">Assembly starts from $60 per small item, with PAX wardrobes from $150 depending on size. Get an itemised quote instantly at tmginstall.com/estimate — no phone call needed.</div></div>
       <div class="faq-item"><div class="faq-q">Do you assemble all IKEA furniture?</div><div class="faq-a">Yes — we handle the entire IKEA catalogue including PAX, BILLY, KALLAX, MALM, HEMNES, BRIMNES, LACK, ALEX, TROFAST, KIVIK and all current ranges.</div></div>
       <div class="faq-item"><div class="faq-q">How long does IKEA assembly take?</div><div class="faq-a">A single item typically takes 30–60 minutes. A full PAX wardrobe system with doors, drawers and top cabinets can take 2–3 hours. We give you an estimated duration at booking.</div></div>
       <div class="faq-item"><div class="faq-q">Is same-day IKEA assembly available?</div><div class="faq-a">Yes, subject to availability. Select your preferred date and time when you get your quote. We cover morning, afternoon and evening slots.</div></div>
@@ -486,7 +486,7 @@ export function wardrobeInstallationPage(): string {
       "@context": "https://schema.org",
       "@type": "FAQPage",
       "mainEntity": [
-        { "@type": "Question", "name": "How much does wardrobe installation cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "Wardrobe installation in Singapore starts from $80. A standard 2-door wardrobe is typically $80–$120. Larger sliding door wardrobes or wall-mounted units are $150–$300 depending on size and complexity." } },
+        { "@type": "Question", "name": "How much does wardrobe installation cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "Wardrobe installation in Singapore starts from $80 for a standard 2-door cabinet. IKEA PAX systems are typically $150–$200. Larger sliding-door or walk-in wardrobes are $200–$400 depending on size and complexity." } },
         { "@type": "Question", "name": "Do you install sliding door wardrobes?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we install all types of sliding door wardrobes including IKEA PAX with Hasvik/Hokksund/Auli doors, and third-party sliding door kits." } },
         { "@type": "Question", "name": "Can you wall-mount a wardrobe?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. We secure wardrobes to the wall for safety and stability. This is especially important for tall wardrobe systems in Singapore's high-rise homes." } },
       ],
@@ -529,8 +529,8 @@ export function wardrobeInstallationPage(): string {
       <h2>Pricing Guide</h2>
       <div class="pricing-table">
         <div class="pricing-row"><span class="pricing-item">Standard 2-door wardrobe (hinged)</span><span class="pricing-price">from $80</span></div>
-        <div class="pricing-row"><span class="pricing-item">IKEA PAX (single, no doors)</span><span class="pricing-price">from $80</span></div>
-        <div class="pricing-row"><span class="pricing-item">IKEA PAX (with sliding doors)</span><span class="pricing-price">from $150</span></div>
+        <div class="pricing-row"><span class="pricing-item">IKEA PAX (single, no doors)</span><span class="pricing-price">from $150</span></div>
+        <div class="pricing-row"><span class="pricing-item">IKEA PAX (with sliding doors)</span><span class="pricing-price">from $200</span></div>
         <div class="pricing-row"><span class="pricing-item">3-door wardrobe with mirrors</span><span class="pricing-price">from $120</span></div>
         <div class="pricing-row"><span class="pricing-item">4-door / L-shape wardrobe</span><span class="pricing-price">from $180</span></div>
         <div class="pricing-row"><span class="pricing-item">Walk-in wardrobe system</span><span class="pricing-price">from $250</span></div>
@@ -552,7 +552,7 @@ export function wardrobeInstallationPage(): string {
 
     <div class="section">
       <h2>Frequently Asked Questions</h2>
-      <div class="faq-item"><div class="faq-q">How much does wardrobe installation cost in Singapore?</div><div class="faq-a">Standard wardrobe installation starts from $80. IKEA PAX systems with sliding doors start from $150. Walk-in wardrobe systems from $250. All prices are upfront with no hidden charges.</div></div>
+      <div class="faq-item"><div class="faq-q">How much does wardrobe installation cost in Singapore?</div><div class="faq-a">Standard 2-door wardrobe installation starts from $80. IKEA PAX systems start from $150 (sliding doors from $200). Walk-in wardrobe systems from $250. All prices are upfront with no hidden charges.</div></div>
       <div class="faq-item"><div class="faq-q">Do you install sliding door wardrobes?</div><div class="faq-a">Yes — sliding door systems from IKEA (PAX + Hasvik, Hokksund, Auli doors), Harvey Norman, Courts, and custom-made carpentry wardrobes.</div></div>
       <div class="faq-item"><div class="faq-q">Can you wall-mount a wardrobe safely in a HDB flat?</div><div class="faq-a">Yes. We use appropriate wall anchors for HDB concrete walls and can also anchor into drywall partitions. All wall work follows Singapore safety guidelines.</div></div>
       <div class="faq-item"><div class="faq-q">Can you dismantle my old wardrobe before installing the new one?</div><div class="faq-a">Yes — we offer dismantling as an add-on. Get a quote that includes both dismantling and installation for the most competitive rate.</div></div>

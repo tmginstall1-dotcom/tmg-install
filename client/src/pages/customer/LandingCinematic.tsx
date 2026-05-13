@@ -514,7 +514,7 @@ function Hero() {
 
         {/* Trust strip */}
         <div className="mt-2 flex items-center justify-between text-[9px] md:text-[10px] tracking-[0.18em] uppercase font-bold opacity-80">
-          <span>★★★★★ 5,600+ jobs</span>
+          <span>★★★★★ Trusted across Singapore</span>
           <span>Same-week slots</span>
         </div>
       </div>
