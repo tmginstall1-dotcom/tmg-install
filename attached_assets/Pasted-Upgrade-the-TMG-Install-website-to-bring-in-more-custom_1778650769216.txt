@@ -1,0 +1,91 @@
+Upgrade the TMG Install website to bring in more customers and improve quote conversion.
+
+Do not rebuild the site from scratch. Inspect the existing codebase, existing WhatsApp chatbot integration, Meta integration, uploaded photos/assets, and current quote flow first. Preserve the current brand direction unless a small improvement is needed for clarity or conversion.
+
+Business context:
+TMG Install provides furniture installation, dismantling, relocation support, office furniture setup, wardrobe/bed/table assembly, repair/adjustment, and disposal-related support in Singapore.
+
+Important:
+- We already have a WhatsApp chatbot.
+- We are linked up with Meta.
+- We can use photos from Meta posts for real job/project images.
+- There are also photos already shared/uploaded in Replit.
+- Use real job photos wherever possible instead of generic/stock images.
+- Do not expose API keys, Meta tokens, WhatsApp tokens, or secrets in frontend code.
+- Use existing environment variables/integration patterns if they exist.
+
+Main goal:
+Increase customer leads and bookings by improving SEO, quote conversion, trust, service pages, photo proof, and WhatsApp chatbot handoff.
+
+PHASE 1 — Audit Existing Project
+1. Inspect current routes/pages/components.
+2. Identify the quote form implementation.
+3. Identify WhatsApp chatbot or WhatsApp link integrations.
+4. Identify Meta/Facebook/Instagram integration or available assets.
+5. Identify uploaded photo folders/assets in the project.
+6. Identify SEO metadata setup, sitemap, robots, and existing service pages.
+7. Summarize what exists before making changes.
+
+PHASE 2 — Quote Flow Improvements
+Improve the estimate/quote process so customers trust it and complete it.
+
+Required:
+1. Make quote wording clear:
+   - Submitting a quote request should not imply the customer is charged immediately.
+   - Use wording like:
+     “Submit request → TMG confirms details by WhatsApp → deposit secures your slot.”
+2. Make deposit wording clear:
+   - “Deposit after confirmation”
+   - “Balance after completion”
+3. Do not show surprise fees unless they are explained.
+4. If stairs/floor/access fees exist, ask access questions first:
+   - Lift available?
+   - Floor level?
+   - Any stairs or difficult access?
+   - Parking/loading access?
+5. Add or improve photo upload / photo prompt:
+   - Encourage customers to upload/send furniture photos.
+   - Explain that photos help TMG quote faster and more accurately.
+6. Add “Not sure what to choose? Send photos on WhatsApp” option.
+
+PHASE 3 — WhatsApp Chatbot Handoff
+Connect the quote flow to the WhatsApp chatbot with a useful summary.
+
+When customer clicks WhatsApp/chatbot handoff, include:
+- Selected service(s)
+- Item list
+- Quantities
+- Address or postal code
+- Access details if provided
+- Preferred date/time
+- Estimated total if available
+- Customer name
+- Phone/email if provided
+- Uploaded photo references if technically available
+- Page/source context if possible
+
+Suggested WhatsApp message:
+Hi TMG Install, I would like a quote.
+
+Service: [service]
+Items: [items + quantities]
+Location: [address/postal code]
+Access: [lift/floor/stairs/parking]
+Preferred date: [date]
+Preferred time: [time]
+Estimated total: [amount]
+Name: [name]
+Phone: [phone]
+
+I can share photos for a more accurate quote.
+
+Implementation:
+- Create a reusable helper to generate WhatsApp/chatbot summary text.
+- URL encode message correctly.
+- Use the existing WhatsApp chatbot integration if available.
+- If Meta/WhatsApp API backend exists, send structured payload through the existing backend.
+- If only wa.me links exist, improve those links with prefilled text.
+- Do not create fake submissions or send real customer data while testing.
+
+PHASE 4 — Real Photo Usage From Meta/Replit Assets
+Improve trust by using real job photos.

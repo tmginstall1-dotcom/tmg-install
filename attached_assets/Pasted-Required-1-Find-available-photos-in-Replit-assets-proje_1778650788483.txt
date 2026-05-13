@@ -1,0 +1,129 @@
+Required:
+1. Find available photos in Replit assets/project folders.
+2. Check existing Meta integration or synced Meta post data.
+3. If Meta API integration exists, use existing safe server-side methods to access post media.
+4. If Meta images are already stored locally or in a CMS/data file, use those.
+5. Do not put access tokens in frontend code.
+6. Add real job photos to:
+   - Homepage hero/sections
+   - Services section
+   - Gallery/work examples
+   - Quote page trust area
+   - SEO landing pages
+
+Create categories if possible:
+- Wardrobe installation
+- Bed assembly
+- Office furniture setup
+- Dismantling
+- Relocation support
+- Tables/cabinets
+- Before/after or completed jobs
+
+Each image should have useful alt text, for example:
+“Wardrobe installation completed by TMG Install in Singapore”
+“Office workstation setup by TMG Install”
+“IKEA bed frame assembly Singapore”
+
+PHASE 5 — SEO Landing Pages
+Create or improve high-intent service pages for Singapore searches.
+
+Create pages for:
+1. /furniture-installation-singapore
+2. /ikea-furniture-assembly-singapore
+3. /wardrobe-installation-singapore
+4. /bed-frame-assembly-singapore
+5. /office-furniture-installation-singapore
+6. /furniture-dismantling-singapore
+7. /furniture-relocation-singapore
+8. /furniture-disposal-singapore
+9. /office-workstation-setup-singapore
+10. /furniture-repair-adjustment-singapore
+
+Each page should include:
+- Unique title tag
+- Unique meta description
+- One clear H1
+- Service explanation
+- Who it is for
+- What customers should prepare
+- Price-from or “request quote” wording if exact price varies
+- Real job photos where available
+- FAQ section
+- Strong CTA to quote form and WhatsApp chatbot
+- Internal links to related services
+- Local Singapore wording
+
+Example title:
+Wardrobe Installation Singapore | TMG Install
+
+Example meta description:
+Get wardrobe installation, dismantling and relocation support in Singapore. Send photos for a clear quote from TMG Install. WhatsApp or book online.
+
+PHASE 6 — Homepage Conversion Upgrade
+Improve homepage sections without making it feel like a generic landing page.
+
+Add/improve:
+1. Clear hero CTA:
+   - “Get a furniture installation quote”
+   - “Send photos on WhatsApp”
+2. Trust signals:
+   - 5,600+ jobs if accurate
+   - Singapore island-wide
+   - Clear quote before work
+   - WhatsApp support
+   - Deposit after confirmation
+3. Real job photo gallery strip.
+4. Service cards with direct links to SEO pages and quote page.
+5. “How it works” section:
+   - Send photos/details
+   - Receive clear estimate
+   - Confirm slot
+   - Crew completes work
+   - Balance after completion
+6. Business/B2B section:
+   - offices
+   - landlords
+   - property agents
+   - furniture retailers
+   - interior designers
+   - serviced apartments
+
+PHASE 7 — Local SEO And Structured Data
+Add SEO schema where appropriate:
+- LocalBusiness
+- HomeAndConstructionBusiness or ProfessionalService if more suitable
+- Service schema for key services
+- FAQPage schema
+- BreadcrumbList schema
+
+Business details:
+- Name: TMG Install / The Moving Guy Pte Ltd
+- Location: Singapore
+- Phone: +65 8088 0757
+- Email: sales@tmginstall.com
+- Address if already shown on site
+- Area served: Singapore
+- SameAs: Facebook, Instagram, Carousell if available
+
+Also:
+- Update sitemap.xml with new pages.
+- Ensure robots.txt allows public pages.
+- Add canonical URLs.
+- Ensure www/non-www canonical consistency.
+- Add Open Graph images using real TMG job photos if possible.
+
+PHASE 8 — Lead Tracking Hooks
+Add clean data attributes/event hooks for future analytics.
+
+Add hooks for:
+- Book quote click
+- WhatsApp click
+- Chatbot click
+- Service selected
+- Photo upload started
+- Quote form started
+- Quote submitted
+- SEO page CTA clicked
+
+Do not install analytics unless already present. Just make tracking easy.
