@@ -32,6 +32,7 @@ const OG_IMAGES: Record<string, string> = {
   "lazada-furniture-installation-singapore":  "/work/shelving-assembly-800.webp",
   "shopee-furniture-installation-singapore":  "/work/shelving-assembly-800.webp",
   "gym-equipment-installation-singapore":     "/work/office-pod-800.webp",
+  "furniture-repair-adjustment-singapore":    "/work/wardrobe-oak-800.webp",
 };
 
 /* ── Single source of truth for sitemap + internal nav ─────────────────────── */
@@ -52,6 +53,7 @@ export const SERVICE_PAGES: Array<{ slug: string; label: string; priority: numbe
   { slug: "lazada-furniture-installation-singapore", label: "Lazada Furniture Installation",  priority: 0.85 },
   { slug: "shopee-furniture-installation-singapore", label: "Shopee Furniture Installation",  priority: 0.85 },
   { slug: "gym-equipment-installation-singapore",    label: "Gym Equipment Installation",     priority: 0.85 },
+  { slug: "furniture-repair-adjustment-singapore",   label: "Furniture Repair & Adjustment",  priority: 0.8  },
 ];
 
 /* ── Reviews used both visually and in JSON-LD ──────────────────────────────── */
@@ -2399,6 +2401,129 @@ export function gymEquipmentInstallationPage(): string {
   </main>`;
 
   return shell({ title, description, canonical, schema, body, breadcrumb: "Gym Equipment Installation Singapore" });
+}
+
+export function furnitureRepairAdjustmentPage(): string {
+  const title = "Furniture Repair & Adjustment Singapore | TMG Install — From $60";
+  const description = "Wobbly chairs, sagging wardrobe doors, drawers that won't close, hinges that creak, table legs that won't level — TMG Install fixes the small stuff that ruins the look of your home. Same-day available island-wide. Fixed prices, no call-out fee.";
+  const canonical = `${DOMAIN}/services/furniture-repair-adjustment-singapore`;
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${canonical}#service`,
+      "name": "Furniture Repair & Adjustment Singapore",
+      "serviceType": "Furniture Repair, Adjustment & Tune-Up",
+      "provider": { "@type": "LocalBusiness", "@id": `${DOMAIN}/#business`, "name": BRAND },
+      "areaServed": { "@type": "City", "name": "Singapore" },
+      "description": description,
+      "url": canonical,
+      "offers": {
+        "@type": "Offer",
+        "priceCurrency": "SGD",
+        "price": "60",
+        "priceSpecification": { "@type": "UnitPriceSpecification", "priceCurrency": "SGD", "price": "60", "unitText": "per visit from" },
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How much does furniture repair cost in Singapore?", "acceptedAnswer": { "@type": "Answer", "text": "Most small repairs and adjustments start from $60 per visit. Hinge replacement, drawer-runner adjustment, levelling and tightening loose joints are typically $60–$120. Larger jobs like rebuilding a bed frame or re-fitting a wardrobe door panel are quoted by item — send us a photo on WhatsApp for a fixed price." } },
+        { "@type": "Question", "name": "Do you charge a call-out fee?", "acceptedAnswer": { "@type": "Answer", "text": "No call-out or inspection fee. Our quoted price covers the visit and the repair. If on-site we find the job needs more than what was quoted, we tell you the price before we start the extra work." } },
+        { "@type": "Question", "name": "Can you fix IKEA, Castlery, Taobao or Scanteak furniture?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we work on every major brand sold in Singapore including IKEA, Castlery, Scanteak, Taobao, Cellini, Lorenzo, Commune and Star Living. We carry common spares like cam-locks, dowels, IKEA hex keys and Blum hinge clips." } },
+        { "@type": "Question", "name": "Can you fix a sagging wardrobe door or one that won't close?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Most wardrobe-door issues are hinge alignment, screw-holes that have stripped, or a frame that has settled out of square. We re-set the hinges, fill stripped screw-holes with hardwood plugs and re-drill, and shim the frame back to true." } },
+        { "@type": "Question", "name": "Do you do same-day repairs?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — same-day slots are usually available island-wide. Book through the instant quote tool or send us a WhatsApp photo and we'll confirm a slot within the hour." } },
+        { "@type": "Question", "name": "Will you replace parts I can't find?", "acceptedAnswer": { "@type": "Answer", "text": "We carry generic cam-locks, dowels, hinges, drawer runners and bed-frame brackets. For brand-specific parts (e.g. IKEA-numbered fittings) we can usually source them within 2–3 working days." } },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Services", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": "Furniture Repair & Adjustment Singapore", "item": canonical },
+      ],
+    },
+  ];
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Furniture Repair & Adjustment Singapore</div>
+    <h1>Honest <em>Furniture Repair &amp; Adjustment</em><br/>in Singapore</h1>
+    <p class="hero-desc">Wobbly chairs, sagging doors, sticky drawers, missing screws, levelling that's gone off — we put it right. Fixed prices, no call-out fee, same-day slots island-wide.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">Send a Photo on WhatsApp</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+
+    <div class="section">
+      <h2>What We Repair &amp; Adjust</h2>
+      <p>The small stuff that ruins how a home looks. We carry common spares (hinges, cam-locks, dowels, drawer runners) on every visit so most jobs are fixed the same day, in one trip.</p>
+      <div class="service-grid">
+        <div class="service-card"><div class="service-card-icon">🚪</div><h3>Wardrobe Doors</h3><p>Re-aligning hinges, fixing stripped screw-holes, replacing soft-close dampers, shimming sagging frames back to square.</p></div>
+        <div class="service-card"><div class="service-card-icon">🗄️</div><h3>Drawers &amp; Runners</h3><p>Drawers that stick, won't close flush, fall off their runners, or rub on the frame — runner replacement, alignment, and frame adjustment.</p></div>
+        <div class="service-card"><div class="service-card-icon">🛏️</div><h3>Beds &amp; Bed Frames</h3><p>Squeaky joints, broken slats, loose headboards, frame tightening, replacing missing brackets and bolts.</p></div>
+        <div class="service-card"><div class="service-card-icon">🪑</div><h3>Chairs &amp; Stools</h3><p>Wobbly legs, loose joints, gas-lift replacement on office chairs, re-glueing wooden joints, swivel-base repair.</p></div>
+        <div class="service-card"><div class="service-card-icon">🪵</div><h3>Tables &amp; Desks</h3><p>Levelling on uneven floors, tightening cross-braces, replacing missing feet, repairing wobble at the joint between leg and top.</p></div>
+        <div class="service-card"><div class="service-card-icon">🔩</div><h3>Missing Hardware</h3><p>Lost an IKEA cam-lock, a Castlery bracket, or a hex bolt? We carry generic spares and source brand-specific parts in 2–3 working days.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Pricing Guide</h2>
+      <p>Fixed per-visit pricing — no hidden call-out fee. <a href="${CTA_URL}" style="color:#3b82f6;font-weight:600;">Send a photo</a> for an exact quote on bigger jobs.</p>
+      <div class="pricing-table">
+        <div class="pricing-row"><span class="pricing-item">Single small adjustment (1 hinge, 1 drawer, 1 leg)</span><span class="pricing-price">from $60</span></div>
+        <div class="pricing-row"><span class="pricing-item">Wardrobe door re-alignment (per door)</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Drawer runner replacement (per drawer)</span><span class="pricing-price">from $90</span></div>
+        <div class="pricing-row"><span class="pricing-item">Bed frame tightening &amp; squeak fix</span><span class="pricing-price">from $90</span></div>
+        <div class="pricing-row"><span class="pricing-item">Office chair gas-lift replacement</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Table levelling &amp; brace tightening</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Multi-item visit (3+ small jobs in one trip)</span><span class="pricing-price">from $150</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Why Choose TMG Install for Repairs?</h2>
+      <h3>Spares On The Truck</h3>
+      <p>We carry generic cam-locks, dowels, Blum hinge clips, common drawer runners, IKEA hex keys, soft-close dampers and a full bracket set on every visit. Most repairs are completed in one trip without a return call.</p>
+      <h3>Honest Diagnosis</h3>
+      <p>If your wardrobe door is sagging because the frame has settled, we tell you that — not just adjust the hinge for it to droop again next month. If a job isn't worth repairing (e.g. flat-pack particle board that's failed at the joints), we say so up-front.</p>
+      <h3>No Call-Out Fee</h3>
+      <p>The quoted price is the price you pay. No hidden visit charge, no extra for bringing the right tools, no surprise mark-ups for parts.</p>
+      <h3>Brand Familiarity</h3>
+      <p>We assemble and dismantle thousands of IKEA, Castlery, Scanteak, Taobao, Cellini and Lorenzo pieces a year — so we already know which screw stripped on which model and what the correct replacement is.</p>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-item"><div class="faq-q">Do you charge a call-out or inspection fee?</div><div class="faq-a">No. Our quoted price covers the visit and the repair. If on-site we find the job needs more than what was quoted, we tell you the price before starting the extra work.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you fix IKEA, Castlery, Taobao or Scanteak furniture?</div><div class="faq-a">Yes — every major brand sold in Singapore. We carry common spares like cam-locks, dowels, IKEA hex keys and Blum hinge clips.</div></div>
+      <div class="faq-item"><div class="faq-q">My wardrobe door won't stay closed. Can you fix it?</div><div class="faq-a">Almost always yes. The usual cause is hinge alignment or stripped screw-holes — we re-set the hinges, fill stripped holes with hardwood plugs and re-drill so the door sits true again.</div></div>
+      <div class="faq-item"><div class="faq-q">Can you replace a missing IKEA part I can't find?</div><div class="faq-a">We carry generic cam-locks, dowels, hinges and brackets. For IKEA-numbered fittings we can usually source the exact part within 2–3 working days.</div></div>
+      <div class="faq-item"><div class="faq-q">Do you do same-day repair visits?</div><div class="faq-a">Yes — same-day slots are usually available island-wide. Send us a WhatsApp photo and we'll confirm a slot within the hour.</div></div>
+      <div class="faq-item"><div class="faq-q">Should I just throw the furniture out and buy new?</div><div class="faq-a">If we think a piece isn't worth repairing we'll tell you up-front. We also offer <a href="/services/furniture-dismantling-singapore" style="color:#3b82f6;font-weight:600;">dismantling and disposal</a> if you decide to replace it.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cta-box">
+        <h2>Got Something That Needs Fixing?</h2>
+        <p>Send a photo on WhatsApp and we'll come back with a fixed price. Most jobs done same day, in one visit.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "Furniture Repair & Adjustment Singapore" });
 }
 
 /* ── Dynamic sitemap.xml — auto-generated from SERVICE_PAGES registry ───────── */

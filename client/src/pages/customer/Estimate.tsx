@@ -2548,7 +2548,7 @@ export default function EstimateWizard() {
             <button
               type="button"
               data-testid="button-save-progress"
-              onClick={() => { setCaptureShown(true); setShowCaptureModal(true); }}
+              onClick={() => { trackEvent("cta_click", "/estimate", "save_progress_step3"); setCaptureShown(true); setShowCaptureModal(true); }}
               className="inline-flex items-center gap-1.5 text-xs text-black/40 hover:text-black/70 transition-colors underline underline-offset-2"
             >
               Email me my progress so I can finish later (optional)
