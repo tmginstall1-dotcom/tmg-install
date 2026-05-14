@@ -110,10 +110,16 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
+    // In production we must use sameSite="none" so the Capacitor Android
+    // staff app (origin https://localhost / capacitor://localhost) can send
+    // the session cookie back on cross-origin XHR. Browsers require
+    // secure:true whenever sameSite is "none". CSRF is still enforced via
+    // the Origin allow-list above, so loosening SameSite does not weaken
+    // protection against cross-site request forgery.
     secure: process.env.NODE_ENV === "production",
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    sameSite: "lax",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   },
 }));
 
