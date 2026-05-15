@@ -10002,6 +10002,12 @@ Respond directly — no JSON, just the message text.`,
 
   app.post("/api/admin/push/subscribe", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    // Push notifications carry customer PII (phone snippet + WhatsApp body
+    // preview) — restrict subscription to admins only. Without this any
+    // logged-in staff user could call this endpoint and start receiving
+    // inbound customer messages.
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ error: "Forbidden" });
     try {
       const sub = req.body;
       if (!sub?.endpoint) return res.status(400).json({ error: "Invalid subscription" });
@@ -10014,6 +10020,8 @@ Respond directly — no JSON, just the message text.`,
 
   app.post("/api/admin/push/unsubscribe", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ error: "Forbidden" });
     try {
       const { endpoint } = req.body;
       if (!endpoint) return res.status(400).json({ error: "Missing endpoint" });

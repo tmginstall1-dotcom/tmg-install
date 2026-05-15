@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAdminPush } from "@/hooks/use-admin-push";
 import {
   MessageCircle, Send, Phone, RefreshCw, User, Bot, Search, X,
   ExternalLink, MapPin, Package, Calendar, Building2, Layers,
@@ -1936,6 +1937,73 @@ export default function AdminConversations() {
     refetchIntervalInBackground: true,
   });
 
+  // ── Push notification subscription state ──────────────────────────────────
+  // Used to render an "Enable alerts" banner when the admin hasn't opted in.
+  const { state: pushState, subscribe: subscribePush } = useAdminPush();
+  const [pushBannerDismissed, setPushBannerDismissed] = useState<boolean>(() => {
+    try { return sessionStorage.getItem("convos_push_banner_dismissed") === "1"; }
+    catch { return false; }
+  });
+
+  // ── Audible chime + tab-title flash for new inbound messages ──────────────
+  // Works without push permission as long as the page is open. Uses Web Audio
+  // to synthesise a short two-note chime so we don't ship an audio asset.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const titleFlashRef = useRef<{ orig: string; timer: number | null }>({ orig: "", timer: null });
+  function playChime() {
+    try {
+      const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
+      const ctx = audioCtxRef.current!;
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const now = ctx.currentTime;
+      [880, 1320].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, now + i * 0.18);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + i * 0.18 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.18 + 0.16);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now + i * 0.18);
+        osc.stop(now + i * 0.18 + 0.18);
+      });
+    } catch {/* noop */}
+  }
+  function flashTitle(message: string) {
+    try {
+      if (!titleFlashRef.current.orig) titleFlashRef.current.orig = document.title;
+      let toggle = false;
+      if (titleFlashRef.current.timer) window.clearInterval(titleFlashRef.current.timer);
+      titleFlashRef.current.timer = window.setInterval(() => {
+        document.title = toggle ? titleFlashRef.current.orig : `🔔 ${message}`;
+        toggle = !toggle;
+      }, 1000);
+    } catch {/* noop */}
+  }
+  // Stop the title flash as soon as the admin focuses the tab. Both listeners
+  // and any active timer are cleaned up on unmount to avoid leaks across
+  // remounts (the user might navigate away from this page and come back).
+  useEffect(() => {
+    function clearFlash() {
+      if (titleFlashRef.current.timer) {
+        window.clearInterval(titleFlashRef.current.timer);
+        titleFlashRef.current.timer = null;
+      }
+      if (titleFlashRef.current.orig) document.title = titleFlashRef.current.orig;
+    }
+    function onVisibility() { if (!document.hidden) clearFlash(); }
+    window.addEventListener("focus", clearFlash);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", clearFlash);
+      document.removeEventListener("visibilitychange", onVisibility);
+      clearFlash();
+    };
+  }, []);
+
   // Track previous unread counts to detect new messages in background conversations
   const prevConvosRef = useRef<Conversation[]>([]);
   const selectedPhoneRef = useRef(selectedPhone);
@@ -1949,10 +2017,11 @@ export default function AdminConversations() {
         const prevConvo = prev.find(p => p.phone === convo.phone);
         if (!prevConvo) continue;
         if (convo.unreadCount > prevConvo.unreadCount) {
-          toast({
-            title: `💬 ${convo.name || formatPhone(convo.phone)}`,
-            description: stripWhatsAppMarkdown(convo.lastMessage || "").slice(0, 80),
-          });
+          const who = convo.name || formatPhone(convo.phone);
+          const preview = stripWhatsAppMarkdown(convo.lastMessage || "").slice(0, 80);
+          toast({ title: `💬 ${who}`, description: preview });
+          playChime();
+          if (document.hidden) flashTitle(`New message from ${who}`);
           break;
         }
       }
@@ -2108,6 +2177,53 @@ export default function AdminConversations() {
               </button>
             </div>
           </div>
+
+          {/* Enable-alerts banner — shows when admin hasn't subscribed to push.
+              Also shown for "unsupported" so users on browsers without push
+              support get clear fallback guidance instead of silent failure. */}
+          {!pushBannerDismissed && (pushState === "default" || pushState === "denied" || pushState === "unsupported") && (
+            <div className="mx-3 mb-3 rounded-lg bg-amber-500/15 border border-amber-400/30 px-3 py-2.5 flex items-start gap-2.5" data-testid="push-banner">
+              <span className="text-amber-300 text-sm leading-none mt-0.5">🔔</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold text-amber-100 leading-tight">
+                  {pushState === "denied" ? "Notifications blocked"
+                    : pushState === "unsupported" ? "Background alerts not available"
+                    : "Get alerted when customers text"}
+                </p>
+                <p className="text-[11px] text-amber-100/70 mt-0.5 leading-snug">
+                  {pushState === "denied"
+                    ? "Allow notifications in your browser settings, then reload this page."
+                    : pushState === "unsupported"
+                    ? "This browser doesn't support background notifications. Keep this tab open — you'll still hear a chime and see a tab-title alert when a new message arrives."
+                    : "Turn on browser notifications to be alerted the moment a new WhatsApp message arrives — even when this tab isn't open."}
+                </p>
+                {pushState === "default" && (
+                  <button
+                    onClick={async () => {
+                      const ok = await subscribePush();
+                      if (ok) toast({ title: "Alerts enabled", description: "You'll get a notification on every new message." });
+                      else toast({ title: "Could not enable alerts", description: "Check your browser notification settings.", variant: "destructive" });
+                    }}
+                    data-testid="button-enable-push"
+                    className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-400 text-amber-950 text-[11px] font-bold hover:bg-amber-300 transition-all"
+                  >
+                    Enable alerts
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setPushBannerDismissed(true);
+                  try { sessionStorage.setItem("convos_push_banner_dismissed", "1"); } catch {}
+                }}
+                data-testid="button-dismiss-push-banner"
+                className="text-amber-100/60 hover:text-amber-100 transition-colors flex-shrink-0"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Search — dark styled */}
           <div className="relative mx-3 mb-3">
