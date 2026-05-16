@@ -316,6 +316,23 @@ export async function seedDatabase() {
     ]);
   }
 
+  // Round 2b (back-fill): Combo Cabinet rows added after Round 2 was already
+  // sealed in production. The Round 2 marker (IKEA-KALLAX-INSTALL) blocks the
+  // whole block from running again on existing deployments, so these two new
+  // SKUs would never reach prod. Insert each missing SKU independently so a
+  // partial state (one present, one missing) still self-heals.
+  const cmbcabRows = [
+    { name: "Combo Cabinet (Drawers + Swing Doors)", sku: "CMBCAB-INSTALL", category: "Storage", serviceType: "install", basePrice: "90.00", volumeM3: "0.50" },
+    { name: "Combo Cabinet (Drawers + Swing Doors)", sku: "CMBCAB-DISMANTLE", category: "Storage", serviceType: "dismantle", basePrice: "65.00", volumeM3: "0.50" },
+  ];
+  for (const row of cmbcabRows) {
+    const existing = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku));
+    if (existing.length === 0) {
+      await db.insert(catalogItems).values(row).onConflictDoNothing();
+      console.log(`[seed] Inserted ${row.sku} (Combo Cabinet back-fill).`);
+    }
+  }
+
   // Round 3: Phone Booths / Meeting Pods + Drilling Services (PHONE-BOOTH-INSTALL marker)
   const r3 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "PHONE-BOOTH-INSTALL"));
   if (r3.length === 0) {
