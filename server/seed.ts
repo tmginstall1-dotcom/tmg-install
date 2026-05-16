@@ -304,6 +304,9 @@ export async function seedDatabase() {
       { name: "Drawer Chest (5+ drawers)", sku: "DRWCH-INSTALL", category: "Storage", serviceType: "install", basePrice: "80.00" },
       { name: "Drawer Chest (5+ drawers)", sku: "DRWCH-DISMANTLE", category: "Storage", serviceType: "dismantle", basePrice: "60.00" },
 
+      { name: "Combo Cabinet (Drawers + Swing Doors)", sku: "CMBCAB-INSTALL", category: "Storage", serviceType: "install", basePrice: "90.00" },
+      { name: "Combo Cabinet (Drawers + Swing Doors)", sku: "CMBCAB-DISMANTLE", category: "Storage", serviceType: "dismantle", basePrice: "65.00" },
+
       { name: "Garden / Patio Furniture Set", sku: "GARD-INSTALL", category: "Outdoor", serviceType: "install", basePrice: "70.00" },
       { name: "Garden / Patio Furniture Set", sku: "GARD-DISMANTLE", category: "Outdoor", serviceType: "dismantle", basePrice: "55.00" },
       { name: "Garden / Patio Furniture Set", sku: "GARD-RELOCATE", category: "Outdoor", serviceType: "relocate", basePrice: "120.00" },
@@ -1076,6 +1079,7 @@ export async function seedDatabase() {
       { sku:"SR-INSTALL", vol:"0.30" },      { sku:"SR-DISMANTLE", vol:"0.30" },        { sku:"SR-RELOCATE", vol:"0.30" },
       { sku:"SDCAB-INSTALL", vol:"0.40" },   { sku:"SDCAB-DISMANTLE", vol:"0.40" },
       { sku:"SCTALL-INSTALL", vol:"0.40" },  { sku:"SCTALL-DISMANTLE", vol:"0.40" },
+      { sku:"CMBCAB-INSTALL", vol:"0.50" },  { sku:"CMBCAB-DISMANTLE", vol:"0.50" },
       // STUDY
       { sku:"STD-DESK-INSTALL", vol:"0.40" },         { sku:"STD-DESK-DISMANTLE", vol:"0.40" },
       { sku:"STD-CORNER-DESK-INSTALL", vol:"0.80" },  { sku:"STD-CORNER-DESK-DISMANTLE", vol:"0.80" },
