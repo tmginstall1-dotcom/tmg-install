@@ -774,6 +774,16 @@ RESIDENTIAL FURNITURE:
 
 6. BOOKSHELF / SHELVING: Upright unit with OPEN SHELVES (no drawers, no doors). For storing books/items.
 
+6a. STORAGE CABINET VARIANTS (very important — these four look similar but have different prices, so pick the right one based on doors vs drawers vs height):
+
+   • SWING DOOR CABINET ("Swing Door Cabinet"): Standard cabinet (waist-to-chest height, typically 80–150cm tall) with 1–4 HINGED DOORS on the front and NO visible drawers. Behind the doors are shelves or hanging space. Common as sideboards, buffet cabinets, low storage units. Width 60–180cm.
+
+   • DRAWER CHEST 5+ DRAWERS ("Drawer Chest (5+ drawers)"): Tall narrow upright unit where the ENTIRE front face is stacked drawers — at least 5 drawers visible, often 6–8. NO doors at all. Drawers run full-width. Typical IKEA HEMNES 8-drawer or MALM 6-drawer dresser. If fewer than 5 drawers visible, use the regular "Chest of Drawers" / dresser name instead.
+
+   • TALL SHOE CABINET 5+ TIERS ("Tall Shoe Cabinet (5+ tiers)"): Tall narrow unit (typically 150–220cm tall, only 25–40cm DEEP — shallow because it's just shoe depth) with multiple FLIP-DOWN or TILT-OUT shoe compartments stacked vertically — 5 or more tiers. Each tier has a flap-style door that tilts forward to reveal slanted shoe shelving inside. Telltale signs: very shallow depth, slim profile, often placed in entryway/foyer, the flap-doors when closed look like horizontal slabs stacked one on top of another. IKEA TRONES or STÄLL style. Do NOT confuse with a regular open shoe rack (open shelves, no flaps = "Shoe Rack").
+
+   • COMBO CABINET DRAWERS + SWING DOORS ("Combo Cabinet (Drawers + Swing Doors)"): A SINGLE unit that visibly mixes BOTH HINGED DOORS and DRAWERS on the same piece — for example a sideboard with 2 doors on the bottom and a row of drawers above, or a tall storage cabinet where the top half is doors and the bottom half is drawers, or a TV-style console with doors on the sides and drawers in the middle. The defining feature is that you can clearly see at least one swing door AND at least one drawer on the same unit. This is the most complex storage item to install/dismantle, so pick it whenever you see this mix — do not split it into a separate "swing door cabinet" + "drawer chest".
+
 7. SOFA / COUCH: Upholstered seating for multiple people. Named by shape: 2-seater, 3-seater, L-shaped, etc.
 
 8. TV CONSOLE: Low-profile unit (typically 40–60cm tall) designed to hold a television. Usually wider than tall.
