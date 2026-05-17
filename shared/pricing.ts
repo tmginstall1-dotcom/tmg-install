@@ -58,6 +58,16 @@ export const PricingConfig = {
   hiace: {
     capacityM3: 6.0,  // Toyota Hiace usable cargo volume per trip (cubic metres)
   },
+  carryHandling: {
+    // Per-cubic-metre crew labour fee for Carry Only jobs, on top of the
+    // transport fee. Transport covers van + 2 movers for up to 2 hours, which
+    // is fine for a few items — but a large carry load (many items, multiple
+    // trips) burns real crew time the transport fee alone doesn't recover.
+    // Scaling labour with carry volume keeps small jobs cheap and large jobs
+    // honest. Only counts volume from non-special-handling carry-only items
+    // (special-handling SKUs already keep their full catalog rate).
+    perM3: 20,
+  },
   deposit: {
     pct: 0.50, // 50% deposit, 50% final
   },
@@ -424,6 +434,35 @@ export function computePricing(input: PricingInput): PricingResult {
     if (input.distanceKm === 0) {
       requiresAdminReview = true;
       reviewReasons.push('Distance calculation failed — transport fee is provisional at minimum rate');
+    }
+
+    // Carry-handling fee — per-m³ crew labour charge for Carry Only items.
+    // Per-item carry labour is $0 by design (transport covers the standard
+    // 2-man crew for up to 2 hours), but a big carry load burns real crew
+    // time that the flat transport fee alone doesn't recover. Scaling the
+    // labour charge with carry volume keeps small jobs cheap and large
+    // multi-trip carry jobs honest. Special-handling SKUs are excluded —
+    // they already keep their full catalog carry rate.
+    const carryVolumeM3 = round2(
+      input.items.reduce((s, it) => {
+        if (!it.carryOnly) return s;
+        if (requiresSpecialHandling(it.sku)) return s;
+        // Clamp volume — a tampered/negative client payload must not reduce
+        // the carry-handling fee. Non-finite values are treated as zero.
+        const rawVol = it.volumeM3 ?? 0;
+        const vol = isFinite(rawVol) && rawVol > 0 ? rawVol : 0;
+        const qty = Math.max(1, Math.round(it.quantity));
+        return s + vol * qty;
+      }, 0),
+    );
+    if (carryVolumeM3 > 0 && cfg.carryHandling.perM3 > 0) {
+      const carryHandlingFee = round2(carryVolumeM3 * cfg.carryHandling.perM3);
+      if (carryHandlingFee > 0) {
+        feeLines.push({
+          label: `Carry Handling (${carryVolumeM3.toFixed(2)} m³ × $${cfg.carryHandling.perM3})`,
+          amount: carryHandlingFee,
+        });
+      }
     }
   }
 
