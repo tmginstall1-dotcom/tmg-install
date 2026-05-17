@@ -110,6 +110,7 @@ export const api = {
           itemName: z.string().min(1),
           sku: z.string().optional(),
           relocateMode: z.enum(['carry', 'full']).optional(),
+          wrap: z.boolean().optional(), // customer opted into bubble-wrap protection ($10/unit)
         })),
         customItems: z.array(z.object({
           description: z.string().min(1),

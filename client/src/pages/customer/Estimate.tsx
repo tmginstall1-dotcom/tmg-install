@@ -66,6 +66,7 @@ interface LineItem {
   relocateMode?: 'full' | 'carry';
   carryPrice?: number;   // carry-only catalog price
   fullPrice?: number;    // dismantle + install combined price
+  wrap?: boolean;        // customer opted into bubble-wrap protection ($10/unit)
 }
 
 interface Floor {
@@ -561,6 +562,7 @@ export default function EstimateWizard() {
       volumeM3: i.volumeM3,
       carryOnly: i.relocateMode === 'carry',
       sku: i.sku,
+      wrap: i.wrap === true,
     })),
     needsRelocation: isRelocation,
     floors: floors.map(f => ({ level: parseInt(f.level) || 0, hasLift: f.hasLift })),
@@ -915,6 +917,7 @@ export default function EstimateWizard() {
           itemName: i.name,
           sku: i.sku,
           relocateMode: i.serviceType === 'relocate' ? (i.relocateMode || 'full') : undefined,
+          wrap: i.wrap === true ? true : undefined,
         })),
         customItems: [],
         logisticsFee: pricingResult.logisticsSubtotal,
@@ -1904,6 +1907,22 @@ export default function EstimateWizard() {
                             <div className="flex items-center gap-2 flex-wrap">
                               {serviceBadge(item.serviceType)}
                               {item.category && <span className="text-xs text-black/35">{item.category}</span>}
+                            </div>
+                            {/* Wrapping protection toggle — opt-in $10 per unit */}
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <button
+                                data-testid={`button-wrap-${item.id}`}
+                                onClick={() => setItems(prev => prev.map(i => i.id === item.id ? { ...i, wrap: !i.wrap } : i))}
+                                className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-black uppercase tracking-[0.06em] border transition-colors ${
+                                  item.wrap
+                                    ? 'bg-amber-500 text-white border-amber-500'
+                                    : 'bg-white text-black/45 border-black/15 hover:text-black hover:border-black/40'
+                                }`}
+                                title="Add bubble-wrap protection (+$10 per unit)"
+                              >
+                                <Package className="w-3 h-3" />
+                                {item.wrap ? `Wrapped +$${(10 * item.quantity).toFixed(0)}` : 'Wrap +$10'}
+                              </button>
                             </div>
                             {/* Relocate sub-mode toggle — shown for all relocate items */}
                             {item.serviceType === 'relocate' && (

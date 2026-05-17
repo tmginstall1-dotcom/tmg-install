@@ -5327,11 +5327,22 @@ Respond with ONLY a JSON array (no prose, no markdown):
         : (relocateItems.some(i => i.relocateMode === 'full') ? 'full'
           : (relocateItems.every(i => i.relocateMode === 'carry') ? 'carry' : 'full'));
 
+      // Tag wrapped items in the persisted name so admin/crew can see which
+      // items the customer paid bubble-wrap protection for. Also sum the
+      // wrapped-unit count for a separate roll-up surcharge line below.
+      // Quantity is normalized to a positive integer to match the client-side
+      // wrap-count calculation and prevent a tampered fractional / negative
+      // quantity from desyncing the displayed roll-up vs. the charged fee.
+      const wrappedUnitCount = input.items.reduce(
+        (s, it) => s + (it.wrap ? Math.max(1, Math.round(it.quantity)) : 0),
+        0,
+      );
+      const wrappingFeeTotal = wrappedUnitCount * PricingConfig.wrapping.perItem;
       const allItems = [
         ...input.items.map(item => ({
           catalogItemId: item.catalogItemId,
-          originalDescription: item.itemName,
-          detectedName: item.itemName,
+          originalDescription: item.itemName + (item.wrap ? " (wrapped)" : ""),
+          detectedName: item.itemName + (item.wrap ? " (wrapped)" : ""),
           serviceType: item.serviceType,
           quantity: item.quantity,
           unitPrice: item.unitPrice.toFixed(2),
@@ -5346,6 +5357,21 @@ Respond with ONLY a JSON array (no prose, no markdown):
           unitPrice: "0",
           subtotal: "0",
         })),
+        // Wrapping surcharge — visible roll-up line on the quote so admin
+        // sees the total wrap charge alongside other surcharges. $10 per unit.
+        ...(wrappedUnitCount > 0 ? [{
+          catalogItemId: undefined as number | undefined,
+          originalDescription: `Wrapping Protection (${wrappedUnitCount} ${wrappedUnitCount === 1 ? "unit" : "units"})`,
+          detectedName: `Wrapping Protection (${wrappedUnitCount} ${wrappedUnitCount === 1 ? "unit" : "units"})`,
+          serviceType: "install" as const, // schema enum doesn't allow 'surcharge' on wizard inputs; persist as a labeled line
+          quantity: wrappedUnitCount,
+          unitPrice: PricingConfig.wrapping.perItem.toFixed(2),
+          // Subtotal derived from the SERVER-computed wrapping fee, never from
+          // client-supplied per-item totals. Guarantees the visible wrap line
+          // always matches the (server-known) wrap cost even if the rest of
+          // the totals come from the client-supplied logisticsFee.
+          subtotal: wrappingFeeTotal.toFixed(2),
+        }] : []),
       ];
 
       const quote = await storage.createQuote(

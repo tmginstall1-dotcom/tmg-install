@@ -68,6 +68,13 @@ export const PricingConfig = {
     // (special-handling SKUs already keep their full catalog rate).
     perM3: 20,
   },
+  wrapping: {
+    // Optional bubble-wrap & corner-protection charge per item. Customer can
+    // tick "Wrap this item" on any line in the estimate wizard; we charge a
+    // flat $10 per wrapped UNIT (i.e. $10 × quantity). Covers materials +
+    // wrap time on site.
+    perItem: 10,
+  },
   deposit: {
     pct: 0.50, // 50% deposit, 50% final
   },
@@ -108,6 +115,7 @@ export interface PricingItem {
   volumeM3?: number; // cubic metres per unit (optional — used for trip calculation)
   carryOnly?: boolean; // Carry-only relocate flag (informational; per-item labor still charged from catalog basePrice). Skips fallback so unmatched carry items default to $0 instead of generic estimate.
   sku?: string; // Optional catalog SKU — used to detect SPECIAL_HANDLING items so the carry-cap rule can skip them.
+  wrap?: boolean; // Customer opted in to bubble-wrap protection for this item. Charged $10 × quantity via wrapping fee.
 }
 
 export interface PricingFloor {
@@ -475,6 +483,25 @@ export function computePricing(input: PricingInput): PricingResult {
   }, 0);
   if (floorSurcharge > 0) {
     feeLines.push({ label: 'Stairs / Floor Access', amount: round2(floorSurcharge) });
+  }
+
+  // Wrapping protection — optional per-item bubble-wrap charge.
+  // Customer ticks "Wrap" on any line they want protected; we charge a flat
+  // $10 per UNIT (so qty 3 with wrap = $30). Applies to any service type
+  // (install, dismantle, relocate, etc.) — not gated by needsRelocation.
+  const wrappedCount = input.items.reduce((s, it) => {
+    if (!it.wrap) return s;
+    const qty = Math.max(1, Math.round(it.quantity));
+    return s + qty;
+  }, 0);
+  if (wrappedCount > 0 && cfg.wrapping.perItem > 0) {
+    const wrappingFee = round2(wrappedCount * cfg.wrapping.perItem);
+    if (wrappingFee > 0) {
+      feeLines.push({
+        label: `Wrapping Protection (${wrappedCount} ${wrappedCount === 1 ? 'item' : 'items'} × $${cfg.wrapping.perItem})`,
+        amount: wrappingFee,
+      });
+    }
   }
 
   // Access difficulty surcharge (based on labor after discount)
