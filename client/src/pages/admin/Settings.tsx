@@ -131,11 +131,11 @@ export default function AdminSettings() {
   });
 
   // Promo campaign
-  interface PromoCodeData { id: number; code: string; discountAmount: string; maxUses: number; usesCount: number; active: boolean; }
+  interface PromoCodeData { id: number; code: string; discountAmount: string; maxUses: number; usesCount: number; active: boolean; minOrderAmount: string; }
   const { data: promoCodes, isLoading: promoLoading } = useQuery<PromoCodeData[]>({
     queryKey: ["/api/admin/promo"],
   });
-  const [editingPromo, setEditingPromo] = useState<{ code: string; discount: number; maxUses: number } | null>(null);
+  const [editingPromo, setEditingPromo] = useState<{ code: string; discount: number; maxUses: number; minOrderAmount: number } | null>(null);
 
   const togglePromo = useMutation({
     mutationFn: (id: number) => apiRequest("POST", "/api/admin/promo/toggle", { id }),
@@ -150,7 +150,7 @@ export default function AdminSettings() {
   });
 
   const upsertPromo = useMutation({
-    mutationFn: (data: { code: string; discountAmount: number; maxUses: number; active: boolean }) =>
+    mutationFn: (data: { code: string; discountAmount: number; maxUses: number; active: boolean; minOrderAmount: number }) =>
       apiRequest("POST", "/api/admin/promo/upsert", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/promo"] });
@@ -621,6 +621,9 @@ export default function AdminSettings() {
                     </div>
                     <p className="text-xs text-zinc-500 mt-1">
                       ${parseFloat(p.discountAmount).toFixed(0)} OFF · {p.usesCount} / {p.maxUses} used · {Math.max(0, p.maxUses - p.usesCount)} slots remaining
+                      {parseFloat(p.minOrderAmount ?? "0") > 0 && (
+                        <> · Min spend ${parseFloat(p.minOrderAmount).toFixed(0)}</>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -650,7 +653,7 @@ export default function AdminSettings() {
                       )}
                     </button>
                     <button
-                      onClick={() => setEditingPromo({ code: p.code, discount: parseFloat(p.discountAmount), maxUses: p.maxUses })}
+                      onClick={() => setEditingPromo({ code: p.code, discount: parseFloat(p.discountAmount), maxUses: p.maxUses, minOrderAmount: parseFloat(p.minOrderAmount ?? "0") || 0 })}
                       className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs font-medium transition-colors"
                     >
                       Edit
@@ -679,7 +682,7 @@ export default function AdminSettings() {
           {editingPromo && (
             <div className="border border-amber-200 rounded-lg p-4 bg-amber-50 space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-amber-800">Edit Promo Code</p>
-              <div className="grid sm:grid-cols-3 gap-3">
+              <div className="grid sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs text-amber-900">Code</Label>
                   <Input
@@ -709,10 +712,22 @@ export default function AdminSettings() {
                     data-testid="promo-edit-max-uses"
                   />
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-amber-900">Minimum Spend (SGD)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editingPromo.minOrderAmount}
+                    onChange={e => setEditingPromo(p => p ? { ...p, minOrderAmount: Math.max(0, parseFloat(e.target.value) || 0) } : p)}
+                    className="h-9 bg-white border-amber-300 focus:border-amber-500 focus:ring-amber-500"
+                    data-testid="promo-edit-min-spend"
+                  />
+                  <p className="text-[11px] text-amber-700/80">Job total must reach this amount for the code to apply. Set to 0 for no minimum.</p>
+                </div>
               </div>
               <div className="flex gap-2 pt-2">
                 <button
-                  onClick={() => upsertPromo.mutate({ code: editingPromo.code, discountAmount: editingPromo.discount, maxUses: editingPromo.maxUses, active: true })}
+                  onClick={() => upsertPromo.mutate({ code: editingPromo.code, discountAmount: editingPromo.discount, maxUses: editingPromo.maxUses, active: true, minOrderAmount: editingPromo.minOrderAmount })}
                   disabled={upsertPromo.isPending}
                   className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
                   data-testid="promo-save"
@@ -732,7 +747,7 @@ export default function AdminSettings() {
           {/* Add new promo */}
           {!editingPromo && (
             <button
-              onClick={() => setEditingPromo({ code: "", discount: 50, maxUses: 100 })}
+              onClick={() => setEditingPromo({ code: "", discount: 50, maxUses: 100, minOrderAmount: 0 })}
               className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium transition-colors"
               data-testid="promo-add-new"
             >

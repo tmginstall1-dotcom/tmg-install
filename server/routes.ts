@@ -5275,10 +5275,42 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const laborSubtotal = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
       const discount = input.discount || 0;
       const logisticsFee = input.logisticsFee || 0;
-      const promoDiscountAmt = input.promoDiscount || 0;
 
       // rawTotal includes logisticsFee which already contains the $60 callout fee (via computePricing)
       const rawTotal = laborSubtotal - discount + logisticsFee;
+
+      // Re-validate the promo code server-side against the live DB row.
+      // NEVER trust the client's promoDiscount value — that lets anyone slap
+      // a fake $50 off on any submission. We look up the code, check active /
+      // maxUses / minOrderAmount against the server-computed rawTotal, and
+      // ignore the client-supplied discount entirely.
+      //
+      // `appliedPromoCode` is only set when the code is actually eligible.
+      // We use it for BOTH persistence and the usage-count decrement below,
+      // so a low-value or otherwise ineligible submission cannot:
+      //   • silently store a promo code on the quote that wasn't applied, or
+      //   • burn a usage slot on a code the customer doesn't qualify for.
+      let promoDiscountAmt = 0;
+      let appliedPromoCode: string | null = null;
+      const requestedPromo = input.promoCode?.trim().toUpperCase() || null;
+      if (requestedPromo) {
+        try {
+          const promoRows = await db.select().from(promoCodes)
+            .where(eq(promoCodes.code, requestedPromo)).limit(1);
+          const pr = promoRows[0];
+          if (pr && pr.active && pr.usesCount < pr.maxUses) {
+            const minOrder = parseFloat(pr.minOrderAmount ?? "0") || 0;
+            if (minOrder === 0 || rawTotal >= minOrder) {
+              const candidateDiscount = parseFloat(pr.discountAmount) || 0;
+              if (candidateDiscount > 0) {
+                promoDiscountAmt = candidateDiscount;
+                appliedPromoCode = requestedPromo;
+              }
+            }
+          }
+        } catch { /* promo lookup failed — fall through with no discount */ }
+      }
+
       // Promo code applied to total (callout fee already included in logisticsFee)
       const grandTotal = Math.max(0, rawTotal - promoDiscountAmt);
 
@@ -5343,8 +5375,8 @@ Respond with ONLY a JSON array (no prose, no markdown):
           preferredTimeWindow: input.preferredTimeWindow || null,
           slotHeldUntil: (input.preferredDate && input.preferredTimeWindow) ? slotHeldUntil : null,
           bookingRequestedAt: (input.preferredDate && input.preferredTimeWindow) ? new Date() : null,
-          // Promo code applied
-          promoCode: input.promoCode || null,
+          // Promo code applied — only persist when the code actually qualified
+          promoCode: appliedPromoCode,
           promoDiscount: promoDiscountAmt > 0 ? promoDiscountAmt.toFixed(2) : "0",
         },
         allItems
@@ -5355,11 +5387,14 @@ Respond with ONLY a JSON array (no prose, no markdown):
         logAttributionEvent(quote.id, quote.referenceNo, "lead_submitted", parseFloat(quote.total ?? "0"), quote.sourceChannel ?? undefined).catch(() => {});
       }
 
-      // Decrement promo code usage count if one was applied
-      if (input.promoCode?.trim()) {
+      // Decrement promo code usage count ONLY if the code actually qualified
+      // and was applied to the quote. Gating on `appliedPromoCode` prevents
+      // a slot-exhaustion vector where attackers submit low-value quotes with
+      // a valid code to burn `usesCount` without receiving any discount.
+      if (appliedPromoCode && promoDiscountAmt > 0) {
         try {
           const promoRows = await db.select().from(promoCodes)
-            .where(eq(promoCodes.code, input.promoCode.trim().toUpperCase())).limit(1);
+            .where(eq(promoCodes.code, appliedPromoCode)).limit(1);
           if (promoRows.length && promoRows[0].active && promoRows[0].usesCount < promoRows[0].maxUses) {
             await db.update(promoCodes)
               .set({ usesCount: promoRows[0].usesCount + 1 })
@@ -8616,10 +8651,13 @@ Respond directly — no JSON, just the message text.`,
       if (!p.active) return res.json({ valid: false, message: "This promo code is no longer active" });
       if (p.usesCount >= p.maxUses) return res.json({ valid: false, message: "All promo slots have been claimed — thank you!" });
       const minOrder = parseFloat(p.minOrderAmount ?? "0");
-      if (minOrder > 0 && orderTotal !== undefined && orderTotal < minOrder) {
+      // If the code has a minimum spend, the client MUST send an orderTotal —
+      // otherwise the check is meaningless and can be bypassed by omitting it.
+      const safeOrderTotal = typeof orderTotal === "number" && isFinite(orderTotal) ? orderTotal : 0;
+      if (minOrder > 0 && safeOrderTotal < minOrder) {
         return res.json({
           valid: false,
-          message: `Minimum job total of $${minOrder.toFixed(0)} required to use this code (your total: $${orderTotal.toFixed(2)})`,
+          message: `Minimum job total of $${minOrder.toFixed(0)} required to use this code (your total: $${safeOrderTotal.toFixed(2)})`,
         });
       }
       return res.json({ valid: true, discount: parseFloat(p.discountAmount), message: `$${parseFloat(p.discountAmount).toFixed(0)} discount applied!` });
@@ -8642,11 +8680,12 @@ Respond directly — no JSON, just the message text.`,
     if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
     const user = await storage.getUserById(req.session.userId);
     if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
-    const { code, discountAmount, maxUses, active } = req.body as { code: string; discountAmount: number; maxUses: number; active: boolean };
+    const { code, discountAmount, maxUses, active, minOrderAmount } = req.body as { code: string; discountAmount: number; maxUses: number; active: boolean; minOrderAmount?: number };
     if (!code?.trim()) return res.status(400).json({ message: "Code is required" });
     const cleanCode = code.trim().toUpperCase();
-    await db.insert(promoCodes).values({ code: cleanCode, discountAmount: String(discountAmount), maxUses, active })
-      .onConflictDoUpdate({ target: promoCodes.code, set: { discountAmount: String(discountAmount), maxUses, active } });
+    const minOrderClean = Math.max(0, Number(minOrderAmount) || 0);
+    await db.insert(promoCodes).values({ code: cleanCode, discountAmount: String(discountAmount), maxUses, active, minOrderAmount: String(minOrderClean) })
+      .onConflictDoUpdate({ target: promoCodes.code, set: { discountAmount: String(discountAmount), maxUses, active, minOrderAmount: String(minOrderClean) } });
     const rows = await db.select().from(promoCodes).where(eq(promoCodes.code, cleanCode)).limit(1);
     return res.json(rows[0]);
   });
