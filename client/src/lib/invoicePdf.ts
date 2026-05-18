@@ -10,12 +10,13 @@ import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
 
-const CO   = "The Moving Guy Pte Ltd";
-const UEN  = "202424156H";
-const ADDR = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
-const TEL  = "+65 8088 0757";
-const MAIL = "sales@tmginstall.com";
-const WEB  = "tmginstall.com";
+const CO      = "The Moving Guy Pte Ltd";
+const UEN     = "202424156H";
+const ADDR    = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
+const TEL     = "+65 8088 0757";
+const MAIL    = "sales@tmginstall.com";
+const WEB     = "tmginstall.com";
+const VEHICLE = "GBM550L";
 
 type InvoiceItem = {
   id: number;
@@ -119,7 +120,7 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.text(ADDR, marginX, y + 5);
-  doc.text(`${TEL} · ${MAIL} · ${WEB}`, pageW - marginX, y + 5, { align: "right" });
+  doc.text(`${TEL} · ${MAIL} · ${WEB} · Vehicle ${VEHICLE}`, pageW - marginX, y + 5, { align: "right" });
   y += 8;
   doc.setDrawColor(230, 230, 230);
   doc.line(marginX, y, pageW - marginX, y);
@@ -446,7 +447,7 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
     `Thank you for choosing TMG Install. For any questions please contact ${TEL} or ${MAIL}.`,
     pageW / 2, footerY, { align: "center" }
   );
-  doc.text(`${CO} · UEN ${UEN} · ${WEB}`, pageW / 2, footerY + 4, { align: "center" });
+  doc.text(`${CO} · UEN ${UEN} · ${WEB} · Vehicle ${VEHICLE}`, pageW / 2, footerY + 4, { align: "center" });
 
   return doc;
 }

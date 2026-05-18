@@ -6,12 +6,13 @@ import { useState, useMemo } from "react";
 import { formatItemDescription } from "@/lib/itemLabel";
 
 /* ─── Constants ─────────────────────────────────────────────── */
-const CO   = "The Moving Guy Pte Ltd";
-const UEN  = "202424156H";
-const ADDR = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
-const TEL  = "+65 8088 0757";
-const MAIL = "sales@tmginstall.com";
-const WEB  = "tmginstall.com";
+const CO      = "The Moving Guy Pte Ltd";
+const UEN     = "202424156H";
+const ADDR    = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
+const TEL     = "+65 8088 0757";
+const MAIL    = "sales@tmginstall.com";
+const WEB     = "tmginstall.com";
+const VEHICLE = "GBM550L";
 
 /* ─── Formatters ─────────────────────────────────────────────── */
 const money = (v: any) =>
@@ -317,7 +318,7 @@ function PrintJob({ q, today }: { q: any; today: string }) {
 
       {/* ── Company sub-header with dates ── */}
       <div style={{ borderLeft: "3px solid #111", borderRight: "3px solid #111", borderBottom: "3px solid #111", padding: "6px 16px 8px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 8, color: "#6b7280", borderRadius: "0 0 6px 6px" }}>
-        <span>{ADDR} · {TEL} · {MAIL} · {WEB}</span>
+        <span>{ADDR} · {TEL} · {MAIL} · {WEB} · Vehicle {VEHICLE}</span>
         <span>Submitted {dt(q.createdAt)} · Generated {today}</span>
       </div>
 
@@ -815,7 +816,7 @@ export default function ExportPDF() {
             <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.5 }}>TMG INSTALL</div>
             <div style={{ fontSize: 8, color: "#9ca3af", marginTop: 2 }}>{CO} · UEN {UEN}</div>
             <div style={{ fontSize: 8, color: "#9ca3af" }}>{ADDR}</div>
-            <div style={{ fontSize: 8, color: "#9ca3af" }}>{WEB} · {TEL} · {MAIL}</div>
+            <div style={{ fontSize: 8, color: "#9ca3af" }}>{WEB} · {TEL} · {MAIL} · Vehicle {VEHICLE}</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 14, fontWeight: 900 }}>Closed Jobs — Audit Report</div>

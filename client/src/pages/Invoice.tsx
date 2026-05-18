@@ -5,12 +5,13 @@ import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { downloadInvoicePdf } from "@/lib/invoicePdf";
 
-const CO   = "The Moving Guy Pte Ltd";
-const UEN  = "202424156H";
-const ADDR = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
-const TEL  = "+65 8088 0757";
-const MAIL = "sales@tmginstall.com";
-const WEB  = "tmginstall.com";
+const CO      = "The Moving Guy Pte Ltd";
+const UEN     = "202424156H";
+const ADDR    = "160 Robinson Road, #14-04 SBF Center, Singapore 068914";
+const TEL     = "+65 8088 0757";
+const MAIL    = "sales@tmginstall.com";
+const WEB     = "tmginstall.com";
+const VEHICLE = "GBM550L";
 
 type InvoiceItem = {
   id: number;
@@ -187,7 +188,7 @@ export default function Invoice() {
             {/* Sub-header */}
             <div className="px-7 py-3 border-b border-gray-100 text-[11px] text-gray-500 flex flex-wrap gap-x-4 gap-y-1 justify-between">
               <span>{ADDR}</span>
-              <span>{TEL} · {MAIL} · {WEB}</span>
+              <span>{TEL} · {MAIL} · {WEB} · Vehicle {VEHICLE}</span>
             </div>
 
             {/* PAID IN FULL stamp */}
@@ -373,7 +374,7 @@ export default function Invoice() {
             <div className="px-7 py-4 border-t border-gray-100 bg-gray-50 text-center text-[11px] text-gray-500 leading-relaxed">
               Thank you for choosing TMG Install. For any questions please contact <span className="text-gray-700 font-medium">{TEL}</span> or <span className="text-gray-700 font-medium">{MAIL}</span>.
               <br />
-              {CO} · UEN {UEN} · {WEB}
+              {CO} · UEN {UEN} · {WEB} · Vehicle {VEHICLE}
             </div>
           </div>
         )}
