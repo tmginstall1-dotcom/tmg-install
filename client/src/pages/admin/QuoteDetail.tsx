@@ -1083,59 +1083,73 @@ export default function AdminQuoteDetail() {
       font-feature-settings: 'tnum' 1;
     }
 
-    /* ── Letterhead ────────────────────────────────────────────── */
+    /* ── Letterhead ──────────────────────────────────────────────
+       Classical two-column letterhead. Left = corporate identity
+       (wordmark, tagline, full address block). Right = document
+       title with reference / issued meta beneath. A single hairline
+       under the band closes the masthead in proper accounting-stationery
+       fashion. */
     .letterhead {
       display: grid; grid-template-columns: 1fr auto;
-      gap: 24px; align-items: start;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--ink);
-      margin-bottom: 18px;
+      gap: 32px; align-items: end;
+      padding-bottom: 14px;
+      border-bottom: 1.5px solid var(--ink);
+      margin-bottom: 22px;
     }
-    .lh-brand { display: flex; flex-direction: column; }
+    .lh-brand { display: flex; flex-direction: column; min-width: 0; }
     .lh-mono {
-      font-size: 26px; font-weight: 900; color: var(--ink);
-      letter-spacing: -0.02em; line-height: 1; font-family: 'Inter', 'Helvetica Neue', sans-serif;
+      font-size: 34px; font-weight: 900; color: var(--ink);
+      letter-spacing: -0.025em; line-height: 0.95;
+      font-family: 'Inter', 'Helvetica Neue', sans-serif;
     }
     .lh-mono .dot { color: var(--gold); }
     .lh-tag {
-      font-size: 8px; text-transform: uppercase; letter-spacing: 0.34em;
-      color: var(--muted); font-weight: 600; margin-top: 7px;
+      font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.36em;
+      color: var(--ink-2); font-weight: 700; margin-top: 8px;
+      padding-top: 7px; border-top: 0.5px solid var(--line-2);
     }
     .lh-addr {
-      font-size: 9px; color: var(--muted); margin-top: 12px; line-height: 1.7;
+      font-size: 8.5px; color: var(--muted); margin-top: 10px; line-height: 1.75;
     }
     .lh-addr strong { color: var(--ink-2); font-weight: 600; }
+    .lh-addr .sep { color: var(--muted-2); padding: 0 4px; }
 
-    .lh-doc { text-align: right; }
+    .lh-doc { text-align: right; min-width: 200px; }
     .lh-doc .type {
-      font-size: 22px; font-weight: 300; color: var(--ink);
-      letter-spacing: 0.32em; text-transform: uppercase; line-height: 1;
+      font-size: 28px; font-weight: 200; color: var(--ink);
+      letter-spacing: 0.34em; text-transform: uppercase; line-height: 1;
       font-family: 'Inter', 'Helvetica Neue', sans-serif;
+      padding-right: 0.04em;
     }
-    .lh-doc .ref-block { margin-top: 12px; }
+    .lh-doc .ref-block {
+      margin-top: 16px;
+      display: inline-block; text-align: right;
+      padding: 8px 0 0; border-top: 0.5px solid var(--line-2);
+    }
     .lh-doc .ref-label {
-      font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.22em;
-      color: var(--muted); font-weight: 600;
+      font-size: 7px; text-transform: uppercase; letter-spacing: 0.28em;
+      color: var(--muted); font-weight: 700;
     }
     .lh-doc .ref-value {
-      font-size: 12px; color: var(--ink); font-weight: 600;
+      font-size: 13px; color: var(--ink); font-weight: 700;
       font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
-      letter-spacing: 0; margin-top: 2px;
+      letter-spacing: 0; margin-top: 3px;
     }
     .lh-doc .sub-ref {
-      font-size: 9px; color: var(--muted); margin-top: 4px;
+      font-size: 8.5px; color: var(--muted); margin-top: 4px;
       font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
     }
     .lh-doc .meta-line {
-      margin-top: 10px;
-      font-size: 9px; color: var(--ink-2);
+      margin-top: 12px;
+      font-size: 8.5px; color: var(--ink-2);
+      display: flex; gap: 18px; justify-content: flex-end;
     }
-    .lh-doc .meta-line span { display: inline-block; margin-left: 14px; }
+    .lh-doc .meta-line > span { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px; }
     .lh-doc .meta-line .k {
-      color: var(--muted); text-transform: uppercase; letter-spacing: 0.14em;
-      font-size: 7.5px; font-weight: 600; margin-right: 4px;
+      color: var(--muted); text-transform: uppercase; letter-spacing: 0.22em;
+      font-size: 6.5px; font-weight: 700;
     }
-    .lh-doc .meta-line .v { font-weight: 600; color: var(--ink); }
+    .lh-doc .meta-line .v { font-weight: 600; color: var(--ink); font-size: 9px; }
 
     /* ── Parties block (Bill To / Job Details) ─────────────────── */
     .parties {
@@ -1371,62 +1385,49 @@ export default function AdminQuoteDetail() {
     .print-running-footer { display: none; }
 
     @media print {
-      /* Single-page A4: tight outer margins. The @page top/bottom
-         margins reserve space for the repeating header/footer below. */
-      @page { size: A4; margin: 14mm 9mm 12mm; }
+      /* Tight outer margins. The @page top/bottom margins reserve a
+         small amount of space for the minimal repeating ref chip and
+         footer strip below; the proper letterhead lives inside the
+         body and gets the full corporate presentation on page 1. */
+      @page { size: A4; margin: 11mm 9mm 10mm; }
       html, body { padding: 0; margin: 0; }
       body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .doc-body { padding: 0; }
       button { display: none; }
 
-      /* Repeating page identifier strip — appears on every printed page. */
+      /* Minimal repeating page identifier — just a small right-aligned
+         reference chip. Deliberately unobtrusive so the in-body
+         letterhead reads as the primary masthead on page 1. */
       .print-running-header {
         display: flex; position: fixed; top: 0; left: 0; right: 0;
-        height: 10mm; padding: 3mm 9mm 0;
-        align-items: center; justify-content: space-between;
-        font-size: 7.5px; color: var(--muted);
-        border-bottom: 0.5px solid var(--line);
+        height: 7mm; padding: 2mm 9mm 0;
+        align-items: center; justify-content: flex-end;
         background: #fff;
       }
-      .print-running-header .prh-left {
-        display: flex; align-items: baseline; gap: 8px;
-      }
-      .print-running-header .prh-brand {
-        font-weight: 900; font-size: 9px; color: var(--ink); letter-spacing: -0.02em;
-      }
-      .print-running-header .prh-brand .dot { color: var(--gold); }
-      .print-running-header .prh-type {
-        text-transform: uppercase; letter-spacing: 0.22em;
-        font-weight: 700; font-size: 7px; color: var(--ink-2);
-      }
+      .print-running-header .prh-left { display: none; }
       .print-running-header .prh-right {
         font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
-        font-size: 8px; color: var(--ink); font-weight: 600;
+        font-size: 7px; color: var(--muted-2); font-weight: 500;
+        letter-spacing: 0.02em;
       }
       .print-running-header .prh-right .label {
-        color: var(--muted); font-weight: 600; margin-right: 4px;
-        text-transform: uppercase; letter-spacing: 0.12em; font-size: 6.5px;
+        color: var(--muted-2); font-weight: 600; margin-right: 3px;
+        text-transform: uppercase; letter-spacing: 0.14em; font-size: 6px;
         font-family: 'Inter', 'Helvetica Neue', sans-serif;
       }
       .print-running-footer {
         display: flex; position: fixed; bottom: 0; left: 0; right: 0;
-        height: 8mm; padding: 0 9mm 3mm;
+        height: 7mm; padding: 0 9mm 2mm;
         align-items: flex-end; justify-content: space-between;
-        font-size: 6.5px; color: var(--muted);
-        border-top: 0.5px solid var(--line);
+        font-size: 6px; color: var(--muted-2); font-weight: 500;
         background: #fff;
       }
       .print-running-footer .prf-right {
         font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
       }
 
-      /* On the first page, suppress the in-flow letterhead's extra
-         top margin since the running header is already separating
-         it from the page edge. */
-      .letterhead { margin-top: 2px; }
-
       /* Compress vertical rhythm just for print so a typical invoice fits one A4. */
-      .letterhead { padding-bottom: 8px; margin-bottom: 10px; }
+      .letterhead { padding-bottom: 10px; margin-bottom: 14px; }
       .parties { margin-bottom: 10px; gap: 20px; }
       table.items { margin-bottom: 8px; }
       table.items tbody td { padding: 6px 0; font-size: 9.5px; }
@@ -1463,41 +1464,38 @@ export default function AdminQuoteDetail() {
 </head>
 <body>
   <!-- Repeating page identifier — printed on every A4 page so any
-       page can be traced back to this quote / invoice. -->
+       page can be traced back to this quote / invoice. Kept
+       deliberately minimal so it doesn't compete with the in-body
+       letterhead on page 1. -->
   <div class="print-running-header" aria-hidden="true">
-    <div class="prh-left">
-      <span class="prh-brand">TMG<span class="dot">.</span></span>
-      <span class="prh-type">${docType}</span>
-      <span>· ${esc(q.customer?.name || "—")}</span>
-    </div>
     <div class="prh-right">
-      <span class="label">Ref</span>${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}${isInvoiceDoc ? ` · <span class="label">Job</span>${esc(q.referenceNo)}` : ""}
+      <span class="label">${docType}</span>${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}
     </div>
   </div>
   <div class="print-running-footer" aria-hidden="true">
-    <div>The Moving Guy Pte Ltd · UEN 202424156H · +65 8088 0757 · tmginstall.com</div>
-    <div class="prf-right">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)} · Issued ${esc(issuedDate)}</div>
+    <div>The Moving Guy Pte Ltd · UEN 202424156H · tmginstall.com</div>
+    <div class="prf-right">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</div>
   </div>
 
   <div class="doc-body">
 
-  <!-- Letterhead -->
+  <!-- Letterhead — classical two-column masthead -->
   <div class="letterhead">
     <div class="lh-brand">
       <div class="lh-mono">TMG<span class="dot">.</span></div>
-      <div class="lh-tag">The Moving Guy · Furniture Installation</div>
+      <div class="lh-tag">The Moving Guy &nbsp;·&nbsp; Furniture Installation Singapore</div>
       <div class="lh-addr">
-        <strong>The Moving Guy Pte Ltd</strong> · UEN 202424156H<br/>
+        <strong>The Moving Guy Pte Ltd</strong><span class="sep">·</span>UEN 202424156H<br/>
         160 Robinson Road #14-04, Singapore 068914<br/>
-        +65 8088 0757 · sales@tmginstall.com · tmginstall.com
+        +65 8088 0757<span class="sep">·</span>sales@tmginstall.com<span class="sep">·</span>tmginstall.com
       </div>
     </div>
     <div class="lh-doc">
       <div class="type">${docType}</div>
       <div class="ref-block">
-        <div class="ref-label">Reference</div>
+        <div class="ref-label">${isInvoiceDoc ? "Invoice No." : "Quotation No."}</div>
         <div class="ref-value">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</div>
-        ${isInvoiceDoc ? `<div class="sub-ref">Job ${esc(q.referenceNo)}</div>` : ""}
+        ${isInvoiceDoc ? `<div class="sub-ref">Job Ref · ${esc(q.referenceNo)}</div>` : ""}
       </div>
       <div class="meta-line">
         <span><span class="k">Issued</span><span class="v">${esc(issuedDate)}</span></span>
