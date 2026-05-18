@@ -123,7 +123,7 @@ const PRICING_SAMPLES = [
 const FAQS = [
   {
     q: "How is the price calculated?",
-    a: "We use a fixed-price catalog of 250+ furniture items. Installation and dismantling jobs include a one-time $60 mobilisation & coordination fee per appointment (covers crew dispatch, transport & logistics), plus per-item labor from the catalog. Relocation jobs use transport pricing from $58 (first 3 km, 1 helper included) with no mobilisation fee. Relocating furniture with dismantle & reinstall gets a 40% bundle discount — you pay 60% of the combined install + dismantle price. Everything is itemised in your quote — no guesswork, no surprise charges.",
+    a: "We use a fixed-price catalog of 250+ furniture items. Installation and dismantling jobs include a one-time $39.90 mobilisation & coordination fee per appointment (covers crew dispatch, transport & logistics), plus per-item labor from the catalog. Relocation jobs use transport pricing from $58 (first 3 km, 1 helper included) with no mobilisation fee. Relocating furniture with dismantle & reinstall gets a 40% bundle discount — you pay 60% of the combined install + dismantle price. Same-Property Moves (shifting items between rooms or floors of the same address) are priced as $39.90 mobilisation + $20/m³ carry handling, plus catalog dismantle/install rates only when needed — no transport, no distance fee. Everything is itemised in your quote — no guesswork, no surprise charges.",
   },
   {
     q: "Do you cover all of Singapore?",
@@ -1509,7 +1509,7 @@ export default function Landing() {
             
             <div className="px-8 py-6 bg-black/60 border-t border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <p className="font-body text-sm text-white/50 max-w-3xl leading-relaxed">
-                Install & dismantle prices are per-item labor — a <strong className="text-white/80">$60 mobilisation & coordination fee</strong> applies once per job (crew dispatch, transport & logistics). D&R Labor = (install + dismantle) × 60% — <strong className="text-amber-400/80">40% bundle saving</strong>, no mobilisation fee. Transport from $58 (≤3 km) + $0.50/km.
+                Install & dismantle prices are per-item labor — a <strong className="text-white/80">$39.90 mobilisation & coordination fee</strong> applies once per job (crew dispatch, transport & logistics). D&R Labor = (install + dismantle) × 60% — <strong className="text-amber-400/80">40% bundle saving</strong>, no mobilisation fee. Transport from $58 (≤3 km) + $0.50/km.
               </p>
               <Link
                 href="/estimate"
@@ -1556,7 +1556,7 @@ export default function Landing() {
               <p className="font-body text-xs text-white/50 leading-relaxed mb-5">
                 {pricingTab === "relocate"
                   ? "D&R Labor = (install + dismantle) × 60%. Transport from $58 (≤3 km) + $0.50/km. No mobilisation fee."
-                  : "Per-item labor prices (SGD). A $60 mobilisation & coordination fee applies once per job. Transport & stair fees extra."}
+                  : "Per-item labor prices (SGD). A $39.90 mobilisation & coordination fee applies once per job. Transport & stair fees extra."}
               </p>
               <Link
                 href="/estimate"

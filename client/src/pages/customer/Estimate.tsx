@@ -327,6 +327,12 @@ export default function EstimateWizard() {
   const [pickupLatLng, setPickupLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [dropoffAddress, setDropoffAddress] = useState("");
   const [dropoffLatLng, setDropoffLatLng] = useState<{ lat: number; lng: number } | null>(null);
+  // Same-Property Move — items shifted within the SAME address (between rooms,
+  // floors of the same condo, during renovation). When true: only pickupAddress
+  // is collected (used as both pickup & dropoff on the server), no distance is
+  // calculated, no transport fee is charged, but the $39.90 mobilisation fee
+  // still applies and Carry-Handling ($20/m³) still applies for carry items.
+  const [samePropertyMove, setSamePropertyMove] = useState(false);
   const [distanceKm, setDistanceKm] = useState(0);
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [distanceError, setDistanceError] = useState("");
@@ -567,9 +573,13 @@ export default function EstimateWizard() {
     needsRelocation: isRelocation,
     floors: floors.map(f => ({ level: parseInt(f.level) || 0, hasLift: f.hasLift })),
     accessDifficulty,
-    distanceKm,
+    // Same-Property Moves don't have travel distance — force to 0 so the
+    // engine's "transport fee" branch is skipped and we don't trip the
+    // "distance calculation failed" admin-review warning.
+    distanceKm: samePropertyMove ? 0 : distanceKm,
     catalogEntries,
-  }), [items, isRelocation, floors, accessDifficulty, distanceKm, catalogEntries]);
+    samePropertyMove: isRelocation && samePropertyMove,
+  }), [items, isRelocation, samePropertyMove, floors, accessDifficulty, distanceKm, catalogEntries]);
 
   const subtotal = pricingResult.laborSubtotal;
   const total = pricingResult.grandTotal;
@@ -906,9 +916,13 @@ export default function EstimateWizard() {
         selectedServices: services,
         serviceAddress: isRelocation ? pickupAddress : serviceAddress,
         pickupAddress: isRelocation ? pickupAddress : undefined,
-        dropoffAddress: isRelocation ? dropoffAddress : undefined,
+        // Same-Property Move: pickup == dropoff (same address). Send pickup as
+        // dropoff too so the backend's relocation persistence logic still works
+        // unmodified, and the printed invoice doesn't show a blank destination.
+        dropoffAddress: isRelocation ? (samePropertyMove ? pickupAddress : dropoffAddress) : undefined,
         accessDifficulty: isRelocation ? accessDifficulty : undefined,
         floorsInfo: isRelocation ? JSON.stringify(floors) : undefined,
+        samePropertyMove: isRelocation && samePropertyMove ? true : undefined,
         items: items.map(i => ({
           catalogItemId: i.catalogItemId,
           quantity: i.quantity,
@@ -922,7 +936,7 @@ export default function EstimateWizard() {
         customItems: [],
         logisticsFee: pricingResult.logisticsSubtotal,
         discount: pricingResult.discountAmount,
-        distanceKm: distanceKm > 0 ? distanceKm : undefined,
+        distanceKm: samePropertyMove ? 0 : (distanceKm > 0 ? distanceKm : undefined),
         detectedPhotoUrl: detectedPhotos[0]?.thumbnail || undefined,
         preferredDate: slotDateStr || undefined,
         preferredTimeWindow: slotTime || undefined,
@@ -1005,7 +1019,12 @@ export default function EstimateWizard() {
 
   const canNext = () => {
     if (step === 1) return services.length > 0;
-    if (step === 2) return isRelocation ? (pickupAddress.length > 2 && dropoffAddress.length > 2) : serviceAddress.length > 2;
+    if (step === 2) {
+      if (!isRelocation) return serviceAddress.length > 2;
+      // Same-Property Move only needs the pickup address (it IS the address)
+      if (samePropertyMove) return pickupAddress.length > 2;
+      return pickupAddress.length > 2 && dropoffAddress.length > 2;
+    }
     if (step === 3) return items.length > 0;
     if (step === 4) return slotDateStr.length > 0 && slotTime.length > 0 && !isSlotTaken(slotDateStr, slotTime);
     return false;
@@ -1388,23 +1407,52 @@ export default function EstimateWizard() {
                 <div className="bg-[rgba(250,250,247,0.88)] border border-black/12 p-6 space-y-5">
                   {isRelocation ? (
                     <>
-                      <AddressInput required label="Pickup Address" value={pickupAddress}
+                      {/* Same-Property toggle: when on, only one address is needed and the transport fee is skipped. */}
+                      <div className="border border-black/10 bg-white p-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-3">Move type</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <button type="button" data-testid="move-type-different-address"
+                            onClick={() => setSamePropertyMove(false)}
+                            className={`p-3 text-left border transition-all ${!samePropertyMove ? "border-black bg-black/[0.03]" : "border-black/15 bg-white hover:border-black/30"}`}>
+                            <p className="font-black text-xs uppercase tracking-[0.06em] text-black">Different Address</p>
+                            <p className="text-[11px] text-black/55 mt-0.5 leading-snug">Pickup somewhere, deliver elsewhere. Transport fee from $58 + distance.</p>
+                          </button>
+                          <button type="button" data-testid="move-type-same-property"
+                            onClick={() => setSamePropertyMove(true)}
+                            className={`p-3 text-left border transition-all ${samePropertyMove ? "border-black bg-black/[0.03]" : "border-black/15 bg-white hover:border-black/30"}`}>
+                            <p className="font-black text-xs uppercase tracking-[0.06em] text-black">Same Property <span className="ml-1 text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700">NO TRANSPORT FEE</span></p>
+                            <p className="text-[11px] text-black/55 mt-0.5 leading-snug">Move between rooms or floors of the same address (renovation, rearrangement). $39.90 mobilisation + $20/m³ handling.</p>
+                          </button>
+                        </div>
+                      </div>
+
+                      <AddressInput required label={samePropertyMove ? "Property Address" : "Pickup Address"} value={pickupAddress}
                         onSelect={(addr, lat, lng) => {
                           setPickupAddress(addr);
                           if (lat && lng) setPickupLatLng({ lat, lng });
                           else setPickupLatLng(null);
                         }}
                         placeholder="e.g. 100 Beach Road Singapore 189702" />
-                      <AddressInput required label="Dropoff Address" value={dropoffAddress}
-                        onSelect={(addr, lat, lng) => {
-                          setDropoffAddress(addr);
-                          if (lat && lng) setDropoffLatLng({ lat, lng });
-                          else setDropoffLatLng(null);
-                        }}
-                        placeholder="e.g. 10 Bayfront Ave Singapore 018956" />
+                      {!samePropertyMove && (
+                        <AddressInput required label="Dropoff Address" value={dropoffAddress}
+                          onSelect={(addr, lat, lng) => {
+                            setDropoffAddress(addr);
+                            if (lat && lng) setDropoffLatLng({ lat, lng });
+                            else setDropoffLatLng(null);
+                          }}
+                          placeholder="e.g. 10 Bayfront Ave Singapore 018956" />
+                      )}
 
-                      {/* Route distance badge */}
-                      {pickupAddress && dropoffAddress && (
+                      {/* Same-Property explainer badge */}
+                      {samePropertyMove && pickupAddress && (
+                        <div className="flex items-start gap-2 px-4 py-2.5 text-sm border border-black/15 bg-black/[0.025] text-black/70" data-testid="badge-same-property-move">
+                          <Check className="w-4 h-4 mt-0.5 shrink-0" />
+                          <span>Same-Property Move — no transport, no distance fee. You'll be charged $39.90 mobilisation + $20/m³ for items just being carried, plus standard catalog rates for any dismantle / reinstall work.</span>
+                        </div>
+                      )}
+
+                      {/* Route distance badge — hidden for Same-Property Moves */}
+                      {!samePropertyMove && pickupAddress && dropoffAddress && (
                         <div className={`flex items-center gap-2 px-4 py-2.5 text-sm border ${
                           distanceLoading ? "border-black/10 bg-black/[0.025] text-black/40" :
                           distanceKm > 0 ? "border-black/15 bg-black/[0.025] text-black/70" :

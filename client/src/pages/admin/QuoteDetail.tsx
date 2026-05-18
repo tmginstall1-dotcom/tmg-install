@@ -1033,7 +1033,9 @@ export default function AdminQuoteDetail() {
     // installation jobs are charged on agreed scope only.
     const hasRelocation = (items || []).some((i: any) => i.serviceType === 'relocate');
     const scheduledDate = q.scheduledAt ? new Date(q.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : null;
-    const address = q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress || "—");
+    const address = (q as any).samePropertyMove
+      ? (q.pickupAddress || q.serviceAddress || "—")
+      : (q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress || "—"));
 
     // Escape user-controlled values before interpolation into the printable
     // HTML template (this template is opened via window.open in the admin's
@@ -2174,19 +2176,27 @@ export default function AdminQuoteDetail() {
                       <span className="text-xs text-zinc-500 mt-0.5">Service At</span>
                       <span className="text-sm text-zinc-900 leading-snug">{quote.serviceAddress}</span>
                     </div>
+                    {(quote as any).samePropertyMove && (
+                      <div className="grid grid-cols-[100px_1fr] gap-2 items-start" data-testid="badge-same-property-move">
+                        <span className="text-xs text-zinc-500 mt-0.5">Move Type</span>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-800 text-xs font-semibold rounded-md w-fit border border-amber-200">
+                          Same-Property Move (no transport)
+                        </span>
+                      </div>
+                    )}
                     {quote.pickupAddress && (
                       <div className="grid grid-cols-[100px_1fr] gap-2 items-start">
-                        <span className="text-xs text-zinc-500 mt-0.5">Pickup At</span>
+                        <span className="text-xs text-zinc-500 mt-0.5">{(quote as any).samePropertyMove ? "Property" : "Pickup At"}</span>
                         <span className="text-sm text-zinc-900 leading-snug">{quote.pickupAddress}</span>
                       </div>
                     )}
-                    {quote.dropoffAddress && (
+                    {quote.dropoffAddress && !(quote as any).samePropertyMove && (
                       <div className="grid grid-cols-[100px_1fr] gap-2 items-start">
                         <span className="text-xs text-zinc-500 mt-0.5">Dropoff At</span>
                         <span className="text-sm text-zinc-900 leading-snug">{quote.dropoffAddress}</span>
                       </div>
                     )}
-                    {quote.distanceKm && Number(quote.distanceKm) > 0 && (
+                    {quote.distanceKm && Number(quote.distanceKm) > 0 && !(quote as any).samePropertyMove && (
                       <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
                         <span className="text-xs text-zinc-500">Distance</span>
                         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-zinc-100 text-zinc-700 text-xs font-medium rounded-md w-fit border border-zinc-200">

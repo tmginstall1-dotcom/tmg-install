@@ -38,6 +38,7 @@ type InvoicePayload = {
   serviceAddress: string | null;
   pickupAddress: string | null;
   dropoffAddress: string | null;
+  samePropertyMove?: boolean;
   scheduledAt: string | null;
   timeWindow: string | null;
   completedAt: string | null;
@@ -275,10 +276,17 @@ export default function Invoice() {
             <div className="px-7 pb-5">
               <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Service Location</div>
               {data.pickupAddress ? (
-                <div className="text-[13px] text-gray-800">
-                  <div><span className="text-gray-500">Pickup:</span> {data.pickupAddress}</div>
-                  <div><span className="text-gray-500">Drop-off:</span> {data.dropoffAddress || "—"}</div>
-                </div>
+                data.samePropertyMove ? (
+                  <div className="text-[13px] text-gray-800">
+                    <div><span className="text-gray-500">Property:</span> {data.pickupAddress}</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">Same-Property Move — items relocated within the same address.</div>
+                  </div>
+                ) : (
+                  <div className="text-[13px] text-gray-800">
+                    <div><span className="text-gray-500">Pickup:</span> {data.pickupAddress}</div>
+                    <div><span className="text-gray-500">Drop-off:</span> {data.dropoffAddress || "—"}</div>
+                  </div>
+                )
               ) : (
                 <div className="text-[13px] text-gray-800">{data.serviceAddress || "—"}</div>
               )}

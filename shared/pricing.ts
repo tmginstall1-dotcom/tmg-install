@@ -130,6 +130,21 @@ export interface PricingInput {
   accessDifficulty: 'easy' | 'medium' | 'hard';
   distanceKm: number;
   catalogEntries?: PricingCatalogEntry[]; // full catalog for fallback multiplier lookup
+  /**
+   * Same-Property Move — items are physically shifted within the SAME address
+   * (e.g. between rooms, between floors of the same condo, during a renovation).
+   *
+   * When true, the engine:
+   *   • adds the $39.90 mobilisation & coordination fee (crew still needs to be
+   *     dispatched even though no transport is involved), AND
+   *   • SKIPS the transport / distance fee entirely (no van rental, no km charge),
+   *   • but KEEPS the $20/m³ carry-handling fee for carry-only items so heavy
+   *     shifts still pay for the crew labour they consume.
+   *
+   * `needsRelocation` should also be true so the existing per-item carry / D&R
+   * pricing branches continue to apply.
+   */
+  samePropertyMove?: boolean;
 }
 
 export interface ItemLine {
@@ -421,14 +436,19 @@ export function computePricing(input: PricingInput): PricingResult {
 
   const feeLines: FeeLine[] = [];
 
-  // Mobilisation & coordination fee (non-relocation jobs only)
-  // Replaces the old $180 minimum — transparent $60 base fee instead.
-  if (!input.needsRelocation) {
+  // Mobilisation & coordination fee
+  //   • Non-relocation jobs (install / dismantle / dispose): $39.90 — replaces
+  //     the old $180 minimum with a transparent base fee.
+  //   • Same-Property Move: ALSO $39.90 — crew still needs to be dispatched
+  //     to the site even though no transport is involved.
+  //   • Regular relocation (between two addresses): no mobilisation fee; the
+  //     transport fee already covers crew dispatch + 2-hour service window.
+  if (!input.needsRelocation || input.samePropertyMove) {
     feeLines.push({ label: 'Mobilisation & Coordination', amount: cfg.callout.fee });
   }
 
-  // Transport fee (relocation only) — multiplied by number of trips
-  if (input.needsRelocation) {
+  // Transport fee (regular relocation only — NOT same-property move) — multiplied by number of trips
+  if (input.needsRelocation && !input.samePropertyMove) {
     const feePerTrip = calcTransportFee(input.distanceKm);
     const transportFee = round2(feePerTrip * numTrips);
     if (numTrips > 1) {
@@ -443,14 +463,18 @@ export function computePricing(input: PricingInput): PricingResult {
       requiresAdminReview = true;
       reviewReasons.push('Distance calculation failed — transport fee is provisional at minimum rate');
     }
+  }
 
-    // Carry-handling fee — per-m³ crew labour charge for Carry Only items.
-    // Per-item carry labour is $0 by design (transport covers the standard
-    // 2-man crew for up to 2 hours), but a big carry load burns real crew
-    // time that the flat transport fee alone doesn't recover. Scaling the
-    // labour charge with carry volume keeps small jobs cheap and large
-    // multi-trip carry jobs honest. Special-handling SKUs are excluded —
-    // they already keep their full catalog carry rate.
+  // Carry-handling fee — per-m³ crew labour charge for Carry Only items.
+  // Applies to BOTH regular relocations (where it offsets crew time beyond
+  // the 2-hour transport window) AND Same-Property Moves (where it IS the
+  // primary handling charge since there's no transport fee at all).
+  // Per-item carry labour is $0 by design (transport / mobilisation covers
+  // the standard 2-man crew), but a big carry load burns real crew time the
+  // flat fee alone doesn't recover. Scaling labour with carry volume keeps
+  // small jobs cheap and large multi-trip carry jobs honest. Special-handling
+  // SKUs are excluded — they already keep their full catalog carry rate.
+  if (input.needsRelocation) {
     const carryVolumeM3 = round2(
       input.items.reduce((s, it) => {
         if (!it.carryOnly) return s;

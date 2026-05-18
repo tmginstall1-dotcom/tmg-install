@@ -5548,6 +5548,12 @@ Respond with ONLY a JSON array (no prose, no markdown):
           accessDifficulty: input.accessDifficulty,
           floorsInfo: input.floorsInfo,
           selectedServices: JSON.stringify(input.selectedServices),
+          // Same-Property Move: collapse dropoff onto pickup regardless of
+          // what the client posted, so DB rows never end up with mismatched
+          // addresses for a same-property job.
+          ...(input.samePropertyMove === true && input.pickupAddress
+            ? { dropoffAddress: input.pickupAddress }
+            : {}),
           subtotal: laborSubtotal.toFixed(2),
           discount: discount.toFixed(2),
           transportFee: logisticsFee.toFixed(2),
@@ -5558,7 +5564,14 @@ Respond with ONLY a JSON array (no prose, no markdown):
           requiresManualReview: false,
           aiConfidenceScore: 100,
           relocationMode: wizardRelocationMode,
-          distanceKm: input.distanceKm != null ? input.distanceKm.toFixed(1) : null,
+          samePropertyMove: input.samePropertyMove === true,
+          // Same-Property Move invariants: pickup == dropoff and zero distance.
+          // We force these server-side so a tampered client can't claim
+          // samePropertyMove=true while sending two different addresses or a
+          // distance > 0 (which would influence reporting / KPIs).
+          distanceKm: (input.samePropertyMove === true)
+            ? "0.0"
+            : (input.distanceKm != null ? input.distanceKm.toFixed(1) : null),
           detectionPhotoUrl: input.detectedPhotoUrl || null,
           // Slot chosen in wizard
           preferredDate: input.preferredDate || null,
@@ -7996,6 +8009,7 @@ Respond directly — no JSON, just the message text.`,
       poNumber,
       // Work-site / service location (where the staff actually go)
       serviceAddress: quote.serviceAddress || null,
+      samePropertyMove: (quote as any).samePropertyMove === true,
       pickupAddress: quote.pickupAddress || null,
       dropoffAddress: quote.dropoffAddress || null,
       scheduledAt: quote.scheduledAt || null,

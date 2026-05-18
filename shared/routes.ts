@@ -120,6 +120,7 @@ export const api = {
         logisticsFee: z.number().min(0).optional(),   // total of transport + floor + access surcharges
         discount: z.number().min(0).optional(),       // bulk discount amount
         distanceKm: z.number().min(0).optional(),     // auto-computed route distance (relocation only)
+        samePropertyMove: z.boolean().optional(),     // true = items shifted within the SAME address (no transport, $39.90 mobilisation applies)
         detectedPhotoUrl: z.string().optional(), // compressed thumbnail from AI photo scan
         preferredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),      // slot chosen in wizard
         preferredTimeWindow: z.string().optional(), // e.g. '09:00-12:00'

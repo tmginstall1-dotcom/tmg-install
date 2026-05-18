@@ -363,6 +363,14 @@ export const quotes = pgTable("quotes", {
   // Used by email overtime notice gating and admin display. Null for non-relocation jobs.
   relocationMode: text("relocation_mode"),
 
+  // Same-Property Move — items are physically shifted within the SAME address
+  // (between rooms, between floors of the same condo, during renovation).
+  // When true: pickup == dropoff, distanceKm = 0, no transport fee, but the
+  // $39.90 mobilisation fee still applies and Carry-Handling ($20/m³) is
+  // charged for the labour. Admin invoice / portal show "Same-Property Move"
+  // instead of "Relocation".
+  samePropertyMove: boolean("same_property_move").notNull().default(false),
+
   // Automated reminders
   dayBeforeReminderAt: timestamp("day_before_reminder_at"), // null = not yet sent
 
