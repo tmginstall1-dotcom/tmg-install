@@ -1281,9 +1281,9 @@ export default function AdminQuoteDetail() {
     .pay-note strong { color: var(--ink); font-weight: 600; }
     .qr-block { text-align: center; align-self: start; }
     /* PayNow QR — sized for reliable phone-camera scanning from
-       paper (≈30 mm square). White background and a generous
+       paper (about 30 mm square). White background and a generous
        quiet zone (padding) are required for scanners to find the
-       finder patterns. `image-rendering: pixelated` keeps the
+       finder patterns. image-rendering: pixelated keeps the
        black modules crisp during print scaling instead of being
        blurred by browser anti-aliasing. */
     .qr-block .qr-frame {
