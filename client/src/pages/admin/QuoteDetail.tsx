@@ -1009,13 +1009,31 @@ export default function AdminQuoteDetail() {
     //                  has reached the completion / paid stages
     const isCommercialDoc = (q.invoiceType === "commercial");
     const PRE_BOOKING = ['submitted', 'under_review', 'approved', 'deposit_requested'];
-    const COMPLETED = ['job_completed', 'completed', 'final_paid', 'closed', 'awaiting_final_payment'];
+    const COMPLETED = ['job_completed', 'completed', 'final_paid', 'closed', 'final_payment_requested', 'awaiting_final_payment'];
     let docType: "QUOTATION" | "JOB ORDER" | "TAX INVOICE";
     if (isFullyPaid || COMPLETED.includes(q.status)) docType = "TAX INVOICE";
     else if (isCommercialDoc && !PRE_BOOKING.includes(q.status)) docType = "TAX INVOICE";
     else if (!PRE_BOOKING.includes(q.status)) docType = "JOB ORDER";
     else docType = "QUOTATION";
     const isInvoiceDoc = docType === "TAX INVOICE";
+
+    // Human-friendly status label for the masthead meta row.
+    const statusLabel = (() => {
+      if (isFullyPaid) return "PAID";
+      if (q.status === "final_payment_requested" || q.status === "awaiting_final_payment") return "FINAL PAYMENT DUE";
+      if (q.status === "completed" || q.status === "job_completed") return "COMPLETED";
+      if (q.status === "closed") return "CLOSED";
+      if (isDepositPaid) return "BOOKED · DEPOSIT IN";
+      if (q.status === "booked" || q.status === "scheduled" || q.status === "in_progress") return "BOOKED";
+      if (q.status === "booking_pending") return "BOOKING PENDING";
+      if (q.status === "deposit_requested") return "DEPOSIT REQUESTED";
+      if (q.status === "approved") return "APPROVED";
+      if (q.status === "under_review") return "UNDER REVIEW";
+      if (q.status === "submitted") return "SUBMITTED";
+      if (q.status === "cancelled") return "CANCELLED";
+      return String(q.status || "—").toUpperCase().replace(/_/g, " ");
+    })();
+    const termsLabel = isInvoiceDoc ? "Net 30" : (docType === "JOB ORDER" ? "50% Deposit Paid" : "50% Deposit");
     // Stable invoice number: TMG-MOJN5PS9 → INV-MOJN5PS9
     const refTail = String(q.referenceNo || "").replace(/^TMG-?/i, "");
     const invoiceNo = `INV-${refTail || q.id}`;
@@ -1084,65 +1102,83 @@ export default function AdminQuoteDetail() {
     }
 
     /* ── Letterhead ──────────────────────────────────────────────
-       Simple, standard two-column letterhead. Left: TMG wordmark,
-       tagline, then address block. Right: document type, reference,
-       issued date. Top-aligned columns so the TMG wordmark always
-       sits flush at the top of the masthead and never feels clipped. */
+       Three-column accounting-stationery letterhead inspired by
+       classical invoice templates:
+        [ TMG ]  [ Company name / tagline / address ]  [ Doc meta ]
+       Left band: big TMG wordmark vertically centered.
+       Center: company name (heading), then tracked subtitle, then
+       address lines in muted gray with subtle dot separators.
+       Right column: document type wordmark, then reference, then
+       a stacked key/value meta block (ISSUED / DUE / TERMS / STATUS). */
     .letterhead {
-      display: grid; grid-template-columns: 1fr auto;
-      gap: 28px; align-items: start;
-      padding-bottom: 14px;
-      border-bottom: 1px solid var(--ink);
-      margin-bottom: 20px;
+      display: grid;
+      grid-template-columns: 56px 1fr auto;
+      gap: 22px; align-items: start;
+      padding-bottom: 16px;
+      border-bottom: 1.5px solid var(--ink);
+      margin-bottom: 22px;
     }
-    .lh-brand { display: flex; flex-direction: column; min-width: 0; }
-    .lh-mono {
-      font-size: 28px; font-weight: 900; color: var(--ink);
-      letter-spacing: -0.02em; line-height: 1;
+    .lh-mark {
+      display: flex; align-items: flex-start; justify-content: flex-start;
+      padding-top: 2px;
+    }
+    .lh-mark .wm {
+      font-size: 30px; font-weight: 900; color: var(--ink);
+      letter-spacing: -0.025em; line-height: 1;
       font-family: 'Inter', 'Helvetica Neue', sans-serif;
     }
-    .lh-mono .dot { color: var(--gold); }
+    .lh-mark .wm .dot { color: var(--gold); }
+    .lh-brand { display: flex; flex-direction: column; min-width: 0; }
+    .lh-coname {
+      font-size: 12px; font-weight: 700; color: var(--ink);
+      letter-spacing: -0.005em; line-height: 1.2;
+    }
     .lh-tag {
-      font-size: 8px; text-transform: uppercase; letter-spacing: 0.3em;
-      color: var(--muted); font-weight: 600; margin-top: 8px;
+      font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.32em;
+      color: var(--ink-2); font-weight: 700; margin-top: 4px;
     }
     .lh-addr {
-      font-size: 9px; color: var(--muted); margin-top: 14px; line-height: 1.7;
+      font-size: 8.5px; color: var(--muted); margin-top: 10px; line-height: 1.7;
     }
     .lh-addr strong { color: var(--ink-2); font-weight: 600; }
     .lh-addr .sep { color: var(--muted-2); padding: 0 4px; }
 
-    .lh-doc { text-align: right; min-width: 200px; }
+    .lh-doc { text-align: right; min-width: 220px; }
     .lh-doc .type {
-      font-size: 24px; font-weight: 300; color: var(--ink);
-      letter-spacing: 0.28em; text-transform: uppercase; line-height: 1;
+      font-size: 22px; font-weight: 300; color: var(--ink);
+      letter-spacing: 0.36em; text-transform: uppercase; line-height: 1;
       font-family: 'Inter', 'Helvetica Neue', sans-serif;
     }
-    .lh-doc .ref-block { margin-top: 14px; }
-    .lh-doc .ref-label {
-      font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.22em;
-      color: var(--muted); font-weight: 600;
-    }
+    .lh-doc .ref-block { margin-top: 10px; }
     .lh-doc .ref-value {
-      font-size: 12px; color: var(--ink); font-weight: 700;
+      font-size: 13px; color: var(--ink); font-weight: 700;
       font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
-      letter-spacing: 0; margin-top: 3px;
+      letter-spacing: 0; line-height: 1.1;
     }
     .lh-doc .sub-ref {
       font-size: 8.5px; color: var(--muted); margin-top: 3px;
       font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
     }
-    .lh-doc .meta-line {
-      margin-top: 12px;
+    .lh-doc .meta-grid {
+      margin-top: 14px; padding-top: 10px;
+      border-top: 0.5px solid var(--line-2);
+      display: grid; grid-template-columns: auto auto;
+      gap: 4px 14px; justify-content: end;
       font-size: 9px; color: var(--ink-2);
-      display: flex; gap: 16px; justify-content: flex-end;
     }
-    .lh-doc .meta-line > span { display: inline-flex; align-items: baseline; gap: 6px; }
-    .lh-doc .meta-line .k {
-      color: var(--muted); text-transform: uppercase; letter-spacing: 0.18em;
-      font-size: 7px; font-weight: 600;
+    .lh-doc .meta-grid .k {
+      color: var(--muted); text-transform: uppercase; letter-spacing: 0.22em;
+      font-size: 7px; font-weight: 700; text-align: right; align-self: center;
     }
-    .lh-doc .meta-line .v { font-weight: 600; color: var(--ink); font-size: 9px; }
+    .lh-doc .meta-grid .v {
+      font-weight: 600; color: var(--ink); font-size: 9px;
+      text-align: right; align-self: center;
+    }
+    .lh-doc .meta-grid .v.status {
+      font-family: 'Inter', 'Helvetica Neue', sans-serif;
+      text-transform: uppercase; letter-spacing: 0.14em; font-weight: 800;
+      font-size: 8.5px;
+    }
 
     /* ── Parties block (Bill To / Job Details) ─────────────────── */
     .parties {
@@ -1323,7 +1359,16 @@ export default function AdminQuoteDetail() {
       letter-spacing: 0.18em; color: var(--muted);
       padding-bottom: 4px; margin-bottom: 5px;
       border-bottom: 1px solid var(--line);
+      display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
     }
+    .tnc h3 .tnc-title { color: var(--ink-2); font-weight: 800; letter-spacing: 0.22em; }
+    .tnc h3 .tnc-ref {
+      color: var(--ink); font-weight: 700; letter-spacing: 0.06em;
+      font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+      text-transform: none; font-size: 7.5px;
+    }
+    .tnc h3 .tnc-ref strong { color: var(--ink); font-weight: 800; }
+    .tnc h3 .tnc-link { margin-left: auto; color: var(--muted); font-weight: 600; text-transform: none; letter-spacing: 0.02em; }
     .tnc ol {
       padding-left: 11px;
       column-count: 2; column-gap: 14px; column-rule: 1px solid var(--line);
@@ -1454,27 +1499,29 @@ export default function AdminQuoteDetail() {
 <body>
   <div class="doc-body">
 
-  <!-- Letterhead — simple, standard two-column masthead -->
+  <!-- Letterhead — three-column accounting-stationery masthead -->
   <div class="letterhead">
+    <div class="lh-mark"><div class="wm">TMG<span class="dot">.</span></div></div>
     <div class="lh-brand">
-      <div class="lh-mono">TMG<span class="dot">.</span></div>
-      <div class="lh-tag">The Moving Guy · Furniture Installation</div>
+      <div class="lh-coname">The Moving Guy Pte Ltd</div>
+      <div class="lh-tag">Furniture Installation · Singapore</div>
       <div class="lh-addr">
-        <strong>The Moving Guy Pte Ltd</strong><span class="sep">·</span>UEN 202424156H<br/>
-        160 Robinson Road #14-04, Singapore 068914<br/>
+        <strong>UEN 202424156H</strong><span class="sep">·</span>160 Robinson Road #14-04,<br/>
+        Singapore 068914<br/>
         +65 8088 0757<span class="sep">·</span>sales@tmginstall.com<span class="sep">·</span>tmginstall.com
       </div>
     </div>
     <div class="lh-doc">
       <div class="type">${docType}</div>
       <div class="ref-block">
-        <div class="ref-label">Reference</div>
         <div class="ref-value">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</div>
-        ${isInvoiceDoc ? `<div class="sub-ref">Job ${esc(q.referenceNo)}</div>` : ""}
+        ${isInvoiceDoc ? `<div class="sub-ref">Job Ref · ${esc(q.referenceNo)}</div>` : ""}
       </div>
-      <div class="meta-line">
-        <span><span class="k">Issued</span><span class="v">${esc(issuedDate)}</span></span>
-        ${isInvoiceDoc && !isFullyPaid ? `<span><span class="k">Due</span><span class="v">${esc(dueDate)}</span></span>` : ""}
+      <div class="meta-grid">
+        <div class="k">Issued</div><div class="v">${esc(issuedDate)}</div>
+        ${(isInvoiceDoc && !isFullyPaid) ? `<div class="k">Due</div><div class="v">${esc(dueDate)}</div>` : ""}
+        <div class="k">Terms</div><div class="v">${esc(termsLabel)}</div>
+        <div class="k">Status</div><div class="v status">${esc(statusLabel)}</div>
       </div>
     </div>
   </div>
@@ -1604,7 +1651,11 @@ export default function AdminQuoteDetail() {
 
   <!-- Terms & Conditions -->
   <div class="tnc">
-    <h3>Terms &amp; Conditions &nbsp;·&nbsp; Full version: <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a></h3>
+    <h3>
+      <span class="tnc-title">Terms &amp; Conditions</span>
+      <span class="tnc-ref">${isInvoiceDoc ? "Invoice" : "Quotation"} <strong>${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</strong>${isInvoiceDoc ? ` · Job ${esc(q.referenceNo)}` : ""}</span>
+      <span class="tnc-link">Full version: <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a></span>
+    </h3>
     <ol>
       ${isInvoiceDoc ? `
       <li><strong>Payment Terms:</strong> Net 30 days from invoice date${isFullyPaid ? "" : ` — payment due by <strong>${esc(dueDate)}</strong>`}. Please quote the invoice number <strong>${esc(invoiceNo)}</strong> in the payment remarks.</li>
