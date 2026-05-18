@@ -1805,27 +1805,71 @@ export default function AdminQuoteDetail() {
                       </div>
 
                       {editQuoteData.invoiceType === 'commercial' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div>
-                            <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Company Name (this quote)</label>
-                            <input value={editQuoteData.billingCompanyName || ''} onChange={e => setEditQuoteData({ ...editQuoteData, billingCompanyName: e.target.value })}
-                              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                              placeholder="ABC Pte Ltd"
-                              data-testid="input-billing-company-name" />
+                        <div className="space-y-3">
+                          {/* Quick actions to copy company details to/from the saved customer profile,
+                              so re-invoicing the same company is a one-click operation. */}
+                          <div className="flex flex-wrap items-center gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                            <span className="text-[11px] font-semibold text-blue-900 uppercase tracking-wider mr-1">Company Profile:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditQuoteData({
+                                  ...editQuoteData,
+                                  billingCompanyName: editCustomer.companyName || editQuoteData.billingCompanyName || '',
+                                  billingCompanyUen:  editCustomer.companyUen  || editQuoteData.billingCompanyUen  || '',
+                                  billingAddress:     editCustomer.billingAddress || editQuoteData.billingAddress || '',
+                                });
+                                toast({ title: "Loaded from customer profile", description: "Company name, UEN and billing address copied into this quote." });
+                              }}
+                              disabled={!editCustomer.companyName && !editCustomer.companyUen && !editCustomer.billingAddress}
+                              className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-white border border-blue-300 text-blue-800 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              data-testid="button-use-customer-profile">
+                              ↓ Use customer profile
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!editQuoteData.billingCompanyName && !editQuoteData.billingCompanyUen && !editQuoteData.billingAddress) {
+                                  toast({ title: "Nothing to save", description: "Fill in the company name, UEN or billing address first.", variant: "destructive" });
+                                  return;
+                                }
+                                setEditCustomer({
+                                  ...editCustomer,
+                                  companyName:    editQuoteData.billingCompanyName || editCustomer.companyName || '',
+                                  companyUen:     editQuoteData.billingCompanyUen  || editCustomer.companyUen  || '',
+                                  billingAddress: editQuoteData.billingAddress     || editCustomer.billingAddress || '',
+                                });
+                                toast({ title: "Saved to customer profile", description: "Click Save below to persist. Future invoices for this customer will auto-fill these details." });
+                              }}
+                              className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-zinc-900 text-white hover:bg-zinc-800 transition-colors"
+                              data-testid="button-save-to-customer-profile">
+                              ↑ Save to customer profile
+                            </button>
+                            <span className="text-[10.5px] text-blue-700/80 ml-auto">Next invoice for this customer will start with these details pre-filled.</span>
                           </div>
-                          <div>
-                            <label className="text-xs font-medium text-zinc-500 mb-1.5 block">UEN (this quote)</label>
-                            <input value={editQuoteData.billingCompanyUen || ''} onChange={e => setEditQuoteData({ ...editQuoteData, billingCompanyUen: e.target.value })}
-                              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                              placeholder="202012345A"
-                              data-testid="input-billing-company-uen" />
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-zinc-500 mb-1.5 block">PO Number <span className="text-zinc-400 font-normal">(optional)</span></label>
-                            <input value={editQuoteData.poNumber || ''} onChange={e => setEditQuoteData({ ...editQuoteData, poNumber: e.target.value })}
-                              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                              placeholder="PO-2025-001"
-                              data-testid="input-po-number" />
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                              <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Company Name (this quote)</label>
+                              <input value={editQuoteData.billingCompanyName || ''} onChange={e => setEditQuoteData({ ...editQuoteData, billingCompanyName: e.target.value })}
+                                className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                placeholder="ABC Pte Ltd"
+                                data-testid="input-billing-company-name" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-zinc-500 mb-1.5 block">UEN (this quote)</label>
+                              <input value={editQuoteData.billingCompanyUen || ''} onChange={e => setEditQuoteData({ ...editQuoteData, billingCompanyUen: e.target.value })}
+                                className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                placeholder="202012345A"
+                                data-testid="input-billing-company-uen" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-zinc-500 mb-1.5 block">PO Number <span className="text-zinc-400 font-normal">(optional)</span></label>
+                              <input value={editQuoteData.poNumber || ''} onChange={e => setEditQuoteData({ ...editQuoteData, poNumber: e.target.value })}
+                                className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                placeholder="PO-2025-001"
+                                data-testid="input-po-number" />
+                            </div>
                           </div>
                         </div>
                       )}
