@@ -975,6 +975,10 @@ export default function AdminQuoteDetail() {
     const q = quote;
     const items = (q.items || []) as any[];
     const services = (() => { try { return JSON.parse(q.selectedServices || "[]"); } catch { return []; } })();
+    // Labour overage clause only applies to relocation jobs (where unpacking,
+    // re-arranging and on-site decisions commonly extend crew time). Pure
+    // installation jobs are charged on agreed scope only.
+    const hasRelocation = (items || []).some((i: any) => i.serviceType === 'relocate');
     const scheduledDate = q.scheduledAt ? new Date(q.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : null;
     const address = q.pickupAddress ? `${q.pickupAddress} → ${q.dropoffAddress}` : (q.serviceAddress || "—");
 
@@ -1552,7 +1556,7 @@ export default function AdminQuoteDetail() {
       <li><strong>Payment Terms:</strong> Net 30 days from invoice date${isFullyPaid ? "" : ` — payment due by <strong>${esc(dueDate)}</strong>`}. Please quote the invoice number <strong>${esc(invoiceNo)}</strong> in the payment remarks.</li>
       <li>Late payments may incur a <strong>1.5% per month</strong> administrative charge on the outstanding balance.</li>
       <li>Goods and services described above have been delivered / completed as agreed. Any defect claim must be raised in writing within <strong>7 days</strong> of completion.</li>
-      <li><strong>On-site Charges:</strong> Any additional drilling requested on site is <strong>S$5 per hole</strong>. Extra labour beyond the agreed scope is <strong>S$50/hr per crew member</strong>. Wall-anchor / fastening hardware supplied on site is charged at cost.</li>
+      <li><strong>On-site Charges:</strong> Any additional drilling requested on site is <strong>S$5 per hole</strong>. Wall-anchor / fastening hardware supplied on site is charged at cost.${hasRelocation ? ` For relocation work, extra labour beyond the agreed scope is <strong>S$50/hr per crew member</strong>.` : ""}</li>
       <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable. Long-carry &gt; 30 m or stairs without lift access incurs an additional fee, quoted on site before work proceeds.</li>
       <li>The Moving Guy Pte Ltd is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
       <li>Any additional work not stated in this invoice has been agreed upon separately in writing.</li>
@@ -1562,7 +1566,7 @@ export default function AdminQuoteDetail() {
       <li>This quotation is valid for <strong>14 days</strong> from the date of issue.</li>
       <li><strong>Payment Terms:</strong> 50% deposit is required to confirm the booking. The remaining balance is payable upon completion of the installation.</li>
       <li>Rescheduling with less than <strong>24 hours' notice</strong> may incur a cancellation/admin fee.</li>
-      <li><strong>On-site Charges:</strong> Any additional drilling requested on site is <strong>S$5 per hole</strong>. Extra labour beyond the agreed scope is <strong>S$50/hr per crew member</strong>. Wall-anchor / fastening hardware supplied on site is charged at cost.</li>
+      <li><strong>On-site Charges:</strong> Any additional drilling requested on site is <strong>S$5 per hole</strong>. Wall-anchor / fastening hardware supplied on site is charged at cost.${hasRelocation ? ` For relocation work, extra labour beyond the agreed scope is <strong>S$50/hr per crew member</strong>.` : ""}</li>
       <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable. Long-carry &gt; 30 m or stairs without lift access incurs an additional fee, quoted on site before work proceeds.</li>
       <li>The Moving Guy Pte Ltd is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
       <li>Customer is responsible for ensuring clear access to the premises on the scheduled date and time.</li>
