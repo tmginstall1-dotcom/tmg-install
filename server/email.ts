@@ -824,6 +824,89 @@ export function commercialInvoiceEmail(quote: any, viewUrl: string, dueDateStr: 
   `);
 }
 
+// stage:
+//   'nudge'    — D15: friendly check-in, halfway through Net-30 window
+//   'due_soon' — D28: 2 days before due date, gentle urgency
+//   'overdue'  — D31+: invoice is now past due
+export function commercialInvoiceReminderEmail(
+  quote: any,
+  stage: "nudge" | "due_soon" | "overdue",
+  dueDateStr: string,
+  daysOutstanding: number,
+  viewUrl: string,
+): string {
+  const c = quote.customer;
+  const refTail = String(quote.referenceNo || "").replace(/^TMG-?/i, "");
+  const invoiceNo = `INV-${refTail || quote.id}`;
+  const companyName = (quote as any).billingCompanyName || c?.companyName || c?.name || "your company";
+  const PAYNOW_UEN = "202424156H";
+  const poLine = (quote as any).poNumber
+    ? `<p style="${FONT}font-size:13px;color:#444444;margin:0 0 12px;">PO Reference: <strong>${(quote as any).poNumber}</strong></p>`
+    : "";
+
+  const subjectLine =
+    stage === "overdue"   ? `Invoice Overdue — Day ${daysOutstanding}` :
+    stage === "due_soon"  ? `Reminder — Invoice Due in 2 Days`         :
+                            `Friendly Reminder — Invoice ${invoiceNo}`;
+
+  const introCopy =
+    stage === "overdue" ? `Our records show that invoice <strong>${invoiceNo}</strong> for ${companyName} (issued ${daysOutstanding} days ago) is now past its Net 30 due date. Please arrange settlement at your earliest convenience.` :
+    stage === "due_soon" ? `A quick reminder that invoice <strong>${invoiceNo}</strong> for ${companyName} is due in <strong>2 days</strong>, on ${dueDateStr}. We'd appreciate settlement on or before then.` :
+                           `A friendly check-in on invoice <strong>${invoiceNo}</strong> for ${companyName}. Net 30 payment is due on <strong>${dueDateStr}</strong>. If this has already been processed on your side, please disregard this note.`;
+
+  const banner =
+    stage === "overdue"
+      ? notice("warn", `<strong>Past due:</strong> This invoice was due on ${dueDateStr} and is currently ${daysOutstanding - 30} day${daysOutstanding - 30 === 1 ? "" : "s"} overdue. Late payments may incur a 1.5% per month administrative charge.`)
+      : "";
+
+  return shell(subjectLine, `
+    ${greeting(c?.name, introCopy)}
+
+    ${refBlock(quote.referenceNo)}
+
+    ${poLine}
+
+    ${banner}
+
+    ${section("Invoice Summary", `
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
+        <tbody>
+          ${totRow('#444444', 'Invoice number', invoiceNo)}
+          ${totRow('#444444', 'Job reference', quote.referenceNo)}
+          ${totRow('#444444', 'Issued', `${daysOutstanding} day${daysOutstanding === 1 ? "" : "s"} ago`)}
+          ${totRow(stage === 'overdue' ? '#b91c1c' : '#b45309', 'Due date', dueDateStr)}
+          ${totRow('#111111', 'Amount due', `$${Number(quote.total || 0).toFixed(2)}`, true)}
+        </tbody>
+      </table>
+    `)}
+
+    ${section("Payment Methods", `
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:18px;">
+        <tr><td style="${FONT}font-size:14px;font-weight:700;color:#111111;padding:0 0 8px;">PayNow (UEN)</td></tr>
+        <tr><td style="${FONT}font-size:13px;color:#444444;padding:0 0 14px;">UEN: <strong>${PAYNOW_UEN}</strong> &nbsp;&middot;&nbsp; The Moving Guy Pte Ltd</td></tr>
+        <tr><td style="${FONT}font-size:14px;font-weight:700;color:#111111;padding:0 0 8px;">Bank Transfer</td></tr>
+        <tr><td style="${FONT}font-size:13px;color:#444444;padding:0;">OCBC Bank &nbsp;&middot;&nbsp; <strong>596-795617-001</strong><br>Account name: The Moving Guy Pte. Ltd. &nbsp;&middot;&nbsp; SGD</td></tr>
+      </table>
+      <p style="${FONT}font-size:12px;color:#666666;margin:14px 0 0;line-height:1.6;">Please quote <strong>${invoiceNo}</strong> in your payment remarks and email the remittance advice to <a href="mailto:sales@tmginstall.com" style="color:#666666;">sales@tmginstall.com</a>.</p>
+    `)}
+
+    ${section("View / Download Invoice", ctaBlock(
+      "Full Tax Invoice PDF",
+      `$${Number(quote.total || 0).toFixed(2)}`,
+      "View Invoice &rarr;",
+      viewUrl,
+      "Open the job page to view or download the full tax invoice PDF.",
+    ))}
+
+    ${contactStrip()}
+
+    <p style="${FONT}font-size:11px;color:#bbbbbb;text-align:center;margin:0 0 28px;">
+      If payment has already been processed on your side, please reply to this email with the date and reference so we can reconcile.<br>
+      <a href="${TERMS_URL}" style="color:#888888;">Terms &amp; Conditions</a>
+    </p>
+  `);
+}
+
 export function caseClosedEmail(quote: any, reviewUrl?: string): string {
   const c = quote.customer;
 

@@ -11,7 +11,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import {
   ClipboardList, DollarSign, CalendarCheck, Zap, AlertCircle, Trash2,
   ChevronRight, Search, X, Loader2, TrendingUp, BellRing, Plus,
-  Phone as PhoneIcon,
+  Phone as PhoneIcon, FileText,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -229,6 +229,19 @@ export default function AdminDashboard() {
   const { data: subSummary } = useQuery<any>({
     queryKey: ["/api/admin/subcontracts/summary"],
   });
+
+  type OutstandingInvoice = {
+    id: number; referenceNo: string; customerName: string | null;
+    companyName: string | null; poNumber: string | null; total: number;
+    daysOutstanding: number; daysUntilDue: number; dueDate: string;
+    bucket: "current" | "due_soon" | "overdue";
+    remindersSent: string[];
+  };
+  const { data: outstandingInvoices } = useQuery<{
+    items: OutstandingInvoice[]; totalDue: number; overdueCount: number; count: number;
+  }>({
+    queryKey: ["/api/admin/commercial/outstanding-invoices"],
+  });
   const netProfit = totalRevenue - Number(subSummary?.totalSubCosts || 0);
 
   // Build 12-week revenue trend from closed/final_paid quotes
@@ -383,6 +396,89 @@ export default function AdminDashboard() {
             );
           })}
         </div>
+
+        {/* Outstanding commercial invoices (Net 30) */}
+        {outstandingInvoices && outstandingInvoices.count > 0 && (
+          <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm" data-testid="card-outstanding-invoices">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-orange-500" />
+                <h2 className="text-sm font-semibold text-zinc-900">Outstanding Invoices — Net 30</h2>
+                {outstandingInvoices.overdueCount > 0 && (
+                  <span
+                    className="ml-1 inline-flex items-center h-5 px-2 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-700"
+                    data-testid="badge-overdue-count"
+                  >
+                    {outstandingInvoices.overdueCount} overdue
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-bold text-orange-600" data-testid="text-total-due">
+                {formatMoney(outstandingInvoices.totalDue)} due
+              </span>
+            </div>
+            <div className="divide-y divide-zinc-100">
+              {outstandingInvoices.items.map((inv) => {
+                const bucketClass =
+                  inv.bucket === "overdue"  ? "border-l-red-500 bg-red-50/40" :
+                  inv.bucket === "due_soon" ? "border-l-amber-500 bg-amber-50/40" :
+                                              "border-l-zinc-200";
+                const daysLabel =
+                  inv.bucket === "overdue"
+                    ? `${inv.daysOutstanding - 30}d overdue`
+                    : inv.daysUntilDue <= 0
+                      ? "Due today"
+                      : `Due in ${inv.daysUntilDue}d`;
+                const daysClass =
+                  inv.bucket === "overdue"  ? "text-red-700" :
+                  inv.bucket === "due_soon" ? "text-amber-700" :
+                                              "text-zinc-500";
+                return (
+                  <Link key={inv.id} href={`/admin/quotes/${inv.id}`}>
+                    <a
+                      className={`flex items-center gap-3 px-4 py-3.5 border-l-4 hover:bg-zinc-50 transition-colors cursor-pointer ${bucketClass}`}
+                      data-testid={`row-outstanding-invoice-${inv.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="text-sm font-bold text-zinc-900 truncate">
+                            {inv.companyName || inv.customerName || "—"}
+                          </p>
+                          <span className="text-[11px] font-mono font-semibold text-zinc-500 shrink-0">
+                            {inv.referenceNo}
+                          </span>
+                          {inv.poNumber && (
+                            <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 rounded px-1.5 py-0.5 shrink-0">
+                              PO {inv.poNumber}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-zinc-500">
+                          <span className={`font-bold ${daysClass}`} data-testid={`text-days-${inv.id}`}>{daysLabel}</span>
+                          <span>·</span>
+                          <span>Sent {inv.daysOutstanding}d ago</span>
+                          {inv.remindersSent.length > 0 && (
+                            <>
+                              <span>·</span>
+                              <span className="font-semibold text-zinc-600">
+                                Reminders: {inv.remindersSent.join(", ").toUpperCase()}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-black tabular-nums text-zinc-900">{formatMoney(inv.total)}</p>
+                        <p className="text-[10px] text-zinc-400 font-semibold">Due {format(new Date(inv.dueDate + "T12:00:00"), "d MMM")}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-300" />
+                    </a>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Revenue trend chart */}
         <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">

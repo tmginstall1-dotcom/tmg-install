@@ -4887,6 +4887,52 @@ ${systemPrompt}` });
     }
   });
 
+  // Admin: list outstanding Net-30 commercial invoices for the dashboard
+  // widget. Returns the in-flight invoice set (sent, unpaid) with computed
+  // days-outstanding, due date, and bucket (current / due-soon / overdue).
+  app.get("/api/admin/commercial/outstanding-invoices", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const all = await storage.getQuotesByStatuses(["final_payment_requested"]);
+      const now = Date.now();
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const items = all
+        .filter((q: any) => q.invoiceType === "commercial" && q.commercialInvoiceSentAt && !q.finalPaidAt)
+        .map((q: any) => {
+          const sentAt = new Date(q.commercialInvoiceSentAt).getTime();
+          const daysOutstanding = Math.max(0, Math.floor((now - sentAt) / DAY_MS));
+          const dueAt = sentAt + 30 * DAY_MS;
+          const dueDate = new Date(dueAt).toISOString().slice(0, 10);
+          const daysUntilDue = Math.ceil((dueAt - now) / DAY_MS);
+          const bucket = daysOutstanding >= 31 ? "overdue" : daysOutstanding >= 28 ? "due_soon" : "current";
+          return {
+            id: q.id,
+            referenceNo: q.referenceNo,
+            customerName: q.customer?.name || null,
+            companyName: q.billingCompanyName || q.customer?.companyName || null,
+            poNumber: q.poNumber || null,
+            total: Number(q.total || 0),
+            invoiceSentAt: q.commercialInvoiceSentAt,
+            daysOutstanding,
+            daysUntilDue,
+            dueDate,
+            bucket,
+            remindersSent: Array.isArray(q.commercialRemindersSent) ? q.commercialRemindersSent : [],
+          };
+        })
+        .sort((a, b) => b.daysOutstanding - a.daysOutstanding);
+
+      const totalDue = items.reduce((s, x) => s + x.total, 0);
+      const overdueCount = items.filter(x => x.bucket === "overdue").length;
+      res.json({ items, totalDue, overdueCount, count: items.length });
+    } catch (err: any) {
+      console.error("[OutstandingInvoices] error:", err);
+      res.status(500).json({ message: err?.message || "Failed to fetch outstanding invoices" });
+    }
+  });
+
   // ── Commercial flow ──────────────────────────────────────────────────────
   // Commercial customers skip the 50% deposit step entirely. The admin
   // confirms the booking with one click; no payment is requested upfront.
@@ -4985,6 +5031,16 @@ ${systemPrompt}` });
       if (!emailOk) {
         return res.status(500).json({ message: "Could not send invoice email — please verify the customer has a valid email on file." });
       }
+
+      // Stamp the first-send timestamp + reset reminders BEFORE the status
+      // change. Ordering matters: if the process crashes between these two
+      // writes, we'd rather have a stamp without status (harmless — the
+      // sweep filters by status='final_payment_requested') than a status
+      // without a stamp (which would orphan the invoice from the reminder
+      // sweep forever). The daily reminder sweep keys off this timestamp.
+      await db.update(quotes)
+        .set({ commercialInvoiceSentAt: new Date(), commercialRemindersSent: [] })
+        .where(eq(quotes.id, id));
 
       const updated = await storage.updateQuoteStatus(id, "final_payment_requested", {
         actorType: "admin",

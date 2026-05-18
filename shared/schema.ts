@@ -379,6 +379,10 @@ export const quotes = pgTable("quotes", {
   billingCompanyUen: text("billing_company_uen"),           // overrides customer.companyUen
   poNumber: text("po_number"),                              // commercial PO reference
 
+  // Commercial Net-30 invoice lifecycle
+  commercialInvoiceSentAt: timestamp("commercial_invoice_sent_at"), // when the Net-30 invoice email was first sent
+  commercialRemindersSent: text("commercial_reminders_sent").array().default([]), // 'd15' | 'd28' | 'd31' stages already emailed
+
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
   quotesStatusIdx: index("quotes_status_idx").on(t.status),

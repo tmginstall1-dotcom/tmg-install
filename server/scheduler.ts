@@ -36,6 +36,7 @@ import {
 } from "./connector-sync";
 import { runSelfHealingSweep, maybeSendWeeklyDigest } from "./ai-self-healing";
 import { runAnomalySweep } from "./ai-anomaly";
+import { runCommercialInvoiceReminderSweep } from "./commercial-reminders";
 
 // ── Singleton guard ────────────────────────────────────────────────────────────
 // Prevents duplicate timers if startScheduler() is called more than once per
@@ -188,6 +189,9 @@ export function startScheduler() {
       const digest = await maybeSendWeeklyDigest();
       if (digest.sent) console.log("[scheduler] weekly digest sent to", digest.recipient);
     } catch (e: any) { console.error("[scheduler] weekly digest failed:", e?.message); }
+    try {
+      await runCommercialInvoiceReminderSweep("scheduler");
+    } catch (e: any) { console.error("[scheduler] commercial invoice reminders failed:", e?.message); }
   };
   setTimeout(runDaily, 5 * 60 * 1000);
   setInterval(runDaily, DAY_MS);
