@@ -1336,9 +1336,14 @@ export default function AdminQuoteDetail() {
     }
 
     /* ── Payment section ───────────────────────────────────────── */
+    /* Right column is sized to hold the PayNow QR (frame + label)
+       at a real-world 40 mm — the PayNow merchant guideline for
+       reliable phone-camera scanning from paper. The 170 px column
+       gives the 150 px QR frame + 8 px padding + 1 px borders
+       enough room without clipping. */
     .payment-section {
       margin-top: 14px;
-      display: grid; grid-template-columns: 1fr 130px; gap: 20px;
+      display: grid; grid-template-columns: 1fr 170px; gap: 24px;
       padding-top: 12px;
       border-top: 1px solid var(--line);
       page-break-inside: avoid; break-inside: avoid;
@@ -1369,20 +1374,21 @@ export default function AdminQuoteDetail() {
     }
     .pay-note strong { color: var(--ink); font-weight: 600; }
     .qr-block { text-align: center; align-self: start; }
-    /* PayNow QR — sized for reliable phone-camera scanning from
-       paper (about 30 mm square). White background and a generous
-       quiet zone (padding) are required for scanners to find the
-       finder patterns. image-rendering: pixelated keeps the
-       black modules crisp during print scaling instead of being
-       blurred by browser anti-aliasing. */
+    /* PayNow QR — sized at ~40 mm square, the PayNow merchant
+       guideline for reliable phone-camera scanning from paper.
+       A white background and generous quiet zone (padding) are
+       required for scanners to find the finder patterns.
+       image-rendering: pixelated keeps the black modules crisp
+       during print scaling instead of being blurred by browser
+       anti-aliasing. */
     .qr-block .qr-frame {
-      width: 124px; height: 124px; padding: 8px;
+      width: 150px; height: 150px; padding: 10px;
       background: #fff; border: 1px solid var(--line);
       box-sizing: content-box; display: inline-block;
-      border-radius: 4px;
+      border-radius: 6px;
     }
     .qr-block img {
-      width: 124px; height: 124px; display: block;
+      width: 150px; height: 150px; display: block;
       background: #fff; margin: 0; padding: 0; border: 0;
       image-rendering: -webkit-optimize-contrast;
       image-rendering: crisp-edges;
@@ -1391,12 +1397,12 @@ export default function AdminQuoteDetail() {
       print-color-adjust: exact;
     }
     .qr-block .qr-label {
-      font-size: 7.5px; color: var(--muted); margin-top: 7px;
-      font-weight: 700; text-transform: uppercase; letter-spacing: 0.32em;
+      font-size: 9px; color: var(--ink); margin-top: 8px;
+      font-weight: 800; text-transform: uppercase; letter-spacing: 0.28em;
     }
     .qr-block .qr-sub {
-      font-size: 8.5px; color: var(--ink); margin-top: 3px;
-      font-weight: 500; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+      font-size: 8.5px; color: var(--muted); margin-top: 3px;
+      font-weight: 600; letter-spacing: 0.04em;
     }
 
     /* ── Terms & Conditions ────────────────────────────────────── */
@@ -1522,14 +1528,16 @@ export default function AdminQuoteDetail() {
       .totals-row { padding: 3px 0; }
       .totals-row.grand { padding-top: 7px; }
       .amount-due { margin-top: 8px; padding-top: 8px; }
-      .payment-section { margin-top: 8px; padding-top: 7px; gap: 14px; grid-template-columns: 1fr 100px; }
+      /* Print column wide enough for the 40 mm QR + padding + borders. */
+      .payment-section { margin-top: 8px; padding-top: 7px; gap: 18px; grid-template-columns: 1fr 160px; }
       .payment-section h3 { padding-bottom: 4px; margin-bottom: 6px; }
       .pay-grid { gap: 3px 12px; }
       .pay-note { margin-top: 7px; padding-top: 6px; }
-      /* Keep PayNow QR large enough to scan from paper (≈30 mm) */
-      .qr-block .qr-frame { width: 114px; height: 114px; padding: 6px; }
-      .qr-block img { width: 114px; height: 114px; padding: 0; }
-      .qr-block .qr-label { margin-top: 5px; }
+      /* PayNow QR at ~40 mm square — PayNow's recommended print
+         size for reliable scanning by a customer's phone camera. */
+      .qr-block .qr-frame { width: 140px; height: 140px; padding: 8px; }
+      .qr-block img { width: 140px; height: 140px; padding: 0; }
+      .qr-block .qr-label { margin-top: 6px; font-size: 8.5px; }
       .tnc { margin-top: 7px; padding: 5px 10px 6px; }
       .tnc h3 { padding-bottom: 3px; margin-bottom: 3px; }
       .tnc ol { column-gap: 12px; }
@@ -1697,8 +1705,9 @@ export default function AdminQuoteDetail() {
       </div>
     </div>
     <div class="qr-block">
-      <div class="qr-frame"><img src="${window.location.origin}/paynow-qr.png" alt="PayNow QR Code" width="124" height="124" /></div>
-      <div class="qr-label">PayNow</div>
+      <div class="qr-frame"><img src="${window.location.origin}/paynow-qr.png" alt="PayNow QR Code" width="150" height="150" /></div>
+      <div class="qr-label">Scan to Pay · PayNow</div>
+      <div class="qr-sub">UEN 202424156H</div>
     </div>
   </div>`}
 
