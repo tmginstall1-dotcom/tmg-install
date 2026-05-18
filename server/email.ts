@@ -147,6 +147,16 @@ function addressRows(quote: any): Array<[string, string]> {
   const svc = Array.isArray(quote.selectedServices)
     ? quote.selectedServices
     : (quote.selectedServices ? (() => { try { return JSON.parse(quote.selectedServices as string); } catch { return []; } })() : []);
+  // Same-Property Move: items relocated within the SAME address (no transport).
+  // Show a single "Property" row so the customer doesn't see the same address
+  // duplicated under Pickup + Drop-off — and add a one-line note explaining
+  // why there's no transport fee on the invoice.
+  if (quote.samePropertyMove && (quote.pickupAddress || quote.serviceAddress)) {
+    return [
+      ['Property', quote.pickupAddress || quote.serviceAddress || '—'],
+      ['Move type', 'Same-Property Move (items relocated within the same address — no transport fee)'],
+    ];
+  }
   if ((svc.includes('relocate') || quote.pickupAddress) && quote.pickupAddress && quote.dropoffAddress) {
     return [['Pickup', quote.pickupAddress], ['Drop-off', quote.dropoffAddress]];
   }

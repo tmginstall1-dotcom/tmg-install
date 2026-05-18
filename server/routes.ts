@@ -37,7 +37,7 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-import { calcTransportFee, calcOvertimeCharge, PricingConfig, bulkWeightedQty } from "@shared/pricing";
+import { calcTransportFee, calcOvertimeCharge, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, type PricingItem, type PricingFloor } from "@shared/pricing";
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable } from "@shared/schema";
 import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable, aiFeatureFlags, customerRatings } from "@shared/schema";
@@ -5435,12 +5435,147 @@ Respond with ONLY a JSON array (no prose, no markdown):
         }
       }
 
-      // Labor subtotal from item prices
-      const laborSubtotal = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-      const discount = input.discount || 0;
-      const logisticsFee = input.logisticsFee || 0;
+      // ── Server-side pricing recompute (anti-tampering) ───────────────────
+      // The client posts `unitPrice`, `logisticsFee`, and `discount` for each
+      // wizard submission. NEVER trust those values for billing — a hostile
+      // client can post unitPrice=0.01 or logisticsFee=0 to dodge real charges.
+      // We rebuild laborSubtotal + logisticsFee from canonical catalog data
+      // (by SKU, falling back to itemName) using the SAME `computePricing`
+      // engine the frontend uses. If the server-computed total differs from
+      // what the client submitted, we trust the server and flag the quote.
+      const skus = input.items.map(i => i.sku).filter((s): s is string => !!s);
+      // Pull canonical catalog rows by SKU (preferred) AND by name (fallback
+      // for items that don't carry a sku — e.g. some legacy sofas). We need
+      // the name fallback so we still get volumeM3 + basePrice for carry-
+      // handling calculations on unsku'd items.
+      const itemNames = input.items.map(i => i.itemName).filter((n): n is string => !!n);
+      const catalogRowsForPricing = (skus.length > 0 || itemNames.length > 0)
+        ? await db.select().from(catalogItemsTable).where(
+            or(
+              skus.length > 0 ? inArray(catalogItemsTable.sku, skus) : drizzleSql`false`,
+              itemNames.length > 0 ? inArray(catalogItemsTable.name, itemNames) : drizzleSql`false`,
+            ) as any,
+          )
+        : [];
+      const catalogBySku = new Map(catalogRowsForPricing.filter(c => c.sku).map(c => [c.sku!.toLowerCase(), c]));
+      // name+serviceType → row map (only one match per name+serviceType — the
+      // canonical "Carry Only" entry for a sofa, etc.).
+      const catalogByNameSvc = new Map<string, typeof catalogRowsForPricing[number]>();
+      for (const c of catalogRowsForPricing) {
+        const key = `${c.name.toLowerCase().trim()}|${c.serviceType}`;
+        if (!catalogByNameSvc.has(key)) catalogByNameSvc.set(key, c);
+      }
 
-      // rawTotal includes logisticsFee which already contains the $60 callout fee (via computePricing)
+      // Derive `needsRelocation` from the CANONICAL items, not from
+      // client-supplied `selectedServices`. A hostile payload could submit
+      // relocate items but omit "relocate" from selectedServices to suppress
+      // the transport fee and carry-handling logic — we ignore that and
+      // drive the pricing engine off the items themselves.
+      const needsRelocationServer =
+        input.items.some(i => i.serviceType === "relocate") ||
+        (input.selectedServices || []).includes("relocate");
+
+      const canonicalPricingItems: PricingItem[] = input.items.map(it => {
+        const nameKey = (it.itemName || "").toLowerCase().trim();
+        const catBySku  = it.sku ? catalogBySku.get(it.sku.toLowerCase()) : undefined;
+        const catByName = catalogByNameSvc.get(`${nameKey}|${it.serviceType}`);
+        const cat = catBySku ?? catByName;
+        const isCarry  = it.serviceType === "relocate" && it.relocateMode === "carry";
+        const isDRBundle = it.serviceType === "relocate" && it.relocateMode === "full";
+
+        // ── D&R bundle pricing ──────────────────────────────────────────────
+        // The client uses computeDRPrice(install, dismantle, carry) which
+        // yields (install + dismantle) × 60% for legitimate D&R jobs. We
+        // recompute the same value server-side from the canonical install +
+        // dismantle catalog rows (looked up by name) so a tampered request
+        // can't replace the bundle price with $0.
+        let canonicalUnit = cat ? parseFloat(cat.basePrice) : 0;
+        let canonicalVolume = cat?.volumeM3 ? parseFloat(cat.volumeM3) : undefined;
+        if (isDRBundle) {
+          const installRow   = catalogByNameSvc.get(`${nameKey}|install`);
+          const dismantleRow = catalogByNameSvc.get(`${nameKey}|dismantle`);
+          const carryRow     = catalogByNameSvc.get(`${nameKey}|relocate`);
+          const installPrice   = installRow   ? parseFloat(installRow.basePrice)   : undefined;
+          const dismantlePrice = dismantleRow ? parseFloat(dismantleRow.basePrice) : undefined;
+          const carryPrice     = carryRow     ? parseFloat(carryRow.basePrice)     : undefined;
+          canonicalUnit = computeDRPrice(installPrice, dismantlePrice, carryPrice);
+          // Prefer volumeM3 from the relocate row, then install, then dismantle.
+          canonicalVolume = canonicalVolume
+            ?? (carryRow?.volumeM3     ? parseFloat(carryRow.volumeM3)     : undefined)
+            ?? (installRow?.volumeM3   ? parseFloat(installRow.volumeM3)   : undefined)
+            ?? (dismantleRow?.volumeM3 ? parseFloat(dismantleRow.volumeM3) : undefined);
+        }
+
+        return {
+          name: it.itemName,
+          sku: it.sku,
+          serviceType: it.serviceType,
+          quantity: Math.max(1, Math.round(it.quantity)),
+          // Catalog basePrice is authoritative. If sku/name is unknown the
+          // engine falls back via catalogEntries → genericFallback so the
+          // customer is still charged something defensible.
+          unitPrice: isFinite(canonicalUnit) && canonicalUnit > 0 ? canonicalUnit : 0,
+          volumeM3: canonicalVolume,
+          carryOnly: isCarry,
+          wrap: it.wrap === true,
+        };
+      });
+
+      // Parse the wizard's floorsInfo JSON into the engine's PricingFloor[] shape.
+      let canonicalFloors: PricingFloor[] = [];
+      try {
+        const parsed = JSON.parse(input.floorsInfo || "[]");
+        if (Array.isArray(parsed)) {
+          canonicalFloors = parsed.map((f: any) => ({
+            level: Math.max(0, Math.floor(Number(f.level ?? f.floor ?? 0))),
+            hasLift: !!f.hasLift,
+          }));
+        }
+      } catch { /* malformed floors → treat as ground floor with lift */ }
+      if (canonicalFloors.length === 0) canonicalFloors = [{ level: 0, hasLift: true }];
+
+      // Load the rest of the catalog as fallback hints (for items the customer
+      // typed in but couldn't be sku-matched — same lookup table the engine
+      // uses in the WhatsApp ballpark flow).
+      let pricingCatalogEntries: { name: string; serviceType: PricingItem["serviceType"]; basePrice: number }[] = [];
+      try {
+        const allCat = await db.select({
+          name: catalogItemsTable.name,
+          serviceType: catalogItemsTable.serviceType,
+          basePrice: catalogItemsTable.basePrice,
+        }).from(catalogItemsTable);
+        pricingCatalogEntries = allCat
+          .map(r => ({ name: r.name, serviceType: r.serviceType as PricingItem["serviceType"], basePrice: parseFloat(r.basePrice) }))
+          .filter(e => isFinite(e.basePrice) && e.basePrice > 0);
+      } catch { /* catalog load failed — engine will use genericFallback */ }
+
+      const serverPricing = computePricing({
+        items: canonicalPricingItems,
+        needsRelocation: needsRelocationServer,
+        samePropertyMove: input.samePropertyMove === true,
+        floors: canonicalFloors,
+        accessDifficulty: (input.accessDifficulty as "easy" | "medium" | "hard") || "easy",
+        distanceKm: input.samePropertyMove === true ? 0 : (input.distanceKm ?? 0),
+        catalogEntries: pricingCatalogEntries,
+      });
+
+      const laborSubtotal = serverPricing.laborSubtotal;
+      const logisticsFee = serverPricing.logisticsSubtotal;
+      const discount = serverPricing.discountAmount;
+
+      // Tamper telemetry: if the client-submitted total is materially lower
+      // than the server's recompute, log it (don't fail the request — the
+      // server total is authoritative and will be persisted).
+      const clientClaimedTotal = (input.items.reduce((s, it) => s + (it.unitPrice || 0) * (it.quantity || 0), 0))
+        - (input.discount || 0)
+        + (input.logisticsFee || 0);
+      const serverTotalEstimate = laborSubtotal - discount + logisticsFee;
+      if (clientClaimedTotal > 0 && serverTotalEstimate - clientClaimedTotal > 5) {
+        console.warn(`[wizard-pricing] client undercharged by $${(serverTotalEstimate - clientClaimedTotal).toFixed(2)} — client=$${clientClaimedTotal.toFixed(2)} server=$${serverTotalEstimate.toFixed(2)} skus=${skus.join(",")}`);
+      }
+
+      // rawTotal uses the SERVER-computed values (callout fee, transport,
+      // carry-handling, floor surcharge, etc. all baked into logisticsFee).
       const rawTotal = laborSubtotal - discount + logisticsFee;
 
       // Re-validate the promo code server-side against the live DB row.
@@ -5502,16 +5637,28 @@ Respond with ONLY a JSON array (no prose, no markdown):
         0,
       );
       const wrappingFeeTotal = wrappedUnitCount * PricingConfig.wrapping.perItem;
+      // Persist CANONICAL recomputed unit prices / subtotals / quantities for
+      // each item — never the client-supplied values. Downstream logic
+      // (overtime calc, D&R heuristics, payroll commission, admin edits)
+      // reads quote_items.unit_price as truth, so persisting tampered
+      // values here would let a hostile client desync downstream business
+      // logic even if the visible quote totals are correct.
+      const canonicalItemLines = serverPricing.itemLines; // 1:1 with input.items by index
       const allItems = [
-        ...input.items.map(item => ({
-          catalogItemId: item.catalogItemId,
-          originalDescription: item.itemName + (item.wrap ? " (wrapped)" : ""),
-          detectedName: item.itemName + (item.wrap ? " (wrapped)" : ""),
-          serviceType: item.serviceType,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice.toFixed(2),
-          subtotal: (item.unitPrice * item.quantity).toFixed(2),
-        })),
+        ...input.items.map((item, idx) => {
+          const canonical = canonicalItemLines[idx];
+          const qty = canonical?.quantity ?? Math.max(1, Math.round(item.quantity));
+          const unit = canonical?.unitPrice ?? 0;
+          return {
+            catalogItemId: item.catalogItemId,
+            originalDescription: item.itemName + (item.wrap ? " (wrapped)" : ""),
+            detectedName: item.itemName + (item.wrap ? " (wrapped)" : ""),
+            serviceType: item.serviceType,
+            quantity: qty,
+            unitPrice: unit.toFixed(2),
+            subtotal: (unit * qty).toFixed(2),
+          };
+        }),
         ...(input.customItems || []).map(item => ({
           catalogItemId: undefined as number | undefined,
           originalDescription: item.description,

@@ -57,6 +57,10 @@ const factExtractionSchema = z.object({
   photosPresent: z.boolean().optional(),
   specialNotes: z.string().optional(),
   toAddress: z.string().optional(),
+  // Same-Property Move: customer is shifting items WITHIN the same address
+  // (renovation, room swap, between floors of the same condo). When true,
+  // we skip the transport fee and only charge mobilisation + carry handling.
+  samePropertyMove: z.boolean().optional(),
   confidenceLevel: z.number().min(0).max(1).optional(),
 }).strict().partial();
 
@@ -91,6 +95,7 @@ export interface CaseFacts {
   photosPresent?: boolean;
   specialNotes?: string;
   toAddress?: string;
+  samePropertyMove?: boolean;
   confidenceLevel?: number;
 }
 
@@ -271,6 +276,15 @@ Only update fields where the new message provides information — keep existing 
 SERVICES: installation, dismantling, relocation, office_fitout, repair, disposal
 - "repair" = customer wants something fixed/restored (wobbly chair, broken drawer, loose hinge, reupholstery).
 - "disposal" = customer wants old/unwanted items hauled away and discarded (NOT moved to a new place — that's relocation).
+
+SAME-PROPERTY MOVE: set "samePropertyMove": true AND "serviceType": "relocation" when the customer
+wants items physically shifted WITHIN the same address (no transport between two buildings). Trigger
+phrases include:
+  • "move/shift/rearrange furniture within my house / same flat / same condo"
+  • "renovation — need to move things to another room / store in living room"
+  • "moving stuff between rooms" / "from bedroom to study / from living to balcony"
+  • "same unit", "same address", "same property", "same house", "within the unit"
+When samePropertyMove is true, "toAddress" is NOT required (pickup = dropoff = the one address).
 CURRENT KNOWN FACTS: ${JSON.stringify(currentFacts)}
 ${earlierBlock}CONVERSATION HISTORY (recent):
 ${historyText}
@@ -290,6 +304,7 @@ Return ONLY a JSON object with these optional fields:
   "photosPresent": boolean,
   "specialNotes": string,
   "toAddress": string,
+  "samePropertyMove": boolean (true ONLY when customer is moving items within the SAME address),
   "confidenceLevel": number (0.0-1.0 how confident you are about serviceType)
 }
 Only include fields where you have new/updated information. Use exactly these field names — no extras.`,
@@ -354,7 +369,8 @@ function computeMissingFacts(facts: CaseFacts): string[] {
   // Skip lift question for ground floor — it's a non-question.
   if (facts.hasLift === undefined && facts.floorLevel !== 1) missing.push("hasLift");
   if (!facts.preferredDate) missing.push("preferredDate");
-  if (facts.serviceType === "relocation" && !facts.toAddress) missing.push("toAddress");
+  // For Same-Property Moves the destination IS the pickup — don't ask for toAddress.
+  if (facts.serviceType === "relocation" && !facts.toAddress && !facts.samePropertyMove) missing.push("toAddress");
   return missing;
 }
 
@@ -1394,7 +1410,12 @@ export async function processWithAIAgent(params: {
               requiresManualReview:  true,
               aiConfidenceScore:     Math.round(confidence * 100),
               pickupAddress:         facts.serviceType === "relocation" ? facts.jobAddress : null,
-              dropoffAddress:        facts.serviceType === "relocation" ? facts.toAddress : null,
+              // Same-Property Move: collapse dropoff onto pickup so admin & invoice
+              // don't show two addresses for a single-address job.
+              dropoffAddress:        facts.serviceType === "relocation"
+                                       ? (facts.samePropertyMove ? facts.jobAddress : facts.toAddress)
+                                       : null,
+              samePropertyMove:      facts.serviceType === "relocation" && facts.samePropertyMove === true,
               floorsInfo:            floorsInfo.length ? JSON.stringify(floorsInfo) : null,
               selectedServices:      JSON.stringify([itemSvc]),
               preferredDate:         facts.preferredDate ?? null,
