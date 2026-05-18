@@ -4919,7 +4919,6 @@ ${systemPrompt}` });
             daysUntilDue,
             dueDate,
             bucket,
-            remindersSent: Array.isArray(q.commercialRemindersSent) ? q.commercialRemindersSent : [],
           };
         })
         .sort((a, b) => b.daysOutstanding - a.daysOutstanding);
@@ -5032,14 +5031,10 @@ ${systemPrompt}` });
         return res.status(500).json({ message: "Could not send invoice email — please verify the customer has a valid email on file." });
       }
 
-      // Stamp the first-send timestamp + reset reminders BEFORE the status
-      // change. Ordering matters: if the process crashes between these two
-      // writes, we'd rather have a stamp without status (harmless — the
-      // sweep filters by status='final_payment_requested') than a status
-      // without a stamp (which would orphan the invoice from the reminder
-      // sweep forever). The daily reminder sweep keys off this timestamp.
+      // Stamp the first-send timestamp BEFORE the status change so the
+      // dashboard "Outstanding Invoices" widget can compute days-outstanding.
       await db.update(quotes)
-        .set({ commercialInvoiceSentAt: new Date(), commercialRemindersSent: [] })
+        .set({ commercialInvoiceSentAt: new Date() })
         .where(eq(quotes.id, id));
 
       const updated = await storage.updateQuoteStatus(id, "final_payment_requested", {

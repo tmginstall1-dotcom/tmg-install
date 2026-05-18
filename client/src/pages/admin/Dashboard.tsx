@@ -235,7 +235,6 @@ export default function AdminDashboard() {
     companyName: string | null; poNumber: string | null; total: number;
     daysOutstanding: number; daysUntilDue: number; dueDate: string;
     bucket: "current" | "due_soon" | "overdue";
-    remindersSent: string[];
   };
   const { data: outstandingInvoices } = useQuery<{
     items: OutstandingInvoice[]; totalDue: number; overdueCount: number; count: number;
@@ -457,14 +456,6 @@ export default function AdminDashboard() {
                           <span className={`font-bold ${daysClass}`} data-testid={`text-days-${inv.id}`}>{daysLabel}</span>
                           <span>·</span>
                           <span>Sent {inv.daysOutstanding}d ago</span>
-                          {inv.remindersSent.length > 0 && (
-                            <>
-                              <span>·</span>
-                              <span className="font-semibold text-zinc-600">
-                                Reminders: {inv.remindersSent.join(", ").toUpperCase()}
-                              </span>
-                            </>
-                          )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
