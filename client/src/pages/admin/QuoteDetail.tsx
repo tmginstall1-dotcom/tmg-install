@@ -1330,6 +1330,16 @@ export default function AdminQuoteDetail() {
       font-size: 11px; font-weight: 700; color: var(--ink);
       margin-bottom: 4px; letter-spacing: -0.01em;
     }
+    /* Reference subtitle inside the footer block. Ensures any page
+       that carries the footer (commonly the last page when content
+       breaks across two A4 pages) clearly identifies the document
+       it belongs to — quote/invoice number, customer, issue date. */
+    .footer-ref {
+      font-size: 8.5px; color: var(--ink-2); margin-bottom: 6px;
+      font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+      letter-spacing: 0;
+    }
+    .footer-ref strong { color: var(--ink); font-weight: 700; }
     .footer p { font-size: 8px; color: var(--muted); line-height: 1.6; }
     .footer a, .tnc a { color: var(--ink-2); text-decoration: underline; }
     .sig-box {
@@ -1606,6 +1616,7 @@ export default function AdminQuoteDetail() {
   <div class="footer">
     <div>
       <div class="thanks">${isInvoiceDoc ? "Thank you for your business." : "We appreciate the opportunity to quote for you."}</div>
+      <div class="footer-ref">${isInvoiceDoc ? "Invoice" : "Quotation"} <strong>${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</strong>${isInvoiceDoc ? ` · Job ${esc(q.referenceNo)}` : ""} · For ${esc(q.customer?.name || "—")} · Issued ${esc(issuedDate)}</div>
       <p>Generated ${esc(new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" }))} · The Moving Guy Pte Ltd · UEN 202424156H · Vehicle GBM550L<br/>+65 8088 0757 · sales@tmginstall.com · <a href="https://tmginstall.com" target="_blank">tmginstall.com</a> · Terms: <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a></p>
     </div>
     <div class="sig-box">
