@@ -1362,7 +1362,7 @@ export default function AdminQuoteDetail() {
       <div class="company">
         <h1>The Moving Guy Pte Ltd</h1>
         <div class="tagline">Furniture Installation · Singapore</div>
-        <p class="contact">UEN 202424156H · 160 Robinson Road #14-04, Singapore 068914<br/>+65 8088 0757 · sales@tmginstall.com · tmginstall.com</p>
+        <p class="contact">UEN 202424156H · 160 Robinson Road #14-04, Singapore 068914<br/>+65 8088 0757 · sales@tmginstall.com · tmginstall.com · Vehicle GBM550L</p>
       </div>
     </div>
     <div class="doc-meta">
@@ -1528,7 +1528,7 @@ export default function AdminQuoteDetail() {
   <div class="footer">
     <div>
       <div class="thanks">${isInvoiceDoc ? "Thank you for your business." : "We appreciate the opportunity to quote for you."}</div>
-      <p>Generated ${esc(new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" }))} · The Moving Guy Pte Ltd · UEN 202424156H<br/>+65 8088 0757 · sales@tmginstall.com · tmginstall.com</p>
+      <p>Generated ${esc(new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" }))} · The Moving Guy Pte Ltd · UEN 202424156H · Vehicle GBM550L<br/>+65 8088 0757 · sales@tmginstall.com · tmginstall.com</p>
     </div>
     <div class="sig-box">
       ${isInvoiceDoc ? `
