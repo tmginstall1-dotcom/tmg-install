@@ -1369,55 +1369,23 @@ export default function AdminQuoteDetail() {
     .badge-unpaid { background: var(--red-soft); color: var(--red); }
     .badge-status { background: var(--ink); color: #fff; padding: 3px 10px; }
 
-    /* ── Print-only repeating header & footer ─────────────────────
-       Browsers repeat position:fixed elements on every printed page.
-       We use that to put a small "from this quote" strip at the top
-       and a continuity line at the bottom so any printed page can
-       be traced back to its source document. Hidden on screen. */
+    /* Running header/footer (kept hidden — Safari/Chrome's own
+       print chrome already prints the page URL on every page, which
+       contains the quote id and provides cross-page identification.
+       A custom position:fixed band caused the masthead to be clipped
+       in iOS Safari print preview, so we don't use one anymore.) */
     .print-running-header,
-    .print-running-footer { display: none; }
+    .print-running-footer { display: none !important; }
 
     @media print {
-      /* Tight outer margins. The @page top/bottom margins reserve a
-         small amount of space for the minimal repeating ref chip and
-         footer strip below; the proper letterhead lives inside the
-         body and gets the full corporate presentation on page 1. */
-      @page { size: A4; margin: 12mm 9mm 10mm; }
+      /* A4 with comfortable outer margins. The in-body letterhead is
+         the only masthead — Safari/Chrome stamp the page URL and page
+         numbers in their own print chrome on every page. */
+      @page { size: A4; margin: 14mm 12mm 12mm; }
       html, body { padding: 0; margin: 0; }
       body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .doc-body { padding: 0; }
       button { display: none; }
-
-      /* Minimal repeating page identifier — just a small right-aligned
-         reference chip. Deliberately unobtrusive so the in-body
-         letterhead reads as the primary masthead on page 1. */
-      .print-running-header {
-        display: flex; position: fixed; top: 0; left: 0; right: 0;
-        height: 7mm; padding: 2mm 9mm 0;
-        align-items: center; justify-content: flex-end;
-        background: #fff;
-      }
-      .print-running-header .prh-left { display: none; }
-      .print-running-header .prh-right {
-        font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
-        font-size: 7px; color: var(--muted-2); font-weight: 500;
-        letter-spacing: 0.02em;
-      }
-      .print-running-header .prh-right .label {
-        color: var(--muted-2); font-weight: 600; margin-right: 3px;
-        text-transform: uppercase; letter-spacing: 0.14em; font-size: 6px;
-        font-family: 'Inter', 'Helvetica Neue', sans-serif;
-      }
-      .print-running-footer {
-        display: flex; position: fixed; bottom: 0; left: 0; right: 0;
-        height: 7mm; padding: 0 9mm 2mm;
-        align-items: flex-end; justify-content: space-between;
-        font-size: 6px; color: var(--muted-2); font-weight: 500;
-        background: #fff;
-      }
-      .print-running-footer .prf-right {
-        font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
-      }
 
       /* Compress vertical rhythm just for print so a typical invoice fits one A4. */
       .letterhead { padding-bottom: 10px; margin-bottom: 14px; }
@@ -1456,20 +1424,6 @@ export default function AdminQuoteDetail() {
   </style>
 </head>
 <body>
-  <!-- Repeating page identifier — printed on every A4 page so any
-       page can be traced back to this quote / invoice. Kept
-       deliberately minimal so it doesn't compete with the in-body
-       letterhead on page 1. -->
-  <div class="print-running-header" aria-hidden="true">
-    <div class="prh-right">
-      <span class="label">${docType}</span>${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}
-    </div>
-  </div>
-  <div class="print-running-footer" aria-hidden="true">
-    <div>The Moving Guy Pte Ltd · UEN 202424156H · tmginstall.com</div>
-    <div class="prf-right">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</div>
-  </div>
-
   <div class="doc-body">
 
   <!-- Letterhead — simple, standard two-column masthead -->
