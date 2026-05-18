@@ -1033,157 +1033,222 @@ export default function AdminQuoteDetail() {
   <style>
     /* === The Moving Guy Pte Ltd — professional invoice / quotation print template === */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    @page { size: A4; margin: 10mm; }
+    @page { size: A4; margin: 0; }
 
     :root {
-      --ink: #0f172a;          /* slate-900 — headings, total */
-      --ink-2: #334155;        /* slate-700 — body */
-      --muted: #64748b;        /* slate-500 — labels */
-      --muted-2: #94a3b8;      /* slate-400 — small print */
-      --line: #e2e8f0;         /* slate-200 — dividers */
-      --line-2: #cbd5e1;       /* slate-300 — strong dividers */
-      --bg-soft: #f8fafc;      /* slate-50 — card fill */
-      --bg-soft-2: #f1f5f9;    /* slate-100 — table head */
-      --accent: #0f172a;       /* charcoal — primary */
-      --accent-2: #1e293b;     /* slate-800 — secondary */
-      --green: #166534;
-      --green-soft: #dcfce7;
-      --green-line: #86efac;
+      --ink: #0a0a0a;          /* near-black — headings, total */
+      --ink-2: #2a2a2a;        /* charcoal — body */
+      --muted: #6b7280;        /* gray-500 — labels */
+      --muted-2: #9ca3af;      /* gray-400 — small print */
+      --line: #e5e7eb;         /* gray-200 — dividers */
+      --line-2: #d1d5db;       /* gray-300 — strong dividers */
+      --bg-soft: #fafafa;      /* near-white — page tint */
+      --bg-soft-2: #f5f5f7;    /* very pale — zebra */
+      --accent: #0a0a0a;       /* charcoal — primary */
+      --accent-2: #1f2937;     /* gray-800 — secondary */
+      --gold: #b08a3e;         /* subtle gold accent */
+      --green: #047857;
+      --green-soft: #ecfdf5;
+      --green-line: #6ee7b7;
       --amber: #b45309;
       --amber-soft: #fef3c7;
-      --red: #991b1b;
+      --red: #b91c1c;
       --red-soft: #fee2e2;
     }
 
     html, body { background: #fff; }
     body {
       font-family: 'Inter', 'Helvetica Neue', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
-      font-size: 11px;
+      font-size: 10.5px;
       line-height: 1.55;
       color: var(--ink-2);
-      padding: 24px 28px;
+      padding: 0;
       -webkit-font-smoothing: antialiased;
       font-feature-settings: 'tnum' 1, 'lnum' 1;
     }
 
+    /* Inner content padding — the hero band is full-bleed but everything
+       below it lives inside a comfortable margin so the page reads as a
+       proper printed document. */
+    .doc-body { padding: 14px 18mm 12mm; }
+
     /* numerical text: tabular figures so currency lines up cleanly */
-    .num, td.amount, .totals-row span:last-child, .pay-grid dd {
+    .num, td.amount, .totals-row span:last-child, .pay-grid dd, .stat .v {
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum' 1;
     }
 
-    /* ── Header ─────────────────────────────────────────────────── */
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 24px;
-      padding-bottom: 14px;
-      margin-bottom: 18px;
-      border-bottom: 1px solid var(--line);
+    /* ── Hero band (full-bleed dark masthead) ──────────────────── */
+    .hero {
+      background: linear-gradient(180deg, #111 0%, #0a0a0a 100%);
+      color: #fff;
+      padding: 18px 18mm 16px;
       position: relative;
     }
-    .header::after {
+    .hero::after {
       content: "";
-      position: absolute; left: 0; right: 0; bottom: -1px; height: 3px;
-      background: var(--accent);
-      width: 56px;
+      position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+      background: var(--gold);
     }
-    .brand { display: flex; align-items: stretch; gap: 14px; }
+    .hero-row {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 24px;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; }
     .brand-mark {
-      width: 46px; height: 46px;
-      background: var(--accent);
-      color: #fff;
-      border-radius: 8px;
+      width: 50px; height: 50px;
+      background: #fff;
+      color: #0a0a0a;
+      border-radius: 6px;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 15px; letter-spacing: 0.02em;
+      font-weight: 900; font-size: 16px; letter-spacing: 0.04em;
       flex-shrink: 0;
       font-family: 'Inter', 'Helvetica Neue', sans-serif;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.1) inset;
     }
-    .company { display: flex; flex-direction: column; justify-content: center; }
-    .company h1 {
-      font-size: 19px; font-weight: 700; letter-spacing: -0.02em;
-      color: var(--ink); line-height: 1.15;
+    .brand-text { display: flex; flex-direction: column; justify-content: center; }
+    .brand-eyebrow {
+      font-size: 8px; text-transform: uppercase; letter-spacing: 0.32em;
+      color: rgba(255,255,255,0.55); font-weight: 600; margin-bottom: 2px;
     }
-    .company .tagline {
-      font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.18em;
-      color: var(--muted); margin-top: 3px; font-weight: 600;
+    .brand-name {
+      font-size: 22px; font-weight: 800; letter-spacing: 0.02em;
+      color: #fff; line-height: 1; font-family: 'Inter', 'Helvetica Neue', sans-serif;
     }
-    .company p.contact {
-      font-size: 9.5px; color: var(--muted); margin-top: 7px; line-height: 1.6;
+    .brand-tag {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.22em;
+      color: rgba(255,255,255,0.55); margin-top: 4px; font-weight: 600;
     }
-
     .doc-meta { text-align: right; min-width: 200px; }
     .doc-meta .label {
-      font-size: 9px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.18em; color: var(--muted);
+      font-size: 8px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.32em; color: rgba(255,255,255,0.55);
     }
     .doc-meta .ref {
-      font-size: 18px; font-weight: 700; color: var(--ink);
-      letter-spacing: -0.01em; font-feature-settings: 'tnum' 1;
-      margin-top: 2px;
+      font-size: 22px; font-weight: 800; color: #fff;
+      letter-spacing: 0.01em; font-feature-settings: 'tnum' 1;
+      margin-top: 3px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
     }
     .doc-meta .sub-ref {
-      font-size: 9px; color: var(--muted-2); margin-top: 2px;
-      font-feature-settings: 'tnum' 1;
+      font-size: 8.5px; color: rgba(255,255,255,0.5); margin-top: 3px;
+      font-feature-settings: 'tnum' 1; letter-spacing: 0.04em;
     }
     .meta-grid {
-      margin-top: 8px;
-      display: grid; grid-template-columns: auto auto; gap: 2px 10px;
-      justify-content: end; font-size: 9.5px;
+      margin-top: 10px;
+      display: grid; grid-template-columns: auto auto; gap: 3px 12px;
+      justify-content: end; font-size: 9px;
     }
-    .meta-grid dt { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 8.5px; font-weight: 600; }
-    .meta-grid dd { color: var(--ink); font-weight: 600; text-align: right; }
+    .meta-grid dt { color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.16em; font-size: 7.5px; font-weight: 600; align-self: center; }
+    .meta-grid dd { color: #fff; font-weight: 600; text-align: right; font-size: 9.5px; }
+
+    /* Hero sub-band — contact strip */
+    .hero-sub {
+      background: #181818;
+      color: rgba(255,255,255,0.7);
+      padding: 7px 18mm;
+      font-size: 8.5px;
+      display: flex; justify-content: space-between; gap: 16px;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .hero-sub .left { display: flex; gap: 14px; flex-wrap: wrap; }
+    .hero-sub strong { color: #fff; font-weight: 600; }
+
+    /* ── KPI strip ─────────────────────────────────────────────── */
+    .stats {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      margin: 14px 0 16px;
+    }
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 6px; padding: 8px 11px;
+      background: #fff;
+      position: relative;
+    }
+    .stat::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 2px; background: var(--accent); border-radius: 6px 0 0 6px;
+    }
+    .stat .k {
+      font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.16em;
+      color: var(--muted); font-weight: 700;
+    }
+    .stat .v {
+      font-size: 12.5px; color: var(--ink); font-weight: 700; margin-top: 2px;
+      line-height: 1.25; letter-spacing: -0.01em;
+    }
+    .stat .sub { font-size: 8.5px; color: var(--muted); margin-top: 1px; }
+
+    /* Section label (eyebrow over content blocks) */
+    .eyebrow {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 8px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.22em; color: var(--muted);
+      margin: 0 0 7px;
+    }
+    .eyebrow::before {
+      content: ""; width: 14px; height: 2px; background: var(--accent);
+      display: inline-block;
+    }
 
     /* ── Cards (Bill To / Job Details) ─────────────────────────── */
     .grid2 {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
-      margin-bottom: 16px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      margin-bottom: 14px;
     }
     .card {
-      background: var(--bg-soft);
+      background: #fff;
       border: 1px solid var(--line);
       border-radius: 6px;
-      padding: 12px 14px;
+      padding: 11px 13px 12px;
       page-break-inside: avoid; break-inside: avoid;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: ""; position: absolute; left: 0; right: 0; top: 0;
+      height: 2px; background: var(--accent);
     }
     .card-title {
-      font-size: 8.5px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.16em; color: var(--muted);
-      padding-bottom: 6px; margin-bottom: 8px;
+      font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.22em; color: var(--muted);
+      padding-bottom: 6px; margin-bottom: 7px;
       border-bottom: 1px solid var(--line);
     }
-    .card p { font-size: 10.5px; line-height: 1.6; color: var(--ink-2); margin: 0; }
+    .card p { font-size: 10px; line-height: 1.6; color: var(--ink-2); margin: 0; }
     .card p + p { margin-top: 1px; }
-    .card .name { font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+    .card .name { font-size: 12.5px; font-weight: 700; color: var(--ink); margin-bottom: 4px; letter-spacing: -0.01em; }
     .card .kv { display: flex; gap: 6px; }
-    .card .kv .k { color: var(--muted); font-weight: 600; min-width: 78px; }
-    .card .kv .v { color: var(--ink); flex: 1; }
+    .card .kv .k { color: var(--muted); font-weight: 600; min-width: 72px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .card .kv .v { color: var(--ink); flex: 1; font-size: 10px; }
 
     /* ── Items table ───────────────────────────────────────────── */
-    table.items { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    table.items {
+      width: 100%; border-collapse: collapse; margin-bottom: 12px;
+      border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+    }
     table.items thead th {
-      font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em;
-      color: var(--muted); font-weight: 700; text-align: left;
-      padding: 9px 12px;
-      background: var(--bg-soft-2);
-      border-top: 1px solid var(--line);
-      border-bottom: 1px solid var(--line);
+      font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.16em;
+      color: #fff; font-weight: 700; text-align: left;
+      padding: 10px 13px;
+      background: var(--accent);
+      border-bottom: 1px solid var(--accent);
     }
     table.items thead th:nth-child(1) { width: auto; }
     table.items thead th:nth-child(2) { width: 50px; text-align: center; }
-    table.items thead th:nth-child(3) { width: 90px; text-align: right; }
-    table.items thead th:nth-child(4) { width: 100px; text-align: right; }
+    table.items thead th:nth-child(3) { width: 95px; text-align: right; }
+    table.items thead th:nth-child(4) { width: 105px; text-align: right; }
     table.items tbody td {
-      padding: 8px 12px; font-size: 10.5px; color: var(--ink-2);
+      padding: 9px 13px; font-size: 10.5px; color: var(--ink-2);
       vertical-align: top; border-bottom: 1px solid var(--line);
     }
+    table.items tbody tr:nth-child(even) td { background: var(--bg-soft-2); }
     table.items tbody td:first-child { color: var(--ink); font-weight: 500; }
-    table.items tbody td:nth-child(2) { text-align: center; color: var(--ink); }
+    table.items tbody td:nth-child(2) { text-align: center; color: var(--ink); font-weight: 600; }
     table.items tbody td:nth-child(3),
     table.items tbody td:nth-child(4) { text-align: right; font-variant-numeric: tabular-nums; }
-    table.items tbody td:nth-child(4) { color: var(--ink); font-weight: 600; }
-    table.items tbody tr:last-child td { border-bottom: 1px solid var(--line-2); }
+    table.items tbody td:nth-child(4) { color: var(--ink); font-weight: 700; }
+    table.items tbody tr:last-child td { border-bottom: none; }
     table.items tr { page-break-inside: avoid; break-inside: avoid; }
     table.items thead { display: table-header-group; }
     .item-remark { font-size: 9px; color: var(--muted); margin-top: 3px; line-height: 1.5; font-style: italic; }
@@ -1191,29 +1256,36 @@ export default function AdminQuoteDetail() {
     /* ── Totals ────────────────────────────────────────────────── */
     .totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 14px; }
     .totals {
-      width: 320px;
+      width: 340px;
       page-break-inside: avoid; break-inside: avoid;
     }
     .totals-row {
       display: flex; justify-content: space-between; align-items: baseline;
-      padding: 4px 0; font-size: 10.5px; color: var(--muted);
+      padding: 5px 0; font-size: 10.5px; color: var(--muted);
     }
-    .totals-row span:last-child { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+    .totals-row span:last-child { color: var(--ink-2); font-variant-numeric: tabular-nums; font-weight: 600; }
     .totals-row.grand {
       margin-top: 6px; padding-top: 10px;
-      border-top: 1.5px solid var(--ink);
-      font-size: 12px; color: var(--ink); font-weight: 700;
+      border-top: 1px solid var(--line);
+      font-size: 11.5px; color: var(--ink); font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.12em;
     }
-    .totals-row.grand span:last-child { font-size: 16px; font-weight: 800; color: var(--ink); }
+    .totals-row.grand span:last-child { font-size: 17px; font-weight: 800; color: var(--ink); letter-spacing: 0; text-transform: none; }
     .amount-due {
-      margin-top: 10px; padding: 12px 14px;
-      border: 1.5px solid var(--ink); border-radius: 6px;
-      background: var(--ink); color: #fff;
+      margin-top: 12px; padding: 14px 16px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+      color: #fff;
       display: flex; justify-content: space-between; align-items: center;
+      position: relative; overflow: hidden;
     }
-    .amount-due .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 700; opacity: 0.75; }
-    .amount-due .amt { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
-    .amount-due .due-date { font-size: 9px; opacity: 0.7; margin-top: 2px; }
+    .amount-due::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      background: var(--gold);
+    }
+    .amount-due .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 0.22em; font-weight: 700; opacity: 0.8; }
+    .amount-due .amt { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+    .amount-due .due-date { font-size: 9px; opacity: 0.65; margin-top: 3px; letter-spacing: 0.04em; }
 
     .paid-stamp {
       margin-top: 10px; padding: 14px;
@@ -1234,39 +1306,52 @@ export default function AdminQuoteDetail() {
 
     /* ── Payment section ───────────────────────────────────────── */
     .payment-section {
-      margin-top: 4px;
-      display: grid; grid-template-columns: 1fr 150px; gap: 18px;
+      margin-top: 6px;
+      display: grid; grid-template-columns: 1fr 160px; gap: 18px;
       padding: 14px 16px;
       background: var(--bg-soft);
       border: 1px solid var(--line);
-      border-radius: 6px;
+      border-radius: 8px;
       page-break-inside: avoid; break-inside: avoid;
       page-break-before: avoid; break-before: avoid;
+      position: relative; overflow: hidden;
+    }
+    .payment-section::before {
+      content: ""; position: absolute; left: 0; right: 0; top: 0;
+      height: 2px; background: var(--accent);
     }
     .payment-section h3 {
       font-size: 8.5px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.16em; color: var(--muted);
-      padding-bottom: 6px; margin-bottom: 8px;
+      letter-spacing: 0.22em; color: var(--ink);
+      padding-bottom: 7px; margin-bottom: 9px;
       border-bottom: 1px solid var(--line);
     }
     .pay-grid {
-      display: grid; grid-template-columns: 90px 1fr;
-      gap: 4px 10px; font-size: 10px;
+      display: grid; grid-template-columns: 92px 1fr;
+      gap: 5px 10px; font-size: 10px;
     }
-    .pay-grid dt { color: var(--muted); font-weight: 600; }
-    .pay-grid dd { color: var(--ink); font-weight: 600; }
+    .pay-grid dt { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 8.5px; letter-spacing: 0.08em; align-self: center; }
+    .pay-grid dd { color: var(--ink); font-weight: 700; font-size: 10.5px; }
     .pay-note {
-      margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line);
-      font-size: 9px; color: var(--muted); line-height: 1.55;
+      margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--line);
+      font-size: 9px; color: var(--muted); line-height: 1.6;
     }
-    .pay-note strong { color: var(--ink); }
+    .pay-note strong { color: var(--ink); font-weight: 700; }
     .qr-block {
-      text-align: center; padding: 8px;
-      background: #fff; border: 1px solid var(--line); border-radius: 6px;
+      text-align: center; padding: 10px 8px 8px;
+      background: #fff; border: 1px solid var(--line); border-radius: 8px;
       align-self: start;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.02);
     }
-    .qr-block img { width: 110px; height: 110px; display: block; object-fit: contain; margin: 0 auto; }
-    .qr-block .qr-label { font-size: 8.5px; color: var(--muted); margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+    .qr-block img { width: 118px; height: 118px; display: block; object-fit: contain; margin: 0 auto; }
+    .qr-block .qr-label {
+      font-size: 8px; color: var(--muted); margin-top: 5px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em;
+    }
+    .qr-block .qr-sub {
+      font-size: 8.5px; color: var(--ink); margin-top: 2px;
+      font-weight: 600; font-feature-settings: 'tnum' 1;
+    }
 
     /* ── Terms & Conditions ────────────────────────────────────── */
     .tnc {
@@ -1356,24 +1441,64 @@ export default function AdminQuoteDetail() {
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="brand">
-      <div class="brand-mark">TMG</div>
-      <div class="company">
-        <h1>The Moving Guy Pte Ltd</h1>
-        <div class="tagline">Furniture Installation · Singapore</div>
-        <p class="contact">UEN 202424156H · 160 Robinson Road #14-04, Singapore 068914<br/>+65 8088 0757 · sales@tmginstall.com · tmginstall.com · Vehicle GBM550L</p>
+  <!-- Hero masthead (full-bleed dark band) -->
+  <div class="hero">
+    <div class="hero-row">
+      <div class="brand">
+        <div class="brand-mark">TMG</div>
+        <div class="brand-text">
+          <div class="brand-eyebrow">The Moving Guy Pte Ltd</div>
+          <div class="brand-name">TMG INSTALL</div>
+          <div class="brand-tag">Furniture Installation · Singapore</div>
+        </div>
+      </div>
+      <div class="doc-meta">
+        <div class="label">${docType}</div>
+        <div class="ref">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</div>
+        ${isInvoiceDoc ? `<div class="sub-ref">Job Ref · ${esc(q.referenceNo)}</div>` : ""}
+        <dl class="meta-grid">
+          <dt>Issued</dt><dd>${esc(issuedDate)}</dd>
+          ${isInvoiceDoc && !isFullyPaid ? `<dt>Due</dt><dd>${esc(dueDate)}</dd><dt>Terms</dt><dd>Net 30</dd>` : ""}
+          <dt>Status</dt><dd><span class="badge badge-status">${(q.status || "").replace(/_/g, " ")}</span></dd>
+        </dl>
       </div>
     </div>
-    <div class="doc-meta">
-      <div class="label">${docType}</div>
-      <div class="ref">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</div>
-      ${isInvoiceDoc ? `<div class="sub-ref">Job Ref · ${esc(q.referenceNo)}</div>` : ""}
-      <dl class="meta-grid">
-        <dt>Issued</dt><dd>${esc(issuedDate)}</dd>
-        ${isInvoiceDoc && !isFullyPaid ? `<dt>Due</dt><dd>${esc(dueDate)}</dd><dt>Terms</dt><dd>Net 30</dd>` : ""}
-        <dt>Status</dt><dd><span class="badge badge-status">${(q.status || "").replace(/_/g, " ")}</span></dd>
-      </dl>
+  </div>
+
+  <!-- Hero sub-band (contact strip) -->
+  <div class="hero-sub">
+    <div class="left">
+      <span>UEN <strong>202424156H</strong></span>
+      <span>160 Robinson Road #14-04, Singapore 068914</span>
+    </div>
+    <div>
+      <span>+65 8088 0757 · sales@tmginstall.com · tmginstall.com · Vehicle <strong>GBM550L</strong></span>
+    </div>
+  </div>
+
+  <div class="doc-body">
+
+  <!-- KPI summary strip -->
+  <div class="stats">
+    <div class="stat">
+      <div class="k">Issued</div>
+      <div class="v">${esc(issuedDate)}</div>
+      ${isInvoiceDoc && !isFullyPaid ? `<div class="sub">Due ${esc(dueDate)} · Net 30</div>` : `<div class="sub">${docType === "QUOTATION" ? "Valid for 14 days" : "Booking confirmed"}</div>`}
+    </div>
+    <div class="stat">
+      <div class="k">Service Date</div>
+      <div class="v">${esc(scheduledDate || "To be confirmed")}</div>
+      <div class="sub">${q.timeWindow ? esc(q.timeWindow) : (scheduledDate ? "Time TBC" : "Pending confirmation")}</div>
+    </div>
+    <div class="stat">
+      <div class="k">Line Items</div>
+      <div class="v">${items.length}</div>
+      <div class="sub">${(() => { const u = items.reduce((s: number, it: any) => s + Number(it.quantity || 0), 0); return `${u} unit${u === 1 ? "" : "s"} total`; })()}</div>
+    </div>
+    <div class="stat">
+      <div class="k">${isInvoiceDoc ? "Amount Due" : "Total Payable"}</div>
+      <div class="v">S$${Number(q.total || 0).toFixed(2)}</div>
+      <div class="sub">${isFullyPaid ? "Paid in full" : isDepositPaid ? `Balance S$${balanceAmt.toFixed(2)}` : `Deposit S$${depositAmt.toFixed(2)}`}</div>
     </div>
   </div>
 
@@ -1577,6 +1702,8 @@ export default function AdminQuoteDetail() {
       </div>`}
     </div>
   </div>
+
+  </div><!-- /.doc-body -->
 
   <script>window.onload = function() { window.print(); }</script>
 </body>
