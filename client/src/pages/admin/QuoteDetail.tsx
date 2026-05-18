@@ -622,6 +622,43 @@ export default function AdminQuoteDetail() {
     },
   });
 
+  // Commercial flow — approve & book without deposit (no upfront payment).
+  const approveCommercial = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", `/api/admin/quotes/${id}/approve-commercial`).then(r => r.json()),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes/:id", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes/schedule"] });
+      toast({
+        title: "Booking Confirmed",
+        description: data?.emailSent
+          ? "Job is booked. Confirmation email sent to customer (no deposit required)."
+          : "Job is booked. No email sent — please share confirmation manually.",
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to confirm booking", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Commercial flow — send Net 30 tax invoice for a completed job.
+  const sendCommercialInvoice = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", `/api/admin/quotes/${id}/send-invoice`).then(r => r.json()),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes/:id", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      toast({
+        title: "Invoice Sent",
+        description: `Net 30 tax invoice emailed to customer. Due ${data?.dueDate || "in 30 days"}.`,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to send invoice", description: err.message, variant: "destructive" });
+    },
+  });
+
   const saveAdditionalCharge = useMutation({
     mutationFn: (body: { additionalCharge: string; additionalChargeNote: string }) =>
       apiRequest("PATCH", `/api/quotes/${id}/additional-charges`, body),
@@ -885,6 +922,22 @@ export default function AdminQuoteDetail() {
       toast({ title: "Deposit Requested", description: "Email sent to customer with payment details." });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleApproveCommercialBooking = async () => {
+    try {
+      await approveCommercial.mutateAsync();
+    } catch {
+      /* toast handled in mutation */
+    }
+  };
+
+  const handleSendCommercialInvoice = async () => {
+    try {
+      await sendCommercialInvoice.mutateAsync();
+    } catch {
+      /* toast handled in mutation */
     }
   };
 
@@ -2559,19 +2612,33 @@ export default function AdminQuoteDetail() {
               <div className="p-5 space-y-4">
                 
                 {['submitted', 'under_review'].includes(quote.status) && (
-                  <div className="space-y-2">
-                    <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending}
-                      className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                      <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
-                    </button>
-                    <button
-                      onClick={() => setShowPayNowConfirm(true)}
-                      data-testid="button-mark-deposit-already-paid"
-                      title="Customer already paid via PayNow — record it without sending the deposit request message"
-                      className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-sm font-medium transition-colors">
-                      <QrCode className="w-4 h-4" /> Customer Already Paid Deposit (PayNow)
-                    </button>
-                  </div>
+                  (quote as any).invoiceType === 'commercial' ? (
+                    <div className="space-y-2">
+                      <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+                        <span className="font-semibold">Commercial customer</span> — no deposit collected. Booking is confirmed on approval; a Net 30 invoice is sent after job completion.
+                      </div>
+                      <button onClick={handleApproveCommercialBooking} disabled={approveCommercial.isPending}
+                        data-testid="button-approve-commercial-booking"
+                        className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                        <CalendarCheck className="w-4 h-4" />
+                        {approveCommercial.isPending ? "Confirming…" : "Approve & Book Job"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending}
+                        className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                        <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
+                      </button>
+                      <button
+                        onClick={() => setShowPayNowConfirm(true)}
+                        data-testid="button-mark-deposit-already-paid"
+                        title="Customer already paid via PayNow — record it without sending the deposit request message"
+                        className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-sm font-medium transition-colors">
+                        <QrCode className="w-4 h-4" /> Customer Already Paid Deposit (PayNow)
+                      </button>
+                    </div>
+                  )
                 )}
 
                 {quote.status === 'deposit_requested' && (
@@ -2775,11 +2842,25 @@ export default function AdminQuoteDetail() {
                 )}
 
                 {quote.status === 'completed' && (
-                  <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
-                    data-testid="button-request-final-payment"
-                    className="inline-flex items-center justify-center w-full gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                    <DollarSign className="w-4 h-4" /> Request Final Payment (Stripe / PayNow)
-                  </button>
+                  (quote as any).invoiceType === 'commercial' ? (
+                    <div className="space-y-2">
+                      <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+                        <span className="font-semibold">Commercial job complete</span> — send the Net 30 tax invoice to the customer.
+                      </div>
+                      <button onClick={handleSendCommercialInvoice} disabled={sendCommercialInvoice.isPending}
+                        data-testid="button-send-commercial-invoice"
+                        className="inline-flex items-center justify-center w-full gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                        <DollarSign className="w-4 h-4" />
+                        {sendCommercialInvoice.isPending ? "Sending Invoice…" : "Send Invoice (Net 30)"}
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
+                      data-testid="button-request-final-payment"
+                      className="inline-flex items-center justify-center w-full gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                      <DollarSign className="w-4 h-4" /> Request Final Payment (Stripe / PayNow)
+                    </button>
+                  )
                 )}
 
                 {quote.status === 'final_payment_requested' && (
@@ -3042,20 +3123,32 @@ export default function AdminQuoteDetail() {
       {/* Mobile floating action bar — primary action pinned to bottom, hidden on lg */}
       {!isEditing && (() => {
         const s = quote.status;
-        if (['submitted', 'under_review'].includes(s)) return (
-          <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] space-y-1.5">
-            <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending}
-              className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-              <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
-            </button>
-            <button
-              onClick={() => setShowPayNowConfirm(true)}
-              data-testid="button-mark-deposit-already-paid-mobile"
-              className="w-full inline-flex items-center justify-center gap-2 h-9 rounded-xl bg-white border border-emerald-300 text-emerald-700 text-xs font-semibold transition-colors">
-              <QrCode className="w-3.5 h-3.5" /> Already Paid via PayNow — Skip Request
-            </button>
-          </div>
-        );
+        if (['submitted', 'under_review'].includes(s)) {
+          if ((quote as any).invoiceType === 'commercial') return (
+            <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+              <button onClick={handleApproveCommercialBooking} disabled={approveCommercial.isPending}
+                data-testid="button-approve-commercial-booking-mobile"
+                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                <CalendarCheck className="w-4 h-4" />
+                {approveCommercial.isPending ? "Confirming…" : "Approve & Book Job (Commercial)"}
+              </button>
+            </div>
+          );
+          return (
+            <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] space-y-1.5">
+              <button onClick={handleApproveAndRequestDeposit} disabled={updateStatus.isPending}
+                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                <CheckCircle2 className="w-4 h-4" /> Approve & Request Deposit
+              </button>
+              <button
+                onClick={() => setShowPayNowConfirm(true)}
+                data-testid="button-mark-deposit-already-paid-mobile"
+                className="w-full inline-flex items-center justify-center gap-2 h-9 rounded-xl bg-white border border-emerald-300 text-emerald-700 text-xs font-semibold transition-colors">
+                <QrCode className="w-3.5 h-3.5" /> Already Paid via PayNow — Skip Request
+              </button>
+            </div>
+          );
+        }
         if (s === 'deposit_paid') return (
           <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
             <button onClick={handleConfirmBooking} disabled={confirmBooking.isPending}
@@ -3064,14 +3157,26 @@ export default function AdminQuoteDetail() {
             </button>
           </div>
         );
-        if (['deposit_paid', 'booked', 'assigned', 'in_progress', 'completed'].includes(s)) return (
-          <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
-            <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
-              className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-              <CheckCircle2 className="w-4 h-4" /> Mark Done & Request Final Payment
-            </button>
-          </div>
-        );
+        if (['deposit_paid', 'booked', 'assigned', 'in_progress', 'completed'].includes(s)) {
+          if ((quote as any).invoiceType === 'commercial' && s === 'completed') return (
+            <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+              <button onClick={handleSendCommercialInvoice} disabled={sendCommercialInvoice.isPending}
+                data-testid="button-send-commercial-invoice-mobile"
+                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                <DollarSign className="w-4 h-4" />
+                {sendCommercialInvoice.isPending ? "Sending Invoice…" : "Send Invoice (Net 30)"}
+              </button>
+            </div>
+          );
+          return (
+            <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+              <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
+                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                <CheckCircle2 className="w-4 h-4" /> Mark Done & Request Final Payment
+              </button>
+            </div>
+          );
+        }
         if (s === 'deposit_requested') return (
           <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
             <div className="flex items-center gap-2">

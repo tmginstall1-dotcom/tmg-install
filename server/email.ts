@@ -714,6 +714,116 @@ export function finalPaymentEmail(quote: any, paymentLink: string): string {
   `);
 }
 
+// ── Commercial flow ────────────────────────────────────────────────────────
+// Commercial customers do not pay a deposit. Bookings are confirmed by the
+// admin (no upfront money), and a full invoice with Net 30 terms is issued
+// only after the job is completed.
+
+export function commercialBookingConfirmEmail(quote: any): string {
+  const c = quote.customer;
+  const scheduledDate = quote.scheduledAt ? fmtDateTime(quote.scheduledAt) : "TBD";
+  const companyName = (quote as any).billingCompanyName || c?.companyName || c?.name || "your company";
+  const poLine = (quote as any).poNumber
+    ? `<p style="${FONT}font-size:13px;color:#444444;margin:0 0 12px;">PO Reference: <strong>${(quote as any).poNumber}</strong></p>`
+    : "";
+
+  return shell("Booking Confirmed", `
+    ${greeting(c?.name, `Thank you for engaging The Moving Guy for ${companyName}. Your booking has been confirmed by our operations team. A trained crew will be assigned to your job. No payment is required upfront — an invoice will be issued upon completion of the work, payable on Net 30 terms.`)}
+
+    ${refBlock(quote.referenceNo)}
+
+    ${poLine}
+
+    ${section("Confirmed Appointment", dateBox(scheduledDate, quote.timeWindow || 'TBD'))}
+
+    ${section("Service Address", infoTable(addressRows(quote)))}
+
+    ${section("Scope of Work", itemsTable(quote.items))}
+
+    ${section("Estimated Total", `
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
+        <tbody>
+          ${totRow('#111111', 'Total (invoiced after completion)', `$${Number(quote.total || 0).toFixed(2)}`, true)}
+        </tbody>
+      </table>
+      <p style="${FONT}font-size:12px;color:#888888;margin:10px 0 0;line-height:1.6;">A tax invoice with our PayNow / bank transfer details will be sent once the work is completed, payable within 30 days.</p>
+    `)}
+
+    ${section("On the Day", checklist([
+      "Ensure a designated contact aged 18 or above is on-site for the full duration",
+      "Keep the work area clear and accessible",
+      "Ensure access to a power outlet if power tools will be required",
+      "Have assembly manuals or reference materials ready for the crew",
+    ]))}
+
+    ${notice("warn", `<strong>Reschedule Policy:</strong> If you need to change this appointment, please contact us on WhatsApp at least <strong>48 hours</strong> in advance. Late changes may incur a rescheduling fee. Full details at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`)}
+
+    ${contactStrip()}
+
+    <p style="${FONT}font-size:11px;color:#bbbbbb;text-align:center;margin:0 0 28px;">&nbsp;</p>
+  `);
+}
+
+export function commercialInvoiceEmail(quote: any, viewUrl: string, dueDateStr: string): string {
+  const c = quote.customer;
+  const refTail = String(quote.referenceNo || "").replace(/^TMG-?/i, "");
+  const invoiceNo = `INV-${refTail || quote.id}`;
+  const companyName = (quote as any).billingCompanyName || c?.companyName || c?.name || "your company";
+  const poLine = (quote as any).poNumber
+    ? `<p style="${FONT}font-size:13px;color:#444444;margin:0 0 12px;">PO Reference: <strong>${(quote as any).poNumber}</strong></p>`
+    : "";
+  const PAYNOW_UEN = "202424156H";
+
+  return shell("Tax Invoice — Net 30", `
+    ${greeting(c?.name, `The work for ${companyName} has been completed. Please find below your tax invoice <strong>${invoiceNo}</strong>, payable on Net 30 terms by <strong>${dueDateStr}</strong>.`)}
+
+    ${refBlock(quote.referenceNo)}
+
+    ${poLine}
+
+    ${section("Invoice Summary", `
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
+        <tbody>
+          ${totRow('#444444', 'Invoice number', invoiceNo)}
+          ${totRow('#444444', 'Job reference', quote.referenceNo)}
+          ${totRow('#444444', 'Payment terms', 'Net 30')}
+          ${totRow('#b45309', 'Due date', dueDateStr)}
+          ${totRow('#111111', 'Amount due', `$${Number(quote.total || 0).toFixed(2)}`, true)}
+        </tbody>
+      </table>
+    `)}
+
+    ${section("Work Completed", itemsTable(quote.items))}
+
+    ${section("Payment Methods", `
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:18px;">
+        <tr><td style="${FONT}font-size:14px;font-weight:700;color:#111111;padding:0 0 8px;">PayNow (UEN)</td></tr>
+        <tr><td style="${FONT}font-size:13px;color:#444444;padding:0 0 14px;">UEN: <strong>${PAYNOW_UEN}</strong> &nbsp;&middot;&nbsp; The Moving Guy Pte Ltd</td></tr>
+        <tr><td style="${FONT}font-size:14px;font-weight:700;color:#111111;padding:0 0 8px;">Bank Transfer</td></tr>
+        <tr><td style="${FONT}font-size:13px;color:#444444;padding:0;">OCBC Bank &nbsp;&middot;&nbsp; <strong>596-795617-001</strong><br>Account name: The Moving Guy Pte. Ltd. &nbsp;&middot;&nbsp; SGD</td></tr>
+      </table>
+      <p style="${FONT}font-size:12px;color:#666666;margin:14px 0 0;line-height:1.6;">Please quote <strong>${invoiceNo}</strong> in your payment remarks and email the remittance advice to <a href="mailto:sales@tmginstall.com" style="color:#666666;">sales@tmginstall.com</a>.</p>
+    `)}
+
+    ${section("View / Download Invoice", ctaBlock(
+      "Full Tax Invoice PDF",
+      `$${Number(quote.total || 0).toFixed(2)}`,
+      "View Invoice &rarr;",
+      viewUrl,
+      "Open the job page to view or download the full tax invoice PDF.",
+    ))}
+
+    ${notice("info", `<strong>Late payment:</strong> Invoices unpaid after the due date may incur a 1.5% per month administrative charge on the outstanding balance.`)}
+
+    ${contactStrip()}
+
+    <p style="${FONT}font-size:11px;color:#bbbbbb;text-align:center;margin:0 0 28px;">
+      All prices are in Singapore Dollars (SGD). The Moving Guy Pte Ltd is not GST-registered.<br>
+      <a href="${TERMS_URL}" style="color:#888888;">Terms &amp; Conditions</a>
+    </p>
+  `);
+}
+
 export function caseClosedEmail(quote: any, reviewUrl?: string): string {
   const c = quote.customer;
 

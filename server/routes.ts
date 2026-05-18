@@ -23,7 +23,9 @@ import {
   bookingRequestAdminEmail,
   bookingConfirmationEmail,
   rescheduleConfirmationEmail,
-  finalPaymentEmail, 
+  finalPaymentEmail,
+  commercialBookingConfirmEmail,
+  commercialInvoiceEmail,
   caseClosedEmail,
   newEstimateAdminAlert,
   ADMIN_EMAIL
@@ -4882,6 +4884,117 @@ ${systemPrompt}` });
     } catch (err) {
       console.error("Error requesting final payment:", err);
       res.status(500).json({ message: "Failed to request final payment" });
+    }
+  });
+
+  // ── Commercial flow ──────────────────────────────────────────────────────
+  // Commercial customers skip the 50% deposit step entirely. The admin
+  // confirms the booking with one click; no payment is requested upfront.
+  // A Net 30 tax invoice is sent only after the work is completed.
+  app.post("/api/admin/quotes/:id/approve-commercial", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      const quote = await storage.getQuote(id);
+      if (!quote || !quote.customer) return res.status(404).json({ message: "Quote not found" });
+
+      // Enforce that this path is only used for commercial jobs.
+      if ((quote as any).invoiceType !== "commercial") {
+        return res.status(400).json({ message: "This endpoint is only for commercial jobs. Use the standard deposit flow for residential." });
+      }
+
+      // Only valid from the pre-approval states — refuse to clobber a
+      // booking/assignment/completion that has already moved past approval.
+      if (!["submitted", "under_review"].includes(quote.status)) {
+        return res.status(409).json({ message: `Cannot approve & book — quote is already ${quote.status}.` });
+      }
+
+      const hasRealEmail = quote.customer.email &&
+        !quote.customer.email.endsWith("@tmginstall.com") &&
+        quote.customer.email.includes("@");
+
+      let emailOk = false;
+      if (hasRealEmail) {
+        emailOk = await sendEmail({
+          to: quote.customer.email,
+          subject: `[${quote.referenceNo}] Booking Confirmed — TMG Install`,
+          html: commercialBookingConfirmEmail(quote),
+        }).catch(() => false);
+      }
+
+      const updated = await storage.updateQuoteStatus(id, "booked", {
+        actorType: "admin",
+        note: emailOk
+          ? `Commercial booking confirmed by admin — confirmation email sent to ${quote.customer.email}`
+          : `Commercial booking confirmed by admin (no email sent — no valid customer email on file)`,
+      });
+
+      res.json({ success: true, emailSent: emailOk, quote: updated });
+    } catch (err: any) {
+      console.error("[ApproveCommercial] error:", err);
+      res.status(500).json({ message: err?.message || "Failed to approve commercial booking" });
+    }
+  });
+
+  // Admin: Send the Net 30 tax invoice for a completed commercial job.
+  // Moves the job into final_payment_requested so it shows up in the
+  // outstanding-invoices view, then emails the customer with PayNow / bank
+  // details and a link to view the full invoice PDF.
+  app.post("/api/admin/quotes/:id/send-invoice", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      const quote = await storage.getQuote(id);
+      if (!quote || !quote.customer) return res.status(404).json({ message: "Quote not found" });
+
+      if ((quote as any).invoiceType !== "commercial") {
+        return res.status(400).json({ message: "Send-invoice is only for commercial jobs. Use Request Final Payment for residential." });
+      }
+
+      // Invoice may only be issued for a job that has actually been completed
+      // and not already invoiced or paid. This blocks accidental re-sends.
+      if (quote.status !== "completed") {
+        return res.status(409).json({ message: `Cannot send invoice — job is ${quote.status}, not completed.` });
+      }
+      if (quote.finalPaidAt) {
+        return res.status(409).json({ message: "Cannot send invoice — final payment has already been recorded." });
+      }
+
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+      const dueDateStr = dueDate.toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" });
+      const viewUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
+
+      const hasRealEmail = quote.customer.email &&
+        !quote.customer.email.endsWith("@tmginstall.com") &&
+        quote.customer.email.includes("@");
+
+      let emailOk = false;
+      if (hasRealEmail) {
+        emailOk = await sendEmail({
+          to: quote.customer.email,
+          subject: `[${quote.referenceNo}] Tax Invoice — Payment Due by ${dueDateStr}`,
+          html: commercialInvoiceEmail(quote, viewUrl, dueDateStr),
+        }).catch(() => false);
+      }
+
+      if (!emailOk) {
+        return res.status(500).json({ message: "Could not send invoice email — please verify the customer has a valid email on file." });
+      }
+
+      const updated = await storage.updateQuoteStatus(id, "final_payment_requested", {
+        actorType: "admin",
+        note: `Net 30 tax invoice sent via email to ${quote.customer.email} — due ${dueDateStr}`,
+      });
+
+      res.json({ success: true, emailSent: true, dueDate: dueDateStr, quote: updated });
+    } catch (err: any) {
+      console.error("[SendInvoice] error:", err);
+      res.status(500).json({ message: err?.message || "Failed to send invoice" });
     }
   });
 
