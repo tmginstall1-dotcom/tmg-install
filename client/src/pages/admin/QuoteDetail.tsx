@@ -1280,10 +1280,26 @@ export default function AdminQuoteDetail() {
     }
     .pay-note strong { color: var(--ink); font-weight: 600; }
     .qr-block { text-align: center; align-self: start; }
+    /* PayNow QR — sized for reliable phone-camera scanning from
+       paper (≈30 mm square). White background and a generous
+       quiet zone (padding) are required for scanners to find the
+       finder patterns. `image-rendering: pixelated` keeps the
+       black modules crisp during print scaling instead of being
+       blurred by browser anti-aliasing. */
+    .qr-block .qr-frame {
+      width: 124px; height: 124px; padding: 8px;
+      background: #fff; border: 1px solid var(--line);
+      box-sizing: content-box; display: inline-block;
+      border-radius: 4px;
+    }
     .qr-block img {
-      width: 110px; height: 110px; display: block; object-fit: contain;
-      margin: 0 auto; padding: 5px; background: #fff;
-      border: 1px solid var(--line);
+      width: 124px; height: 124px; display: block;
+      background: #fff; margin: 0; padding: 0; border: 0;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      image-rendering: pixelated;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .qr-block .qr-label {
       font-size: 7.5px; color: var(--muted); margin-top: 7px;
@@ -1412,8 +1428,10 @@ export default function AdminQuoteDetail() {
       .payment-section h3 { padding-bottom: 4px; margin-bottom: 6px; }
       .pay-grid { gap: 3px 12px; }
       .pay-note { margin-top: 7px; padding-top: 6px; }
-      .qr-block img { width: 84px; height: 84px; padding: 3px; }
-      .qr-block .qr-label { margin-top: 4px; }
+      /* Keep PayNow QR large enough to scan from paper (≈30 mm) */
+      .qr-block .qr-frame { width: 114px; height: 114px; padding: 6px; }
+      .qr-block img { width: 114px; height: 114px; padding: 0; }
+      .qr-block .qr-label { margin-top: 5px; }
       .tnc { margin-top: 7px; padding: 5px 10px 6px; }
       .tnc h3 { padding-bottom: 3px; margin-bottom: 3px; }
       .tnc ol { column-gap: 12px; }
@@ -1579,7 +1597,7 @@ export default function AdminQuoteDetail() {
       </div>
     </div>
     <div class="qr-block">
-      <img src="${window.location.origin}/paynow-qr.png" alt="PayNow QR Code" />
+      <div class="qr-frame"><img src="${window.location.origin}/paynow-qr.png" alt="PayNow QR Code" width="124" height="124" /></div>
       <div class="qr-label">PayNow</div>
     </div>
   </div>`}
