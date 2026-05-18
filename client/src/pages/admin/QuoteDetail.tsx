@@ -1362,33 +1362,97 @@ export default function AdminQuoteDetail() {
     .badge-unpaid { background: var(--red-soft); color: var(--red); }
     .badge-status { background: var(--ink); color: #fff; padding: 3px 10px; }
 
+    /* ── Print-only repeating header & footer ─────────────────────
+       Browsers repeat position:fixed elements on every printed page.
+       We use that to put a small "from this quote" strip at the top
+       and a continuity line at the bottom so any printed page can
+       be traced back to its source document. Hidden on screen. */
+    .print-running-header,
+    .print-running-footer { display: none; }
+
     @media print {
-      /* Single-page A4: tight outer margins, no extra body padding, and
-         doc-body padding collapsed so the @page margin is the only gutter. */
-      @page { size: A4; margin: 8mm 9mm; }
+      /* Single-page A4: tight outer margins. The @page top/bottom
+         margins reserve space for the repeating header/footer below. */
+      @page { size: A4; margin: 14mm 9mm 12mm; }
       html, body { padding: 0; margin: 0; }
       body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .doc-body { padding: 0; }
       button { display: none; }
+
+      /* Repeating page identifier strip — appears on every printed page. */
+      .print-running-header {
+        display: flex; position: fixed; top: 0; left: 0; right: 0;
+        height: 10mm; padding: 3mm 9mm 0;
+        align-items: center; justify-content: space-between;
+        font-size: 7.5px; color: var(--muted);
+        border-bottom: 0.5px solid var(--line);
+        background: #fff;
+      }
+      .print-running-header .prh-left {
+        display: flex; align-items: baseline; gap: 8px;
+      }
+      .print-running-header .prh-brand {
+        font-weight: 900; font-size: 9px; color: var(--ink); letter-spacing: -0.02em;
+      }
+      .print-running-header .prh-brand .dot { color: var(--gold); }
+      .print-running-header .prh-type {
+        text-transform: uppercase; letter-spacing: 0.22em;
+        font-weight: 700; font-size: 7px; color: var(--ink-2);
+      }
+      .print-running-header .prh-right {
+        font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+        font-size: 8px; color: var(--ink); font-weight: 600;
+      }
+      .print-running-header .prh-right .label {
+        color: var(--muted); font-weight: 600; margin-right: 4px;
+        text-transform: uppercase; letter-spacing: 0.12em; font-size: 6.5px;
+        font-family: 'Inter', 'Helvetica Neue', sans-serif;
+      }
+      .print-running-footer {
+        display: flex; position: fixed; bottom: 0; left: 0; right: 0;
+        height: 8mm; padding: 0 9mm 3mm;
+        align-items: flex-end; justify-content: space-between;
+        font-size: 6.5px; color: var(--muted);
+        border-top: 0.5px solid var(--line);
+        background: #fff;
+      }
+      .print-running-footer .prf-right {
+        font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+      }
+
+      /* On the first page, suppress the in-flow letterhead's extra
+         top margin since the running header is already separating
+         it from the page edge. */
+      .letterhead { margin-top: 2px; }
+
       /* Compress vertical rhythm just for print so a typical invoice fits one A4. */
-      .letterhead { padding-bottom: 9px; margin-bottom: 12px; }
-      .parties { margin-bottom: 12px; gap: 22px; }
-      table.items { margin-bottom: 9px; }
-      table.items tbody td { padding: 7px 0; font-size: 9.5px; }
+      .letterhead { padding-bottom: 8px; margin-bottom: 10px; }
+      .parties { margin-bottom: 10px; gap: 20px; }
+      table.items { margin-bottom: 8px; }
+      table.items tbody td { padding: 6px 0; font-size: 9.5px; }
       table.items tbody td:nth-child(2),
-      table.items tbody td:nth-child(3) { padding: 7px 8px; }
-      .totals-wrap { margin-bottom: 10px; }
-      .totals-row.grand { padding-top: 9px; }
-      .amount-due { margin-top: 10px; padding-top: 10px; }
-      .payment-section { margin-top: 10px; padding-top: 9px; gap: 16px; grid-template-columns: 1fr 110px; }
-      .qr-block img { width: 96px; height: 96px; }
-      .tnc { margin-top: 9px; padding: 6px 10px 7px; }
+      table.items tbody td:nth-child(3) { padding: 6px 8px; }
+      .totals-wrap { margin-bottom: 8px; }
+      .totals-row { padding: 3px 0; }
+      .totals-row.grand { padding-top: 7px; }
+      .amount-due { margin-top: 8px; padding-top: 8px; }
+      .payment-section { margin-top: 8px; padding-top: 7px; gap: 14px; grid-template-columns: 1fr 100px; }
+      .payment-section h3 { padding-bottom: 4px; margin-bottom: 6px; }
+      .pay-grid { gap: 3px 12px; }
+      .pay-note { margin-top: 7px; padding-top: 6px; }
+      .qr-block img { width: 84px; height: 84px; padding: 3px; }
+      .qr-block .qr-label { margin-top: 4px; }
+      .tnc { margin-top: 7px; padding: 5px 10px 6px; }
+      .tnc h3 { padding-bottom: 3px; margin-bottom: 3px; }
       .tnc ol { column-gap: 12px; }
-      .tnc li { font-size: 6px; line-height: 1.32; margin-bottom: 1px; }
-      .footer { margin-top: 9px; padding-top: 8px; }
-      .sig-box { min-height: 72px; padding: 8px 12px; }
-      .sig-line { height: 22px; }
-      .company-stamp { width: 72px; height: 72px; }
+      .tnc li { font-size: 6px; line-height: 1.3; margin-bottom: 0.5px; }
+      .footer { margin-top: 7px; padding-top: 6px; gap: 16px; grid-template-columns: 1fr 200px; }
+      .footer p { font-size: 7px; line-height: 1.5; }
+      .thanks { font-size: 10px; margin-bottom: 3px; }
+      .sig-box { min-height: 58px; padding: 6px 10px; }
+      .sig-line { height: 16px; margin-bottom: 4px; }
+      .sig-label { font-size: 7.5px; }
+      .company-stamp { width: 60px; height: 60px; }
       .card, .tnc, .payment-section, .totals, .footer, table.items tr { page-break-inside: avoid; break-inside: avoid; }
       .totals-wrap { page-break-after: avoid; break-after: avoid; }
       .payment-section { page-break-before: avoid; break-before: avoid; }
@@ -1398,6 +1462,23 @@ export default function AdminQuoteDetail() {
   </style>
 </head>
 <body>
+  <!-- Repeating page identifier — printed on every A4 page so any
+       page can be traced back to this quote / invoice. -->
+  <div class="print-running-header" aria-hidden="true">
+    <div class="prh-left">
+      <span class="prh-brand">TMG<span class="dot">.</span></span>
+      <span class="prh-type">${docType}</span>
+      <span>· ${esc(q.customer?.name || "—")}</span>
+    </div>
+    <div class="prh-right">
+      <span class="label">Ref</span>${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}${isInvoiceDoc ? ` · <span class="label">Job</span>${esc(q.referenceNo)}` : ""}
+    </div>
+  </div>
+  <div class="print-running-footer" aria-hidden="true">
+    <div>The Moving Guy Pte Ltd · UEN 202424156H · +65 8088 0757 · tmginstall.com</div>
+    <div class="prf-right">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)} · Issued ${esc(issuedDate)}</div>
+  </div>
+
   <div class="doc-body">
 
   <!-- Letterhead -->
