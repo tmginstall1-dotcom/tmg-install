@@ -1068,8 +1068,10 @@ export default function AdminQuoteDetail() {
     }
 
     /* Editorial inner margins — generous side gutters like a real printed
-       letter. Everything sits inside this container; no full-bleed bands. */
-    .doc-body { padding: 22mm 20mm 16mm; }
+       letter. Everything sits inside this container; no full-bleed bands.
+       On screen these stay generous; @media print collapses them so the
+       document fits within a single A4 page without spilling. */
+    .doc-body { padding: 18mm 16mm 12mm; }
 
     /* numerical text */
     .num, td.amount, .totals-row span:last-child, .pay-grid dd {
@@ -1081,9 +1083,9 @@ export default function AdminQuoteDetail() {
     .letterhead {
       display: grid; grid-template-columns: 1fr auto;
       gap: 24px; align-items: start;
-      padding-bottom: 18px;
+      padding-bottom: 12px;
       border-bottom: 1px solid var(--ink);
-      margin-bottom: 26px;
+      margin-bottom: 18px;
     }
     .lh-brand { display: flex; flex-direction: column; }
     .lh-mono {
@@ -1133,8 +1135,8 @@ export default function AdminQuoteDetail() {
 
     /* ── Parties block (Bill To / Job Details) ─────────────────── */
     .parties {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
-      margin-bottom: 28px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 28px;
+      margin-bottom: 18px;
     }
     .party { page-break-inside: avoid; break-inside: avoid; }
     .party-label {
@@ -1158,7 +1160,7 @@ export default function AdminQuoteDetail() {
     .party .kv .v { color: var(--ink-2); flex: 1; font-size: 9.5px; }
 
     /* ── Items table — editorial, hairline rules only ──────────── */
-    table.items { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+    table.items { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
     table.items thead th {
       font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.22em;
       color: var(--muted); font-weight: 700; text-align: left;
@@ -1183,7 +1185,7 @@ export default function AdminQuoteDetail() {
     .item-remark { font-size: 8.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
 
     /* ── Totals ────────────────────────────────────────────────── */
-    .totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 22px; }
+    .totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 14px; }
     .totals {
       width: 320px;
       page-break-inside: avoid; break-inside: avoid;
@@ -1235,9 +1237,9 @@ export default function AdminQuoteDetail() {
 
     /* ── Payment section ───────────────────────────────────────── */
     .payment-section {
-      margin-top: 24px;
-      display: grid; grid-template-columns: 1fr 140px; gap: 26px;
-      padding-top: 18px;
+      margin-top: 14px;
+      display: grid; grid-template-columns: 1fr 130px; gap: 20px;
+      padding-top: 12px;
       border-top: 1px solid var(--line);
       page-break-inside: avoid; break-inside: avoid;
       page-break-before: avoid; break-before: avoid;
@@ -1268,8 +1270,8 @@ export default function AdminQuoteDetail() {
     .pay-note strong { color: var(--ink); font-weight: 600; }
     .qr-block { text-align: center; align-self: start; }
     .qr-block img {
-      width: 130px; height: 130px; display: block; object-fit: contain;
-      margin: 0 auto; padding: 6px; background: #fff;
+      width: 110px; height: 110px; display: block; object-fit: contain;
+      margin: 0 auto; padding: 5px; background: #fff;
       border: 1px solid var(--line);
     }
     .qr-block .qr-label {
@@ -1307,26 +1309,27 @@ export default function AdminQuoteDetail() {
 
     /* ── Footer ────────────────────────────────────────────────── */
     .footer {
-      margin-top: 18px; padding-top: 14px;
+      margin-top: 12px; padding-top: 10px;
       border-top: 1px solid var(--line);
-      display: grid; grid-template-columns: 1fr 280px; gap: 24px;
+      display: grid; grid-template-columns: 1fr 240px; gap: 20px;
       align-items: flex-end;
       page-break-inside: avoid; break-inside: avoid;
     }
     .thanks {
-      font-size: 12px; font-weight: 700; color: var(--ink);
-      margin-bottom: 6px; letter-spacing: -0.01em;
+      font-size: 11px; font-weight: 700; color: var(--ink);
+      margin-bottom: 4px; letter-spacing: -0.01em;
     }
-    .footer p { font-size: 8.5px; color: var(--muted); line-height: 1.7; }
+    .footer p { font-size: 8px; color: var(--muted); line-height: 1.6; }
+    .footer a, .tnc a { color: var(--ink-2); text-decoration: underline; }
     .sig-box {
       position: relative;
       border: 1px solid var(--line); border-radius: 6px;
-      padding: 14px 16px 14px; background: #fff;
-      min-height: 110px;
+      padding: 10px 14px 10px; background: #fff;
+      min-height: 86px;
       display: flex; flex-direction: column; align-items: stretch; justify-content: flex-end;
       overflow: visible;
     }
-    .sig-line { height: 40px; border-bottom: 1px solid var(--line-2); margin-bottom: 8px; }
+    .sig-line { height: 30px; border-bottom: 1px solid var(--line-2); margin-bottom: 6px; }
     .sig-label {
       font-size: 8.5px; color: var(--muted); text-align: left;
       font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
@@ -1341,8 +1344,8 @@ export default function AdminQuoteDetail() {
        print engine ignores CSS classes inside SVG. */
     .company-stamp {
       position: absolute;
-      top: 2px; right: 4px;
-      width: 108px; height: 108px;
+      top: 0px; right: 4px;
+      width: 86px; height: 86px;
       transform: rotate(-6deg);
       opacity: 0.88;
       pointer-events: none;
@@ -1356,10 +1359,32 @@ export default function AdminQuoteDetail() {
     .badge-status { background: var(--ink); color: #fff; padding: 3px 10px; }
 
     @media print {
-      @page { size: A4; margin: 10mm; }
+      /* Single-page A4: tight outer margins, no extra body padding, and
+         doc-body padding collapsed so the @page margin is the only gutter. */
+      @page { size: A4; margin: 8mm 9mm; }
       html, body { padding: 0; margin: 0; }
-      body { padding: 4mm 6mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .doc-body { padding: 0; }
       button { display: none; }
+      /* Compress vertical rhythm just for print so a typical invoice fits one A4. */
+      .letterhead { padding-bottom: 9px; margin-bottom: 12px; }
+      .parties { margin-bottom: 12px; gap: 22px; }
+      table.items { margin-bottom: 9px; }
+      table.items tbody td { padding: 7px 0; font-size: 9.5px; }
+      table.items tbody td:nth-child(2),
+      table.items tbody td:nth-child(3) { padding: 7px 8px; }
+      .totals-wrap { margin-bottom: 10px; }
+      .totals-row.grand { padding-top: 9px; }
+      .amount-due { margin-top: 10px; padding-top: 10px; }
+      .payment-section { margin-top: 10px; padding-top: 9px; gap: 16px; grid-template-columns: 1fr 110px; }
+      .qr-block img { width: 96px; height: 96px; }
+      .tnc { margin-top: 9px; padding: 6px 10px 7px; }
+      .tnc ol { column-gap: 12px; }
+      .tnc li { font-size: 6px; line-height: 1.32; margin-bottom: 1px; }
+      .footer { margin-top: 9px; padding-top: 8px; }
+      .sig-box { min-height: 72px; padding: 8px 12px; }
+      .sig-line { height: 22px; }
+      .company-stamp { width: 72px; height: 72px; }
       .card, .tnc, .payment-section, .totals, .footer, table.items tr { page-break-inside: avoid; break-inside: avoid; }
       .totals-wrap { page-break-after: avoid; break-after: avoid; }
       .payment-section { page-break-before: avoid; break-before: avoid; }
@@ -1521,25 +1546,29 @@ export default function AdminQuoteDetail() {
 
   <!-- Terms & Conditions -->
   <div class="tnc">
-    <h3>Terms &amp; Conditions</h3>
+    <h3>Terms &amp; Conditions &nbsp;·&nbsp; Full version: <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a></h3>
     <ol>
       ${isInvoiceDoc ? `
       <li><strong>Payment Terms:</strong> Net 30 days from invoice date${isFullyPaid ? "" : ` — payment due by <strong>${esc(dueDate)}</strong>`}. Please quote the invoice number <strong>${esc(invoiceNo)}</strong> in the payment remarks.</li>
       <li>Late payments may incur a <strong>1.5% per month</strong> administrative charge on the outstanding balance.</li>
       <li>Goods and services described above have been delivered / completed as agreed. Any defect claim must be raised in writing within <strong>7 days</strong> of completion.</li>
-      <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable.</li>
+      <li><strong>On-site Charges:</strong> Any additional drilling requested on site is <strong>S$5 per hole</strong>. Extra labour beyond the agreed scope is <strong>S$50/hr per crew member</strong>. Wall-anchor / fastening hardware supplied on site is charged at cost.</li>
+      <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable. Long-carry &gt; 30 m or stairs without lift access incurs an additional fee, quoted on site before work proceeds.</li>
       <li>The Moving Guy Pte Ltd is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
       <li>Any additional work not stated in this invoice has been agreed upon separately in writing.</li>
       <li>All prices are in Singapore Dollars (SGD) and are <strong>not subject to GST</strong> (The Moving Guy Pte Ltd is not GST-registered).</li>
+      <li>By making payment, the customer is deemed to have read and accepted our full Terms &amp; Conditions at <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a>.</li>
       ` : `
       <li>This quotation is valid for <strong>14 days</strong> from the date of issue.</li>
       <li><strong>Payment Terms:</strong> 50% deposit is required to confirm the booking. The remaining balance is payable upon completion of the installation.</li>
       <li>Rescheduling with less than <strong>24 hours' notice</strong> may incur a cancellation/admin fee.</li>
-      <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable.</li>
+      <li><strong>On-site Charges:</strong> Any additional drilling requested on site is <strong>S$5 per hole</strong>. Extra labour beyond the agreed scope is <strong>S$50/hr per crew member</strong>. Wall-anchor / fastening hardware supplied on site is charged at cost.</li>
+      <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable. Long-carry &gt; 30 m or stairs without lift access incurs an additional fee, quoted on site before work proceeds.</li>
       <li>The Moving Guy Pte Ltd is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
       <li>Customer is responsible for ensuring clear access to the premises on the scheduled date and time.</li>
       <li>Any additional work not stated in this quotation will be charged separately and agreed upon in writing.</li>
       <li>All prices are in Singapore Dollars (SGD) and are <strong>not subject to GST</strong> (we are not GST-registered).</li>
+      <li>By paying the deposit, the customer is deemed to have read and accepted our full Terms &amp; Conditions at <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a>.</li>
       `}
     </ol>
   </div>
@@ -1547,7 +1576,7 @@ export default function AdminQuoteDetail() {
   <div class="footer">
     <div>
       <div class="thanks">${isInvoiceDoc ? "Thank you for your business." : "We appreciate the opportunity to quote for you."}</div>
-      <p>Generated ${esc(new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" }))} · The Moving Guy Pte Ltd · UEN 202424156H · Vehicle GBM550L<br/>+65 8088 0757 · sales@tmginstall.com · tmginstall.com</p>
+      <p>Generated ${esc(new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" }))} · The Moving Guy Pte Ltd · UEN 202424156H · Vehicle GBM550L<br/>+65 8088 0757 · sales@tmginstall.com · <a href="https://tmginstall.com" target="_blank">tmginstall.com</a> · Terms: <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a></p>
     </div>
     <div class="sig-box">
       ${isInvoiceDoc ? `
