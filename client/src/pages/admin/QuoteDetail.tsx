@@ -1084,70 +1084,63 @@ export default function AdminQuoteDetail() {
     }
 
     /* ── Letterhead ──────────────────────────────────────────────
-       Classical two-column letterhead. Left = corporate identity
-       (wordmark, tagline, full address block). Right = document
-       title with reference / issued meta beneath. A single hairline
-       under the band closes the masthead in proper accounting-stationery
-       fashion. */
+       Simple, standard two-column letterhead. Left: TMG wordmark,
+       tagline, then address block. Right: document type, reference,
+       issued date. Top-aligned columns so the TMG wordmark always
+       sits flush at the top of the masthead and never feels clipped. */
     .letterhead {
       display: grid; grid-template-columns: 1fr auto;
-      gap: 32px; align-items: end;
+      gap: 28px; align-items: start;
       padding-bottom: 14px;
-      border-bottom: 1.5px solid var(--ink);
-      margin-bottom: 22px;
+      border-bottom: 1px solid var(--ink);
+      margin-bottom: 20px;
     }
     .lh-brand { display: flex; flex-direction: column; min-width: 0; }
     .lh-mono {
-      font-size: 34px; font-weight: 900; color: var(--ink);
-      letter-spacing: -0.025em; line-height: 0.95;
+      font-size: 28px; font-weight: 900; color: var(--ink);
+      letter-spacing: -0.02em; line-height: 1;
       font-family: 'Inter', 'Helvetica Neue', sans-serif;
     }
     .lh-mono .dot { color: var(--gold); }
     .lh-tag {
-      font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.36em;
-      color: var(--ink-2); font-weight: 700; margin-top: 8px;
-      padding-top: 7px; border-top: 0.5px solid var(--line-2);
+      font-size: 8px; text-transform: uppercase; letter-spacing: 0.3em;
+      color: var(--muted); font-weight: 600; margin-top: 8px;
     }
     .lh-addr {
-      font-size: 8.5px; color: var(--muted); margin-top: 10px; line-height: 1.75;
+      font-size: 9px; color: var(--muted); margin-top: 14px; line-height: 1.7;
     }
     .lh-addr strong { color: var(--ink-2); font-weight: 600; }
     .lh-addr .sep { color: var(--muted-2); padding: 0 4px; }
 
     .lh-doc { text-align: right; min-width: 200px; }
     .lh-doc .type {
-      font-size: 28px; font-weight: 200; color: var(--ink);
-      letter-spacing: 0.34em; text-transform: uppercase; line-height: 1;
+      font-size: 24px; font-weight: 300; color: var(--ink);
+      letter-spacing: 0.28em; text-transform: uppercase; line-height: 1;
       font-family: 'Inter', 'Helvetica Neue', sans-serif;
-      padding-right: 0.04em;
     }
-    .lh-doc .ref-block {
-      margin-top: 16px;
-      display: inline-block; text-align: right;
-      padding: 8px 0 0; border-top: 0.5px solid var(--line-2);
-    }
+    .lh-doc .ref-block { margin-top: 14px; }
     .lh-doc .ref-label {
-      font-size: 7px; text-transform: uppercase; letter-spacing: 0.28em;
-      color: var(--muted); font-weight: 700;
+      font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.22em;
+      color: var(--muted); font-weight: 600;
     }
     .lh-doc .ref-value {
-      font-size: 13px; color: var(--ink); font-weight: 700;
+      font-size: 12px; color: var(--ink); font-weight: 700;
       font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
       letter-spacing: 0; margin-top: 3px;
     }
     .lh-doc .sub-ref {
-      font-size: 8.5px; color: var(--muted); margin-top: 4px;
+      font-size: 8.5px; color: var(--muted); margin-top: 3px;
       font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
     }
     .lh-doc .meta-line {
       margin-top: 12px;
-      font-size: 8.5px; color: var(--ink-2);
-      display: flex; gap: 18px; justify-content: flex-end;
+      font-size: 9px; color: var(--ink-2);
+      display: flex; gap: 16px; justify-content: flex-end;
     }
-    .lh-doc .meta-line > span { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+    .lh-doc .meta-line > span { display: inline-flex; align-items: baseline; gap: 6px; }
     .lh-doc .meta-line .k {
-      color: var(--muted); text-transform: uppercase; letter-spacing: 0.22em;
-      font-size: 6.5px; font-weight: 700;
+      color: var(--muted); text-transform: uppercase; letter-spacing: 0.18em;
+      font-size: 7px; font-weight: 600;
     }
     .lh-doc .meta-line .v { font-weight: 600; color: var(--ink); font-size: 9px; }
 
@@ -1389,7 +1382,7 @@ export default function AdminQuoteDetail() {
          small amount of space for the minimal repeating ref chip and
          footer strip below; the proper letterhead lives inside the
          body and gets the full corporate presentation on page 1. */
-      @page { size: A4; margin: 11mm 9mm 10mm; }
+      @page { size: A4; margin: 12mm 9mm 10mm; }
       html, body { padding: 0; margin: 0; }
       body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .doc-body { padding: 0; }
@@ -1479,11 +1472,11 @@ export default function AdminQuoteDetail() {
 
   <div class="doc-body">
 
-  <!-- Letterhead — classical two-column masthead -->
+  <!-- Letterhead — simple, standard two-column masthead -->
   <div class="letterhead">
     <div class="lh-brand">
       <div class="lh-mono">TMG<span class="dot">.</span></div>
-      <div class="lh-tag">The Moving Guy &nbsp;·&nbsp; Furniture Installation Singapore</div>
+      <div class="lh-tag">The Moving Guy · Furniture Installation</div>
       <div class="lh-addr">
         <strong>The Moving Guy Pte Ltd</strong><span class="sep">·</span>UEN 202424156H<br/>
         160 Robinson Road #14-04, Singapore 068914<br/>
@@ -1493,9 +1486,9 @@ export default function AdminQuoteDetail() {
     <div class="lh-doc">
       <div class="type">${docType}</div>
       <div class="ref-block">
-        <div class="ref-label">${isInvoiceDoc ? "Invoice No." : "Quotation No."}</div>
+        <div class="ref-label">Reference</div>
         <div class="ref-value">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</div>
-        ${isInvoiceDoc ? `<div class="sub-ref">Job Ref · ${esc(q.referenceNo)}</div>` : ""}
+        ${isInvoiceDoc ? `<div class="sub-ref">Job ${esc(q.referenceNo)}</div>` : ""}
       </div>
       <div class="meta-line">
         <span><span class="k">Issued</span><span class="v">${esc(issuedDate)}</span></span>
