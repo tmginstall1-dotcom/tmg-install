@@ -30,7 +30,7 @@ const STEPS = [
 
 function getStepIndex(status: string): number {
   if (["completed", "final_payment_requested", "final_paid", "closed"].includes(status)) return 3;
-  if (status === "in_progress") return 2;
+  if (["in_progress", "at_pickup", "in_transit", "at_dropoff"].includes(status)) return 2;
   if (["booked", "booking_requested", "assigned"].includes(status)) return 1;
   if (["deposit_paid", "deposit_requested"].includes(status)) return 0;
   return -1;
@@ -45,6 +45,9 @@ const STATUS_LABELS: Record<string, string> = {
   booked: "Job Booked",
   assigned: "Installer Assigned",
   in_progress: "Job Started",
+  at_pickup: "At Pickup Address",
+  in_transit: "Loaded — In Transit",
+  at_dropoff: "At Dropoff Address",
   completed: "Job Completed",
   final_payment_requested: "Final Payment Requested",
   final_paid: "Payment Received",
@@ -343,6 +346,9 @@ function StatusBadge({ status }: { status: string }) {
     booked:            { label: "Booked", className: "bg-blue-50 text-blue-700 border-blue-200" },
     assigned:          { label: "Assigned", className: "bg-indigo-50 text-indigo-700 border-indigo-200" },
     in_progress:       { label: "In Progress", className: "bg-blue-50 text-blue-800 border-blue-300 animate-pulse" },
+    at_pickup:         { label: "At Pickup", className: "bg-sky-50 text-sky-800 border-sky-300 animate-pulse" },
+    in_transit:        { label: "In Transit", className: "bg-amber-50 text-amber-800 border-amber-300 animate-pulse" },
+    at_dropoff:        { label: "At Dropoff", className: "bg-fuchsia-50 text-fuchsia-800 border-fuchsia-300 animate-pulse" },
     completed:         { label: "Completed ✓", className: "bg-green-50 text-green-700 border-green-200" },
     final_payment_requested: { label: "Final Payment Due", className: "bg-orange-50 text-orange-700 border-orange-200" },
     final_paid:        { label: "Paid ✓", className: "bg-green-50 text-green-700 border-green-200" },

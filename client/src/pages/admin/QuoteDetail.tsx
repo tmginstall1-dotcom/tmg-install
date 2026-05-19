@@ -568,12 +568,12 @@ export default function AdminQuoteDetail() {
   }>({
     queryKey: [`/api/public/track/${quote?.referenceNo}`],
     queryFn: () => fetch(`/api/public/track/${quote!.referenceNo}`).then(r => r.json()),
-    enabled: !!quote?.referenceNo && ["in_progress", "completed", "final_payment_requested", "final_paid", "closed"].includes(quote?.status ?? ""),
+    enabled: !!quote?.referenceNo && ["in_progress", "at_pickup", "in_transit", "at_dropoff", "completed", "final_payment_requested", "final_paid", "closed"].includes(quote?.status ?? ""),
     staleTime: 60_000,
   });
 
   const workPhotos = (trackerData?.updates ?? [])
-    .filter(u => ["in_progress", "completed"].includes(u.statusChange))
+    .filter(u => ["in_progress", "at_pickup", "in_transit", "at_dropoff", "completed"].includes(u.statusChange))
     .flatMap(u => u.photoUrls ?? [])
     .filter(Boolean);
   const updateStatus = useUpdateQuoteStatus();
@@ -858,7 +858,7 @@ export default function AdminQuoteDetail() {
     ? parseFloat(quote.finalAmount!)
     : quoteTotal * 0.5;
 
-  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booked', 'booking_pending', 'assigned', 'in_progress', 'completed', 'final_payment_requested', 'closed', 'final_paid'].includes(quote.status);
+  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booked', 'booking_pending', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff', 'completed', 'final_payment_requested', 'closed', 'final_paid'].includes(quote.status);
 
   const handleStartEdit = () => {
     setEditCustomer({
@@ -1082,7 +1082,7 @@ export default function AdminQuoteDetail() {
       if (q.status === "completed" || q.status === "job_completed") return "COMPLETED";
       if (q.status === "closed") return "CLOSED";
       if (isDepositPaid) return "BOOKED · DEPOSIT IN";
-      if (q.status === "booked" || q.status === "scheduled" || q.status === "in_progress") return "BOOKED";
+      if (q.status === "booked" || q.status === "scheduled" || q.status === "in_progress" || q.status === "at_pickup" || q.status === "in_transit" || q.status === "at_dropoff") return "BOOKED";
       if (q.status === "booking_pending") return "BOOKING PENDING";
       if (q.status === "deposit_requested") return "DEPOSIT REQUESTED";
       if (q.status === "approved") return "APPROVED";
@@ -2645,8 +2645,8 @@ export default function AdminQuoteDetail() {
                     { id: "quote", label: "Quote Requested", done: true, active: quote.status === 'submitted' || quote.status === 'under_review' },
                     { id: "approved", label: "Quote Approved", done: !['submitted', 'under_review', 'cancelled'].includes(quote.status), active: quote.status === 'approved' },
                     { id: "deposit", label: "Deposit Paid", done: !!quote.depositPaidAt, active: quote.status === 'deposit_requested' },
-                    { id: "booked", label: "Booked & Assigned", done: ['booked', 'assigned', 'in_progress', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status), active: quote.status === 'deposit_paid' || quote.status === 'booking_pending' || quote.status === 'booked' || quote.status === 'assigned' },
-                    { id: "completed", label: "Job Completed", done: ['completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status), active: quote.status === 'in_progress' },
+                    { id: "booked", label: "Booked & Assigned", done: ['booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status), active: quote.status === 'deposit_paid' || quote.status === 'booking_pending' || quote.status === 'booked' || quote.status === 'assigned' },
+                    { id: "completed", label: "Job Completed", done: ['completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status), active: ['in_progress', 'at_pickup', 'in_transit', 'at_dropoff'].includes(quote.status) },
                     { id: "paid", label: "Final Payment", done: !!quote.finalPaidAt || quote.status === 'closed', active: quote.status === 'completed' || quote.status === 'final_payment_requested' },
                   ].map((step, i) => (
                     <div key={step.id} className="relative flex items-center gap-3">
@@ -2763,7 +2763,7 @@ export default function AdminQuoteDetail() {
                   />
                 )}
 
-                {['deposit_paid', 'booking_pending', 'booked', 'assigned', 'in_progress'].includes(quote.status) && (
+                {['deposit_paid', 'booking_pending', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff'].includes(quote.status) && (
                   <div className="space-y-4">
                     <ScheduleEditor
                       quoteId={quote.id}
@@ -2892,10 +2892,15 @@ export default function AdminQuoteDetail() {
                   </div>
                 )}
 
-                {quote.status === 'in_progress' && (
+                {['in_progress', 'at_pickup', 'in_transit', 'at_dropoff'].includes(quote.status) && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-3">
                     <Zap className="w-5 h-5 text-blue-500 shrink-0" />
-                    <p className="text-sm font-medium text-blue-800">Job currently in progress by field team.</p>
+                    <p className="text-sm font-medium text-blue-800">
+                      {quote.status === 'at_pickup' && 'Field team at pickup address, loading items.'}
+                      {quote.status === 'in_transit' && 'Items loaded — field team in transit to dropoff.'}
+                      {quote.status === 'at_dropoff' && 'Field team at dropoff address, unloading.'}
+                      {quote.status === 'in_progress' && 'Job currently in progress by field team.'}
+                    </p>
                   </div>
                 )}
 
@@ -3044,7 +3049,7 @@ export default function AdminQuoteDetail() {
             </div>
 
             {/* Overtime / Additional Charges Calculator — relocation jobs only */}
-            {['in_progress', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status) &&
+            {['in_progress', 'at_pickup', 'in_transit', 'at_dropoff', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status) &&
              (quote.items || []).some((item: any) => item.serviceType === 'relocate') && (
               <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
                 <div className="px-5 py-4 border-b border-zinc-100 flex items-center gap-2">
@@ -3215,7 +3220,7 @@ export default function AdminQuoteDetail() {
             </button>
           </div>
         );
-        if (['deposit_paid', 'booked', 'assigned', 'in_progress', 'completed'].includes(s)) {
+        if (['deposit_paid', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff', 'completed'].includes(s)) {
           if ((quote as any).invoiceType === 'commercial' && s === 'completed') return (
             <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
               <button onClick={handleSendCommercialInvoice} disabled={sendCommercialInvoice.isPending}

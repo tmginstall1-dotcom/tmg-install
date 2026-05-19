@@ -2108,7 +2108,7 @@ export async function registerRoutes(
       const quotesInPeriod = allQuotes.filter(q => q.createdAt && q.createdAt >= since);
 
       // ── KPIs ──
-      const ACTIVE_STATUSES = ["submitted","under_review","approved","deposit_requested","deposit_paid","booked","assigned","in_progress"];
+      const ACTIVE_STATUSES = ["submitted","under_review","approved","deposit_requested","deposit_paid","booked","assigned","in_progress","at_pickup","in_transit","at_dropoff"];
       const DONE_STATUSES   = ["completed","final_payment_requested","final_paid","closed"];
       const pipelineValue = allQuotes
         .filter(q => [...ACTIVE_STATUSES, ...DONE_STATUSES].includes(q.status))
@@ -3900,7 +3900,7 @@ ${systemPrompt}` });
     if (!callerSched || callerSched.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const pending = await storage.getQuotesByStatuses(['booking_requested']);
-      const confirmed = await storage.getQuotesByStatuses(['booked', 'assigned', 'in_progress', 'deposit_paid']);
+      const confirmed = await storage.getQuotesByStatuses(['booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff', 'deposit_paid']);
       res.json({ pending, confirmed });
     } catch (err) {
       res.status(500).json({ message: "Internal error" });
@@ -4603,6 +4603,86 @@ ${systemPrompt}` });
     }
   });
 
+  // Shared helper: compute and apply overtime for a relocation job.
+  //   Carry-Only relocation: customer gets `capMinutes` of labour included.
+  //   Labour window = (in_transit - at_pickup) + (completed - at_dropoff)
+  //     i.e. pickup loading time + dropoff unloading/placement time, excluding driving.
+  //   Same-property move (no in_transit): labour window = completed - at_pickup.
+  //   Legacy 2-stage installation flow: window = completed - in_progress.
+  //   D&R jobs (relocate items priced per-unit) bypass overtime entirely.
+  async function applyRelocationOvertime(id: number, quote: any): Promise<void> {
+    const raw = quote as any;
+    const svc: string[] = Array.isArray(raw.selectedServices)
+      ? raw.selectedServices
+      : (raw.selectedServices ? (() => { try { return JSON.parse(raw.selectedServices); } catch { return []; } })() : []);
+    const isRelocation = svc.includes('relocate') || (!!raw.pickupAddress && !!raw.dropoffAddress);
+    if (!isRelocation) return;
+
+    const items: any[] = Array.isArray(raw.items) ? raw.items : [];
+    const hasDRItems = items.some(
+      (i: any) => i.serviceType === 'relocate' && parseFloat(i.unitPrice ?? '0') > 0
+    );
+    if (hasDRItems) {
+      console.log(`[Overtime] Quote #${id}: D&R job — no overtime charge applied`);
+      return;
+    }
+
+    // Pull every relevant stage transition once
+    const updates = await db
+      .select()
+      .from(jobUpdatesTable)
+      .where(eq(jobUpdatesTable.quoteId, id))
+      .orderBy(desc(jobUpdatesTable.createdAt));
+
+    const newestOf = (status: string) =>
+      updates.find(u => u.statusChange === status && u.createdAt) || null;
+
+    const atPickup  = newestOf('at_pickup');
+    const inTransit = newestOf('in_transit');
+    const atDropoff = newestOf('at_dropoff');
+    const inProgress = newestOf('in_progress'); // legacy 2-stage
+
+    const now = Date.now();
+    let durationMinutes = 0;
+    let windowDesc = '';
+
+    if (atPickup && atDropoff) {
+      // 4-stage flow.
+      // When in_transit is recorded, pickup labour = atPickup → inTransit (excludes driving).
+      // When in_transit is skipped (same-property collapse), pickup labour =
+      //   atPickup → atDropoff (no driving period to exclude).
+      const pickupLoad = inTransit
+        ? new Date(inTransit.createdAt!).getTime() - new Date(atPickup.createdAt!).getTime()
+        : new Date(atDropoff.createdAt!).getTime() - new Date(atPickup.createdAt!).getTime();
+      const dropoffWork = now - new Date(atDropoff.createdAt!).getTime();
+      durationMinutes = Math.floor((pickupLoad + dropoffWork) / 60000);
+      windowDesc = inTransit
+        ? `pickup ${Math.floor(pickupLoad/60000)} min + dropoff ${Math.floor(dropoffWork/60000)} min`
+        : `same-property pickup ${Math.floor(pickupLoad/60000)} min + dropoff ${Math.floor(dropoffWork/60000)} min`;
+    } else if (atPickup && !atDropoff) {
+      // Same-property move that skipped the at_dropoff event
+      durationMinutes = Math.floor((now - new Date(atPickup.createdAt!).getTime()) / 60000);
+      windowDesc = `at_pickup → completed ${durationMinutes} min`;
+    } else if (inProgress) {
+      // Legacy 2-stage installation-style flow
+      durationMinutes = Math.floor((now - new Date(inProgress.createdAt!).getTime()) / 60000);
+      windowDesc = `in_progress → completed ${durationMinutes} min`;
+    } else {
+      console.log(`[Overtime] Quote #${id}: no arrival timestamp found, skipping`);
+      return;
+    }
+
+    const { blocks, charge } = calcOvertimeCharge(durationMinutes);
+    if (charge > 0) {
+      const overMin = durationMinutes - PricingConfig.overtime.capMinutes;
+      const overtimeNote = `Overtime: ${blocks} block${blocks !== 1 ? 's' : ''} × $${PricingConfig.overtime.blockRate} — labour ran ${durationMinutes} min (${overMin} min over ${PricingConfig.overtime.capMinutes}-min allowance) [${windowDesc}]`;
+      await storage.updateAdditionalCharge(id, charge.toFixed(2), overtimeNote);
+      console.log(`[Overtime] Quote #${id}: ${durationMinutes} min (${windowDesc}) → $${charge.toFixed(2)} auto-applied`);
+    } else {
+      console.log(`[Overtime] Quote #${id}: ${durationMinutes} min (${windowDesc}) — within ${PricingConfig.overtime.capMinutes}-min allowance, no charge`);
+    }
+  }
+
   // Staff: Arrived check-in (GPS + photos)
   app.post("/api/quotes/:id/arrived", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
@@ -4631,6 +4711,98 @@ ${systemPrompt}` });
     }
   });
 
+  // Staff: Relocation stage transition (4-stage flow)
+  //   assigned       → at_pickup
+  //   at_pickup      → in_transit  (loaded — clock starts for transit)
+  //   at_pickup      → at_dropoff  (same-property move: skip transit)
+  //   in_transit     → at_dropoff
+  //   at_dropoff     → completed
+  app.post("/api/quotes/:id/stage", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const id = parseInt(req.params.id);
+      const { stage, gpsLat, gpsLng, photoUrls, note } = z.object({
+        stage: z.enum(['at_pickup', 'in_transit', 'at_dropoff', 'completed']),
+        gpsLat: z.number(),
+        gpsLng: z.number(),
+        photoUrls: z.array(z.string()).min(1, "At least one photo is required"),
+        note: z.string().optional(),
+      }).parse(req.body);
+
+      const existing = await storage.getQuote(id);
+      if (!existing) return res.status(404).json({ message: "Quote not found" });
+
+      // Authz: only the assigned staff member, a member of the assigned team,
+      // or an admin may transition stages on a quote.
+      const caller = await storage.getUserById(req.session.userId);
+      if (!caller || (caller.role !== 'staff' && caller.role !== 'admin')) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      if (caller.role === 'staff') {
+        const assignedSolo = (existing as any).assignedToUserId
+          ? (existing as any).assignedToUserId === caller.id
+          : false;
+        let onAssignedTeam = false;
+        const teamId = (existing as any).assignedTeamId;
+        if (teamId && typeof (storage as any).getTeamMembers === 'function') {
+          try {
+            const members = await (storage as any).getTeamMembers(teamId);
+            onAssignedTeam = Array.isArray(members) && members.some((m: any) => m.userId === caller.id || m.id === caller.id);
+          } catch { /* team lookup failure → fall through to deny */ }
+        }
+        if (!assignedSolo && !onAssignedTeam) {
+          return res.status(403).json({ message: "You are not assigned to this job" });
+        }
+      }
+
+      // Legal transitions — `at_pickup → completed` is intentionally NOT allowed:
+      // even on a same-property job, staff must record `at_dropoff` so the dropoff
+      // labour window is captured for overtime billing.
+      const cur = existing.status;
+      const ok =
+        (stage === 'at_pickup'  && cur === 'assigned') ||
+        (stage === 'in_transit' && cur === 'at_pickup') ||
+        (stage === 'at_dropoff' && (cur === 'at_pickup' || cur === 'in_transit')) ||
+        (stage === 'completed'  && (cur === 'at_dropoff' || cur === 'in_progress'));
+      if (!ok) {
+        return res.status(400).json({ message: `Cannot move from "${cur}" to "${stage}"` });
+      }
+
+      const stageLabels: Record<string, string> = {
+        at_pickup: 'Arrived at pickup',
+        in_transit: 'Loaded — in transit to dropoff',
+        at_dropoff: 'Arrived at dropoff',
+        completed: 'Job completed',
+      };
+
+      const quote = await storage.updateQuoteStatus(id, stage, {
+        actorType: 'staff',
+        note: note || stageLabels[stage],
+        photoUrl: JSON.stringify(photoUrls),
+        gpsLat: gpsLat.toString(),
+        gpsLng: gpsLng.toString(),
+      });
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+
+      // Auto overtime when reaching completed on a relocation job
+      if (stage === 'completed') {
+        try {
+          await applyRelocationOvertime(id, quote);
+        } catch (e) {
+          console.error(`[Overtime] Stage-flow auto-calc error for quote #${id}:`, e);
+        }
+        const finalQuote = await storage.getQuote(id);
+        return res.json(finalQuote || quote);
+      }
+
+      res.json(quote);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      console.error(`[Stage] Error for quote #${req.params.id}:`, err);
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   // Staff: Completed check-out (GPS + photos)
   app.post("/api/quotes/:id/completed-checkout", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
@@ -4653,57 +4825,11 @@ ${systemPrompt}` });
 
       if (!quote) return res.status(404).json({ message: "Quote not found" });
 
-      // ── Auto overtime calculation for relocation jobs ─────────────────────────
-      // If this is a relocation job, look up the arrival time and calculate overtime
       try {
-        const raw = quote as any;
-        const svc: string[] = Array.isArray(raw.selectedServices)
-          ? raw.selectedServices
-          : (raw.selectedServices ? (() => { try { return JSON.parse(raw.selectedServices); } catch { return []; } })() : []);
-        const isRelocation = svc.includes('relocate') || (!!raw.pickupAddress && !!raw.dropoffAddress);
-
-        // D&R items have unitPrice > 0 for relocate service — no overtime applies
-        const quoteItemsList: any[] = Array.isArray(raw.items) ? raw.items : [];
-        const hasDRItems = quoteItemsList.some(
-          (item: any) => item.serviceType === 'relocate' && parseFloat(item.unitPrice ?? '0') > 0
-        );
-
-        if (isRelocation && hasDRItems) {
-          console.log(`[Overtime] Quote #${id}: D&R job — no overtime charge applied`);
-        }
-
-        if (isRelocation && !hasDRItems) {
-          // Find the most recent in_progress update (arrival time)
-          const [arrivalUpdate] = await db
-            .select()
-            .from(jobUpdatesTable)
-            .where(and(
-              eq(jobUpdatesTable.quoteId, id),
-              eq(jobUpdatesTable.statusChange, 'in_progress')
-            ))
-            .orderBy(desc(jobUpdatesTable.createdAt))
-            .limit(1);
-
-          if (arrivalUpdate?.createdAt) {
-            const durationMinutes = Math.floor(
-              (Date.now() - new Date(arrivalUpdate.createdAt).getTime()) / 60000
-            );
-            const { blocks, charge } = calcOvertimeCharge(durationMinutes);
-
-            if (charge > 0) {
-              const overtimeNote = `Overtime: ${blocks} block${blocks !== 1 ? 's' : ''} × $${PricingConfig.overtime.blockRate} — job ran ${durationMinutes} min (${durationMinutes - PricingConfig.overtime.capMinutes} min over ${PricingConfig.overtime.capMinutes}-min allowance)`;
-              await storage.updateAdditionalCharge(id, charge.toFixed(2), overtimeNote);
-              console.log(`[Overtime] Quote #${id}: ${durationMinutes} min → $${charge.toFixed(2)} auto-applied`);
-            } else {
-              console.log(`[Overtime] Quote #${id}: ${durationMinutes} min — within ${PricingConfig.overtime.capMinutes}-min allowance, no charge`);
-            }
-          }
-        }
+        await applyRelocationOvertime(id, quote);
       } catch (overtimeErr) {
-        // Non-fatal: log but don't fail the checkout
         console.error(`[Overtime] Auto-calc error for quote #${id}:`, overtimeErr);
       }
-      // ─────────────────────────────────────────────────────────────────────────
 
       // Re-fetch quote to include any overtime charge just applied
       const finalQuote = await storage.getQuote(id);
@@ -4727,7 +4853,7 @@ ${systemPrompt}` });
       // Allow editing before and after deposit is paid, plus admin-created booked/assigned jobs.
       // booking_pending and in_progress are also editable so admins can reschedule a job
       // that's already been started or is sitting in the date-TBD state.
-      const editableStatuses = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booking_pending', 'booked', 'assigned', 'in_progress'];
+      const editableStatuses = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booking_pending', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff'];
       if (!editableStatuses.includes(existing.status)) {
         return res.status(400).json({ message: "Quote cannot be edited in its current status" });
       }
@@ -8105,7 +8231,7 @@ Respond directly — no JSON, just the message text.`,
       const candidates = await storage.getQuotesByStatuses([
         "approved", "deposit_requested",
         "completed", "final_payment_requested",
-        "deposit_paid", "booked", "assigned", "in_progress",
+        "deposit_paid", "booked", "assigned", "in_progress", "at_pickup", "in_transit", "at_dropoff",
       ]);
       const matches = candidates.filter(q => {
         const qPhone = (q.customerWhatsappPhone || q.customer?.phone || "").replace(/[^0-9]/g, "");
@@ -8865,7 +8991,7 @@ Respond directly — no JSON, just the message text.`,
         .from(quotesTable)
         .where(
           and(
-            inArray(quotesTable.status, ["booked","assigned","in_progress","completed","paid"]),
+            inArray(quotesTable.status, ["booked","assigned","in_progress","at_pickup","in_transit","at_dropoff","completed","paid"]),
             gte(quotesTable.createdAt, cutoff),
           )
         )
@@ -9834,6 +9960,31 @@ Respond directly — no JSON, just the message text.`,
     "Before & after photos uploaded",
   ];
 
+  // Detect relocation vs installation for checklist seeding
+  function pickDefaultChecklistFor(quote: any): string[] {
+    const items: any[] = Array.isArray(quote?.items) ? quote.items : [];
+    const isRelocation = items.some((i: any) => i.serviceType === 'relocate')
+      || (!!quote?.pickupAddress && !!quote?.dropoffAddress);
+    if (isRelocation) {
+      // Combined pickup + dropoff. UI splits them by label.
+      return [
+        "Verify customer name & job reference",
+        "Floor protection laid at pickup",
+        "All items photographed before moving (condition record)",
+        "Items wrapped / padded as needed",
+        "Lift padded (if applicable)",
+        "All items loaded into vehicle",
+        "Floor protection laid at dropoff",
+        "Items unloaded & placed as per customer instruction",
+        "Reinstalled / reassembled where applicable",
+        "Packaging removed / disposed",
+        "Walk-through completed with customer",
+        "Customer confirms satisfaction",
+      ];
+    }
+    return DEFAULT_CHECKLIST_ITEMS;
+  }
+
   // ── Staff checklist routes (simplified API for the staff mobile app) ──────
   // GET /api/staff/jobs/:id/checklist → { checkItems: string[] } (labels of ticked items)
   app.get("/api/staff/jobs/:id/checklist", async (req, res) => {
@@ -9841,13 +9992,12 @@ Respond directly — no JSON, just the message text.`,
     const quoteId = parseInt(req.params.id);
     if (isNaN(quoteId)) return res.status(400).json({ error: "Invalid id" });
     try {
-      // Verify the quote exists first
       const quote = await storage.getQuote(quoteId);
       if (!quote) return res.status(404).json({ error: "Job not found" });
       let rows = await db.select().from(jobChecklistsTable).where(eq(jobChecklistsTable.quoteId, quoteId));
       if (rows.length === 0) {
         rows = await db.insert(jobChecklistsTable).values(
-          DEFAULT_CHECKLIST_ITEMS.map(item => ({ quoteId, item, done: false }))
+          pickDefaultChecklistFor(quote).map(item => ({ quoteId, item, done: false }))
         ).returning();
       }
       const checkItems = rows.filter(r => r.done).map(r => r.item);
@@ -9858,6 +10008,8 @@ Respond directly — no JSON, just the message text.`,
   });
 
   // PATCH /api/staff/jobs/:id/checklist → body: { checkItems: string[] } (full list of ticked labels)
+  // Upserts: any label in checkItems that doesn't yet have a row is inserted (so the
+  // route can persist checklist items defined client-side without a schema migration).
   app.patch("/api/staff/jobs/:id/checklist", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
     const quoteId = parseInt(req.params.id);
@@ -9870,10 +10022,10 @@ Respond directly — no JSON, just the message text.`,
       let rows = await db.select().from(jobChecklistsTable).where(eq(jobChecklistsTable.quoteId, quoteId));
       if (rows.length === 0) {
         rows = await db.insert(jobChecklistsTable).values(
-          DEFAULT_CHECKLIST_ITEMS.map(item => ({ quoteId, item, done: false }))
+          pickDefaultChecklistFor(quote).map(item => ({ quoteId, item, done: false }))
         ).returning();
       }
-      // Update done status for each item based on the provided list
+      // Update done status for each known item
       for (const row of rows) {
         const isDone = checkItems.includes(row.item);
         if (row.done !== isDone) {
@@ -9881,6 +10033,17 @@ Respond directly — no JSON, just the message text.`,
             .set({ done: isDone, doneAt: isDone ? new Date() : null, doneByUserId: isDone ? req.session!.userId : null })
             .where(eq(jobChecklistsTable.id, row.id));
         }
+      }
+      // Insert any new labels (client-side defined items not yet in DB)
+      const knownLabels = new Set(rows.map(r => r.item));
+      const newLabels = checkItems.filter(lbl => !knownLabels.has(lbl));
+      if (newLabels.length > 0) {
+        await db.insert(jobChecklistsTable).values(
+          newLabels.map(item => ({
+            quoteId, item, done: true,
+            doneAt: new Date(), doneByUserId: req.session!.userId,
+          }))
+        );
       }
       res.json({ ok: true, checkItems });
     } catch (e: any) {

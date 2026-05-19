@@ -1,9 +1,9 @@
 import { useParams, Link } from "wouter";
-import { useQuote, useStaffArrived, useStaffCompleted } from "@/hooks/use-quotes";
+import { useQuote, useStaffArrived, useStaffCompleted, useStaffStage } from "@/hooks/use-quotes";
 import { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft, CheckCircle2, X, Loader2, Clock, Package, User, CalendarDays,
-  Upload, AlertTriangle, ZoomIn, ImagePlus, Navigation2, MapPin, Radio, ListChecks, Square, SquareCheck,
+  Upload, AlertTriangle, ZoomIn, ImagePlus, Navigation2, MapPin, Radio, ListChecks, Square, SquareCheck, Truck,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
@@ -15,12 +15,31 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
-const DEFAULT_CHECKLIST = [
+// ── Checklists ─────────────────────────────────────────────────────────────
+const INSTALL_CHECKLIST = [
   "Verify customer name & job reference",
   "Confirm items list with customer",
   "Unbox and inspect all items for damage",
   "Complete installation / assembly",
   "Clean up packaging & work area",
+  "Walk-through completed with customer",
+  "Customer confirms satisfaction",
+];
+
+const RELOCATION_PICKUP_CHECKLIST = [
+  "Verify customer name & job reference",
+  "Floor protection laid at pickup",
+  "All items photographed before moving (condition record)",
+  "Items wrapped / padded as needed",
+  "Lift padded (if applicable)",
+  "All items loaded into vehicle",
+];
+
+const RELOCATION_DROPOFF_CHECKLIST = [
+  "Floor protection laid at dropoff",
+  "Items unloaded & placed as per customer instruction",
+  "Reinstalled / reassembled where applicable",
+  "Packaging removed / disposed",
   "Walk-through completed with customer",
   "Customer confirms satisfaction",
 ];
@@ -54,17 +73,147 @@ async function compressToDataUrl(file: File, maxPx = 1280, quality = 0.82): Prom
   });
 }
 
-const STATUS_STEPS = [
+// ── Status step models ─────────────────────────────────────────────────────
+const INSTALL_STEPS = [
   { key: "booked", label: "Booked" },
   { key: "assigned", label: "Assigned" },
   { key: "in_progress", label: "In Progress" },
   { key: "completed", label: "Completed" },
 ];
 
-function getStepIndex(status: string) {
-  const idx = STATUS_STEPS.findIndex(s => s.key === status);
-  if (["final_payment_requested", "final_paid", "closed"].includes(status)) return 3;
+const RELOCATION_STEPS_FULL = [
+  { key: "assigned", label: "Assigned" },
+  { key: "at_pickup", label: "At Pickup" },
+  { key: "in_transit", label: "In Transit" },
+  { key: "at_dropoff", label: "At Dropoff" },
+  { key: "completed", label: "Done" },
+];
+
+const RELOCATION_STEPS_SAMEPROP = [
+  { key: "assigned", label: "Assigned" },
+  { key: "at_pickup", label: "On Site" },
+  { key: "at_dropoff", label: "Placing" },
+  { key: "completed", label: "Done" },
+];
+
+function getStepIndex(steps: { key: string }[], status: string) {
+  // Treat post-completion lifecycle statuses as "completed" for the bar
+  if (["final_payment_requested", "final_paid", "closed"].includes(status)) {
+    return steps.length - 1;
+  }
+  const idx = steps.findIndex(s => s.key === status);
   return idx === -1 ? 0 : idx;
+}
+
+// Detect if a job is a relocation vs installation
+function isRelocationJob(job: any): boolean {
+  if (!job) return false;
+  const items: any[] = job.items || [];
+  if (items.some((i: any) => i.serviceType === 'relocate')) return true;
+  if (job.pickupAddress && job.dropoffAddress) return true;
+  return false;
+}
+
+function normalizeAddr(s?: string | null): string {
+  return (s || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.,]/g, '');
+}
+
+function isSameProperty(job: any): boolean {
+  const a = normalizeAddr(job?.pickupAddress);
+  const b = normalizeAddr(job?.dropoffAddress);
+  return !!a && a === b;
+}
+
+// What action button (if any) should be shown for the current status
+type Action =
+  | { kind: 'install_arrive' }
+  | { kind: 'install_complete' }
+  | { kind: 'stage_at_pickup' }
+  | { kind: 'stage_in_transit' }
+  | { kind: 'stage_at_dropoff' }
+  | { kind: 'stage_completed' };
+
+function nextAction(job: any): Action | null {
+  if (!job) return null;
+  const relocation = isRelocationJob(job);
+  const sameProp = isSameProperty(job);
+  if (relocation) {
+    switch (job.status) {
+      case 'assigned':    return { kind: 'stage_at_pickup' };
+      case 'at_pickup':   return sameProp ? { kind: 'stage_at_dropoff' } : { kind: 'stage_in_transit' };
+      case 'in_transit':  return { kind: 'stage_at_dropoff' };
+      case 'at_dropoff':  return { kind: 'stage_completed' };
+      default: return null;
+    }
+  }
+  switch (job.status) {
+    case 'assigned':    return { kind: 'install_arrive' };
+    case 'in_progress': return { kind: 'install_complete' };
+    default: return null;
+  }
+}
+
+interface ActionMeta {
+  title: string;
+  subtitle: string;
+  buttonLabel: string;
+  notePlaceholder: string;
+  gradientFrom: string;
+  gradientTo: string;
+  shadowColor: string;
+}
+
+function metaFor(action: Action): ActionMeta {
+  switch (action.kind) {
+    case 'install_arrive':
+      return {
+        title: '📍 Arrived Check-In',
+        subtitle: 'Confirm you have arrived at the location',
+        buttonLabel: 'Confirm Arrived',
+        notePlaceholder: 'Access issues, parking notes…',
+        gradientFrom: 'from-blue-500', gradientTo: 'to-blue-600', shadowColor: 'shadow-blue-500/25',
+      };
+    case 'install_complete':
+      return {
+        title: '✅ Job Completion',
+        subtitle: 'Submit proof of job completion',
+        buttonLabel: 'Confirm Job Completed',
+        notePlaceholder: 'Completion notes, any issues encountered…',
+        gradientFrom: 'from-emerald-500', gradientTo: 'to-emerald-600', shadowColor: 'shadow-emerald-500/25',
+      };
+    case 'stage_at_pickup':
+      return {
+        title: '📍 Arrived at Pickup',
+        subtitle: 'Photograph items BEFORE moving — protects against damage claims',
+        buttonLabel: 'Confirm Arrived at Pickup',
+        notePlaceholder: 'Access, lift booking, pre-existing damage notes…',
+        gradientFrom: 'from-sky-500', gradientTo: 'to-sky-600', shadowColor: 'shadow-sky-500/25',
+      };
+    case 'stage_in_transit':
+      return {
+        title: '🚚 Loaded & Departing',
+        subtitle: 'Photograph the loaded vehicle and empty pickup space',
+        buttonLabel: 'Confirm Loaded — Depart',
+        notePlaceholder: 'Anything left behind, vehicle load notes…',
+        gradientFrom: 'from-amber-500', gradientTo: 'to-amber-600', shadowColor: 'shadow-amber-500/25',
+      };
+    case 'stage_at_dropoff':
+      return {
+        title: '📍 Arrived at Dropoff',
+        subtitle: 'Photograph the empty dropoff space BEFORE unloading',
+        buttonLabel: 'Confirm Arrived at Dropoff',
+        notePlaceholder: 'Access, lift, floor condition notes…',
+        gradientFrom: 'from-fuchsia-500', gradientTo: 'to-fuchsia-600', shadowColor: 'shadow-fuchsia-500/25',
+      };
+    case 'stage_completed':
+      return {
+        title: '✅ Job Completion',
+        subtitle: 'Photograph items placed as agreed — final proof',
+        buttonLabel: 'Confirm Job Completed',
+        notePlaceholder: 'Placement notes, customer feedback…',
+        gradientFrom: 'from-emerald-500', gradientTo: 'to-emerald-600', shadowColor: 'shadow-emerald-500/25',
+      };
+  }
 }
 
 export default function JobDetail() {
@@ -72,6 +221,7 @@ export default function JobDetail() {
   const { data: job, isLoading, isFetching, refetch } = useQuote(id!);
   const arrivedMutation = useStaffArrived();
   const completedMutation = useStaffCompleted();
+  const stageMutation = useStaffStage();
   const { toast } = useToast();
   const { user } = useAuth();
   const { isTracking, startTracking, stopTracking } = useBackgroundLocation();
@@ -80,11 +230,12 @@ export default function JobDetail() {
   const [note, setNote] = useState("");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
-  const [actionType, setActionType] = useState<'arrived' | 'completed' | null>(null);
+  const [pendingAction, setPendingAction] = useState<Action | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Job checklist
+  // Single combined checklist for the job. The UI splits it into "Pickup"
+  // and "Dropoff" sections (for relocation) by filtering the label arrays.
   const { data: checklistData } = useQuery<{ checkItems: string[] }>({
     queryKey: [`/api/staff/jobs/${id}/checklist`],
     enabled: !!id,
@@ -104,9 +255,9 @@ export default function JobDetail() {
     updateChecklist.mutate(next);
   };
 
-  // Auto-capture GPS silently as soon as modal opens
+  // Auto-capture GPS silently as soon as action panel opens
   useEffect(() => {
-    if (!actionType) return;
+    if (!pendingAction) return;
     setGpsStatus('loading');
     setGpsCoords(null);
     captureGPS()
@@ -117,7 +268,7 @@ export default function JobDetail() {
       .catch(() => {
         setGpsStatus('error');
       });
-  }, [actionType]);
+  }, [pendingAction]);
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -148,6 +299,18 @@ export default function JobDetail() {
     </div>
   );
 
+  const relocation = isRelocationJob(job);
+  const sameProp = isSameProperty(job);
+  const steps = relocation
+    ? (sameProp ? RELOCATION_STEPS_SAMEPROP : RELOCATION_STEPS_FULL)
+    : INSTALL_STEPS;
+  const stepIdx = getStepIndex(steps, job.status);
+  const isDone = ["completed", "final_payment_requested", "final_paid", "closed"].includes(job.status);
+  const action = pendingAction ?? nextAction(job);
+  const showChecklistSection = relocation
+    ? ['at_pickup', 'in_transit', 'at_dropoff', 'completed'].includes(job.status)
+    : ['in_progress', 'completed'].includes(job.status);
+
   const handleAddPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -164,28 +327,30 @@ export default function JobDetail() {
   const handleRemovePhoto = (i: number) => setPhotos(prev => prev.filter((_, idx) => idx !== i));
 
   const closeModal = () => {
-    setActionType(null);
+    setPendingAction(null);
     setPhotos([]);
     setGpsCoords(null);
     setGpsStatus('idle');
     setNote("");
   };
 
-  const handleAction = async () => {
-    if (!actionType) return;
+  const openAction = (a: Action) => {
+    setPendingAction(a);
+  };
+
+  const submitAction = async () => {
+    if (!action) return;
 
     if (photos.length === 0) {
       toast({ title: "Photo Required", description: "Please take at least one photo.", variant: "destructive" });
       return;
     }
 
-    // If GPS still loading, wait briefly for it
     if (gpsStatus === 'loading') {
       toast({ title: "Getting Location…", description: "Please wait a moment." });
       return;
     }
 
-    // If GPS failed, retry once before blocking
     let coords = gpsCoords;
     if (!coords) {
       try {
@@ -200,19 +365,39 @@ export default function JobDetail() {
       }
     }
 
+    const photoUrls = photos.map(p => p.dataUrl);
+    const payload = { id: id!, gpsLat: coords.lat, gpsLng: coords.lng, photoUrls, note: note || undefined };
+
     try {
-      if (actionType === 'arrived') {
-        await arrivedMutation.mutateAsync({ id: id!, gpsLat: coords.lat, gpsLng: coords.lng, photoUrls: photos.map(p => p.dataUrl), note: note || undefined });
-        // Start continuous background location tracking
-        if (user?.id) {
-          startTracking(user.id).catch(() => {});
-        }
-        toast({ title: "✓ Checked In", description: "Arrival recorded. Location tracking started." });
-      } else {
-        await completedMutation.mutateAsync({ id: id!, gpsLat: coords.lat, gpsLng: coords.lng, photoUrls: photos.map(p => p.dataUrl), note: note || undefined });
-        // Stop background location tracking
-        stopTracking().catch(() => {});
-        toast({ title: "✓ Job Completed", description: "Completion submitted. Location tracking stopped." });
+      switch (action.kind) {
+        case 'install_arrive':
+          await arrivedMutation.mutateAsync(payload);
+          if (user?.id) startTracking(user.id).catch(() => {});
+          toast({ title: "✓ Checked In", description: "Arrival recorded. Location tracking started." });
+          break;
+        case 'install_complete':
+          await completedMutation.mutateAsync(payload);
+          stopTracking().catch(() => {});
+          toast({ title: "✓ Job Completed", description: "Completion submitted. Location tracking stopped." });
+          break;
+        case 'stage_at_pickup':
+          await stageMutation.mutateAsync({ ...payload, stage: 'at_pickup' });
+          if (user?.id) startTracking(user.id).catch(() => {});
+          toast({ title: "✓ At Pickup", description: "Arrival at pickup recorded." });
+          break;
+        case 'stage_in_transit':
+          await stageMutation.mutateAsync({ ...payload, stage: 'in_transit' });
+          toast({ title: "✓ Loaded — In Transit", description: "Loaded confirmation submitted." });
+          break;
+        case 'stage_at_dropoff':
+          await stageMutation.mutateAsync({ ...payload, stage: 'at_dropoff' });
+          toast({ title: "✓ At Dropoff", description: "Arrival at dropoff recorded." });
+          break;
+        case 'stage_completed':
+          await stageMutation.mutateAsync({ ...payload, stage: 'completed' });
+          stopTracking().catch(() => {});
+          toast({ title: "✓ Job Completed", description: "Completion submitted. Location tracking stopped." });
+          break;
       }
       closeModal();
     } catch (err: any) {
@@ -220,9 +405,11 @@ export default function JobDetail() {
     }
   };
 
-  const isPending = arrivedMutation.isPending || completedMutation.isPending;
-  const stepIdx = getStepIndex(job.status);
-  const isDone = ["completed", "final_payment_requested", "final_paid", "closed"].includes(job.status);
+  const isPending =
+    arrivedMutation.isPending || completedMutation.isPending || stageMutation.isPending;
+
+  const actionMeta = action ? metaFor(action) : null;
+  const isAtDropoffOrCompleted = relocation && ['at_dropoff', 'completed'].includes(job.status);
 
   return (
     <div className="min-h-screen bg-secondary/20 pb-36">
@@ -251,7 +438,14 @@ export default function JobDetail() {
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="relative">
               <div className="flex items-center justify-between mb-3">
-                <StatusBadge status={job.status} />
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={job.status} />
+                  {relocation && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-white bg-white/10 px-2 py-0.5 rounded">
+                      <Truck className="w-3 h-3" /> {sameProp ? 'Same-Property Move' : 'Relocation'}
+                    </span>
+                  )}
+                </div>
                 <span className="text-white/60 text-xs font-mono font-bold">{job.referenceNo}</span>
               </div>
               <h1 className="text-xl font-black text-white leading-tight">{job.customer?.name}</h1>
@@ -270,7 +464,7 @@ export default function JobDetail() {
           {/* Progress steps */}
           <div className="px-5 py-3 bg-secondary/30 border-b">
             <div className="flex items-center justify-between">
-              {STATUS_STEPS.map((step, i) => (
+              {steps.map((step, i) => (
                 <div key={step.key} className="flex items-center flex-1">
                   <div className="flex flex-col items-center">
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
@@ -286,7 +480,7 @@ export default function JobDetail() {
                       {step.label}
                     </span>
                   </div>
-                  {i < STATUS_STEPS.length - 1 && (
+                  {i < steps.length - 1 && (
                     <div className={`flex-1 h-0.5 mx-1 transition-colors ${i < stepIdx ? "bg-emerald-400" : "bg-border"}`} />
                   )}
                 </div>
@@ -296,7 +490,7 @@ export default function JobDetail() {
 
           {/* Job details */}
           <div className="px-5 py-4 space-y-3">
-            {job.serviceAddress && (
+            {!relocation && job.serviceAddress && (
               <div className="flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                 <div>
@@ -305,7 +499,40 @@ export default function JobDetail() {
                 </div>
               </div>
             )}
-            {(job.pickupAddress || job.dropoffAddress) && (
+            {relocation && (job.pickupAddress || job.dropoffAddress) && (
+              <div className="space-y-2">
+                {job.pickupAddress && (
+                  <div className="flex items-start gap-2.5">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black ${
+                      ['at_pickup'].includes(job.status) ? 'bg-sky-500 text-white' :
+                      ['in_transit', 'at_dropoff', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(job.status) ? 'bg-emerald-500 text-white' :
+                      'bg-secondary text-muted-foreground'
+                    }`}>A</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wide mb-0.5">Pickup</p>
+                      <p className="text-sm font-semibold">{job.pickupAddress}</p>
+                    </div>
+                  </div>
+                )}
+                {!sameProp && job.dropoffAddress && (
+                  <div className="flex items-start gap-2.5">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black ${
+                      ['at_dropoff'].includes(job.status) ? 'bg-fuchsia-500 text-white' :
+                      ['completed', 'final_payment_requested', 'final_paid', 'closed'].includes(job.status) ? 'bg-emerald-500 text-white' :
+                      'bg-secondary text-muted-foreground'
+                    }`}>B</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wide mb-0.5">Dropoff</p>
+                      <p className="text-sm font-semibold">{job.dropoffAddress}</p>
+                    </div>
+                  </div>
+                )}
+                {sameProp && (
+                  <p className="text-xs text-muted-foreground font-semibold pl-9">↳ Same property — no transit between addresses</p>
+                )}
+              </div>
+            )}
+            {!relocation && (job.pickupAddress || job.dropoffAddress) && (
               <div className="flex items-start gap-2.5">
                 <Navigation2 className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="space-y-0.5">
@@ -352,8 +579,96 @@ export default function JobDetail() {
           </div>
         )}
 
-        {/* Job Completion Checklist — shown when in progress */}
-        {["in_progress", "completed"].includes(job.status) && (
+        {/* Checklist(s) — shown when the job is in progress */}
+        {showChecklistSection && relocation && (() => {
+          const pickupChecked = RELOCATION_PICKUP_CHECKLIST.filter(l => checkedItems.includes(l)).length;
+          const dropoffChecked = RELOCATION_DROPOFF_CHECKLIST.filter(l => checkedItems.includes(l)).length;
+          return (
+            <>
+              {/* Pickup checklist */}
+              <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-5 py-3 border-b bg-secondary/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ListChecks className="w-4 h-4 text-sky-500" />
+                    <p className="font-black text-sm">Pickup Checklist</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground font-semibold">
+                    {pickupChecked}/{RELOCATION_PICKUP_CHECKLIST.length} done
+                  </span>
+                </div>
+                <div className="divide-y">
+                  {RELOCATION_PICKUP_CHECKLIST.map((item, i) => {
+                    const checked = checkedItems.includes(item);
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => toggleCheckItem(item)}
+                        disabled={job.status === "completed" || updateChecklist.isPending}
+                        data-testid={`checklist-pickup-${i}`}
+                        className={`w-full px-5 py-3 flex items-center gap-3 text-left transition-colors ${
+                          checked ? "bg-emerald-50/50 dark:bg-emerald-950/20" : "hover:bg-secondary/30"
+                        } disabled:opacity-60`}
+                      >
+                        {checked
+                          ? <SquareCheck className="w-5 h-5 text-emerald-500 shrink-0" />
+                          : <Square className="w-5 h-5 text-muted-foreground shrink-0" />}
+                        <span className={`text-sm font-semibold leading-snug ${checked ? "line-through text-muted-foreground" : ""}`}>
+                          {item}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Dropoff checklist — only shown once at dropoff or after */}
+              {isAtDropoffOrCompleted && (
+                <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
+                  <div className="px-5 py-3 border-b bg-secondary/30 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ListChecks className="w-4 h-4 text-fuchsia-500" />
+                      <p className="font-black text-sm">Dropoff Checklist</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground font-semibold">
+                      {dropoffChecked}/{RELOCATION_DROPOFF_CHECKLIST.length} done
+                    </span>
+                  </div>
+                  <div className="divide-y">
+                    {RELOCATION_DROPOFF_CHECKLIST.map((item, i) => {
+                      const checked = checkedItems.includes(item);
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => toggleCheckItem(item)}
+                          disabled={job.status === "completed" || updateChecklist.isPending}
+                          data-testid={`checklist-dropoff-${i}`}
+                          className={`w-full px-5 py-3 flex items-center gap-3 text-left transition-colors ${
+                            checked ? "bg-emerald-50/50 dark:bg-emerald-950/20" : "hover:bg-secondary/30"
+                          } disabled:opacity-60`}
+                        >
+                          {checked
+                            ? <SquareCheck className="w-5 h-5 text-emerald-500 shrink-0" />
+                            : <Square className="w-5 h-5 text-muted-foreground shrink-0" />}
+                          <span className={`text-sm font-semibold leading-snug ${checked ? "line-through text-muted-foreground" : ""}`}>
+                            {item}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {dropoffChecked === RELOCATION_DROPOFF_CHECKLIST.length && (
+                    <div className="px-5 py-3 bg-emerald-50 dark:bg-emerald-950/30 border-t border-emerald-200 dark:border-emerald-800 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">All items completed — ready to submit!</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          );
+        })()}
+
+        {showChecklistSection && !relocation && (
           <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
             <div className="px-5 py-3 border-b bg-secondary/30 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -361,11 +676,11 @@ export default function JobDetail() {
                 <p className="font-black text-sm">Job Checklist</p>
               </div>
               <span className="text-xs text-muted-foreground font-semibold">
-                {checkedItems.length}/{DEFAULT_CHECKLIST.length} done
+                {checkedItems.length}/{INSTALL_CHECKLIST.length} done
               </span>
             </div>
             <div className="divide-y">
-              {DEFAULT_CHECKLIST.map((item, i) => {
+              {INSTALL_CHECKLIST.map((item, i) => {
                 const checked = checkedItems.includes(item);
                 return (
                   <button
@@ -387,7 +702,7 @@ export default function JobDetail() {
                 );
               })}
             </div>
-            {checkedItems.length === DEFAULT_CHECKLIST.length && (
+            {checkedItems.length === INSTALL_CHECKLIST.length && (
               <div className="px-5 py-3 bg-emerald-50 dark:bg-emerald-950/30 border-t border-emerald-200 dark:border-emerald-800 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                 <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">All items completed — ready to submit!</p>
@@ -397,24 +712,15 @@ export default function JobDetail() {
         )}
 
         {/* Check-in action panel */}
-        {actionType && (
+        {pendingAction && actionMeta && (
           <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
             {/* Panel header */}
-            <div className={`px-5 py-4 border-b flex items-center justify-between ${
-              actionType === 'arrived'
-                ? "bg-gradient-to-r from-blue-600 to-blue-700"
-                : "bg-gradient-to-r from-emerald-600 to-emerald-700"
-            }`}>
+            <div className={`px-5 py-4 border-b flex items-center justify-between bg-gradient-to-r ${actionMeta.gradientFrom} ${actionMeta.gradientTo}`}>
               <div>
-                <p className="text-white font-black text-base">
-                  {actionType === 'arrived' ? '📍 Arrived Check-In' : '✅ Job Completion'}
-                </p>
-                <p className="text-white/70 text-xs mt-0.5">
-                  {actionType === 'arrived' ? 'Confirm you have arrived at the location' : 'Submit proof of job completion'}
-                </p>
+                <p className="text-white font-black text-base">{actionMeta.title}</p>
+                <p className="text-white/80 text-xs mt-0.5">{actionMeta.subtitle}</p>
               </div>
               <div className="flex items-center gap-2">
-                {/* Silent GPS status indicator — subtle, not labelled as "tracking" */}
                 <div className="flex items-center gap-1" title="Location">
                   <div className={`w-1.5 h-1.5 rounded-full ${
                     gpsStatus === 'ok' ? 'bg-green-300' :
@@ -500,13 +806,12 @@ export default function JobDetail() {
                   value={note}
                   onChange={e => setNote(e.target.value)}
                   rows={2}
-                  placeholder={actionType === 'arrived' ? 'Access issues, parking notes…' : 'Completion notes, any issues encountered…'}
+                  placeholder={actionMeta.notePlaceholder}
                   className="w-full px-3 py-2.5 rounded-xl border bg-background text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none transition-colors"
                   data-testid="input-note"
                 />
               </div>
 
-              {/* GPS error hint (non-alarming) */}
               {gpsStatus === 'error' && (
                 <p className="text-xs text-amber-600 flex items-center gap-1.5 -mt-2">
                   <MapPin className="w-3.5 h-3.5 shrink-0" />
@@ -516,17 +821,11 @@ export default function JobDetail() {
 
               {/* Submit */}
               <button
-                onClick={handleAction}
+                onClick={submitAction}
                 disabled={isPending || gpsStatus === 'loading'}
                 data-testid="button-submit-checkin"
-                className={`w-full py-4 rounded-2xl font-black text-white flex items-center justify-center gap-2.5 transition-all shadow-lg active:scale-[0.98] ${
-                  isPending || gpsStatus === 'loading'
-                    ? "opacity-70 cursor-wait"
-                    : ""
-                } ${
-                  actionType === 'arrived'
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-blue-500/25"
-                    : "bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-emerald-500/25"
+                className={`w-full py-4 rounded-2xl font-black text-white flex items-center justify-center gap-2.5 transition-all shadow-lg active:scale-[0.98] bg-gradient-to-r ${actionMeta.gradientFrom} ${actionMeta.gradientTo} ${actionMeta.shadowColor} ${
+                  isPending || gpsStatus === 'loading' ? "opacity-70 cursor-wait" : ""
                 }`}
               >
                 {isPending ? (
@@ -534,7 +833,7 @@ export default function JobDetail() {
                 ) : gpsStatus === 'loading' ? (
                   <><Loader2 className="w-5 h-5 animate-spin" /> Getting location…</>
                 ) : (
-                  <><Upload className="w-5 h-5" /> {actionType === 'arrived' ? "Confirm Arrived" : "Confirm Job Completed"}</>
+                  <><Upload className="w-5 h-5" /> {actionMeta.buttonLabel}</>
                 )}
               </button>
             </div>
@@ -546,32 +845,23 @@ export default function JobDetail() {
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-xl border-t shadow-2xl">
         <div className="max-w-2xl mx-auto px-4 py-3 pb-20">
 
-          {['deposit_paid', 'booking_requested'].includes(job.status) && !actionType && (
+          {['deposit_paid', 'booking_requested'].includes(job.status) && !pendingAction && (
             <div className="w-full py-3.5 px-4 text-center font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800 text-sm flex items-center justify-center gap-2">
               <Clock className="w-4 h-4" /> Awaiting admin to confirm your booking
             </div>
           )}
 
-          {job.status === 'booked' && !actionType && (
+          {job.status === 'booked' && !pendingAction && (
             <div className="w-full py-3.5 px-4 text-center font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 rounded-2xl border border-blue-200 dark:border-blue-800 text-sm flex items-center justify-center gap-2">
               <CheckCircle2 className="w-4 h-4" /> Booking confirmed — awaiting staff assignment
             </div>
           )}
 
-          {job.status === 'assigned' && !actionType && (
-            <button
-              onClick={() => setActionType('arrived')}
-              data-testid="button-arrived"
-              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25 py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 hover:shadow-blue-500/40 active:scale-[0.98] transition-all"
-            >
-              <Navigation2 className="w-5 h-5" /> I Have Arrived — Check In
-            </button>
-          )}
-
-          {job.status === 'in_progress' && !actionType && (
+          {/* Stage-aware action button */}
+          {action && !pendingAction && (
             <div className="space-y-2">
-              {/* GPS tracking indicator */}
-              {isTracking && (
+              {/* GPS tracking indicator (visible once on-site) */}
+              {isTracking && ['in_progress', 'at_pickup', 'in_transit', 'at_dropoff'].includes(job.status) && (
                 <div className="flex items-center justify-center gap-2 py-1.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl">
                   <Radio className="w-3 h-3 text-emerald-500 animate-pulse" />
                   <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Location tracking active</span>
@@ -579,11 +869,16 @@ export default function JobDetail() {
                 </div>
               )}
               <button
-                onClick={() => setActionType('completed')}
-                data-testid="button-complete-job"
-                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25 py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 hover:shadow-emerald-500/40 active:scale-[0.98] transition-all"
+                onClick={() => openAction(action)}
+                data-testid={`button-${action.kind}`}
+                className={`w-full bg-gradient-to-r ${metaFor(action).gradientFrom} ${metaFor(action).gradientTo} text-white shadow-lg ${metaFor(action).shadowColor} py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 hover:shadow-xl active:scale-[0.98] transition-all`}
               >
-                <CheckCircle2 className="w-6 h-6" /> Job Done — Submit Completion
+                {action.kind === 'install_arrive'   && <><Navigation2 className="w-5 h-5" /> I Have Arrived — Check In</>}
+                {action.kind === 'install_complete' && <><CheckCircle2 className="w-6 h-6" /> Job Done — Submit Completion</>}
+                {action.kind === 'stage_at_pickup'  && <><Navigation2 className="w-5 h-5" /> Arrived at Pickup</>}
+                {action.kind === 'stage_in_transit' && <><Truck className="w-5 h-5" /> Loaded — Depart for Dropoff</>}
+                {action.kind === 'stage_at_dropoff' && <><Navigation2 className="w-5 h-5" /> Arrived at Dropoff</>}
+                {action.kind === 'stage_completed'  && <><CheckCircle2 className="w-6 h-6" /> Job Done — Submit Completion</>}
               </button>
             </div>
           )}

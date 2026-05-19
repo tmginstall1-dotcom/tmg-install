@@ -122,12 +122,12 @@ export default function QuoteStatus() {
   }>({
     queryKey: [`/api/public/track/${quote?.referenceNo}`],
     queryFn: () => fetch(`/api/public/track/${quote!.referenceNo}`).then(r => r.json()),
-    enabled: !!quote?.referenceNo && ["in_progress", "completed", "final_payment_requested", "final_paid", "closed"].includes(quote?.status ?? ""),
+    enabled: !!quote?.referenceNo && ["in_progress", "at_pickup", "in_transit", "at_dropoff", "completed", "final_payment_requested", "final_paid", "closed"].includes(quote?.status ?? ""),
     staleTime: 60_000,
   });
 
   const workPhotos = (trackerData?.updates ?? [])
-    .filter(u => ["in_progress", "completed"].includes(u.statusChange))
+    .filter(u => ["in_progress", "at_pickup", "in_transit", "at_dropoff", "completed"].includes(u.statusChange))
     .flatMap(u => u.photoUrls ?? [])
     .filter(Boolean);
 
@@ -205,6 +205,9 @@ export default function QuoteStatus() {
     booked: "Your deposit is paid and booking is confirmed. Our team will arrive at the scheduled time.",
     assigned: "A team member has been assigned to your job.",
     in_progress: "Your job is currently in progress.",
+    at_pickup: "Our movers have arrived at your pickup address and are loading your items.",
+    in_transit: "Your items are loaded — our movers are on the way to your dropoff address.",
+    at_dropoff: "Our movers have arrived at your dropoff address and are unloading.",
     completed: "Your job is complete. Please make the final payment.",
     final_payment_requested: "Please complete your final payment.",
     final_paid: "Final payment received. Your case is closing.",
@@ -254,7 +257,7 @@ export default function QuoteStatus() {
             <CheckCircle2 className="w-5 h-5 text-black shrink-0" />
             <div>
               <p className="font-bold text-black text-sm flex items-center gap-2"><AccentSquare /> Payment received</p>
-              {quote && ["final_paid", "closed", "completed", "in_progress", "assigned"].includes(quote.status) ? (
+              {quote && ["final_paid", "closed", "completed", "in_progress", "at_pickup", "in_transit", "at_dropoff", "assigned"].includes(quote.status) ? (
                 <p className="text-xs text-black/50 mt-0.5">Your final payment has been confirmed. Thank you for choosing TMG Install!</p>
               ) : (
                 <p className="text-xs text-black/50 mt-0.5">Your deposit has been confirmed. You can now book your appointment below.</p>
@@ -568,7 +571,7 @@ export default function QuoteStatus() {
               )}
 
               {/* Confirmed appointment */}
-              {quote.scheduledAt && ["deposit_paid", "booked", "assigned", "in_progress", "completed", "final_payment_requested"].includes(quote.status) && (
+              {quote.scheduledAt && ["deposit_paid", "booked", "assigned", "in_progress", "at_pickup", "in_transit", "at_dropoff", "completed", "final_payment_requested"].includes(quote.status) && (
                 <div className="mx-6 mb-5 border border-black/12 bg-black/[0.025] p-4">
                   <p className="text-[10px] font-semibold tracking-widest uppercase text-black/40 mb-3" style={{ letterSpacing: "0.15em" }}>
                   <span className="inline-flex items-center gap-2"><AccentSquare /> Confirmed Appointment</span>
@@ -818,7 +821,7 @@ export default function QuoteStatus() {
               )}
 
               {/* Confirmed booking */}
-              {["deposit_paid", "booked", "assigned", "in_progress"].includes(quote.status) && quote.scheduledAt && (
+              {["deposit_paid", "booked", "assigned", "in_progress", "at_pickup", "in_transit", "at_dropoff"].includes(quote.status) && quote.scheduledAt && (
                 <div className="px-6 pb-6 border-t border-white/10 pt-5">
                   <p className="text-xs text-white/40 mb-3 uppercase tracking-widest" style={{ letterSpacing: "0.15em" }}>Confirmed</p>
                   <p className="font-bold text-sm flex items-center gap-2">

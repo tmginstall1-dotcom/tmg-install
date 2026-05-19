@@ -204,13 +204,13 @@ export default function AdminDashboard() {
   // (slot cleared, awaiting a new date) stay visible in the Upcoming Bookings
   // list with the amber badge — otherwise they vanish from the dashboard.
   const upcomingBooked  = quotes.filter((q: any) => ["booked", "assigned", "deposit_paid", "booking_pending"].includes(q.status));
-  const activeJobs      = quotes.filter((q: any) => q.status === "in_progress");
+  const activeJobs      = quotes.filter((q: any) => ["in_progress", "at_pickup", "in_transit", "at_dropoff"].includes(q.status));
   const awaitingPayment = quotes.filter((q: any) => ["completed", "final_payment_requested"].includes(q.status));
   const recentlyClosed  = quotes.filter((q: any) => ["closed", "final_paid"].includes(q.status)).slice(0, 5);
 
   const todayJobs = useMemo(() => {
     return (quotes as any[]).filter((q: any) => {
-      if (!["booked", "assigned", "in_progress", "deposit_paid"].includes(q.status)) return false;
+      if (!["booked", "assigned", "in_progress", "at_pickup", "in_transit", "at_dropoff", "deposit_paid"].includes(q.status)) return false;
       const raw = q.scheduledAt || q.preferredDate;
       if (!raw) return false;
       const d = q.scheduledAt ? new Date(q.scheduledAt) : new Date(raw + "T12:00:00");

@@ -220,6 +220,30 @@ export function useStaffArrived() {
   });
 }
 
+export function useStaffStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, stage, gpsLat, gpsLng, photoUrls, note }: { id: number | string; stage: 'at_pickup' | 'in_transit' | 'at_dropoff' | 'completed'; gpsLat: number; gpsLng: number; photoUrls: string[]; note?: string }) => {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/stage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage, gpsLat, gpsLng, photoUrls, note }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Stage update failed");
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.quotes.get.path, variables.id] });
+      queryClient.invalidateQueries({ queryKey: [api.quotes.list.path] });
+      queryClient.invalidateQueries({ queryKey: ['/api/staff/quotes'] });
+    },
+  });
+}
+
 export function useStaffCompleted() {
   const queryClient = useQueryClient();
   return useMutation({

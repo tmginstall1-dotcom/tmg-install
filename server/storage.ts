@@ -1140,7 +1140,7 @@ export class DatabaseStorage implements IStorage {
 
     const activeStatuses = [
       'submitted', 'deposit_requested', 'deposit_paid',
-      'booking_requested', 'booked', 'assigned', 'in_progress',
+      'booking_requested', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff',
     ];
     const activeQuotes = await db.select({
       id: quotes.id,
@@ -1156,7 +1156,7 @@ export class DatabaseStorage implements IStorage {
     const validQuotes = activeQuotes
       .filter(q => q.preferredDate && q.preferredTimeWindow)
       .filter(q => {
-        if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress'].includes(q.status)) return true;
+        if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff'].includes(q.status)) return true;
         return !q.slotHeldUntil || q.slotHeldUntil > now;
       });
 
@@ -1237,7 +1237,7 @@ export class DatabaseStorage implements IStorage {
   async getSlotCapacities(): Promise<{ date: string; timeSlot: string; usedAmount: number }[]> {
     const activeStatuses = [
       'submitted', 'deposit_requested', 'deposit_paid',
-      'booking_requested', 'booked', 'assigned', 'in_progress',
+      'booking_requested', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff',
     ];
     const activeQuotes = await db.select({
       preferredDate: quotes.preferredDate,
@@ -1251,7 +1251,7 @@ export class DatabaseStorage implements IStorage {
     const validQuotes = activeQuotes
       .filter(q => q.preferredDate && q.preferredTimeWindow)
       .filter(q => {
-        if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress'].includes(q.status)) return true;
+        if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff'].includes(q.status)) return true;
         return !q.slotHeldUntil || q.slotHeldUntil > now;
       });
 
@@ -1283,7 +1283,7 @@ export class DatabaseStorage implements IStorage {
 
     const activeStatuses = [
       'submitted', 'deposit_requested', 'deposit_paid',
-      'booking_requested', 'booked', 'assigned', 'in_progress',
+      'booking_requested', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff',
     ];
     const held = await db.select({
       id: quotes.id,
@@ -1298,7 +1298,7 @@ export class DatabaseStorage implements IStorage {
     const validQuotes = held.filter(q => {
       if (excludeQuoteId && q.id === excludeQuoteId) return false;
       if (!q.preferredDate || !q.preferredTimeWindow) return false;
-      if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress'].includes(q.status)) return true;
+      if (['deposit_paid', 'booking_requested', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff'].includes(q.status)) return true;
       return !q.slotHeldUntil || q.slotHeldUntil > now;
     });
 
