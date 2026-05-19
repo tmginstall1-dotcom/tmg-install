@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { users, catalogItems, faqEntries, cannedReplies } from "@shared/schema";
-import { eq, count, sql } from "drizzle-orm";
+import { eq, count, sql, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 const ACCOUNTS = [
@@ -695,6 +695,79 @@ export async function seedDatabase() {
     for (const u of volumeUpdates) {
       await db.update(catalogItems).set({ volumeM3: u.volumeM3 }).where(eq(catalogItems.sku, u.sku));
     }
+  }
+
+  // Round 7.5: Murphy / Wall Bed size + storage variants (PC-MURPHY-V1-MARKER)
+  // The single generic "Murphy / Wall Bed" entry was too broad — customers in
+  // Singapore mostly buy 4 distinct configurations and each has very different
+  // labour / time-on-site profile. SG market reference (May 2026):
+  //   Single (no storage)        ~$300–340 install  (simpler frame, 1 wall plate)
+  //   Single with side storage   ~$360–400 install  (extra cabinet column)
+  //   Queen (no storage)         ~$430–470 install  (heavy mattress cradle, 2 men)
+  //   Queen with side storage    ~$520–580 install  (full wall system, 2 men + setup)
+  // Dismantle ≈ ~70% of install; dispose ≈ dismantle × 0.85;
+  // dismantle+dispose ≈ install × 0.85; relocate ≈ install + dismantle − bundle.
+  const pcMurphyV1 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "PC-MURPHY-V1-MARKER"));
+  if (pcMurphyV1.length === 0) {
+    // Insert the variant rows FIRST, then the marker last — so a crash in
+    // the middle of this block leaves the marker absent and the whole block
+    // re-runs cleanly on the next boot (rows are .onConflictDoNothing on
+    // unique SKU). If the marker went in first and the row insert failed,
+    // the missing rows would be permanently skipped.
+    await db.insert(catalogItems).values([
+      // ── Murphy / Wall Bed (Single) ────────────────────────────────────────
+      { name: "Murphy / Wall Bed (Single)", sku: "MURPHY-SG-INSTALL",        category: "Beds", serviceType: "install",           basePrice: "320.00", volumeM3: "0.60" },
+      { name: "Murphy / Wall Bed (Single)", sku: "MURPHY-SG-DISMANTLE",      category: "Beds", serviceType: "dismantle",         basePrice: "220.00", volumeM3: "0.60" },
+      { name: "Murphy / Wall Bed (Single)", sku: "MURPHY-SG-DISPOSE",        category: "Beds", serviceType: "dispose",           basePrice: "200.00", volumeM3: "0.60" },
+      { name: "Murphy / Wall Bed (Single)", sku: "MURPHY-SG-DIS-DISP",       category: "Beds", serviceType: "dismantle_dispose", basePrice: "340.00", volumeM3: "0.60" },
+      { name: "Murphy / Wall Bed (Single)", sku: "MURPHY-SG-RELOCATE",       category: "Beds", serviceType: "relocate",          basePrice: "460.00", volumeM3: "0.60" },
+
+      // ── Murphy / Wall Bed (Single, with Storage) ──────────────────────────
+      { name: "Murphy / Wall Bed (Single, with Storage)", sku: "MURPHY-SGS-INSTALL",   category: "Beds", serviceType: "install",           basePrice: "380.00", volumeM3: "0.75" },
+      { name: "Murphy / Wall Bed (Single, with Storage)", sku: "MURPHY-SGS-DISMANTLE", category: "Beds", serviceType: "dismantle",         basePrice: "260.00", volumeM3: "0.75" },
+      { name: "Murphy / Wall Bed (Single, with Storage)", sku: "MURPHY-SGS-DISPOSE",   category: "Beds", serviceType: "dispose",           basePrice: "230.00", volumeM3: "0.75" },
+      { name: "Murphy / Wall Bed (Single, with Storage)", sku: "MURPHY-SGS-DIS-DISP",  category: "Beds", serviceType: "dismantle_dispose", basePrice: "395.00", volumeM3: "0.75" },
+      { name: "Murphy / Wall Bed (Single, with Storage)", sku: "MURPHY-SGS-RELOCATE",  category: "Beds", serviceType: "relocate",          basePrice: "530.00", volumeM3: "0.75" },
+
+      // ── Murphy / Wall Bed (Queen) ─────────────────────────────────────────
+      { name: "Murphy / Wall Bed (Queen)", sku: "MURPHY-Q-INSTALL",    category: "Beds", serviceType: "install",           basePrice: "450.00", volumeM3: "0.85" },
+      { name: "Murphy / Wall Bed (Queen)", sku: "MURPHY-Q-DISMANTLE",  category: "Beds", serviceType: "dismantle",         basePrice: "310.00", volumeM3: "0.85" },
+      { name: "Murphy / Wall Bed (Queen)", sku: "MURPHY-Q-DISPOSE",    category: "Beds", serviceType: "dispose",           basePrice: "270.00", volumeM3: "0.85" },
+      { name: "Murphy / Wall Bed (Queen)", sku: "MURPHY-Q-DIS-DISP",   category: "Beds", serviceType: "dismantle_dispose", basePrice: "460.00", volumeM3: "0.85" },
+      { name: "Murphy / Wall Bed (Queen)", sku: "MURPHY-Q-RELOCATE",   category: "Beds", serviceType: "relocate",          basePrice: "640.00", volumeM3: "0.85" },
+
+      // ── Murphy / Wall Bed (Queen, with Storage) ───────────────────────────
+      { name: "Murphy / Wall Bed (Queen, with Storage)", sku: "MURPHY-QS-INSTALL",    category: "Beds", serviceType: "install",           basePrice: "550.00", volumeM3: "1.05" },
+      { name: "Murphy / Wall Bed (Queen, with Storage)", sku: "MURPHY-QS-DISMANTLE",  category: "Beds", serviceType: "dismantle",         basePrice: "380.00", volumeM3: "1.05" },
+      { name: "Murphy / Wall Bed (Queen, with Storage)", sku: "MURPHY-QS-DISPOSE",    category: "Beds", serviceType: "dispose",           basePrice: "320.00", volumeM3: "1.05" },
+      { name: "Murphy / Wall Bed (Queen, with Storage)", sku: "MURPHY-QS-DIS-DISP",   category: "Beds", serviceType: "dismantle_dispose", basePrice: "560.00", volumeM3: "1.05" },
+      { name: "Murphy / Wall Bed (Queen, with Storage)", sku: "MURPHY-QS-RELOCATE",   category: "Beds", serviceType: "relocate",          basePrice: "770.00", volumeM3: "1.05" },
+    ]).onConflictDoNothing();
+
+    // Deactivate the legacy generic "Murphy / Wall Bed" entries. Without
+    // this, the customer estimator's fuzzy matcher (which strips
+    // parentheses before scoring) collapses every variant to the same base
+    // name and the legacy row sometimes wins by iteration order — defeating
+    // the whole point of splitting variants. The rows stay in the DB for
+    // any historical quotes that still reference them.
+    await db.update(catalogItems).set({ active: false }).where(eq(catalogItems.sku, "MURPHY-INSTALL"));
+    await db.update(catalogItems).set({ active: false }).where(eq(catalogItems.sku, "MURPHY-DISMANTLE"));
+    await db.update(catalogItems).set({ active: false }).where(eq(catalogItems.sku, "MURPHYWA-DISPOSE"));
+    await db.update(catalogItems).set({ active: false }).where(eq(catalogItems.sku, "MURPHYWA-DIS-DISP"));
+    // Legacy relocate row has no SKU — match by exact name + serviceType.
+    await db.update(catalogItems)
+      .set({ active: false })
+      .where(and(eq(catalogItems.name, "Murphy / Wall Bed"), eq(catalogItems.serviceType, "relocate")));
+
+    // Marker last — only written if every step above succeeded.
+    await db.insert(catalogItems).values({
+      name: "_Price Correction Murphy V1",
+      sku: "PC-MURPHY-V1-MARKER",
+      category: "_System",
+      serviceType: "install",
+      basePrice: "0.00",
+      active: false,
+    });
   }
 
   // Round 8: Add missing relocate variants + comprehensive volumeM3 for all relocate items
