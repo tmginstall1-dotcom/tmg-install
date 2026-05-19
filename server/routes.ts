@@ -28,6 +28,7 @@ import {
   commercialInvoiceEmail,
   caseClosedEmail,
   newEstimateAdminAlert,
+  staffGpsSummaryEmail,
   ADMIN_EMAIL
 } from "./email";
 import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN, sendWhatsAppImageMessage, sendWhatsAppDocumentMessage } from "./whatsapp";
@@ -1891,6 +1892,39 @@ export async function registerRoutes(
       const log = await storage.clockOut(req.session.userId, lat, lng);
       if (!log) return res.status(404).json({ message: "No active clock-in found" });
       res.json(log);
+
+      // ── Fire-and-forget: email the admin a GPS-movement summary for the
+      // shift that just ended. Runs after the response so a slow Resend call
+      // can't delay the staff clock-out confirmation, and failures here
+      // must never bubble up to the client.
+      (async () => {
+        try {
+          const staffUserId = req.session.userId!;
+          const user = await storage.getUserById(staffUserId);
+          if (!user) return;
+          const clockInAt = log.clockInAt ? new Date(log.clockInAt as any) : null;
+          const clockOutAt = log.clockOutAt ? new Date(log.clockOutAt as any) : new Date();
+          if (!clockInAt) return; // safety — shouldn't happen
+          const points = await storage.getGpsTrackPoints(staffUserId, clockInAt, clockOutAt);
+          const { subject, html } = staffGpsSummaryEmail({
+            staffName: user.name || user.username,
+            staffEmail: user.email,
+            clockInAt,
+            clockOutAt,
+            clockInLat: log.clockInLat,
+            clockInLng: log.clockInLng,
+            clockOutLat: log.clockOutLat,
+            clockOutLng: log.clockOutLng,
+            points: points.map(p => ({
+              lat: p.lat, lng: p.lng, speed: p.speed, recordedAt: p.recordedAt,
+            })),
+          });
+          const ok = await sendEmail({ to: ADMIN_EMAIL, subject, html });
+          if (ok) console.log(`[gps-summary] sent to ${ADMIN_EMAIL} for ${user.name} (${points.length} pings, shift ${clockInAt.toISOString()} → ${clockOutAt.toISOString()})`);
+        } catch (err: any) {
+          console.error("[gps-summary] failed:", err?.message || err);
+        }
+      })();
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 

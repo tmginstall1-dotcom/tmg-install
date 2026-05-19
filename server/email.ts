@@ -14,15 +14,42 @@ interface EmailParams { to: string; subject: string; html: string; }
 
 export async function sendEmail({ to, subject, html }: EmailParams): Promise<boolean> {
   if (!RESEND_API_KEY) { console.warn("RESEND_API_KEY not configured. Email not sent to", to); return false; }
+  // Bounded timeout — if Resend hangs we don't want fire-and-forget callers
+  // (e.g. the staff GPS-summary email kicked off after clock-out) to leave
+  // background tasks accumulating forever under provider/network stalls.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
       body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
+      signal: controller.signal,
     });
     if (!response.ok) { console.error("Failed to send email:", await response.text()); return false; }
     return true;
-  } catch (err) { console.error("Error sending email:", err); return false; }
+  } catch (err: any) {
+    if (err?.name === "AbortError") console.error("Email send timed out after 15s to", to);
+    else console.error("Error sending email:", err);
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Escape user-supplied strings before interpolating into email HTML.
+ * Without this, a staff/customer name like `</title><img src=x onerror=alert(1)>`
+ * would render as live HTML in the admin's mailbox.
+ */
+function escapeHtml(s: string | null | undefined): string {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // ─── Core layout ────────────────────────────────────────────────────────────────
@@ -939,6 +966,223 @@ export function newEstimateAdminAlert(quote: any): string {
 
     <p style="${FONT}font-size:11px;color:#bbbbbb;text-align:center;margin:0 0 28px;">&nbsp;</p>
   `);
+}
+
+// ─── Staff GPS daily summary (sent on clock-out) ────────────────────────────
+// Builds an admin email summarising a staff member's GPS movement for the
+// shift they just finished. The pings come from gps_track_points; we compute
+// total distance via the haversine formula, max/avg speed, and embed a
+// static Google Maps URL with markers + polyline so the admin can eyeball
+// the route without leaving their inbox.
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371; // km
+  const toRad = (d: number) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+function fmtSgTime(d: Date | string | null | undefined): string {
+  if (!d) return "—";
+  const dt = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(dt.getTime())) return "—";
+  return dt.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Singapore", hour12: false });
+}
+
+function fmtSgDate(d: Date | string | null | undefined): string {
+  if (!d) return "—";
+  const dt = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(dt.getTime())) return "—";
+  return dt.toLocaleDateString("en-SG", { weekday: "short", day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Singapore" });
+}
+
+/**
+ * Build the static OpenStreetMap (staticmap.openstreetmap.de) URL for the
+ * route. We prefer OSM because Google Static Maps requires an API key and
+ * the route is short enough that a 600×400 OSM tile is fine. If the OSM
+ * service is unreachable, the image just won't render — the table summary
+ * still tells the full story.
+ */
+function buildRouteMapUrl(points: Array<{ lat: number; lng: number }>): string | null {
+  if (points.length === 0) return null;
+  // Downsample to at most 40 points so the URL stays under typical limits.
+  const step = Math.max(1, Math.ceil(points.length / 40));
+  const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
+  const markers = [
+    `${sampled[0].lat},${sampled[0].lng},red-pushpin`,
+    `${sampled[sampled.length - 1].lat},${sampled[sampled.length - 1].lng},green-pushpin`,
+  ].join("|");
+  // staticmap.openstreetmap.de doesn't draw polylines, but a Google Maps
+  // *directions* URL works as a clickable fallback below the image.
+  const params = new URLSearchParams({
+    size: "600x320",
+    maptype: "mapnik",
+    markers,
+  });
+  return `https://staticmap.openstreetmap.de/staticmap.php?${params.toString()}`;
+}
+
+function buildGoogleMapsViewUrl(points: Array<{ lat: number; lng: number }>): string | null {
+  if (points.length === 0) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
+  // Plain "search" URL pinning the last known location — works without API key.
+  if (points.length === 1) {
+    return `https://www.google.com/maps?q=${first.lat},${first.lng}`;
+  }
+  return `https://www.google.com/maps/dir/${first.lat},${first.lng}/${last.lat},${last.lng}`;
+}
+
+export interface GpsSummaryPoint {
+  lat: string | number;
+  lng: string | number;
+  speed?: string | number | null;
+  recordedAt: Date | string;
+}
+
+export interface StaffGpsSummaryInput {
+  staffName: string;
+  staffEmail?: string | null;
+  clockInAt: Date | string | null;
+  clockOutAt: Date | string | null;
+  clockInLat?: string | number | null;
+  clockInLng?: string | number | null;
+  clockOutLat?: string | number | null;
+  clockOutLng?: string | number | null;
+  points: GpsSummaryPoint[];
+}
+
+export function staffGpsSummaryEmail(input: StaffGpsSummaryInput): { subject: string; html: string } {
+  const { staffName, clockInAt, clockOutAt, points } = input;
+
+  // Normalise & sort points so distance computation is correct even if the
+  // DB returns them in an unexpected order.
+  const norm = points
+    .map(p => ({
+      lat: typeof p.lat === "string" ? parseFloat(p.lat) : p.lat,
+      lng: typeof p.lng === "string" ? parseFloat(p.lng) : p.lng,
+      speed: p.speed == null ? null : (typeof p.speed === "string" ? parseFloat(p.speed) : p.speed),
+      recordedAt: new Date(p.recordedAt as any),
+    }))
+    .filter(p => isFinite(p.lat) && isFinite(p.lng))
+    .sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
+
+  // ── Stats ─────────────────────────────────────────────────────────────
+  let totalKm = 0;
+  for (let i = 1; i < norm.length; i++) {
+    totalKm += haversineKm(norm[i - 1].lat, norm[i - 1].lng, norm[i].lat, norm[i].lng);
+  }
+  const speedsKmh = norm
+    .map(p => (p.speed != null && isFinite(p.speed) && p.speed >= 0) ? p.speed * 3.6 : null)
+    .filter((s): s is number => s != null);
+  const topSpeedKmh = speedsKmh.length ? Math.max(...speedsKmh) : 0;
+  const avgSpeedKmh = speedsKmh.length ? speedsKmh.reduce((a, b) => a + b, 0) / speedsKmh.length : 0;
+
+  const clockIn  = clockInAt  ? new Date(clockInAt  as any) : null;
+  const clockOut = clockOutAt ? new Date(clockOutAt as any) : null;
+  let durationStr = "—";
+  if (clockIn && clockOut && !isNaN(clockIn.getTime()) && !isNaN(clockOut.getTime())) {
+    const mins = Math.max(0, Math.round((clockOut.getTime() - clockIn.getTime()) / 60000));
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    durationStr = `${h}h ${m}m`;
+  }
+
+  // ── Pings table (downsampled to 12 rows for email readability) ────────
+  const tableStep = Math.max(1, Math.ceil(norm.length / 12));
+  const tableRows = norm
+    .filter((_, i) => i % tableStep === 0 || i === norm.length - 1)
+    .map(p => {
+      const time = fmtSgTime(p.recordedAt);
+      const speed = (p.speed != null && isFinite(p.speed) && p.speed >= 0)
+        ? `${(p.speed * 3.6).toFixed(1)} km/h`
+        : "—";
+      const coord = `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
+      const mapsLink = `https://www.google.com/maps?q=${p.lat},${p.lng}`;
+      return `<tr>
+        <td style="${FONT}font-size:13px;color:#444;padding:6px 8px;border-bottom:1px solid #eee;">${time}</td>
+        <td style="${FONT}font-size:13px;color:#444;padding:6px 8px;border-bottom:1px solid #eee;"><a href="${mapsLink}" style="color:#0066cc;text-decoration:none;">${coord}</a></td>
+        <td style="${FONT}font-size:13px;color:#444;padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${speed}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const mapImgUrl = buildRouteMapUrl(norm.map(p => ({ lat: p.lat, lng: p.lng })));
+  const mapClickUrl = buildGoogleMapsViewUrl(norm.map(p => ({ lat: p.lat, lng: p.lng })));
+
+  const dateStr = fmtSgDate(clockIn ?? clockOut ?? new Date());
+  // Escape ALL user-derived fields before interpolation. Staff names come
+  // from the users table which admins can edit — never trust as safe HTML.
+  // The subject line is plain text in most mail clients but we strip HTML
+  // chars too so a malicious name can't smuggle markup into preview panes.
+  const safeName = escapeHtml(staffName);
+  const subject = `[GPS Summary] ${String(staffName).replace(/[\r\n<>]/g, "").slice(0, 80)} — ${dateStr}`;
+
+  const summaryBlock = `
+    <h2 style="${FONT_BLACK}font-size:18px;color:#000;margin:0 0 6px;letter-spacing:0.5px;text-transform:uppercase;">Shift summary</h2>
+    <p style="${FONT}font-size:14px;color:#555;margin:0 0 18px;">${safeName} • ${dateStr}</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 18px;">
+      <tr>
+        <td style="${FONT}font-size:13px;color:#777;padding:8px 0;width:42%;">Clock in</td>
+        <td style="${FONT}font-size:14px;color:#000;padding:8px 0;font-weight:bold;">${fmtSgTime(clockIn)}</td>
+      </tr>
+      <tr>
+        <td style="${FONT}font-size:13px;color:#777;padding:8px 0;border-top:1px solid #eee;">Clock out</td>
+        <td style="${FONT}font-size:14px;color:#000;padding:8px 0;font-weight:bold;border-top:1px solid #eee;">${fmtSgTime(clockOut)}</td>
+      </tr>
+      <tr>
+        <td style="${FONT}font-size:13px;color:#777;padding:8px 0;border-top:1px solid #eee;">Time on duty</td>
+        <td style="${FONT}font-size:14px;color:#000;padding:8px 0;font-weight:bold;border-top:1px solid #eee;">${durationStr}</td>
+      </tr>
+      <tr>
+        <td style="${FONT}font-size:13px;color:#777;padding:8px 0;border-top:1px solid #eee;">Distance travelled</td>
+        <td style="${FONT}font-size:14px;color:#000;padding:8px 0;font-weight:bold;border-top:1px solid #eee;">${totalKm.toFixed(2)} km</td>
+      </tr>
+      <tr>
+        <td style="${FONT}font-size:13px;color:#777;padding:8px 0;border-top:1px solid #eee;">Top speed</td>
+        <td style="${FONT}font-size:14px;color:#000;padding:8px 0;font-weight:bold;border-top:1px solid #eee;">${topSpeedKmh > 0 ? `${topSpeedKmh.toFixed(1)} km/h` : "—"}</td>
+      </tr>
+      <tr>
+        <td style="${FONT}font-size:13px;color:#777;padding:8px 0;border-top:1px solid #eee;">Average moving speed</td>
+        <td style="${FONT}font-size:14px;color:#000;padding:8px 0;font-weight:bold;border-top:1px solid #eee;">${avgSpeedKmh > 0 ? `${avgSpeedKmh.toFixed(1)} km/h` : "—"}</td>
+      </tr>
+      <tr>
+        <td style="${FONT}font-size:13px;color:#777;padding:8px 0;border-top:1px solid #eee;">GPS pings captured</td>
+        <td style="${FONT}font-size:14px;color:#000;padding:8px 0;font-weight:bold;border-top:1px solid #eee;">${norm.length}</td>
+      </tr>
+    </table>
+  `;
+
+  const mapBlock = mapImgUrl && mapClickUrl ? `
+    <h3 style="${FONT_BLACK}font-size:14px;color:#000;margin:24px 0 10px;letter-spacing:0.4px;text-transform:uppercase;">Route</h3>
+    <a href="${mapClickUrl}" style="text-decoration:none;display:block;">
+      <img src="${mapImgUrl}" alt="Route map" width="600" style="display:block;width:100%;max-width:600px;border:1px solid #ddd;border-radius:6px;"/>
+    </a>
+    <p style="${FONT}font-size:12px;color:#888;margin:6px 0 0;">Red marker = clock-in location · Green marker = clock-out location · <a href="${mapClickUrl}" style="color:#0066cc;text-decoration:none;">Open full route in Google Maps →</a></p>
+  ` : `
+    <p style="${FONT}font-size:13px;color:#888;margin:18px 0;font-style:italic;">No GPS pings were captured during this shift — the staff device may have had location services disabled or no signal.</p>
+  `;
+
+  const pingsBlock = tableRows ? `
+    <h3 style="${FONT_BLACK}font-size:14px;color:#000;margin:28px 0 10px;letter-spacing:0.4px;text-transform:uppercase;">Sample pings</h3>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #eee;border-radius:6px;overflow:hidden;">
+      <thead>
+        <tr style="background:#fafafa;">
+          <th style="${FONT}font-size:12px;color:#777;text-align:left;padding:8px;text-transform:uppercase;letter-spacing:0.4px;">Time (SGT)</th>
+          <th style="${FONT}font-size:12px;color:#777;text-align:left;padding:8px;text-transform:uppercase;letter-spacing:0.4px;">Location</th>
+          <th style="${FONT}font-size:12px;color:#777;text-align:right;padding:8px;text-transform:uppercase;letter-spacing:0.4px;">Speed</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  ` : "";
+
+  const body = `${summaryBlock}${mapBlock}${pingsBlock}`;
+  const html = shell(`Staff GPS Summary — ${safeName}`, body);
+  return { subject, html };
 }
 
 export { ADMIN_EMAIL, WHATSAPP_LINK, WHATSAPP_NUMBER };
