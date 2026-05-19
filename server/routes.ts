@@ -4761,6 +4761,10 @@ ${systemPrompt}` });
           billingCompanyName: z.string().nullable().optional(),
           billingCompanyUen: z.string().nullable().optional(),
           poNumber: z.string().nullable().optional(),
+          // Goodwill discount — admin-discretion per-job adjustment.
+          // String to match the numeric column type used elsewhere.
+          goodwillDiscount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").optional(),
+          goodwillReason: z.string().max(500).nullable().optional(),
         }).optional(),
         items: z.array(z.object({
           catalogItemId: z.number().nullable().optional(),

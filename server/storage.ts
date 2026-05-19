@@ -969,40 +969,67 @@ export class DatabaseStorage implements IStorage {
       await db.update(quotes).set(data.quoteUpdates).where(eq(quotes.id, id));
     }
 
-    if (data.items !== undefined) {
-      // Fetch current quote for promo and transport
+    // Recompute totals whenever ANY pricing-affecting field changed.
+    // Previously this only ran when items were replaced, which meant a
+    // partial edit that only touched transportFee or goodwillDiscount
+    // would persist the new field but leave subtotal/total/deposit/final
+    // stale. Treat items / transportFee / goodwillDiscount edits the same.
+    const pricingTouched =
+      data.items !== undefined ||
+      data.quoteUpdates?.transportFee !== undefined ||
+      data.quoteUpdates?.goodwillDiscount !== undefined;
+
+    if (pricingTouched) {
+      // Re-fetch after the quoteUpdates write so we see the latest values.
       const existingQuote = await db.select().from(quotes).where(eq(quotes.id, id));
-      const transportFee = Number(
-        data.quoteUpdates?.transportFee ?? existingQuote[0]?.transportFee ?? 0
-      );
-      const promoDiscount = Number(existingQuote[0]?.promoDiscount || 0);
+      const current = existingQuote[0];
+      const transportFee = Number(current?.transportFee ?? 0);
+      const promoDiscount = Number(current?.promoDiscount || 0);
+      const goodwillDiscount = Number(current?.goodwillDiscount || 0);
 
-      // Separate regular items from discount line items
-      const regularItems = data.items.filter(item => item.serviceType !== 'discount');
-      const discountLineItems: typeof data.items = promoDiscount > 0 && existingQuote[0]?.promoCode
-        ? [{
-            originalDescription: `Promo Code: ${existingQuote[0].promoCode}`,
-            detectedName: `Promo Code: ${existingQuote[0].promoCode}`,
-            serviceType: 'discount' as const,
-            quantity: 1,
-            unitPrice: (-promoDiscount).toFixed(2),
-            subtotal: (-promoDiscount).toFixed(2),
-            catalogItemId: null,
-          }]
-        : [];
-
-      // Replace all items (regular + preserved discount line)
-      await db.delete(quoteItems).where(eq(quoteItems.quoteId, id));
-      const allItems = [...regularItems, ...discountLineItems];
-      if (allItems.length > 0) {
-        await db.insert(quoteItems).values(allItems.map(item => ({ ...item, quoteId: id })));
+      // Replace items only when caller explicitly provided them.
+      if (data.items !== undefined) {
+        const regularItems = data.items.filter(item => item.serviceType !== 'discount');
+        const discountLineItems: typeof data.items = promoDiscount > 0 && current?.promoCode
+          ? [{
+              originalDescription: `Promo Code: ${current.promoCode}`,
+              detectedName: `Promo Code: ${current.promoCode}`,
+              serviceType: 'discount' as const,
+              quantity: 1,
+              unitPrice: (-promoDiscount).toFixed(2),
+              subtotal: (-promoDiscount).toFixed(2),
+              catalogItemId: null,
+            }]
+          : [];
+        await db.delete(quoteItems).where(eq(quoteItems.quoteId, id));
+        const allItems = [...regularItems, ...discountLineItems];
+        if (allItems.length > 0) {
+          await db.insert(quoteItems).values(allItems.map(item => ({ ...item, quoteId: id })));
+        }
       }
 
-      // Recalculate totals — subtotal = regular items only; promo applied to total
-      const subtotal = regularItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
-      const total = Math.max(0, subtotal - promoDiscount + transportFee);
-      const depositAmount = (total * 0.50).toFixed(2);
-      const finalAmount = (total * 0.50).toFixed(2);
+      // Subtotal = sum of regular (non-discount) item lines now on the quote.
+      const itemRows = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, id));
+      const subtotal = itemRows
+        .filter(r => r.serviceType !== 'discount')
+        .reduce((sum, r) => sum + Number(r.subtotal || 0), 0);
+      const total = Math.max(0, subtotal - promoDiscount - goodwillDiscount + transportFee);
+
+      // Protect already-collected money: if the deposit was paid at an
+      // earlier amount, keep that amount and shift the difference onto the
+      // balance. Without this, lowering the total (e.g. applying a goodwill
+      // discount after deposit) would silently overwrite the recorded
+      // deposit and the customer could be over/undercharged at final
+      // payment. Only do the naive 50/50 split when no money has moved yet.
+      let depositAmount: string;
+      let finalAmount: string;
+      if (current?.depositPaidAt) {
+        depositAmount = Number(current.depositAmount || 0).toFixed(2);
+        finalAmount = Math.max(0, total - Number(depositAmount)).toFixed(2);
+      } else {
+        depositAmount = (total * 0.50).toFixed(2);
+        finalAmount = (total * 0.50).toFixed(2);
+      }
       await db.update(quotes).set({
         subtotal: subtotal.toFixed(2),
         total: total.toFixed(2),

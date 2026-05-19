@@ -358,6 +358,13 @@ export const quotes = pgTable("quotes", {
   // Loyalty / repeat-customer discount
   loyaltyDiscount: numeric("loyalty_discount").default("0"), // SGD flat discount for returning customers
 
+  // Goodwill discount — admin-discretion adjustment applied per-job
+  // (e.g. customer haggled, service hiccup, repeat-client gesture). Subtracted
+  // from the grand total alongside any promo. The optional reason is shown to
+  // the customer on the quote status page and on the printed invoice.
+  goodwillDiscount: numeric("goodwill_discount").default("0"),
+  goodwillReason: text("goodwill_reason"),
+
   // Relocation mode: "carry" = Carry Only (no dismantle, transport+labor only, 120-min cap with overtime)
   //                   "full"  = Full D&R (dismantle + transport + reinstall, no time cap)
   // Used by email overtime notice gating and admin display. Null for non-relocation jobs.

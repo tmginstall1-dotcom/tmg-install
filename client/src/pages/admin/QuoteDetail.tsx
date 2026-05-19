@@ -881,6 +881,8 @@ export default function AdminQuoteDetail() {
       billingCompanyName: quote.billingCompanyName || '',
       billingCompanyUen: quote.billingCompanyUen || '',
       poNumber: quote.poNumber || '',
+      goodwillDiscount: quote.goodwillDiscount ? String(quote.goodwillDiscount) : '0',
+      goodwillReason: quote.goodwillReason || '',
     });
     setEditItems((quote.items || []).filter((item: any) => item.serviceType !== 'discount').map((item: any) => ({
       catalogItemId: item.catalogItemId,
@@ -1022,7 +1024,8 @@ export default function AdminQuoteDetail() {
   const editSubtotal = editItems.reduce((sum, i) => sum + Number(i.unitPrice) * Number(i.quantity), 0);
   const editTransport = Number(editQuoteData.transportFee || 0);
   const editPromoDiscount = Number(quote?.promoDiscount || 0);
-  const editTotal = Math.max(0, editSubtotal - editPromoDiscount + editTransport);
+  const editGoodwillDiscount = Number(editQuoteData.goodwillDiscount || 0);
+  const editTotal = Math.max(0, editSubtotal - editPromoDiscount - editGoodwillDiscount + editTransport);
 
   const handlePrintQuote = () => {
     const q = quote;
@@ -1659,6 +1662,7 @@ export default function AdminQuoteDetail() {
       ${Number(q.discount || 0) > 0 ? `<div class="totals-row"><span class="k">Discount</span><span>−S$${Number(q.discount).toFixed(2)}</span></div>` : ""}
       ${Number(q.transportFee || 0) > 0 ? `<div class="totals-row"><span class="k">Transport</span><span>S$${Number(q.transportFee).toFixed(2)}</span></div>` : ""}
       ${Number(q.promoDiscount || 0) > 0 ? `<div class="totals-row"><span class="k">Promo · ${esc(q.promoCode || "")}</span><span>−S$${Number(q.promoDiscount).toFixed(2)}</span></div>` : ""}
+      ${Number((q as any).goodwillDiscount || 0) > 0 ? `<div class="totals-row"><span class="k">Goodwill discount${(q as any).goodwillReason ? ` · ${esc((q as any).goodwillReason)}` : ""}</span><span>−S$${Number((q as any).goodwillDiscount).toFixed(2)}</span></div>` : ""}
       <div class="totals-row grand"><span class="k">Total</span><span>S$${Number(q.total || 0).toFixed(2)}</span></div>
       ${isFullyPaid ? `
       <div class="paid-stamp">
@@ -2303,6 +2307,26 @@ export default function AdminQuoteDetail() {
                           <span className="block text-xs text-zinc-500 mt-0.5">Adds $8 to the assigned staff's monthly payslip for this job.</span>
                         </span>
                       </label>
+                      <div>
+                        <label className="text-xs font-medium text-zinc-500 block mb-1.5">Goodwill Discount</label>
+                        <div className="relative w-32">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={editQuoteData.goodwillDiscount || '0'}
+                            onChange={e => setEditQuoteData({ ...editQuoteData, goodwillDiscount: e.target.value })}
+                            data-testid="input-goodwill-discount"
+                            className="h-9 w-full pl-6 pr-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Reason (optional, shown to customer)"
+                          value={editQuoteData.goodwillReason || ''}
+                          onChange={e => setEditQuoteData({ ...editQuoteData, goodwillReason: e.target.value })}
+                          data-testid="input-goodwill-reason"
+                          maxLength={500}
+                          className="mt-1.5 h-9 w-full sm:w-72 px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+                      </div>
                     </div>
                     
                     <div className="text-right w-full sm:w-auto bg-zinc-50 p-4 rounded-xl border border-zinc-200">
@@ -2314,6 +2338,12 @@ export default function AdminQuoteDetail() {
                         <div className="flex justify-between sm:justify-end gap-6 text-sm mb-1.5">
                           <span className="text-zinc-500">Promo ({quote?.promoCode})</span>
                           <span className="font-medium text-green-700">−${editPromoDiscount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {editGoodwillDiscount > 0 && (
+                        <div className="flex justify-between sm:justify-end gap-6 text-sm mb-1.5">
+                          <span className="text-zinc-500">Goodwill discount</span>
+                          <span className="font-medium text-green-700">−${editGoodwillDiscount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between sm:justify-end gap-6 text-sm mb-3">
@@ -2420,6 +2450,15 @@ export default function AdminQuoteDetail() {
                         <div className="flex justify-between text-sm">
                           <span className="text-zinc-500">Promo ({quote.promoCode})</span>
                           <span className="font-medium text-green-700 tabular-nums">−{formatMoney(quote.promoDiscount)}</span>
+                        </div>
+                      )}
+                      {Number((quote as any).goodwillDiscount || 0) > 0 && (
+                        <div className="flex justify-between text-sm" data-testid="row-goodwill-discount">
+                          <span className="text-zinc-500">
+                            Goodwill discount
+                            {(quote as any).goodwillReason ? <span className="text-zinc-400"> · {(quote as any).goodwillReason}</span> : null}
+                          </span>
+                          <span className="font-medium text-green-700 tabular-nums">−{formatMoney((quote as any).goodwillDiscount)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-sm">

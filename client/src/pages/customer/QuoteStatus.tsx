@@ -501,6 +501,12 @@ export default function QuoteStatus() {
                     <span className="tabular-nums">−{formatMoney(quote.promoDiscount)}</span>
                   </div>
                 )}
+                {Number((quote as any).goodwillDiscount || 0) > 0 && (
+                  <div className="flex justify-between text-xs font-semibold text-emerald-700">
+                    <span>Goodwill discount{(quote as any).goodwillReason ? ` (${(quote as any).goodwillReason})` : ""}</span>
+                    <span className="tabular-nums">−{formatMoney((quote as any).goodwillDiscount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-black text-base text-black pt-2 border-t border-black/10">
                   <span className="uppercase tracking-wide text-sm" style={{ letterSpacing: "0.08em" }}>Total</span>
                   <span className="tabular-nums">{formatMoney(quote.total)}</span>
@@ -733,6 +739,12 @@ export default function QuoteStatus() {
                   <div className="flex justify-between text-sm font-semibold text-emerald-400">
                     <span>Promo ({quote.promoCode})</span>
                     <span className="tabular-nums">−{formatMoney(quote.promoDiscount)}</span>
+                  </div>
+                )}
+                {Number((quote as any).goodwillDiscount || 0) > 0 && (
+                  <div className="flex justify-between text-sm font-semibold text-emerald-400">
+                    <span>Goodwill discount{(quote as any).goodwillReason ? ` (${(quote as any).goodwillReason})` : ""}</span>
+                    <span className="tabular-nums">−{formatMoney((quote as any).goodwillDiscount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between border-t border-white/15 pt-3 text-white font-black text-lg">
