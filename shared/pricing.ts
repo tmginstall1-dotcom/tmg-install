@@ -59,14 +59,25 @@ export const PricingConfig = {
     capacityM3: 6.0,  // Toyota Hiace usable cargo volume per trip (cubic metres)
   },
   carryHandling: {
-    // Per-cubic-metre crew labour fee for Carry Only jobs, on top of the
-    // transport fee. Transport covers van + 2 movers for up to 2 hours, which
-    // is fine for a few items — but a large carry load (many items, multiple
-    // trips) burns real crew time the transport fee alone doesn't recover.
-    // Scaling labour with carry volume keeps small jobs cheap and large jobs
-    // honest. Only counts volume from non-special-handling carry-only items
-    // (special-handling SKUs already keep their full catalog rate).
-    perM3: 20,
+    // Tiered per-cubic-metre crew labour fee for Carry Only jobs, on top of
+    // the transport fee. Transport covers van + 2 movers for up to 2 hours,
+    // which is fine for a few items — but a large carry load (many items,
+    // multiple trips) burns real crew time the transport fee alone doesn't
+    // recover. Tiered rate keeps small Singapore jobs price-competitive with
+    // Lalamove-style services while still recovering crew time on big multi-
+    // trip moves. Only counts volume from non-special-handling carry-only
+    // items (special-handling SKUs already keep their full catalog rate).
+    //
+    // Tier breakdown — applied as a marginal rate (like income tax bands):
+    //   0.00 – 2.00 m³  →  $10 / m³   (small carries, competitive)
+    //   2.00 – 5.00 m³  →  $15 / m³   (mid-size loads)
+    //   5.00 m³+        →  $20 / m³   (big multi-trip jobs)
+    perM3: 20, // legacy field kept for backwards compatibility; tiered rate below is the source of truth
+    tiers: [
+      { upTo: 2,        ratePerM3: 10 },
+      { upTo: 5,        ratePerM3: 15 },
+      { upTo: Infinity, ratePerM3: 20 },
+    ] as Array<{ upTo: number; ratePerM3: number }>,
   },
   wrapping: {
     // Optional bubble-wrap & corner-protection charge per item. Customer can
@@ -487,11 +498,32 @@ export function computePricing(input: PricingInput): PricingResult {
         return s + vol * qty;
       }, 0),
     );
-    if (carryVolumeM3 > 0 && cfg.carryHandling.perM3 > 0) {
-      const carryHandlingFee = round2(carryVolumeM3 * cfg.carryHandling.perM3);
+    if (carryVolumeM3 > 0) {
+      // Apply marginal tiered rate — like income tax bands.
+      // 0–2 m³ at $10, 2–5 m³ at $15, 5+ m³ at $20.
+      let remaining = carryVolumeM3;
+      let prevCap = 0;
+      let rawFee = 0;
+      for (const tier of cfg.carryHandling.tiers) {
+        if (remaining <= 0) break;
+        const bandSize = tier.upTo - prevCap;
+        const taken = Math.min(remaining, bandSize);
+        rawFee += taken * tier.ratePerM3;
+        remaining -= taken;
+        prevCap = tier.upTo;
+      }
+      const carryHandlingFee = round2(rawFee);
       if (carryHandlingFee > 0) {
+        // Blended rate label = total fee ÷ total volume, rounded to nearest $1.
+        // Reads as "Carry Handling (1.50 m³ × $10)" for small loads and
+        // "Carry Handling (6.00 m³ × $15 blended)" once tiers kick in.
+        const blendedRate = carryHandlingFee / carryVolumeM3;
+        const allOneTier = carryVolumeM3 <= cfg.carryHandling.tiers[0].upTo;
+        const rateLabel = allOneTier
+          ? `$${cfg.carryHandling.tiers[0].ratePerM3}`
+          : `$${blendedRate.toFixed(2)} blended`;
         feeLines.push({
-          label: `Carry Handling (${carryVolumeM3.toFixed(2)} m³ × $${cfg.carryHandling.perM3})`,
+          label: `Carry Handling (${carryVolumeM3.toFixed(2)} m³ × ${rateLabel})`,
           amount: carryHandlingFee,
         });
       }
