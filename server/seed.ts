@@ -2675,4 +2675,72 @@ export async function seedDatabase() {
     console.log("[startup] Round 26: Desk dispose tiers re-priced so totals (incl. mobilisation) land $85–$145.");
   }
 
+  /* ── Round 27: Backfill volumetric data across the whole catalog ─────────
+     Carry-only relocation pricing adds a $20/m³ "Carry Handling" fee on top
+     of the transport fee, and trip count is also volume-driven. Many older
+     dispose / dismantle+dispose / install / dismantle rows were seeded
+     without volume_m3, so customers booking those services don't see the
+     per-cubic-metre charge and we under-bill large carry loads.
+
+     Two-step backfill:
+       1. For every active item missing volume_m3, copy from a sibling
+          (same name, different service_type) that already has a sensible
+          value. This recovers ~215 of 218 missing rows automatically and
+          keeps volumes consistent across an item's service variants.
+       2. Set a manual value for the one remaining real catalog item with
+          no sibling reference ("Combo Cabinet (Drawers + Swing Doors)").
+          Internal markers (_internal / _System categories) are left alone.
+  */
+  const r27 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "VOL-BACKFILL-R27-MARKER")).limit(1);
+  if (r27.length === 0) {
+    // Step 1: sibling backfill — copy volume_m3 from another row with the
+    // same name that does have a positive value. MAX() handles the case
+    // where multiple siblings exist with slightly different volumes (we
+    // err on the side of the larger one, which keeps the fee fair).
+    const backfillRes = await db.execute(sql`
+      UPDATE catalog_items AS target
+      SET volume_m3 = sibling.vol
+      FROM (
+        SELECT name, MAX(volume_m3::numeric) AS vol
+        FROM catalog_items
+        WHERE active = true
+          AND volume_m3 IS NOT NULL
+          AND volume_m3::numeric > 0
+        GROUP BY name
+      ) AS sibling
+      WHERE target.name = sibling.name
+        AND target.active = true
+        AND (target.volume_m3 IS NULL OR target.volume_m3::numeric <= 0)
+    `);
+
+    // Step 2: manual fill for any active customer-facing rows still without
+    // a volume (i.e. no sibling reference anywhere in the catalog).
+    const manualVolumes: Array<{ name: string; volume: string }> = [
+      // Storage cabinet, drawers + swing doors — similar to a 4-door
+      // sideboard, roughly 1.0–1.4 m³.
+      { name: "Combo Cabinet (Drawers + Swing Doors)", volume: "1.20" },
+    ];
+    for (const m of manualVolumes) {
+      await db.execute(sql`
+        UPDATE catalog_items
+        SET volume_m3 = ${m.volume}
+        WHERE name = ${m.name}
+          AND active = true
+          AND (volume_m3 IS NULL OR volume_m3::numeric <= 0)
+      `);
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__vol_backfill_r27_marker__",
+      sku: "VOL-BACKFILL-R27-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    const rowCount = (backfillRes as any).rowCount ?? "?";
+    console.log(`[startup] Round 27: Catalog volume backfill — copied volume_m3 from sibling rows for ${rowCount} items + 1 manual fill (Combo Cabinet).`);
+  }
+
 }
