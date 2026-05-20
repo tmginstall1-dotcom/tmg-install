@@ -2040,7 +2040,11 @@ export default function EstimateWizard() {
                           </div>
                           <div className="text-right w-20">
                             <p className="font-black text-sm">{isFallback ? "~" : ""}${(displayUnitPrice * item.quantity).toFixed(2)}</p>
-                            <p className="text-xs text-black/35">{isFallback ? "~" : ""}${displayUnitPrice.toFixed(2)} ea</p>
+                            {item.serviceType === 'relocate' && item.relocateMode === 'carry' && displayUnitPrice === 0 ? (
+                              <p className="text-[10px] text-black/35 leading-tight">Bundled in transport</p>
+                            ) : (
+                              <p className="text-xs text-black/35">{isFallback ? "~" : ""}${displayUnitPrice.toFixed(2)} ea</p>
+                            )}
                           </div>
                           <button onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))}
                             data-testid={`button-remove-${item.id}`}

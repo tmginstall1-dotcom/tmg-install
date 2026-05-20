@@ -2743,4 +2743,90 @@ export async function seedDatabase() {
     console.log(`[startup] Round 27: Catalog volume backfill — copied volume_m3 from sibling rows for ${rowCount} items + 1 manual fill (Combo Cabinet).`);
   }
 
+  /* ── Round 28: Catalog volume accuracy pass ─────────────────────────────
+     Round 27 just guaranteed every row HAS a volume. This round fixes two
+     remaining accuracy issues:
+
+       (a) Same-name duplicates with different volumes — e.g. two rows for
+           "Hydraulic Storage Bed (King)" carrying 1.20 and 0.65 m³. We
+           normalise every name to the MAX value across its rows. This is
+           the right direction for Carry Only (the item is moved intact,
+           not dismantled), and never reduces a fee that's already in use.
+       (b) A curated list of heavy / oversized items whose intact-carry
+           volume was clearly underestimated against real Singapore moves
+           (e.g. king-bed frame intact, French-door fridge, massage chair,
+           75-inch TV in box). These were mostly back-of-envelope D&R
+           volumes that don't match an item moved as one piece.
+
+     Marker: VOL-ACCURACY-R28-MARKER.
+  */
+  const r28 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "VOL-ACCURACY-R28-MARKER")).limit(1);
+  if (r28.length === 0) {
+    // (a) Normalise same-name duplicates to the MAX volume per name.
+    const dedupeRes = await db.execute(sql`
+      UPDATE catalog_items AS target
+      SET volume_m3 = sibling.vol
+      FROM (
+        SELECT name, MAX(volume_m3::numeric) AS vol
+        FROM catalog_items
+        WHERE active = true
+          AND volume_m3 IS NOT NULL
+          AND volume_m3::numeric > 0
+        GROUP BY name
+        HAVING COUNT(DISTINCT volume_m3::numeric) > 1
+      ) AS sibling
+      WHERE target.name = sibling.name
+        AND target.active = true
+        AND (target.volume_m3 IS NULL OR target.volume_m3::numeric < sibling.vol)
+    `);
+
+    // (b) Curated heavy-item corrections. Volumes here represent the item
+    // as it actually travels (intact, in carton, or in transport position).
+    // These apply to ALL service types for a given name — install and
+    // dismantle volumes track the same physical object.
+    const curated: Array<{ name: string; volume: string; note: string }> = [
+      // Beds — intact carry-only volumes (mattress sold separately)
+      { name: "King Bed Frame",                     volume: "1.20", note: "intact, ~1.9m × 2.0m × 0.3m" },
+      { name: "Queen Bed Frame",                    volume: "0.90", note: "intact, ~1.6m × 2.0m × 0.3m" },
+      { name: "Double Bed Frame",                   volume: "0.75", note: "intact double" },
+      { name: "Super Single Bed Frame",             volume: "0.55", note: "intact super single" },
+      { name: "Single Bed Frame",                   volume: "0.45", note: "intact single" },
+      // Heavy living-room items
+      { name: "Massage Chair",                      volume: "1.50", note: "premium massage chair, intact" },
+      { name: "Television (75\" and above)",        volume: "0.50", note: "boxed 75\"+ TV" },
+      // Appliances
+      { name: "Refrigerator (French Door / 4-Door)",                 volume: "1.20", note: "intact French-door fridge" },
+      { name: "Refrigerator — French Door or Side-by-Side",          volume: "1.20", note: "intact French-door / side-by-side" },
+      { name: "Refrigerator (2-Door / Standard)",                    volume: "0.80", note: "intact 2-door" },
+      { name: "Refrigerator — Double Door (180 to 400L)",            volume: "0.80", note: "intact 2-door" },
+      // Specialty
+      { name: "Pool / Billiard Table",              volume: "3.00", note: "regulation pool table, dismantled bulk" },
+      { name: "Piano (Upright)",                    volume: "1.50", note: "upright piano intact" },
+      { name: "Upright Piano (within unit or same floor)", volume: "1.50", note: "upright piano intact" },
+      { name: "Piano (Grand)",                      volume: "3.00", note: "grand piano intact" },
+      { name: "Baby Grand Piano (within unit or same floor)", volume: "3.00", note: "baby grand intact" },
+    ];
+    let curatedCount = 0;
+    for (const c of curated) {
+      const res = await db.execute(sql`
+        UPDATE catalog_items
+        SET volume_m3 = ${c.volume}
+        WHERE name = ${c.name} AND active = true
+      `);
+      curatedCount += (res as any).rowCount ?? 0;
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__vol_accuracy_r28_marker__",
+      sku: "VOL-ACCURACY-R28-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    const dedupeCount = (dedupeRes as any).rowCount ?? "?";
+    console.log(`[startup] Round 28: Volume accuracy — deduped ${dedupeCount} same-name conflicts to MAX value + ${curatedCount} curated heavy-item corrections.`);
+  }
+
 }
