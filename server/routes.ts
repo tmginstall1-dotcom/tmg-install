@@ -4739,17 +4739,11 @@ ${systemPrompt}` });
         return res.status(403).json({ message: "Forbidden" });
       }
       if (caller.role === 'staff') {
-        const assignedSolo = (existing as any).assignedToUserId
-          ? (existing as any).assignedToUserId === caller.id
-          : false;
-        let onAssignedTeam = false;
-        const teamId = (existing as any).assignedTeamId;
-        if (teamId && typeof (storage as any).getTeamMembers === 'function') {
-          try {
-            const members = await (storage as any).getTeamMembers(teamId);
-            onAssignedTeam = Array.isArray(members) && members.some((m: any) => m.userId === caller.id || m.id === caller.id);
-          } catch { /* team lookup failure → fall through to deny */ }
-        }
+        const assignedStaffId = (existing as any).assignedStaffId;
+        const assignedTeamId  = (existing as any).assignedTeamId;
+        const callerTeamId    = (caller as any).teamId;
+        const assignedSolo = assignedStaffId != null && assignedStaffId === caller.id;
+        const onAssignedTeam = assignedTeamId != null && callerTeamId != null && assignedTeamId === callerTeamId;
         if (!assignedSolo && !onAssignedTeam) {
           return res.status(403).json({ message: "You are not assigned to this job" });
         }
