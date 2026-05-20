@@ -55,22 +55,66 @@ async function captureGPS(): Promise<{ lat: number; lng: number }> {
   });
 }
 
-async function compressToDataUrl(file: File, maxPx = 1280, quality = 0.82): Promise<string> {
-  return new Promise((resolve, reject) => {
+async function compressToDataUrl(file: File, maxPx = 1024, quality = 0.72): Promise<string> {
+  // Prefer createImageBitmap when available — it handles HEIC on iOS Safari
+  // and decodes off the main thread, avoiding the hangs we saw with <img>.
+  const renderFromBitmap = async (): Promise<string> => {
+    // @ts-ignore — createImageBitmap exists on all modern mobile browsers
+    const bitmap: ImageBitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxPx / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 2D context unavailable");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    const out = canvas.toDataURL("image/jpeg", quality);
+    if (!out || out.length < 100) throw new Error("Empty image output");
+    return out;
+  };
+
+  const renderFromImageEl = (): Promise<string> => new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
-    img.onload = () => {
+    const timer = setTimeout(() => {
       URL.revokeObjectURL(url);
-      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/jpeg", quality));
+      reject(new Error("Photo decode timed out — try a different photo (HEIC may not be supported)"));
+    }, 12000);
+    img.onload = () => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      try {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas 2D context unavailable"));
+        ctx.drawImage(img, 0, 0, w, h);
+        const out = canvas.toDataURL("image/jpeg", quality);
+        if (!out || out.length < 100) return reject(new Error("Empty image output"));
+        resolve(out);
+      } catch (e: any) {
+        reject(e);
+      }
     };
-    img.onerror = reject;
+    img.onerror = () => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not decode photo (unsupported format?)"));
+    };
     img.src = url;
   });
+
+  if (typeof (window as any).createImageBitmap === "function") {
+    try { return await renderFromBitmap(); } catch { /* fall through to <img> path */ }
+  }
+  return renderFromImageEl();
 }
 
 // ── Status step models ─────────────────────────────────────────────────────
@@ -227,6 +271,7 @@ export default function JobDetail() {
   const { isTracking, startTracking, stopTracking } = useBackgroundLocation();
 
   const [photos, setPhotos] = useState<{ file: File; dataUrl: string }[]>([]);
+  const [photoProcessing, setPhotoProcessing] = useState<number>(0);
   const [note, setNote] = useState("");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
@@ -314,13 +359,27 @@ export default function JobDetail() {
   const handleAddPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (files.length === 0) return;
+    setPhotoProcessing(files.length);
+    let failures = 0;
     for (const file of files) {
       try {
         const dataUrl = await compressToDataUrl(file);
         setPhotos(prev => [...prev, { file, dataUrl }]);
-      } catch {
-        toast({ title: "Photo Error", description: "Could not process photo.", variant: "destructive" });
+      } catch (err: any) {
+        failures += 1;
+        console.error('[photo] compress failed', file.name, file.type, file.size, err);
+        toast({
+          title: "Photo Error",
+          description: err?.message || `Could not process ${file.name}. Try a JPEG/PNG.`,
+          variant: "destructive",
+        });
+      } finally {
+        setPhotoProcessing(p => Math.max(0, p - 1));
       }
+    }
+    if (failures === 0 && files.length > 0) {
+      toast({ title: "✓ Photos added", description: `${files.length} photo${files.length !== 1 ? 's' : ''} ready to upload.` });
     }
   };
 
@@ -329,6 +388,7 @@ export default function JobDetail() {
   const closeModal = () => {
     setPendingAction(null);
     setPhotos([]);
+    setPhotoProcessing(0);
     setGpsCoords(null);
     setGpsStatus('idle');
     setNote("");
@@ -341,8 +401,24 @@ export default function JobDetail() {
   const submitAction = async () => {
     if (!action) return;
 
+    if (photoProcessing > 0) {
+      toast({ title: "Still processing photos…", description: `${photoProcessing} photo${photoProcessing !== 1 ? 's' : ''} still being prepared. Please wait.` });
+      return;
+    }
+
     if (photos.length === 0) {
       toast({ title: "Photo Required", description: "Please take at least one photo.", variant: "destructive" });
+      return;
+    }
+
+    // Guard against payloads that would be rejected by the server (15MB body limit).
+    const approxBytes = photos.reduce((sum, p) => sum + Math.floor(p.dataUrl.length * 0.75), 0);
+    if (approxBytes > 12 * 1024 * 1024) {
+      toast({
+        title: "Too many photos",
+        description: `Your photos total ~${Math.round(approxBytes / 1024 / 1024)}MB. Please remove some and try again.`,
+        variant: "destructive",
+      });
       return;
     }
 
@@ -753,6 +829,11 @@ export default function JobDetail() {
                     Take Photo(s) <span className="text-red-500">*</span>
                   </p>
                   {photos.length > 0 && <span className="text-xs font-bold text-emerald-600 ml-1">{photos.length} added</span>}
+                  {photoProcessing > 0 && (
+                    <span className="text-xs font-bold text-amber-600 ml-1 inline-flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Processing {photoProcessing}…
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -822,14 +903,16 @@ export default function JobDetail() {
               {/* Submit */}
               <button
                 onClick={submitAction}
-                disabled={isPending || gpsStatus === 'loading'}
+                disabled={isPending || gpsStatus === 'loading' || photoProcessing > 0}
                 data-testid="button-submit-checkin"
                 className={`w-full py-4 rounded-2xl font-black text-white flex items-center justify-center gap-2.5 transition-all shadow-lg active:scale-[0.98] bg-gradient-to-r ${actionMeta.gradientFrom} ${actionMeta.gradientTo} ${actionMeta.shadowColor} ${
-                  isPending || gpsStatus === 'loading' ? "opacity-70 cursor-wait" : ""
+                  isPending || gpsStatus === 'loading' || photoProcessing > 0 ? "opacity-70 cursor-wait" : ""
                 }`}
               >
                 {isPending ? (
                   <><Loader2 className="w-5 h-5 animate-spin" /> Uploading…</>
+                ) : photoProcessing > 0 ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" /> Processing photos…</>
                 ) : gpsStatus === 'loading' ? (
                   <><Loader2 className="w-5 h-5 animate-spin" /> Getting location…</>
                 ) : (
