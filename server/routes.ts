@@ -4711,12 +4711,15 @@ ${systemPrompt}` });
     }
   });
 
-  // Staff: Relocation stage transition (4-stage flow)
-  //   assigned       → at_pickup
-  //   at_pickup      → in_transit  (loaded — clock starts for transit)
-  //   at_pickup      → at_dropoff  (same-property move: skip transit)
-  //   in_transit     → at_dropoff
-  //   at_dropoff     → completed
+  // Staff: Relocation stage transition (simple 3-step flow)
+  //   assigned       → at_pickup   (pickup photo)
+  //   at_pickup      → at_dropoff  (dropoff photo)
+  //   at_dropoff     → completed   (final completion photo)
+  //
+  // Legacy compatibility:
+  //   `in_transit` is still accepted as a source state for `at_dropoff`
+  //   so any quotes already sitting at `in_transit` (from the old 4-stage
+  //   flow) can still progress. New quotes never enter `in_transit`.
   app.post("/api/quotes/:id/stage", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
     try {
@@ -4750,12 +4753,13 @@ ${systemPrompt}` });
       }
 
       // Legal transitions — `at_pickup → completed` is intentionally NOT allowed:
-      // even on a same-property job, staff must record `at_dropoff` so the dropoff
+      // staff must record `at_dropoff` (with a dropoff photo) so the dropoff
       // labour window is captured for overtime billing.
+      // `in_transit` is accepted only as a legacy source state for backward
+      // compatibility with quotes started on the old 4-stage flow.
       const cur = existing.status;
       const ok =
         (stage === 'at_pickup'  && cur === 'assigned') ||
-        (stage === 'in_transit' && cur === 'at_pickup') ||
         (stage === 'at_dropoff' && (cur === 'at_pickup' || cur === 'in_transit')) ||
         (stage === 'completed'  && (cur === 'at_dropoff' || cur === 'in_progress'));
       if (!ok) {

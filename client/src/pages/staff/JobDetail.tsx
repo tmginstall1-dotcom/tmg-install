@@ -127,9 +127,8 @@ const INSTALL_STEPS = [
 
 const RELOCATION_STEPS_FULL = [
   { key: "assigned", label: "Assigned" },
-  { key: "at_pickup", label: "At Pickup" },
-  { key: "in_transit", label: "In Transit" },
-  { key: "at_dropoff", label: "At Dropoff" },
+  { key: "at_pickup", label: "Pickup Photo" },
+  { key: "at_dropoff", label: "Dropoff Photo" },
   { key: "completed", label: "Done" },
 ];
 
@@ -173,18 +172,18 @@ type Action =
   | { kind: 'install_arrive' }
   | { kind: 'install_complete' }
   | { kind: 'stage_at_pickup' }
-  | { kind: 'stage_in_transit' }
   | { kind: 'stage_at_dropoff' }
   | { kind: 'stage_completed' };
 
 function nextAction(job: any): Action | null {
   if (!job) return null;
   const relocation = isRelocationJob(job);
-  const sameProp = isSameProperty(job);
   if (relocation) {
     switch (job.status) {
       case 'assigned':    return { kind: 'stage_at_pickup' };
-      case 'at_pickup':   return sameProp ? { kind: 'stage_at_dropoff' } : { kind: 'stage_in_transit' };
+      case 'at_pickup':   return { kind: 'stage_at_dropoff' };
+      // Legacy: any quote already at 'in_transit' from the old flow
+      // jumps straight to the dropoff photo step.
       case 'in_transit':  return { kind: 'stage_at_dropoff' };
       case 'at_dropoff':  return { kind: 'stage_completed' };
       default: return null;
@@ -227,25 +226,17 @@ function metaFor(action: Action): ActionMeta {
       };
     case 'stage_at_pickup':
       return {
-        title: '📍 Arrived at Pickup',
-        subtitle: 'Photograph items BEFORE moving — protects against damage claims',
-        buttonLabel: 'Confirm Arrived at Pickup',
+        title: '📸 Pickup Photo',
+        subtitle: 'Photograph items at the pickup location — protects against damage claims',
+        buttonLabel: 'Submit Pickup Photo',
         notePlaceholder: 'Access, lift booking, pre-existing damage notes…',
         gradientFrom: 'from-sky-500', gradientTo: 'to-sky-600', shadowColor: 'shadow-sky-500/25',
       };
-    case 'stage_in_transit':
-      return {
-        title: '🚚 Loaded & Departing',
-        subtitle: 'Photograph the loaded vehicle and empty pickup space',
-        buttonLabel: 'Confirm Loaded — Depart',
-        notePlaceholder: 'Anything left behind, vehicle load notes…',
-        gradientFrom: 'from-amber-500', gradientTo: 'to-amber-600', shadowColor: 'shadow-amber-500/25',
-      };
     case 'stage_at_dropoff':
       return {
-        title: '📍 Arrived at Dropoff',
-        subtitle: 'Photograph the empty dropoff space BEFORE unloading',
-        buttonLabel: 'Confirm Arrived at Dropoff',
+        title: '📸 Dropoff Photo',
+        subtitle: 'Photograph items delivered at the dropoff location',
+        buttonLabel: 'Submit Dropoff Photo',
         notePlaceholder: 'Access, lift, floor condition notes…',
         gradientFrom: 'from-fuchsia-500', gradientTo: 'to-fuchsia-600', shadowColor: 'shadow-fuchsia-500/25',
       };
@@ -353,7 +344,7 @@ export default function JobDetail() {
   const isDone = ["completed", "final_payment_requested", "final_paid", "closed"].includes(job.status);
   const action = pendingAction ?? nextAction(job);
   const showChecklistSection = relocation
-    ? ['at_pickup', 'in_transit', 'at_dropoff', 'completed'].includes(job.status)
+    ? ['at_pickup', 'at_dropoff', 'completed'].includes(job.status)
     : ['in_progress', 'completed'].includes(job.status);
 
   const handleAddPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -459,15 +450,11 @@ export default function JobDetail() {
         case 'stage_at_pickup':
           await stageMutation.mutateAsync({ ...payload, stage: 'at_pickup' });
           if (user?.id) startTracking(user.id).catch(() => {});
-          toast({ title: "✓ At Pickup", description: "Arrival at pickup recorded." });
-          break;
-        case 'stage_in_transit':
-          await stageMutation.mutateAsync({ ...payload, stage: 'in_transit' });
-          toast({ title: "✓ Loaded — In Transit", description: "Loaded confirmation submitted." });
+          toast({ title: "✓ Pickup Photo Submitted", description: "Pickup recorded." });
           break;
         case 'stage_at_dropoff':
           await stageMutation.mutateAsync({ ...payload, stage: 'at_dropoff' });
-          toast({ title: "✓ At Dropoff", description: "Arrival at dropoff recorded." });
+          toast({ title: "✓ Dropoff Photo Submitted", description: "Dropoff recorded." });
           break;
         case 'stage_completed':
           await stageMutation.mutateAsync({ ...payload, stage: 'completed' });
@@ -581,7 +568,7 @@ export default function JobDetail() {
                   <div className="flex items-start gap-2.5">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black ${
                       ['at_pickup'].includes(job.status) ? 'bg-sky-500 text-white' :
-                      ['in_transit', 'at_dropoff', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(job.status) ? 'bg-emerald-500 text-white' :
+                      ['at_dropoff', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(job.status) ? 'bg-emerald-500 text-white' :
                       'bg-secondary text-muted-foreground'
                     }`}>A</div>
                     <div className="flex-1 min-w-0">
@@ -944,7 +931,7 @@ export default function JobDetail() {
           {action && !pendingAction && (
             <div className="space-y-2">
               {/* GPS tracking indicator (visible once on-site) */}
-              {isTracking && ['in_progress', 'at_pickup', 'in_transit', 'at_dropoff'].includes(job.status) && (
+              {isTracking && ['in_progress', 'at_pickup', 'at_dropoff'].includes(job.status) && (
                 <div className="flex items-center justify-center gap-2 py-1.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl">
                   <Radio className="w-3 h-3 text-emerald-500 animate-pulse" />
                   <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Location tracking active</span>
@@ -958,9 +945,8 @@ export default function JobDetail() {
               >
                 {action.kind === 'install_arrive'   && <><Navigation2 className="w-5 h-5" /> I Have Arrived — Check In</>}
                 {action.kind === 'install_complete' && <><CheckCircle2 className="w-6 h-6" /> Job Done — Submit Completion</>}
-                {action.kind === 'stage_at_pickup'  && <><Navigation2 className="w-5 h-5" /> Arrived at Pickup</>}
-                {action.kind === 'stage_in_transit' && <><Truck className="w-5 h-5" /> Loaded — Depart for Dropoff</>}
-                {action.kind === 'stage_at_dropoff' && <><Navigation2 className="w-5 h-5" /> Arrived at Dropoff</>}
+                {action.kind === 'stage_at_pickup'  && <><Navigation2 className="w-5 h-5" /> Submit Pickup Photo</>}
+                {action.kind === 'stage_at_dropoff' && <><Navigation2 className="w-5 h-5" /> Submit Dropoff Photo</>}
                 {action.kind === 'stage_completed'  && <><CheckCircle2 className="w-6 h-6" /> Job Done — Submit Completion</>}
               </button>
             </div>
