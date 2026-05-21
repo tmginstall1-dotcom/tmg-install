@@ -98,6 +98,7 @@ export interface IStorage {
   getQuote(id: number): Promise<QuoteResponse | undefined>;
   createQuote(customer: InsertCustomer, quote: Omit<InsertQuote, 'customerId'>, items: InsertQuoteItem[]): Promise<QuoteResponse>;
   updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number, assignedTeamId?: number | null): Promise<QuoteResponse | undefined>;
+  setPhaseCompletion(id: number, phase: 'dismantle' | 'delivery' | 'install', done: boolean, actor: { actorType: string; userId?: number; note?: string }): Promise<QuoteResponse | undefined>;
   updateQuotePayment(id: number, paymentType: 'deposit' | 'final', amount: string): Promise<QuoteResponse | undefined>;
   requestBooking(id: number, scheduledAt: Date, timeWindow: string): Promise<QuoteResponse | undefined>;
   confirmBooking(id: number): Promise<QuoteResponse | undefined>;
@@ -817,6 +818,35 @@ export class DatabaseStorage implements IStorage {
       gpsLat: updateRecord?.gpsLat,
       gpsLng: updateRecord?.gpsLng,
       actorId: updateRecord?.actorId,
+    });
+    return await this.fetchQuoteDetails(id);
+  }
+
+  async setPhaseCompletion(
+    id: number,
+    phase: 'dismantle' | 'delivery' | 'install',
+    done: boolean,
+    actor: { actorType: string; userId?: number; note?: string },
+  ) {
+    // Fetch current completions (jsonb column, defaults to []).
+    const existing = await db.select({ pc: quotes.phaseCompletions }).from(quotes).where(eq(quotes.id, id)).limit(1);
+    if (existing.length === 0) return undefined;
+    const current: Array<{ phase: string; completedAt: string; completedByUserId?: number; note?: string }> =
+      Array.isArray(existing[0].pc) ? (existing[0].pc as any) : [];
+
+    // Remove any prior entry for this phase, then optionally re-add.
+    const filtered = current.filter((c) => c.phase !== phase);
+    const next = done
+      ? [...filtered, { phase, completedAt: new Date().toISOString(), completedByUserId: actor.userId, note: actor.note }]
+      : filtered;
+
+    await db.update(quotes).set({ phaseCompletions: next as any }).where(eq(quotes.id, id));
+    await db.insert(jobUpdates).values({
+      quoteId: id,
+      statusChange: done ? `phase_${phase}_done` : `phase_${phase}_undone`,
+      actorType: actor.actorType,
+      note: actor.note || (done ? `${phase} phase marked complete` : `${phase} phase reopened`),
+      actorId: actor.userId,
     });
     return await this.fetchQuoteDetails(id);
   }

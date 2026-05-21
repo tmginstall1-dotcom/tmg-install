@@ -609,6 +609,23 @@ export default function AdminQuoteDetail() {
     },
   });
 
+  // Multi-day phase tracker — mark dismantle / delivery / install done on
+  // their own day. Final-payment button is gated until every applicable
+  // phase has a completion entry. Phases derived from selectedServices.
+  const togglePhase = useMutation({
+    mutationFn: ({ phase, done, note }: { phase: 'dismantle' | 'delivery' | 'install'; done: boolean; note?: string }) =>
+      apiRequest("POST", `/api/admin/quotes/${id}/phase`, { phase, done, note }).then(r => r.json()),
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      toast({
+        title: vars.done ? `✓ ${vars.phase[0].toUpperCase() + vars.phase.slice(1)} marked done` : "Phase reopened",
+        description: vars.done ? "Other phases can still be completed on later days." : "You can re-tick it when the work is done.",
+      });
+    },
+    onError: (err: any) => toast({ title: "Phase update failed", description: err.message, variant: "destructive" }),
+  });
+
   const reopenJob = useMutation({
     mutationFn: (reason?: string) =>
       apiRequest("POST", `/api/admin/quotes/${id}/reopen`, { reason }).then(r => r.json()),
@@ -848,6 +865,31 @@ export default function AdminQuoteDetail() {
       </div>
     );
   }
+
+  // ── Multi-day phase tracker ─────────────────────────────────────────
+  // Phases applicable to this job are derived from the booked services:
+  //   selectedServices includes "dismantle"  → Dismantle phase
+  //   selectedServices includes "relocate"   → Delivery phase (transport leg)
+  //   selectedServices includes "install"    → Install phase
+  // The "Mark Done & Request Final Payment" button is gated until every
+  // applicable phase has a completion entry. Jobs with 0 or 1 applicable
+  // phases skip the gate entirely (it would just be noise).
+  const phaseSelectedServices: string[] = (() => {
+    try { return JSON.parse(quote.selectedServices || "[]"); } catch { return []; }
+  })();
+  const phaseCompletions: Array<{ phase: string; completedAt: string; completedByUserId?: number; note?: string }> =
+    Array.isArray((quote as any).phaseCompletions) ? (quote as any).phaseCompletions : [];
+  const applicablePhases: Array<{ key: 'dismantle' | 'delivery' | 'install'; label: string }> = [];
+  if (phaseSelectedServices.includes("dismantle")) applicablePhases.push({ key: 'dismantle', label: 'Dismantle' });
+  if (phaseSelectedServices.includes("relocate"))  applicablePhases.push({ key: 'delivery',  label: 'Delivery'  });
+  if (phaseSelectedServices.includes("install"))   applicablePhases.push({ key: 'install',   label: 'Install'   });
+  const phaseStatus = (key: 'dismantle' | 'delivery' | 'install') =>
+    phaseCompletions.find((c) => c.phase === key);
+  const allPhasesDone = applicablePhases.length === 0
+    ? true
+    : applicablePhases.every((p) => !!phaseStatus(p.key));
+  const hasMultiplePhases = applicablePhases.length > 1;
+  const finalPaymentBlockedByPhases = hasMultiplePhases && !allPhasesDone;
 
   // Effective 50/50 split — falls back when stored amounts are 0 (e.g. manually created jobs)
   const quoteTotal = parseFloat(quote.total || "0");
@@ -2865,13 +2907,82 @@ export default function AdminQuoteDetail() {
                       </div>
                     )}
 
+                    {hasMultiplePhases && (
+                      <div className="pt-2 border-t border-zinc-100">
+                        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-zinc-700 uppercase tracking-wide">Multi-Day Job Progress</p>
+                            <p className="text-[10px] text-zinc-500">
+                              {applicablePhases.filter(p => !!phaseStatus(p.key)).length} / {applicablePhases.length} done
+                            </p>
+                          </div>
+                          <div className="space-y-1.5">
+                            {applicablePhases.map((p) => {
+                              const done = phaseStatus(p.key);
+                              return (
+                                <div key={p.key} className="flex items-center justify-between gap-2 bg-white rounded border border-zinc-200 px-2.5 py-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    {done ? (
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    ) : (
+                                      <div className="w-4 h-4 rounded-full border-2 border-zinc-300 shrink-0" />
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className={`text-sm font-medium ${done ? 'text-zinc-500 line-through' : 'text-zinc-800'}`}>{p.label}</p>
+                                      {done && (
+                                        <p className="text-[10px] text-zinc-400">
+                                          Done {new Date(done.completedAt).toLocaleDateString("en-SG", { day: 'numeric', month: 'short' })}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {done ? (
+                                    <button
+                                      onClick={() => togglePhase.mutate({ phase: p.key, done: false })}
+                                      disabled={togglePhase.isPending}
+                                      data-testid={`button-undo-phase-${p.key}`}
+                                      className="text-[10px] uppercase tracking-wide text-zinc-400 hover:text-zinc-700 disabled:opacity-50 px-2 py-1"
+                                    >
+                                      Undo
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => togglePhase.mutate({ phase: p.key, done: true })}
+                                      disabled={togglePhase.isPending}
+                                      data-testid={`button-mark-phase-${p.key}`}
+                                      className="text-xs font-medium px-2.5 py-1.5 rounded bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 shrink-0"
+                                    >
+                                      Mark Done
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {!allPhasesDone && (
+                            <p className="text-[11px] text-zinc-500 pt-1">
+                              Tick each phase as it's completed across the different days. Final payment can be requested once all phases are done.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="pt-2 border-t border-zinc-100 space-y-2">
                       {!quote.finalPaidAt && (
-                        <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
+                        <button
+                          onClick={handleRequestFinalPayment}
+                          disabled={requestFinalPayment.isPending || finalPaymentBlockedByPhases}
                           data-testid="button-mark-done-request-final"
-                          className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                          title={finalPaymentBlockedByPhases ? "Tick all phases above before requesting final payment" : undefined}
+                          className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
                           <CheckCircle2 className="w-4 h-4" />
-                          {requestFinalPayment.isPending ? "Sending…" : "Mark Done & Request Final Payment"}
+                          {requestFinalPayment.isPending
+                            ? "Sending…"
+                            : finalPaymentBlockedByPhases
+                              ? `Waiting on ${applicablePhases.filter(p => !phaseStatus(p.key)).map(p => p.label).join(" + ")}`
+                              : "Mark Done & Request Final Payment"}
                         </button>
                       )}
                       {!quote.finalPaidAt && (
@@ -2918,10 +3029,17 @@ export default function AdminQuoteDetail() {
                       </button>
                     </div>
                   ) : (
-                    <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
+                    <button
+                      onClick={handleRequestFinalPayment}
+                      disabled={requestFinalPayment.isPending || finalPaymentBlockedByPhases}
                       data-testid="button-request-final-payment"
-                      className="inline-flex items-center justify-center w-full gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                      <DollarSign className="w-4 h-4" /> Request Final Payment (Stripe / PayNow)
+                      title={finalPaymentBlockedByPhases ? "Tick all job phases before requesting final payment" : undefined}
+                      className="inline-flex items-center justify-center w-full gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                      {finalPaymentBlockedByPhases
+                        ? `Waiting on ${applicablePhases.filter(p => !phaseStatus(p.key)).map(p => p.label).join(" + ")}`
+                        : "Request Final Payment (Stripe / PayNow)"}
                     </button>
                   )
                 )}
@@ -3233,9 +3351,16 @@ export default function AdminQuoteDetail() {
           );
           return (
             <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
-              <button onClick={handleRequestFinalPayment} disabled={requestFinalPayment.isPending}
-                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                <CheckCircle2 className="w-4 h-4" /> Mark Done & Request Final Payment
+              <button
+                onClick={handleRequestFinalPayment}
+                disabled={requestFinalPayment.isPending || finalPaymentBlockedByPhases}
+                title={finalPaymentBlockedByPhases ? "Tick all job phases before requesting final payment" : undefined}
+                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {finalPaymentBlockedByPhases
+                  ? `Waiting on ${applicablePhases.filter(p => !phaseStatus(p.key)).map(p => p.label).join(" + ")}`
+                  : "Mark Done & Request Final Payment"}
               </button>
             </div>
           );

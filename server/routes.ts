@@ -5212,6 +5212,35 @@ ${systemPrompt}` });
   });
 
   // Admin: Reopen a closed/paid job so it can be reassigned and actioned
+  // Multi-day job phase tracker — mark one phase (dismantle / delivery /
+  // install) done or undone. The set of APPLICABLE phases is derived on the
+  // frontend from selectedServices; this endpoint just records completion.
+  // The "Mark Done & Request Final Payment" button is gated client-side
+  // until every applicable phase has a completion entry.
+  app.post("/api/admin/quotes/:id/phase", async (req, res) => {
+    try {
+      if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const body = z.object({
+        phase: z.enum(["dismantle", "delivery", "install"]),
+        done: z.boolean(),
+        note: z.string().max(500).optional(),
+      }).parse(req.body);
+      const updated = await storage.setPhaseCompletion(id, body.phase, body.done, {
+        actorType: "admin",
+        userId: req.session.userId,
+        note: body.note,
+      });
+      if (!updated) return res.status(404).json({ message: "Quote not found" });
+      console.log(`[Phase] Quote ${id} phase=${body.phase} done=${body.done} by user=${req.session.userId}`);
+      res.json(updated);
+    } catch (err: any) {
+      console.error("[Phase] error:", err);
+      res.status(500).json({ message: err?.message || "Failed to update phase" });
+    }
+  });
+
   app.post("/api/admin/quotes/:id/reopen", async (req, res) => {
     try {
       if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });

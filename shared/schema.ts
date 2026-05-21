@@ -398,6 +398,17 @@ export const quotes = pgTable("quotes", {
   // "Outstanding Invoices" widget to compute days-outstanding.
   commercialInvoiceSentAt: timestamp("commercial_invoice_sent_at"),
 
+  // Multi-day job phase tracker. A big job may span several days — e.g.
+  // dismantle on Mon, delivery on Wed, install on Fri. Each phase is logged
+  // independently so admin/staff can see exactly what's done and what's
+  // outstanding, and the final-payment button is only enabled once every
+  // applicable phase is marked done. Format:
+  //   [{ phase: 'dismantle'|'delivery'|'install',
+  //      completedAt: ISO-string, completedByUserId?: number, note?: string }]
+  // The set of APPLICABLE phases is derived from selectedServices at
+  // display time — this column only stores the completions themselves.
+  phaseCompletions: jsonb("phase_completions").default([]),
+
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
   quotesStatusIdx: index("quotes_status_idx").on(t.status),
