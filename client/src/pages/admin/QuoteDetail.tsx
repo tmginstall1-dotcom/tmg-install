@@ -1900,7 +1900,7 @@ export default function AdminQuoteDetail() {
                 <span className="hidden sm:inline">Edit</span>
               </button>
             )}
-            {['closed', 'final_paid'].includes(quote.status) && (
+            {['completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status) && (
               <button
                 data-testid="button-reopen-job-header"
                 disabled={reopenJob.isPending}
