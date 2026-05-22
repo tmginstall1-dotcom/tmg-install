@@ -1051,6 +1051,21 @@ export interface GpsSummaryPoint {
   recordedAt: Date | string;
 }
 
+/**
+ * A "stop" is a run of consecutive pings that stayed within ~80 m for ≥4 min.
+ * Useful for telling the admin where the staff member actually spent time
+ * (customer house, warehouse, lunch break) instead of listing every raw ping.
+ */
+export interface GpsStop {
+  startAt: Date;
+  endAt: Date;
+  lat: number;
+  lng: number;
+  durationMin: number;
+  placeName?: string;   // reverse-geocoded human label
+  reason?: string;      // inferred (e.g. "On-site work", "Brief stop")
+}
+
 export interface StaffGpsSummaryInput {
   staffName: string;
   staffEmail?: string | null;
@@ -1061,6 +1076,94 @@ export interface StaffGpsSummaryInput {
   clockOutLat?: string | number | null;
   clockOutLng?: string | number | null;
   points: GpsSummaryPoint[];
+  /** Optional enriched stops — when present, the email shows a "Stops &
+   *  activity" timeline instead of the raw sample-pings table. */
+  stops?: GpsStop[];
+}
+
+/**
+ * Group consecutive nearby pings into stops. A stop = a run of pings where
+ * the GPS centroid never drifted more than ~80 m for at least 4 minutes.
+ * Returns stops sorted by start time. Single-ping islands are skipped.
+ */
+export function computeGpsStops(
+  points: Array<{ lat: number; lng: number; recordedAt: Date }>,
+  opts: { radiusMeters?: number; minDurationMin?: number } = {},
+): GpsStop[] {
+  const radiusKm = (opts.radiusMeters ?? 80) / 1000;
+  const minMin = opts.minDurationMin ?? 4;
+  const sorted = [...points].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
+  const stops: GpsStop[] = [];
+  let cluster: typeof sorted = [];
+
+  const flush = () => {
+    if (cluster.length < 2) { cluster = []; return; }
+    const startAt = cluster[0].recordedAt;
+    const endAt = cluster[cluster.length - 1].recordedAt;
+    const durationMin = (endAt.getTime() - startAt.getTime()) / 60000;
+    if (durationMin < minMin) { cluster = []; return; }
+    const avgLat = cluster.reduce((s, p) => s + p.lat, 0) / cluster.length;
+    const avgLng = cluster.reduce((s, p) => s + p.lng, 0) / cluster.length;
+    stops.push({ startAt, endAt, lat: avgLat, lng: avgLng, durationMin: Math.round(durationMin) });
+    cluster = [];
+  };
+
+  for (const p of sorted) {
+    if (cluster.length === 0) { cluster.push(p); continue; }
+    const centerLat = cluster.reduce((s, c) => s + c.lat, 0) / cluster.length;
+    const centerLng = cluster.reduce((s, c) => s + c.lng, 0) / cluster.length;
+    const drift = haversineKm(centerLat, centerLng, p.lat, p.lng);
+    if (drift <= radiusKm) cluster.push(p);
+    else { flush(); cluster.push(p); }
+  }
+  flush();
+  return stops;
+}
+
+/**
+ * Reverse-geocode a single SG coordinate to a human-readable place name
+ * using OpenStreetMap Nominatim. Free, no API key, but limited to 1 req/sec
+ * per their usage policy — callers should sequence requests with a small
+ * delay. Returns null on any failure so the email can fall back to coords.
+ */
+export async function reverseGeocodeSg(lat: number, lng: number): Promise<string | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    const res = await fetch(url, {
+      headers: { "User-Agent": "TMG-Install/1.0 (admin@tmginstall.com)" },
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    const a = data?.address || {};
+    // Prefer specific name → road + suburb; fall back to display_name.
+    const placeParts = [
+      a.amenity || a.shop || a.building || a.house_number,
+      a.road,
+      a.suburb || a.neighbourhood || a.quarter || a.city_district,
+    ].filter(Boolean);
+    if (placeParts.length > 0) return placeParts.join(", ");
+    if (typeof data?.display_name === "string") {
+      // display_name is comma-separated and long — keep first 3 segments.
+      return data.display_name.split(",").slice(0, 3).map((s: string) => s.trim()).join(", ");
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Infer a human-friendly reason for a stop from its duration. Tuned for
+ * TMG's furniture-install workflow.
+ */
+export function inferStopReason(durationMin: number): string {
+  if (durationMin >= 25) return "On-site work (likely dismantle / install / loading)";
+  if (durationMin >= 10) return "Extended stop (pickup / dropoff / paperwork)";
+  return "Brief stop (traffic / wait)";
 }
 
 export function staffGpsSummaryEmail(input: StaffGpsSummaryInput): { subject: string; html: string } {
@@ -1175,8 +1278,53 @@ export function staffGpsSummaryEmail(input: StaffGpsSummaryInput): { subject: st
     <p style="${FONT}font-size:13px;color:#888;margin:18px 0;font-style:italic;">No GPS pings were captured during this shift — the staff device may have had location services disabled or no signal.</p>
   `;
 
-  const pingsBlock = tableRows ? `
+  // ── Stops & activity timeline ─────────────────────────────────────
+  // When the caller has pre-computed stops (with reverse-geocoded place
+  // names), we show a human-readable timeline of where the staff member
+  // actually spent time, plus a likely reason for each stop. This replaces
+  // the old raw lat/lng sample-pings table, which admins couldn't read.
+  const stops = input.stops ?? [];
+  const stopsBlock = stops.length > 0 ? `
+    <h3 style="${FONT_BLACK}font-size:14px;color:#000;margin:28px 0 10px;letter-spacing:0.4px;text-transform:uppercase;">Stops &amp; activity (${stops.length})</h3>
+    <p style="${FONT}font-size:12px;color:#888;margin:0 0 10px;">Places where the staff member stayed for 4 min or more. Reasons are inferred from how long they stayed.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #eee;border-radius:6px;overflow:hidden;">
+      <thead>
+        <tr style="background:#fafafa;">
+          <th style="${FONT}font-size:12px;color:#777;text-align:left;padding:8px;text-transform:uppercase;letter-spacing:0.4px;">When (SGT)</th>
+          <th style="${FONT}font-size:12px;color:#777;text-align:left;padding:8px;text-transform:uppercase;letter-spacing:0.4px;">Place</th>
+          <th style="${FONT}font-size:12px;color:#777;text-align:right;padding:8px;text-transform:uppercase;letter-spacing:0.4px;">Stayed</th>
+          <th style="${FONT}font-size:12px;color:#777;text-align:left;padding:8px;text-transform:uppercase;letter-spacing:0.4px;">Likely reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${stops.map(s => {
+          const timeRange = `${fmtSgTime(s.startAt)} – ${fmtSgTime(s.endAt)}`;
+          const place = s.placeName
+            ? escapeHtml(s.placeName)
+            : `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`;
+          const mapsLink = `https://www.google.com/maps?q=${s.lat},${s.lng}`;
+          const h = Math.floor(s.durationMin / 60);
+          const m = s.durationMin % 60;
+          const dur = h > 0 ? `${h}h ${m}m` : `${m} min`;
+          const reason = escapeHtml(s.reason || inferStopReason(s.durationMin));
+          return `<tr>
+            <td style="${FONT}font-size:13px;color:#444;padding:8px;border-bottom:1px solid #eee;white-space:nowrap;">${timeRange}</td>
+            <td style="${FONT}font-size:13px;color:#222;padding:8px;border-bottom:1px solid #eee;font-weight:500;"><a href="${mapsLink}" style="color:#222;text-decoration:none;border-bottom:1px dotted #999;">${place}</a></td>
+            <td style="${FONT}font-size:13px;color:#444;padding:8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">${dur}</td>
+            <td style="${FONT}font-size:13px;color:#555;padding:8px;border-bottom:1px solid #eee;">${reason}</td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>
+  ` : "";
+
+  // Keep the raw sample pings table only as a small diagnostic block at the
+  // bottom, and only if there were no detected stops (e.g. driver was on
+  // the move the whole shift). Avoids duplicating data when we already
+  // have the friendly Stops table above.
+  const pingsBlock = (stops.length === 0 && tableRows) ? `
     <h3 style="${FONT_BLACK}font-size:14px;color:#000;margin:28px 0 10px;letter-spacing:0.4px;text-transform:uppercase;">Sample pings</h3>
+    <p style="${FONT}font-size:12px;color:#888;margin:0 0 10px;">No long stops detected this shift — staff was moving throughout. Raw GPS samples below.</p>
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #eee;border-radius:6px;overflow:hidden;">
       <thead>
         <tr style="background:#fafafa;">
@@ -1189,7 +1337,7 @@ export function staffGpsSummaryEmail(input: StaffGpsSummaryInput): { subject: st
     </table>
   ` : "";
 
-  const body = `${summaryBlock}${mapBlock}${pingsBlock}`;
+  const body = `${summaryBlock}${mapBlock}${stopsBlock}${pingsBlock}`;
   const html = shell(`Staff GPS Summary — ${safeName}`, body);
   return { subject, html };
 }

@@ -29,6 +29,9 @@ import {
   caseClosedEmail,
   newEstimateAdminAlert,
   staffGpsSummaryEmail,
+  computeGpsStops,
+  reverseGeocodeSg,
+  inferStopReason,
   ADMIN_EMAIL
 } from "./email";
 import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN, sendWhatsAppImageMessage, sendWhatsAppDocumentMessage } from "./whatsapp";
@@ -1906,6 +1909,27 @@ export async function registerRoutes(
           const clockOutAt = log.clockOutAt ? new Date(log.clockOutAt as any) : new Date();
           if (!clockInAt) return; // safety — shouldn't happen
           const points = await storage.getGpsTrackPoints(staffUserId, clockInAt, clockOutAt);
+
+          // Cluster pings into "stops" (≥4 min within ~80 m) and reverse-
+          // geocode each so admin sees place names + likely reason instead
+          // of bare lat/lng. Nominatim is rate-limited (1 req/sec) so we
+          // sequence the lookups with a small delay. Capped at 12 stops to
+          // protect against pathological shifts and keep the email short.
+          const normPoints = points
+            .map(p => ({
+              lat: typeof p.lat === "string" ? parseFloat(p.lat) : p.lat,
+              lng: typeof p.lng === "string" ? parseFloat(p.lng) : p.lng,
+              recordedAt: new Date(p.recordedAt as any),
+            }))
+            .filter(p => isFinite(p.lat) && isFinite(p.lng));
+          const detectedStops = computeGpsStops(normPoints).slice(0, 12);
+          const enrichedStops = [];
+          for (const s of detectedStops) {
+            const placeName = await reverseGeocodeSg(s.lat, s.lng);
+            enrichedStops.push({ ...s, placeName: placeName || undefined, reason: inferStopReason(s.durationMin) });
+            await new Promise(r => setTimeout(r, 1100)); // respect Nominatim 1 req/s
+          }
+
           const { subject, html } = staffGpsSummaryEmail({
             staffName: user.name || user.username,
             staffEmail: user.email,
@@ -1918,6 +1942,7 @@ export async function registerRoutes(
             points: points.map(p => ({
               lat: p.lat, lng: p.lng, speed: p.speed, recordedAt: p.recordedAt,
             })),
+            stops: enrichedStops,
           });
           const ok = await sendEmail({ to: ADMIN_EMAIL, subject, html });
           if (ok) console.log(`[gps-summary] sent to ${ADMIN_EMAIL} for ${user.name} (${points.length} pings, shift ${clockInAt.toISOString()} → ${clockOutAt.toISOString()})`);
