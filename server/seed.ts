@@ -2829,4 +2829,61 @@ export async function seedDatabase() {
     console.log(`[startup] Round 28: Volume accuracy — deduped ${dedupeCount} same-name conflicts to MAX value + ${curatedCount} curated heavy-item corrections.`);
   }
 
+  /* ─── Round 29: Sliding Door Wardrobe (4-door / Mirror) SKU ────────────────
+     Real-world: customers regularly send photos of large 4-panel sliding
+     wardrobes — often with full-length mirrored doors. Pre-R29, the catalog
+     only had 2-door and 3-door sliding wardrobe variants, so the AI photo
+     detector either under-priced (mapping to 3-door at $230 relocate) or
+     mis-split the unit into "3-door wardrobe + swing door cabinet".
+
+     This round introduces a dedicated heavy-tier SKU:
+        "Sliding Door Wardrobe (4-door / Mirror)"
+     with install/dismantle/relocate/dispose/dismantle_dispose variants and
+     a curated transport volume.
+
+     Heavier than the 3-door because:
+        – ~40–60% wider (4 panels vs 3)
+        – mirrored panels = fragile, requires padding, extra man-power
+        – heavier carcass, needs 2-man lift, slower stair-handling
+
+     Marker: WARDROBE-4DOOR-MIRROR-R29-MARKER.
+  */
+  const r29 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "WARDROBE-4DOOR-MIRROR-R29-MARKER")).limit(1);
+  if (r29.length === 0) {
+    const newRows: Array<{ sku: string; serviceType: string; basePrice: string; volumeM3: string }> = [
+      { sku: "SLDR4M-INSTALL",       serviceType: "install",            basePrice: "240.00", volumeM3: "1.40" },
+      { sku: "SLDR4M-DISMANTLE",     serviceType: "dismantle",          basePrice: "170.00", volumeM3: "1.40" },
+      { sku: "SLDR4M-RELOCATE",      serviceType: "relocate",           basePrice: "310.00", volumeM3: "1.40" },
+      { sku: "SLDR4M-DISPOSE",       serviceType: "dispose",            basePrice: "130.00", volumeM3: "1.40" },
+      { sku: "SLDR4M-DIS-DISP",      serviceType: "dismantle_dispose",  basePrice: "210.00", volumeM3: "1.40" },
+    ];
+    let inserted = 0;
+    for (const row of newRows) {
+      const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+      if (exists.length === 0) {
+        await db.insert(catalogItems).values({
+          name: "Sliding Door Wardrobe (4-door / Mirror)",
+          sku: row.sku,
+          category: "Wardrobes",
+          serviceType: row.serviceType,
+          basePrice: row.basePrice,
+          volumeM3: row.volumeM3,
+          active: true,
+        } as any);
+        inserted++;
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__wardrobe_4door_mirror_r29_marker__",
+      sku: "WARDROBE-4DOOR-MIRROR-R29-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 29: Sliding Door Wardrobe (4-door / Mirror) — inserted ${inserted} new SKU rows.`);
+  }
+
 }

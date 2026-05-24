@@ -865,27 +865,59 @@ export default function EstimateWizard() {
         if (detected.length === 0) continue;
 
         anyDetected = true;
-        let matchCount = 0;
-        const nameList: string[] = [];
+        // Aggregate detections per photo: if the AI emits multiple raw
+        // entries that all map to the SAME catalog group — either a
+        // legitimate "qty 2" of the same item it split into two lines, or
+        // a mis-split pattern (e.g. a wide sliding wardrobe split into
+        // "3-door wardrobe + swing door cabinet") — we merge them into one
+        // catalog row with the SUMMED quantity. This keeps the cart and
+        // the "items detected" badge consistent with what the customer
+        // actually sees, without dropping any unit they paid for.
+        type Agg =
+          | { kind: "catalog"; group: CatalogGroup; qty: number; displayName: string }
+          | { kind: "custom"; name: string; qty: number };
+        const aggMap = new Map<string, Agg>();
 
         detected.forEach(({ name, quantity, catalogGroup: serverGroup }) => {
           // Prefer server-returned catalog group (always fresh from DB) over client-side cache
           const matched = serverGroup || bestCatalogMatch(name);
+          const qty = quantity || 1;
           if (matched) {
-            addCatalogGroup(matched, quantity || 1);
+            const key = `g:${matched.name.toLowerCase()}`;
+            const prev = aggMap.get(key);
+            if (prev && prev.kind === "catalog") {
+              prev.qty += qty;
+            } else {
+              aggMap.set(key, { kind: "catalog", group: matched, qty, displayName: matched.name });
+            }
+          } else {
+            const key = `c:${name.toLowerCase()}`;
+            const prev = aggMap.get(key);
+            if (prev && prev.kind === "custom") {
+              prev.qty += qty;
+            } else {
+              aggMap.set(key, { kind: "custom", name, qty });
+            }
+          }
+        });
+
+        const nameList: string[] = [];
+        aggMap.forEach((agg) => {
+          if (agg.kind === "catalog") {
+            addCatalogGroup(agg.group, agg.qty);
+            nameList.push(agg.qty > 1 ? `${agg.displayName} ×${agg.qty}` : agg.displayName);
           } else {
             services.forEach(st => {
               setItems(prev => [...prev, {
-                id: uid(), sku: "", name, category: "Custom",
-                serviceType: st, quantity: quantity || 1, unitPrice: 0, isCustom: true,
+                id: uid(), sku: "", name: agg.name, category: "Custom",
+                serviceType: st, quantity: agg.qty, unitPrice: 0, isCustom: true,
               }]);
             });
+            nameList.push(agg.qty > 1 ? `${agg.name} ×${agg.qty}` : agg.name);
           }
-          matchCount++;
-          nameList.push(quantity > 1 ? `${name} ×${quantity}` : name);
         });
 
-        setDetectedPhotos(prev => [...prev, { thumbnail, names: nameList, count: matchCount }]);
+        setDetectedPhotos(prev => [...prev, { thumbnail, names: nameList, count: nameList.length }]);
       } catch (err: any) {
         console.error("Photo detection error:", err);
         // continue processing remaining photos
