@@ -1810,6 +1810,34 @@ export async function registerRoutes(
   });
 
   // -- Team Routes --
+  // OneMap SG address search proxy — the customer estimate wizard calls
+  // OneMap's elastic search to power Singapore address autocomplete. Browsers
+  // are blocked by OneMap's CORS policy when calling the API directly, so
+  // route the request through our own backend instead. Returns the raw
+  // OneMap payload so the existing frontend parser keeps working unchanged.
+  app.get("/api/onemap/search", async (req, res) => {
+    try {
+      const q = String(req.query.q || "").trim();
+      if (q.length < 3) {
+        return res.json({ found: 0, totalNumPages: 0, pageNum: 1, results: [] });
+      }
+      const url = `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(q)}&returnGeom=Y&getAddrDetails=Y&pageNum=1`;
+      const upstream = await fetch(url, {
+        headers: { Accept: "application/json", "User-Agent": "TMG-Install/1.0 (+tmginstall.com)" },
+      });
+      if (!upstream.ok) {
+        console.warn(`[onemap] upstream ${upstream.status} for "${q}"`);
+        return res.json({ found: 0, totalNumPages: 0, pageNum: 1, results: [] });
+      }
+      const data = await upstream.json();
+      res.setHeader("Cache-Control", "public, max-age=60");
+      return res.json(data);
+    } catch (err) {
+      console.error("[onemap] proxy error:", err);
+      return res.json({ found: 0, totalNumPages: 0, pageNum: 1, results: [] });
+    }
+  });
+
   app.get("/api/teams", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     const caller = await storage.getUserById(req.session.userId);

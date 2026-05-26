@@ -100,9 +100,11 @@ function useAddressSuggestions(query: string) {
     setLoading(true);
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(query)}&returnGeom=Y&getAddrDetails=Y&pageNum=1`
-        );
+        // Goes through our backend proxy — OneMap's CORS policy blocks direct
+        // browser calls, so calling onemap.gov.sg from the page silently
+        // returned zero suggestions. The /api/onemap/search route forwards
+        // the query server-side and returns the raw OneMap JSON shape.
+        const res = await fetch(`/api/onemap/search?q=${encodeURIComponent(query)}`);
         const data = await res.json();
         function toTitle(s: string): string {
           return s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
