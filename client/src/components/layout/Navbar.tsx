@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { LogOut, MessageCircle, Menu, X, LayoutDashboard, Calendar, FileDown, Briefcase, Users, ClipboardList, ChevronDown, Settings } from "lucide-react";
+import { AdminTopbarTools } from "@/components/admin/AdminTopbarTools";
 
 const WHATSAPP = "https://wa.me/6580880757?text=hi";
 
@@ -231,6 +232,13 @@ export function Navbar() {
               </div>
 
               {!isAdminArea && <div className="hidden sm:block h-7 w-px bg-border" />}
+
+              {/* Admin: global search + notification bell */}
+              {isAdminArea && (
+                <div className="flex items-center gap-1.5 mr-1">
+                  <AdminTopbarTools />
+                </div>
+              )}
 
               {/* User avatar + dropdown */}
               <div className="relative ml-1" ref={profileRef}>

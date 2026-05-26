@@ -5,13 +5,13 @@ import { Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { CreateJobModal } from "@/components/admin/CreateJobModal";
 import { PhoneCallIntakeModal } from "@/components/admin/PhoneCallIntakeModal";
-import { format, isToday, isTomorrow, startOfWeek, subWeeks } from "date-fns";
+import { format, isToday, isTomorrow, isYesterday, startOfWeek, subWeeks } from "date-fns";
 import { useState, useMemo } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
   ClipboardList, DollarSign, CalendarCheck, Zap, AlertCircle, Trash2,
   ChevronRight, Search, X, Loader2, TrendingUp, BellRing, Plus,
-  Phone as PhoneIcon, FileText,
+  Phone as PhoneIcon, FileText, Target, Wallet, TrendingDown, Clock,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
@@ -218,13 +218,57 @@ export default function AdminDashboard() {
     });
   }, [quotes]);
 
-  const totalRevenue = quotes
-    .filter((q: any) => ["closed", "final_paid"].includes(q.status))
-    .reduce((sum: number, q: any) => sum + Number(q.total || 0), 0);
+  // Late jobs: scheduled before today but still in a pre-completion status
+  const lateJobs = useMemo(() => {
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    return (quotes as any[]).filter((q: any) => {
+      if (!["booked", "assigned", "deposit_paid", "at_pickup", "in_transit", "at_dropoff"].includes(q.status)) return false;
+      const raw = q.scheduledAt || q.preferredDate;
+      if (!raw) return false;
+      const d = q.scheduledAt ? new Date(q.scheduledAt) : new Date(raw + "T12:00:00");
+      return !isNaN(d.getTime()) && d < startOfToday;
+    });
+  }, [quotes]);
+
+  const closedQuotes = quotes.filter((q: any) => ["closed", "final_paid"].includes(q.status));
+  const totalRevenue = closedQuotes.reduce((sum: number, q: any) => sum + Number(q.total || 0), 0);
 
   const pipelineValue = quotes
     .filter((q: any) => !["closed", "cancelled", "final_paid"].includes(q.status))
     .reduce((sum: number, q: any) => sum + Number(q.total || 0), 0);
+
+  // Today's collected revenue (jobs scheduled today that are paid/closed)
+  // Falls back to scheduledAt because we don't track payment timestamps separately here.
+  const todaysRevenue = useMemo(() => {
+    return closedQuotes.reduce((sum: number, q: any) => {
+      const raw = q.scheduledAt || q.preferredDate;
+      if (!raw) return sum;
+      const d = q.scheduledAt ? new Date(q.scheduledAt) : new Date(raw + "T12:00:00");
+      return isToday(d) ? sum + Number(q.total || 0) : sum;
+    }, 0);
+  }, [closedQuotes]);
+
+  const yesterdaysRevenue = useMemo(() => {
+    return closedQuotes.reduce((sum: number, q: any) => {
+      const raw = q.scheduledAt || q.preferredDate;
+      if (!raw) return sum;
+      const d = q.scheduledAt ? new Date(q.scheduledAt) : new Date(raw + "T12:00:00");
+      return isYesterday(d) ? sum + Number(q.total || 0) : sum;
+    }, 0);
+  }, [closedQuotes]);
+
+  // Funnel: lead → quoted → booked → paid
+  const funnel = useMemo(() => {
+    const live = (quotes as any[]).filter(q => q.status !== "cancelled");
+    const submitted = live.length;
+    const quoted = live.filter((q: any) => !["submitted"].includes(q.status)).length;
+    const booked = live.filter((q: any) => ["booked", "assigned", "deposit_paid", "in_progress", "at_pickup", "in_transit", "at_dropoff", "completed", "final_payment_requested", "closed", "final_paid"].includes(q.status)).length;
+    const paid = live.filter((q: any) => ["closed", "final_paid"].includes(q.status)).length;
+    return { submitted, quoted, booked, paid };
+  }, [quotes]);
+
+  const winRate = funnel.submitted > 0 ? Math.round((funnel.paid / funnel.submitted) * 100) : 0;
+  const avgJobSize = closedQuotes.length > 0 ? totalRevenue / closedQuotes.length : 0;
 
   const { data: subSummary } = useQuery<any>({
     queryKey: ["/api/admin/subcontracts/summary"],
@@ -263,7 +307,10 @@ export default function AdminDashboard() {
     return weeks;
   }, [quotes]);
 
+  // Action Required panel = new quotes + awaiting final payment.
+  // Late jobs have their own dedicated red panel below so they're not double-counted here.
   const urgentCount = newQuotes.length + awaitingPayment.length;
+  const hasLate = lateJobs.length > 0;
 
   const searchResults = useMemo(() => {
     if (!search.trim()) return [];
@@ -353,18 +400,22 @@ export default function AdminDashboard() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* Urgent alert banner */}
-        {urgentCount > 0 && (
-          <div className="flex items-center gap-3.5 px-5 py-4 bg-red-50 border border-red-200 rounded-2xl shadow-sm">
-            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-              <BellRing className="w-4 h-4 text-red-600" />
+        {(urgentCount + lateJobs.length) > 0 && (() => {
+          const total = urgentCount + lateJobs.length;
+          return (
+            <div className="flex items-center gap-3.5 px-5 py-4 bg-red-50 border border-red-200 rounded-2xl shadow-sm">
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <BellRing className="w-4 h-4 text-red-600" />
+              </div>
+              <p className="text-[15px] font-bold text-red-800 flex-1 tracking-tight">
+                {total} item{total > 1 ? "s" : ""} need{total === 1 ? "s" : ""} your attention
+                {newQuotes.length > 0 && <span className="font-medium text-red-600/80 ml-2">· {newQuotes.length} new request{newQuotes.length > 1 ? "s" : ""}</span>}
+                {awaitingPayment.length > 0 && <span className="font-medium text-red-600/80 ml-2">· {awaitingPayment.length} awaiting final payment</span>}
+                {hasLate && <span className="font-medium text-red-600/80 ml-2">· {lateJobs.length} late job{lateJobs.length > 1 ? "s" : ""}</span>}
+              </p>
             </div>
-            <p className="text-[15px] font-bold text-red-800 flex-1 tracking-tight">
-              {urgentCount} item{urgentCount > 1 ? "s" : ""} need{urgentCount === 1 ? "s" : ""} your attention
-              {newQuotes.length > 0 && <span className="font-medium text-red-600/80 ml-2">· {newQuotes.length} new request{newQuotes.length > 1 ? "s" : ""}</span>}
-              {awaitingPayment.length > 0 && <span className="font-medium text-red-600/80 ml-2">· {awaitingPayment.length} awaiting final payment</span>}
-            </p>
-          </div>
-        )}
+          );
+        })()}
 
         {/* KPI strip */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
@@ -395,6 +446,114 @@ export default function AdminDashboard() {
             );
           })}
         </div>
+
+        {/* Performance row — today's revenue, win rate, avg job size */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {(() => {
+            const delta = todaysRevenue - yesterdaysRevenue;
+            const up = delta >= 0;
+            return (
+              <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow-md transition-shadow" data-testid="card-todays-revenue">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-100">
+                    <Wallet className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <span className={`inline-flex items-center gap-0.5 text-[11px] font-bold ${up ? "text-emerald-600" : "text-red-600"}`}>
+                    {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {yesterdaysRevenue > 0 ? `${up ? "+" : ""}${formatMoney(delta)}` : "—"}
+                  </span>
+                </div>
+                <div className="text-2xl font-black text-slate-900 tabular-nums tracking-tight leading-none">{formatMoney(todaysRevenue)}</div>
+                <div className="text-[12px] text-slate-500 font-bold mt-1.5">Today's Revenue <span className="text-slate-400 font-medium">· yesterday {formatMoney(yesterdaysRevenue)}</span></div>
+              </div>
+            );
+          })()}
+
+          <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow-md transition-shadow" data-testid="card-win-rate">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-100">
+                <Target className="w-4 h-4 text-blue-600" />
+              </div>
+              <span className="text-[11px] font-bold text-slate-400 tabular-nums">{funnel.paid}/{funnel.submitted}</span>
+            </div>
+            <div className="text-2xl font-black text-slate-900 tabular-nums tracking-tight leading-none">{winRate}%</div>
+            <div className="text-[12px] text-slate-500 font-bold mt-1.5">Win Rate <span className="text-slate-400 font-medium">· lead → paid</span></div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow-md transition-shadow" data-testid="card-avg-job-size">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-violet-100">
+                <TrendingUp className="w-4 h-4 text-violet-600" />
+              </div>
+              <span className="text-[11px] font-bold text-slate-400 tabular-nums">{closedQuotes.length} jobs</span>
+            </div>
+            <div className="text-2xl font-black text-slate-900 tabular-nums tracking-tight leading-none">{formatMoney(avgJobSize)}</div>
+            <div className="text-[12px] text-slate-500 font-bold mt-1.5">Avg Job Size <span className="text-slate-400 font-medium">· closed jobs</span></div>
+          </div>
+        </div>
+
+        {/* Late jobs panel — scheduled before today but not closed */}
+        {lateJobs.length > 0 && (
+          <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm ring-1 ring-inset ring-red-500/10" data-testid="card-late-jobs">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-red-100 bg-red-50/40">
+              <div className="flex items-center gap-2.5">
+                <Clock className="w-4 h-4 text-red-600" />
+                <h2 className="text-[14px] font-black text-red-800 tracking-tight">Late Jobs</h2>
+                <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full text-[11px] font-black bg-red-100 text-red-700 ring-1 ring-red-200">
+                  {lateJobs.length}
+                </span>
+              </div>
+              <span className="text-[11px] font-bold text-red-600/80">scheduled but not completed</span>
+            </div>
+            <div className="divide-y divide-red-100">
+              {lateJobs.slice(0, 5).map((q: any) => (
+                <QuoteRow key={q.id} quote={q} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Conversion funnel — submitted → quoted → booked → paid */}
+        {funnel.submitted > 0 && (
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm" data-testid="card-funnel">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-blue-500" />
+                <h2 className="text-[14px] font-black text-slate-900 tracking-tight">Conversion Funnel</h2>
+              </div>
+              <span className="text-[11px] font-bold text-slate-500">last all-time · {funnel.submitted} leads</span>
+            </div>
+            <div className="px-5 py-4 space-y-2.5">
+              {[
+                { label: "Submitted",   value: funnel.submitted, color: "bg-slate-400",   prev: null as number | null },
+                { label: "Quoted",      value: funnel.quoted,    color: "bg-blue-500",    prev: funnel.submitted },
+                { label: "Booked",      value: funnel.booked,    color: "bg-violet-500",  prev: funnel.quoted },
+                { label: "Paid",        value: funnel.paid,      color: "bg-emerald-500", prev: funnel.booked },
+              ].map(step => {
+                const pct = funnel.submitted > 0 ? (step.value / funnel.submitted) * 100 : 0;
+                const dropPct = step.prev != null && step.prev > 0
+                  ? Math.round(((step.prev - step.value) / step.prev) * 100)
+                  : null;
+                return (
+                  <div key={step.label} className="space-y-1">
+                    <div className="flex items-center justify-between text-[12px] font-bold">
+                      <span className="text-slate-700">{step.label}</span>
+                      <span className="text-slate-900 tabular-nums">
+                        {step.value}
+                        {dropPct != null && dropPct > 0 && (
+                          <span className="ml-2 text-[10px] font-bold text-red-500">−{dropPct}%</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="relative h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className={`absolute inset-y-0 left-0 ${step.color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Outstanding commercial invoices (Net 30) */}
         {outstandingInvoices && outstandingInvoices.count > 0 && (
