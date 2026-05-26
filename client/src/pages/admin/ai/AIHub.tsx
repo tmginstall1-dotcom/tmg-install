@@ -13,9 +13,9 @@ import { useToast } from "@/hooks/use-toast";
 type ModuleStatus = "off" | "preview" | "active";
 
 const STATUS_META: Record<ModuleStatus, { label: string; color: string; dot: string }> = {
- off: { label: "OFF", color: "text-slate-400 bg-slate-500/10 border-slate-500/20", dot: "bg-slate-500" },
- preview: { label: "PREVIEW", color: "text-amber-400 bg-amber-500/10 border-amber-500/20", dot: "bg-amber-400" },
- active: { label: "ACTIVE", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", dot: "bg-emerald-400" },
+ off: { label: "OFF", color: "text-black/55 bg-black/[0.04] border-black/10", dot: "bg-[#F5F4F0]0" },
+ preview: { label: "PREVIEW", color: "text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/20", dot: "bg-[#C1121F]" },
+ active: { label: "ACTIVE", color: "text-[#0A0A0A] bg-[#EBE9E2] border-black/10", dot: "bg-[#0A0A0A]" },
 };
 
 function adsStatus(flags: Record<string, boolean>): ModuleStatus {
@@ -253,8 +253,8 @@ export default function AIHub() {
  icon: TrendingUp,
  label: "Ads Intelligence",
  description: "Attribution funnel, spend analysis, campaign recommendations",
- color: "from-blue-500/10 to-indigo-500/10 border-[#0A0A0A]/20",
- iconColor: "text-blue-400",
+ color: "from-[#0A0A0A]/10 to-[#0A0A0A]/10 border-[#0A0A0A]/20",
+ iconColor: "text-[#0A0A0A]",
  badge: summary?.pendingAdRecs?.length ?? 0,
  badgeLabel: "pending recs",
  status: adsStatus(flags),
@@ -264,8 +264,8 @@ export default function AIHub() {
  icon: Globe,
  label: "Site Health",
  description: "CRO audits, SEO structure, trust signals, speed analysis",
- color: "from-emerald-500/10 to-teal-500/10 border-emerald-500/20",
- iconColor: "text-emerald-400",
+ color: "from-[#EBE9E2] to-white border-black/10",
+ iconColor: "text-[#0A0A0A]",
  badge: summary?.openSiteRecs?.length ?? 0,
  badgeLabel: "open findings",
  status: siteStatus(flags),
@@ -275,8 +275,8 @@ export default function AIHub() {
  icon: CheckSquare,
  label: "Approval Queue",
  description: "Review and approve/reject AI-proposed actions before they run",
- color: "from-amber-500/10 to-orange-500/10 border-amber-500/20",
- iconColor: "text-amber-400",
+ color: "from-[#FBEBEB] to-white border-[#C1121F]/20",
+ iconColor: "text-[#C1121F]",
  badge: summary?.pendingApprovalsCount ?? 0,
  badgeLabel: "pending",
  urgent: (summary?.pendingApprovalsCount ?? 0) > 0,
@@ -287,8 +287,8 @@ export default function AIHub() {
  icon: ScrollText,
  label: "Audit Log",
  description: "Complete immutable history of every AI action and recommendation",
- color: "from-slate-500/10 to-zinc-500/10 border-slate-500/20",
- iconColor: "text-slate-400",
+ color: "from-[#EBE9E2] to-[#EBE9E2] border-black/10",
+ iconColor: "text-black/55",
  status: "active" as ModuleStatus,
  },
  {
@@ -296,8 +296,8 @@ export default function AIHub() {
  icon: Database,
  label: "Data Connectors",
  description: "Google Ads API · Meta Ads API · Search Console · PageSpeed Insights",
- color: "from-violet-500/10 to-purple-500/10 border-violet-500/20",
- iconColor: "text-violet-400",
+ color: "from-[#0A0A0A]/10 to-[#EBE9E2] border-[#0A0A0A]/15",
+ iconColor: "text-[#0A0A0A]",
  status: connectorStatus(flags),
  },
  {
@@ -305,8 +305,8 @@ export default function AIHub() {
  icon: MessageCircle,
  label: "WhatsApp AI Agent",
  description: "AI lead qualification · Fact extraction · Follow-up · Handoff",
- color: "from-emerald-500/10 to-green-500/10 border-emerald-500/20",
- iconColor: "text-emerald-400",
+ color: "from-[#EBE9E2] to-[#EBE9E2] border-black/10",
+ iconColor: "text-[#0A0A0A]",
  status: (flags["ai_whatsapp_agent_enabled"] ? "active" : "off") as ModuleStatus,
  },
  ];
@@ -345,39 +345,39 @@ export default function AIHub() {
  const lastLog = recentLogs[0];
 
  return (
- <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#0B0F19]">
+ <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#F5F4F0]">
  <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
  {/* Header */}
  <div className="flex items-start justify-between gap-4">
  <div>
  <div className="flex items-center gap-3 mb-1">
- <div className="w-9 h-9 rounded-none bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center shadow-violet-500/20">
- <Bot className="w-5 h-5 text-white" />
+ <div className="w-9 h-9 rounded-none bg-gradient-to-br from-[#0A0A0A] to-[#0A0A0A] flex items-center justify-center ">
+ <Bot className="w-5 h-5 text-[#0A0A0A]" />
  </div>
- <h1 className="text-2xl font-bold text-white tracking-tight">AI Operations</h1>
+ <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">AI Operations</h1>
  </div>
- <p className="text-sm text-slate-400 mt-1">
+ <p className="text-sm text-black/55 mt-1">
  Isolated AI analysis layer — ads intelligence + site health + attribution tracking
  </p>
  </div>
- <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
- <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
- <span className="text-xs font-semibold text-emerald-400">Live site protected</span>
+ <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#EBE9E2] border border-black/10">
+ <div className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A] shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+ <span className="text-xs font-semibold text-[#0A0A0A]">Live site protected</span>
  </div>
  </div>
 
  {/* Kill Switch Banner */}
  {killSwitch && (
- <div className="flex items-start gap-3 p-4 rounded-none bg-red-500/10 border border-red-500/30">
- <ZapOff className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+ <div className="flex items-start gap-3 p-4 rounded-none bg-[#FBEBEB] border border-[#C1121F]/30">
+ <ZapOff className="w-5 h-5 text-[#C1121F] shrink-0 mt-0.5" />
  <div className="flex-1 min-w-0">
- <p className="text-sm font-semibold text-red-300">Master Kill Switch is ACTIVE</p>
- <p className="text-xs text-red-400/80 mt-0.5">All AI automations are disabled. Manual review only.</p>
+ <p className="text-sm font-semibold text-[#0A0A0A]">Master Kill Switch is ACTIVE</p>
+ <p className="text-xs text-[#C1121F]/80 mt-0.5">All AI automations are disabled. Manual review only.</p>
  </div>
  <button
  onClick={() => toggleFlag.mutate({ key: "ai_master_kill_switch", value: false })}
- className="shrink-0 text-xs font-semibold text-red-300 hover:text-red-200 bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/30 hover:border-red-500/50 transition-colors"
+ className="shrink-0 text-xs font-semibold text-[#0A0A0A] hover:text-[#0A0A0A] bg-[#EBE9E2] px-3 py-1.5 rounded-lg border border-[#C1121F]/30 hover:border-black/10 transition-colors"
  >
  Deactivate
  </button>
@@ -386,30 +386,30 @@ export default function AIHub() {
 
  {/* Last AI Action Card */}
  {lastLog && (
- <div className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-none">
- <div className="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center shrink-0">
- <Bot className="w-3.5 h-3.5 text-violet-400" />
+ <div className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-black/10 rounded-none">
+ <div className="w-7 h-7 rounded-lg bg-[#EBE9E2] flex items-center justify-center shrink-0">
+ <Bot className="w-3.5 h-3.5 text-[#0A0A0A]" />
  </div>
  <div className="flex-1 min-w-0">
- <p className="text-xs font-semibold text-slate-300 truncate">
- Last AI action: <span className="text-white">{ACTION_LABELS[lastLog.actionType] ?? lastLog.actionType}</span>
+ <p className="text-xs font-semibold text-black/65 truncate">
+ Last AI action: <span className="text-[#0A0A0A]">{ACTION_LABELS[lastLog.actionType] ?? lastLog.actionType}</span>
  </p>
  {lastLog.summary && (
- <p className="text-xs text-slate-500 mt-0.5 truncate">{lastLog.summary}</p>
+ <p className="text-xs text-black/55 mt-0.5 truncate">{lastLog.summary}</p>
  )}
  </div>
  <div className="shrink-0 text-right hidden sm:block">
- <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+ <div className="flex items-center gap-1.5 text-[11px] text-black/75">
  {lastLog.actor === "ai_agent" ? <Bot className="w-3 h-3" /> : <User className="w-3 h-3" />}
  <span>{lastLog.actor ?? "system"}</span>
  </div>
- <div className="flex items-center gap-1 text-[11px] text-slate-600 mt-0.5">
+ <div className="flex items-center gap-1 text-[11px] text-black/75 mt-0.5">
  <Clock className="w-3 h-3" />
  <span>{new Date(lastLog.createdAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" })}</span>
  </div>
  </div>
  <Link href="/admin/ai/audit">
- <button className="ml-1 text-slate-600 hover:text-slate-400 transition-colors">
+ <button className="ml-1 text-black/75 hover:text-black/55 transition-colors">
  <ArrowRight className="w-4 h-4" />
  </button>
  </Link>
@@ -421,28 +421,28 @@ export default function AIHub() {
  <div data-testid="strip-background-activity"
  className={`flex items-center gap-3 px-4 py-3 rounded-none border transition-colors cursor-pointer ${
  runningJobs.length > 0
- ? "bg-violet-500/10 border-violet-500/30 hover:bg-violet-500/15"
- : "bg-white/5 border-white/10 hover:bg-white/8"
+ ? "bg-[#EBE9E2] border-[#0A0A0A]/30 hover:bg-[#EBE9E2]"
+ : "bg-white/5 border-black/10 hover:bg-white/8"
  }`}>
  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
- runningJobs.length > 0 ? "bg-violet-500/20" : "bg-slate-500/15"
+ runningJobs.length > 0 ? "bg-[#0A0A0A]/20" : "bg-[#F5F4F0]"
  }`}>
- <Database className={`w-3.5 h-3.5 ${runningJobs.length > 0 ? "text-violet-300" : "text-slate-400"}`} />
+ <Database className={`w-3.5 h-3.5 ${runningJobs.length > 0 ? "text-[#0A0A0A]/65" : "text-black/55"}`} />
  </div>
  <div className="flex-1 min-w-0">
  <div className="flex items-center gap-2">
  {runningJobs.length > 0 && (
- <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse shadow-[0_0_6px_rgba(167,139,250,0.8)] shrink-0" />
+ <span className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A] animate-pulse shadow-[0_0_6px_rgba(167,139,250,0.8)] shrink-0" />
  )}
- <p className="text-xs font-semibold text-slate-300 truncate" data-testid="text-bg-activity-status">
+ <p className="text-xs font-semibold text-black/65 truncate" data-testid="text-bg-activity-status">
  {runningJobs.length > 0
- ? <>Running now: <span className="text-white">{runningJobs.join(", ")}</span></>
+ ? <>Running now: <span className="text-[#0A0A0A]">{runningJobs.join(", ")}</span></>
  : connectorEntries.length === 0
  ? "Background jobs — status unavailable"
- : <>Background jobs idle{nextUp ? <> · next: <span className="text-white">{nextUp.name}</span> {relTime(nextUp.at)}</> : ""}</>}
+ : <>Background jobs idle{nextUp ? <> · next: <span className="text-[#0A0A0A]">{nextUp.name}</span> {relTime(nextUp.at)}</> : ""}</>}
  </p>
  </div>
- <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+ <p className="text-[11px] text-black/55 mt-0.5 truncate">
  {runningJobs.length > 0
  ? "Auto-refreshing every few seconds while jobs run."
  : connectorEntries.filter(([, c]) => c?.lastSyncAt).length > 0
@@ -450,59 +450,59 @@ export default function AIHub() {
  : "Tap to view connector schedules and run a sync"}
  </p>
  </div>
- <ArrowRight className="w-4 h-4 text-slate-500 shrink-0" />
+ <ArrowRight className="w-4 h-4 text-black/55 shrink-0" />
  </div>
  </Link>
 
  {/* AI Activity Summary — what AI has done in the last 7 days */}
  {activity && (
- <div className="bg-gradient-to-br from-violet-500/10 to-fuchsia-500/5 border border-violet-500/20 rounded-none p-4">
+ <div className="bg-gradient-to-br from-[#0A0A0A]/10 to-white border border-[#0A0A0A]/15 rounded-none p-4">
  <div className="flex items-center justify-between mb-3">
  <div className="flex items-center gap-2">
- <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300">AI Activity</span>
- <span className="text-[10px] text-slate-500">last {activity.windowDays}d</span>
+ <span className="text-[11px] font-bold uppercase tracking-wider text-[#0A0A0A]/65">AI Activity</span>
+ <span className="text-[10px] text-black/55">last {activity.windowDays}d</span>
  </div>
- <Link href="/admin/ai/audit"><span className="text-[11px] text-violet-400 hover:text-violet-300 cursor-pointer">View audit log →</span></Link>
+ <Link href="/admin/ai/audit"><span className="text-[11px] text-[#0A0A0A] hover:text-[#0A0A0A]/65 cursor-pointer">View audit log →</span></Link>
  </div>
  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
  <div data-testid="stat-platform-pushes">
- <p className="text-2xl font-bold text-white tabular-nums">{activity.platform?.totalPushes ?? 0}</p>
- <p className="text-[10px] uppercase text-slate-400 mt-0.5">Platform pushes</p>
+ <p className="text-2xl font-bold text-[#0A0A0A] tabular-nums">{activity.platform?.totalPushes ?? 0}</p>
+ <p className="text-[10px] uppercase text-black/55 mt-0.5">Platform pushes</p>
  </div>
  <div data-testid="stat-success-rate">
- <p className="text-2xl font-bold text-emerald-300 tabular-nums">{activity.platform?.successRate ?? 0}%</p>
- <p className="text-[10px] uppercase text-slate-400 mt-0.5">Success rate</p>
+ <p className="text-2xl font-bold text-[#0A0A0A]/65 tabular-nums">{activity.platform?.successRate ?? 0}%</p>
+ <p className="text-[10px] uppercase text-black/55 mt-0.5">Success rate</p>
  </div>
  <div data-testid="stat-auto-approved">
- <p className="text-2xl font-bold text-violet-300 tabular-nums">{activity.approvals?.autoApproved ?? 0}</p>
- <p className="text-[10px] uppercase text-slate-400 mt-0.5">Auto-approved</p>
+ <p className="text-2xl font-bold text-[#0A0A0A]/65 tabular-nums">{activity.approvals?.autoApproved ?? 0}</p>
+ <p className="text-[10px] uppercase text-black/55 mt-0.5">Auto-approved</p>
  </div>
  <div data-testid="stat-site-changes">
- <p className="text-2xl font-bold text-blue-300 tabular-nums">{activity.site?.changesApplied ?? 0}</p>
- <p className="text-[10px] uppercase text-slate-400 mt-0.5">Site updates</p>
+ <p className="text-2xl font-bold text-[#0A0A0A]/65 tabular-nums">{activity.site?.changesApplied ?? 0}</p>
+ <p className="text-[10px] uppercase text-black/55 mt-0.5">Site updates</p>
  </div>
  <div data-testid="stat-rollbacks">
- <p className={`text-2xl font-bold tabular-nums ${(activity.platform?.rollbacks ?? 0) > 0 ? "text-amber-300" : "text-slate-500"}`}>{activity.platform?.rollbacks ?? 0}</p>
- <p className="text-[10px] uppercase text-slate-400 mt-0.5">Rollbacks</p>
+ <p className={`text-2xl font-bold tabular-nums ${(activity.platform?.rollbacks ?? 0) > 0 ? "text-[#C1121F]" : "text-black/55"}`}>{activity.platform?.rollbacks ?? 0}</p>
+ <p className="text-[10px] uppercase text-black/55 mt-0.5">Rollbacks</p>
  </div>
  <div data-testid="stat-time-saved">
- <p className="text-2xl font-bold text-fuchsia-300 tabular-nums">{activity.minutesSaved ?? 0}m</p>
- <p className="text-[10px] uppercase text-slate-400 mt-0.5">Admin time saved</p>
+ <p className="text-2xl font-bold text-[#0A0A0A] tabular-nums">{activity.minutesSaved ?? 0}m</p>
+ <p className="text-[10px] uppercase text-black/55 mt-0.5">Admin time saved</p>
  </div>
  </div>
  {activity.platform?.failed > 0 && (
- <p className="text-[11px] text-red-300 mt-3 flex items-center gap-1.5">
+ <p className="text-[11px] text-[#0A0A0A] mt-3 flex items-center gap-1.5">
  ⚠ {activity.platform.failed} push(es) failed in this window — review the approval queue.
  </p>
  )}
- <div className="mt-3 pt-3 border-t border-violet-500/10 flex items-center gap-2">
+ <div className="mt-3 pt-3 border-t border-black/10 flex items-center gap-2">
  <button
  data-testid="button-test-alert"
  onClick={async () => {
  const r = await fetch("/api/ai/alerts/test", { method: "POST", credentials: "include" }).then(r => r.json()).catch(() => ({}));
  alert(`Push: ${r.pushSent ? "✓ sent" : "✗"} WhatsApp: ${r.whatsappSent ? "✓ sent" : r.throttled ? "throttled (10m)" : "skipped (flag off or no phone set)"}`);
  }}
- className="text-[11px] text-violet-300 hover:text-violet-200 px-2 py-1 rounded border border-violet-500/30 hover:border-violet-500/50 transition-colors"
+ className="text-[11px] text-[#0A0A0A]/65 hover:text-[#0A0A0A] px-2 py-1 rounded border border-[#0A0A0A]/30 hover:border-[#0A0A0A] transition-colors"
  >
  Test real-time alert
  </button>
@@ -512,7 +512,7 @@ export default function AIHub() {
  const r = await fetch("/api/ai/digest/send-now", { method: "POST", credentials: "include" }).then(r => r.json()).catch(() => ({}));
  alert(r.sent ? `Digest sent to ${r.recipient}` : `Could not send: ${r.reason ?? "unknown"}`);
  }}
- className="text-[11px] text-violet-300 hover:text-violet-200 px-2 py-1 rounded border border-violet-500/30 hover:border-violet-500/50 transition-colors"
+ className="text-[11px] text-[#0A0A0A]/65 hover:text-[#0A0A0A] px-2 py-1 rounded border border-[#0A0A0A]/30 hover:border-[#0A0A0A] transition-colors"
  >
  Send digest now
  </button>
@@ -522,7 +522,7 @@ export default function AIHub() {
  const r = await fetch("/api/ai/anomaly/run", { method: "POST", credentials: "include" }).then(r => r.json()).catch(() => ({}));
  alert(`Scanned ${r.scanned ?? 0} campaigns. Alerted on ${r.alerted ?? 0}. Skipped ${r.insufficientHistory ?? 0} (not enough history).`);
  }}
- className="text-[11px] text-violet-300 hover:text-violet-200 px-2 py-1 rounded border border-violet-500/30 hover:border-violet-500/50 transition-colors"
+ className="text-[11px] text-[#0A0A0A]/65 hover:text-[#0A0A0A] px-2 py-1 rounded border border-[#0A0A0A]/30 hover:border-[#0A0A0A] transition-colors"
  >
  Run anomaly scan
  </button>
@@ -532,26 +532,26 @@ export default function AIHub() {
 
  {/* HOT LEADS — top of revenue funnel, refresh every minute */}
  {hotLeads && hotLeads.totalLeads > 0 && (
- <div data-testid="card-hot-leads" className="bg-gradient-to-br from-orange-500/15 to-red-500/5 border border-orange-500/30 rounded-none p-4">
+ <div data-testid="card-hot-leads" className="bg-gradient-to-br from-[#FBEBEB] to-white border border-[#C1121F]/30 rounded-none p-4">
  <div className="flex items-center justify-between mb-3">
  <div className="flex items-center gap-2">
- <span className="text-[11px] font-bold uppercase tracking-wider text-orange-300">🔥 Hot Leads (24h)</span>
- <span className="text-[10px] text-slate-500">threshold {hotLeads.hotThreshold}/100 · auto-refresh 1m</span>
+ <span className="text-[11px] font-bold uppercase tracking-wider text-[#0A0A0A]">🔥 Hot Leads (24h)</span>
+ <span className="text-[10px] text-black/55">threshold {hotLeads.hotThreshold}/100 · auto-refresh 1m</span>
  </div>
- <Link href="/admin/whatsapp"><span className="text-[11px] text-orange-400 hover:text-orange-300 cursor-pointer">View conversations →</span></Link>
+ <Link href="/admin/whatsapp"><span className="text-[11px] text-[#C1121F] hover:text-[#0A0A0A] cursor-pointer">View conversations →</span></Link>
  </div>
  <div className="flex items-baseline gap-4 mb-3">
  <div>
- <p className="text-3xl font-bold text-orange-300 tabular-nums" data-testid="text-hot-count">{hotLeads.hotCount}</p>
- <p className="text-[10px] uppercase text-slate-400">hot — call now</p>
+ <p className="text-3xl font-bold text-[#0A0A0A] tabular-nums" data-testid="text-hot-count">{hotLeads.hotCount}</p>
+ <p className="text-[10px] uppercase text-black/55">hot — call now</p>
  </div>
  <div>
  <p className="text-2xl font-bold text-yellow-300 tabular-nums" data-testid="text-warm-count">{hotLeads.warmCount}</p>
- <p className="text-[10px] uppercase text-slate-400">warm</p>
+ <p className="text-[10px] uppercase text-black/55">warm</p>
  </div>
  <div>
- <p className="text-2xl font-bold text-slate-400 tabular-nums">{hotLeads.totalLeads}</p>
- <p className="text-[10px] uppercase text-slate-400">scored total</p>
+ <p className="text-2xl font-bold text-black/55 tabular-nums">{hotLeads.totalLeads}</p>
+ <p className="text-[10px] uppercase text-black/55">scored total</p>
  </div>
  </div>
  <div className="space-y-1.5">
@@ -560,30 +560,30 @@ export default function AIHub() {
  key={l.phone}
  data-testid={`row-hot-lead-${l.phone}`}
  className={`flex items-center gap-3 p-2 rounded-lg border ${
- l.tier === "hot" ? "bg-orange-500/10 border-orange-500/30"
+ l.tier === "hot" ? "bg-[#FBEBEB] border-[#C1121F]/30"
  : l.tier === "warm" ? "bg-yellow-500/5 border-yellow-500/20"
- : "bg-white/5 border-white/10"
+ : "bg-white/5 border-black/10"
  }`}
  >
  <div className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center font-bold tabular-nums ${
- l.tier === "hot" ? "bg-orange-500/30 text-orange-200"
+ l.tier === "hot" ? "bg-[#EBE9E2] text-[#0A0A0A]"
  : l.tier === "warm" ? "bg-yellow-500/20 text-yellow-200"
- : "bg-slate-700 text-slate-300"
+ : "bg-white text-black/65"
  }`}>
  <span className="text-lg leading-none">{l.score}</span>
  <span className="text-[8px] uppercase mt-0.5">{l.tier}</span>
  </div>
  <div className="flex-1 min-w-0">
  <div className="flex items-center gap-2">
- <p className="text-sm font-semibold text-white truncate">{l.customerName ?? l.phoneMasked}</p>
- {l.urgency === "asap" && <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 font-bold uppercase">ASAP</span>}
- {l.aiOwnership === "human" && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 uppercase">Human</span>}
+ <p className="text-sm font-semibold text-[#0A0A0A] truncate">{l.customerName ?? l.phoneMasked}</p>
+ {l.urgency === "asap" && <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#EBE9E2] text-[#0A0A0A] font-bold uppercase">ASAP</span>}
+ {l.aiOwnership === "human" && <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#0A0A0A]/20 text-[#0A0A0A]/65 uppercase">Human</span>}
  </div>
- <p className="text-[11px] text-slate-400 truncate">
+ <p className="text-[11px] text-black/55 truncate">
  {l.serviceType ?? "—"} {l.quantity ? `· ${l.quantity} items` : ""} {l.jobAddress ? `· ${l.jobAddress.slice(0, 35)}` : ""}
  </p>
  {l.topReasons && l.topReasons.length > 0 && (
- <p className="text-[10px] text-slate-500 truncate mt-0.5">
+ <p className="text-[10px] text-black/55 truncate mt-0.5">
  {l.topReasons.map((r: any) => `${r.label} (+${r.points})`).join(" · ")}
  </p>
  )}
@@ -593,7 +593,7 @@ export default function AIHub() {
  target="_blank"
  rel="noopener noreferrer"
  data-testid={`link-wa-${l.phone}`}
- className="text-[11px] px-3 py-1.5 rounded bg-green-500/20 hover:bg-green-500/30 text-green-300 border border-green-500/30 transition-colors shrink-0"
+ className="text-[11px] px-3 py-1.5 rounded bg-[#0A0A0A]/20 hover:bg-[#0A0A0A]/30 text-[#0A0A0A] border border-black/10 transition-colors shrink-0"
  >
  Open chat
  </a>
@@ -605,14 +605,14 @@ export default function AIHub() {
 
  {/* SPEND GUARDRAILS — daily/monthly AI-driven ad spend vs caps */}
  {spend && (
- <div data-testid="card-spend-guardrails" className="bg-gradient-to-br from-cyan-500/10 to-blue-500/5 border border-cyan-500/20 rounded-none p-4">
+ <div data-testid="card-spend-guardrails" className="bg-gradient-to-br from-[#EBE9E2] to-[#0A0A0A]/5 border border-black/10 rounded-none p-4">
  <div className="flex items-center justify-between mb-3">
  <div className="flex items-center gap-2">
- <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">💰 Spend Guardrails</span>
- <span className="text-[10px] text-slate-500">AI-driven ad-budget changes · auto-refresh 1m</span>
+ <span className="text-[11px] font-bold uppercase tracking-wider text-[#0A0A0A]">💰 Spend Guardrails</span>
+ <span className="text-[10px] text-black/55">AI-driven ad-budget changes · auto-refresh 1m</span>
  </div>
  {spend.recentBlocks > 0 && (
- <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold uppercase">
+ <span className="text-[10px] px-2 py-0.5 rounded bg-[#FBEBEB] text-[#C1121F] font-bold uppercase">
  {spend.recentBlocks} blocked this month
  </span>
  )}
@@ -621,44 +621,44 @@ export default function AIHub() {
  {/* Today */}
  <div>
  <div className="flex items-baseline justify-between mb-1">
- <p className="text-[10px] uppercase text-slate-400">Today</p>
- <p className="text-[11px] text-slate-400 tabular-nums">
- SGD <span data-testid="text-spend-today" className="text-white font-semibold">{spend.todaySgd.toFixed(2)}</span>
- <span className="text-slate-500"> / {spend.dailyCapSgd.toFixed(0)}</span>
+ <p className="text-[10px] uppercase text-black/55">Today</p>
+ <p className="text-[11px] text-black/55 tabular-nums">
+ SGD <span data-testid="text-spend-today" className="text-[#0A0A0A] font-semibold">{spend.todaySgd.toFixed(2)}</span>
+ <span className="text-black/55"> / {spend.dailyCapSgd.toFixed(0)}</span>
  </p>
  </div>
- <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+ <div className="h-2 bg-white rounded-full overflow-hidden">
  <div
  className={`h-full rounded-full transition-all ${
- spend.dailyUtilization >= 1 ? "bg-red-500"
- : spend.dailyUtilization >= 0.8 ? "bg-amber-500"
- : "bg-cyan-500"
+ spend.dailyUtilization >= 1 ? "bg-[#0A0A0A]"
+ : spend.dailyUtilization >= 0.8 ? "bg-[#C1121F]"
+ : "bg-[#EBE9E2]0"
  }`}
  style={{ width: `${Math.min(100, spend.dailyUtilization * 100).toFixed(1)}%` }}
  />
  </div>
- <p className="text-[10px] text-slate-500 mt-1">{(spend.dailyUtilization * 100).toFixed(0)}% of daily cap</p>
+ <p className="text-[10px] text-black/55 mt-1">{(spend.dailyUtilization * 100).toFixed(0)}% of daily cap</p>
  </div>
  {/* Month */}
  <div>
  <div className="flex items-baseline justify-between mb-1">
- <p className="text-[10px] uppercase text-slate-400">Month-to-date</p>
- <p className="text-[11px] text-slate-400 tabular-nums">
- SGD <span data-testid="text-spend-month" className="text-white font-semibold">{spend.monthSgd.toFixed(2)}</span>
- <span className="text-slate-500"> / {spend.monthlyCapSgd.toFixed(0)}</span>
+ <p className="text-[10px] uppercase text-black/55">Month-to-date</p>
+ <p className="text-[11px] text-black/55 tabular-nums">
+ SGD <span data-testid="text-spend-month" className="text-[#0A0A0A] font-semibold">{spend.monthSgd.toFixed(2)}</span>
+ <span className="text-black/55"> / {spend.monthlyCapSgd.toFixed(0)}</span>
  </p>
  </div>
- <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+ <div className="h-2 bg-white rounded-full overflow-hidden">
  <div
  className={`h-full rounded-full transition-all ${
- spend.monthlyUtilization >= 1 ? "bg-red-500"
- : spend.monthlyUtilization >= 0.8 ? "bg-amber-500"
- : "bg-cyan-500"
+ spend.monthlyUtilization >= 1 ? "bg-[#0A0A0A]"
+ : spend.monthlyUtilization >= 0.8 ? "bg-[#C1121F]"
+ : "bg-[#EBE9E2]0"
  }`}
  style={{ width: `${Math.min(100, spend.monthlyUtilization * 100).toFixed(1)}%` }}
  />
  </div>
- <p className="text-[10px] text-slate-500 mt-1">{(spend.monthlyUtilization * 100).toFixed(0)}% of monthly cap · trips kill switch at 100%</p>
+ <p className="text-[10px] text-black/55 mt-1">{(spend.monthlyUtilization * 100).toFixed(0)}% of monthly cap · trips kill switch at 100%</p>
  </div>
  </div>
  </div>
@@ -666,20 +666,20 @@ export default function AIHub() {
 
  {/* LLM HEALTH — per-agent telemetry from server/ai-llm-client.ts */}
  {llmHealth && (
- <div data-testid="card-llm-health" className="bg-gradient-to-br from-violet-500/10 to-fuchsia-500/5 border border-violet-500/20 rounded-none p-4">
+ <div data-testid="card-llm-health" className="bg-gradient-to-br from-[#0A0A0A]/10 to-white border border-[#0A0A0A]/15 rounded-none p-4">
  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
  <div className="flex items-center gap-2">
- <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300">🧠 LLM Health · 24h</span>
- <span className="text-[10px] text-slate-500">retries · circuit breakers · token cost</span>
+ <span className="text-[11px] font-bold uppercase tracking-wider text-[#0A0A0A]/65">🧠 LLM Health · 24h</span>
+ <span className="text-[10px] text-black/55">retries · circuit breakers · token cost</span>
  </div>
  <div className="flex items-center gap-2 flex-wrap">
  {llmHealth.openBreakers?.length > 0 && (
- <span data-testid="badge-breakers-open" className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-300 font-bold uppercase">
+ <span data-testid="badge-breakers-open" className="text-[10px] px-2 py-0.5 rounded bg-[#EBE9E2] text-[#0A0A0A] font-bold uppercase">
  ⚠ {llmHealth.openBreakers.length} breaker{llmHealth.openBreakers.length > 1 ? 's' : ''} open
  </span>
  )}
  {llmHealth.totals?.repairs > 0 && (
- <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold uppercase">
+ <span className="text-[10px] px-2 py-0.5 rounded bg-[#FBEBEB] text-[#C1121F] font-bold uppercase">
  {llmHealth.totals.repairs} schema repair{llmHealth.totals.repairs > 1 ? 's' : ''}
  </span>
  )}
@@ -688,30 +688,30 @@ export default function AIHub() {
 
  {/* Aggregate strip */}
  <div className="grid grid-cols-4 gap-3 mb-3">
- <div className="bg-slate-900/40 rounded-lg p-2">
- <p className="text-[9px] uppercase text-slate-500">Calls</p>
- <p data-testid="text-llm-calls" className="text-sm font-bold text-white tabular-nums">{(llmHealth.totals?.calls ?? 0).toLocaleString()}</p>
+ <div className="bg-white rounded-lg p-2">
+ <p className="text-[9px] uppercase text-black/55">Calls</p>
+ <p data-testid="text-llm-calls" className="text-sm font-bold text-[#0A0A0A] tabular-nums">{(llmHealth.totals?.calls ?? 0).toLocaleString()}</p>
  </div>
- <div className="bg-slate-900/40 rounded-lg p-2">
- <p className="text-[9px] uppercase text-slate-500">Success</p>
+ <div className="bg-white rounded-lg p-2">
+ <p className="text-[9px] uppercase text-black/55">Success</p>
  <p data-testid="text-llm-success-rate" className={`text-sm font-bold tabular-nums ${
- llmHealth.totals?.successRate == null ? "text-slate-400"
- : llmHealth.totals.successRate >= 0.98 ? "text-emerald-300"
- : llmHealth.totals.successRate >= 0.9 ? "text-amber-300"
- : "text-red-300"
+ llmHealth.totals?.successRate == null ? "text-black/55"
+ : llmHealth.totals.successRate >= 0.98 ? "text-[#0A0A0A]/65"
+ : llmHealth.totals.successRate >= 0.9 ? "text-[#C1121F]"
+ : "text-[#0A0A0A]"
  }`}>
  {llmHealth.totals?.successRate == null ? "—" : `${(llmHealth.totals.successRate * 100).toFixed(1)}%`}
  </p>
  </div>
- <div className="bg-slate-900/40 rounded-lg p-2">
- <p className="text-[9px] uppercase text-slate-500">Tokens</p>
- <p data-testid="text-llm-tokens" className="text-sm font-bold text-white tabular-nums">
+ <div className="bg-white rounded-lg p-2">
+ <p className="text-[9px] uppercase text-black/55">Tokens</p>
+ <p data-testid="text-llm-tokens" className="text-sm font-bold text-[#0A0A0A] tabular-nums">
  {((llmHealth.totals?.tokens ?? 0) / 1000).toFixed(1)}k
  </p>
  </div>
- <div className="bg-slate-900/40 rounded-lg p-2">
- <p className="text-[9px] uppercase text-slate-500">Cost SGD</p>
- <p data-testid="text-llm-cost" className="text-sm font-bold text-white tabular-nums">
+ <div className="bg-white rounded-lg p-2">
+ <p className="text-[9px] uppercase text-black/55">Cost SGD</p>
+ <p data-testid="text-llm-cost" className="text-sm font-bold text-[#0A0A0A] tabular-nums">
  {(llmHealth.totals?.costSgd ?? 0).toFixed(2)}
  </p>
  </div>
@@ -724,20 +724,20 @@ export default function AIHub() {
  <div
  key={a.agent}
  data-testid={`row-llm-agent-${a.agent}`}
- className="flex items-center justify-between gap-2 text-[11px] bg-slate-900/30 rounded px-2 py-1.5"
+ className="flex items-center justify-between gap-2 text-[11px] bg-white0 rounded px-2 py-1.5"
  >
  <div className="flex items-center gap-2 min-w-0 flex-1">
- {a.breaker?.open && <span className="text-red-400">⚠</span>}
- <span className="font-mono text-slate-300 truncate">{a.agent}</span>
+ {a.breaker?.open && <span className="text-[#C1121F]">⚠</span>}
+ <span className="font-mono text-black/65 truncate">{a.agent}</span>
  </div>
- <div className="flex items-center gap-3 text-slate-400 tabular-nums shrink-0">
+ <div className="flex items-center gap-3 text-black/55 tabular-nums shrink-0">
  <span title="calls">{a.calls}×</span>
  <span
  title="success rate"
- className={a.successRate == null ? "text-slate-400"
- : a.successRate >= 0.98 ? "text-emerald-300"
- : a.successRate >= 0.9 ? "text-amber-300"
- : "text-red-300"}
+ className={a.successRate == null ? "text-black/55"
+ : a.successRate >= 0.98 ? "text-[#0A0A0A]/65"
+ : a.successRate >= 0.9 ? "text-[#C1121F]"
+ : "text-[#0A0A0A]"}
  >
  {a.successRate == null ? "—" : `${(a.successRate * 100).toFixed(0)}%`}
  </span>
@@ -748,7 +748,7 @@ export default function AIHub() {
  ))}
  </div>
  ) : (
- <p className="text-[11px] text-slate-500 italic">No LLM calls in the last 24h.</p>
+ <p className="text-[11px] text-black/55 italic">No LLM calls in the last 24h.</p>
  )}
  </div>
  )}
@@ -758,64 +758,64 @@ export default function AIHub() {
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
  {/* Recommendation Quality */}
  {recQuality && (
- <div data-testid="card-rec-quality" className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/20 rounded-none p-4">
+ <div data-testid="card-rec-quality" className="bg-gradient-to-br from-[#EBE9E2] to-white border border-black/10 rounded-none p-4">
  <div className="flex items-center justify-between mb-3">
- <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-300">Recommendation Quality</span>
- <span className="text-[10px] text-slate-500">last {recQuality.windowDays}d</span>
+ <span className="text-[11px] font-bold uppercase tracking-wider text-[#0A0A0A]/65">Recommendation Quality</span>
+ <span className="text-[10px] text-black/55">last {recQuality.windowDays}d</span>
  </div>
  <div className="flex items-baseline gap-3 mb-3">
- <p className="text-3xl font-bold text-white tabular-nums" data-testid="text-overall-approve-rate">{recQuality.overallApproveRate}%</p>
- <p className="text-[11px] text-slate-400">approve rate · {recQuality.totalRecommendations} total</p>
+ <p className="text-3xl font-bold text-[#0A0A0A] tabular-nums" data-testid="text-overall-approve-rate">{recQuality.overallApproveRate}%</p>
+ <p className="text-[11px] text-black/55">approve rate · {recQuality.totalRecommendations} total</p>
  </div>
  {recQuality.breakdown && recQuality.breakdown.length > 0 && (
  <div className="space-y-1.5">
  {recQuality.breakdown.slice(0, 5).map((b: any) => (
  <div key={b.type} className="flex items-center gap-2 text-[11px]" data-testid={`row-rec-type-${b.type}`}>
- <span className="text-slate-300 w-32 truncate">{b.type}</span>
+ <span className="text-black/65 w-32 truncate">{b.type}</span>
  <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
- <div className="h-full bg-emerald-400" style={{ width: `${b.approveRate}%` }} />
+ <div className="h-full bg-[#0A0A0A]" style={{ width: `${b.approveRate}%` }} />
  </div>
- <span className="text-slate-400 tabular-nums w-14 text-right">{b.approveRate}% / {b.total}</span>
+ <span className="text-black/55 tabular-nums w-14 text-right">{b.approveRate}% / {b.total}</span>
  </div>
  ))}
  </div>
  )}
  {recQuality.suggestions?.message && (
- <p className="text-[11px] text-emerald-200/80 mt-3 italic" data-testid="text-rec-suggestion">💡 {recQuality.suggestions.message}</p>
+ <p className="text-[11px] text-[#0A0A0A] mt-3 italic" data-testid="text-rec-suggestion">💡 {recQuality.suggestions.message}</p>
  )}
  </div>
  )}
 
  {/* WhatsApp Agent Performance */}
  {waPerf && (
- <div data-testid="card-wa-perf" className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20 rounded-none p-4">
+ <div data-testid="card-wa-perf" className="bg-gradient-to-br from-[#EBE9E2] to-white border border-black/10 rounded-none p-4">
  <div className="flex items-center justify-between mb-3">
- <span className="text-[11px] font-bold uppercase tracking-wider text-green-300">WhatsApp Sales Agent</span>
- <span className="text-[10px] text-slate-500">last {waPerf.windowDays}d</span>
+ <span className="text-[11px] font-bold uppercase tracking-wider text-[#0A0A0A]">WhatsApp Sales Agent</span>
+ <span className="text-[10px] text-black/55">last {waPerf.windowDays}d</span>
  </div>
  <div className="grid grid-cols-3 gap-2 mb-3">
  <div>
- <p className="text-2xl font-bold text-white tabular-nums" data-testid="text-wa-conversations">{waPerf.uniqueConversations}</p>
- <p className="text-[10px] uppercase text-slate-400 mt-0.5">Conversations</p>
+ <p className="text-2xl font-bold text-[#0A0A0A] tabular-nums" data-testid="text-wa-conversations">{waPerf.uniqueConversations}</p>
+ <p className="text-[10px] uppercase text-black/55 mt-0.5">Conversations</p>
  </div>
  <div>
- <p className="text-2xl font-bold text-emerald-300 tabular-nums" data-testid="text-wa-followups">{waPerf.followups?.sent ?? 0}</p>
- <p className="text-[10px] uppercase text-slate-400 mt-0.5">Follow-ups sent</p>
+ <p className="text-2xl font-bold text-[#0A0A0A]/65 tabular-nums" data-testid="text-wa-followups">{waPerf.followups?.sent ?? 0}</p>
+ <p className="text-[10px] uppercase text-black/55 mt-0.5">Follow-ups sent</p>
  </div>
  <div>
- <p className={`text-2xl font-bold tabular-nums ${(waPerf.handoffs?.rate ?? 0) >= 50 ? "text-amber-300" : "text-green-300"}`} data-testid="text-wa-handoff-rate">{waPerf.handoffs?.rate ?? 0}%</p>
- <p className="text-[10px] uppercase text-slate-400 mt-0.5">Handoff rate</p>
+ <p className={`text-2xl font-bold tabular-nums ${(waPerf.handoffs?.rate ?? 0) >= 50 ? "text-[#C1121F]" : "text-[#0A0A0A]"}`} data-testid="text-wa-handoff-rate">{waPerf.handoffs?.rate ?? 0}%</p>
+ <p className="text-[10px] uppercase text-black/55 mt-0.5">Handoff rate</p>
  </div>
  </div>
  {waPerf.handoffs?.byReason && Object.keys(waPerf.handoffs.byReason).length > 0 && (
- <div className="text-[11px] text-slate-400">
- <span className="text-slate-500">Handoff reasons: </span>
+ <div className="text-[11px] text-black/55">
+ <span className="text-black/55">Handoff reasons: </span>
  {Object.entries(waPerf.handoffs.byReason).map(([r, n]: any) => (
- <span key={r} className="inline-block mr-2 text-slate-300">{r} ({n})</span>
+ <span key={r} className="inline-block mr-2 text-black/65">{r} ({n})</span>
  ))}
  </div>
  )}
- <p className="text-[11px] text-green-200/80 mt-2 italic" data-testid="text-wa-verdict">💬 {waPerf.verdict}</p>
+ <p className="text-[11px] text-[#0A0A0A] mt-2 italic" data-testid="text-wa-verdict">💬 {waPerf.verdict}</p>
  </div>
  )}
  </div>
@@ -830,10 +830,10 @@ export default function AIHub() {
  { label: "Final Paid", value: stats.finalPaid ?? 0, sub: "completed jobs" },
  { label: "Revenue", value: `$${parseFloat(stats.totalRevenue ?? "0").toLocaleString()}`, sub: "paid-in-full" },
  ].map(stat => (
- <div key={stat.label} className="bg-white/5 border border-white/10 rounded-none p-4">
- <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">{stat.label}</p>
- <p className="text-2xl font-bold text-white tabular-nums">{stat.value}</p>
- <p className="text-xs text-slate-500 mt-0.5">{stat.sub}</p>
+ <div key={stat.label} className="bg-white/5 border border-black/10 rounded-none p-4">
+ <p className="text-xs font-medium text-black/55 uppercase tracking-wider mb-1">{stat.label}</p>
+ <p className="text-2xl font-bold text-[#0A0A0A] tabular-nums">{stat.value}</p>
+ <p className="text-xs text-black/55 mt-0.5">{stat.sub}</p>
  </div>
  ))}
  </div>
@@ -845,7 +845,7 @@ export default function AIHub() {
  const sm = STATUS_META[mod.status ?? "off"];
  return (
  <Link key={mod.href} href={mod.href}>
- <div className={`relative p-5 rounded-none bg-gradient-to-br border cursor-pointer hover:scale-[1.01] transition-all group ${mod.color}`}>
+ <div className={`relative p-5 rounded-none bg-gradient-to-br border cursor-pointer  transition-all group ${mod.color}`}>
  {/* Status badge — top-left */}
  <span className={`absolute top-3 left-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${sm.color}`}>
  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sm.dot}`} />
@@ -854,20 +854,20 @@ export default function AIHub() {
 
  {/* Count badge — top-right */}
  {mod.urgent && (mod.badge ?? 0) > 0 && (
- <span className="absolute top-3 right-3 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+ <span className="absolute top-3 right-3 bg-[#C1121F] text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
  {mod.badge} {mod.badgeLabel}
  </span>
  )}
  {!mod.urgent && (mod.badge ?? 0) > 0 && (
- <span className="absolute top-3 right-3 bg-blue-500/80 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+ <span className="absolute top-3 right-3 bg-[#0A0A0A]/80 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
  {mod.badge} {mod.badgeLabel}
  </span>
  )}
 
  <mod.icon className={`w-7 h-7 mt-6 mb-3 ${mod.iconColor}`} />
- <h3 className="text-base font-bold text-white mb-1">{mod.label}</h3>
- <p className="text-xs text-slate-400 leading-relaxed">{mod.description}</p>
- <div className="flex items-center gap-1.5 mt-4 text-xs font-medium text-slate-400 group-hover:text-slate-200 transition-colors">
+ <h3 className="text-base font-bold text-[#0A0A0A] mb-1">{mod.label}</h3>
+ <p className="text-xs text-black/55 leading-relaxed">{mod.description}</p>
+ <div className="flex items-center gap-1.5 mt-4 text-xs font-medium text-black/55 group-hover:text-[#0A0A0A] transition-colors">
  Open <ArrowRight className="w-3.5 h-3.5" />
  </div>
  </div>
@@ -877,19 +877,19 @@ export default function AIHub() {
  </div>
 
  {/* Feature Flags + Inline Help */}
- <div className="bg-white/5 border border-white/10 rounded-none overflow-hidden">
+ <div className="bg-white/5 border border-black/10 rounded-none overflow-hidden">
  <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
  <div className="flex items-center gap-2">
- <Shield className="w-4 h-4 text-slate-400" />
- <h2 className="text-sm font-semibold text-white">Feature Flags</h2>
+ <Shield className="w-4 h-4 text-black/55" />
+ <h2 className="text-sm font-semibold text-[#0A0A0A]">Feature Flags</h2>
  </div>
  <button
  onClick={() => toggleFlag.mutate({ key: "ai_master_kill_switch", value: !killSwitch })}
  data-testid="toggle-kill-switch"
  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
  killSwitch
- ? "bg-red-500/20 border-red-500/30 text-red-300 hover:bg-red-500/30"
- : "bg-white/5 border-white/10 text-slate-400 hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/20"
+ ? "bg-[#EBE9E2] border-[#C1121F]/30 text-[#0A0A0A] hover:bg-[#EBE9E2]"
+ : "bg-white/5 border-black/10 text-black/55 hover:text-[#0A0A0A] hover:bg-[#FBEBEB] hover:border-[#C1121F]/20"
  }`}
  >
  {killSwitch ? <Zap className="w-3.5 h-3.5" /> : <ZapOff className="w-3.5 h-3.5" />}
@@ -907,20 +907,20 @@ export default function AIHub() {
  <div className="flex items-center justify-between px-5 py-3.5">
  <div className="flex items-center gap-3 flex-1 min-w-0">
  <div className={`w-2 h-2 rounded-full shrink-0 ${
- flag.risk === "high" ? "bg-red-400" :
- flag.risk === "medium" ? "bg-amber-400" : "bg-emerald-400"
+ flag.risk === "high" ? "bg-[#0A0A0A]" :
+ flag.risk === "medium" ? "bg-[#C1121F]" : "bg-[#0A0A0A]"
  }`} />
- <span className="text-sm font-medium text-slate-200 truncate">{flag.label}</span>
+ <span className="text-sm font-medium text-[#0A0A0A] truncate">{flag.label}</span>
  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide shrink-0 ${
- flag.risk === "high" ? "bg-red-500/20 text-red-400" :
- flag.risk === "medium" ? "bg-amber-500/20 text-amber-400" :
- "bg-emerald-500/20 text-emerald-400"
+ flag.risk === "high" ? "bg-[#EBE9E2] text-[#C1121F]" :
+ flag.risk === "medium" ? "bg-[#FBEBEB] text-[#C1121F]" :
+ "bg-[#EBE9E2] text-[#0A0A0A]"
  }`}>{flag.risk} risk</span>
  {help && (
  <button
  onClick={() => setHelpFor(isHelpOpen ? null : flag.key)}
  data-testid={`help-${flag.key}`}
- className="shrink-0 text-slate-600 hover:text-slate-400 transition-colors"
+ className="shrink-0 text-black/75 hover:text-black/55 transition-colors"
  title="What does this do?"
  >
  {isHelpOpen ? <X className="w-3.5 h-3.5" /> : <HelpCircle className="w-3.5 h-3.5" />}
@@ -934,35 +934,35 @@ export default function AIHub() {
  disabled={toggleFlag.isPending}
  >
  {enabled
- ? <ToggleRight className="w-8 h-8 text-emerald-400" />
- : <ToggleLeft className="w-8 h-8 text-slate-600" />}
+ ? <ToggleRight className="w-8 h-8 text-[#0A0A0A]" />
+ : <ToggleLeft className="w-8 h-8 text-black/75" />}
  </button>
  </div>
 
  {/* Inline help panel */}
  {isHelpOpen && help && (
- <div className="mx-5 mb-3 p-3.5 bg-black/20 border border-white/8 rounded-none space-y-2.5">
+ <div className="mx-5 mb-3 p-3.5 bg-black/20 border border-black/10 rounded-none space-y-2.5">
  <div>
- <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">What it does</p>
- <p className="text-xs text-slate-300 leading-relaxed">{help.what}</p>
+ <p className="text-[11px] font-semibold text-black/55 uppercase tracking-wider mb-1">What it does</p>
+ <p className="text-xs text-black/65 leading-relaxed">{help.what}</p>
  </div>
  <div>
- <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Effect when enabled</p>
- <p className="text-xs text-slate-300 leading-relaxed">{help.effect}</p>
+ <p className="text-[11px] font-semibold text-black/55 uppercase tracking-wider mb-1">Effect when enabled</p>
+ <p className="text-xs text-black/65 leading-relaxed">{help.effect}</p>
  </div>
  <div className={`flex items-start gap-2 p-2.5 rounded-lg border ${
- flag.risk === "high" ? "bg-red-500/5 border-red-500/15" :
- flag.risk === "medium" ? "bg-amber-500/5 border-amber-500/15" :
- "bg-emerald-500/5 border-emerald-500/15"
+ flag.risk === "high" ? "bg-[#FBEBEB] border-[#C1121F]/15" :
+ flag.risk === "medium" ? "bg-[#C1121F]/5 border-black/10" :
+ "bg-[#EBE9E2] border-black/10"
  }`}>
  {flag.risk === "high"
- ? <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+ ? <AlertTriangle className="w-3.5 h-3.5 text-[#C1121F] shrink-0 mt-0.5" />
  : flag.risk === "medium"
- ? <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
- : <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />}
+ ? <AlertTriangle className="w-3.5 h-3.5 text-[#C1121F] shrink-0 mt-0.5" />
+ : <Check className="w-3.5 h-3.5 text-[#0A0A0A] shrink-0 mt-0.5" />}
  <p className={`text-xs leading-relaxed ${
- flag.risk === "high" ? "text-red-300" :
- flag.risk === "medium" ? "text-amber-300" : "text-emerald-300"
+ flag.risk === "high" ? "text-[#0A0A0A]" :
+ flag.risk === "medium" ? "text-[#C1121F]" : "text-[#0A0A0A]/65"
  }`}>{help.safe}</p>
  </div>
  </div>
@@ -973,8 +973,8 @@ export default function AIHub() {
  </div>
 
  <div className="px-5 py-3 bg-black/20 border-t border-white/5 flex items-start gap-2">
- <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
- <p className="text-[11px] text-slate-500">
+ <AlertTriangle className="w-3.5 h-3.5 text-[#C1121F] shrink-0 mt-0.5" />
+ <p className="text-[11px] text-black/55">
  High-risk flags require approval queue sign-off. Medium-risk flags auto-queue for review. Low-risk flags run automatically and log to the audit trail.
  The live booking/payment/admin/staff workflow is never affected by any AI flag setting.
  </p>

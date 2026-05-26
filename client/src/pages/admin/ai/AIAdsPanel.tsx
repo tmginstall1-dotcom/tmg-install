@@ -11,9 +11,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 const RISK_COLORS: Record<string, string> = {
- low: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
- medium: "text-amber-400 bg-amber-500/10 border-amber-500/20",
- high: "text-red-400 bg-red-500/10 border-red-500/20",
+ low: "text-[#0A0A0A] bg-[#EBE9E2] border-black/10",
+ medium: "text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/20",
+ high: "text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/20",
 };
 
 const ACTION_ICONS: Record<string, any> = {
@@ -35,24 +35,24 @@ function ConnectorSyncBanner() {
 
  const pill = (label: string, cfg: any) => {
  if (!cfg) return null;
- const color = cfg.lastSyncStatus === "success" ? "border-emerald-500/20 text-emerald-400"
- : cfg.lastSyncStatus === "error" ? "border-red-500/20 text-red-400"
- : "border-white/10 text-slate-400";
+ const color = cfg.lastSyncStatus === "success" ? "border-black/10 text-[#0A0A0A]"
+ : cfg.lastSyncStatus === "error" ? "border-[#C1121F]/20 text-[#C1121F]"
+ : "border-black/10 text-black/55";
  return (
  <span key={label} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-medium ${color}`}>
  <Database className="w-3 h-3" />
  {label} · {cfg.rowCount ?? 0} rows
- {cfg.lastSyncStatus === "error" && <AlertTriangle className="w-3 h-3 text-red-400" />}
+ {cfg.lastSyncStatus === "error" && <AlertTriangle className="w-3 h-3 text-[#C1121F]" />}
  </span>
  );
  };
 
  return (
- <div className={`flex flex-wrap items-center gap-2 px-4 py-3 rounded-none border ${hasAnyError ? "bg-red-500/5 border-red-500/15" : hasAnyData ? "bg-emerald-500/5 border-emerald-500/15" : "bg-white/3 border-white/8"}`}>
- <span className="text-[11px] text-slate-500 font-medium mr-1">Live API data:</span>
+ <div className={`flex flex-wrap items-center gap-2 px-4 py-3 rounded-none border ${hasAnyError ? "bg-[#FBEBEB] border-[#C1121F]/15" : hasAnyData ? "bg-[#EBE9E2] border-black/10" : "bg-white border-black/10"}`}>
+ <span className="text-[11px] text-black/55 font-medium mr-1">Live API data:</span>
  {pill("Google Ads", gads)}
  {pill("Meta Ads", meta)}
- <Link href="/admin/ai/connectors" className="ml-auto flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors shrink-0">
+ <Link href="/admin/ai/connectors" className="ml-auto flex items-center gap-1 text-[11px] text-[#0A0A0A] hover:text-[#0A0A0A]/65 transition-colors shrink-0">
  <ExternalLink className="w-3 h-3" /> Manage connectors
  </Link>
  </div>
@@ -128,28 +128,28 @@ export default function AIAdsPanel() {
  const pendingRecs = recommendations.filter((r: any) => r.status === "pending");
 
  return (
- <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#0B0F19]">
+ <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#F5F4F0]">
  <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
  {/* Header */}
  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
  <div className="flex items-center gap-3 min-w-0">
  <Link href="/admin/ai">
- <button className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors shrink-0">
+ <button className="p-1.5 rounded-lg text-black/55 hover:text-black/65 hover:bg-white/5 transition-colors shrink-0">
  <ChevronLeft className="w-5 h-5" />
  </button>
  </Link>
- <TrendingUp className="w-6 h-6 text-blue-400 shrink-0" />
+ <TrendingUp className="w-6 h-6 text-[#0A0A0A] shrink-0" />
  <div className="min-w-0">
- <h1 className="text-xl font-bold text-white">Ads Intelligence</h1>
- <p className="text-xs text-slate-500 truncate">Attribution funnel · Performance data · AI recommendations</p>
+ <h1 className="text-xl font-bold text-[#0A0A0A]">Ads Intelligence</h1>
+ <p className="text-xs text-black/55 truncate">Attribution funnel · Performance data · AI recommendations</p>
  </div>
  </div>
  <div className="flex flex-wrap gap-2 sm:ml-auto shrink-0">
  <button
  onClick={() => setShowAddForm(!showAddForm)}
  data-testid="button-add-snapshot"
- className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm font-medium text-slate-300 hover:bg-white/10 transition-colors"
+ className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-black/10 text-sm font-medium text-black/65 hover:bg-white/10 transition-colors"
  >
  <Plus className="w-4 h-4" /> Add Data
  </button>
@@ -157,7 +157,7 @@ export default function AIAdsPanel() {
  onClick={() => generateActions.mutate()}
  data-testid="button-generate-actions-ads"
  disabled={generateActions.isPending}
- className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0A0A0A] hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+ className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0A0A0A] hover:bg-[#0A0A0A] text-white text-sm font-semibold transition-colors disabled:opacity-50"
  >
  <ListChecks className="w-4 h-4" />
  {generateActions.isPending ? "Generating…" : "Generate Actions"}
@@ -166,7 +166,7 @@ export default function AIAdsPanel() {
  onClick={() => analyze.mutate()}
  data-testid="button-run-analysis"
  disabled={analyze.isPending}
- className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0A0A0A] hover:bg-blue-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+ className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0A0A0A] hover:bg-[#0A0A0A] text-white text-sm font-semibold transition-colors disabled:opacity-50"
  >
  <Cpu className="w-4 h-4" /> {analyze.isPending ? "Analyzing…" : "Run AI Analysis"}
  </button>
@@ -176,57 +176,57 @@ export default function AIAdsPanel() {
  {/* Live Connector Sync Banner */}
  <ConnectorSyncBanner />
  {showAddForm && (
- <div className="bg-white/5 border border-white/10 rounded-none p-5 space-y-4">
- <h3 className="text-sm font-semibold text-white">Add Ads Performance Data</h3>
+ <div className="bg-white/5 border border-black/10 rounded-none p-5 space-y-4">
+ <h3 className="text-sm font-semibold text-[#0A0A0A]">Add Ads Performance Data</h3>
  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
  <div>
- <label className="text-xs text-slate-500 mb-1 block">Platform</label>
+ <label className="text-xs text-black/55 mb-1 block">Platform</label>
  <select value={platform} onChange={e => setPlatform(e.target.value as any)}
- className="w-full h-9 px-3 bg-black/20 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]">
+ className="w-full h-9 px-3 bg-white border border-black/10 rounded-none text-sm text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]">
  <option value="google">Google Ads</option>
  <option value="meta">Meta Ads</option>
  </select>
  </div>
  <div>
- <label className="text-xs text-slate-500 mb-1 block">Date</label>
+ <label className="text-xs text-black/55 mb-1 block">Date</label>
  <input type="date" value={formData.snapshotDate} onChange={e => setFormData(f => ({...f, snapshotDate: e.target.value}))}
- className="w-full h-9 px-3 bg-black/20 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
+ className="w-full h-9 px-3 bg-white border border-black/10 rounded-none text-sm text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
  </div>
  <div>
- <label className="text-xs text-slate-500 mb-1 block">Campaign Name</label>
+ <label className="text-xs text-black/55 mb-1 block">Campaign Name</label>
  <input value={formData.campaignName} onChange={e => setFormData(f => ({...f, campaignName: e.target.value}))}
  placeholder="e.g. Singapore Furniture Install"
- className="w-full h-9 px-3 bg-black/20 border border-white/10 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
+ className="w-full h-9 px-3 bg-white border border-black/10 rounded-none text-sm text-[#0A0A0A] placeholder-black/40 focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
  </div>
  <div>
- <label className="text-xs text-slate-500 mb-1 block">Spend (SGD)</label>
+ <label className="text-xs text-black/55 mb-1 block">Spend (SGD)</label>
  <input type="number" min="0" step="0.01" value={formData.spend} onChange={e => setFormData(f => ({...f, spend: e.target.value}))}
  placeholder="0.00"
- className="w-full h-9 px-3 bg-black/20 border border-white/10 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
+ className="w-full h-9 px-3 bg-white border border-black/10 rounded-none text-sm text-[#0A0A0A] placeholder-black/40 focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
  </div>
  <div>
- <label className="text-xs text-slate-500 mb-1 block">Clicks</label>
+ <label className="text-xs text-black/55 mb-1 block">Clicks</label>
  <input type="number" min="0" value={formData.clicks} onChange={e => setFormData(f => ({...f, clicks: e.target.value}))}
- className="w-full h-9 px-3 bg-black/20 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
+ className="w-full h-9 px-3 bg-white border border-black/10 rounded-none text-sm text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
  </div>
  <div>
- <label className="text-xs text-slate-500 mb-1 block">Impressions</label>
+ <label className="text-xs text-black/55 mb-1 block">Impressions</label>
  <input type="number" min="0" value={formData.impressions} onChange={e => setFormData(f => ({...f, impressions: e.target.value}))}
- className="w-full h-9 px-3 bg-black/20 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
+ className="w-full h-9 px-3 bg-white border border-black/10 rounded-none text-sm text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
  </div>
  <div>
- <label className="text-xs text-slate-500 mb-1 block">Conversions</label>
+ <label className="text-xs text-black/55 mb-1 block">Conversions</label>
  <input type="number" min="0" step="0.1" value={formData.conversions} onChange={e => setFormData(f => ({...f, conversions: e.target.value}))}
- className="w-full h-9 px-3 bg-black/20 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
+ className="w-full h-9 px-3 bg-white border border-black/10 rounded-none text-sm text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]" />
  </div>
  </div>
  <div className="flex gap-2">
  <button onClick={handleAddSnapshot} disabled={addSnapshot.isPending}
- className="px-4 py-2 bg-[#0A0A0A] hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
+ className="px-4 py-2 bg-[#0A0A0A] hover:bg-[#0A0A0A] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
  {addSnapshot.isPending ? "Saving…" : "Save Snapshot"}
  </button>
  <button onClick={() => setShowAddForm(false)}
- className="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-400 text-sm rounded-lg transition-colors">
+ className="px-4 py-2 bg-white/5 hover:bg-white/10 text-black/55 text-sm rounded-lg transition-colors">
  Cancel
  </button>
  </div>
@@ -234,32 +234,32 @@ export default function AIAdsPanel() {
  )}
 
  {/* Conversion Funnel */}
- <div className="bg-white/5 border border-white/10 rounded-none overflow-hidden">
+ <div className="bg-white/5 border border-black/10 rounded-none overflow-hidden">
  <div className="px-5 py-4 border-b border-white/5">
- <h2 className="text-sm font-semibold text-white">Conversion Funnel</h2>
+ <h2 className="text-sm font-semibold text-[#0A0A0A]">Conversion Funnel</h2>
  </div>
  <div className="grid grid-cols-2 sm:grid-cols-5 divide-x divide-white/5">
  {[
- { label: "Leads", value: funnelData.leads ?? 0, icon: Users, color: "text-blue-400" },
- { label: "Quote Sent", value: funnelData.quoteSent ?? 0, icon: TrendingUp, color: "text-indigo-400" },
- { label: "Deposit Paid", value: funnelData.depositPaid ?? 0, icon: DollarSign, color: "text-emerald-400" },
- { label: "Booked", value: funnelData.booked ?? 0, icon: Target, color: "text-teal-400" },
- { label: "Final Paid", value: funnelData.finalPaid ?? 0, icon: Zap, color: "text-violet-400" },
+ { label: "Leads", value: funnelData.leads ?? 0, icon: Users, color: "text-[#0A0A0A]" },
+ { label: "Quote Sent", value: funnelData.quoteSent ?? 0, icon: TrendingUp, color: "text-[#0A0A0A]" },
+ { label: "Deposit Paid", value: funnelData.depositPaid ?? 0, icon: DollarSign, color: "text-[#0A0A0A]" },
+ { label: "Booked", value: funnelData.booked ?? 0, icon: Target, color: "text-[#0A0A0A]" },
+ { label: "Final Paid", value: funnelData.finalPaid ?? 0, icon: Zap, color: "text-[#0A0A0A]" },
  ].map(item => (
  <div key={item.label} className="p-4 text-center">
  <item.icon className={`w-4 h-4 mx-auto mb-2 ${item.color}`} />
- <p className="text-xl font-bold text-white tabular-nums">{item.value}</p>
- <p className="text-[11px] text-slate-500 mt-0.5">{item.label}</p>
+ <p className="text-xl font-bold text-[#0A0A0A] tabular-nums">{item.value}</p>
+ <p className="text-[11px] text-black/55 mt-0.5">{item.label}</p>
  </div>
  ))}
  </div>
  <div className="px-5 py-3 bg-black/20 border-t border-white/5 flex flex-wrap gap-4">
- <p className="text-xs text-slate-500">
- Revenue: <span className="text-white font-semibold">${parseFloat(funnelData.totalRevenue ?? "0").toLocaleString()}</span>
+ <p className="text-xs text-black/55">
+ Revenue: <span className="text-[#0A0A0A] font-semibold">${parseFloat(funnelData.totalRevenue ?? "0").toLocaleString()}</span>
  </p>
  {Object.entries(byChannel).map(([ch, count]) => (
- <p key={ch} className="text-xs text-slate-500">
- {ch}: <span className="text-slate-300 font-semibold">{count as number}</span>
+ <p key={ch} className="text-xs text-black/55">
+ {ch}: <span className="text-black/65 font-semibold">{count as number}</span>
  </p>
  ))}
  </div>
@@ -268,32 +268,32 @@ export default function AIAdsPanel() {
  {/* AI Recommendations */}
  {pendingRecs.length > 0 && (
  <div className="space-y-3">
- <h2 className="text-sm font-semibold text-white flex items-center gap-2">
- <Cpu className="w-4 h-4 text-blue-400" /> AI Recommendations ({pendingRecs.length})
+ <h2 className="text-sm font-semibold text-[#0A0A0A] flex items-center gap-2">
+ <Cpu className="w-4 h-4 text-[#0A0A0A]" /> AI Recommendations ({pendingRecs.length})
  </h2>
  {pendingRecs.map((rec: any) => {
  const Icon = ACTION_ICONS[rec.action] ?? Target;
  return (
- <div key={rec.id} className="bg-white/5 border border-white/10 rounded-none p-4">
+ <div key={rec.id} className="bg-white/5 border border-black/10 rounded-none p-4">
  <div className="flex items-start gap-3">
- <Icon className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+ <Icon className="w-4 h-4 text-[#0A0A0A] mt-0.5 shrink-0" />
  <div className="flex-1 min-w-0">
  <div className="flex items-center gap-2 flex-wrap mb-1">
  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${RISK_COLORS[rec.riskLevel ?? "medium"]}`}>{rec.action}</span>
  <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border ${RISK_COLORS[rec.riskLevel ?? "medium"]}`}>{rec.riskLevel} risk</span>
- {rec.platform && <span className="text-[10px] text-slate-500 uppercase">{rec.platform}</span>}
+ {rec.platform && <span className="text-[10px] text-black/55 uppercase">{rec.platform}</span>}
  {(rec.sourceData as any)?.analysisSource === "connector_rules" && (
- <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-violet-500/10 border-violet-500/20 text-violet-400 flex items-center gap-1">
- <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" /> Live API
+ <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-[#EBE9E2] border-[#0A0A0A]/15 text-[#0A0A0A] flex items-center gap-1">
+ <span className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A] inline-block" /> Live API
  </span>
  )}
  </div>
- {rec.targetName && <p className="text-sm font-medium text-white">{rec.targetName}</p>}
- {rec.reason && <p className="text-xs text-slate-400 mt-1 leading-relaxed">{rec.reason}</p>}
- {rec.expectedEffect && <p className="text-xs text-emerald-400 mt-1">Expected: {rec.expectedEffect}</p>}
+ {rec.targetName && <p className="text-sm font-medium text-[#0A0A0A]">{rec.targetName}</p>}
+ {rec.reason && <p className="text-xs text-black/55 mt-1 leading-relaxed">{rec.reason}</p>}
+ {rec.expectedEffect && <p className="text-xs text-[#0A0A0A] mt-1">Expected: {rec.expectedEffect}</p>}
  </div>
  {rec.confidence && (
- <span className="shrink-0 text-xs font-bold text-slate-400">{rec.confidence}%</span>
+ <span className="shrink-0 text-xs font-bold text-black/55">{rec.confidence}%</span>
  )}
  </div>
  </div>
@@ -304,30 +304,30 @@ export default function AIAdsPanel() {
 
  {/* Snapshots Table */}
  {snapshots.length > 0 && (
- <div className="bg-white/5 border border-white/10 rounded-none overflow-hidden">
+ <div className="bg-white/5 border border-black/10 rounded-none overflow-hidden">
  <div className="px-5 py-4 border-b border-white/5">
- <h2 className="text-sm font-semibold text-white">Performance Data ({snapshots.length} records)</h2>
+ <h2 className="text-sm font-semibold text-[#0A0A0A]">Performance Data ({snapshots.length} records)</h2>
  </div>
  <div className="overflow-x-auto">
  <table className="w-full text-sm">
  <thead>
  <tr className="border-b border-white/5">
  {["Date","Platform","Campaign","Spend","Clicks","Conv.","CPC","CPL"].map(h => (
- <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-black/20 whitespace-nowrap">{h}</th>
+ <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-black/55 uppercase tracking-wider bg-black/20 whitespace-nowrap">{h}</th>
  ))}
  </tr>
  </thead>
  <tbody className="divide-y divide-white/5">
  {snapshots.slice(0, 20).map((s: any) => (
  <tr key={s.id} className="hover:bg-white/5 transition-colors">
- <td className="px-4 py-2.5 text-xs text-slate-400 whitespace-nowrap">{s.snapshotDate}</td>
- <td className="px-4 py-2.5"><span className="text-[10px] font-bold uppercase text-blue-400">{s.platform}</span></td>
- <td className="px-4 py-2.5 text-xs text-slate-300 max-w-[160px] truncate">{s.campaignName ?? "—"}</td>
- <td className="px-4 py-2.5 text-xs text-white font-medium tabular-nums">${parseFloat(s.spend ?? "0").toFixed(2)}</td>
- <td className="px-4 py-2.5 text-xs text-slate-300 tabular-nums">{s.clicks ?? "—"}</td>
- <td className="px-4 py-2.5 text-xs text-slate-300 tabular-nums">{s.conversions ?? "—"}</td>
- <td className="px-4 py-2.5 text-xs text-slate-300 tabular-nums">${parseFloat(s.cpc ?? "0").toFixed(2)}</td>
- <td className="px-4 py-2.5 text-xs text-slate-300 tabular-nums">${parseFloat(s.cpl ?? "0").toFixed(2)}</td>
+ <td className="px-4 py-2.5 text-xs text-black/55 whitespace-nowrap">{s.snapshotDate}</td>
+ <td className="px-4 py-2.5"><span className="text-[10px] font-bold uppercase text-[#0A0A0A]">{s.platform}</span></td>
+ <td className="px-4 py-2.5 text-xs text-black/65 max-w-[160px] truncate">{s.campaignName ?? "—"}</td>
+ <td className="px-4 py-2.5 text-xs text-[#0A0A0A] font-medium tabular-nums">${parseFloat(s.spend ?? "0").toFixed(2)}</td>
+ <td className="px-4 py-2.5 text-xs text-black/65 tabular-nums">{s.clicks ?? "—"}</td>
+ <td className="px-4 py-2.5 text-xs text-black/65 tabular-nums">{s.conversions ?? "—"}</td>
+ <td className="px-4 py-2.5 text-xs text-black/65 tabular-nums">${parseFloat(s.cpc ?? "0").toFixed(2)}</td>
+ <td className="px-4 py-2.5 text-xs text-black/65 tabular-nums">${parseFloat(s.cpl ?? "0").toFixed(2)}</td>
  </tr>
  ))}
  </tbody>
@@ -337,10 +337,10 @@ export default function AIAdsPanel() {
  )}
 
  {snapshots.length === 0 && recommendations.length === 0 && (
- <div className="text-center py-12 border border-dashed border-white/10 rounded-none">
- <TrendingUp className="w-10 h-10 text-slate-600 mx-auto mb-3" />
- <p className="text-slate-400 font-medium">No ads data yet</p>
- <p className="text-sm text-slate-600 mt-1">Add performance data from Google or Meta Ads, then run AI analysis to get recommendations.</p>
+ <div className="text-center py-12 border border-dashed border-black/10 rounded-none">
+ <TrendingUp className="w-10 h-10 text-black/75 mx-auto mb-3" />
+ <p className="text-black/55 font-medium">No ads data yet</p>
+ <p className="text-sm text-black/75 mt-1">Add performance data from Google or Meta Ads, then run AI analysis to get recommendations.</p>
  </div>
  )}
 

@@ -13,9 +13,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 const RISK_COLORS: Record<string, string> = {
- low: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
- medium: "text-amber-400 bg-amber-500/10 border-amber-500/20",
- high: "text-red-400 bg-red-500/10 border-red-500/20",
+ low: "text-[#0A0A0A] bg-[#EBE9E2] border-black/10",
+ medium: "text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/20",
+ high: "text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/20",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -51,9 +51,9 @@ interface ConfirmState {
 }
 
 const DECISION_META: Record<string, { label: string; color: string; Icon: any }> = {
- approved: { label: "Approve", color: "bg-emerald-600/30 text-emerald-200 border-emerald-500/50", Icon: Check },
- rejected: { label: "Reject", color: "bg-red-600/30 text-red-200 border-red-500/50", Icon: X },
- deferred: { label: "Defer", color: "bg-slate-600/30 text-slate-200 border-slate-500/50", Icon: Pause },
+ approved: { label: "Approve", color: "bg-[#0A0A0A]/30 text-[#0A0A0A] border-black/10", Icon: Check },
+ rejected: { label: "Reject", color: "bg-[#EBE9E2] text-[#0A0A0A] border-black/10", Icon: X },
+ deferred: { label: "Defer", color: "bg-[#EBE9E2] text-[#0A0A0A] border-black/12/50", Icon: Pause },
 };
 
 // ── Structured detail panel subcomponents ─────────────────────────────────────
@@ -76,17 +76,17 @@ function EvidenceSection({ sourceData, evidence }: { sourceData?: any; evidence?
  return (
  <div className="space-y-2">
  <div className="flex items-center gap-2">
- <Database className="w-3.5 h-3.5 text-slate-500" />
- <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">Evidence</span>
- <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-violet-400 font-semibold">
+ <Database className="w-3.5 h-3.5 text-black/55" />
+ <span className="text-[11px] font-bold uppercase text-black/55 tracking-wider">Evidence</span>
+ <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EBE9E2] border border-[#0A0A0A]/15 text-[#0A0A0A] font-semibold">
  {sourceLabel}
  </span>
  </div>
  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
  {entries.map(([k, v]) => (
  <div key={k} className="px-3 py-2 bg-black/20 rounded-lg border border-white/5">
- <p className="text-[10px] text-slate-600 capitalize">{k.replace(/([A-Z])/g, " $1").replace(/_/g, " ").trim()}</p>
- <p className="text-xs font-semibold text-slate-300 mt-0.5 truncate">{formatVal(v)}</p>
+ <p className="text-[10px] text-black/75 capitalize">{k.replace(/([A-Z])/g, " $1").replace(/_/g, " ").trim()}</p>
+ <p className="text-xs font-semibold text-black/65 mt-0.5 truncate">{formatVal(v)}</p>
  </div>
  ))}
  </div>
@@ -103,20 +103,20 @@ function ProposedActionSection({ proposedAction, queueType }: { proposedAction?:
  return (
  <div className="space-y-2">
  <div className="flex items-center gap-2">
- <Target className="w-3.5 h-3.5 text-slate-500" />
- <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">Proposed Negative Keywords</span>
+ <Target className="w-3.5 h-3.5 text-black/55" />
+ <span className="text-[11px] font-bold uppercase text-black/55 tracking-wider">Proposed Negative Keywords</span>
  </div>
  <div className="flex flex-wrap gap-1.5">
  {pa.negativeKeywords.map((kw: any, i: number) => (
- <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/15 text-red-300">
- -{kw.term} <span className="text-red-600">({kw.matchType})</span>
+ <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-[#FBEBEB] border border-[#C1121F]/15 text-[#0A0A0A]">
+ -{kw.term} <span className="text-[#C1121F]">({kw.matchType})</span>
  </span>
  ))}
  </div>
  {pa.instructions && (
- <div className="flex items-start gap-2 p-2.5 bg-blue-500/5 border border-[#0A0A0A]/15 rounded-lg mt-1">
- <FileText className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
- <p className="text-[11px] text-blue-300 leading-relaxed">{pa.instructions}</p>
+ <div className="flex items-start gap-2 p-2.5 bg-[#EBE9E2] border border-[#0A0A0A]/15 rounded-lg mt-1">
+ <FileText className="w-3.5 h-3.5 text-[#0A0A0A] mt-0.5 shrink-0" />
+ <p className="text-[11px] text-[#0A0A0A]/65 leading-relaxed">{pa.instructions}</p>
  </div>
  )}
  </div>
@@ -127,35 +127,35 @@ function ProposedActionSection({ proposedAction, queueType }: { proposedAction?:
  return (
  <div className="space-y-3">
  <div className="flex items-center gap-2">
- <Cpu className="w-3.5 h-3.5 text-slate-500" />
- <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">Proposed Ad Creative</span>
+ <Cpu className="w-3.5 h-3.5 text-black/55" />
+ <span className="text-[11px] font-bold uppercase text-black/55 tracking-wider">Proposed Ad Creative</span>
  </div>
  {pa.headlines && (
  <div className="space-y-1">
- <p className="text-[10px] text-slate-600 font-semibold uppercase">Headlines</p>
+ <p className="text-[10px] text-black/75 font-semibold uppercase">Headlines</p>
  {pa.headlines.map((h: string, i: number) => (
  <div key={i} className="flex items-start gap-2 px-3 py-2 bg-black/20 rounded-lg border border-white/5">
- <span className="text-[10px] text-slate-600 shrink-0 pt-0.5">{i + 1}.</span>
- <p className="text-xs text-slate-300">{h}</p>
+ <span className="text-[10px] text-black/75 shrink-0 pt-0.5">{i + 1}.</span>
+ <p className="text-xs text-black/65">{h}</p>
  </div>
  ))}
  </div>
  )}
  {pa.descriptions && (
  <div className="space-y-1">
- <p className="text-[10px] text-slate-600 font-semibold uppercase">Descriptions</p>
+ <p className="text-[10px] text-black/75 font-semibold uppercase">Descriptions</p>
  {pa.descriptions.map((d: string, i: number) => (
  <div key={i} className="flex items-start gap-2 px-3 py-2 bg-black/20 rounded-lg border border-white/5">
- <span className="text-[10px] text-slate-600 shrink-0 pt-0.5">{i + 1}.</span>
- <p className="text-xs text-slate-300">{d}</p>
+ <span className="text-[10px] text-black/75 shrink-0 pt-0.5">{i + 1}.</span>
+ <p className="text-xs text-black/65">{d}</p>
  </div>
  ))}
  </div>
  )}
  {pa.instructions && (
- <div className="flex items-start gap-2 p-2.5 bg-blue-500/5 border border-[#0A0A0A]/15 rounded-lg">
- <FileText className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
- <p className="text-[11px] text-blue-300 leading-relaxed">{pa.instructions}</p>
+ <div className="flex items-start gap-2 p-2.5 bg-[#EBE9E2] border border-[#0A0A0A]/15 rounded-lg">
+ <FileText className="w-3.5 h-3.5 text-[#0A0A0A] mt-0.5 shrink-0" />
+ <p className="text-[11px] text-[#0A0A0A]/65 leading-relaxed">{pa.instructions}</p>
  </div>
  )}
  </div>
@@ -166,22 +166,22 @@ function ProposedActionSection({ proposedAction, queueType }: { proposedAction?:
  return (
  <div className="space-y-2">
  <div className="flex items-center gap-2">
- <Search className="w-3.5 h-3.5 text-slate-500" />
- <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">Proposed Page Changes</span>
- {pa.targetPage && <span className="text-[10px] text-slate-600 font-mono truncate max-w-[180px]">{pa.targetPage}</span>}
+ <Search className="w-3.5 h-3.5 text-black/55" />
+ <span className="text-[11px] font-bold uppercase text-black/55 tracking-wider">Proposed Page Changes</span>
+ {pa.targetPage && <span className="text-[10px] text-black/75 font-mono truncate max-w-[180px]">{pa.targetPage}</span>}
  </div>
  <div className="space-y-1.5">
  {Object.entries(pa.suggestedChanges).map(([k, v]: [string, any]) => (
  <div key={k} className="px-3 py-2 bg-black/20 rounded-lg border border-white/5">
- <p className="text-[10px] text-slate-600 uppercase font-semibold">{k.replace(/([A-Z])/g, " $1").trim()}</p>
- <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">{v}</p>
+ <p className="text-[10px] text-black/75 uppercase font-semibold">{k.replace(/([A-Z])/g, " $1").trim()}</p>
+ <p className="text-xs text-black/65 mt-0.5 leading-relaxed">{v}</p>
  </div>
  ))}
  </div>
  {pa.instructions && (
- <div className="flex items-start gap-2 p-2.5 bg-blue-500/5 border border-[#0A0A0A]/15 rounded-lg">
- <FileText className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
- <p className="text-[11px] text-blue-300 leading-relaxed">{pa.instructions}</p>
+ <div className="flex items-start gap-2 p-2.5 bg-[#EBE9E2] border border-[#0A0A0A]/15 rounded-lg">
+ <FileText className="w-3.5 h-3.5 text-[#0A0A0A] mt-0.5 shrink-0" />
+ <p className="text-[11px] text-[#0A0A0A]/65 leading-relaxed">{pa.instructions}</p>
  </div>
  )}
  </div>
@@ -193,16 +193,16 @@ function ProposedActionSection({ proposedAction, queueType }: { proposedAction?:
  return (
  <div className="space-y-2">
  <div className="flex items-center gap-2">
- <Globe className="w-3.5 h-3.5 text-slate-500" />
- <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">Proposed Copy Change</span>
+ <Globe className="w-3.5 h-3.5 text-black/55" />
+ <span className="text-[11px] font-bold uppercase text-black/55 tracking-wider">Proposed Copy Change</span>
  </div>
- <div className="p-3 bg-black/20 rounded-lg border border-emerald-500/10">
- <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{pa.suggestedChange}</p>
+ <div className="p-3 bg-black/20 rounded-lg border border-black/10">
+ <p className="text-xs text-black/65 leading-relaxed whitespace-pre-line">{pa.suggestedChange}</p>
  </div>
  {pa.instructions && (
- <div className="flex items-start gap-2 p-2.5 bg-blue-500/5 border border-[#0A0A0A]/15 rounded-lg">
- <FileText className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
- <p className="text-[11px] text-blue-300 leading-relaxed">{pa.instructions}</p>
+ <div className="flex items-start gap-2 p-2.5 bg-[#EBE9E2] border border-[#0A0A0A]/15 rounded-lg">
+ <FileText className="w-3.5 h-3.5 text-[#0A0A0A] mt-0.5 shrink-0" />
+ <p className="text-[11px] text-[#0A0A0A]/65 leading-relaxed">{pa.instructions}</p>
  </div>
  )}
  </div>
@@ -218,11 +218,11 @@ function RollbackSection({ rollbackPath, linkedRec }: { rollbackPath?: string | 
  return (
  <div className="space-y-2">
  <div className="flex items-center gap-2">
- <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
- <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">Rollback Path</span>
+ <RotateCcw className="w-3.5 h-3.5 text-black/55" />
+ <span className="text-[11px] font-bold uppercase text-black/55 tracking-wider">Rollback Path</span>
  </div>
- <div className="flex items-start gap-2 p-3 bg-slate-500/5 border border-slate-500/15 rounded-lg">
- <p className="text-[11px] text-slate-400 leading-relaxed">{text}</p>
+ <div className="flex items-start gap-2 p-3 bg-black/[0.03] border border-black/10 rounded-lg">
+ <p className="text-[11px] text-black/55 leading-relaxed">{text}</p>
  </div>
  </div>
  );
@@ -233,20 +233,20 @@ function AuditTrailSection({ auditTrail }: { auditTrail?: any[] }) {
  return (
  <div className="space-y-2">
  <div className="flex items-center gap-2">
- <ScrollText className="w-3.5 h-3.5 text-slate-500" />
- <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">Audit Trail</span>
+ <ScrollText className="w-3.5 h-3.5 text-black/55" />
+ <span className="text-[11px] font-bold uppercase text-black/55 tracking-wider">Audit Trail</span>
  </div>
  <div className="space-y-1.5">
  {auditTrail.map((e: any) => (
  <div key={e.id} className="flex items-start gap-2 px-3 py-2 bg-black/20 rounded-lg border border-white/5">
- <div className="w-1.5 h-1.5 rounded-full bg-violet-500/60 mt-1.5 shrink-0" />
+ <div className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A]/60 mt-1.5 shrink-0" />
  <div className="min-w-0 flex-1">
- <p className="text-[11px] text-slate-300 leading-snug">{e.summary}</p>
- <p className="text-[10px] text-slate-600 mt-0.5">
+ <p className="text-[11px] text-black/65 leading-snug">{e.summary}</p>
+ <p className="text-[10px] text-black/75 mt-0.5">
  {e.actor} · {new Date(e.createdAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" })}
  </p>
  </div>
- <span className={`shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${e.outcome === "success" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
+ <span className={`shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${e.outcome === "success" ? "bg-[#EBE9E2] text-[#0A0A0A]" : "bg-[#FBEBEB] text-[#C1121F]"}`}>
  {e.outcome}
  </span>
  </div>
@@ -266,11 +266,11 @@ function ExecutionResultSection({ executionResult, executionStatus, executedAt, 
  return (
  <div className="space-y-2">
  <div className="flex items-center gap-2">
- <XCircle className="w-3.5 h-3.5 text-red-400" />
- <span className="text-[11px] font-bold uppercase text-red-400 tracking-wider">Execution Failed</span>
+ <XCircle className="w-3.5 h-3.5 text-[#C1121F]" />
+ <span className="text-[11px] font-bold uppercase text-[#C1121F] tracking-wider">Execution Failed</span>
  </div>
- <div className="flex items-start gap-2 p-3 bg-red-500/5 border border-red-500/15 rounded-lg">
- <p className="text-[11px] text-red-300 leading-relaxed">The last execution attempt failed. Retry by clicking Execute again.</p>
+ <div className="flex items-start gap-2 p-3 bg-[#FBEBEB] border border-[#C1121F]/15 rounded-lg">
+ <p className="text-[11px] text-[#0A0A0A] leading-relaxed">The last execution attempt failed. Retry by clicking Execute again.</p>
  </div>
  </div>
  );
@@ -298,12 +298,12 @@ function ExecutionResultSection({ executionResult, executionStatus, executedAt, 
  <div className="space-y-3">
  {/* Header */}
  <div className="flex items-center gap-2 flex-wrap">
- <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
- <span className="text-[11px] font-bold uppercase text-emerald-400 tracking-wider">Execution Result</span>
- <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold">
+ <CheckCheck className="w-3.5 h-3.5 text-[#0A0A0A]" />
+ <span className="text-[11px] font-bold uppercase text-[#0A0A0A] tracking-wider">Execution Result</span>
+ <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EBE9E2] border border-black/10 text-[#0A0A0A] font-semibold">
  {TYPE_LABELS[r.type] ?? r.type}
  </span>
- <span className="ml-auto text-[10px] text-slate-600 flex items-center gap-1">
+ <span className="ml-auto text-[10px] text-black/75 flex items-center gap-1">
  <Timer className="w-3 h-3" />
  {executedBy} · {executedAt ? new Date(executedAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" }) : ""}
  </span>
@@ -313,20 +313,20 @@ function ExecutionResultSection({ executionResult, executionStatus, executedAt, 
  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
  {r.platform && (
  <div className="px-3 py-2 bg-black/20 rounded-lg border border-white/5">
- <p className="text-[10px] text-slate-600">Platform</p>
- <p className="text-xs font-semibold text-slate-300 mt-0.5">{r.platform}</p>
+ <p className="text-[10px] text-black/75">Platform</p>
+ <p className="text-xs font-semibold text-black/65 mt-0.5">{r.platform}</p>
  </div>
  )}
  {r.estimatedTime && (
  <div className="px-3 py-2 bg-black/20 rounded-lg border border-white/5">
- <p className="text-[10px] text-slate-600">Est. Time</p>
- <p className="text-xs font-semibold text-slate-300 mt-0.5">{r.estimatedTime}</p>
+ <p className="text-[10px] text-black/75">Est. Time</p>
+ <p className="text-xs font-semibold text-black/65 mt-0.5">{r.estimatedTime}</p>
  </div>
  )}
  {r.negativeCount != null && (
  <div className="px-3 py-2 bg-black/20 rounded-lg border border-white/5">
- <p className="text-[10px] text-slate-600">Keywords</p>
- <p className="text-xs font-semibold text-slate-300 mt-0.5">{r.negativeCount}</p>
+ <p className="text-[10px] text-black/75">Keywords</p>
+ <p className="text-xs font-semibold text-black/65 mt-0.5">{r.negativeCount}</p>
  </div>
  )}
  </div>
@@ -335,16 +335,16 @@ function ExecutionResultSection({ executionResult, executionStatus, executedAt, 
  {r.deliverable && (
  <div className="space-y-1.5">
  <div className="flex items-center justify-between">
- <p className="text-[10px] text-slate-600 font-semibold uppercase">Deliverable — Copy and implement manually</p>
+ <p className="text-[10px] text-black/75 font-semibold uppercase">Deliverable — Copy and implement manually</p>
  <button
  onClick={copyToClipboard}
  data-testid={`copy-deliverable-${executedBy}`}
- className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300 transition-colors"
+ className="flex items-center gap-1 text-[10px] text-[#0A0A0A] hover:text-[#0A0A0A]/65 transition-colors"
  >
  {copied ? <><CheckCheck className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
  </button>
  </div>
- <pre className="p-3 bg-black/30 border border-white/5 rounded-lg text-[11px] text-slate-300 overflow-x-auto whitespace-pre-wrap leading-relaxed font-mono">
+ <pre className="p-3 bg-black/30 border border-white/5 rounded-lg text-[11px] text-black/65 overflow-x-auto whitespace-pre-wrap leading-relaxed font-mono">
  {r.deliverable}
  </pre>
  </div>
@@ -353,14 +353,14 @@ function ExecutionResultSection({ executionResult, executionStatus, executedAt, 
  {/* Implementation steps */}
  {r.implementationSteps?.length > 0 && (
  <div className="space-y-1.5">
- <p className="text-[10px] text-slate-600 font-semibold uppercase">Implementation Steps</p>
+ <p className="text-[10px] text-black/75 font-semibold uppercase">Implementation Steps</p>
  <div className="space-y-1">
  {r.implementationSteps.map((step: string, i: number) => (
  <div key={i} className="flex items-start gap-2 px-3 py-1.5 bg-black/10 rounded-lg border border-white/5">
- <div className="w-4 h-4 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
- <span className="text-[9px] text-blue-400 font-bold">{i + 1}</span>
+ <div className="w-4 h-4 rounded-full bg-[#0A0A0A]/20 flex items-center justify-center shrink-0 mt-0.5">
+ <span className="text-[9px] text-[#0A0A0A] font-bold">{i + 1}</span>
  </div>
- <p className="text-[11px] text-slate-300 leading-relaxed">{step.replace(/^\d+\.\s*/, "")}</p>
+ <p className="text-[11px] text-black/65 leading-relaxed">{step.replace(/^\d+\.\s*/, "")}</p>
  </div>
  ))}
  </div>
@@ -369,10 +369,10 @@ function ExecutionResultSection({ executionResult, executionStatus, executedAt, 
 
  {/* Rollback note */}
  {r.rollbackNote && (
- <div className="flex items-start gap-2 p-2.5 bg-slate-500/5 border border-slate-500/15 rounded-lg">
- <RotateCcw className="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0" />
- <p className="text-[11px] text-slate-400 leading-relaxed">
- <strong className="text-slate-500">Rollback:</strong> {r.rollbackNote}
+ <div className="flex items-start gap-2 p-2.5 bg-black/[0.03] border border-black/10 rounded-lg">
+ <RotateCcw className="w-3.5 h-3.5 text-black/55 mt-0.5 shrink-0" />
+ <p className="text-[11px] text-black/55 leading-relaxed">
+ <strong className="text-black/55">Rollback:</strong> {r.rollbackNote}
  </p>
  </div>
  )}
@@ -382,15 +382,17 @@ function ExecutionResultSection({ executionResult, executionStatus, executedAt, 
 
 function PlatformExecutionSection({ platformExecution }: { platformExecution?: any }) {
  const [rawOpen, setRawOpen] = useState(false);
+ const { toast } = useToast();
+ const qc = useQueryClient();
  if (!platformExecution) return null;
  const pe = platformExecution;
 
  const STATUS_META: Record<string, { label: string; color: string; Icon: any }> = {
- success: { label: "Live Push Succeeded", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", Icon: CheckCheck },
- test_mode: { label: "Dry Run Complete", color: "text-blue-400 bg-blue-500/10 border-[#0A0A0A]/20", Icon: FlaskConical },
- export_only: { label: "Export Only — apply manually", color: "text-amber-400 bg-amber-500/10 border-amber-500/20", Icon: FileText },
- failed: { label: "Live Push Failed", color: "text-red-400 bg-red-500/10 border-red-500/20", Icon: XCircle },
- missing_ids: { label: "Missing Target IDs", color: "text-orange-400 bg-orange-500/10 border-orange-500/20", Icon: BadgeAlert },
+ success: { label: "Live Push Succeeded", color: "text-[#0A0A0A] bg-[#EBE9E2] border-black/10", Icon: CheckCheck },
+ test_mode: { label: "Dry Run Complete", color: "text-[#0A0A0A] bg-[#EBE9E2] border-[#0A0A0A]/20", Icon: FlaskConical },
+ export_only: { label: "Export Only — apply manually", color: "text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/20", Icon: FileText },
+ failed: { label: "Live Push Failed", color: "text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/20", Icon: XCircle },
+ missing_ids: { label: "Missing Target IDs", color: "text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/20", Icon: BadgeAlert },
  };
 
  const sm = STATUS_META[pe.resultStatus] ?? STATUS_META["export_only"];
@@ -403,51 +405,51 @@ function PlatformExecutionSection({ platformExecution }: { platformExecution?: a
  return (
  <div className="space-y-3">
  <div className="flex items-center gap-2 flex-wrap">
- <Rocket className="w-3.5 h-3.5 text-violet-400" />
- <span className="text-[11px] font-bold uppercase text-violet-400 tracking-wider">Platform Execution</span>
+ <Rocket className="w-3.5 h-3.5 text-[#0A0A0A]" />
+ <span className="text-[11px] font-bold uppercase text-[#0A0A0A] tracking-wider">Platform Execution</span>
  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border flex items-center gap-1 ${sm.color}`}>
  <StatusIcon className="w-2.5 h-2.5" />
  {sm.label}
  </span>
- <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 border border-slate-500/20 text-slate-400 font-semibold">
+ <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/[0.04] border border-black/10 text-black/55 font-semibold">
  {PLATFORM_LABEL[pe.platform] ?? pe.platform}
  </span>
  {pe.testMode && (
- <span className="flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 border border-[#0A0A0A]/20 px-1.5 py-0.5 rounded">
+ <span className="flex items-center gap-1 text-[10px] text-[#0A0A0A] bg-[#EBE9E2] border border-[#0A0A0A]/20 px-1.5 py-0.5 rounded">
  <FlaskConical className="w-2.5 h-2.5" /> Dry run
  </span>
  )}
- <span className="ml-auto text-[10px] text-slate-600 flex items-center gap-1">
+ <span className="ml-auto text-[10px] text-black/75 flex items-center gap-1">
  <Timer className="w-3 h-3" />
  {pe.actor} · {pe.executedAt ? new Date(pe.executedAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" }) : ""}
  </span>
  </div>
 
  {/* Summary */}
- <div className={`p-3 rounded-lg border ${pe.resultStatus === "failed" || pe.resultStatus === "missing_ids" ? "bg-red-500/5 border-red-500/15" : pe.resultStatus === "success" ? "bg-emerald-500/5 border-emerald-500/15" : pe.resultStatus === "test_mode" ? "bg-blue-500/5 border-[#0A0A0A]/15" : "bg-slate-500/5 border-slate-500/15"}`}>
- <p className="text-[11px] leading-relaxed text-slate-300">{pe.summary}</p>
+ <div className={`p-3 rounded-lg border ${pe.resultStatus === "failed" || pe.resultStatus === "missing_ids" ? "bg-[#FBEBEB] border-[#C1121F]/15" : pe.resultStatus === "success" ? "bg-[#EBE9E2] border-black/10" : pe.resultStatus === "test_mode" ? "bg-[#EBE9E2] border-[#0A0A0A]/15" : "bg-black/[0.03] border-black/10"}`}>
+ <p className="text-[11px] leading-relaxed text-black/65">{pe.summary}</p>
  </div>
 
  {/* Error */}
  {pe.errorMessage && (
- <div className="flex items-start gap-2 p-2.5 bg-red-500/5 border border-red-500/15 rounded-lg">
- <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
- <p className="text-[11px] text-red-300 leading-relaxed">{pe.errorMessage}</p>
+ <div className="flex items-start gap-2 p-2.5 bg-[#FBEBEB] border border-[#C1121F]/15 rounded-lg">
+ <XCircle className="w-3.5 h-3.5 text-[#C1121F] mt-0.5 shrink-0" />
+ <p className="text-[11px] text-[#0A0A0A] leading-relaxed">{pe.errorMessage}</p>
  </div>
  )}
 
  {/* Rollback path + one-click rollback button */}
  {pe.rollbackPath && pe.rollbackPath !== "No changes made." && pe.rollbackPath !== "No changes made — export only." && (
- <div className="flex items-start gap-2 p-2.5 bg-slate-500/5 border border-slate-500/15 rounded-lg">
- <RotateCcw className="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0" />
+ <div className="flex items-start gap-2 p-2.5 bg-black/[0.03] border border-black/10 rounded-lg">
+ <RotateCcw className="w-3.5 h-3.5 text-black/55 mt-0.5 shrink-0" />
  <div className="flex-1">
- <p className="text-[10px] font-bold uppercase text-slate-600 mb-1">Rollback Path</p>
- <p className="text-[11px] text-slate-400 leading-relaxed">{pe.rollbackPath}</p>
+ <p className="text-[10px] font-bold uppercase text-black/75 mb-1">Rollback Path</p>
+ <p className="text-[11px] text-black/55 leading-relaxed">{pe.rollbackPath}</p>
  {pe.rolledBackAt ? (
- <p className="text-[11px] text-emerald-400 mt-1.5 font-semibold">
+ <p className="text-[11px] text-[#0A0A0A] mt-1.5 font-semibold">
  ✓ Rolled back {new Date(pe.rolledBackAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" })} by {pe.rolledBackBy}
- {pe.rollbackStatus === "failed" && <span className="text-red-400"> — but failed: {pe.rollbackError}</span>}
- {pe.rollbackStatus === "manual_required" && <span className="text-amber-400"> — manual reversal required</span>}
+ {pe.rollbackStatus === "failed" && <span className="text-[#C1121F]"> — but failed: {pe.rollbackError}</span>}
+ {pe.rollbackStatus === "manual_required" && <span className="text-[#C1121F]"> — manual reversal required</span>}
  </p>
  ) : pe.resultStatus === "success" && pe.id ? (
  <button
@@ -469,7 +471,7 @@ function PlatformExecutionSection({ platformExecution }: { platformExecution?: a
  toast({ title: "Rollback error", description: e.message, variant: "destructive" });
  }
  }}
- className="mt-2 px-2.5 py-1 text-[11px] font-semibold uppercase bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded transition flex items-center gap-1.5"
+ className="mt-2 px-2.5 py-1 text-[11px] font-semibold uppercase bg-[#FBEBEB] hover:bg-[#FBEBEB] border border-[#C1121F]/30 text-[#C1121F] rounded transition flex items-center gap-1.5"
  >
  <RotateCcw className="w-3 h-3" /> Roll back this change
  </button>
@@ -479,12 +481,12 @@ function PlatformExecutionSection({ platformExecution }: { platformExecution?: a
  )}
 
  {/* Execution receipt row */}
- <div className="flex items-center gap-3 flex-wrap text-[10px] text-slate-600 font-mono">
+ <div className="flex items-center gap-3 flex-wrap text-[10px] text-black/75 font-mono">
  {pe.id && <span>#{pe.id}</span>}
- {pe.id && <span className="text-slate-700">·</span>}
- <span className="text-slate-500 font-sans">{pe.actionType ?? pe.action_type ?? "—"}</span>
+ {pe.id && <span className="text-[#0A0A0A]">·</span>}
+ <span className="text-black/55 font-sans">{pe.actionType ?? pe.action_type ?? "—"}</span>
  {pe.pilotFence && (
- <span className="text-amber-600 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase font-sans">
+ <span className="text-[#C1121F] bg-[#FBEBEB] border border-[#C1121F]/20 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase font-sans">
  Pilot Fence
  </span>
  )}
@@ -493,13 +495,13 @@ function PlatformExecutionSection({ platformExecution }: { platformExecution?: a
  {/* Raw response / payload toggle — available for all statuses */}
  <button
  onClick={() => setRawOpen(!rawOpen)}
- className={`flex items-center gap-1 text-[10px] hover:opacity-80 transition-opacity ${pe.resultStatus === "test_mode" ? "text-blue-400" : pe.resultStatus === "success" ? "text-emerald-400" : pe.resultStatus === "failed" ? "text-red-400" : "text-slate-500"}`}
+ className={`flex items-center gap-1 text-[10px] hover:opacity-80 transition-opacity ${pe.resultStatus === "test_mode" ? "text-[#0A0A0A]" : pe.resultStatus === "success" ? "text-[#0A0A0A]" : pe.resultStatus === "failed" ? "text-[#C1121F]" : "text-black/55"}`}
  >
  {rawOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
  {rawOpen ? "Hide" : "Show"} {pe.resultStatus === "test_mode" ? "dry-run payload" : pe.resultStatus === "success" ? "platform receipt" : "response details"}
  </button>
  {rawOpen && (
- <pre className="p-3 bg-black/30 border border-white/5 rounded-lg text-[10px] text-slate-400 overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
+ <pre className="p-3 bg-black/30 border border-white/5 rounded-lg text-[10px] text-black/55 overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
  {JSON.stringify(pe, null, 2)}
  </pre>
  )}
@@ -512,16 +514,16 @@ function LinkedRecSection({ linkedRec, refType }: { linkedRec?: any; refType?: s
  return (
  <div className="space-y-2">
  <div className="flex items-center gap-2">
- <ArrowUp className="w-3.5 h-3.5 text-slate-500" />
- <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">
+ <ArrowUp className="w-3.5 h-3.5 text-black/55" />
+ <span className="text-[11px] font-bold uppercase text-black/55 tracking-wider">
  Linked {refType === "ad_recommendation" ? "Ad Recommendation" : "Site Recommendation"}
  </span>
- <span className="text-[10px] text-slate-600 font-mono">#{linkedRec.id}</span>
+ <span className="text-[10px] text-black/75 font-mono">#{linkedRec.id}</span>
  </div>
  <div className="px-3 py-2.5 bg-black/20 rounded-lg border border-white/5 space-y-1">
- {linkedRec.reason && <p className="text-xs text-slate-300 leading-relaxed">{linkedRec.reason}</p>}
- {linkedRec.expectedEffect && <p className="text-xs text-emerald-400 mt-1">Expected: {linkedRec.expectedEffect}</p>}
- <div className="flex items-center gap-3 mt-1.5 text-[10px] text-slate-600">
+ {linkedRec.reason && <p className="text-xs text-black/65 leading-relaxed">{linkedRec.reason}</p>}
+ {linkedRec.expectedEffect && <p className="text-xs text-[#0A0A0A] mt-1">Expected: {linkedRec.expectedEffect}</p>}
+ <div className="flex items-center gap-3 mt-1.5 text-[10px] text-black/75">
  {linkedRec.confidence && <span>Confidence: {linkedRec.confidence}%</span>}
  {linkedRec.status && <span>Status: {linkedRec.status}</span>}
  {linkedRec.platform && <span>Platform: {linkedRec.platform}</span>}
@@ -549,8 +551,8 @@ function DetailPanel({ item }: { item: any }) {
 
  if (isLoading) {
  return (
- <div className="flex items-center gap-2 py-4 text-slate-600 text-xs">
- <div className="w-4 h-4 border border-white/10 border-t-white/50 rounded-full animate-spin" />
+ <div className="flex items-center gap-2 py-4 text-black/75 text-xs">
+ <div className="w-4 h-4 border border-black/10 border-t-white/50 rounded-full animate-spin" />
  Loading detail…
  </div>
  );
@@ -575,7 +577,7 @@ function DetailPanel({ item }: { item: any }) {
 
  {/* Fallback: show raw JSON if no structured view matched */}
  {!proposedAction && !evidence && !linkedRec && !item.executionResult && (
- <p className="text-[11px] text-slate-600 italic">No detail data available for this item.</p>
+ <p className="text-[11px] text-black/75 italic">No detail data available for this item.</p>
  )}
  </div>
  );
@@ -739,26 +741,26 @@ export default function AIApprovalQueue() {
  }
 
  return (
- <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#0B0F19]">
+ <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#F5F4F0]">
  <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
  {/* Header */}
  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
  <div className="flex items-center gap-3 min-w-0">
  <Link href="/admin/ai">
- <button className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors shrink-0">
+ <button className="p-1.5 rounded-lg text-black/55 hover:text-black/65 hover:bg-white/5 transition-colors shrink-0">
  <ChevronLeft className="w-5 h-5" />
  </button>
  </Link>
- <CheckSquare className="w-6 h-6 text-amber-400 shrink-0" />
+ <CheckSquare className="w-6 h-6 text-[#C1121F] shrink-0" />
  <div className="min-w-0">
- <h1 className="text-xl font-bold text-white">Approval Queue</h1>
- <p className="text-xs text-slate-500 truncate">Review AI-proposed actions — all require explicit approval</p>
+ <h1 className="text-xl font-bold text-[#0A0A0A]">Approval Queue</h1>
+ <p className="text-xs text-black/55 truncate">Review AI-proposed actions — all require explicit approval</p>
  </div>
  </div>
  <div className="flex items-center gap-2 sm:ml-auto shrink-0">
  {pendingItems.length > 0 && (
- <span className="bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+ <span className="bg-[#C1121F] text-white text-xs font-bold px-2.5 py-1 rounded-full">
  {pendingItems.length} pending
  </span>
  )}
@@ -766,7 +768,7 @@ export default function AIApprovalQueue() {
  onClick={() => generateActions.mutate()}
  disabled={generateActions.isPending}
  data-testid="button-generate-actions"
- className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0A0A0A] hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+ className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0A0A0A] hover:bg-[#0A0A0A] text-white text-sm font-semibold transition-colors disabled:opacity-50"
  >
  <Zap className="w-4 h-4" />
  {generateActions.isPending ? "Generating…" : "Generate Actions"}
@@ -780,31 +782,31 @@ export default function AIApprovalQueue() {
  const Icon = meta.Icon;
  return (
  <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 ">
- <div className="w-full max-w-md bg-[#131929] border border-white/15 rounded-none overflow-hidden max-h-[90vh] flex flex-col">
+ <div className="w-full max-w-md bg-[#131929] border border-black/10 rounded-none overflow-hidden max-h-[90vh] flex flex-col">
  <div className="px-5 py-4 border-b border-white/5 flex items-center gap-3">
- <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
- <ShieldAlert className="w-4 h-4 text-amber-400" />
+ <div className="w-8 h-8 rounded-lg bg-[#FBEBEB] flex items-center justify-center shrink-0">
+ <ShieldAlert className="w-4 h-4 text-[#C1121F]" />
  </div>
  <div>
- <p className="text-sm font-semibold text-white">Confirm Action</p>
- <p className="text-xs text-slate-500 mt-0.5">This will be recorded in the audit log</p>
+ <p className="text-sm font-semibold text-[#0A0A0A]">Confirm Action</p>
+ <p className="text-xs text-black/55 mt-0.5">This will be recorded in the audit log</p>
  </div>
  </div>
  <div className="px-5 py-4 space-y-3 overflow-y-auto">
- <p className="text-sm text-slate-300">
+ <p className="text-sm text-black/65">
  You are about to{" "}
- <span className={`font-bold ${confirmState.decision === "approved" ? "text-emerald-400" : confirmState.decision === "rejected" ? "text-red-400" : "text-slate-300"}`}>
+ <span className={`font-bold ${confirmState.decision === "approved" ? "text-[#0A0A0A]" : confirmState.decision === "rejected" ? "text-[#C1121F]" : "text-black/65"}`}>
  {confirmState.decision}
  </span>{" "}this AI recommendation:
  </p>
  <div className="p-3 bg-black/20 border border-white/5 rounded-none">
- <p className="text-sm font-medium text-white leading-snug break-words">{confirmState.title}</p>
- {confirmState.note && <p className="text-xs text-slate-400 mt-1.5 italic break-words">Note: "{confirmState.note}"</p>}
+ <p className="text-sm font-medium text-[#0A0A0A] leading-snug break-words">{confirmState.title}</p>
+ {confirmState.note && <p className="text-xs text-black/55 mt-1.5 italic break-words">Note: "{confirmState.note}"</p>}
  </div>
  {confirmState.decision === "approved" && (
- <div className="flex items-start gap-2 p-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-lg">
- <BotIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
- <p className="text-xs text-emerald-300">
+ <div className="flex items-start gap-2 p-2.5 bg-[#EBE9E2] border border-black/10 rounded-lg">
+ <BotIcon className="w-3.5 h-3.5 text-[#0A0A0A] shrink-0 mt-0.5" />
+ <p className="text-xs text-[#0A0A0A]/65">
  Approving will <strong>immediately generate an implementation deliverable</strong> (CRO brief, ad copy spec, or keyword export) for your team to implement manually.
  No live platform changes are made automatically.
  </p>
@@ -813,7 +815,7 @@ export default function AIApprovalQueue() {
  </div>
  <div className="px-5 py-4 border-t border-white/5 flex flex-wrap gap-2 justify-end shrink-0">
  <button onClick={() => setConfirmState(null)} data-testid="confirm-cancel"
- className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 text-sm rounded-lg transition-colors">
+ className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-black/10 text-black/55 text-sm rounded-lg transition-colors">
  Cancel
  </button>
  <button onClick={executeConfirmed} data-testid="confirm-execute" disabled={review.isPending}
@@ -832,7 +834,7 @@ export default function AIApprovalQueue() {
  <div className="flex gap-1 bg-black/20 rounded-none p-1 w-max">
  {["pending", "approved", "rejected", "deferred"].map(s => (
  <button key={s} onClick={() => setStatusFilter(s)} data-testid={`filter-${s}`}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors whitespace-nowrap ${statusFilter === s ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"}`}>
+ className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors whitespace-nowrap ${statusFilter === s ? "bg-white/10 text-white" : "text-black/55 hover:text-black/65"}`}>
  {s}
  </button>
  ))}
@@ -840,10 +842,10 @@ export default function AIApprovalQueue() {
  </div>
 
  {/* Info banner — auto-execution note */}
- <div className="flex items-start gap-2 px-4 py-3 bg-violet-500/5 border border-violet-500/10 rounded-none">
- <BotIcon className="w-4 h-4 text-violet-400 mt-0.5 shrink-0" />
- <p className="text-[11px] text-violet-300/80 leading-relaxed">
- <strong className="text-violet-300">Auto-execution enabled.</strong> Approving a CRO, ad copy, negative keyword, or landing page action immediately generates a structured deliverable for your team to implement manually.
+ <div className="flex items-start gap-2 px-4 py-3 bg-[#EBE9E2] border border-black/10 rounded-none">
+ <BotIcon className="w-4 h-4 text-[#0A0A0A] mt-0.5 shrink-0" />
+ <p className="text-[11px] text-[#0A0A0A]/65/80 leading-relaxed">
+ <strong className="text-[#0A0A0A]/65">Auto-execution enabled.</strong> Approving a CRO, ad copy, negative keyword, or landing page action immediately generates a structured deliverable for your team to implement manually.
  No changes are made to Google Ads, Meta, or the live site automatically.
  </p>
  </div>
@@ -851,20 +853,20 @@ export default function AIApprovalQueue() {
  {/* List */}
  {isLoading ? (
  <div className="flex items-center justify-center py-12">
- <div className="w-6 h-6 border-2 border-white/10 border-t-white/60 rounded-full animate-spin" />
+ <div className="w-6 h-6 border-2 border-black/10 border-t-white/60 rounded-full animate-spin" />
  </div>
  ) : items.length === 0 ? (
- <div className="text-center py-14 border border-dashed border-white/10 rounded-none">
- <CheckSquare className="w-10 h-10 text-slate-600 mx-auto mb-3" />
- <p className="text-slate-400 font-medium">No {statusFilter} items</p>
- <p className="text-sm text-slate-600 mt-1">
+ <div className="text-center py-14 border border-dashed border-black/10 rounded-none">
+ <CheckSquare className="w-10 h-10 text-black/75 mx-auto mb-3" />
+ <p className="text-black/55 font-medium">No {statusFilter} items</p>
+ <p className="text-sm text-black/75 mt-1">
  {statusFilter === "pending"
  ? "Click Generate Actions to create approval-ready items from your data."
  : `No ${statusFilter} items in the queue.`}
  </p>
  {statusFilter === "pending" && (
  <button onClick={() => generateActions.mutate()} disabled={generateActions.isPending}
- className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0A0A0A] hover:bg-violet-500 text-white text-sm font-semibold mx-auto transition-colors disabled:opacity-50">
+ className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0A0A0A] hover:bg-[#0A0A0A] text-white text-sm font-semibold mx-auto transition-colors disabled:opacity-50">
  <Zap className="w-4 h-4" />
  {generateActions.isPending ? "Generating…" : "Generate Actions"}
  </button>
@@ -880,9 +882,9 @@ export default function AIApprovalQueue() {
  if (pendingItems.length === 0) return null;
  return (
  <div className={`sticky top-2 z-20 flex items-center gap-3 px-4 py-2.5 rounded-lg border transition-all ${
- someSelected ? "bg-violet-500/15 border-violet-500/40" : "bg-white/5 border-white/10"
+ someSelected ? "bg-[#EBE9E2] border-black/10" : "bg-white/5 border-black/10"
  }`}>
- <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300 select-none">
+ <label className="flex items-center gap-2 cursor-pointer text-xs text-black/65 select-none">
  <input
  type="checkbox"
  data-testid="checkbox-select-all-pending"
@@ -891,13 +893,13 @@ export default function AIApprovalQueue() {
  if (allPendingSelected) setSelectedIds(new Set());
  else setSelectedIds(new Set(pendingItems.map((i: any) => i.id)));
  }}
- className="w-4 h-4 accent-violet-500"
+ className="w-4 h-4 accent-[#0A0A0A]"
  />
  <span>Select all pending ({pendingItems.length})</span>
  </label>
  {someSelected && (
  <>
- <span className="text-xs text-violet-300 font-semibold">{selectedIds.size} selected</span>
+ <span className="text-xs text-[#0A0A0A]/65 font-semibold">{selectedIds.size} selected</span>
  <div className="ml-auto flex items-center gap-2">
  <button
  data-testid="button-bulk-approve"
@@ -906,7 +908,7 @@ export default function AIApprovalQueue() {
  if (!confirm(`Approve ${selectedIds.size} item(s)? Auto-execute will run on enabled platforms.`)) return;
  bulkReview.mutate({ ids: Array.from(selectedIds), decision: "approved" });
  }}
- className="px-3 py-1.5 rounded text-xs font-bold uppercase bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 transition disabled:opacity-50"
+ className="px-3 py-1.5 rounded text-xs font-bold uppercase bg-[#EBE9E2] hover:bg-[#EBE9E2] border border-black/12 text-[#0A0A0A]/65 transition disabled:opacity-50"
  >
  Approve all
  </button>
@@ -914,7 +916,7 @@ export default function AIApprovalQueue() {
  data-testid="button-bulk-defer"
  disabled={bulkReview.isPending}
  onClick={() => bulkReview.mutate({ ids: Array.from(selectedIds), decision: "deferred" })}
- className="px-3 py-1.5 rounded text-xs font-bold uppercase bg-slate-500/20 hover:bg-slate-500/30 border border-slate-500/40 text-slate-300 transition disabled:opacity-50"
+ className="px-3 py-1.5 rounded text-xs font-bold uppercase bg-[#F5F4F0] hover:bg-[#F5F4F0] border border-black/12 text-black/65 transition disabled:opacity-50"
  >
  Defer
  </button>
@@ -925,14 +927,14 @@ export default function AIApprovalQueue() {
  if (!confirm(`Reject ${selectedIds.size} item(s)?`)) return;
  bulkReview.mutate({ ids: Array.from(selectedIds), decision: "rejected" });
  }}
- className="px-3 py-1.5 rounded text-xs font-bold uppercase bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 transition disabled:opacity-50"
+ className="px-3 py-1.5 rounded text-xs font-bold uppercase bg-[#EBE9E2] hover:bg-[#EBE9E2] border border-black/10 text-[#0A0A0A] transition disabled:opacity-50"
  >
  Reject
  </button>
  <button
  data-testid="button-bulk-clear"
  onClick={() => setSelectedIds(new Set())}
- className="px-2 py-1.5 rounded text-xs text-slate-400 hover:text-white transition"
+ className="px-2 py-1.5 rounded text-xs text-black/55 hover:text-[#0A0A0A] transition"
  >
  Clear
  </button>
@@ -968,11 +970,11 @@ export default function AIApprovalQueue() {
  return (
  <div key={item.id} data-testid={`approval-item-${item.id}`}
  className={`bg-white/5 border rounded-none overflow-hidden transition-all ${
- item.status === "pending" ? "border-white/10"
+ item.status === "pending" ? "border-black/10"
  : isExecuting ? "border-[#0A0A0A]/30"
- : isApprovedUnexecuted ? "border-emerald-500/20"
- : isExecuted ? "border-emerald-500/10 opacity-75"
- : isExecutionFailed ? "border-red-500/15"
+ : isApprovedUnexecuted ? "border-black/10"
+ : isExecuted ? "border-black/10 opacity-75"
+ : isExecutionFailed ? "border-[#C1121F]/15"
  : "border-white/5 opacity-70"
  }`}>
 
@@ -984,20 +986,20 @@ export default function AIApprovalQueue() {
  data-testid={`checkbox-select-item-${item.id}`}
  checked={selectedIds.has(item.id)}
  onChange={() => toggleSelect(item.id)}
- className="w-4 h-4 mt-3 accent-violet-500 cursor-pointer shrink-0"
+ className="w-4 h-4 mt-3 accent-[#0A0A0A] cursor-pointer shrink-0"
  aria-label={`Select item ${item.id}`}
  />
  )}
  <div className="w-8 h-8 rounded-lg bg-black/20 flex items-center justify-center shrink-0 mt-0.5">
- <TypeIcon className="w-4 h-4 text-slate-400" />
+ <TypeIcon className="w-4 h-4 text-black/55" />
  </div>
  <div className="flex-1 min-w-0">
  <div className="flex items-center gap-2 flex-wrap mb-1.5">
- <span className="text-[10px] font-bold uppercase text-slate-500 bg-black/20 px-1.5 py-0.5 rounded">
+ <span className="text-[10px] font-bold uppercase text-black/55 bg-black/20 px-1.5 py-0.5 rounded">
  {TYPE_LABELS[item.queueType] ?? item.queueType}
  </span>
  {platformLabel && (
- <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border flex items-center gap-1 ${isGoogleItem ? "text-blue-400 bg-blue-500/10 border-[#0A0A0A]/20" : "text-purple-400 bg-purple-500/10 border-purple-500/20"}`}>
+ <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border flex items-center gap-1 ${isGoogleItem ? "text-[#0A0A0A] bg-[#EBE9E2] border-[#0A0A0A]/20" : "text-[#0A0A0A] bg-[#EBE9E2] border-black/10"}`}>
  {isGoogleItem ? "Google Ads" : "Meta Ads"}
  </span>
  )}
@@ -1005,46 +1007,46 @@ export default function AIApprovalQueue() {
  {item.riskLevel} risk
  </span>
  {item.confidence && (
- <span className="text-[10px] text-slate-500">{item.confidence}% confidence</span>
+ <span className="text-[10px] text-black/55">{item.confidence}% confidence</span>
  )}
  {item.status !== "pending" && (
  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${
- item.status === "approved" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
- : item.status === "rejected" ? "text-red-400 bg-red-500/10 border-red-500/20"
- : "text-slate-400 bg-slate-500/10 border-slate-500/20"}`}>
+ item.status === "approved" ? "text-[#0A0A0A] bg-[#EBE9E2] border-black/10"
+ : item.status === "rejected" ? "text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/20"
+ : "text-black/55 bg-black/[0.04] border-black/10"}`}>
  {item.status}
  </span>
  )}
  {isExecuted && (
- <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-teal-400 bg-teal-500/10 border-teal-500/20 flex items-center gap-1">
+ <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-[#0A0A0A] bg-[#EBE9E2] border-black/10 flex items-center gap-1">
  <CheckCheck className="w-2.5 h-2.5" /> Executed
  </span>
  )}
  {isExecutionFailed && (
- <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-red-400 bg-red-500/10 border-red-500/15 flex items-center gap-1">
+ <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/15 flex items-center gap-1">
  <XCircle className="w-2.5 h-2.5" /> Exec Failed
  </span>
  )}
  {isExecuting && (
- <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-blue-400 bg-blue-500/10 border-[#0A0A0A]/20 flex items-center gap-1">
+ <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-[#0A0A0A] bg-[#EBE9E2] border-[#0A0A0A]/20 flex items-center gap-1">
  <Loader2 className="w-2.5 h-2.5 animate-spin" /> Executing…
  </span>
  )}
  {isApprovedUnexecuted && (
- <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-amber-400 bg-amber-500/10 border-amber-500/20 flex items-center gap-1">
+ <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-[#C1121F] bg-[#FBEBEB] border-[#C1121F]/20 flex items-center gap-1">
  <Timer className="w-2.5 h-2.5" /> Awaiting Execution
  </span>
  )}
  </div>
- <p className="text-sm font-semibold text-white leading-tight">{item.title}</p>
- {item.description && <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{item.description}</p>}
- {item.expectedImpact && <p className="text-xs text-emerald-400 mt-1.5">Expected impact: {item.expectedImpact}</p>}
- <p className="text-[11px] text-slate-600 mt-2 flex items-center gap-1">
+ <p className="text-sm font-semibold text-[#0A0A0A] leading-tight">{item.title}</p>
+ {item.description && <p className="text-xs text-black/55 mt-1.5 leading-relaxed">{item.description}</p>}
+ {item.expectedImpact && <p className="text-xs text-[#0A0A0A] mt-1.5">Expected impact: {item.expectedImpact}</p>}
+ <p className="text-[11px] text-black/75 mt-2 flex items-center gap-1">
  <Clock className="w-3 h-3" />
  {new Date(item.createdAt).toLocaleString("en-SG")}
  {item.reviewedBy && ` · Reviewed by ${item.reviewedBy}`}
  </p>
- {item.reviewNote && <p className="text-xs text-slate-400 mt-1 italic">"{item.reviewNote}"</p>}
+ {item.reviewNote && <p className="text-xs text-black/55 mt-1 italic">"{item.reviewNote}"</p>}
  </div>
  </div>
 
@@ -1052,7 +1054,7 @@ export default function AIApprovalQueue() {
  <button
  onClick={() => setExpandedId(isExpanded ? null : item.id)}
  data-testid={`expand-detail-${item.id}`}
- className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 mt-2.5 transition-colors"
+ className="flex items-center gap-1 text-[11px] text-[#0A0A0A] hover:text-[#0A0A0A]/65 mt-2.5 transition-colors"
  >
  {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
  {isExpanded ? "Hide detail" : "View evidence · proposed action · rollback"}
@@ -1074,26 +1076,26 @@ export default function AIApprovalQueue() {
  value={reviewNote[item.id] ?? ""}
  onChange={e => setReviewNote(n => ({ ...n, [item.id]: e.target.value }))}
  data-testid={`note-${item.id}`}
- className="w-full h-8 px-3 bg-black/20 border border-white/10 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]"
+ className="w-full h-8 px-3 bg-white border border-black/10 rounded-none text-xs text-[#0A0A0A] placeholder-black/40 focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]"
  />
  <div className="flex flex-wrap gap-2">
  <button onClick={() => requestConfirm(item, "approved")} data-testid={`approve-${item.id}`}
  disabled={review.isPending}
- className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 text-emerald-300 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
+ className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0A0A0A]/20 hover:bg-[#0A0A0A]/40 border border-black/12 text-[#0A0A0A]/65 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
  <Check className="w-3.5 h-3.5" /> Approve
  </button>
  <button onClick={() => requestConfirm(item, "deferred")} data-testid={`defer-${item.id}`}
  disabled={review.isPending}
- className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
+ className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-black/10 text-black/55 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
  <Pause className="w-3.5 h-3.5" /> Defer
  </button>
  <button onClick={() => requestConfirm(item, "rejected")} data-testid={`reject-${item.id}`}
  disabled={review.isPending}
- className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/10 hover:bg-red-600/20 border border-red-500/20 text-red-400 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
+ className="flex items-center gap-1.5 px-3 py-1.5 bg-[#EBE9E2] hover:bg-[#EBE9E2] border border-[#C1121F]/20 text-[#C1121F] text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
  <X className="w-3.5 h-3.5" /> Reject
  </button>
  </div>
- <p className="text-[10px] text-slate-600 flex items-center gap-1">
+ <p className="text-[10px] text-black/75 flex items-center gap-1">
  <ShieldAlert className="w-3 h-3" />
  A confirmation dialog will appear. Approving does not execute live platform changes.
  </p>
@@ -1102,21 +1104,21 @@ export default function AIApprovalQueue() {
 
  {/* Executing in-progress banner */}
  {isExecuting && (
- <div className="border-t border-[#0A0A0A]/20 px-4 py-3 bg-blue-500/5 flex items-center gap-2">
- <Loader2 className="w-3.5 h-3.5 text-blue-400 shrink-0 animate-spin" />
- <p className="text-[11px] text-blue-400">Generating implementation deliverable… Refresh in a moment.</p>
+ <div className="border-t border-[#0A0A0A]/20 px-4 py-3 bg-[#EBE9E2] flex items-center gap-2">
+ <Loader2 className="w-3.5 h-3.5 text-[#0A0A0A] shrink-0 animate-spin" />
+ <p className="text-[11px] text-[#0A0A0A]">Generating implementation deliverable… Refresh in a moment.</p>
  </div>
  )}
 
  {/* Execute section — approved items awaiting execution or retry after failure */}
  {item.status === "approved" && !isExecuting && (isApprovedUnexecuted || isExecutionFailed) && (
- <div className={`border-t px-4 py-3 space-y-2 ${isExecutionFailed ? "border-red-500/15 bg-red-500/5" : "border-emerald-500/10 bg-emerald-500/5"}`}>
+ <div className={`border-t px-4 py-3 space-y-2 ${isExecutionFailed ? "border-[#C1121F]/15 bg-[#FBEBEB]" : "border-black/10 bg-[#EBE9E2]"}`}>
  <div className="flex flex-wrap items-center gap-3">
  <div className="flex-1 min-w-0">
- <p className="text-xs font-semibold text-white">
+ <p className="text-xs font-semibold text-[#0A0A0A]">
  {isExecutionFailed ? "Execution failed — retry to regenerate deliverable" : "Ready to execute — generate implementation deliverable"}
  </p>
- <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+ <p className="text-[11px] text-black/55 mt-0.5 leading-relaxed">
  Clicking Execute generates a formatted spec (CSV / brief / ad copy) for your team to implement manually.
  No automated changes will be made to any live system.
  </p>
@@ -1127,15 +1129,15 @@ export default function AIApprovalQueue() {
  data-testid={`execute-${item.id}`}
  className={`flex items-center gap-1.5 px-3 py-2 border text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0 ${
  isExecutionFailed
- ? "bg-red-600/20 hover:bg-red-600/40 border-red-500/30 text-red-300"
- : "bg-emerald-600/20 hover:bg-emerald-600/40 border-emerald-500/30 text-emerald-300"
+ ? "bg-[#EBE9E2] hover:bg-[#EBE9E2] border-[#C1121F]/30 text-[#0A0A0A]"
+ : "bg-[#0A0A0A]/20 hover:bg-[#0A0A0A]/40 border-black/12 text-[#0A0A0A]/65"
  }`}
  >
  <PlayCircle className="w-3.5 h-3.5" />
  {execute.isPending ? "Executing…" : isExecutionFailed ? "Retry Execute" : "Execute"}
  </button>
  </div>
- <p className="text-[10px] text-slate-600 flex items-center gap-1">
+ <p className="text-[10px] text-black/75 flex items-center gap-1">
  <ShieldAlert className="w-3 h-3" />
  Execution is logged to the audit trail with actor, timestamp, and full deliverable content.
  </p>
@@ -1144,13 +1146,13 @@ export default function AIApprovalQueue() {
 
  {/* Execution complete footer */}
  {isExecuted && (
- <div className="border-t border-teal-500/10 px-4 py-3 bg-teal-500/5 space-y-2">
+ <div className="border-t border-black/10 px-4 py-3 bg-[#EBE9E2] space-y-2">
  <div className="flex items-center gap-2">
  {item.executionResult?.autoExecuted
- ? <BotIcon className="w-3.5 h-3.5 text-teal-400 shrink-0" />
- : <CheckCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+ ? <BotIcon className="w-3.5 h-3.5 text-[#0A0A0A] shrink-0" />
+ : <CheckCheck className="w-3.5 h-3.5 text-[#0A0A0A] shrink-0" />
  }
- <p className="text-[11px] text-teal-400 flex-1">
+ <p className="text-[11px] text-[#0A0A0A] flex-1">
  {item.executionResult?.autoExecuted
  ? <><strong>Auto-executed after approval</strong> · </>
  : <><strong>Manually executed</strong> by {item.executedBy} · </>
@@ -1161,13 +1163,13 @@ export default function AIApprovalQueue() {
  </div>
  {/* Push to Platform button — appears for ad items after deliverable is generated */}
  {isPlatformItem && (
- <div className={`flex flex-wrap items-center gap-2 pt-1 border-t ${hasPlatformExec ? "border-violet-500/10" : "border-teal-500/10"}`}>
+ <div className={`flex flex-wrap items-center gap-2 pt-1 border-t ${hasPlatformExec ? "border-black/10" : "border-black/10"}`}>
  {hasPlatformExec ? (
- <div className="flex items-center gap-1.5 text-[10px] text-violet-400">
+ <div className="flex items-center gap-1.5 text-[10px] text-[#0A0A0A]">
  <Rocket className="w-3 h-3" />
  <span>
  Platform {(item.executionResult as any)?.platformExecution?.testMode ? "dry-run" : "live push"} recorded
- {" "}· <span className={`font-semibold ${(item.executionResult as any)?.platformExecution?.resultStatus === "success" ? "text-emerald-400" : (item.executionResult as any)?.platformExecution?.resultStatus === "test_mode" ? "text-blue-400" : (item.executionResult as any)?.platformExecution?.resultStatus === "failed" ? "text-red-400" : "text-amber-400"}`}>{(item.executionResult as any)?.platformExecution?.resultStatus === "success" ? "Succeeded" : (item.executionResult as any)?.platformExecution?.resultStatus === "test_mode" ? "Dry Run Complete" : (item.executionResult as any)?.platformExecution?.resultStatus === "failed" ? "Failed" : (item.executionResult as any)?.platformExecution?.resultStatus}</span>
+ {" "}· <span className={`font-semibold ${(item.executionResult as any)?.platformExecution?.resultStatus === "success" ? "text-[#0A0A0A]" : (item.executionResult as any)?.platformExecution?.resultStatus === "test_mode" ? "text-[#0A0A0A]" : (item.executionResult as any)?.platformExecution?.resultStatus === "failed" ? "text-[#C1121F]" : "text-[#C1121F]"}`}>{(item.executionResult as any)?.platformExecution?.resultStatus === "success" ? "Succeeded" : (item.executionResult as any)?.platformExecution?.resultStatus === "test_mode" ? "Dry Run Complete" : (item.executionResult as any)?.platformExecution?.resultStatus === "failed" ? "Failed" : (item.executionResult as any)?.platformExecution?.resultStatus}</span>
  {" "}· Expand to view receipt
  </span>
  </div>
@@ -1177,13 +1179,13 @@ export default function AIApprovalQueue() {
  {/* Readiness indicator */}
  {pushWillBeLive ? (
  <div className="flex items-center gap-1.5">
- <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
- <p className="text-[10px] text-red-400 font-semibold">Ready to push LIVE — this will make a real API call</p>
+ <div className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A] animate-pulse" />
+ <p className="text-[10px] text-[#C1121F] font-semibold">Ready to push LIVE — this will make a real API call</p>
  </div>
  ) : (
  <div className="flex items-center gap-1.5">
- <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
- <p className="text-[10px] text-blue-400">Ready — dry run mode · no live changes</p>
+ <div className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A]" />
+ <p className="text-[10px] text-[#0A0A0A]">Ready — dry run mode · no live changes</p>
  </div>
  )}
  </div>
@@ -1193,8 +1195,8 @@ export default function AIApprovalQueue() {
  data-testid={`platform-execute-${item.id}`}
  className={`flex items-center gap-1.5 px-3 py-1.5 border text-[11px] font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0 ${
  pushWillBeLive
- ? "bg-red-600/20 hover:bg-red-600/40 border-red-500/30 text-red-300"
- : "bg-[#0A0A0A]/20 hover:bg-[#0A0A0A]/40 border-violet-500/30 text-violet-300"
+ ? "bg-[#EBE9E2] hover:bg-[#EBE9E2] border-[#C1121F]/30 text-[#0A0A0A]"
+ : "bg-[#0A0A0A]/20 hover:bg-[#0A0A0A]/40 border-[#0A0A0A]/30 text-[#0A0A0A]/65"
  }`}
  >
  {platformExecute.isPending

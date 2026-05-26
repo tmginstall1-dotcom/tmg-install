@@ -78,8 +78,8 @@ const CONNECTOR_DEFS = [
  key: "google_ads",
  label: "Google Ads",
  Icon: TrendingUp,
- iconColor: "text-blue-400",
- bgGrad: "from-blue-500/10 to-indigo-500/5 border-[#0A0A0A]/20",
+ iconColor: "text-[#0A0A0A]",
+ bgGrad: "from-[#0A0A0A]/10 to-[#0A0A0A]/5 border-[#0A0A0A]/20",
  description: "Campaign & ad group performance — spend, clicks, conversions by day.",
  flagKey: "ai_google_ads_sync_enabled",
  credentials: ["GOOGLE_ADS_DEVELOPER_TOKEN", "GOOGLE_ADS_CUSTOMER_ID", "GOOGLE_ADS_CLIENT_ID", "GOOGLE_ADS_CLIENT_SECRET", "GOOGLE_ADS_REFRESH_TOKEN"],
@@ -91,8 +91,8 @@ const CONNECTOR_DEFS = [
  key: "meta_ads",
  label: "Meta Ads",
  Icon: BarChart3,
- iconColor: "text-purple-400",
- bgGrad: "from-purple-500/10 to-indigo-500/5 border-purple-500/20",
+ iconColor: "text-[#0A0A0A]",
+ bgGrad: "from-[#EBE9E2] to-[#0A0A0A]/5 border-black/10",
  description: "Facebook & Instagram campaign/adset insights — spend, leads, clicks by day.",
  flagKey: "ai_meta_ads_sync_enabled",
  credentials: ["META_ACCESS_TOKEN", "META_AD_ACCOUNT_ID"],
@@ -104,8 +104,8 @@ const CONNECTOR_DEFS = [
  key: "search_console",
  label: "Search Console",
  Icon: Search,
- iconColor: "text-emerald-400",
- bgGrad: "from-emerald-500/10 to-teal-500/5 border-emerald-500/20",
+ iconColor: "text-[#0A0A0A]",
+ bgGrad: "from-[#EBE9E2] to-white border-black/10",
  description: "Organic keyword performance — clicks, impressions, CTR, average position.",
  flagKey: "ai_search_console_enabled",
  credentials: ["GSC_CLIENT_ID", "GSC_CLIENT_SECRET", "GSC_REFRESH_TOKEN"],
@@ -115,8 +115,8 @@ const CONNECTOR_DEFS = [
  key: "pagespeed",
  label: "PageSpeed Insights",
  Icon: Gauge,
- iconColor: "text-amber-400",
- bgGrad: "from-amber-500/10 to-orange-500/5 border-amber-500/20",
+ iconColor: "text-[#C1121F]",
+ bgGrad: "from-[#FBEBEB] to-[#EBE9E2] border-[#C1121F]/20",
  description: "Core Web Vitals + Lighthouse scores. No credentials required.",
  flagKey: "ai_pagespeed_enabled",
  credentials: [] as string[],
@@ -125,20 +125,20 @@ const CONNECTOR_DEFS = [
 ];
 
 function ScoreCircle({ score, label }: { score: number | null; label: string }) {
- const color = score == null ? "text-slate-500"
- : score >= 90 ? "text-emerald-400"
- : score >= 50 ? "text-amber-400"
- : "text-red-400";
- const ring = score == null ? "border-slate-700/60"
- : score >= 90 ? "border-emerald-500/50"
- : score >= 50 ? "border-amber-500/50"
- : "border-red-500/50";
+ const color = score == null ? "text-black/55"
+ : score >= 90 ? "text-[#0A0A0A]"
+ : score >= 50 ? "text-[#C1121F]"
+ : "text-[#C1121F]";
+ const ring = score == null ? "border-black/10"
+ : score >= 90 ? "border-black/10"
+ : score >= 50 ? "border-black/10"
+ : "border-black/10";
  return (
  <div className="flex flex-col items-center gap-1.5">
  <div className={`w-14 h-14 rounded-full border-2 ${ring} bg-black/20 flex items-center justify-center`}>
  <span className={`text-lg font-bold ${color}`}>{score ?? "—"}</span>
  </div>
- <span className="text-[10px] text-slate-500 text-center leading-tight">{label}</span>
+ <span className="text-[10px] text-black/55 text-center leading-tight">{label}</span>
  </div>
  );
 }
@@ -235,21 +235,21 @@ export default function AIConnectors() {
  const toggleExpand = (key: string) => setExpanded(p => ({ ...p, [key]: !p[key] }));
 
  return (
- <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#0B0F19]">
+ <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#F5F4F0]">
  <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
  {/* Header */}
  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
  <div className="flex items-center gap-3 min-w-0">
  <Link href="/admin/ai">
- <button className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors shrink-0">
+ <button className="p-1.5 rounded-lg text-black/55 hover:text-black/65 hover:bg-white/5 transition-colors shrink-0">
  <ChevronLeft className="w-5 h-5" />
  </button>
  </Link>
- <Database className="w-6 h-6 text-violet-400 shrink-0" />
+ <Database className="w-6 h-6 text-[#0A0A0A] shrink-0" />
  <div className="min-w-0">
- <h1 className="text-xl font-bold text-white">Data Connectors</h1>
- <p className="text-xs text-slate-500 truncate">Live API feeds — Google Ads · Meta · Search Console · PageSpeed</p>
+ <h1 className="text-xl font-bold text-[#0A0A0A]">Data Connectors</h1>
+ <p className="text-xs text-black/55 truncate">Live API feeds — Google Ads · Meta · Search Console · PageSpeed</p>
  </div>
  </div>
  <div className="flex items-center gap-2 sm:ml-auto shrink-0">
@@ -257,14 +257,14 @@ export default function AIConnectors() {
  onClick={() => analyze.mutate()}
  disabled={analyze.isPending}
  data-testid="button-analyze-connectors"
- className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0A0A0A] hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+ className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0A0A0A] hover:bg-[#0A0A0A] text-white text-sm font-semibold transition-colors disabled:opacity-50"
  >
  <Cpu className="w-4 h-4" />
  {analyze.isPending ? "Analyzing…" : "Analyze Now"}
  </button>
- <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 shrink-0">
- <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
- <span className="text-xs font-semibold text-violet-400">Read-only imports</span>
+ <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#EBE9E2] border border-[#0A0A0A]/15 shrink-0">
+ <div className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A]" />
+ <span className="text-xs font-semibold text-[#0A0A0A]">Read-only imports</span>
  </div>
  </div>
  </div>
@@ -272,7 +272,7 @@ export default function AIConnectors() {
  {/* Connector Cards */}
  {isLoading ? (
  <div className="flex items-center justify-center py-12">
- <div className="w-6 h-6 border-2 border-white/10 border-t-white/60 rounded-full animate-spin" />
+ <div className="w-6 h-6 border-2 border-black/10 border-t-white/60 rounded-full animate-spin" />
  </div>
  ) : (
  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -294,35 +294,35 @@ export default function AIConnectors() {
  </div>
  <div className="flex-1 min-w-0">
  <div className="flex items-center gap-2 flex-wrap">
- <span className="text-sm font-bold text-white">{def.label}</span>
+ <span className="text-sm font-bold text-[#0A0A0A]">{def.label}</span>
  {isConfigured ? (
- <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-400">
+ <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#EBE9E2] border border-black/12 text-[#0A0A0A]">
  <CheckCircle2 className="w-2.5 h-2.5" />{def.credentials.length === 0 ? "Ready" : "Configured"}
  </span>
  ) : (
- <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/25 text-amber-400">
+ <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#FBEBEB] border border-black/10 text-[#C1121F]">
  <AlertCircle className="w-2.5 h-2.5" /> Not Configured
  </span>
  )}
  {cfg?.lastSyncStatus === "running" && (
  <span data-testid={`status-syncing-${def.key}`}
- className="flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-300">
- <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse shadow-[0_0_6px_rgba(167,139,250,0.8)]" />
+ className="flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#EBE9E2] border border-[#0A0A0A]/30 text-[#0A0A0A]/65">
+ <span className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A] animate-pulse shadow-[0_0_6px_rgba(167,139,250,0.8)]" />
  Syncing now…
  </span>
  )}
  {cfg?.lastSyncStatus === "error" && (
- <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/25 text-red-400">
+ <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#FBEBEB] border border-black/10 text-[#C1121F]">
  Last sync failed
  </span>
  )}
  </div>
- <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{def.description}</p>
+ <p className="text-xs text-black/55 mt-0.5 leading-relaxed">{def.description}</p>
  </div>
  </div>
 
  {/* Stats Row */}
- <div className="flex items-center gap-4 flex-wrap text-xs text-slate-500">
+ <div className="flex items-center gap-4 flex-wrap text-xs text-black/55">
  <span className="flex items-center gap-1">
  <Database className="w-3 h-3" />{cfg?.rowCount ?? 0} rows
  </span>
@@ -330,7 +330,7 @@ export default function AIConnectors() {
  <Clock className="w-3 h-3" />{timeAgo(cfg?.lastSyncAt ?? null)}
  </span>
  {!flagOn && (
- <span className="flex items-center gap-1 text-amber-500/60">
+ <span className="flex items-center gap-1 text-[#C1121F]/60">
  <Zap className="w-3 h-3" /> Flag OFF
  </span>
  )}
@@ -338,9 +338,9 @@ export default function AIConnectors() {
 
  {/* Stale data warning */}
  {cfg?.isStale && cfg.configured && (
- <div className="flex items-start gap-2 p-2.5 bg-amber-500/8 border border-amber-500/20 rounded-lg">
- <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
- <p className="text-[11px] text-amber-300/90 leading-relaxed">
+ <div className="flex items-start gap-2 p-2.5 bg-[#C1121F]/8 border border-[#C1121F]/20 rounded-lg">
+ <AlertTriangle className="w-3.5 h-3.5 text-[#C1121F] mt-0.5 shrink-0" />
+ <p className="text-[11px] text-[#C1121F]/90 leading-relaxed">
  {cfg.staleReason === "never_synced" && "No data yet — run Sync Now to fetch your first import."}
  {cfg.staleReason === "last_sync_failed" && "Last sync failed. Data may be outdated — retry below."}
  {cfg.staleReason === "overdue" && `Data overdue — last synced ${timeAgo(cfg.lastSyncAt ?? null)}.${cfg.schedulerEnabled ? " Scheduler will auto-retry." : " Enable the scheduler or sync manually."}`}
@@ -351,7 +351,7 @@ export default function AIConnectors() {
 
  {/* Next sync info (when scheduler on + fresh data) */}
  {cfg?.nextSyncAt && !cfg.isStale && cfg.schedulerEnabled && (
- <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+ <div className="flex items-center gap-1.5 text-[11px] text-black/75">
  <CalendarClock className="w-3 h-3" />
  Next auto-sync {new Date(cfg.nextSyncAt) < new Date() ? "imminent" : `~${timeAgo(cfg.nextSyncAt)}`}
  </div>
@@ -359,8 +359,8 @@ export default function AIConnectors() {
 
  {/* Sync error */}
  {cfg?.syncError && cfg.lastSyncStatus === "error" && (
- <div className="p-2.5 bg-red-500/5 border border-red-500/15 rounded-lg">
- <p className="text-[11px] text-red-400 break-words line-clamp-2">{cfg.syncError}</p>
+ <div className="p-2.5 bg-[#FBEBEB] border border-[#C1121F]/15 rounded-lg">
+ <p className="text-[11px] text-[#C1121F] break-words line-clamp-2">{cfg.syncError}</p>
  </div>
  )}
 
@@ -368,7 +368,7 @@ export default function AIConnectors() {
  {(cfg?.missing?.length ?? 0) > 0 && (
  <div className="space-y-1.5">
  <button onClick={() => toggleExpand(def.key)}
- className="flex items-center gap-1 text-xs text-amber-400/80 hover:text-amber-300 transition-colors">
+ className="flex items-center gap-1 text-xs text-[#C1121F]/80 hover:text-[#C1121F] transition-colors">
  {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
  {cfg?.missing.length} credential{cfg!.missing.length !== 1 ? "s" : ""} needed in Secrets
  </button>
@@ -376,12 +376,12 @@ export default function AIConnectors() {
  <div className="ml-4 space-y-1">
  {cfg?.missing.map(k => (
  <div key={k} className="flex items-center gap-2">
- <span className="w-1.5 h-1.5 rounded-full bg-amber-500/50 shrink-0" />
- <code className="text-[11px] text-amber-300/80 font-mono">{k}</code>
+ <span className="w-1.5 h-1.5 rounded-full bg-[#C1121F]/50 shrink-0" />
+ <code className="text-[11px] text-[#C1121F]/80 font-mono">{k}</code>
  </div>
  ))}
  {def.syncNote && (
- <p className="text-[10px] text-slate-600 mt-1.5">{def.syncNote}</p>
+ <p className="text-[10px] text-black/75 mt-1.5">{def.syncNote}</p>
  )}
  </div>
  )}
@@ -390,7 +390,7 @@ export default function AIConnectors() {
 
  {/* Note for ready connectors */}
  {def.credentials.length === 0 && def.syncNote && (
- <p className="text-[11px] text-slate-600">{def.syncNote}</p>
+ <p className="text-[11px] text-black/75">{def.syncNote}</p>
  )}
 
  {/* ── Execution Readiness Panel (Google Ads + Meta only) ── */}
@@ -398,20 +398,20 @@ export default function AIConnectors() {
  <div className="mt-1 border-t border-white/5 pt-3 space-y-2.5">
  {/* Section header + overall status badge */}
  <div className="flex items-center gap-2 flex-wrap">
- <Rocket className="w-3.5 h-3.5 text-violet-400 shrink-0" />
- <span className="text-[11px] font-bold uppercase text-violet-400 tracking-wider">Platform Execution</span>
+ <Rocket className="w-3.5 h-3.5 text-[#0A0A0A] shrink-0" />
+ <span className="text-[11px] font-bold uppercase text-[#0A0A0A] tracking-wider">Platform Execution</span>
  {cfg?.executionReady ? (
  cfg?.executionTestMode ? (
- <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-blue-400 bg-blue-500/10 border-[#0A0A0A]/20">
+ <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-[#0A0A0A] bg-[#EBE9E2] border-[#0A0A0A]/20">
  <FlaskConical className="w-2.5 h-2.5" /> Test Mode
  </span>
  ) : (
- <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-emerald-400 bg-emerald-500/10 border-emerald-500/20">
+ <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-[#0A0A0A] bg-[#EBE9E2] border-black/10">
  <Shield className="w-2.5 h-2.5" /> Live
  </span>
  )
  ) : (
- <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-slate-500 bg-slate-500/10 border-slate-500/20">
+ <span className="flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border text-black/55 bg-black/[0.04] border-black/10">
  <ShieldOff className="w-2.5 h-2.5" /> OFF
  </span>
  )}
@@ -423,26 +423,26 @@ export default function AIConnectors() {
  onClick={() => execConfig.mutate({ name: def.key, body: { executionEnabled: !cfg?.executionEnabled } })}
  disabled={execConfig.isPending}
  data-testid={`exec-toggle-${def.key}`}
- className="flex items-center gap-2 text-[11px] text-slate-300 hover:text-white transition-colors disabled:opacity-50"
+ className="flex items-center gap-2 text-[11px] text-black/65 hover:text-[#0A0A0A] transition-colors disabled:opacity-50"
  >
  {cfg?.executionEnabled
- ? <ToggleRight className="w-5 h-5 text-violet-400" />
- : <ToggleLeft className="w-5 h-5 text-slate-600" />
+ ? <ToggleRight className="w-5 h-5 text-[#0A0A0A]" />
+ : <ToggleLeft className="w-5 h-5 text-black/75" />
  }
  {cfg?.executionEnabled ? "Execution ON" : "Execution OFF"}
  </button>
- <span className="text-[10px] text-slate-600">·</span>
+ <span className="text-[10px] text-black/75">·</span>
  {/* test_mode toggle — only visible when execution enabled */}
  {cfg?.executionEnabled && (
  <button
  onClick={() => execConfig.mutate({ name: def.key, body: { testMode: !cfg?.executionTestMode } })}
  disabled={execConfig.isPending}
  data-testid={`testmode-toggle-${def.key}`}
- className="flex items-center gap-2 text-[11px] text-slate-300 hover:text-white transition-colors disabled:opacity-50"
+ className="flex items-center gap-2 text-[11px] text-black/65 hover:text-[#0A0A0A] transition-colors disabled:opacity-50"
  >
  {cfg?.executionTestMode
- ? <FlaskConical className="w-3.5 h-3.5 text-blue-400" />
- : <Shield className="w-3.5 h-3.5 text-emerald-400" />
+ ? <FlaskConical className="w-3.5 h-3.5 text-[#0A0A0A]" />
+ : <Shield className="w-3.5 h-3.5 text-[#0A0A0A]" />
  }
  {cfg?.executionTestMode ? "Test Mode (dry run)" : "Live Mode"}
  </button>
@@ -451,12 +451,12 @@ export default function AIConnectors() {
 
  {/* Missing exec creds warning */}
  {(cfg?.missingExecCreds?.length ?? 0) > 0 && (
- <div className="flex items-start gap-2 p-2.5 bg-amber-500/5 border border-amber-500/20 rounded-lg">
- <KeyRound className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+ <div className="flex items-start gap-2 p-2.5 bg-[#C1121F]/5 border border-[#C1121F]/20 rounded-lg">
+ <KeyRound className="w-3.5 h-3.5 text-[#C1121F] mt-0.5 shrink-0" />
  <div className="space-y-1 min-w-0">
- <p className="text-[11px] text-amber-300/90 leading-relaxed">Execution requires these secrets:</p>
+ <p className="text-[11px] text-[#C1121F]/90 leading-relaxed">Execution requires these secrets:</p>
  {cfg?.missingExecCreds.map((k: string) => (
- <code key={k} className="block text-[10px] font-mono text-amber-400/80">{k}</code>
+ <code key={k} className="block text-[10px] font-mono text-[#C1121F]/80">{k}</code>
  ))}
  </div>
  </div>
@@ -465,8 +465,8 @@ export default function AIConnectors() {
  {/* Global flag reminder */}
  {!(flags[(def as any).execFlagKey]) && (
  <div className="flex items-start gap-2">
- <XCircle className="w-3 h-3 text-slate-600 mt-0.5 shrink-0" />
- <p className="text-[10px] text-slate-600">
+ <XCircle className="w-3 h-3 text-black/75 mt-0.5 shrink-0" />
+ <p className="text-[10px] text-black/75">
  Also enable <code className="font-mono">{(def as any).execFlagKey}</code> in AI Hub to allow execution.
  </p>
  </div>
@@ -474,9 +474,9 @@ export default function AIConnectors() {
 
  {/* Live mode safety warning */}
  {cfg?.executionEnabled && !cfg?.executionTestMode && (
- <div className="flex items-start gap-2 p-2.5 bg-red-500/5 border border-red-500/20 rounded-lg">
- <Shield className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
- <p className="text-[11px] text-red-300/90 leading-relaxed">
+ <div className="flex items-start gap-2 p-2.5 bg-[#FBEBEB] border border-[#C1121F]/20 rounded-lg">
+ <Shield className="w-3.5 h-3.5 text-[#C1121F] mt-0.5 shrink-0" />
+ <p className="text-[11px] text-[#0A0A0A] leading-relaxed">
  <strong>Live mode active.</strong> "Push to Platform" will make real API calls.
  Budget increases are capped at +10%. Verify carefully before approving.
  </p>
@@ -490,14 +490,14 @@ export default function AIConnectors() {
  onClick={() => sync.mutate(def.key)}
  disabled={isSyncing || (!isConfigured && def.credentials.length > 0) || !flagOn}
  data-testid={`sync-${def.key}`}
- className="flex items-center gap-1.5 w-full justify-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 bg-white/8 hover:bg-white/15 border border-white/10 text-white"
+ className="flex items-center gap-1.5 w-full justify-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 bg-white/8 hover:bg-white/15 border border-black/10 text-[#0A0A0A]"
  >
  {isSyncing
  ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Syncing…</>
  : <><RefreshCw className="w-3.5 h-3.5" /> Sync Now</>}
  </button>
  {!flagOn && (
- <p className="text-[10px] text-slate-600 text-center -mt-2 truncate">
+ <p className="text-[10px] text-black/75 text-center -mt-2 truncate">
  Enable <code className="font-mono">{def.flagKey}</code> in AI Hub
  </p>
  )}
@@ -509,29 +509,29 @@ export default function AIConnectors() {
 
  {/* Scheduler Status Panel */}
  {scheduleData && (
- <div className="bg-white/5 border border-white/10 rounded-none p-5 space-y-4">
+ <div className="bg-white/5 border border-black/10 rounded-none p-5 space-y-4">
  <div className="flex items-center gap-3">
- <CalendarClock className="w-5 h-5 text-violet-400 shrink-0" />
+ <CalendarClock className="w-5 h-5 text-[#0A0A0A] shrink-0" />
  <div className="flex-1 min-w-0">
- <h2 className="text-sm font-bold text-white">Sync Scheduler</h2>
- <p className="text-xs text-slate-500">Automatic background syncs</p>
+ <h2 className="text-sm font-bold text-[#0A0A0A]">Sync Scheduler</h2>
+ <p className="text-xs text-black/55">Automatic background syncs</p>
  </div>
  {scheduleData.schedulerEnabled ? (
- <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 shrink-0">
+ <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-[#EBE9E2] border border-black/12 text-[#0A0A0A] shrink-0">
  <Play className="w-2.5 h-2.5" /> Active
  </span>
  ) : (
- <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-slate-500/15 border border-slate-500/25 text-slate-400 shrink-0">
+ <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-[#F5F4F0] border border-black/12 text-black/55 shrink-0">
  <Zap className="w-2.5 h-2.5" /> Disabled
  </span>
  )}
  </div>
 
  {!scheduleData.schedulerEnabled && (
- <div className="flex items-start gap-2 p-3 bg-slate-500/8 border border-slate-500/15 rounded-lg">
- <AlertTriangle className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
- <p className="text-[11px] text-slate-400 leading-relaxed">
- Automatic syncs are disabled. Enable <code className="font-mono text-violet-400">ai_scheduler_enabled</code> in AI Hub &gt; Feature Flags to activate background syncing.
+ <div className="flex items-start gap-2 p-3 bg-[#F5F4F0] border border-black/10 rounded-lg">
+ <AlertTriangle className="w-3.5 h-3.5 text-black/55 mt-0.5 shrink-0" />
+ <p className="text-[11px] text-black/55 leading-relaxed">
+ Automatic syncs are disabled. Enable <code className="font-mono text-[#0A0A0A]">ai_scheduler_enabled</code> in AI Hub &gt; Feature Flags to activate background syncing.
  </p>
  </div>
  )}
@@ -546,21 +546,21 @@ export default function AIConnectors() {
  return (
  <div key={job.name} className="flex items-center justify-between gap-2 px-4 py-3 bg-black/20 rounded-none border border-white/5">
  <div className="min-w-0">
- <p className="text-xs font-semibold text-slate-300 truncate">{labels[job.name] ?? job.name}</p>
- <p className="text-[11px] text-slate-500 mt-0.5">
+ <p className="text-xs font-semibold text-black/65 truncate">{labels[job.name] ?? job.name}</p>
+ <p className="text-[11px] text-black/55 mt-0.5">
  Every {job.intervalHours}h
  {job.flagEnabled ? "" : " · flag off"}
  </p>
  </div>
  <div className="text-right shrink-0">
  {job.nextSyncAt && scheduleData.schedulerEnabled && job.flagEnabled ? (
- <p className={`text-[11px] font-semibold ${isPast ? "text-amber-400" : "text-emerald-400"}`}>
+ <p className={`text-[11px] font-semibold ${isPast ? "text-[#C1121F]" : "text-[#0A0A0A]"}`}>
  {isPast ? "Overdue" : timeAgo(job.nextSyncAt)}
  </p>
  ) : (
- <p className="text-[11px] text-slate-600">—</p>
+ <p className="text-[11px] text-black/75">—</p>
  )}
- <p className="text-[10px] text-slate-600 mt-0.5">
+ <p className="text-[10px] text-black/75 mt-0.5">
  {job.lastSyncStatus === "success" ? "Last OK" : job.lastSyncStatus === "error" ? "Last failed" : "Never synced"}
  </p>
  </div>
@@ -570,9 +570,9 @@ export default function AIConnectors() {
  </div>
 
  <div className="flex items-center gap-2 pt-1">
- <ArrowRight className="w-3.5 h-3.5 text-violet-400 shrink-0" />
- <p className="text-[11px] text-slate-500">
- After syncing, click <span className="text-violet-400 font-semibold">Analyze Now</span> to generate AI recommendations from the latest data.
+ <ArrowRight className="w-3.5 h-3.5 text-[#0A0A0A] shrink-0" />
+ <p className="text-[11px] text-black/55">
+ After syncing, click <span className="text-[#0A0A0A] font-semibold">Analyze Now</span> to generate AI recommendations from the latest data.
  </p>
  </div>
  </div>
@@ -580,12 +580,12 @@ export default function AIConnectors() {
 
  {/* PageSpeed Panel */}
  {(psData?.mobile || psData?.desktop) && (
- <div className="bg-white/5 border border-white/10 rounded-none p-5 space-y-5">
+ <div className="bg-white/5 border border-black/10 rounded-none p-5 space-y-5">
  <div className="flex items-center gap-3">
- <Gauge className="w-5 h-5 text-amber-400 shrink-0" />
+ <Gauge className="w-5 h-5 text-[#C1121F] shrink-0" />
  <div>
- <h2 className="text-sm font-bold text-white">Latest PageSpeed Scores</h2>
- <p className="text-xs text-slate-500">
+ <h2 className="text-sm font-bold text-[#0A0A0A]">Latest PageSpeed Scores</h2>
+ <p className="text-xs text-black/55">
  {psData.mobile?.createdAt
  ? new Date(psData.mobile.createdAt).toLocaleString("en-SG", { dateStyle: "medium", timeStyle: "short" })
  : ""}
@@ -597,7 +597,7 @@ export default function AIConnectors() {
  {([{ label: "Mobile", data: psData.mobile }, { label: "Desktop", data: psData.desktop }] as const).map(({ label, data }) =>
  data && (
  <div key={label} className="space-y-3">
- <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+ <p className="text-xs font-bold text-black/55 uppercase tracking-wider">{label}</p>
  <div className="flex gap-3 flex-wrap">
  <ScoreCircle score={data.performanceScore} label="Performance" />
  <ScoreCircle score={data.seoScore} label="SEO" />
@@ -612,8 +612,8 @@ export default function AIConnectors() {
  { l: "TTFB", v: data.ttfbMs != null ? `${data.ttfbMs}ms` : "—", ok: data.ttfbMs != null && data.ttfbMs <= 800 },
  ].map(m => (
  <div key={m.l} className="flex items-center justify-between px-3 py-2 bg-black/20 rounded-lg">
- <span className="text-xs text-slate-500">{m.l}</span>
- <span className={`text-xs font-bold ${m.ok ? "text-emerald-400" : "text-amber-400"}`}>{m.v}</span>
+ <span className="text-xs text-black/55">{m.l}</span>
+ <span className={`text-xs font-bold ${m.ok ? "text-[#0A0A0A]" : "text-[#C1121F]"}`}>{m.v}</span>
  </div>
  ))}
  </div>
@@ -626,35 +626,35 @@ export default function AIConnectors() {
 
  {/* Search Console Panel */}
  {gscRows.length > 0 && (
- <div className="bg-white/5 border border-white/10 rounded-none p-5 space-y-4">
+ <div className="bg-white/5 border border-black/10 rounded-none p-5 space-y-4">
  <div className="flex items-center gap-3">
- <Search className="w-5 h-5 text-emerald-400 shrink-0" />
+ <Search className="w-5 h-5 text-[#0A0A0A] shrink-0" />
  <div>
- <h2 className="text-sm font-bold text-white">Top Search Queries</h2>
- <p className="text-xs text-slate-500">Last 28 days · {gscRows.length} queries · sorted by clicks</p>
+ <h2 className="text-sm font-bold text-[#0A0A0A]">Top Search Queries</h2>
+ <p className="text-xs text-black/55">Last 28 days · {gscRows.length} queries · sorted by clicks</p>
  </div>
  </div>
  <div className="overflow-x-auto">
  <table className="w-full text-xs min-w-[480px]">
  <thead>
  <tr className="border-b border-white/5">
- <th className="text-left pb-2 font-medium text-slate-500">Query</th>
- <th className="text-right pb-2 font-medium text-slate-500">Clicks</th>
- <th className="text-right pb-2 font-medium text-slate-500">Impr.</th>
- <th className="text-right pb-2 font-medium text-slate-500">CTR</th>
- <th className="text-right pb-2 font-medium text-slate-500">Pos.</th>
+ <th className="text-left pb-2 font-medium text-black/55">Query</th>
+ <th className="text-right pb-2 font-medium text-black/55">Clicks</th>
+ <th className="text-right pb-2 font-medium text-black/55">Impr.</th>
+ <th className="text-right pb-2 font-medium text-black/55">CTR</th>
+ <th className="text-right pb-2 font-medium text-black/55">Pos.</th>
  </tr>
  </thead>
  <tbody className="divide-y divide-white/5">
  {gscRows.map(row => {
  const pos = parseFloat(String(row.position ?? "99"));
- const posColor = pos <= 3 ? "text-emerald-400" : pos <= 10 ? "text-amber-400" : "text-slate-500";
+ const posColor = pos <= 3 ? "text-[#0A0A0A]" : pos <= 10 ? "text-[#C1121F]" : "text-black/55";
  return (
  <tr key={row.id} className="hover:bg-white/5 transition-colors">
- <td className="py-2 pr-3 text-slate-300 max-w-[180px] truncate">{row.query ?? "(not set)"}</td>
- <td className="py-2 text-right text-white font-semibold">{row.clicks}</td>
- <td className="py-2 text-right text-slate-400">{row.impressions}</td>
- <td className="py-2 text-right text-slate-400">{row.ctr ? `${parseFloat(row.ctr).toFixed(1)}%` : "—"}</td>
+ <td className="py-2 pr-3 text-black/65 max-w-[180px] truncate">{row.query ?? "(not set)"}</td>
+ <td className="py-2 text-right text-[#0A0A0A] font-semibold">{row.clicks}</td>
+ <td className="py-2 text-right text-black/55">{row.impressions}</td>
+ <td className="py-2 text-right text-black/55">{row.ctr ? `${parseFloat(row.ctr).toFixed(1)}%` : "—"}</td>
  <td className={`py-2 text-right font-semibold ${posColor}`}>
  {row.position ? parseFloat(String(row.position)).toFixed(1) : "—"}
  </td>
@@ -670,9 +670,9 @@ export default function AIConnectors() {
  {/* Empty state — no data yet */}
  {!isLoading && gscRows.length === 0 && !psData?.mobile && !psData?.desktop && (
  <div className="flex flex-col items-center gap-2 py-8 text-center">
- <Database className="w-8 h-8 text-slate-600" />
- <p className="text-sm text-slate-500 font-medium">No imported data yet</p>
- <p className="text-xs text-slate-600 max-w-sm">
+ <Database className="w-8 h-8 text-black/75" />
+ <p className="text-sm text-black/55 font-medium">No imported data yet</p>
+ <p className="text-xs text-black/75 max-w-sm">
  Configure credentials in Replit Secrets and enable the feature flags, then click Sync Now on each connector.
  </p>
  </div>
