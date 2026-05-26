@@ -2886,4 +2886,48 @@ export async function seedDatabase() {
     console.log(`[startup] Round 29: Sliding Door Wardrobe (4-door / Mirror) — inserted ${inserted} new SKU rows.`);
   }
 
+  /* ── Round 30: Backfill missing RELOCATE variants ────────────────────────
+     Survey of the catalog found two real furniture items that have install
+     and dismantle prices but no relocate (Carry Only / D&R) variant, so
+     they could never appear on a relocation quote. Add them idempotently
+     so every catalog furniture item can be quoted as a Relocate. Volume
+     mirrors the sibling install rows already in the catalog.
+
+     (Drilling / per-hole / per-bracket service line items are intentionally
+     excluded — they describe on-site work, not movable furniture.) */
+  {
+    const round30Items = [
+      {
+        name: "Combo Cabinet (Drawers + Swing Doors)",
+        sku: "CMBCAB-RELOCATE",
+        category: "Storage",
+        serviceType: "relocate",
+        basePrice: "180.00",
+        volumeM3: "1.20",
+      },
+      {
+        name: "Nightstand or Bedside Table (pair)",
+        sku: "NIGHTSTAND-PAIR-RELOCATE",
+        category: "Bedroom",
+        serviceType: "relocate",
+        basePrice: "85.00",
+        volumeM3: "0.30",
+      },
+    ];
+    let r30Inserted = 0;
+    for (const row of round30Items) {
+      const existing = await db
+        .select()
+        .from(catalogItems)
+        .where(and(eq(catalogItems.name, row.name), eq(catalogItems.serviceType, "relocate")));
+      if (existing.length === 0) {
+        await db.insert(catalogItems).values(row as any).onConflictDoNothing();
+        r30Inserted++;
+      }
+    }
+    if (r30Inserted > 0) {
+      console.log(`[startup] Round 30: Backfilled ${r30Inserted} missing relocate variant(s) so every catalog item is quotable as a Relocate.`);
+    }
+  }
+
 }

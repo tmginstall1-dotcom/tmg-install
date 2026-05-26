@@ -476,32 +476,39 @@ export function computePricing(input: PricingInput): PricingResult {
     }
   }
 
-  // Carry-handling fee — per-m³ crew labour charge for Carry Only items.
-  // Applies to BOTH regular relocations (where it offsets crew time beyond
-  // the 2-hour transport window) AND Same-Property Moves (where it IS the
-  // primary handling charge since there's no transport fee at all).
-  // Per-item carry labour is $0 by design (transport / mobilisation covers
-  // the standard 2-man crew), but a big carry load burns real crew time the
-  // flat fee alone doesn't recover. Scaling labour with carry volume keeps
-  // small jobs cheap and large multi-trip carry jobs honest. Special-handling
-  // SKUs are excluded — they already keep their full catalog carry rate.
+  // Volumetric handling fee — per-m³ crew labour charge for ALL relocation
+  // items (both Carry Only AND full Dismantle-&-Reinstall), regardless of
+  // pricing mode. Applies to regular relocations (where it offsets crew time
+  // beyond the 2-hour transport window) AND Same-Property Moves (where it IS
+  // the primary handling charge since there's no transport fee at all).
+  //
+  // Why D&R items also pay this fee: the catalog D&R price covers ASSEMBLY
+  // labour (unbolt at origin, re-bolt at destination), but the physical
+  // carry-out / carry-in work between truck and unit is a separate cost that
+  // scales with the load's cubic footprint — exactly what the tiered $/m³
+  // table is designed to recover. Without it, big D&R loads were silently
+  // absorbing real crew time the flat fees alone didn't cover.
+  //
+  // Special-handling SKUs (king bed, Pax, piano, phone booths, etc.) are
+  // excluded — those items already keep their full catalog rate which has
+  // the heavy-handling premium baked in, so charging again would double-bill.
   if (input.needsRelocation) {
-    const carryVolumeM3 = round2(
+    const volumetricM3 = round2(
       input.items.reduce((s, it) => {
-        if (!it.carryOnly) return s;
+        if (it.serviceType !== 'relocate') return s;
         if (requiresSpecialHandling(it.sku)) return s;
         // Clamp volume — a tampered/negative client payload must not reduce
-        // the carry-handling fee. Non-finite values are treated as zero.
+        // the handling fee. Non-finite values are treated as zero.
         const rawVol = it.volumeM3 ?? 0;
         const vol = isFinite(rawVol) && rawVol > 0 ? rawVol : 0;
         const qty = Math.max(1, Math.round(it.quantity));
         return s + vol * qty;
       }, 0),
     );
-    if (carryVolumeM3 > 0) {
+    if (volumetricM3 > 0) {
       // Apply marginal tiered rate — like income tax bands.
       // 0–2 m³ at $10, 2–5 m³ at $15, 5+ m³ at $20.
-      let remaining = carryVolumeM3;
+      let remaining = volumetricM3;
       let prevCap = 0;
       let rawFee = 0;
       for (const tier of cfg.carryHandling.tiers) {
@@ -512,19 +519,19 @@ export function computePricing(input: PricingInput): PricingResult {
         remaining -= taken;
         prevCap = tier.upTo;
       }
-      const carryHandlingFee = round2(rawFee);
-      if (carryHandlingFee > 0) {
-        // Blended rate label = total fee ÷ total volume, rounded to nearest $1.
-        // Reads as "Carry Handling (1.50 m³ × $10)" for small loads and
-        // "Carry Handling (6.00 m³ × $15 blended)" once tiers kick in.
-        const blendedRate = carryHandlingFee / carryVolumeM3;
-        const allOneTier = carryVolumeM3 <= cfg.carryHandling.tiers[0].upTo;
+      const volumetricFee = round2(rawFee);
+      if (volumetricFee > 0) {
+        // Blended rate label = total fee ÷ total volume.
+        // Reads as "Volumetric Handling (1.50 m³ × $10)" for small loads and
+        // "Volumetric Handling (6.00 m³ × $15 blended)" once tiers kick in.
+        const blendedRate = volumetricFee / volumetricM3;
+        const allOneTier = volumetricM3 <= cfg.carryHandling.tiers[0].upTo;
         const rateLabel = allOneTier
           ? `$${cfg.carryHandling.tiers[0].ratePerM3}`
           : `$${blendedRate.toFixed(2)} blended`;
         feeLines.push({
-          label: `Carry Handling (${carryVolumeM3.toFixed(2)} m³ × ${rateLabel})`,
-          amount: carryHandlingFee,
+          label: `Volumetric Handling (${volumetricM3.toFixed(2)} m³ × ${rateLabel}/m³)`,
+          amount: volumetricFee,
         });
       }
     }
