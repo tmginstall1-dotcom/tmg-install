@@ -3,27 +3,25 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  Globe, ChevronLeft, Play, CheckCircle2, Clock,
-  AlertTriangle, TrendingUp, Search, Zap, Shield,
-  FileText, Layout, RefreshCw, Gauge, ExternalLink
+  Globe, Play, CheckCircle2, Clock, AlertTriangle, TrendingUp, Search,
+  Zap, Shield, FileText, Layout, RefreshCw, Gauge, ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  PageShell, PageHeader, PageBody, Card, SectionHeader,
+  EmptyState, LoadingState, Button, Pill,
+} from "@/components/admin/AdminUI";
 
-const PRIORITY_COLORS: Record<string, string> = {
-  critical: "text-red-400 bg-red-500/10 border-red-500/20",
-  high: "text-orange-400 bg-orange-500/10 border-orange-500/20",
-  medium: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-  low: "text-slate-400 bg-slate-500/10 border-slate-500/20",
+const PRIORITY_TONE: Record<string, "urgent" | "ink" | "stone" | "outline"> = {
+  critical: "urgent",
+  high:     "urgent",
+  medium:   "ink",
+  low:      "stone",
 };
 
 const CATEGORY_ICONS: Record<string, any> = {
   cro: TrendingUp, seo: Search, speed: Zap,
   trust: Shield, copy: FileText, layout: Layout,
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  cro: "text-blue-400", seo: "text-green-400", speed: "text-yellow-400",
-  trust: "text-violet-400", copy: "text-pink-400", layout: "text-cyan-400",
 };
 
 function PageSpeedMini() {
@@ -32,24 +30,26 @@ function PageSpeedMini() {
   });
   if (!ps?.mobile && !ps?.desktop) return null;
 
-  const scoreColor = (s: number | null) =>
-    s == null ? "text-slate-500" : s >= 90 ? "text-emerald-400" : s >= 50 ? "text-amber-400" : "text-red-400";
+  const scoreClass = (s: number | null) =>
+    s == null ? "text-black/55" : s >= 90 ? "text-[#0A0A0A]" : s >= 50 ? "text-[#0A0A0A]/70" : "text-[#C1121F]";
 
-  const mini = (label: string, data: any) => {
+  const row = (label: string, data: any) => {
     if (!data) return null;
     return (
-      <div key={label} className="flex items-center gap-3">
-        <span className="text-[11px] text-slate-500 font-medium w-14 shrink-0">{label}</span>
+      <div key={label} className="flex items-center gap-4 flex-wrap">
+        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0A0A0A] w-14 shrink-0">{label}</span>
         {[["Perf", data.performanceScore], ["SEO", data.seoScore], ["A11y", data.accessibilityScore]].map(([l, s]) => (
-          <span key={l as string} className="flex items-center gap-1">
-            <span className="text-[10px] text-slate-600">{l}</span>
-            <span className={`text-xs font-bold ${scoreColor(s as number | null)}`}>{s ?? "—"}</span>
+          <span key={l as string} className="flex items-center gap-1.5">
+            <span className="text-[10px] text-black/55 font-bold uppercase tracking-[0.14em]">{l}</span>
+            <span className={`text-[14px] font-black tabular-nums ${scoreClass(s as number | null)}`}>{s ?? "—"}</span>
           </span>
         ))}
         {data.lcpMs != null && (
-          <span className="flex items-center gap-1">
-            <span className="text-[10px] text-slate-600">LCP</span>
-            <span className={`text-xs font-bold ${data.lcpMs <= 2500 ? "text-emerald-400" : "text-amber-400"}`}>{(data.lcpMs / 1000).toFixed(1)}s</span>
+          <span className="flex items-center gap-1.5">
+            <span className="text-[10px] text-black/55 font-bold uppercase tracking-[0.14em]">LCP</span>
+            <span className={`text-[14px] font-black tabular-nums ${data.lcpMs <= 2500 ? "text-[#0A0A0A]" : "text-[#C1121F]"}`}>
+              {(data.lcpMs / 1000).toFixed(1)}s
+            </span>
           </span>
         )}
       </div>
@@ -57,24 +57,30 @@ function PageSpeedMini() {
   };
 
   return (
-    <div className="px-4 py-3 rounded-xl bg-amber-500/5 border border-amber-500/15 space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Gauge className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-[11px] font-semibold text-amber-400">PageSpeed Insights</span>
-          {ps.mobile?.createdAt && (
-            <span className="text-[10px] text-slate-600">
-              · {new Date(ps.mobile.createdAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" })}
-            </span>
-          )}
-        </div>
-        <Link href="/admin/ai/connectors" className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
-          <ExternalLink className="w-3 h-3" /> Details
-        </Link>
+    <Card>
+      <SectionHeader
+        icon={Gauge}
+        title="PageSpeed Insights"
+        action={
+          <div className="flex items-center gap-3">
+            {ps.mobile?.createdAt && (
+              <span className="text-[10px] text-black/55 font-bold uppercase tracking-[0.14em] tabular-nums">
+                {new Date(ps.mobile.createdAt).toLocaleString("en-SG", { dateStyle: "short", timeStyle: "short" })}
+              </span>
+            )}
+            <Link href="/admin/ai/connectors">
+              <a className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0A0A0A]/70 hover:text-[#0A0A0A] flex items-center gap-1">
+                <ExternalLink className="w-3 h-3" /> Details
+              </a>
+            </Link>
+          </div>
+        }
+      />
+      <div className="px-4 sm:px-5 py-4 space-y-3">
+        {row("Mobile", ps.mobile)}
+        {row("Desktop", ps.desktop)}
       </div>
-      {mini("Mobile", ps.mobile)}
-      {mini("Desktop", ps.desktop)}
-    </div>
+    </Card>
   );
 }
 
@@ -87,7 +93,7 @@ export default function AISitePanel() {
 
   const { data: audits = [], isLoading: auditsLoading } = useQuery<any[]>({
     queryKey: ["/api/ai/site/audits"],
-    refetchInterval: 5000, // poll while running
+    refetchInterval: 5000,
   });
   const { data: recommendations = [] } = useQuery<any[]>({
     queryKey: ["/api/ai/site/recommendations"],
@@ -117,89 +123,87 @@ export default function AISitePanel() {
   }, {});
 
   return (
-    <div className="pt-14 pb-20 lg:pb-6 lg:pl-56 min-h-screen bg-[#0B0F19]">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-
-        {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link href="/admin/ai">
-              <button className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors shrink-0">
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-            </Link>
-            <Globe className="w-6 h-6 text-emerald-400 shrink-0" />
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold text-white">Site Health</h1>
-              <p className="text-xs text-slate-500">CRO · SEO · Speed · Trust · Copy analysis</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 sm:ml-auto shrink-0">
+    <PageShell>
+      <PageHeader
+        eyebrow="AI Ops · Site Health"
+        title="Site Health"
+        subtitle="CRO · SEO · Speed · Trust · Copy — AI-graded findings for tmginstall.com."
+        actions={
+          <>
             <select
               value={selectedAuditType}
               onChange={e => setSelectedAuditType(e.target.value as any)}
-              className="flex-1 sm:flex-none h-9 px-3 bg-black/20 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
+              className="h-10 px-3 border border-black/20 bg-white text-[11px] font-black uppercase tracking-[0.15em] text-[#0A0A0A] focus:outline-none focus:border-[#0A0A0A]"
             >
               <option value="full">Full Audit</option>
               <option value="cro">CRO Only</option>
               <option value="seo">SEO Only</option>
               <option value="speed">Speed Only</option>
             </select>
-            <button
+            <Button
+              variant="ink"
+              icon={isRunning ? RefreshCw : Play}
               onClick={() => runAudit.mutate(selectedAuditType)}
-              data-testid="button-run-audit"
               disabled={runAudit.isPending || isRunning}
-              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0"
+              data-testid="button-run-audit"
+              className={isRunning ? "[&_svg]:animate-spin" : ""}
             >
-              {isRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
               {isRunning ? "Running…" : "Run Audit"}
-            </button>
-          </div>
-        </div>
+            </Button>
+          </>
+        }
+      />
 
-        {/* PageSpeed Mini-Panel */}
+      <PageBody>
+
         <PageSpeedMini />
 
-        {/* Latest Audit Result */}
+        {/* Latest audit */}
         {latestAudit && (
-          <div className={`p-5 rounded-2xl border ${isRunning ? "bg-amber-500/5 border-amber-500/20" : latestAudit.status === "failed" ? "bg-red-500/5 border-red-500/20" : "bg-white/5 border-white/10"}`}>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                {isRunning
-                  ? <RefreshCw className="w-5 h-5 text-amber-400 animate-spin shrink-0" />
-                  : latestAudit.status === "complete"
-                    ? <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                    : <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />}
+          <Card className={isRunning ? "border-black/20" : latestAudit.status === "failed" ? "border-[#C1121F]" : ""}>
+            <div className="px-4 sm:px-5 py-4 flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                {isRunning ? (
+                  <RefreshCw className="w-4 h-4 text-[#0A0A0A] animate-spin shrink-0 mt-0.5" />
+                ) : latestAudit.status === "complete" ? (
+                  <CheckCircle2 className="w-4 h-4 text-[#0A0A0A] shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-[#C1121F] shrink-0 mt-0.5" />
+                )}
                 <div>
-                  <p className="text-sm font-semibold text-white capitalize">
+                  <p className="text-[12px] font-black uppercase tracking-[0.08em] text-[#0A0A0A]">
                     {isRunning ? "Audit in progress…" : `${latestAudit.auditType?.toUpperCase()} Audit — ${latestAudit.status}`}
                   </p>
                   {latestAudit.summary && (
-                    <p className="text-xs text-slate-400 mt-1 leading-relaxed max-w-xl">{latestAudit.summary}</p>
+                    <p className="text-[12px] text-black/65 mt-1.5 leading-relaxed max-w-xl font-medium">{latestAudit.summary}</p>
+                  )}
+                  {latestAudit.createdAt && (
+                    <p className="text-[10px] text-black/55 mt-2 flex items-center gap-1 font-bold uppercase tracking-[0.14em] tabular-nums">
+                      <Clock className="w-3 h-3" />
+                      {new Date(latestAudit.createdAt).toLocaleString("en-SG")}
+                    </p>
                   )}
                 </div>
               </div>
               {latestAudit.score != null && (
-                <div className="text-center shrink-0">
-                  <div className={`text-3xl font-black tabular-nums ${latestAudit.score >= 80 ? "text-emerald-400" : latestAudit.score >= 60 ? "text-amber-400" : "text-red-400"}`}>
+                <div className="text-right shrink-0">
+                  <div className={`text-[36px] font-black tabular-nums leading-none ${
+                    latestAudit.score >= 80 ? "text-[#0A0A0A]" :
+                    latestAudit.score >= 60 ? "text-[#0A0A0A]/70" :
+                                              "text-[#C1121F]"
+                  }`}>
                     {latestAudit.score}
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-0.5">/100</p>
+                  <p className="text-[10px] text-black/55 mt-1 font-bold uppercase tracking-[0.18em]">/100</p>
                 </div>
               )}
             </div>
-            {latestAudit.createdAt && (
-              <p className="text-[11px] text-slate-600 mt-3 flex items-center gap-1.5">
-                <Clock className="w-3 h-3" />
-                {new Date(latestAudit.createdAt).toLocaleString("en-SG")}
-              </p>
-            )}
-          </div>
+          </Card>
         )}
 
-        {/* Category Summary */}
+        {/* Category counters */}
         {Object.keys(categoryCounts).length > 0 && (
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-px bg-black/10 border border-black/12">
             {["cro","seo","speed","trust","copy","layout"].map(cat => {
               const count = categoryCounts[cat] ?? 0;
               const Icon = CATEGORY_ICONS[cat] ?? Globe;
@@ -208,113 +212,134 @@ export default function AISitePanel() {
                 <button
                   key={cat}
                   onClick={() => setFilterCategory(active ? "all" : cat)}
-                  className={`p-3 rounded-xl border transition-all text-center ${active ? "bg-white/10 border-white/20" : "bg-white/5 border-white/5 hover:bg-white/8 hover:border-white/10"}`}
+                  className={`px-3 py-4 transition-colors text-center ${
+                    active ? "bg-[#0A0A0A] text-white" : "bg-white hover:bg-[#EBE9E2]"
+                  }`}
                 >
-                  <Icon className={`w-4 h-4 mx-auto mb-1.5 ${CATEGORY_COLORS[cat]}`} />
-                  <p className={`text-base font-bold ${count > 0 ? "text-white" : "text-slate-600"}`}>{count}</p>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">{cat}</p>
+                  <Icon className={`w-3.5 h-3.5 mx-auto mb-2 ${active ? "text-white" : "text-black/45"}`} strokeWidth={1.75} />
+                  <p className={`text-[22px] font-black tabular-nums leading-none ${active ? "text-white" : "text-[#0A0A0A]"}`}>{count}</p>
+                  <p className={`text-[10px] font-black uppercase tracking-[0.18em] mt-1.5 ${active ? "text-white/65" : "text-black/55"}`}>{cat}</p>
                 </button>
               );
             })}
           </div>
         )}
 
-        {/* Filters */}
+        {/* Priority filter */}
         {recommendations.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-slate-500">Filter:</span>
-            {["all","critical","high","medium","low"].map(p => (
-              <button key={p} onClick={() => setFilterPriority(p)}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${filterPriority === p ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"}`}>
-                {p === "all" ? "All priorities" : p}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Recommendations List */}
-        {filteredRecs.length > 0 ? (
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {filteredRecs.length} Open Finding{filteredRecs.length !== 1 ? "s" : ""}
-            </p>
-            {filteredRecs.map((rec: any) => {
-              const Icon = CATEGORY_ICONS[rec.category] ?? Globe;
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-black/55">Priority</span>
+            {["all","critical","high","medium","low"].map(p => {
+              const active = filterPriority === p;
               return (
-                <div key={rec.id} data-testid={`rec-card-${rec.id}`} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/8 transition-colors">
-                  <div className="flex items-start gap-3">
-                    <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${CATEGORY_COLORS[rec.category] ?? "text-slate-400"}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${PRIORITY_COLORS[rec.priority] ?? ""}`}>{rec.priority}</span>
-                        <span className="text-[10px] uppercase text-slate-500 font-semibold">{rec.category}</span>
-                        {rec.page && <span className="text-[10px] text-slate-600 font-mono">{rec.page}</span>}
-                        {!rec.page && (rec.category === "speed" || rec.category === "seo") && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-violet-500/10 border-violet-500/20 text-violet-400 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" /> Live API
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm font-semibold text-white leading-tight">{rec.title}</p>
-                      {rec.description && <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{rec.description}</p>}
-                      {rec.suggestedChange && (
-                        <div className="mt-2.5 p-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-lg">
-                          <p className="text-xs text-emerald-300 leading-relaxed">
-                            <span className="font-semibold">Suggested fix:</span> {rec.suggestedChange}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${rec.riskLevel === "high" ? PRIORITY_COLORS.high : rec.riskLevel === "medium" ? PRIORITY_COLORS.medium : PRIORITY_COLORS.low}`}>
-                      {rec.riskLevel} risk
-                    </span>
-                  </div>
-                </div>
+                <button
+                  key={p}
+                  onClick={() => setFilterPriority(p)}
+                  className={`h-7 px-2.5 text-[10px] font-black uppercase tracking-[0.16em] transition-colors ${
+                    active ? "bg-[#0A0A0A] text-white" : "bg-white text-black/55 border border-black/15 hover:border-[#0A0A0A] hover:text-[#0A0A0A]"
+                  }`}
+                >
+                  {p === "all" ? "All" : p}
+                </button>
               );
             })}
           </div>
+        )}
+
+        {/* Recommendations */}
+        {filteredRecs.length > 0 ? (
+          <Card>
+            <SectionHeader
+              icon={Globe}
+              title="Open Findings"
+              badge={filteredRecs.length}
+            />
+            <div className="divide-y divide-black/8">
+              {filteredRecs.map((rec: any) => {
+                const Icon = CATEGORY_ICONS[rec.category] ?? Globe;
+                return (
+                  <div
+                    key={rec.id}
+                    data-testid={`rec-card-${rec.id}`}
+                    className="px-4 sm:px-5 py-4 hover:bg-[#EBE9E2] transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <Icon className="w-4 h-4 mt-1 shrink-0 text-[#0A0A0A]" strokeWidth={1.75} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                          <Pill tone={PRIORITY_TONE[rec.priority] ?? "stone"}>{rec.priority}</Pill>
+                          <span className="text-[10px] font-black uppercase tracking-[0.16em] text-black/55">{rec.category}</span>
+                          {rec.page && <span className="text-[10px] text-black/55 font-mono">{rec.page}</span>}
+                          {!rec.page && (rec.category === "speed" || rec.category === "seo") && (
+                            <Pill tone="outline">Live API</Pill>
+                          )}
+                        </div>
+                        <p className="text-[13px] font-black uppercase tracking-[0.04em] text-[#0A0A0A] leading-tight">{rec.title}</p>
+                        {rec.description && (
+                          <p className="text-[12px] text-black/65 mt-1.5 leading-relaxed font-medium">{rec.description}</p>
+                        )}
+                        {rec.suggestedChange && (
+                          <div className="mt-2.5 p-3 bg-[#EBE9E2] border-l-2 border-[#0A0A0A]">
+                            <p className="text-[11px] text-[#0A0A0A] leading-relaxed font-medium">
+                              <span className="font-black uppercase tracking-[0.16em] mr-2">Suggested fix</span>
+                              {rec.suggestedChange}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <Pill tone={rec.riskLevel === "high" ? "urgent" : rec.riskLevel === "medium" ? "ink" : "stone"}>
+                        {rec.riskLevel} risk
+                      </Pill>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
         ) : recommendations.length === 0 && !auditsLoading ? (
-          <div className="text-center py-14 border border-dashed border-white/10 rounded-2xl">
-            <Globe className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400 font-medium">No audit results yet</p>
-            <p className="text-sm text-slate-600 mt-1 max-w-xs mx-auto">
-              Run a site audit to get AI-powered CRO, SEO, and UX recommendations for TMGInstall.com.
-            </p>
-          </div>
+          <Card>
+            <EmptyState
+              icon={Globe}
+              title="No audit results yet"
+              hint="Run a site audit to get AI-powered CRO, SEO, and UX recommendations."
+            />
+          </Card>
         ) : filteredRecs.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-slate-500">No findings match the current filters.</p>
-          </div>
+          <Card>
+            <EmptyState icon={Search} title="No findings match the current filters" />
+          </Card>
         ) : null}
 
-        {/* Audit History */}
+        {/* History */}
         {audits.length > 1 && (
-          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-white/5">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Audit History</h3>
-            </div>
-            <div className="divide-y divide-white/5">
+          <Card>
+            <SectionHeader icon={Clock} title="Audit History" />
+            <div className="divide-y divide-black/8">
               {audits.map((a: any) => (
-                <div key={a.id} className="px-5 py-3 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2.5">
-                    {a.status === "complete" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                      : a.status === "running" ? <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-                      : <AlertTriangle className="w-3.5 h-3.5 text-red-400" />}
-                    <span className="text-xs text-slate-400 font-mono uppercase">{a.auditType}</span>
-                    <span className="text-[10px] text-slate-600">{new Date(a.createdAt).toLocaleDateString("en-SG")}</span>
+                <div key={a.id} className="px-4 sm:px-5 py-3 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {a.status === "complete" ? <CheckCircle2 className="w-3.5 h-3.5 text-[#0A0A0A] shrink-0" />
+                      : a.status === "running"  ? <RefreshCw className="w-3.5 h-3.5 text-[#0A0A0A] animate-spin shrink-0" />
+                      :                            <AlertTriangle className="w-3.5 h-3.5 text-[#C1121F] shrink-0" />}
+                    <span className="text-[11px] text-[#0A0A0A] font-black uppercase tracking-[0.12em] font-mono">{a.auditType}</span>
+                    <span className="text-[10px] text-black/55 font-bold uppercase tracking-[0.14em] tabular-nums">
+                      {new Date(a.createdAt).toLocaleDateString("en-SG")}
+                    </span>
                   </div>
                   {a.score != null && (
-                    <span className={`text-sm font-bold tabular-nums ${a.score >= 80 ? "text-emerald-400" : a.score >= 60 ? "text-amber-400" : "text-red-400"}`}>
-                      {a.score}/100
+                    <span className={`text-[14px] font-black tabular-nums ${
+                      a.score >= 80 ? "text-[#0A0A0A]" : a.score >= 60 ? "text-[#0A0A0A]/70" : "text-[#C1121F]"
+                    }`}>
+                      {a.score}<span className="text-[10px] text-black/45 ml-0.5">/100</span>
                     </span>
                   )}
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
-      </div>
-    </div>
+      </PageBody>
+    </PageShell>
   );
 }
