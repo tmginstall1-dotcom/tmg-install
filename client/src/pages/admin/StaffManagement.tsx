@@ -2877,12 +2877,17 @@ function LongestStayCard({ seg, sec, rank, maxSec }: { seg: StopSegment; sec: nu
  <a href={mapsUrl} target="_blank" rel="noreferrer"
  className="block px-5 py-4 hover:bg-[#F5F4F0] transition-colors group"
  data-testid={`longest-stay-${rank}`}>
- <div className="flex items-center justify-between gap-2 mb-1">
- <span className="inline-flex items-center justify-center w-5 h-5 rounded-none bg-[#0A0A0A] text-white text-[10px] font-bold">{rank + 1}</span>
- <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${t.pill}`}>{t.label}</span>
+ <div className="flex items-center gap-2 mb-2 min-w-0">
+ <span className="inline-flex items-center justify-center w-5 h-5 rounded-none bg-[#0A0A0A] text-white text-[10px] font-bold shrink-0">{rank + 1}</span>
+ <div className="flex items-center gap-1.5 ml-auto shrink-0">
+ <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 whitespace-nowrap ${t.pill}`}>{t.label}</span>
  {seg.isOngoing && (
- <span className="text-[9px] font-bold text-white bg-[#C1121F] px-1.5 py-0.5 ml-auto">LIVE</span>
+ <span className="inline-flex items-center gap-1 text-[9px] font-bold text-white bg-[#C1121F] px-1.5 py-0.5 whitespace-nowrap">
+ <span className="w-1 h-1 rounded-full bg-white animate-pulse inline-block" />
+ LIVE
+ </span>
  )}
+ </div>
  </div>
  <p className="text-2xl font-extrabold text-[#0A0A0A] leading-none tracking-tight">{fmtDuration(sec)}</p>
  <p className="text-[11px] text-[#0A0A0A]/60 font-medium uppercase tracking-wider mt-1">
