@@ -181,19 +181,19 @@ export function Navbar() {
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 ${
       isAdminArea
-        ? "bg-white/95 backdrop-blur-xl border-b border-gray-200"
+        ? "bg-[#F5F4F0] border-b border-black/15"
         : "bg-white border-b border-gray-200"
-    } ${scrolled ? "shadow-sm" : ""}`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+    }`}>
+      <div className={`${isAdminArea ? "px-4 sm:px-6" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"} h-14 flex items-center justify-between`}>
 
         {/* Brand */}
         <Link href={isStaffArea ? "/staff" : "/admin"}>
           <div className="flex items-center gap-2.5 cursor-pointer">
-            <span className="brand-title text-gray-900">
+            <span className={`brand-title ${isAdminArea ? "text-[#0A0A0A] tracking-[0.04em]" : "text-gray-900"}`}>
               TMG INSTALL
             </span>
             {isAdminArea && (
-              <span className="hidden sm:inline text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">
+              <span className="hidden sm:inline text-[9px] font-black tracking-[0.24em] uppercase px-1.5 h-[18px] inline-flex items-center bg-[#0A0A0A] text-white">
                 OPS
               </span>
             )}
@@ -206,18 +206,18 @@ export function Navbar() {
               {/* Desktop nav links — hidden at lg for admin (sidebar takes over) */}
               <div className={`hidden items-center ${
                 isAdminArea
-                  ? "sm:flex lg:hidden gap-0.5"
+                  ? "sm:flex lg:hidden gap-0"
                   : "sm:flex gap-4 text-sm font-medium text-muted-foreground"
               }`}>
                 {navLinks.map(({ href, label, icon: Icon }) => (
                   isAdminArea ? (
                     <Link key={href} href={href} data-testid={`nav-${label.toLowerCase().replace(/\s/g, "-")}`}>
-                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                      <div className={`flex items-center gap-1.5 h-9 px-3 text-[10px] font-black uppercase tracking-[0.16em] transition-colors cursor-pointer ${
                         isActive(href)
-                          ? "bg-blue-50 text-blue-600"
-                          : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                          ? "bg-[#0A0A0A] text-white"
+                          : "text-[#0A0A0A]/65 hover:text-[#0A0A0A] hover:bg-black/5"
                       }`}>
-                        <Icon className="w-3.5 h-3.5" />
+                        <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
                         {label}
                       </div>
                     </Link>
@@ -245,66 +245,100 @@ export function Navbar() {
                 <button
                   onClick={() => setProfileOpen(v => !v)}
                   data-testid="button-user-avatar"
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all hover:bg-gray-100"
+                  className={`flex items-center gap-2 px-2 h-9 transition-colors ${
+                    isAdminArea ? "hover:bg-black/5" : "hover:bg-gray-100 rounded-lg"
+                  }`}
                   title={user.name}
                 >
                   <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-white font-black text-xs shrink-0"
-                    style={{ backgroundColor: bgColor }}
+                    className={`w-7 h-7 flex items-center justify-center text-white font-black text-xs shrink-0 ${
+                      isAdminArea ? "" : "rounded-full"
+                    }`}
+                    style={{ backgroundColor: isAdminArea ? "#0A0A0A" : bgColor }}
                   >
                     {initials}
                   </div>
                   {isAdminArea && (
                     <>
-                      <span className="hidden sm:block text-xs font-semibold text-gray-700 max-w-[90px] truncate">
+                      <span className="hidden sm:block text-[10px] font-black uppercase tracking-[0.16em] text-[#0A0A0A] max-w-[90px] truncate">
                         {user.name?.split(" ")[0]}
                       </span>
-                      <ChevronDown className="w-3 h-3 hidden sm:block text-gray-400" />
+                      <ChevronDown className="w-3 h-3 hidden sm:block text-[#0A0A0A]/40" />
                     </>
                   )}
                 </button>
 
                 {/* Profile dropdown */}
                 {profileOpen && (
-                  <div className="absolute right-0 top-11 w-60 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 overflow-hidden" data-testid="profile-dropdown">
-                    <div className="px-4 py-4 flex items-center gap-3 bg-slate-50 border-b">
-                      <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0"
-                        style={{ backgroundColor: bgColor }}>
-                        {initials}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-sm text-foreground leading-tight truncate">{user.name}</p>
-                        <p className="text-xs font-mono text-muted-foreground">@{user.username}</p>
-                        <div className="flex items-center gap-1 mt-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                          <span className="text-[11px] font-semibold text-emerald-600">Active</span>
+                  isAdminArea ? (
+                    <div className="absolute right-0 top-11 w-60 bg-white border border-[#0A0A0A] z-50 overflow-hidden" data-testid="profile-dropdown">
+                      <div className="px-4 py-4 flex items-center gap-3 bg-[#EBE9E2] border-b border-black/15">
+                        <div className="w-10 h-10 flex items-center justify-center bg-[#0A0A0A] text-white font-black text-[11px] shrink-0 tracking-wider">
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-black text-[12px] text-[#0A0A0A] leading-tight truncate uppercase tracking-[0.08em]">{user.name}</p>
+                          <p className="text-[10px] font-mono text-black/55 mt-0.5">@{user.username}</p>
+                          <p className="text-[9px] font-black uppercase tracking-[0.22em] text-[#0A0A0A]/65 mt-1">Online</p>
                         </div>
                       </div>
+                      <div className="px-4 h-9 flex items-center justify-between border-b border-black/10 bg-white">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-black/55">Role</span>
+                        <span className="text-[10px] font-black px-1.5 h-5 inline-flex items-center uppercase tracking-[0.16em] bg-[#0A0A0A] text-white">
+                          {user.role === "admin" ? "Administrator" : "Staff"}
+                        </span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setProfileOpen(false);
+                          const loginUrl = user?.role === "admin" ? "/admin/login" : "/staff/login";
+                          try { await logout(); } catch {}
+                          window.location.replace(loginUrl);
+                        }}
+                        data-testid="button-profile-signout"
+                        className="w-full flex items-center justify-center gap-2 h-11 text-[11px] font-black uppercase tracking-[0.18em] text-[#0A0A0A]/70 hover:text-white hover:bg-[#0A0A0A] transition-colors"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        Sign Out
+                      </button>
                     </div>
-                    <div className="px-4 py-2.5 flex items-center justify-between border-b">
-                      <span className="text-xs text-muted-foreground">Role</span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                        user.role === "admin"
-                          ? "bg-violet-100 text-violet-700"
-                          : "bg-blue-100 text-blue-700"
-                      }`}>
-                        {user.role === "admin" ? "Administrator" : "Staff"}
-                      </span>
+                  ) : (
+                    <div className="absolute right-0 top-11 w-60 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 overflow-hidden" data-testid="profile-dropdown">
+                      <div className="px-4 py-4 flex items-center gap-3 bg-slate-50 border-b">
+                        <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0"
+                          style={{ backgroundColor: bgColor }}>
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm text-foreground leading-tight truncate">{user.name}</p>
+                          <p className="text-xs font-mono text-muted-foreground">@{user.username}</p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                            <span className="text-[11px] font-semibold text-emerald-600">Active</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="px-4 py-2.5 flex items-center justify-between border-b">
+                        <span className="text-xs text-muted-foreground">Role</span>
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                          {user.role === "admin" ? "Administrator" : "Staff"}
+                        </span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setProfileOpen(false);
+                          const loginUrl = user?.role === "admin" ? "/admin/login" : "/staff/login";
+                          try { await logout(); } catch {}
+                          window.location.replace(loginUrl);
+                        }}
+                        data-testid="button-profile-signout"
+                        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
                     </div>
-                    <button
-                      onClick={async () => {
-                        setProfileOpen(false);
-                        const loginUrl = user?.role === "admin" ? "/admin/login" : "/staff/login";
-                        try { await logout(); } catch {}
-                        window.location.replace(loginUrl);
-                      }}
-                      data-testid="button-profile-signout"
-                      className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Sign Out
-                    </button>
-                  </div>
+                  )
                 )}
               </div>
 

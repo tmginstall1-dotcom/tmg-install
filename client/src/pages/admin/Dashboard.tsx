@@ -10,9 +10,10 @@ import { useState, useMemo } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
   ClipboardList, DollarSign, CalendarCheck, Zap, AlertCircle, Trash2,
-  ChevronRight, Search, X, Loader2, TrendingUp, BellRing, Plus,
+  ChevronRight, Search, X, TrendingUp, BellRing, Plus,
   Phone as PhoneIcon, FileText, Target, Wallet, TrendingDown, Clock,
 } from "lucide-react";
+import { PageShell, PageHeader, PageBody, Card, SectionHeader, EmptyState, LoadingState, Button, Pill } from "@/components/admin/AdminUI";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
@@ -23,16 +24,6 @@ function formatMoney(v: any) {
 function initials(name: string = "?") {
   return name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 }
-
-const AVATAR_PALETTE = [
-  "bg-violet-100 text-violet-700",
-  "bg-sky-100 text-sky-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-amber-100 text-amber-700",
-  "bg-rose-100 text-rose-700",
-  "bg-indigo-100 text-indigo-700",
-];
-function avatarBg(id: number) { return AVATAR_PALETTE[id % AVATAR_PALETTE.length]; }
 
 function greeting() {
   const h = new Date().getHours();
@@ -66,58 +57,51 @@ function dateLabel(quote: any): string {
   return format(new Date(quote.createdAt), "d MMM");
 }
 
-const CHANNEL_BADGE: Record<string, { label: string; cls: string }> = {
-  web:      { label: "🌐 Web",     cls: "bg-blue-50 text-blue-600 border-blue-100" },
-  whatsapp: { label: "💬 WA",      cls: "bg-emerald-50 text-emerald-700 border-emerald-100" },
-  phone:    { label: "📞 Call",    cls: "bg-purple-50 text-purple-700 border-purple-100" },
-  ikea:     { label: "🛋 IKEA",    cls: "bg-orange-50 text-orange-700 border-orange-100" },
-  referral: { label: "🤝 Ref",     cls: "bg-teal-50 text-teal-700 border-teal-100" },
-  walk_in:  { label: "🚶 Walk-in", cls: "bg-zinc-50 text-zinc-500 border-zinc-200" },
-  other:    { label: "⚡ Other",   cls: "bg-zinc-50 text-zinc-500 border-zinc-200" },
+const CHANNEL_LABEL: Record<string, string> = {
+  web:      "Web",
+  whatsapp: "WhatsApp",
+  phone:    "Call",
+  ikea:     "IKEA",
+  referral: "Referral",
+  walk_in:  "Walk-in",
+  other:    "Other",
 };
 
 function ChannelBadge({ channel }: { channel?: string }) {
   const ch = channel || "web";
-  const cfg = CHANNEL_BADGE[ch] || { label: ch, cls: "bg-zinc-50 text-zinc-500 border-zinc-200" };
-  return (
-    <span className={`inline-flex items-center h-5 px-1.5 rounded text-[10px] font-bold border tracking-wide shrink-0 ${cfg.cls}`}>
-      {cfg.label}
-    </span>
-  );
+  return <Pill tone="outline">{CHANNEL_LABEL[ch] || ch}</Pill>;
 }
 
-function QuoteRow({ quote, compact = false }: { quote: any; compact?: boolean }) {
+function QuoteRow({ quote }: { quote: any }) {
   const [, navigate] = useLocation();
   return (
     <div
       onClick={() => navigate(`/admin/quotes/${quote.id}`)}
       data-testid={`quote-row-${quote.id}`}
-      className="group flex items-center gap-4 px-5 py-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 transition-all active:bg-slate-100"
+      className="group flex items-center gap-4 px-4 sm:px-5 py-3.5 hover:bg-[#EBE9E2] cursor-pointer transition-colors"
     >
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 shadow-sm ${avatarBg(quote.id)}`}>
+      <div className="w-9 h-9 flex items-center justify-center text-[11px] font-black shrink-0 bg-[#0A0A0A] text-white tracking-wider">
         {initials(quote.customer?.name)}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-[15px] font-bold text-slate-900 truncate leading-tight">
+          <p className="text-[13px] font-black uppercase tracking-[0.06em] text-[#0A0A0A] truncate leading-tight">
             {quote.customer?.name || "Unknown"}
           </p>
           <StatusBadge status={quote.status} />
           <ChannelBadge channel={quote.sourceChannel} />
         </div>
-        {!compact && (
-          <p className="text-[13px] text-slate-500 truncate mt-1.5 font-medium">
-            <span className="text-slate-400 font-mono tracking-tight mr-1.5">{quote.referenceNo}</span>
-            {quote.serviceAddress || quote.pickupAddress || "No address"}
-          </p>
-        )}
+        <p className="text-[11px] text-black/55 truncate mt-1 font-medium">
+          <span className="text-[#0A0A0A]/65 font-mono tracking-tight mr-2">{quote.referenceNo}</span>
+          {quote.serviceAddress || quote.pickupAddress || "No address"}
+        </p>
       </div>
       <div className="shrink-0 text-right flex items-center gap-4">
         <div>
-          <p className="text-[15px] font-bold text-slate-900 tabular-nums leading-tight">{formatMoney(quote.total)}</p>
-          <p className="text-[12px] text-slate-500 font-medium mt-1 tabular-nums">{dateLabel(quote)}</p>
+          <p className="text-[14px] font-black text-[#0A0A0A] tabular-nums leading-tight">{formatMoney(quote.total)}</p>
+          <p className="text-[10px] text-black/55 font-bold uppercase tracking-[0.16em] mt-1 tabular-nums">{dateLabel(quote)}</p>
         </div>
-        <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+        <ChevronRight className="w-4 h-4 text-black/25 group-hover:text-[#0A0A0A] group-hover:translate-x-0.5 transition-all shrink-0" />
       </div>
     </div>
   );
@@ -125,7 +109,7 @@ function QuoteRow({ quote, compact = false }: { quote: any; compact?: boolean })
 
 function Panel({
   title, badge, badgeUrgent = false, quotes, emptyMsg, emptyIcon: EmptyIcon = ClipboardList,
-  collapsible = false,
+  collapsible = false, accentRed = false,
 }: {
   title: string;
   badge?: number;
@@ -134,20 +118,21 @@ function Panel({
   emptyMsg: string;
   emptyIcon?: any;
   collapsible?: boolean;
+  accentRed?: boolean;
 }) {
   const [expanded, setExpanded] = useState(!collapsible || (quotes.length > 0));
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+    <Card className={accentRed ? "border-[#C1121F]" : ""}>
       <div
-        className={`flex items-center justify-between px-5 py-4 border-b border-slate-100 ${collapsible ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : "bg-slate-50/30"}`}
+        className={`flex items-center justify-between px-4 sm:px-5 h-12 border-b ${accentRed ? "border-[#C1121F]/30 bg-[#FBEBEB]" : "border-black/10 bg-white"} ${collapsible ? "cursor-pointer hover:bg-[#EBE9E2] transition-colors" : ""}`}
         onClick={collapsible ? () => setExpanded(v => !v) : undefined}
       >
-        <div className="flex items-center gap-3">
-          <h2 className="text-[15px] font-bold text-slate-900 tracking-tight">{title}</h2>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <h2 className={`text-[11px] font-black uppercase tracking-[0.18em] truncate ${accentRed ? "text-[#C1121F]" : "text-[#0A0A0A]"}`}>{title}</h2>
           {badge != null && badge > 0 && (
-            <span className={`inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full text-[11px] font-black tracking-wide ${
-              badgeUrgent ? "bg-red-100 text-red-700 ring-1 ring-red-200" : "bg-blue-100 text-blue-700 ring-1 ring-blue-200"
+            <span className={`inline-flex items-center h-5 px-1.5 text-[10px] font-black tabular-nums ${
+              accentRed || badgeUrgent ? "bg-[#C1121F] text-white" : "bg-[#0A0A0A] text-white"
             }`}>
               {badge}
             </span>
@@ -155,24 +140,21 @@ function Panel({
         </div>
         {quotes.length > 0 && (
           <Link href="/admin/schedule" onClick={e => e.stopPropagation()}>
-            <span className="text-[13px] font-bold text-blue-600 hover:text-blue-700 transition-colors">View all</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0A0A0A]/65 hover:text-[#0A0A0A] transition-colors">View all →</span>
           </Link>
         )}
       </div>
 
       {expanded && (
         quotes.length === 0 ? (
-          <div className="py-12 flex flex-col items-center gap-3 text-slate-400">
-            <EmptyIcon className="w-10 h-10 text-slate-200" />
-            <p className="text-[14px] font-semibold">{emptyMsg}</p>
-          </div>
+          <EmptyState icon={EmptyIcon} title={emptyMsg} />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-black/8">
             {quotes.map(q => <QuoteRow key={q.id} quote={q} />)}
           </div>
         )
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -200,9 +182,6 @@ export default function AdminDashboard() {
   const awaitingDeposit = quotes.filter((q: any) =>
     ["deposit_requested", "approved"].includes(q.status)
   );
-  // Include booking_pending so jobs the admin marked "Pending Date Confirmation"
-  // (slot cleared, awaiting a new date) stay visible in the Upcoming Bookings
-  // list with the amber badge — otherwise they vanish from the dashboard.
   const upcomingBooked  = quotes.filter((q: any) => ["booked", "assigned", "deposit_paid", "booking_pending"].includes(q.status));
   const activeJobs      = quotes.filter((q: any) => ["in_progress", "at_pickup", "in_transit", "at_dropoff"].includes(q.status));
   const awaitingPayment = quotes.filter((q: any) => ["completed", "final_payment_requested"].includes(q.status));
@@ -218,7 +197,6 @@ export default function AdminDashboard() {
     });
   }, [quotes]);
 
-  // Late jobs: scheduled before today but still in a pre-completion status
   const lateJobs = useMemo(() => {
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
     return (quotes as any[]).filter((q: any) => {
@@ -237,8 +215,6 @@ export default function AdminDashboard() {
     .filter((q: any) => !["closed", "cancelled", "final_paid"].includes(q.status))
     .reduce((sum: number, q: any) => sum + Number(q.total || 0), 0);
 
-  // Today's collected revenue (jobs scheduled today that are paid/closed)
-  // Falls back to scheduledAt because we don't track payment timestamps separately here.
   const todaysRevenue = useMemo(() => {
     return closedQuotes.reduce((sum: number, q: any) => {
       const raw = q.scheduledAt || q.preferredDate;
@@ -257,7 +233,6 @@ export default function AdminDashboard() {
     }, 0);
   }, [closedQuotes]);
 
-  // Funnel: lead → quoted → booked → paid
   const funnel = useMemo(() => {
     const live = (quotes as any[]).filter(q => q.status !== "cancelled");
     const submitted = live.length;
@@ -287,7 +262,6 @@ export default function AdminDashboard() {
   });
   const netProfit = totalRevenue - Number(subSummary?.totalSubCosts || 0);
 
-  // Build 12-week revenue trend from closed/final_paid quotes
   const revenueChartData = useMemo(() => {
     const weeks: { week: string; revenue: number; jobs: number }[] = [];
     for (let i = 11; i >= 0; i--) {
@@ -307,8 +281,6 @@ export default function AdminDashboard() {
     return weeks;
   }, [quotes]);
 
-  // Action Required panel = new quotes + awaiting final payment.
-  // Late jobs have their own dedicated red panel below so they're not double-counted here.
   const urgentCount = newQuotes.length + awaitingPayment.length;
   const hasLate = lateJobs.length > 0;
 
@@ -327,260 +299,255 @@ export default function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen pt-14 pb-16 lg:pl-56 bg-zinc-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-zinc-400">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <p className="text-sm font-medium">Loading…</p>
-        </div>
-      </div>
+      <PageShell>
+        <LoadingState label="Loading dashboard" />
+      </PageShell>
     );
   }
 
   const isSearching = search.trim().length > 0;
 
+  // KPI strip data
+  const kpis = [
+    { label: "New Requests",     value: newQuotes.length,       icon: ClipboardList, urgent: newQuotes.length > 0 },
+    { label: "Awaiting Deposit", value: awaitingDeposit.length, icon: DollarSign,    urgent: false },
+    { label: "Today's Jobs",     value: todayJobs.length,       icon: CalendarCheck, urgent: false },
+    { label: "Active Jobs",      value: activeJobs.length,      icon: Zap,           urgent: false },
+    { label: "Payment Due",      value: awaitingPayment.length, icon: AlertCircle,   urgent: awaitingPayment.length > 0 },
+  ];
+
   return (
-    <div className="min-h-screen pt-14 pb-20 lg:pb-6 lg:pl-56 bg-zinc-50 overflow-x-hidden">
-
-      {/* Page header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-6 shadow-sm relative z-10">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
+    <PageShell>
+      {/* Page header — Yeezy editorial */}
+      <PageHeader
+        eyebrow={format(new Date(), "EEEE · d MMMM yyyy")}
+        title={greeting()}
+        subtitle="Operations dashboard — pipeline, performance and what needs attention right now."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              icon={PhoneIcon}
+              onClick={() => setShowPhoneCall(true)}
+              data-testid="button-log-phone-call"
+              title="AI will extract a draft quote from your call notes"
+            >
+              Log Call
+            </Button>
+            <Button
+              variant="ink"
+              icon={Plus}
+              onClick={() => setShowNewJob(true)}
+              data-testid="button-new-job"
+            >
+              New Job
+            </Button>
+          </>
+        }
+        meta={
+          <div className="flex flex-wrap items-end gap-6 sm:gap-10">
             <div>
-              <p className="text-[13px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">{greeting()}</h1>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-black/55 mb-1.5">Collected</p>
+              <p className="text-[24px] sm:text-[28px] font-black text-[#0A0A0A] tabular-nums leading-none tracking-tight">{formatMoney(totalRevenue)}</p>
             </div>
-            <div className="flex items-center gap-4 sm:pt-0.5 flex-wrap">
-              {/* Log Phone Call button — AI extracts a draft quote from call notes */}
-              <button
-                onClick={() => setShowPhoneCall(true)}
-                data-testid="button-log-phone-call"
-                title="AI will extract a draft quote from your call notes"
-                className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold transition-colors shadow-sm"
-              >
-                <PhoneIcon className="w-4 h-4" />
-                Log Phone Call
-              </button>
-
-              {/* Quick New Job button */}
-              <button
-                onClick={() => setShowNewJob(true)}
-                data-testid="button-new-job"
-                className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-bold transition-colors shadow-sm"
-              >
-                <Plus className="w-4 h-4" />
-                New Job
-              </button>
-              <div className="flex items-center gap-6">
-                <div className="text-right">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Collected</p>
-                  <p className="text-2xl font-black text-slate-900 tabular-nums leading-none tracking-tight">{formatMoney(totalRevenue)}</p>
-                </div>
-                <div className="w-px h-12 bg-slate-200" />
-                <div className="text-right">
-                  <p className="text-[11px] font-bold text-blue-500/70 uppercase tracking-widest mb-1.5">Pipeline</p>
-                  <p className="text-2xl font-black text-blue-600 tabular-nums leading-none tracking-tight">{formatMoney(pipelineValue)}</p>
-                </div>
-                {subSummary?.totalSubCosts > 0 && (
-                  <>
-                    <div className="w-px h-12 bg-slate-200" />
-                    <div className="text-right" data-testid="stat-net-profit">
-                      <p className="text-[11px] font-bold text-emerald-500/80 uppercase tracking-widest mb-1.5">Net Profit</p>
-                      <p className={`text-2xl font-black tabular-nums leading-none tracking-tight ${netProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                        {formatMoney(netProfit)}
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
+            <div className="h-10 w-px bg-black/12" />
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-black/55 mb-1.5">Pipeline</p>
+              <p className="text-[24px] sm:text-[28px] font-black text-[#0A0A0A] tabular-nums leading-none tracking-tight">{formatMoney(pipelineValue)}</p>
             </div>
+            {subSummary?.totalSubCosts > 0 && (
+              <>
+                <div className="h-10 w-px bg-black/12" />
+                <div data-testid="stat-net-profit">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-black/55 mb-1.5">Net Profit</p>
+                  <p className={`text-[24px] sm:text-[28px] font-black tabular-nums leading-none tracking-tight ${netProfit >= 0 ? "text-[#0A0A0A]" : "text-[#C1121F]"}`}>
+                    {formatMoney(netProfit)}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <PageBody>
 
-        {/* Urgent alert banner */}
+        {/* Urgent alert */}
         {(urgentCount + lateJobs.length) > 0 && (() => {
           const total = urgentCount + lateJobs.length;
           return (
-            <div className="flex items-center gap-3.5 px-5 py-4 bg-red-50 border border-red-200 rounded-2xl shadow-sm">
-              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <BellRing className="w-4 h-4 text-red-600" />
-              </div>
-              <p className="text-[15px] font-bold text-red-800 flex-1 tracking-tight">
-                {total} item{total > 1 ? "s" : ""} need{total === 1 ? "s" : ""} your attention
-                {newQuotes.length > 0 && <span className="font-medium text-red-600/80 ml-2">· {newQuotes.length} new request{newQuotes.length > 1 ? "s" : ""}</span>}
-                {awaitingPayment.length > 0 && <span className="font-medium text-red-600/80 ml-2">· {awaitingPayment.length} awaiting final payment</span>}
-                {hasLate && <span className="font-medium text-red-600/80 ml-2">· {lateJobs.length} late job{lateJobs.length > 1 ? "s" : ""}</span>}
+            <div className="flex items-center gap-3 px-4 py-3 bg-[#C1121F] text-white" data-testid="urgent-banner">
+              <BellRing className="w-4 h-4 shrink-0" />
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] flex-1">
+                {total} item{total > 1 ? "s" : ""} need{total === 1 ? "s" : ""} attention
+                {newQuotes.length > 0 && <span className="font-bold ml-3 opacity-80">· {newQuotes.length} new request{newQuotes.length > 1 ? "s" : ""}</span>}
+                {awaitingPayment.length > 0 && <span className="font-bold ml-3 opacity-80">· {awaitingPayment.length} payment due</span>}
+                {hasLate && <span className="font-bold ml-3 opacity-80">· {lateJobs.length} late job{lateJobs.length > 1 ? "s" : ""}</span>}
               </p>
             </div>
           );
         })()}
 
-        {/* KPI strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-          {[
-            { label: "New Requests",    value: newQuotes.length,       icon: ClipboardList, urgent: newQuotes.length > 0,       color: newQuotes.length > 0 ? "text-red-600" : "text-slate-900" },
-            { label: "Awaiting Deposit",value: awaitingDeposit.length, icon: DollarSign,    urgent: false,                      color: "text-slate-900" },
-            { label: "Today's Jobs",    value: todayJobs.length,       icon: CalendarCheck, urgent: false,                      color: todayJobs.length > 0 ? "text-blue-600" : "text-slate-900" },
-            { label: "Active Jobs",     value: activeJobs.length,      icon: Zap,           urgent: false,                      color: activeJobs.length > 0 ? "text-emerald-600" : "text-slate-900" },
-            { label: "Payment Due",     value: awaitingPayment.length, icon: AlertCircle,   urgent: awaitingPayment.length > 0, color: awaitingPayment.length > 0 ? "text-orange-600" : "text-slate-900" },
-          ].map((card, idx) => {
+        {/* KPI strip — flat editorial grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-px bg-black/10 border border-black/12">
+          {kpis.map((card, idx) => {
             const Icon = card.icon;
-            const isOrphan = idx === 4 && true;
+            const isOrphan = idx === 4;
             return (
               <div
                 key={card.label}
-                className={`bg-white border rounded-2xl px-5 py-4 shadow-sm flex flex-col gap-3 transition-shadow hover:shadow-md ${
-                  card.urgent && card.value > 0 ? "border-red-200 bg-gradient-to-b from-red-50/50 to-white ring-1 ring-inset ring-red-500/10" : "border-slate-200"
-                } ${isOrphan ? "col-span-2 sm:col-span-1" : ""}`}
+                className={`bg-white px-4 sm:px-5 py-4 ${isOrphan ? "col-span-2 sm:col-span-1" : ""} ${
+                  card.urgent && card.value > 0 ? "bg-[#FBEBEB]" : ""
+                }`}
               >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.urgent && card.value > 0 ? "bg-red-100" : "bg-slate-100"}`}>
-                  <Icon className={`w-4 h-4 ${card.urgent && card.value > 0 ? "text-red-600" : "text-slate-500"}`} />
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-black/55">{card.label}</p>
+                  <Icon className={`w-3.5 h-3.5 ${card.urgent && card.value > 0 ? "text-[#C1121F]" : "text-black/35"}`} strokeWidth={1.75} />
                 </div>
-                <div>
-                  <div className={`text-3xl font-black tabular-nums tracking-tight leading-none ${card.color}`}>{card.value}</div>
-                  <div className="text-[12px] text-slate-500 font-bold mt-1.5">{card.label}</div>
+                <div className={`text-[32px] sm:text-[36px] font-black tabular-nums tracking-tight leading-none ${
+                  card.urgent && card.value > 0 ? "text-[#C1121F]" : "text-[#0A0A0A]"
+                }`}>
+                  {card.value}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Performance row — today's revenue, win rate, avg job size */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Performance row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-black/10 border border-black/12">
           {(() => {
             const delta = todaysRevenue - yesterdaysRevenue;
             const up = delta >= 0;
             return (
-              <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow-md transition-shadow" data-testid="card-todays-revenue">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-100">
-                    <Wallet className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  <span className={`inline-flex items-center gap-0.5 text-[11px] font-bold ${up ? "text-emerald-600" : "text-red-600"}`}>
-                    {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    {yesterdaysRevenue > 0 ? `${up ? "+" : ""}${formatMoney(delta)}` : "—"}
-                  </span>
+              <div className="bg-white px-4 sm:px-5 py-4" data-testid="card-todays-revenue">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-black/55">Today's Revenue</p>
+                  <Wallet className="w-3.5 h-3.5 text-black/35" strokeWidth={1.75} />
                 </div>
-                <div className="text-2xl font-black text-slate-900 tabular-nums tracking-tight leading-none">{formatMoney(todaysRevenue)}</div>
-                <div className="text-[12px] text-slate-500 font-bold mt-1.5">Today's Revenue <span className="text-slate-400 font-medium">· yesterday {formatMoney(yesterdaysRevenue)}</span></div>
+                <div className="flex items-end gap-3">
+                  <p className="text-[32px] sm:text-[36px] font-black text-[#0A0A0A] tabular-nums tracking-tight leading-none">{formatMoney(todaysRevenue)}</p>
+                  {yesterdaysRevenue > 0 && (
+                    <span className={`inline-flex items-center gap-0.5 text-[10px] font-black uppercase tracking-[0.16em] mb-1 ${up ? "text-[#0A0A0A]" : "text-[#C1121F]"}`}>
+                      {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {up ? "+" : ""}{formatMoney(delta)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-black/45 font-bold uppercase tracking-[0.16em] mt-2">yesterday {formatMoney(yesterdaysRevenue)}</p>
               </div>
             );
           })()}
 
-          <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow-md transition-shadow" data-testid="card-win-rate">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-100">
-                <Target className="w-4 h-4 text-blue-600" />
-              </div>
-              <span className="text-[11px] font-bold text-slate-400 tabular-nums">{funnel.paid}/{funnel.submitted}</span>
+          <div className="bg-white px-4 sm:px-5 py-4" data-testid="card-win-rate">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-black/55">Win Rate</p>
+              <Target className="w-3.5 h-3.5 text-black/35" strokeWidth={1.75} />
             </div>
-            <div className="text-2xl font-black text-slate-900 tabular-nums tracking-tight leading-none">{winRate}%</div>
-            <div className="text-[12px] text-slate-500 font-bold mt-1.5">Win Rate <span className="text-slate-400 font-medium">· lead → paid</span></div>
+            <div className="flex items-end gap-3">
+              <p className="text-[32px] sm:text-[36px] font-black text-[#0A0A0A] tabular-nums tracking-tight leading-none">{winRate}%</p>
+              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-black/45 mb-1 tabular-nums">{funnel.paid} / {funnel.submitted}</span>
+            </div>
+            <p className="text-[10px] text-black/45 font-bold uppercase tracking-[0.16em] mt-2">lead → paid</p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow-md transition-shadow" data-testid="card-avg-job-size">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-violet-100">
-                <TrendingUp className="w-4 h-4 text-violet-600" />
-              </div>
-              <span className="text-[11px] font-bold text-slate-400 tabular-nums">{closedQuotes.length} jobs</span>
+          <div className="bg-white px-4 sm:px-5 py-4" data-testid="card-avg-job-size">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-black/55">Avg Job Size</p>
+              <TrendingUp className="w-3.5 h-3.5 text-black/35" strokeWidth={1.75} />
             </div>
-            <div className="text-2xl font-black text-slate-900 tabular-nums tracking-tight leading-none">{formatMoney(avgJobSize)}</div>
-            <div className="text-[12px] text-slate-500 font-bold mt-1.5">Avg Job Size <span className="text-slate-400 font-medium">· closed jobs</span></div>
+            <div className="flex items-end gap-3">
+              <p className="text-[32px] sm:text-[36px] font-black text-[#0A0A0A] tabular-nums tracking-tight leading-none">{formatMoney(avgJobSize)}</p>
+              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-black/45 mb-1 tabular-nums">{closedQuotes.length} jobs</span>
+            </div>
+            <p className="text-[10px] text-black/45 font-bold uppercase tracking-[0.16em] mt-2">closed jobs</p>
           </div>
         </div>
 
-        {/* Late jobs panel — scheduled before today but not closed */}
+        {/* Late jobs */}
         {lateJobs.length > 0 && (
-          <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm ring-1 ring-inset ring-red-500/10" data-testid="card-late-jobs">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-red-100 bg-red-50/40">
+          <Card className="border-[#C1121F]" data-testid="card-late-jobs">
+            <div className="flex items-center justify-between px-4 sm:px-5 h-12 border-b border-[#C1121F]/30 bg-[#FBEBEB]">
               <div className="flex items-center gap-2.5">
-                <Clock className="w-4 h-4 text-red-600" />
-                <h2 className="text-[14px] font-black text-red-800 tracking-tight">Late Jobs</h2>
-                <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full text-[11px] font-black bg-red-100 text-red-700 ring-1 ring-red-200">
+                <Clock className="w-3.5 h-3.5 text-[#C1121F]" />
+                <h2 className="text-[11px] font-black uppercase tracking-[0.18em] text-[#C1121F]">Late Jobs</h2>
+                <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-black tabular-nums bg-[#C1121F] text-white">
                   {lateJobs.length}
                 </span>
               </div>
-              <span className="text-[11px] font-bold text-red-600/80">scheduled but not completed</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C1121F]/70">scheduled · not completed</span>
             </div>
-            <div className="divide-y divide-red-100">
+            <div className="divide-y divide-[#C1121F]/15">
               {lateJobs.slice(0, 5).map((q: any) => (
                 <QuoteRow key={q.id} quote={q} />
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
-        {/* Conversion funnel — submitted → quoted → booked → paid */}
+        {/* Conversion funnel */}
         {funnel.submitted > 0 && (
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm" data-testid="card-funnel">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-blue-500" />
-                <h2 className="text-[14px] font-black text-slate-900 tracking-tight">Conversion Funnel</h2>
-              </div>
-              <span className="text-[11px] font-bold text-slate-500">last all-time · {funnel.submitted} leads</span>
-            </div>
-            <div className="px-5 py-4 space-y-2.5">
+          <Card data-testid="card-funnel">
+            <SectionHeader
+              icon={Target}
+              title="Conversion Funnel"
+              action={<span className="text-[10px] font-black uppercase tracking-[0.18em] text-black/55">all-time · {funnel.submitted} leads</span>}
+            />
+            <div className="px-4 sm:px-5 py-5 space-y-3.5">
               {[
-                { label: "Submitted",   value: funnel.submitted, color: "bg-slate-400",   prev: null as number | null },
-                { label: "Quoted",      value: funnel.quoted,    color: "bg-blue-500",    prev: funnel.submitted },
-                { label: "Booked",      value: funnel.booked,    color: "bg-violet-500",  prev: funnel.quoted },
-                { label: "Paid",        value: funnel.paid,      color: "bg-emerald-500", prev: funnel.booked },
+                { label: "Submitted", value: funnel.submitted, prev: null as number | null },
+                { label: "Quoted",    value: funnel.quoted,    prev: funnel.submitted },
+                { label: "Booked",    value: funnel.booked,    prev: funnel.quoted },
+                { label: "Paid",      value: funnel.paid,      prev: funnel.booked },
               ].map(step => {
                 const pct = funnel.submitted > 0 ? (step.value / funnel.submitted) * 100 : 0;
                 const dropPct = step.prev != null && step.prev > 0
                   ? Math.round(((step.prev - step.value) / step.prev) * 100)
                   : null;
                 return (
-                  <div key={step.label} className="space-y-1">
-                    <div className="flex items-center justify-between text-[12px] font-bold">
-                      <span className="text-slate-700">{step.label}</span>
-                      <span className="text-slate-900 tabular-nums">
+                  <div key={step.label} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-black uppercase tracking-[0.18em] text-[#0A0A0A]">{step.label}</span>
+                      <span className="font-black text-[#0A0A0A] tabular-nums">
                         {step.value}
                         {dropPct != null && dropPct > 0 && (
-                          <span className="ml-2 text-[10px] font-bold text-red-500">−{dropPct}%</span>
+                          <span className="ml-2 text-[10px] font-black text-[#C1121F]">−{dropPct}%</span>
                         )}
                       </span>
                     </div>
-                    <div className="relative h-2 rounded-full bg-slate-100 overflow-hidden">
-                      <div className={`absolute inset-y-0 left-0 ${step.color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                    <div className="relative h-1.5 bg-black/8 overflow-hidden">
+                      <div className="absolute inset-y-0 left-0 bg-[#0A0A0A] transition-all" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </Card>
         )}
 
-        {/* Outstanding commercial invoices (Net 30) */}
+        {/* Outstanding commercial invoices */}
         {outstandingInvoices && outstandingInvoices.count > 0 && (
-          <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm" data-testid="card-outstanding-invoices">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-orange-500" />
-                <h2 className="text-sm font-semibold text-zinc-900">Outstanding Invoices — Net 30</h2>
-                {outstandingInvoices.overdueCount > 0 && (
-                  <span
-                    className="ml-1 inline-flex items-center h-5 px-2 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-700"
-                    data-testid="badge-overdue-count"
-                  >
-                    {outstandingInvoices.overdueCount} overdue
+          <Card data-testid="card-outstanding-invoices">
+            <SectionHeader
+              icon={FileText}
+              title="Outstanding Invoices · Net 30"
+              action={
+                <div className="flex items-center gap-3">
+                  {outstandingInvoices.overdueCount > 0 && (
+                    <Pill tone="urgent" data-testid="badge-overdue-count">{outstandingInvoices.overdueCount} overdue</Pill>
+                  )}
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0A0A0A]" data-testid="text-total-due">
+                    {formatMoney(outstandingInvoices.totalDue)} due
                   </span>
-                )}
-              </div>
-              <span className="text-xs font-bold text-orange-600" data-testid="text-total-due">
-                {formatMoney(outstandingInvoices.totalDue)} due
-              </span>
-            </div>
-            <div className="divide-y divide-zinc-100">
+                </div>
+              }
+            />
+            <div className="divide-y divide-black/8">
               {outstandingInvoices.items.map((inv) => {
-                const bucketClass =
-                  inv.bucket === "overdue"  ? "border-l-red-500 bg-red-50/40" :
-                  inv.bucket === "due_soon" ? "border-l-amber-500 bg-amber-50/40" :
-                                              "border-l-zinc-200";
+                const accentClass =
+                  inv.bucket === "overdue"  ? "border-l-[#C1121F] bg-[#FBEBEB]/60" :
+                  inv.bucket === "due_soon" ? "border-l-[#0A0A0A] bg-[#EBE9E2]/40" :
+                                              "border-l-black/15 bg-white";
                 const daysLabel =
                   inv.bucket === "overdue"
                     ? `${inv.daysOutstanding - 30}d overdue`
@@ -588,141 +555,133 @@ export default function AdminDashboard() {
                       ? "Due today"
                       : `Due in ${inv.daysUntilDue}d`;
                 const daysClass =
-                  inv.bucket === "overdue"  ? "text-red-700" :
-                  inv.bucket === "due_soon" ? "text-amber-700" :
-                                              "text-zinc-500";
+                  inv.bucket === "overdue"  ? "text-[#C1121F]" :
+                  inv.bucket === "due_soon" ? "text-[#0A0A0A]" :
+                                              "text-black/55";
                 return (
                   <Link key={inv.id} href={`/admin/quotes/${inv.id}`}>
                     <a
-                      className={`flex items-center gap-3 px-4 py-3.5 border-l-4 hover:bg-zinc-50 transition-colors cursor-pointer ${bucketClass}`}
+                      className={`flex items-center gap-3 px-4 py-3.5 border-l-[3px] hover:bg-[#EBE9E2] transition-colors cursor-pointer ${accentClass}`}
                       data-testid={`row-outstanding-invoice-${inv.id}`}
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <p className="text-sm font-bold text-zinc-900 truncate">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <p className="text-[12px] font-black uppercase tracking-[0.06em] text-[#0A0A0A] truncate">
                             {inv.companyName || inv.customerName || "—"}
                           </p>
-                          <span className="text-[11px] font-mono font-semibold text-zinc-500 shrink-0">
+                          <span className="text-[10px] font-mono font-semibold text-[#0A0A0A]/65 shrink-0">
                             {inv.referenceNo}
                           </span>
                           {inv.poNumber && (
-                            <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 rounded px-1.5 py-0.5 shrink-0">
-                              PO {inv.poNumber}
-                            </span>
+                            <Pill tone="stone">PO {inv.poNumber}</Pill>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 text-[11px] text-zinc-500">
-                          <span className={`font-bold ${daysClass}`} data-testid={`text-days-${inv.id}`}>{daysLabel}</span>
-                          <span>·</span>
-                          <span>Sent {inv.daysOutstanding}d ago</span>
+                        <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.14em]">
+                          <span className={`${daysClass}`} data-testid={`text-days-${inv.id}`}>{daysLabel}</span>
+                          <span className="text-black/35">·</span>
+                          <span className="text-black/55">Sent {inv.daysOutstanding}d ago</span>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-sm font-black tabular-nums text-zinc-900">{formatMoney(inv.total)}</p>
-                        <p className="text-[10px] text-zinc-400 font-semibold">Due {format(new Date(inv.dueDate + "T12:00:00"), "d MMM")}</p>
+                        <p className="text-[14px] font-black tabular-nums text-[#0A0A0A]">{formatMoney(inv.total)}</p>
+                        <p className="text-[10px] text-black/45 font-bold uppercase tracking-[0.14em] mt-0.5">Due {format(new Date(inv.dueDate + "T12:00:00"), "d MMM")}</p>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-zinc-300" />
+                      <ChevronRight className="w-3.5 h-3.5 text-black/25" />
                     </a>
                   </Link>
                 );
               })}
             </div>
-          </div>
+          </Card>
         )}
 
-        {/* Revenue trend chart */}
-        <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
-              <h2 className="text-sm font-semibold text-zinc-900">Revenue — Last 12 Weeks</h2>
-            </div>
-            <span className="text-xs font-bold text-emerald-600">{formatMoney(totalRevenue)} collected</span>
-          </div>
-          <div className="px-2 pt-3 pb-1">
+        {/* Revenue trend */}
+        <Card>
+          <SectionHeader
+            icon={TrendingUp}
+            title="Revenue · Last 12 Weeks"
+            action={<span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0A0A0A] tabular-nums">{formatMoney(totalRevenue)} collected</span>}
+          />
+          <div className="px-2 pt-4 pb-2">
             {revenueChartData.every(d => d.revenue === 0) ? (
-              <div className="h-24 flex items-center justify-center text-xs text-zinc-400">No completed jobs yet</div>
+              <div className="h-24 flex items-center justify-center text-[10px] font-black uppercase tracking-[0.18em] text-black/35">No completed jobs yet</div>
             ) : (
-              <ResponsiveContainer width="100%" height={90}>
-                <AreaChart data={revenueChartData} margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
+              <ResponsiveContainer width="100%" height={110}>
+                <AreaChart data={revenueChartData} margin={{ top: 4, right: 12, left: 4, bottom: 0 }}>
                   <defs>
                     <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.18}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      <stop offset="5%"  stopColor="#0A0A0A" stopOpacity={0.18}/>
+                      <stop offset="95%" stopColor="#0A0A0A" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                  <XAxis dataKey="week" tick={{ fontSize: 9, fill: "#9ca3af" }} tickLine={false} axisLine={false} interval={1} />
+                  <CartesianGrid strokeDasharray="2 2" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                  <XAxis dataKey="week" tick={{ fontSize: 9, fill: "#0A0A0A99", fontWeight: 700 }} tickLine={false} axisLine={false} interval={1} />
                   <YAxis hide />
                   <Tooltip
-                    contentStyle={{ fontSize: 11, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8 }}
+                    contentStyle={{ fontSize: 11, background: "#fff", border: "1px solid #0A0A0A", borderRadius: 0, fontWeight: 700 }}
                     formatter={(v: any, name: string) => [
                       name === "revenue" ? `$${Number(v).toLocaleString()}` : v,
                       name === "revenue" ? "Revenue" : "Jobs",
                     ]}
                   />
-                  <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} fill="url(#revGrad)" dot={false} />
+                  <Area type="monotone" dataKey="revenue" stroke="#0A0A0A" strokeWidth={1.5} fill="url(#revGrad)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-black/40" strokeWidth={1.75} />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name, ref no, address, phone…"
+            placeholder="SEARCH BY NAME, REF NO, ADDRESS, PHONE…"
             data-testid="input-quote-search"
-            className="h-10 w-full pl-10 pr-10 border border-zinc-300 rounded-xl text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm"
+            className="h-11 w-full pl-10 pr-10 border border-black/20 bg-white text-[11px] font-bold uppercase tracking-[0.08em] text-[#0A0A0A] placeholder:text-black/35 placeholder:font-black placeholder:tracking-[0.16em] focus:outline-none focus:border-[#0A0A0A] transition-colors"
           />
           {isSearching && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-black/45 hover:text-[#0A0A0A]"
               data-testid="button-clear-search"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        {/* Search results */}
+        {/* Search results / panels */}
         {isSearching ? (
-          <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="flex items-center justify-between px-4 py-3.5 border-b border-zinc-100">
-              <h2 className="text-sm font-semibold text-zinc-900">Search Results</h2>
-              <span className="text-xs font-semibold text-zinc-500">{searchResults.length} found</span>
-            </div>
+          <Card>
+            <SectionHeader
+              title="Search Results"
+              action={<span className="text-[10px] font-black uppercase tracking-[0.18em] text-black/55 tabular-nums">{searchResults.length} found</span>}
+            />
             {searchResults.length > 0 ? (
-              <div>
+              <div className="divide-y divide-black/8">
                 {searchResults.map((q: any) => <QuoteRow key={q.id} quote={q} />)}
               </div>
             ) : (
-              <div className="py-14 flex flex-col items-center gap-2 text-zinc-400">
-                <Search className="w-8 h-8 text-zinc-300" />
-                <p className="text-sm font-medium">No results for "{search}"</p>
-              </div>
+              <EmptyState icon={Search} title="No results" hint={`Nothing matches "${search}"`} />
             )}
-          </div>
+          </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
 
-            {/* Action required */}
             {(newQuotes.length > 0 || awaitingPayment.length > 0) && (
               <Panel
                 title="Action Required"
                 badge={urgentCount}
                 badgeUrgent
+                accentRed
                 quotes={[...newQuotes, ...awaitingPayment]}
                 emptyMsg="Nothing needs attention"
                 emptyIcon={ClipboardList}
               />
             )}
 
-            {/* Today's schedule */}
             {todayJobs.length > 0 && (
               <Panel
                 title="Today's Jobs"
@@ -733,7 +692,6 @@ export default function AdminDashboard() {
               />
             )}
 
-            {/* Active jobs */}
             {activeJobs.length > 0 && (
               <Panel
                 title="Active / In Progress"
@@ -744,7 +702,6 @@ export default function AdminDashboard() {
               />
             )}
 
-            {/* Upcoming booked */}
             <Panel
               title="Upcoming Bookings"
               badge={upcomingBooked.length}
@@ -753,7 +710,6 @@ export default function AdminDashboard() {
               emptyIcon={CalendarCheck}
             />
 
-            {/* Awaiting deposit */}
             <Panel
               title="Awaiting Deposit"
               badge={awaitingDeposit.length}
@@ -762,7 +718,6 @@ export default function AdminDashboard() {
               emptyIcon={DollarSign}
             />
 
-            {/* Recently closed */}
             {recentlyClosed.length > 0 && (
               <Panel
                 title="Recently Closed"
@@ -777,44 +732,45 @@ export default function AdminDashboard() {
             {/* Danger zone */}
             <div className="pt-4 pb-2">
               {!showClearConfirm ? (
-                <button
+                <Button
+                  variant="outline"
+                  icon={Trash2}
+                  size="sm"
                   onClick={() => setShowClearConfirm(true)}
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
                   data-testid="button-clear-all-data"
+                  className="!text-[#C1121F] !border-[#C1121F]/30 hover:!border-[#C1121F] hover:!bg-[#FBEBEB]"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
                   Clear all job data
-                </button>
+                </Button>
               ) : (
-                <div className="flex flex-wrap items-center gap-3 p-4 bg-white border border-red-200 rounded-2xl shadow-sm">
-                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-                  <p className="text-sm text-zinc-900 font-semibold flex-1 min-w-0">Delete ALL quotes & data permanently?</p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => clearAllMutation.mutate()}
-                      disabled={clearAllMutation.isPending}
-                      className="h-9 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors disabled:opacity-50"
-                    >
-                      {clearAllMutation.isPending ? "Deleting…" : "Delete Everything"}
-                    </button>
-                    <button
-                      onClick={() => setShowClearConfirm(false)}
-                      className="h-9 px-4 rounded-xl border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs font-semibold transition-colors"
-                    >
-                      Cancel
-                    </button>
+                <Card className="border-[#C1121F]">
+                  <div className="flex flex-wrap items-center gap-3 p-4 bg-[#FBEBEB]">
+                    <AlertCircle className="w-4 h-4 text-[#C1121F] shrink-0" />
+                    <p className="text-[12px] font-black uppercase tracking-[0.08em] text-[#0A0A0A] flex-1 min-w-0">Delete ALL quotes & data permanently?</p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => clearAllMutation.mutate()}
+                        disabled={clearAllMutation.isPending}
+                      >
+                        {clearAllMutation.isPending ? "Deleting…" : "Delete Everything"}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setShowClearConfirm(false)}>
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                </Card>
               )}
             </div>
 
           </div>
         )}
-      </div>
+      </PageBody>
 
-      {/* Quick New Job modal */}
       <CreateJobModal open={showNewJob} onClose={() => setShowNewJob(false)} />
       <PhoneCallIntakeModal open={showPhoneCall} onClose={() => setShowPhoneCall(false)} />
-    </div>
+    </PageShell>
   );
 }

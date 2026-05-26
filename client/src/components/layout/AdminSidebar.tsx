@@ -4,13 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Calendar, MessageCircle, Users, Receipt,
   BarChart2, FileDown, Settings, HelpCircle, LogOut,
-  AlertCircle, Smartphone, X, Share, MoreHorizontal, Search, Truck, Bot, Handshake,
+  Smartphone, X, Share, Search, Truck, Bot, Handshake,
 } from "lucide-react";
 import { useAdminManifest, useAdminInstallPrompt } from "@/hooks/use-admin-pwa";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
-const AVATAR_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#14b8a6"];
-function avatarColor(id: number) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
 
 function NavItem({
   href, icon: Icon, label, badge, active, urgent,
@@ -21,22 +19,23 @@ function NavItem({
     <Link href={href}>
       <div
         data-testid={`sidebar-nav-${label.toLowerCase().replace(/[\s&]+/g, "_")}`}
-        className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all group select-none mb-0.5 ${
+        className={`relative flex items-center gap-3 px-3 h-10 cursor-pointer transition-colors group select-none ${
           active
-            ? "bg-blue-500/10 text-blue-400 ring-1 ring-inset ring-blue-500/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
-            : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+            ? "bg-[#0A0A0A] text-white"
+            : "text-[#0A0A0A]/65 hover:text-[#0A0A0A] hover:bg-black/5"
         }`}
       >
-        {active && (
-          <span className="absolute left-0 inset-y-2 w-1 bg-blue-500 rounded-r-full shadow-[0_0_10px_rgba(59,130,246,0.6)]" />
-        )}
-        <Icon className={`w-[18px] h-[18px] shrink-0 transition-colors ${active ? "text-blue-400" : "text-slate-500 group-hover:text-slate-300"}`} />
-        <span className={`flex-1 text-[13px] tracking-wide ${active ? "font-semibold text-white" : "font-medium"}`}>
+        <Icon className={`w-[16px] h-[16px] shrink-0 ${active ? "text-white" : "text-[#0A0A0A]/55 group-hover:text-[#0A0A0A]"}`} strokeWidth={1.75} />
+        <span className={`flex-1 text-[11px] uppercase tracking-[0.16em] ${active ? "font-black text-white" : "font-bold"}`}>
           {label}
         </span>
         {badge != null && badge > 0 && (
-          <span className={`min-w-[20px] h-[20px] px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center leading-none ${
-            urgent ? "bg-red-500 text-white shadow-[0_0_8px_rgba(239,68,68,0.5)]" : active ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-200"
+          <span className={`min-w-[18px] h-[18px] px-1.5 text-[10px] font-black tabular-nums flex items-center justify-center leading-none ${
+            urgent
+              ? "bg-[#C1121F] text-white"
+              : active
+                ? "bg-white text-[#0A0A0A]"
+                : "bg-[#0A0A0A] text-white"
           }`}>
             {badge > 99 ? "99+" : badge}
           </span>
@@ -48,7 +47,7 @@ function NavItem({
 
 function SectionLabel({ children }: { children: string }) {
   return (
-    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500/80 px-3 pt-6 pb-2.5 first:pt-3">
+    <p className="text-[9px] font-black uppercase tracking-[0.28em] text-black/45 px-3 pt-5 pb-2 first:pt-3">
       {children}
     </p>
   );
@@ -60,44 +59,51 @@ export function AdminSidebar() {
   useAdminManifest();
   const { show: showInstall, dismiss: dismissInstall } = useAdminInstallPrompt();
 
-  const { data: allQuotes = [] } = useQuery<any[]>({ queryKey: ["/api/quotes"] });
-  const { data: pendingAmendments = [] } = useQuery<any[]>({
+  const { data: allQuotesRaw } = useQuery<any[]>({ queryKey: ["/api/quotes"] });
+  const { data: pendingAmendmentsRaw } = useQuery<any[]>({
     queryKey: ["/api/admin/attendance/amendments"],
-    select: (d) => (d as any[]).filter((a: any) => a.status === "pending"),
+    select: (d: any) => (Array.isArray(d) ? d.filter((a: any) => a.status === "pending") : []),
   });
-  const { data: pendingLeave = [] } = useQuery<any[]>({
+  const { data: pendingLeaveRaw } = useQuery<any[]>({
     queryKey: ["/api/admin/leave", "pending"],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/admin/leave?status=pending`, { credentials: "include" });
+      if (!res.ok) return [];
       return res.json();
     },
   });
-  const { data: convos = [] } = useQuery<any[]>({
+  const { data: convosRaw } = useQuery<any[]>({
     queryKey: ["/api/admin/whatsapp/conversations"],
     refetchInterval: 8_000,
     refetchIntervalInBackground: true,
   });
-  const { data: pendingReceipts = [] } = useQuery<any[]>({
+  const { data: pendingReceiptsRaw } = useQuery<any[]>({
     queryKey: ["/api/admin/receipts", "", "", ""],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/admin/receipts`, { credentials: "include" });
+      if (!res.ok) return [];
       return res.json();
     },
-    select: (d: any[]) => d.filter((r: any) => r.status === "pending"),
+    select: (d: any) => (Array.isArray(d) ? d.filter((r: any) => r.status === "pending") : []),
     refetchInterval: 60_000,
   });
 
   if (!location.startsWith("/admin") || location === "/admin/login") return null;
 
-  const quotes = allQuotes as any[];
-  const newCount = quotes.filter(q => ["submitted", "under_review"].includes(q.status)).length;
-  const scheduleCount = quotes.filter(q => ["deposit_paid", "booked"].includes(q.status)).length;
-  const urgentPayment = quotes.filter(q => ["completed", "final_payment_requested"].includes(q.status)).length;
-  const staffBadge = (pendingAmendments as any[]).length + (pendingLeave as any[]).length;
-  const waBadge = ((convos as any[]) ?? []).reduce((s: number, c: any) => s + (c.unreadCount || 0), 0);
-  const pausedCount = ((convos as any[]) ?? []).filter((c: any) => c.botPaused).length;
-  const receiptsBadge = (pendingReceipts as any[]).length;
-  const dashBadge = newCount + urgentPayment;
+  const quotes:           any[] = Array.isArray(allQuotesRaw)          ? allQuotesRaw          : [];
+  const pendingAmendments:any[] = Array.isArray(pendingAmendmentsRaw)  ? pendingAmendmentsRaw  : [];
+  const pendingLeave:     any[] = Array.isArray(pendingLeaveRaw)       ? pendingLeaveRaw       : [];
+  const convos:           any[] = Array.isArray(convosRaw)             ? convosRaw             : [];
+  const pendingReceipts:  any[] = Array.isArray(pendingReceiptsRaw)    ? pendingReceiptsRaw    : [];
+
+  const newCount       = quotes.filter(q => ["submitted", "under_review"].includes(q.status)).length;
+  const scheduleCount  = quotes.filter(q => ["deposit_paid", "booked"].includes(q.status)).length;
+  const urgentPayment  = quotes.filter(q => ["completed", "final_payment_requested"].includes(q.status)).length;
+  const staffBadge     = pendingAmendments.length + pendingLeave.length;
+  const waBadge        = convos.reduce((s: number, c: any) => s + (c.unreadCount || 0), 0);
+  const pausedCount    = convos.filter((c: any) => c.botPaused).length;
+  const receiptsBadge  = pendingReceipts.length;
+  const dashBadge      = newCount + urgentPayment;
 
   function isActive(href: string) {
     if (href === "/admin") return location === "/admin";
@@ -105,14 +111,13 @@ export function AdminSidebar() {
   }
 
   const initials = user?.name?.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
-  const bgColor = user?.id ? avatarColor(user.id) : "#6366f1";
 
   return (
     <aside
-      className="hidden lg:flex fixed top-14 left-0 bottom-0 w-56 z-40 flex-col bg-[#0B0F19] border-r border-white/5 shadow-[4px_0_24px_rgba(0,0,0,0.2)]"
+      className="hidden lg:flex fixed top-14 left-0 bottom-0 w-56 z-40 flex-col bg-[#F5F4F0] border-r border-black/15"
       data-testid="admin-sidebar"
     >
-      <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0">
+      <nav className="flex-1 overflow-y-auto py-2">
 
         <SectionLabel>Operations</SectionLabel>
         <NavItem href="/admin"               icon={LayoutDashboard} label="Dashboard"   active={isActive("/admin")}              badge={dashBadge}             urgent={dashBadge > 0} />
@@ -122,7 +127,7 @@ export function AdminSidebar() {
         <SectionLabel>Finance</SectionLabel>
         <NavItem href="/admin/receipts"      icon={Receipt}         label="Receipts"    active={isActive("/admin/receipts")}    badge={receiptsBadge}         urgent={receiptsBadge > 0} />
         <NavItem href="/admin/ggv-jobs"      icon={Truck}           label="GGV Jobs"    active={isActive("/admin/ggv-jobs")} />
-        <NavItem href="/admin/subcontractors" icon={Handshake}       label="Subcons"     active={isActive("/admin/subcontractors")} />
+        <NavItem href="/admin/subcontractors" icon={Handshake}      label="Subcons"     active={isActive("/admin/subcontractors")} />
 
         <SectionLabel>People</SectionLabel>
         <NavItem href="/admin/staff"         icon={Users}           label="Staff & HR"  active={isActive("/admin/staff")}       badge={staffBadge}            urgent={staffBadge > 0} />
@@ -142,50 +147,41 @@ export function AdminSidebar() {
       </nav>
 
       {showInstall && (
-        <div className="shrink-0 mx-2 mb-2 rounded-xl bg-blue-500/10 border border-blue-500/20 p-3">
+        <div className="shrink-0 mx-2 mb-2 bg-white border border-black/15 p-3">
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
-              <Smartphone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span className="text-xs font-semibold text-blue-300">Add to Home Screen</span>
+              <Smartphone className="w-3 h-3 text-[#0A0A0A] shrink-0" />
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0A0A0A]">Add to Home</span>
             </div>
-            <button onClick={dismissInstall} className="text-slate-500 hover:text-slate-300 transition-colors" data-testid="pwa-dismiss">
+            <button onClick={dismissInstall} className="text-black/45 hover:text-[#0A0A0A] transition-colors" data-testid="pwa-dismiss">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-          <p className="text-[10px] text-slate-400 leading-relaxed mb-2.5">
-            Install TMG Admin as an app on your iPhone for quick access.
-          </p>
           <ol className="space-y-1.5">
-            <li className="flex items-center gap-2 text-[10px] text-slate-400">
-              <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[9px] font-bold shrink-0">1</span>
-              Tap <Share className="w-3 h-3 text-blue-400 inline mx-0.5" /> Share in Safari
+            <li className="flex items-center gap-2 text-[10px] text-black/65 font-medium">
+              <span className="w-4 h-4 bg-[#0A0A0A] text-white flex items-center justify-center text-[9px] font-black shrink-0">1</span>
+              Tap <Share className="w-3 h-3 inline mx-0.5" /> Share in Safari
             </li>
-            <li className="flex items-center gap-2 text-[10px] text-slate-400">
-              <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[9px] font-bold shrink-0">2</span>
-              Tap <span className="text-blue-300 font-medium">"Add to Home Screen"</span>
+            <li className="flex items-center gap-2 text-[10px] text-black/65 font-medium">
+              <span className="w-4 h-4 bg-[#0A0A0A] text-white flex items-center justify-center text-[9px] font-black shrink-0">2</span>
+              <span>"Add to Home Screen"</span>
             </li>
-            <li className="flex items-center gap-2 text-[10px] text-slate-400">
-              <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[9px] font-bold shrink-0">3</span>
-              Tap <span className="text-blue-300 font-medium">"Add"</span> — done!
+            <li className="flex items-center gap-2 text-[10px] text-black/65 font-medium">
+              <span className="w-4 h-4 bg-[#0A0A0A] text-white flex items-center justify-center text-[9px] font-black shrink-0">3</span>
+              <span>Tap "Add" — done</span>
             </li>
           </ol>
         </div>
       )}
 
-      <div className="shrink-0 border-t border-white/5 p-4 space-y-2 bg-gradient-to-t from-black/20 to-transparent">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 shadow-sm">
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ring-2 ring-white/10"
-            style={{ backgroundColor: bgColor }}
-          >
+      <div className="shrink-0 border-t border-black/12 p-3 space-y-2 bg-white">
+        <div className="flex items-center gap-3 px-2 py-2">
+          <div className="w-8 h-8 flex items-center justify-center bg-[#0A0A0A] text-white text-[10px] font-black tracking-wider shrink-0">
             {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-bold text-slate-100 truncate leading-tight">{user?.name}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shrink-0 shadow-[0_0_4px_rgba(52,211,153,0.8)]" />
-              <span className="text-[10px] text-slate-400 font-semibold tracking-wide uppercase">Online</span>
-            </div>
+            <p className="text-[12px] font-black text-[#0A0A0A] truncate leading-tight uppercase tracking-wider">{user?.name}</p>
+            <p className="text-[9px] text-black/55 font-bold uppercase tracking-[0.2em] mt-0.5">Online</p>
           </div>
         </div>
         <button
@@ -194,9 +190,9 @@ export function AdminSidebar() {
             window.location.replace("/admin/login");
           }}
           data-testid="sidebar-signout"
-          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
+          className="w-full flex items-center justify-center gap-2 h-9 text-[10px] font-black uppercase tracking-[0.18em] text-[#0A0A0A]/70 hover:text-white hover:bg-[#0A0A0A] border border-black/20 hover:border-[#0A0A0A] transition-colors"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-3 h-3" />
           Sign out
         </button>
       </div>
