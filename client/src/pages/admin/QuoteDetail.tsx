@@ -1602,9 +1602,39 @@ export default function AdminQuoteDetail() {
  .tnc li { break-inside: avoid; }
  thead { display: table-header-group; }
  }
+ /* On-screen toolbar — gives the user a clear way back after the print dialog
+    closes. Hidden during the actual print so it never appears in the PDF. */
+ .print-toolbar {
+   position: sticky; top: 0; left: 0; right: 0; z-index: 9999;
+   display: flex; align-items: center; justify-content: space-between;
+   gap: 10px; padding: 10px 16px;
+   background: #0A0A0A; color: #fff;
+   font: 600 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+   letter-spacing: 0.08em; text-transform: uppercase;
+   box-shadow: 0 1px 0 rgba(255,255,255,0.06);
+ }
+ .print-toolbar .pt-title { opacity: 0.65; font-size: 10px; letter-spacing: 0.18em; }
+ .print-toolbar .pt-actions { display: flex; gap: 8px; }
+ .print-toolbar button {
+   appearance: none; border: 1px solid rgba(255,255,255,0.25);
+   background: transparent; color: #fff;
+   padding: 8px 14px; font: inherit;
+   cursor: pointer; transition: background 0.15s ease;
+ }
+ .print-toolbar button:hover { background: rgba(255,255,255,0.10); }
+ .print-toolbar button.pt-primary { background: #fff; color: #0A0A0A; border-color: #fff; }
+ .print-toolbar button.pt-primary:hover { background: #EBE9E2; }
+ @media print { .print-toolbar { display: none !important; } }
  </style>
 </head>
 <body>
+ <div class="print-toolbar" role="toolbar" aria-label="Document toolbar">
+   <span class="pt-title">${esc(docType)} · ${esc(q.referenceNo || "")}</span>
+   <span class="pt-actions">
+     <button type="button" onclick="window.print()">Print / Save PDF</button>
+     <button type="button" class="pt-primary" onclick="window.close(); setTimeout(function(){ try{ history.back(); }catch(e){} }, 100);">Close ✕</button>
+   </span>
+ </div>
  <div class="doc-body">
 
  <!-- Letterhead — three-column accounting-stationery masthead -->
