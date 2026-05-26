@@ -2245,36 +2245,44 @@ export default function AdminConversations() {
  </div>
  </div>
 
- {/* Filter Tabs */}
- <div className="px-3 py-2 border-b border-zinc-100">
- <div className="flex gap-1 bg-zinc-100 rounded-lg p-1">
- {(["all", "unread", "active", "escalation", "submitted"] as const).map(f => (
+ {/* Filter Tabs — Yeezy flat, ink-underline for active, urgent red for attention */}
+ <div className="px-3 pt-2 pb-0 border-b border-black/10 bg-white">
+ <div className="flex gap-0">
+ {(["all", "unread", "active", "escalation", "submitted"] as const).map(f => {
+ const isActive = filter === f;
+ const isUrgent = f === "escalation" && totalEscalation > 0;
+ return (
  <button
  key={f}
  onClick={() => setFilter(f)}
- className={`flex-1 text-[10px] font-semibold py-1 rounded-md capitalize transition-all relative ${
- filter === f
- ? f === "escalation"
- ? "bg-red-50 text-red-700 border border-red-200"
- : "bg-white text-zinc-900 border border-zinc-200"
- : f === "escalation" && totalEscalation > 0
- ? "text-red-500 hover:text-red-700"
- : "text-zinc-500 hover:text-zinc-700"
+ className={`flex-1 text-[11px] font-bold uppercase tracking-wider py-2 transition-colors relative ${
+ isActive
+ ? isUrgent
+ ? "text-[#C1121F]"
+ : "text-[#0A0A0A]"
+ : isUrgent
+ ? "text-[#C1121F]/70 hover:text-[#C1121F]"
+ : "text-[#0A0A0A]/45 hover:text-[#0A0A0A]"
  }`}
  data-testid={`filter-${f}`}
  >
  {f === "escalation" ? (
- <span className="flex items-center justify-center gap-0.5">
- <AlertCircle className="w-2.5 h-2.5 flex-shrink-0" />
- {totalEscalation > 0 ? totalEscalation : ""}
+ <span className="inline-flex items-center justify-center gap-1">
+ <AlertCircle className="w-3 h-3 flex-shrink-0" />
+ <span>{totalEscalation > 0 ? totalEscalation : "0"}</span>
  </span>
  ) : f === "unread" && totalUnread > 0 ? (
- `Unread (${totalUnread})`
+ `Unread · ${totalUnread}`
  ) : (
  f.charAt(0).toUpperCase() + f.slice(1)
  )}
+ {/* Active underline */}
+ <span className={`absolute left-2 right-2 -bottom-px h-0.5 transition-opacity ${
+ isActive ? (isUrgent ? "bg-[#C1121F] opacity-100" : "bg-[#0A0A0A] opacity-100") : "opacity-0"
+ }`} />
  </button>
- ))}
+ );
+ })}
  </div>
  </div>
 

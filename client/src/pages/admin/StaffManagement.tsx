@@ -395,72 +395,88 @@ function StaffRow({ staff, teams, onAssign, onUnassign, onDelete, onPaySettings,
  const hourly = parseFloat(staff.hourlyRate || "0");
  const hasPayConfig = monthly > 0 || hourly > 0;
  const missingDetails = !staff.phone && !staff.nricFin;
+ const initial = staff.name.charAt(0).toUpperCase();
 
  return (
- <div className="px-5 py-4 border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors">
- <div className="flex items-center justify-between gap-4">
- <div className="flex items-center gap-3 min-w-0 flex-1">
- <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-semibold text-zinc-600 shrink-0">
- {staff.name.charAt(0).toUpperCase()}
+ <div className="px-5 py-4 border-b border-black/10 last:border-0 hover:bg-[#F5F4F0] transition-colors" data-testid={`staff-row-${staff.id}`}>
+ <div className="flex items-start justify-between gap-4">
+ <div className="flex items-start gap-3 min-w-0 flex-1">
+ {/* Ink avatar — flat, square-ish to match Yeezy aesthetic */}
+ <div className="w-11 h-11 rounded-none bg-[#0A0A0A] flex items-center justify-center text-base font-extrabold text-white shrink-0">
+ {initial}
  </div>
- <div className="min-w-0">
- <p className="text-sm font-medium text-zinc-900 truncate">{staff.name}</p>
- <div className="flex items-center gap-2 text-xs text-zinc-500 mt-0.5">
+ <div className="min-w-0 flex-1">
+ <p className="text-[15px] font-bold text-[#0A0A0A] truncate leading-tight">{staff.name}</p>
+ <div className="flex items-center gap-2 text-[11px] text-[#0A0A0A]/55 mt-0.5 font-medium">
  <span>@{staff.username}</span>
  {(staff.phone || staff.email) && (
  <>
- <span>•</span>
+ <span className="text-[#0A0A0A]/30">•</span>
  <span className="truncate">{[staff.phone, staff.email].filter(Boolean).join(" · ")}</span>
  </>
  )}
  </div>
- <div className="flex items-center gap-2 mt-2 flex-wrap">
+
+ {/* Status pills row */}
+ <div className="flex items-center gap-1.5 mt-2 flex-wrap">
  {team ? (
- <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap"
- style={{ backgroundColor: team.color + "1A", color: team.color }}>
+ <span className="inline-flex items-center rounded-none px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap border"
+ style={{ backgroundColor: team.color + "1A", color: team.color, borderColor: team.color + "44" }}>
  {team.name}
  </span>
  ) : (
- <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-zinc-100 text-zinc-600">
+ <span className="inline-flex items-center rounded-none px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap bg-[#EBE9E2] text-[#0A0A0A] border border-black/15">
  Unassigned
  </span>
  )}
- {hasPayConfig && (
- <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-emerald-50 text-emerald-700">
+ {hasPayConfig ? (
+ <span className="inline-flex items-center gap-1 rounded-none px-2 py-0.5 text-[10px] font-bold whitespace-nowrap bg-white text-[#0A0A0A] border border-black/15">
  <DollarSign className="w-3 h-3" />
  {monthly > 0 ? `S$${monthly.toFixed(0)}/mo` : `S$${hourly.toFixed(2)}/hr`}
  </span>
+ ) : (
+ <span className="inline-flex items-center rounded-none px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap bg-[#FBEBEB] text-[#C1121F] border border-[#C1121F]/20">
+ No pay set
+ </span>
  )}
  {missingDetails && (
- <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-amber-50 text-amber-700">
+ <span className="inline-flex items-center gap-1 rounded-none px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap bg-[#FBEBEB] text-[#C1121F] border border-[#C1121F]/20">
+ <AlertCircle className="w-3 h-3" />
  Profile incomplete
  </span>
  )}
+ </div>
+
+ {/* Team assignment selector — dedicated row so it doesn't crowd the pills */}
+ <div className="mt-2">
  <select onChange={e => { if (e.target.value === "__unassign__") onUnassign(); else if (e.target.value) onAssign(parseInt(e.target.value)); e.target.value = ""; }}
- className="h-6 pl-1.5 pr-6 text-[11px] border border-zinc-200 rounded-md bg-white text-zinc-600 outline-none focus:ring-1 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] max-w-[90px]"
+ className="h-7 pl-2 pr-7 text-[11px] font-semibold border border-black/15 rounded-none bg-white text-[#0A0A0A] outline-none focus:ring-1 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] max-w-[140px]"
  defaultValue=""
  data-testid={`select-assign-team-${staff.id}`}>
- <option value="" disabled>{staff.teamId ? "Move…" : "Assign…"}</option>
- {staff.teamId && <option value="__unassign__">— Remove</option>}
+ <option value="" disabled>{staff.teamId ? "Move to team…" : "Assign to team…"}</option>
+ {staff.teamId && <option value="__unassign__">— Remove from team</option>}
  {teams.filter((t: any) => t.id !== staff.teamId).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
  </select>
  </div>
  </div>
  </div>
- 
- <div className="flex items-center gap-1 shrink-0">
+
+ {/* Action cluster — ink icons, flat rounded-none to match Yeezy */}
+ <div className="flex items-center gap-0 shrink-0 border border-black/10 rounded-none bg-white">
  <button onClick={onEdit} title="Edit account"
- className="inline-flex items-center justify-center w-8 h-8 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+ className="inline-flex items-center justify-center w-9 h-9 text-[#0A0A0A] hover:bg-[#0A0A0A] hover:text-white transition-colors"
  data-testid={`button-edit-staff-${staff.id}`}>
  <Pencil className="w-4 h-4" />
  </button>
+ <div className="w-px h-5 bg-black/10" />
  <button onClick={onPaySettings} title="Pay settings"
- className="inline-flex items-center justify-center w-8 h-8 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+ className="inline-flex items-center justify-center w-9 h-9 text-[#0A0A0A] hover:bg-[#0A0A0A] hover:text-white transition-colors"
  data-testid={`button-pay-settings-${staff.id}`}>
  <Settings2 className="w-4 h-4" />
  </button>
+ <div className="w-px h-5 bg-black/10" />
  <button onClick={onDelete} title="Delete staff"
- className="inline-flex items-center justify-center w-8 h-8 rounded-md text-zinc-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+ className="inline-flex items-center justify-center w-9 h-9 text-[#0A0A0A] hover:bg-[#C1121F] hover:text-white transition-colors"
  data-testid={`button-delete-staff-${staff.id}`}>
  <Trash2 className="w-4 h-4" />
  </button>
@@ -2750,54 +2766,136 @@ function useStopAddress(lat: number, lng: number) {
  return addr;
 }
 
+/** Dwell-duration tier: helps admin instantly spot long stays. */
+type StopTier = "quick" | "normal" | "long" | "extended";
+function stopTier(durationSec: number): StopTier {
+ const m = durationSec / 60;
+ if (m < 15) return "quick";
+ if (m < 45) return "normal";
+ if (m < 120) return "long";
+ return "extended";
+}
+const TIER_STYLES: Record<StopTier, { label: string; pill: string; card: string; dot: string; spine: string }> = {
+ quick:    { label: "QUICK STOP",    pill: "bg-[#EBE9E2] text-[#0A0A0A] border border-black/10",     card: "bg-white border border-black/10",                  dot: "bg-[#EBE9E2] border-2 border-black/30 text-[#0A0A0A]", spine: "bg-black/15" },
+ normal:   { label: "STATIONARY",    pill: "bg-amber-100 text-amber-800 border border-amber-200",   card: "bg-white border border-amber-200",                 dot: "bg-amber-100 border-2 border-amber-400 text-amber-700", spine: "bg-amber-200" },
+ long:     { label: "LONG STAY",     pill: "bg-[#FBEBEB] text-[#C1121F] border border-[#C1121F]/30", card: "bg-[#FBEBEB]/60 border border-[#C1121F]/25",      dot: "bg-[#FBEBEB] border-2 border-[#C1121F] text-[#C1121F]", spine: "bg-[#C1121F]/30" },
+ extended: { label: "EXTENDED STAY", pill: "bg-[#C1121F] text-white border border-[#C1121F]",       card: "bg-[#FBEBEB] border-2 border-[#C1121F]",          dot: "bg-[#C1121F] border-2 border-[#C1121F] text-white",    spine: "bg-[#C1121F]/50" },
+};
+
 /** One stop row — has its own live clock if ongoing */
 function StopRow({ seg, idx, now }: { seg: StopSegment; idx: number; now: Date }) {
  const addr = useStopAddress(seg.lat, seg.lng);
  const mapsUrl = `https://www.google.com/maps?q=${seg.lat},${seg.lng}`;
  const endTime = seg.isOngoing ? now : seg.endTime;
  const durationSec = Math.floor((endTime.getTime() - seg.startTime.getTime()) / 1000);
+ const tier = stopTier(durationSec);
+ const t = TIER_STYLES[tier];
 
  return (
  <div className="flex items-stretch gap-0" data-testid={`gps-stop-${idx}`}>
  {/* Timeline spine */}
  <div className="flex flex-col items-center w-10 shrink-0">
- <div className="w-px flex-1 bg-amber-200" />
- <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${seg.isOngoing ? "bg-amber-500" : "bg-amber-100 border-2 border-amber-400"}`}>
- <CircleDot className={`w-4 h-4 ${seg.isOngoing ? "text-white" : "text-amber-600"}`} />
+ <div className={`w-px flex-1 ${t.spine}`} />
+ <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${t.dot}`}>
+ <CircleDot className="w-4 h-4" />
  </div>
- <div className="w-px flex-1 bg-amber-200" />
+ <div className={`w-px flex-1 ${t.spine}`} />
  </div>
 
  {/* Content */}
- <div className={`flex-1 my-1 mr-2 rounded-none px-4 py-3 ${seg.isOngoing ? "bg-amber-50 border border-amber-200" : "bg-white border border-zinc-200"}`}>
+ <div className={`flex-1 my-1 mr-2 rounded-none px-4 py-3 ${seg.isOngoing ? "bg-[#FBEBEB] border border-[#C1121F]/30" : t.card}`}>
  <div className="flex items-start justify-between gap-2">
  <div className="flex-1 min-w-0">
  <div className="flex items-center gap-2 flex-wrap">
- <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Stationary</span>
+ <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-none ${t.pill}`}>{t.label}</span>
  {seg.isOngoing && (
- <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-100 border border-red-200 px-2 py-0.5 rounded-full">
- <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
- LIVE
+ <span className="flex items-center gap-1 text-[10px] font-bold text-white bg-[#C1121F] px-2 py-0.5 rounded-none">
+ <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block" />
+ STAFF HERE NOW
  </span>
  )}
  </div>
- <p className="text-base font-bold text-zinc-900 mt-0.5 leading-tight">
+ <p className="text-2xl font-extrabold text-[#0A0A0A] mt-1 leading-none tracking-tight">
  {fmtDuration(durationSec)}
- {seg.isOngoing && <span className="text-amber-600 text-sm font-semibold ml-1">(ongoing)</span>}
+ {seg.isOngoing && <span className="text-[#C1121F] text-sm font-bold ml-2 align-middle">· STILL HERE</span>}
  </p>
- <p className="text-[11px] text-zinc-400 mt-0.5">
- {format(seg.startTime, "HH:mm:ss")} – {seg.isOngoing ? "now" : format(seg.endTime, "HH:mm:ss")}
+ <p className="text-[11px] text-[#0A0A0A]/60 mt-1 font-medium uppercase tracking-wider">
+ {format(seg.startTime, "HH:mm")} – {seg.isOngoing ? "now" : format(seg.endTime, "HH:mm")}
  </p>
  </div>
  </div>
  <a href={mapsUrl} target="_blank" rel="noreferrer"
- className="flex items-center gap-1.5 mt-2 text-[12px] text-[#0A0A0A] hover:text-blue-800 font-medium hover:underline">
- <MapPin className="w-3 h-3 shrink-0" />
- {addr || `${seg.lat.toFixed(5)}, ${seg.lng.toFixed(5)}`}
- <span className="text-blue-400">↗</span>
+ className="inline-flex items-center gap-1.5 mt-2 text-[12px] text-[#0A0A0A] font-semibold hover:underline">
+ <MapPin className="w-3.5 h-3.5 shrink-0" />
+ <span className="truncate">{addr || `${seg.lat.toFixed(5)}, ${seg.lng.toFixed(5)}`}</span>
+ <span className="text-[#0A0A0A]/40">↗</span>
  </a>
  </div>
  </div>
+ );
+}
+
+/** Top-N longest stays of the day — surfaces "where they stayed longer" at a glance. */
+function LongestStaysRail({ stops, now }: { stops: StopSegment[]; now: Date }) {
+ if (stops.length === 0) return null;
+ const withDur = stops.map((s, i) => {
+ const end = s.isOngoing ? now : s.endTime;
+ const sec = Math.max(0, Math.floor((end.getTime() - s.startTime.getTime()) / 1000));
+ return { seg: s, sec, origIdx: i };
+ }).sort((a, b) => b.sec - a.sec).slice(0, 3);
+ const top = withDur[0]?.sec ?? 1;
+
+ return (
+ <div className="bg-white border border-black/10 rounded-none overflow-hidden">
+ <div className="px-5 py-3 border-b border-black/10 flex items-center justify-between gap-3">
+ <div className="flex items-center gap-2">
+ <CircleDot className="w-4 h-4 text-[#C1121F]" />
+ <p className="text-sm font-bold text-[#0A0A0A] uppercase tracking-wider">Longest Stays</p>
+ </div>
+ <p className="text-[10px] text-[#0A0A0A]/50 uppercase tracking-wider font-semibold">Where staff stayed longest</p>
+ </div>
+ <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/10">
+ {withDur.map(({ seg, sec, origIdx }, rank) => (
+ <LongestStayCard key={origIdx} seg={seg} sec={sec} rank={rank} maxSec={top} />
+ ))}
+ {/* Pad to 3 columns visually */}
+ {Array.from({ length: Math.max(0, 3 - withDur.length) }).map((_, i) => (
+ <div key={`pad-${i}`} className="hidden sm:block px-5 py-4" />
+ ))}
+ </div>
+ </div>
+ );
+}
+
+function LongestStayCard({ seg, sec, rank, maxSec }: { seg: StopSegment; sec: number; rank: number; maxSec: number }) {
+ const addr = useStopAddress(seg.lat, seg.lng);
+ const tier = stopTier(sec);
+ const t = TIER_STYLES[tier];
+ const pct = Math.max(8, Math.round((sec / maxSec) * 100));
+ const mapsUrl = `https://www.google.com/maps?q=${seg.lat},${seg.lng}`;
+ return (
+ <a href={mapsUrl} target="_blank" rel="noreferrer"
+ className="block px-5 py-4 hover:bg-[#F5F4F0] transition-colors group"
+ data-testid={`longest-stay-${rank}`}>
+ <div className="flex items-center justify-between gap-2 mb-1">
+ <span className="inline-flex items-center justify-center w-5 h-5 rounded-none bg-[#0A0A0A] text-white text-[10px] font-bold">{rank + 1}</span>
+ <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${t.pill}`}>{t.label}</span>
+ {seg.isOngoing && (
+ <span className="text-[9px] font-bold text-white bg-[#C1121F] px-1.5 py-0.5 ml-auto">LIVE</span>
+ )}
+ </div>
+ <p className="text-2xl font-extrabold text-[#0A0A0A] leading-none tracking-tight">{fmtDuration(sec)}</p>
+ <p className="text-[11px] text-[#0A0A0A]/60 font-medium uppercase tracking-wider mt-1">
+ {format(seg.startTime, "HH:mm")} – {seg.isOngoing ? "now" : format(seg.endTime, "HH:mm")}
+ </p>
+ <div className="h-1 bg-black/5 mt-2">
+ <div className="h-full bg-[#0A0A0A] group-hover:bg-[#C1121F] transition-colors" style={{ width: `${pct}%` }} />
+ </div>
+ <p className="flex items-center gap-1 mt-2 text-[11px] text-[#0A0A0A] font-semibold truncate">
+ <MapPin className="w-3 h-3 shrink-0" />
+ <span className="truncate">{addr || `${seg.lat.toFixed(5)}, ${seg.lng.toFixed(5)}`}</span>
+ </p>
+ </a>
  );
 }
 
@@ -2867,11 +2965,18 @@ function GpsTrackingTab() {
  return d < 500 ? sum + d : sum;
  }, 0);
 
- const totalStops = segments.filter(s => s.type === "stop").length;
+ const stops = segments.filter((s): s is StopSegment => s.type === "stop");
+ const totalStops = stops.length;
  const firstSeen = rawPoints.length > 0 ? new Date(rawPoints[0].recordedAt) : null;
  const lastSeen = rawPoints.length > 0 ? new Date(rawPoints[rawPoints.length - 1].recordedAt) : null;
  const isLive = isToday && lastSeen && (now.getTime() - lastSeen.getTime()) < 5 * 60 * 1000;
  const onShiftSecs = firstSeen ? Math.floor((isLive ? now.getTime() : (lastSeen?.getTime() ?? now.getTime()) - firstSeen.getTime()) / 1000) : 0;
+
+ // Total dwell time across all stops — answers "how long was staff stationary today"
+ const totalDwellSecs = stops.reduce((sum, s) => {
+ const end = s.isOngoing ? now : s.endTime;
+ return sum + Math.max(0, Math.floor((end.getTime() - s.startTime.getTime()) / 1000));
+ }, 0);
 
  return (
  <div className="pb-16 space-y-4">
@@ -2879,9 +2984,9 @@ function GpsTrackingTab() {
  {/* Filters */}
  <div className="flex flex-wrap gap-3 items-end">
  <div>
- <label className="block text-xs font-semibold text-zinc-500 mb-1">Staff Member</label>
+ <label className="block text-[10px] font-bold text-[#0A0A0A]/60 uppercase tracking-wider mb-1">Staff Member</label>
  <select value={staffId ?? ""} onChange={e => setSelectedStaffId(Number(e.target.value))}
- className="h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors"
+ className="h-9 px-3 border border-black/15 rounded-none text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors"
  data-testid="select-gps-staff">
  {(allStaff as any[]).map((s: any) => (
  <option key={s.id} value={s.id}>{s.name}</option>
@@ -2889,14 +2994,14 @@ function GpsTrackingTab() {
  </select>
  </div>
  <div>
- <label className="block text-xs font-semibold text-zinc-500 mb-1">Date</label>
+ <label className="block text-[10px] font-bold text-[#0A0A0A]/60 uppercase tracking-wider mb-1">Date</label>
  <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
- className="h-9 px-3 border border-zinc-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors"
+ className="h-9 px-3 border border-black/15 rounded-none text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors"
  data-testid="input-gps-date" />
  </div>
  {isLive && (
- <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-semibold">
- <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
+ <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-none bg-[#C1121F] text-white text-[11px] font-bold uppercase tracking-wider">
+ <span className="w-2 h-2 rounded-full bg-white animate-pulse inline-block" />
  Live Tracking
  </div>
  )}
@@ -2904,35 +3009,39 @@ function GpsTrackingTab() {
 
  {/* Stats bar */}
  {rawPoints.length > 0 && (
- <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+ <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
  {[
- { label: "On Shift", value: firstSeen ? fmtDuration(onShiftSecs) : "—" },
- { label: "Total Distance", value: fmtDist(totalDistM) },
- { label: "Stops", value: String(totalStops) },
- { label: "GPS Points", value: String(rawPoints.length) },
- ].map(({ label, value }) => (
- <div key={label} className="bg-white border border-zinc-200 rounded-none p-4">
- <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">{label}</p>
- <p className="text-xl font-bold text-zinc-900">{value}</p>
+ { label: "On Shift",      value: firstSeen ? fmtDuration(onShiftSecs) : "—", accent: false },
+ { label: "Total Distance", value: fmtDist(totalDistM),                       accent: false },
+ { label: "Stops",          value: String(totalStops),                        accent: false },
+ { label: "Time Stationary", value: fmtDuration(totalDwellSecs),              accent: totalDwellSecs > onShiftSecs * 0.5 },
+ { label: "GPS Points",     value: String(rawPoints.length),                  accent: false },
+ ].map(({ label, value, accent }) => (
+ <div key={label} className={`rounded-none p-4 ${accent ? "bg-[#0A0A0A] text-white" : "bg-white border border-black/10"}`}>
+ <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${accent ? "text-white/70" : "text-[#0A0A0A]/50"}`}>{label}</p>
+ <p className={`text-xl font-extrabold tracking-tight ${accent ? "text-white" : "text-[#0A0A0A]"}`}>{value}</p>
  </div>
  ))}
  </div>
  )}
 
+ {/* Longest stays — answers "where did staff stay longer" at a glance */}
+ {stops.length > 0 && <LongestStaysRail stops={stops} now={now} />}
+
  {/* Map */}
  {rawPoints.length > 0 && (
- <div className="bg-white border border-zinc-200 rounded-none overflow-hidden">
- <div className="px-5 py-3 border-b border-zinc-100 flex items-center justify-between flex-wrap gap-2">
- <p className="text-sm font-semibold text-zinc-900">
+ <div className="bg-white border border-black/10 rounded-none overflow-hidden">
+ <div className="px-5 py-3 border-b border-black/10 flex items-center justify-between flex-wrap gap-2">
+ <p className="text-sm font-bold text-[#0A0A0A] uppercase tracking-wider">
  Route Map — {selectedStaff?.name ?? "—"} · {selectedDate}
  </p>
- <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500 font-medium">
+ <div className="flex flex-wrap items-center gap-3 text-[10px] text-[#0A0A0A]/60 font-bold uppercase tracking-wider">
  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block" />Start</span>
- <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded bg-slate-400 inline-block" />Stopped</span>
- <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded bg-amber-400 inline-block" />Slow</span>
- <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded bg-blue-500 inline-block" />Normal</span>
- <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded bg-emerald-500 inline-block" />Fast</span>
- <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-amber-400 inline-block rounded-sm" />Stop</span>
+ <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 bg-slate-400 inline-block" />Stopped</span>
+ <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 bg-amber-400 inline-block" />Slow</span>
+ <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 bg-blue-500 inline-block" />Normal</span>
+ <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 bg-emerald-500 inline-block" />Fast</span>
+ <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-[#C1121F] inline-block" />Long Stay</span>
  </div>
  </div>
  <GpsMap points={rawPoints} height={480} isLive={!!isLive} />
@@ -2940,13 +3049,13 @@ function GpsTrackingTab() {
  )}
 
  {/* Timeline */}
- <div className="bg-white border border-zinc-200 rounded-none overflow-hidden">
- <div className="px-5 py-3 border-b border-zinc-100 flex items-center justify-between">
- <p className="text-sm font-semibold text-zinc-900">
+ <div className="bg-white border border-black/10 rounded-none overflow-hidden">
+ <div className="px-5 py-3 border-b border-black/10 flex items-center justify-between">
+ <p className="text-sm font-bold text-[#0A0A0A] uppercase tracking-wider">
  Activity Timeline — {selectedStaff?.name ?? "—"} · {selectedDate}
  </p>
  {isLive && lastSeen && (
- <p className="text-xs text-zinc-400">
+ <p className="text-[10px] text-[#0A0A0A]/50 font-bold uppercase tracking-wider">
  Updated {Math.floor((now.getTime() - lastSeen.getTime()) / 1000)}s ago
  </p>
  )}
