@@ -2930,4 +2930,59 @@ export async function seedDatabase() {
     }
   }
 
+  /* ── Round 31: Re-price Bunk Beds to Singapore market ────────────────────
+     The previous install/dismantle base prices were too low for a real
+     bunk-bed job. Effect on the customer-visible D&R bundle:
+
+       Standard:    (install 150 + dismantle 100) × 0.60 = $150   (TOO CHEAP —
+                    came out lower than Carry Only $210 even though dismantle
+                    + reinstall is genuinely MORE work; bunk beds rarely fit
+                    in a lift intact so D&R is the realistic scenario).
+       with Trundle:(install 170 + dismantle 120) × 0.60 = $174   (same issue).
+
+     New rates align with Singapore market (2 movers, ~2 h on site) and put
+     D&R sensibly above the Carry Only price:
+
+       Standard:    install 250 + dismantle 170 → D&R $252
+       Trundle:     install 290 + dismantle 200 → D&R $294
+
+     Idempotent — uses `WHERE base_price = <old>` so re-runs after the new
+     prices land are no-ops; will not stomp future manual edits. */
+  {
+    // Target-state idempotency: read the current row, only UPDATE when it's
+    // off-target. Avoids two failure modes from the previous implementation:
+    //   1) a hard-coded `oldPrice` guard misses any row a manual edit has
+    //      already nudged (Trundle had drifted to 190/140), so the UPDATE
+    //      silently did nothing.
+    //   2) drizzle/neon doesn't reliably expose `rowCount` on update(), so
+    //      a log line based on rowCount was a coin flip even when the UPDATE
+    //      ran. Reading first and skipping when already-correct makes the
+    //      block safe to re-run forever and gives an honest log line.
+    const bunkRepriceTargets = [
+      { sku: "BUNK-INSTALL",       newPrice: "250.00", label: "Bunk Bed (Standard) install" },
+      { sku: "BUNK-DISMANTLE",     newPrice: "170.00", label: "Bunk Bed (Standard) dismantle" },
+      { sku: "BUNK-TRD-INSTALL",   newPrice: "290.00", label: "Bunk Bed (with Trundle) install" },
+      { sku: "BUNK-TRD-DISMANTLE", newPrice: "200.00", label: "Bunk Bed (with Trundle) dismantle" },
+    ];
+    let r31Updated = 0;
+    for (const t of bunkRepriceTargets) {
+      const rows = await db.select().from(catalogItems).where(eq(catalogItems.sku, t.sku));
+      for (const row of rows) {
+        // numeric() comes back as a string like "150.00"; normalise both sides.
+        const current = Number(row.basePrice);
+        const target  = Number(t.newPrice);
+        if (!Number.isFinite(current) || current === target) continue;
+        await db
+          .update(catalogItems)
+          .set({ basePrice: t.newPrice })
+          .where(eq(catalogItems.id, row.id));
+        r31Updated++;
+        console.log(`[startup] Round 31: Re-priced ${t.label} ${t.sku} $${current.toFixed(2)} → $${target.toFixed(2)}.`);
+      }
+    }
+    if (r31Updated > 0) {
+      console.log(`[startup] Round 31: Bunk bed catalog re-priced for SG market (${r31Updated} row(s) updated). D&R bundles now $252 / $294.`);
+    }
+  }
+
 }
