@@ -3040,6 +3040,21 @@ export default function AdminQuoteDetail() {
  <QrCode className="w-4 h-4" /> Mark Final Payment Already Received
  </button>
  )}
+ {/* Copy-message button is residential-only — commercial jobs skip the
+     deposit/final 50-50 flow and use a Net-30 invoice instead, so the
+     payment-message endpoint would generate an incorrect deposit message
+     for commercial in-progress jobs. */}
+ {!quote.finalPaidAt && (quote as any).invoiceType !== 'commercial' && (
+ <button
+ onClick={() => setShowPaymentMessageDialog(true)}
+ data-testid="button-copy-customer-message-assigned"
+ title="Copy the ready-made payment message — paste it to the customer on any channel (SMS, iMessage, Telegram, personal WhatsApp). Use this when they replied on another platform."
+ className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-[#EBE9E2] hover:bg-violet-100 text-[#0A0A0A] border border-violet-200 text-sm font-medium transition-colors"
+ >
+ <Copy className="w-4 h-4" />
+ Copy / send manually
+ </button>
+ )}
  {quote.finalPaidAt && (
  <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -3076,6 +3091,7 @@ export default function AdminQuoteDetail() {
  </button>
  </div>
  ) : (
+ <div className="space-y-2">
  <button
  onClick={handleRequestFinalPayment}
  disabled={requestFinalPayment.isPending || finalPaymentBlockedByPhases}
@@ -3088,6 +3104,16 @@ export default function AdminQuoteDetail() {
  ? `Waiting on ${applicablePhases.filter(p => !phaseStatus(p.key)).map(p => p.label).join(" + ")}`
  : "Request Final Payment (Stripe / PayNow)"}
  </button>
+ <button
+ onClick={() => setShowPaymentMessageDialog(true)}
+ data-testid="button-copy-customer-message-completed"
+ title="Copy the ready-made final-payment message — paste it on any channel the customer prefers."
+ className="inline-flex items-center justify-center w-full gap-2 h-9 px-4 rounded-lg bg-[#EBE9E2] hover:bg-violet-100 text-[#0A0A0A] border border-violet-200 text-sm font-medium transition-colors"
+ >
+ <Copy className="w-4 h-4" />
+ Copy / send manually
+ </button>
+ </div>
  )
  )}
 
