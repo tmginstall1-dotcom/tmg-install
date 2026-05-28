@@ -6012,7 +6012,11 @@ Respond with ONLY a JSON array (no prose, no markdown):
         }
       }
 
-      // Alert admin on new estimate submission
+      // Alert admin on new estimate submission — email + web push.
+      // Email goes to ADMIN_EMAIL; push fans out to every device that has
+      // opted in via /admin (Settings → Enable Notifications, or the banner
+      // on the Dashboard). Both are fire-and-forget; failure of one channel
+      // must not block the customer's 201 response.
       try {
         const alertHtml = newEstimateAdminAlert(quote);
         await sendEmail({
@@ -6022,6 +6026,26 @@ Respond with ONLY a JSON array (no prose, no markdown):
         });
       } catch (alertErr) {
         console.error("Admin alert email error:", alertErr);
+      }
+
+      try {
+        // PII-safe push: the title/body land on lock screens, so we keep
+        // customer-identifying fields (name, phone, email, address) out and
+        // only surface the internal reference + channel + amount. Admins
+        // tap through to /admin/quotes/<id> to see the full record.
+        const totalStr = quote.total ? `$${Number(quote.total).toFixed(0)}` : "";
+        const channelLabel =
+          quote.sourceChannel === "whatsapp" ? "WhatsApp"
+          : quote.sourceChannel === "phone"  ? "Phone"
+          : "Web";
+        sendPushToAdmins({
+          title: `🔔 New ${channelLabel} booking`,
+          body:  `${quote.referenceNo}${totalStr ? ` · ${totalStr}` : ""}${quote.preferredDate ? ` · ${quote.preferredDate}` : ""}`,
+          url:   `/admin/quotes/${quote.id}`,
+          tag:   `booking-${quote.id}`, // unique per quote → multiple alerts don't collapse
+        }).catch(() => {});
+      } catch (pushErr) {
+        console.error("Admin push (new booking) error:", pushErr);
       }
 
       // Send customer confirmation email

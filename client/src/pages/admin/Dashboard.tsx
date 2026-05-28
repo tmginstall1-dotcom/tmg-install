@@ -12,8 +12,11 @@ import {
   ClipboardList, DollarSign, CalendarCheck, Zap, AlertCircle, Trash2,
   ChevronRight, Search, X, TrendingUp, BellRing, Plus,
   Phone as PhoneIcon, FileText, Target, Wallet, TrendingDown, Clock,
+  Bell, BellOff,
 } from "lucide-react";
 import { PageShell, PageHeader, PageBody, Card, SectionHeader, EmptyState, LoadingState, Button, Pill } from "@/components/admin/AdminUI";
+import { useAdminPush } from "@/hooks/use-admin-push";
+import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
@@ -164,6 +167,38 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [showNewJob, setShowNewJob] = useState(false);
   const [showPhoneCall, setShowPhoneCall] = useState(false);
+
+  // Web-push opt-in for this device. When `state === "default"` we show a
+  // banner at the top of the dashboard so admins can turn alerts on with one
+  // tap — otherwise the toggle is buried in Settings and easy to miss, which
+  // is the root cause of "I'm not getting any alerts" reports. `dismissed`
+  // hides the banner for this session only (sessionStorage), so a refresh
+  // brings it back if alerts are still off.
+  const { state: pushState, subscribe: subscribePush } = useAdminPush();
+  const { toast } = useToast();
+  const [pushBannerDismissed, setPushBannerDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem("admin-push-banner-dismissed") === "1";
+  });
+  const dismissPushBanner = () => {
+    sessionStorage.setItem("admin-push-banner-dismissed", "1");
+    setPushBannerDismissed(true);
+  };
+  const handleEnablePush = async () => {
+    const ok = await subscribePush();
+    if (ok) {
+      toast({
+        title: "Alerts enabled on this device",
+        description: "You'll get a push for every new booking and WhatsApp message.",
+      });
+    } else {
+      toast({
+        title: "Couldn't enable alerts",
+        description: "Check your browser notification permission and try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
@@ -371,6 +406,60 @@ export default function AdminDashboard() {
       />
 
       <PageBody>
+
+        {/* Push-alert opt-in — only shown when this device hasn't subscribed yet.
+            Without this most admins never find the toggle in Settings and end
+            up missing booking + WhatsApp alerts. */}
+        {pushState === "default" && !pushBannerDismissed && (
+          <div
+            className="flex items-start sm:items-center gap-3 px-4 py-3 bg-[#0A0A0A] text-white border-b border-black"
+            data-testid="banner-enable-push"
+          >
+            <Bell className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em]">
+                Turn on booking alerts
+              </p>
+              <p className="text-[11px] text-white/70 mt-0.5">
+                Get an instant push on this device for every new booking and WhatsApp message — even when the tab is closed.
+              </p>
+            </div>
+            <button
+              onClick={handleEnablePush}
+              className="text-[11px] font-black uppercase tracking-[0.16em] bg-white text-black px-3 py-1.5 hover:bg-white/90 shrink-0"
+              data-testid="button-enable-push"
+            >
+              Enable
+            </button>
+            <button
+              onClick={dismissPushBanner}
+              className="text-white/60 hover:text-white shrink-0"
+              data-testid="button-dismiss-push-banner"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        {pushState === "denied" && !pushBannerDismissed && (
+          <div
+            className="flex items-start sm:items-center gap-3 px-4 py-3 bg-[#C1121F] text-white border-b border-black"
+            data-testid="banner-push-blocked"
+          >
+            <BellOff className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0" />
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] flex-1">
+              Booking alerts are blocked in your browser. Open site settings and allow notifications, then reload this page.
+            </p>
+            <button
+              onClick={dismissPushBanner}
+              className="text-white/60 hover:text-white shrink-0"
+              data-testid="button-dismiss-push-banner-blocked"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Urgent alert */}
         {(urgentCount + lateJobs.length) > 0 && (() => {
