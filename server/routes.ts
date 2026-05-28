@@ -10777,30 +10777,32 @@ Respond directly — no JSON, just the message text.`,
         messages: [
           {
             role: "system",
-            content: `You are a data extraction assistant. The user shows you a spreadsheet screenshot of daily delivery/installation jobs for a Singapore logistics company.
+            content: `You are a data extraction assistant. The user shows you a spreadsheet screenshot of daily delivery/installation jobs for a Singapore logistics company (Gogovan / GGV).
 
 Extract ALL job rows from the spreadsheet. Each row is one job. Columns (read left to right):
 - jobNo: Job order number (e.g. "S045260062103")
 - bookingRef: Booking reference (e.g. "V045260161488")
 - timeStart: Start time in HH:MM format (e.g. "09:00")
 - timeEnd: End time in HH:MM format (e.g. "12:00")
-- listedPrice: Listed/gross price in dollars (number, e.g. 99.90)
-- deduction: Deduction/fee amount (number, e.g. 18.33; use 0 if blank)
-- actualPrice: Actual payout — the KEY column (number, e.g. 9.17)
+- listedPrice: Listed/gross price in dollars — the FIRST money column on the row (number, e.g. 138.70)
+- deduction: Deduction/fee amount — the column right after listedPrice, often shown as a small dollar amount (number, e.g. 32.11; use 0 if blank/empty/dash). NEVER copy listedPrice or actualPrice into this field.
+- actualPrice: Actual payout — this is ALWAYS exactly listedPrice MINUS deduction. Do the subtraction yourself. Do NOT read a separate column for this value. If listedPrice is 138.70 and deduction is 32.11, actualPrice MUST be 106.59. Never invent a value, never copy from another column.
 - serviceType: Service code (e.g. "D+A", "R+A+DISS", "ASD+ASA")
 - remarks: Any notes text in the row (string or null)
 - address: Job address
 - postalCode: 6-digit Singapore postal code (string)
-- distanceKm: Distance in km (number, e.g. 15.95)
-- ratePerKm: Rate per km (small number e.g. 0.06)
+- distanceKm: Distance in km (number, e.g. 15.95). This is usually a small number under 50 for local trips. Do NOT confuse with prices.
+- ratePerKm: Rate per km (very small number e.g. 0.06 or 0.11)
 - flagged: true if row is highlighted red/pink/orange, false otherwise
 Also extract from the header:
 - date: Date of jobs if visible as YYYY-MM-DD, else null
-- vehicleGroup: Header vehicle group text (e.g. "TMG1 GGV 029")
+- vehicleGroup: Header vehicle group text (e.g. "TMG1 GGV-029")
 - vehicleType: Header van type text (e.g. "EV VAN")
 
+CRITICAL ARITHMETIC RULE: For every row, actualPrice = listedPrice - deduction. Compute it. Round to 2 decimals. Do not skip this. The system will reject extractions that violate this rule.
+
 Return ONLY valid JSON:
-{"date":null,"vehicleGroup":"TMG1 GGV 029","vehicleType":"EV VAN","jobs":[{"jobNo":"S045260062103","bookingRef":"V045260161488","timeStart":"09:00","timeEnd":"12:00","listedPrice":99.90,"deduction":18.33,"actualPrice":9.17,"serviceType":"D+A","remarks":null,"address":"17 Jalan Tenteram #08-120","postalCode":"321017","distanceKm":15.95,"ratePerKm":0.06,"flagged":false}]}`,
+{"date":null,"vehicleGroup":"TMG1 GGV-029","vehicleType":"EV VAN","jobs":[{"jobNo":"S045260062103","bookingRef":"V045260161488","timeStart":"09:00","timeEnd":"12:00","listedPrice":138.70,"deduction":32.11,"actualPrice":106.59,"serviceType":"D+A","remarks":null,"address":"17 Jalan Tenteram #08-120","postalCode":"321017","distanceKm":15.95,"ratePerKm":0.06,"flagged":false}]}`,
           },
           {
             role: "user",
@@ -10809,6 +10811,59 @@ Return ONLY valid JSON:
         ],
       });
       const parsed = JSON.parse(scanRes.choices[0]?.message?.content || "{}");
+
+      // ── Server-side math enforcement ─────────────────────────────────────
+      // GPT-4o vision frequently hallucinates the actualPrice column even
+      // when listedPrice and deduction are read correctly. For GGV the rule
+      // is non-negotiable: actualPrice = listedPrice − deduction. Recompute
+      // every row server-side so a bad vision read can never reach the
+      // review screen with wrong numbers.
+      if (Array.isArray(parsed?.jobs)) {
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        const toNum = (v: any): number | null => {
+          if (v === null || v === undefined || v === "") return null;
+          const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[^0-9.\-]/g, ""));
+          return Number.isFinite(n) ? n : null;
+        };
+        for (const j of parsed.jobs) {
+          const listed = toNum(j.listedPrice);
+          const deduct = toNum(j.deduction);
+          // If listedPrice failed to parse, force-flag the row — the math
+          // cannot be enforced and an unverified actualPrice must not pass
+          // through silently. The admin then has to fix listedPrice in the
+          // review screen before importing.
+          if (listed === null) {
+            j.flagged = true;
+            continue;
+          }
+          // Treat an unparseable but non-empty deduction as suspicious too —
+          // an empty cell legitimately means $0, but a value the AI read as
+          // gibberish should be reviewed before we silently coerce it to 0.
+          const deductionLooksBad =
+            deduct === null &&
+            j.deduction !== null &&
+            j.deduction !== undefined &&
+            String(j.deduction).trim() !== "";
+          const ded = deduct ?? 0;
+          const computed = round2(listed - ded);
+          const aiActual = toNum(j.actualPrice);
+          // Always overwrite with the canonical computation. Flag the row
+          // when the AI's value diverged (>$0.01) or when deduction itself
+          // looked bad, so the admin can sanity-check listed/deduct (one
+          // of them might be the actual misread).
+          if (
+            aiActual === null ||
+            Math.abs(aiActual - computed) > 0.01 ||
+            deductionLooksBad
+          ) {
+            j.flagged = true;
+          }
+          j.actualPrice = computed;
+          j.deduction = round2(ded);
+          j.listedPrice = round2(listed);
+        }
+      }
+
       return res.json(parsed);
     } catch (e: any) {
       return res.status(500).json({ message: `Scan failed: ${e.message}` });
