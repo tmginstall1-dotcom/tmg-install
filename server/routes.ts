@@ -5082,31 +5082,41 @@ ${systemPrompt}` });
       const channel = waOk ? "whatsapp" : "email";
       const channelTarget = waOk ? `+${waPhone}` : (quote.customer.email || "");
 
-      if (!sendOk) {
-        return res.status(500).json({ message: "Could not send final payment notification — no valid email or WhatsApp number." });
-      }
+      // When the customer record has neither a real email nor a usable
+      // WhatsApp number (common for walk-ins, IKEA-direct jobs, and any
+      // record where the admin only captured a name), we used to 500 and
+      // leave the admin stuck. Now we still create the Stripe/PayNow link,
+      // advance the status, and return the link in the response so the
+      // admin can copy-paste it to the customer over their own channel.
+      const manualOnly = !sendOk;
 
       const updated = await storage.updateQuoteStatus(id, "final_payment_requested", {
         actorType: "admin",
-        note: emailOk && waOk
-          ? `Final payment request sent via WhatsApp (+${waPhone}) and email (${quote.customer.email})`
-          : `Final payment request sent via ${channel} to ${channelTarget}`
+        note: manualOnly
+          ? `Final payment link generated for manual delivery (no email/WhatsApp on file)`
+          : emailOk && waOk
+            ? `Final payment request sent via WhatsApp (+${waPhone}) and email (${quote.customer.email})`
+            : `Final payment request sent via ${channel} to ${channelTarget}`
       });
 
-      const bothSent = emailOk && waOk;
-      const messageText = bothSent
-        ? `Final payment link sent via WhatsApp + email`
-        : waOk
-          ? `Final payment link sent via WhatsApp to +${waPhone}`
-          : `Final payment invoice sent via email to ${channelTarget}`;
+      const messageText = manualOnly
+        ? `No email/WhatsApp on file — copy the link below and send it to the customer manually.`
+        : (emailOk && waOk)
+          ? `Final payment link sent via WhatsApp + email`
+          : waOk
+            ? `Final payment link sent via WhatsApp to +${waPhone}`
+            : `Final payment invoice sent via email to ${channelTarget}`;
 
       res.json({
         success: true,
-        channel,
-        channelTarget,
+        manualOnly,
+        channel: manualOnly ? null : channel,
+        channelTarget: manualOnly ? null : channelTarget,
         emailSent: emailOk,
         whatsappSent: waOk,
         message: messageText,
+        paymentLink, // ← always returned so admin can copy if auto-send didn't reach
+        finalAmount: finalAmount.toFixed(2),
         quote: updated,
       });
     } catch (err) {

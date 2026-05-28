@@ -1014,6 +1014,23 @@ export default function AdminQuoteDetail() {
  const handleRequestFinalPayment = async () => {
  try {
  const data = await requestFinalPayment.mutateAsync(parseInt(id));
+
+ // Manual-only path — customer has no email or WhatsApp on file. The
+ // server still created the Stripe/PayNow link and advanced the status;
+ // we auto-copy the link to clipboard and show it in a long-lived toast
+ // so the admin can paste it into SMS, iMessage, Telegram, etc.
+ if (data?.manualOnly && data?.paymentLink) {
+ try { await navigator.clipboard.writeText(data.paymentLink); } catch {}
+ toast({
+ title: "📋 Link copied — send it manually",
+ description:
+ `No email or WhatsApp on file. The payment link has been copied to your clipboard — ` +
+ `paste it to the customer. Link: ${data.paymentLink}`,
+ duration: 20000,
+ });
+ return;
+ }
+
  const both = data?.emailSent && data?.whatsappSent;
  const title = both
  ? "✅ Sent via WhatsApp + Email"
