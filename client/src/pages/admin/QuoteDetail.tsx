@@ -1086,7 +1086,8 @@ export default function AdminQuoteDetail() {
  const editTransport = Number(editQuoteData.transportFee || 0);
  const editPromoDiscount = Number(quote?.promoDiscount || 0);
  const editGoodwillDiscount = Number(editQuoteData.goodwillDiscount || 0);
- const editTotal = Math.max(0, editSubtotal - editPromoDiscount - editGoodwillDiscount + editTransport);
+ const editSecondDay = calcSecondDayContinuation(!!editQuoteData.secondDayContinuation, editQuoteData.secondDayHours || 0).fee;
+ const editTotal = Math.max(0, editSubtotal - editPromoDiscount - editGoodwillDiscount + editTransport + editSecondDay);
 
  const handlePrintQuote = () => {
  const q = quote;
@@ -1754,6 +1755,7 @@ export default function AdminQuoteDetail() {
  ${Number(q.transportFee || 0) > 0 ? `<div class="totals-row"><span class="k">Transport</span><span>S$${Number(q.transportFee).toFixed(2)}</span></div>` : ""}
  ${Number(q.promoDiscount || 0) > 0 ? `<div class="totals-row"><span class="k">Promo · ${esc(q.promoCode || "")}</span><span>−S$${Number(q.promoDiscount).toFixed(2)}</span></div>` : ""}
  ${Number((q as any).goodwillDiscount || 0) > 0 ? `<div class="totals-row"><span class="k">Goodwill discount${(q as any).goodwillReason ? ` · ${esc((q as any).goodwillReason)}` : ""}</span><span>−S$${Number((q as any).goodwillDiscount).toFixed(2)}</span></div>` : ""}
+ ${(q as any).secondDayContinuation ? `<div class="totals-row"><span class="k">Second-day continuation${Number((q as any).secondDayHours) > 0 ? ` · ${Number((q as any).secondDayHours)}h` : ""}</span><span>S$${calcSecondDayContinuation(!!(q as any).secondDayContinuation, (q as any).secondDayHours || 0).fee.toFixed(2)}</span></div>` : ""}
  <div class="totals-row grand"><span class="k">Total</span><span>S$${Number(q.total || 0).toFixed(2)}</span></div>
  ${isFullyPaid ? `
  <div class="paid-stamp">
@@ -2477,6 +2479,12 @@ export default function AdminQuoteDetail() {
  <span className="text-zinc-500">Transport</span>
  <span className="font-medium text-zinc-900">${editTransport.toFixed(2)}</span>
  </div>
+ {editSecondDay > 0 && (
+ <div className="flex justify-between sm:justify-end gap-6 text-sm mb-3">
+ <span className="text-zinc-500">Second-day continuation</span>
+ <span className="font-medium text-zinc-900">${editSecondDay.toFixed(2)}</span>
+ </div>
+ )}
  <div className="flex justify-between sm:justify-end gap-6 text-base font-semibold border-t border-zinc-200 pt-2">
  <span className="text-zinc-900">Total</span>
  <span className="text-zinc-900">${editTotal.toFixed(2)}</span>

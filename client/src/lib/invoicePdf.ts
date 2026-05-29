@@ -50,6 +50,8 @@ export type InvoicePdfData = {
   subtotal: string;
   transportFee: string;
   discount: string;
+  secondDayFee?: string;
+  secondDayHours?: string;
   total: string;
   depositAmount: string;
   depositPaidAt: string | null;
@@ -366,6 +368,12 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
     doc.setTextColor(220, 38, 38); // red-600
     doc.text("Discount", totalsX, y);
     doc.text(`- ${money(data.discount)}`, totalsRight, y, { align: "right" });
+    y += 5;
+  }
+  if (Number(data.secondDayFee || 0) > 0) {
+    doc.setTextColor(...bodyColor);
+    doc.text(`Second-day continuation${Number(data.secondDayHours || 0) > 0 ? ` (${Number(data.secondDayHours)}h)` : ""}`, totalsX, y);
+    doc.text(money(data.secondDayFee), totalsRight, y, { align: "right" });
     y += 5;
   }
 

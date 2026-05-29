@@ -46,6 +46,8 @@ type InvoicePayload = {
   subtotal: string;
   transportFee: string;
   discount: string;
+  secondDayFee?: string;
+  secondDayHours?: string;
   total: string;
   depositAmount: string;
   depositPaidAt: string | null;
@@ -338,6 +340,12 @@ export default function Invoice() {
                     <div className="flex justify-between text-red-600">
                       <span>Discount</span>
                       <span className="font-medium">− {money(data.discount)}</span>
+                    </div>
+                  )}
+                  {Number(data.secondDayFee || 0) > 0 && (
+                    <div className="flex justify-between text-gray-700">
+                      <span>Second-day continuation{Number(data.secondDayHours || 0) > 0 ? ` (${Number(data.secondDayHours)}h)` : ""}</span>
+                      <span className="font-medium">{money(data.secondDayFee)}</span>
                     </div>
                   )}
                   <div className="flex justify-between pt-2 mt-1 border-t-2 border-gray-900 font-black text-base text-gray-900">

@@ -41,7 +41,7 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-import { calcTransportFee, calcOvertimeCharge, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, type PricingItem, type PricingFloor } from "@shared/pricing";
+import { calcTransportFee, calcOvertimeCharge, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, type PricingItem, type PricingFloor } from "@shared/pricing";
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable } from "@shared/schema";
 import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable, aiFeatureFlags, customerRatings } from "@shared/schema";
@@ -8537,6 +8537,9 @@ Respond directly — no JSON, just the message text.`,
       subtotal: String(quote.subtotal || quote.total || "0"),
       transportFee: String((quote as any).transportFee || "0"),
       discount: String(quote.discount || "0"),
+      secondDayContinuation: !!(quote as any).secondDayContinuation,
+      secondDayHours: String((quote as any).secondDayHours || "0"),
+      secondDayFee: calcSecondDayContinuation(!!(quote as any).secondDayContinuation, (quote as any).secondDayHours || 0).fee.toFixed(2),
       total: String(quote.total || "0"),
       depositAmount: depositAmt.toFixed(2),
       depositPaidAt: quote.depositPaidAt || null,

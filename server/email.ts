@@ -1,4 +1,4 @@
-import { PricingConfig } from "@shared/pricing";
+import { PricingConfig, calcSecondDayContinuation } from "@shared/pricing";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@tmginstall.com";
@@ -274,10 +274,12 @@ function totRow(color: string, label: string, value: string, bold = false): stri
   </tr>`;
 }
 
-function totals(subtotal: any, transport: any, total: any, deposit: any, balance: any, promoCode?: string | null, promoDiscount?: any, goodwillDiscount?: any, goodwillReason?: string | null): string {
+function totals(subtotal: any, transport: any, total: any, deposit: any, balance: any, promoCode?: string | null, promoDiscount?: any, goodwillDiscount?: any, goodwillReason?: string | null, secondDayContinuation?: any, secondDayHours?: any): string {
   const hasTransport = Number(transport || 0) > 0;
   const hasPromo = promoCode && Number(promoDiscount || 0) > 0;
   const hasGoodwill = Number(goodwillDiscount || 0) > 0;
+  const sd = calcSecondDayContinuation(!!secondDayContinuation, secondDayHours || 0);
+  const hasSecondDay = sd.fee > 0;
   // Escape both the promo code and the goodwill reason — they're stored as
   // free text on the quote and end up rendered as raw HTML in outbound
   // emails, so any '<' or '&' would otherwise break the markup (and
@@ -292,6 +294,7 @@ function totals(subtotal: any, transport: any, total: any, deposit: any, balance
         ${hasTransport ? totRow('#444444', 'Transport &amp; logistics', `$${Number(transport || 0).toFixed(2)}`) : ''}
         ${hasPromo ? totRow('#15803d', `Promo code (${safePromoCode})`, `-$${Number(promoDiscount || 0).toFixed(2)}`) : ''}
         ${hasGoodwill ? totRow('#15803d', goodwillLabel, `-$${Number(goodwillDiscount || 0).toFixed(2)}`) : ''}
+        ${hasSecondDay ? totRow('#444444', `Second-day continuation${sd.hours > 0 ? ` (${sd.hours}h)` : ''}`, `$${sd.fee.toFixed(2)}`) : ''}
         ${totRow('#111111', 'Total', `$${Number(total || 0).toFixed(2)}`, true)}
         ${totRow('#15803d', 'Deposit paid (50%)', `$${Number(deposit || 0).toFixed(2)}`)}
         ${totRow('#999999', 'Balance on completion (50%)', `$${Number(balance || 0).toFixed(2)}`)}
@@ -426,7 +429,7 @@ export function estimateSubmittedEmail(quote: any): string {
 
     ${section("Requested Work", itemsTable(quote.items))}
 
-    ${section("Estimated Pricing", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason))}
+    ${section("Estimated Pricing", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours))}
 
     ${notice("info", `<strong>What happens next?</strong><br>Our team will review your estimate, confirm the pricing, and send you a deposit invoice. Once the 50% deposit is paid, your appointment slot is locked in.`)}
 
@@ -497,7 +500,7 @@ export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl
 
     ${section("Scope of Work", itemsTable(quote.items))}
 
-    ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason))}
+    ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours))}
 
     ${section("Pay Deposit — 2 Ways", `
       ${ctaBlock(
@@ -595,7 +598,7 @@ export function bookingRequestAdminEmail(quote: any): string {
 
     ${section("Scope of Work", itemsTable(quote.items))}
 
-    ${section("Financial Summary", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason))}
+    ${section("Financial Summary", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours))}
 
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:32px 0 8px;text-align:center;">
       <tr>
@@ -700,6 +703,7 @@ export function finalPaymentEmail(quote: any, paymentLink: string): string {
           ${totRow('#444444', 'Labour', `$${Number(quote.subtotal || 0).toFixed(2)}`)}
           ${Number(quote.transportFee || 0) > 0 ? totRow('#444444', 'Transport &amp; logistics', `$${Number(quote.transportFee || 0).toFixed(2)}`) : ''}
           ${quote.promoCode && Number(quote.promoDiscount || 0) > 0 ? totRow('#15803d', `Promo code (${quote.promoCode})`, `-$${Number(quote.promoDiscount || 0).toFixed(2)}`) : ''}
+          ${quote.secondDayContinuation ? totRow('#444444', `Second-day continuation${Number(quote.secondDayHours) > 0 ? ` (${Number(quote.secondDayHours)}h)` : ''}`, `$${calcSecondDayContinuation(!!quote.secondDayContinuation, quote.secondDayHours || 0).fee.toFixed(2)}`) : ''}
           ${totRow('#444444', 'Original total', `$${Number(quote.total || 0).toFixed(2)}`)}
           ${totRow('#15803d', 'Deposit paid (50%)', `-$${Number(quote.depositAmount || 0).toFixed(2)}`)}
           ${totRow('#444444', 'Balance (50%)', `$${baseBalance.toFixed(2)}`)}
@@ -959,7 +963,7 @@ export function newEstimateAdminAlert(quote: any): string {
 
     ${section(`Items (${(quote.items || []).length})`, itemsTable(quote.items))}
 
-    ${section("Estimated Value", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason))}
+    ${section("Estimated Value", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours))}
 
     ${quote.requiresManualReview ? notice("warn", `<strong>Manual Review Required</strong> — This estimate was flagged for manual review. Please verify all items and pricing before approving.`) : ''}
 
