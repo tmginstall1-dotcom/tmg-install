@@ -716,6 +716,14 @@ export function finalPaymentEmail(quote: any, paymentLink: string): string {
       `If you have any questions about this charge, please contact us on WhatsApp before completing payment.`
     ) : ''}
 
+    ${quote.secondDayContinuation ? notice("info",
+      `<strong>Second-Day Continuation included.</strong><br>` +
+      `Your job had to continue to a second day because of building access delays (loading-bay parking / lift congestion). ` +
+      `The balance above includes a <strong>$${PricingConfig.secondDay.returnFee} return fee</strong> for re-dispatching the crew` +
+      `${Number(quote.secondDayHours) > 0 ? `, plus <strong>$${PricingConfig.secondDay.hourlyRate}/hour</strong> for the ${Number(quote.secondDayHours)} hour(s) of Day-2 crew time` : ``}.<br><br>` +
+      `If you have any questions about this charge, please contact us on WhatsApp before completing payment.`
+    ) : ''}
+
     ${ctaBlock(
       "Option 1 — Pay by Card (Stripe)",
       `$${totalDueNow.toFixed(2)}`,

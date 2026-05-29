@@ -4989,6 +4989,8 @@ ${systemPrompt}` });
           selectedServices: z.string().optional(),
           notes: z.string().optional(),
           staffTransportAllowance: z.boolean().optional(),
+          secondDayContinuation: z.boolean().optional(),
+          secondDayHours: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid hours").optional(),
           scheduledAt: z.string().datetime().optional().nullable().transform(v => v ? new Date(v) : v),
           timeWindow: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/, "Invalid time window").optional().nullable(),
           // Allow admin to flip the status when "marking as pending date confirmation"

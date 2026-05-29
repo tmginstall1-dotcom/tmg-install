@@ -1,1 +1,2 @@
-- [drizzle-kit push is interactive](drizzle-push-interactive.md) — `db:push` prompts create-vs-rename on new columns and hangs non-interactively; add columns via direct `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` SQL instead.
+- [Dev backend reload](dev-backend-reload.md) — `npm run dev` runs `tsx` without watch; restart the "Start application" workflow after schema/storage edits or Drizzle throws "No values to set".
+- [Per-job fee pattern](per-job-fee-pattern.md) — add new per-job fees by folding them into `editQuote` total recompute, not into payment/email endpoints.

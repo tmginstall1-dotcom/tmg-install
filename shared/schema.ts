@@ -385,6 +385,16 @@ export const quotes = pgTable("quotes", {
   // transport reimbursement that's summed onto their monthly payslip.
   staffTransportAllowance: boolean("staff_transport_allowance").default(false),
 
+  // Second-Day Continuation: when a job that was scheduled for a single day
+  // can't finish (e.g. loading-bay parking + lift congestion) and the crew has
+  // to return the next day. Adds a flat return/re-mobilisation fee plus an
+  // hourly charge for the actual Day-2 crew time. Folded into the quote total
+  // (like transportFee / goodwillDiscount) so it flows to the balance, PayNow,
+  // Stripe and the final-payment email. See calcSecondDayContinuation() in
+  // shared/pricing.ts.
+  secondDayContinuation: boolean("second_day_continuation").default(false),
+  secondDayHours: numeric("second_day_hours").default("0"), // actual Day-2 on-site hours
+
   // Invoice / quotation billing presentation. The work-site address (above)
   // is where staff actually go; these fields determine how the customer is
   // billed on the printed Quotation / Invoice / Receipt.

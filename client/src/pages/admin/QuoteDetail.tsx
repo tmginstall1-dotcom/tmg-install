@@ -14,7 +14,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatItemDescription } from "@/lib/itemLabel";
-import { calcOvertimeCharge, PricingConfig } from "@shared/pricing";
+import { calcOvertimeCharge, calcSecondDayContinuation, PricingConfig } from "@shared/pricing";
 import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
 import { InvoiceMessageDialog } from "@/components/shared/InvoiceMessageDialog";
 
@@ -918,6 +918,8 @@ export default function AdminQuoteDetail() {
  transportFee: quote.transportFee || '0',
  notes: quote.notes || '',
  staffTransportAllowance: !!quote.staffTransportAllowance,
+ secondDayContinuation: !!quote.secondDayContinuation,
+ secondDayHours: quote.secondDayHours ? String(quote.secondDayHours) : '0',
  invoiceType: (quote.invoiceType === 'commercial') ? 'commercial' : 'residential',
  billingAddress: quote.billingAddress || '',
  billingCompanyName: quote.billingCompanyName || '',
@@ -2396,6 +2398,42 @@ export default function AdminQuoteDetail() {
  <span className="block text-xs text-zinc-500 mt-0.5">Adds $8 to the assigned staff's monthly payslip for this job.</span>
  </span>
  </label>
+ <div className="border border-zinc-200 rounded-lg p-3 bg-zinc-50">
+ <label className="flex items-start gap-2.5 cursor-pointer select-none" data-testid="toggle-second-day-continuation">
+ <input
+ type="checkbox"
+ checked={!!editQuoteData.secondDayContinuation}
+ onChange={e => setEditQuoteData({ ...editQuoteData, secondDayContinuation: e.target.checked })}
+ className="mt-0.5 w-4 h-4 rounded border-zinc-300 text-[#0A0A0A] focus:ring-[#0A0A0A]"
+ />
+ <span>
+ <span className="block text-sm font-medium text-zinc-900">Job pushed to a second day (access delay)</span>
+ <span className="block text-xs text-zinc-500 mt-0.5">Adds a ${PricingConfig.secondDay.returnFee} return fee + ${PricingConfig.secondDay.hourlyRate}/hr for Day-2 crew time to the balance. Use when loading-bay parking / lift access forced the job to finish the next day.</span>
+ </span>
+ </label>
+ {editQuoteData.secondDayContinuation && (
+ <div className="mt-3 space-y-2">
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">Day-2 hours on site</label>
+ <div className="relative w-32">
+ <input type="number" min="0" step="0.5" value={editQuoteData.secondDayHours || '0'} onChange={e => setEditQuoteData({ ...editQuoteData, secondDayHours: e.target.value })}
+ data-testid="input-second-day-hours"
+ className="h-9 w-full pl-3 pr-10 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs">hrs</span>
+ </div>
+ </div>
+ {(() => {
+ const sd = calcSecondDayContinuation(true, editQuoteData.secondDayHours || 0);
+ return (
+ <p className="text-xs text-zinc-600" data-testid="text-second-day-fee-preview">
+ ${sd.returnFee} return + {sd.hours}h × ${sd.hourlyRate} = <span className="font-semibold text-zinc-900">${sd.fee.toFixed(2)}</span> added to balance
+ </p>
+ );
+ })()}
+ <p className="text-[11px] text-zinc-400">Leave hours at 0 to charge just the ${PricingConfig.secondDay.returnFee} return fee, then enter the actual Day-2 hours once the crew finishes.</p>
+ </div>
+ )}
+ </div>
  <div>
  <label className="text-xs font-medium text-zinc-500 block mb-1.5">Goodwill Discount</label>
  <div className="relative w-32">
@@ -3233,6 +3271,21 @@ export default function AdminQuoteDetail() {
  </div>
  <span className="text-sm font-semibold tabular-nums text-amber-900" data-testid="text-additional-charge">
  {formatMoney(quote.additionalCharge)}
+ </span>
+ </div>
+ )}
+
+ {!!quote.secondDayContinuation && (
+ <div className="flex items-center justify-between p-3 rounded-lg border bg-indigo-50 border-indigo-200">
+ <div className="flex items-center gap-2">
+ <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold bg-indigo-400 text-white">2</div>
+ <div>
+ <span className="text-sm font-medium text-indigo-800">Second-Day Continuation</span>
+ <p className="text-xs text-indigo-700 mt-0.5">${PricingConfig.secondDay.returnFee} return + {Number(quote.secondDayHours) || 0}h × ${PricingConfig.secondDay.hourlyRate}/hr · already included in total &amp; balance</p>
+ </div>
+ </div>
+ <span className="text-sm font-semibold tabular-nums text-indigo-900" data-testid="text-second-day-charge">
+ {formatMoney(calcSecondDayContinuation(true, quote.secondDayHours || 0).fee)}
  </span>
  </div>
  )}

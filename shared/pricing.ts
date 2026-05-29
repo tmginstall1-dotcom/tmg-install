@@ -89,6 +89,13 @@ export const PricingConfig = {
   deposit: {
     pct: 0.50, // 50% deposit, 50% final
   },
+  secondDay: {
+    // Second-Day Continuation — when a single-day job spills into the next day
+    // because of on-site access delays (loading-bay parking, lift congestion).
+    // The crew has to be re-dispatched (van + movers) and a fresh slot burned.
+    returnFee: 120,   // SGD flat re-mobilisation fee charged once when the job continues to Day 2
+    hourlyRate: 60,   // SGD per hour of actual Day-2 on-site crew time (matches the $30/30-min overtime rate)
+  },
 };
 
 // --------------------------------------------------------------------------
@@ -198,6 +205,34 @@ export interface PricingResult {
 function round2(n: number): number {
   if (!isFinite(n) || isNaN(n)) return 0;
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Second-Day Continuation charge.
+ *
+ * Used when a job scheduled for a single day cannot finish and the crew must
+ * return the next day because of on-site access delays (loading-bay parking,
+ * lift congestion, etc.). The charge has two parts:
+ *   • a flat return / re-mobilisation fee (van + crew re-dispatch + fresh slot)
+ *   • an hourly charge for the actual Day-2 crew time worked
+ * Hours are recorded after Day 2 finishes, so the admin never has to guess the
+ * duration up front.
+ */
+export function calcSecondDayContinuation(enabled: boolean, hours: number | string) {
+  const cfg = PricingConfig.secondDay;
+  if (!enabled) {
+    return { enabled: false, returnFee: 0, hours: 0, hourlyRate: cfg.hourlyRate, labour: 0, fee: 0 };
+  }
+  const h = Math.max(0, Number(hours) || 0);
+  const labour = round2(h * cfg.hourlyRate);
+  return {
+    enabled: true,
+    returnFee: cfg.returnFee,
+    hours: h,
+    hourlyRate: cfg.hourlyRate,
+    labour,
+    fee: round2(cfg.returnFee + labour),
+  };
 }
 
 /**

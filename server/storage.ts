@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { calcSecondDayContinuation } from "@shared/pricing";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   attendanceAmendments, leaveRequests, payslips, staffLoans, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
@@ -1021,7 +1022,9 @@ export class DatabaseStorage implements IStorage {
     const pricingTouched =
       data.items !== undefined ||
       data.quoteUpdates?.transportFee !== undefined ||
-      data.quoteUpdates?.goodwillDiscount !== undefined;
+      data.quoteUpdates?.goodwillDiscount !== undefined ||
+      data.quoteUpdates?.secondDayContinuation !== undefined ||
+      data.quoteUpdates?.secondDayHours !== undefined;
 
     if (pricingTouched) {
       // Re-fetch after the quoteUpdates write so we see the latest values.
@@ -1030,6 +1033,12 @@ export class DatabaseStorage implements IStorage {
       const transportFee = Number(current?.transportFee ?? 0);
       const promoDiscount = Number(current?.promoDiscount || 0);
       const goodwillDiscount = Number(current?.goodwillDiscount || 0);
+      // Second-Day Continuation fee (flat return fee + Day-2 hourly) — folded
+      // into the total like transportFee so it flows to balance/PayNow/Stripe.
+      const secondDayFee = calcSecondDayContinuation(
+        !!current?.secondDayContinuation,
+        current?.secondDayHours ?? 0,
+      ).fee;
 
       // Replace items only when caller explicitly provided them.
       if (data.items !== undefined) {
@@ -1057,7 +1066,7 @@ export class DatabaseStorage implements IStorage {
       const subtotal = itemRows
         .filter(r => r.serviceType !== 'discount')
         .reduce((sum, r) => sum + Number(r.subtotal || 0), 0);
-      const total = Math.max(0, subtotal - promoDiscount - goodwillDiscount + transportFee);
+      const total = Math.max(0, subtotal - promoDiscount - goodwillDiscount + transportFee + secondDayFee);
 
       // Protect already-collected money: if the deposit was paid at an
       // earlier amount, keep that amount and shift the difference onto the
