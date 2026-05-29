@@ -2985,4 +2985,57 @@ export async function seedDatabase() {
     }
   }
 
+  /* ── Round 32: Partial Parts Installation (assembly-assist) ───────────────
+     Real-world: customers sometimes assemble most of an item themselves and
+     only need help finishing one part — e.g. a storage bed where the frame is
+     built but the hydraulic gas-lift mechanism still needs to be attached, or
+     screws/brackets that won't go in. The catalog only had full-item installs
+     (e.g. Hydraulic Storage Bed install $170/$200), so these small "finish the
+     last part" jobs had no line item and couldn't be quoted accurately.
+
+     This round adds two market-priced SKUs (Singapore, 2026):
+        – "Partial Parts Installation (Minimum Callout)" $80
+          General assembly-assist: attach missing parts, fix screws/brackets
+          on an item the customer has mostly put together. Aligns with the
+          local handyman minimum-callout rate (~$60–$80, 2 movers on site).
+        – "Hydraulic Mechanism Attachment (Storage Bed)" $100
+          Attach gas-lift hydraulic struts + fixing screws to an already-
+          assembled storage bed. A 2-person job (lift/hold platform, align
+          struts), priced well below the full hydraulic install ($170).
+
+     Marker: PARTIAL-PARTS-R32-MARKER. */
+  const r32 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "PARTIAL-PARTS-R32-MARKER")).limit(1);
+  if (r32.length === 0) {
+    const newRows: Array<{ name: string; sku: string; category: string; basePrice: string }> = [
+      { name: "Partial Parts Installation (Minimum Callout)", sku: "PARTIAL-INSTALL-MIN", category: "Specialty", basePrice: "80.00" },
+      { name: "Hydraulic Mechanism Attachment (Storage Bed)", sku: "HYDR-MECH-ATTACH",    category: "Beds",      basePrice: "100.00" },
+    ];
+    let inserted = 0;
+    for (const row of newRows) {
+      const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+      if (exists.length === 0) {
+        await db.insert(catalogItems).values({
+          name: row.name,
+          sku: row.sku,
+          category: row.category,
+          serviceType: "install",
+          basePrice: row.basePrice,
+          active: true,
+        } as any);
+        inserted++;
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__partial_parts_r32_marker__",
+      sku: "PARTIAL-PARTS-R32-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 32: Partial Parts Installation — inserted ${inserted} new SKU row(s) (assembly-assist / hydraulic mechanism).`);
+  }
+
 }
