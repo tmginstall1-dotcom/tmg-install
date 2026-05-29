@@ -120,6 +120,21 @@ function AppResumeRefetcher() {
 }
 
 function Router() {
+  const [location] = useLocation();
+
+  // Toggle the overscroll-bounce guard ONLY on screens that render a fixed
+  // bottom nav (admin/staff app shells). This keeps native pull-to-refresh on
+  // the customer-facing pages while stopping the bottom bar from being dragged
+  // up/down by the rubber-band bounce on mobile.
+  useEffect(() => {
+    const hasBottomNav =
+      (location.startsWith("/admin") && location !== "/admin/login") ||
+      (location.startsWith("/staff") && location !== "/staff/login");
+    const root = document.documentElement;
+    root.classList.toggle("app-no-overscroll", hasBottomNav);
+    return () => root.classList.remove("app-no-overscroll");
+  }, [location]);
+
   return (
     <>
       <NativeRedirect />

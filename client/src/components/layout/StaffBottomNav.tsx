@@ -141,7 +141,7 @@ export function StaffBottomNav() {
 
       {/* Tab bar */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-lg"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        style={{ paddingBottom: "env(safe-area-inset-bottom)", transform: "translateZ(0)", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}>
         <div className="flex items-stretch h-16 max-w-2xl mx-auto">
 
           <Link href="/staff" className="flex-1">

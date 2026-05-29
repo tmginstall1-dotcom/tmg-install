@@ -61,6 +61,17 @@ body {
   max-width: 100vw;
 }
 
+/* Scoped only to screens that render a fixed bottom nav (admin/staff app
+   shells, toggled on by those components while mounted). Stops the
+   iOS/Android rubber-band overscroll bounce from dragging the fixed bottom
+   navigation up and down while scrolling, which made the bar look like it
+   was "jumping" on mobile — without disabling pull-to-refresh on the
+   customer-facing pages. */
+html.app-no-overscroll,
+html.app-no-overscroll body {
+  overscroll-behavior-y: none;
+}
+
 @layer base {
   :root {
     --font-heading: "TStar", "Teko", "Arial Narrow", sans-serif;

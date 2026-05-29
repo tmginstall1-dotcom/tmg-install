@@ -211,6 +211,7 @@ export function AdminBottomNav() {
       {/* Bottom tab bar */}
       <nav
         className="fixed bottom-0 inset-x-0 sm:hidden z-50 bg-[#F5F4F0] border-t border-black/15 pb-[env(safe-area-inset-bottom)]"
+        style={{ transform: "translateZ(0)", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
       >
         <div className="grid grid-cols-5 h-[64px]">
           {primaryTabs.map(({ href, label, icon: Icon, badge, urgent }) => {
