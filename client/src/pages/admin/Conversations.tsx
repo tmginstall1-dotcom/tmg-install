@@ -309,7 +309,21 @@ function MessageBubble({
  const isVoiceNote = !msg.mediaUrl && msg.body === "[Voice note]";
  const isStickerMsg = !msg.mediaUrl && msg.body === "[Sticker]";
  const isLocationMsg = !msg.mediaUrl && msg.body === "[Location sent]";
- const isContactMsg = !msg.mediaUrl && msg.body === "[Contact shared]";
+ // Contact share — body is "[Contact shared]" / "[N contacts shared]" optionally
+ // followed by detail lines ("Name — +65 1234 5678"). Detect the label, then
+ // parse out the detail lines so we can render the actual name/phone instead of
+ // the old "Open WhatsApp to view" placeholder.
+ const contactLabelMatch = !msg.mediaUrl
+ ? msg.body?.match(/^\[(?:\d+\s+)?contacts?\s+shared\]/i)
+ : null;
+ const isContactMsg = !!contactLabelMatch;
+ const contactDetailLines = isContactMsg
+ ? (msg.body || "")
+ .split("\n")
+ .slice(1)
+ .map((l) => l.trim())
+ .filter(Boolean)
+ : [];
  const isUnsupported = !msg.mediaUrl && (msg.body === "[Message]" || msg.body?.startsWith("[Unsupported"));
 
  // mediaUrl stores the WhatsApp media ID — route it through our proxy endpoint.
@@ -511,12 +525,24 @@ function MessageBubble({
  </div>
 
  ) : isContactMsg ? (
- /* Contact shared */
- <div className={`flex items-center gap-3 px-4 py-3 ${radius} ${bubbleStyle} min-w-[180px]`}>
- <User className="w-4 h-4 flex-shrink-0 text-blue-500" />
- <div>
- <p className="text-sm font-semibold">Contact shared</p>
+ /* Contact shared — show the actual name/phone when we captured it */
+ <div className={`flex items-start gap-3 px-4 py-3 ${radius} ${bubbleStyle} min-w-[180px] max-w-[280px]`}>
+ <User className="w-4 h-4 flex-shrink-0 text-blue-500 mt-0.5" />
+ <div className="min-w-0">
+ <p className="text-sm font-semibold">
+ {contactDetailLines.length > 1 ? `${contactDetailLines.length} contacts shared` : "Contact shared"}
+ </p>
+ {contactDetailLines.length > 0 ? (
+ <div className="mt-0.5 space-y-0.5">
+ {contactDetailLines.map((line, i) => (
+ <p key={i} className="text-[13px] leading-snug break-words" data-testid={`text-shared-contact-${i}`}>
+ {line}
+ </p>
+ ))}
+ </div>
+ ) : (
  <p className={`text-[11px] mt-0.5 ${isOut ? "opacity-60" : "text-gray-400"}`}>Open WhatsApp to view</p>
+ )}
  </div>
  </div>
 

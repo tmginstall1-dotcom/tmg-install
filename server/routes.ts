@@ -6291,6 +6291,34 @@ Respond with ONLY a JSON array (no prose, no markdown):
 
       const inboundText = extractText(msg);
 
+      // ── Format a shared contact card into readable text ──────────────────────
+      // WhatsApp delivers shared contacts in msg.contacts[] with name + phones +
+      // emails. Previously we stored only "[Contact shared]" and dropped the
+      // actual details, so the admin could not see who/what was shared. Now we
+      // flatten each contact's name, every phone number, and any emails into the
+      // message body so it is fully visible in the Conversations inbox.
+      const formatSharedContacts = (contacts: any[]): string => {
+        if (!Array.isArray(contacts) || contacts.length === 0) return '[Contact shared]';
+        const lines = contacts.map((c) => {
+          const name =
+            c?.name?.formatted_name ||
+            [c?.name?.first_name, c?.name?.last_name].filter(Boolean).join(' ').trim() ||
+            'Unknown contact';
+          const phones: string[] = Array.isArray(c?.phones)
+            ? c.phones.map((p: any) => (p?.phone || p?.wa_id || '').toString().trim()).filter(Boolean)
+            : [];
+          const emails: string[] = Array.isArray(c?.emails)
+            ? c.emails.map((e: any) => (e?.email || '').toString().trim()).filter(Boolean)
+            : [];
+          const parts = [name];
+          if (phones.length) parts.push(phones.join(', '));
+          if (emails.length) parts.push(emails.join(', '));
+          return parts.join(' — ');
+        });
+        const label = contacts.length > 1 ? `[${contacts.length} contacts shared]` : '[Contact shared]';
+        return `${label}\n${lines.join('\n')}`;
+      };
+
       // Friendly fallback labels for media-only messages
       const fallbackLabel =
         msg.type === 'image'    ? '[Photo]'    :
@@ -6299,7 +6327,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
         msg.type === 'sticker'  ? '[Sticker]'  :
         msg.type === 'document' ? '[Document]' :
         msg.type === 'location' ? '[Location sent]' :
-        msg.type === 'contacts' ? '[Contact shared]'  :
+        msg.type === 'contacts' ? formatSharedContacts(msg.contacts)  :
         msg.type === 'reaction' ? `[Reaction: ${msg.reaction?.emoji || '👍'}]` :
         msg.type === 'unsupported' ? '[Unsupported message type — open WhatsApp to view]' :
         '[Message]';
