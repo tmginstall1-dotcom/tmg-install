@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft, CheckCircle2, X, Loader2, Clock, Package, User, CalendarDays,
   Upload, AlertTriangle, ZoomIn, ImagePlus, Navigation2, MapPin, Radio, ListChecks, Square, SquareCheck, Truck,
+  PenLine, RotateCcw,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
@@ -251,6 +252,121 @@ function metaFor(action: Action): ActionMeta {
   }
 }
 
+// ── Customer signature pad ───────────────────────────────────────────────────
+// A lightweight canvas-based signature capture. The customer signs with a
+// finger (touch) or mouse on the staff member's device. Every stroke is drawn
+// onto a backing canvas and, on each change, exported to a PNG data URL which
+// the parent stores and submits with the job completion.
+function SignaturePad({ value, onChange }: { value: string | null; onChange: (dataUrl: string | null) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const hasInk = useRef(false);
+  const last = useRef<{ x: number; y: number } | null>(null);
+
+  // Size the canvas backing store to its rendered size (accounting for device
+  // pixel ratio) so the signature stays crisp on high-density screens.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ratio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * ratio);
+    canvas.height = Math.round(rect.height * ratio);
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#0A0A0A";
+    }
+  }, []);
+
+  const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+
+  const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.setPointerCapture(e.pointerId);
+    drawing.current = true;
+    last.current = pointFromEvent(e);
+  };
+
+  const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx || !last.current) return;
+    const p = pointFromEvent(e);
+    ctx.beginPath();
+    ctx.moveTo(last.current.x, last.current.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    last.current = p;
+    hasInk.current = true;
+  };
+
+  const end = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
+    drawing.current = false;
+    last.current = null;
+    const canvas = canvasRef.current;
+    if (canvas && hasInk.current) {
+      onChange(canvas.toDataURL("image/png"));
+    }
+  };
+
+  const clear = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (canvas && ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    hasInk.current = false;
+    onChange(null);
+  };
+
+  return (
+    <div>
+      <div className="relative rounded-xl border-2 border-dashed border-border bg-background overflow-hidden">
+        <canvas
+          ref={canvasRef}
+          onPointerDown={start}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerLeave={end}
+          className="w-full h-40 touch-none block cursor-crosshair"
+          data-testid="canvas-signature"
+        />
+        {!value && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <span className="text-xs font-semibold text-muted-foreground">Sign here</span>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-[11px] text-muted-foreground">
+          {value ? "Signed ✓" : "Customer signs above"}
+        </span>
+        <button
+          type="button"
+          onClick={clear}
+          className="inline-flex items-center gap-1 text-xs font-bold text-muted-foreground hover:text-primary transition-colors"
+          data-testid="button-clear-signature"
+        >
+          <RotateCcw className="w-3.5 h-3.5" /> Clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function JobDetail() {
   const { id } = useParams();
   const { data: job, isLoading, isFetching, refetch } = useQuote(id!);
@@ -264,6 +380,8 @@ export default function JobDetail() {
   const [photos, setPhotos] = useState<{ file: File; dataUrl: string }[]>([]);
   const [photoProcessing, setPhotoProcessing] = useState<number>(0);
   const [note, setNote] = useState("");
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [customerSignName, setCustomerSignName] = useState("");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [pendingAction, setPendingAction] = useState<Action | null>(null);
@@ -383,6 +501,8 @@ export default function JobDetail() {
     setGpsCoords(null);
     setGpsStatus('idle');
     setNote("");
+    setSignatureDataUrl(null);
+    setCustomerSignName("");
   };
 
   const openAction = (a: Action) => {
@@ -403,7 +523,8 @@ export default function JobDetail() {
     }
 
     // Guard against payloads that would be rejected by the server (15MB body limit).
-    const approxBytes = photos.reduce((sum, p) => sum + Math.floor(p.dataUrl.length * 0.75), 0);
+    const approxBytes = photos.reduce((sum, p) => sum + Math.floor(p.dataUrl.length * 0.75), 0)
+      + (signatureDataUrl ? Math.floor(signatureDataUrl.length * 0.75) : 0);
     if (approxBytes > 12 * 1024 * 1024) {
       toast({
         title: "Too many photos",
@@ -411,6 +532,18 @@ export default function JobDetail() {
         variant: "destructive",
       });
       return;
+    }
+
+    const isCompletion = action.kind === 'install_complete' || action.kind === 'stage_completed';
+    if (isCompletion) {
+      if (!customerSignName.trim()) {
+        toast({ title: "Customer Name Required", description: "Please enter the name of the person signing.", variant: "destructive" });
+        return;
+      }
+      if (!signatureDataUrl) {
+        toast({ title: "Signature Required", description: "Please ask the customer to sign before completing.", variant: "destructive" });
+        return;
+      }
     }
 
     if (gpsStatus === 'loading') {
@@ -434,6 +567,7 @@ export default function JobDetail() {
 
     const photoUrls = photos.map(p => p.dataUrl);
     const payload = { id: id!, gpsLat: coords.lat, gpsLng: coords.lng, photoUrls, note: note || undefined };
+    const ack = { signatureDataUrl: signatureDataUrl || undefined, customerName: customerSignName.trim() || undefined };
 
     try {
       switch (action.kind) {
@@ -443,7 +577,7 @@ export default function JobDetail() {
           toast({ title: "✓ Checked In", description: "Arrival recorded. Location tracking started." });
           break;
         case 'install_complete':
-          await completedMutation.mutateAsync(payload);
+          await completedMutation.mutateAsync({ ...payload, ...ack });
           stopTracking().catch(() => {});
           toast({ title: "✓ Job Completed", description: "Completion submitted. Location tracking stopped." });
           break;
@@ -457,7 +591,7 @@ export default function JobDetail() {
           toast({ title: "✓ Dropoff Photo Submitted", description: "Dropoff recorded." });
           break;
         case 'stage_completed':
-          await stageMutation.mutateAsync({ ...payload, stage: 'completed' });
+          await stageMutation.mutateAsync({ ...payload, ...ack, stage: 'completed' });
           stopTracking().catch(() => {});
           toast({ title: "✓ Job Completed", description: "Completion submitted. Location tracking stopped." });
           break;
@@ -879,6 +1013,35 @@ export default function JobDetail() {
                   data-testid="input-note"
                 />
               </div>
+
+              {/* Step 3: Customer acknowledgment (completion only) */}
+              {(action?.kind === 'install_complete' || action?.kind === 'stage_completed') && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                      signatureDataUrl && customerSignName.trim() ? "bg-emerald-500 text-white" : "bg-primary text-primary-foreground"
+                    }`}>
+                      {signatureDataUrl && customerSignName.trim() ? <CheckCircle2 className="w-3.5 h-3.5" /> : "3"}
+                    </div>
+                    <p className="font-bold text-sm flex items-center gap-1.5">
+                      <PenLine className="w-3.5 h-3.5" /> Customer Sign-Off <span className="text-red-500">*</span>
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    The customer confirms the work is completed to their satisfaction.
+                  </p>
+                  <input
+                    type="text"
+                    value={customerSignName}
+                    onChange={e => setCustomerSignName(e.target.value)}
+                    placeholder="Customer name"
+                    maxLength={120}
+                    className="w-full px-3 py-2.5 rounded-xl border bg-background text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors mb-3"
+                    data-testid="input-customer-name"
+                  />
+                  <SignaturePad value={signatureDataUrl} onChange={setSignatureDataUrl} />
+                </div>
+              )}
 
               {gpsStatus === 'error' && (
                 <p className="text-xs text-amber-600 flex items-center gap-1.5 -mt-2">

@@ -4790,13 +4790,24 @@ ${systemPrompt}` });
     if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
     try {
       const id = parseInt(req.params.id);
-      const { stage, gpsLat, gpsLng, photoUrls, note } = z.object({
+      const { stage, gpsLat, gpsLng, photoUrls, note, signatureDataUrl, customerName } = z.object({
         stage: z.enum(['at_pickup', 'in_transit', 'at_dropoff', 'completed']),
         gpsLat: z.number(),
         gpsLng: z.number(),
         photoUrls: z.array(z.string()).min(1, "At least one photo is required"),
         note: z.string().optional(),
+        signatureDataUrl: z.string()
+          .regex(/^data:image\/(png|jpe?g);base64,/, "Invalid signature")
+          .max(2_000_000, "Signature is too large")
+          .optional(),
+        customerName: z.string().trim().max(120).optional(),
       }).parse(req.body);
+
+      // The final "completed" stage requires the customer's acknowledgment.
+      if (stage === 'completed') {
+        if (!signatureDataUrl) return res.status(400).json({ message: "Customer signature is required" });
+        if (!customerName) return res.status(400).json({ message: "Customer name is required" });
+      }
 
       const existing = await storage.getQuote(id);
       if (!existing) return res.status(404).json({ message: "Quote not found" });
@@ -4839,6 +4850,12 @@ ${systemPrompt}` });
         completed: 'Job completed',
       };
 
+      // Persist the customer acknowledgment BEFORE flipping status to completed,
+      // so a failure here never leaves a job completed with no sign-off on record.
+      if (stage === 'completed') {
+        await storage.setCompletionSignature(id, signatureDataUrl!, customerName!);
+      }
+
       const quote = await storage.updateQuoteStatus(id, stage, {
         actorType: 'staff',
         note: note || stageLabels[stage],
@@ -4872,12 +4889,45 @@ ${systemPrompt}` });
     if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
     try {
       const id = parseInt(req.params.id);
-      const { gpsLat, gpsLng, photoUrls, note } = z.object({
+      const { gpsLat, gpsLng, photoUrls, note, signatureDataUrl, customerName } = z.object({
         gpsLat: z.number(),
         gpsLng: z.number(),
         photoUrls: z.array(z.string()).min(1, "At least one completion photo is required"),
-        note: z.string().optional()
+        note: z.string().optional(),
+        signatureDataUrl: z.string()
+          .regex(/^data:image\/(png|jpe?g);base64,/, "Invalid signature")
+          .max(2_000_000, "Signature is too large"),
+        customerName: z.string().trim().min(1, "Customer name is required").max(120),
       }).parse(req.body);
+
+      const existing = await storage.getQuote(id);
+      if (!existing) return res.status(404).json({ message: "Quote not found" });
+
+      // Authz: only the assigned staff member, a member of the assigned team,
+      // or an admin may complete a job (mirrors /stage).
+      const caller = await storage.getUserById(req.session.userId);
+      if (!caller || (caller.role !== 'staff' && caller.role !== 'admin')) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      if (caller.role === 'staff') {
+        const assignedStaffId = (existing as any).assignedStaffId;
+        const assignedTeamId  = (existing as any).assignedTeamId;
+        const callerTeamId    = (caller as any).teamId;
+        const assignedSolo = assignedStaffId != null && assignedStaffId === caller.id;
+        const onAssignedTeam = assignedTeamId != null && callerTeamId != null && assignedTeamId === callerTeamId;
+        if (!assignedSolo && !onAssignedTeam) {
+          return res.status(403).json({ message: "You are not assigned to this job" });
+        }
+      }
+
+      // Only an in-progress job can be completed via this install checkout.
+      if (existing.status !== 'in_progress') {
+        return res.status(400).json({ message: `Cannot complete a job in "${existing.status}" status` });
+      }
+
+      // Persist the customer acknowledgment BEFORE flipping status, so a failure
+      // here never leaves a job marked completed with no sign-off on record.
+      await storage.setCompletionSignature(id, signatureDataUrl, customerName);
 
       const quote = await storage.updateQuoteStatus(id, 'completed', {
         actorType: 'staff',

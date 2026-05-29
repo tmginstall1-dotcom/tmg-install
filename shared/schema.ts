@@ -409,6 +409,15 @@ export const quotes = pgTable("quotes", {
   // display time — this column only stores the completions themselves.
   phaseCompletions: jsonb("phase_completions").default([]),
 
+  // Customer acknowledgment / sign-off captured by the staff app at job
+  // completion. The customer signs on the staff member's device to confirm
+  // the work is done. The signature is stored as a PNG data URL (same as the
+  // completion photos), alongside the name of the person who signed and the
+  // moment they signed. Surfaced read-only on the admin quote detail page.
+  completionSignatureUrl: text("completion_signature_url"),
+  completionSignedName: text("completion_signed_name"),
+  completionSignedAt: timestamp("completion_signed_at"),
+
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
   quotesStatusIdx: index("quotes_status_idx").on(t.status),

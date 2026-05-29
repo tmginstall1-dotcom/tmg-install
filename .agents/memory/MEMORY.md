@@ -1,0 +1,1 @@
+- [drizzle-kit push is interactive](drizzle-push-interactive.md) — `db:push` prompts create-vs-rename on new columns and hangs non-interactively; add columns via direct `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` SQL instead.

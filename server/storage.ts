@@ -98,6 +98,7 @@ export interface IStorage {
   getQuote(id: number): Promise<QuoteResponse | undefined>;
   createQuote(customer: InsertCustomer, quote: Omit<InsertQuote, 'customerId'>, items: InsertQuoteItem[]): Promise<QuoteResponse>;
   updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number, assignedTeamId?: number | null): Promise<QuoteResponse | undefined>;
+  setCompletionSignature(id: number, signatureUrl: string, signedName: string): Promise<void>;
   setPhaseCompletion(id: number, phase: 'dismantle' | 'delivery' | 'install', done: boolean, actor: { actorType: string; userId?: number; note?: string }): Promise<QuoteResponse | undefined>;
   updateQuotePayment(id: number, paymentType: 'deposit' | 'final', amount: string): Promise<QuoteResponse | undefined>;
   requestBooking(id: number, scheduledAt: Date, timeWindow: string): Promise<QuoteResponse | undefined>;
@@ -820,6 +821,19 @@ export class DatabaseStorage implements IStorage {
       actorId: updateRecord?.actorId,
     });
     return await this.fetchQuoteDetails(id);
+  }
+
+  // Persist the customer's completion sign-off (signature image + name) on the
+  // quote. Called when the staff app submits a job completion with a captured
+  // acknowledgment, so the admin can later review who signed and when.
+  async setCompletionSignature(id: number, signatureUrl: string, signedName: string) {
+    await db.update(quotes)
+      .set({
+        completionSignatureUrl: signatureUrl,
+        completionSignedName: signedName,
+        completionSignedAt: new Date(),
+      })
+      .where(eq(quotes.id, id));
   }
 
   async setPhaseCompletion(

@@ -8,7 +8,7 @@ import {
  ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
  DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
  ClipboardList, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
- Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles, FileText, Copy, Users,
+ Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles, FileText, Copy, Users, PenLine,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -3365,6 +3365,44 @@ export default function AdminQuoteDetail() {
  </div>
  </button>
  ))}
+ </div>
+ </div>
+ </div>
+ )}
+
+ {/* Customer Acknowledgment (completion sign-off) */}
+ {quote.completionSignatureUrl && (
+ <div className="bg-white border border-zinc-200 rounded-none overflow-hidden ">
+ <div className="px-5 py-4 border-b border-zinc-100">
+ <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+ <PenLine className="w-3.5 h-3.5" /> Customer Acknowledgment
+ </p>
+ </div>
+ <div className="p-4 space-y-3">
+ <div className="grid grid-cols-2 gap-3">
+ <div>
+ <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Signed By</p>
+ <p className="text-sm font-bold text-[#0A0A0A] mt-0.5" data-testid="text-signed-name">
+ {quote.completionSignedName || "—"}
+ </p>
+ </div>
+ <div>
+ <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Signed At</p>
+ <p className="text-sm font-bold text-[#0A0A0A] mt-0.5" data-testid="text-signed-at">
+ {quote.completionSignedAt ? new Date(quote.completionSignedAt).toLocaleString("en-SG", { dateStyle: "medium", timeStyle: "short" }) : "—"}
+ </p>
+ </div>
+ </div>
+ <div>
+ <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">Signature</p>
+ <div className="border border-zinc-200 rounded-lg bg-white p-2 inline-block">
+ <img
+ src={quote.completionSignatureUrl}
+ alt="Customer signature"
+ className="max-h-32 w-auto"
+ data-testid="img-signature"
+ />
+ </div>
  </div>
  </div>
  </div>
