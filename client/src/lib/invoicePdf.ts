@@ -52,6 +52,7 @@ export type InvoicePdfData = {
   discount: string;
   secondDayFee?: string;
   secondDayHours?: string;
+  secondDayCrewSize?: number;
   total: string;
   depositAmount: string;
   depositPaidAt: string | null;
@@ -372,7 +373,7 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
   }
   if (Number(data.secondDayFee || 0) > 0) {
     doc.setTextColor(...bodyColor);
-    doc.text(`Second-day continuation${Number(data.secondDayHours || 0) > 0 ? ` (${Number(data.secondDayHours)}h)` : ""}`, totalsX, y);
+    doc.text(`Second-day continuation${Number(data.secondDayHours || 0) > 0 ? ` (${Number(data.secondDayCrewSize) || 2} men x ${Number(data.secondDayHours)}h)` : ""}`, totalsX, y);
     doc.text(money(data.secondDayFee), totalsRight, y, { align: "right" });
     y += 5;
   }

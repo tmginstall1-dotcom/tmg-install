@@ -394,6 +394,7 @@ export const quotes = pgTable("quotes", {
   // shared/pricing.ts.
   secondDayContinuation: boolean("second_day_continuation").default(false),
   secondDayHours: numeric("second_day_hours").default("0"), // actual Day-2 on-site hours
+  secondDayCrewSize: integer("second_day_crew_size").default(2), // movers on Day 2 — admin-adjustable for bigger crews
 
   // Invoice / quotation billing presentation. The work-site address (above)
   // is where staff actually go; these fields determine how the customer is

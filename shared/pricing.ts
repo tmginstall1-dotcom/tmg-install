@@ -93,8 +93,10 @@ export const PricingConfig = {
     // Second-Day Continuation — when a single-day job spills into the next day
     // because of on-site access delays (loading-bay parking, lift congestion).
     // The crew has to be re-dispatched (van + movers) and a fresh slot burned.
-    returnFee: 120,   // SGD flat re-mobilisation fee charged once when the job continues to Day 2
-    hourlyRate: 60,   // SGD per hour of actual Day-2 on-site crew time (matches the $30/30-min overtime rate)
+    returnFee: 120,            // SGD flat re-mobilisation fee charged once when the job continues to Day 2
+    perPersonHourlyRate: 30,   // SGD per mover, per hour of actual Day-2 on-site time ($30/person/hr; matches overtime $5/person/10min)
+    defaultCrewSize: 2,        // standard van crew = 2 movers; admin can raise this per job for bigger teams
+    hourlyRate: 60,            // legacy effective 2-man rate (perPersonHourlyRate × defaultCrewSize) — kept for back-compat
   },
 };
 
@@ -218,18 +220,25 @@ function round2(n: number): number {
  * Hours are recorded after Day 2 finishes, so the admin never has to guess the
  * duration up front.
  */
-export function calcSecondDayContinuation(enabled: boolean, hours: number | string) {
+export function calcSecondDayContinuation(enabled: boolean, hours: number | string, crewSize?: number | string) {
   const cfg = PricingConfig.secondDay;
+  // Crew size is admin-adjustable per job (bigger jobs go out with more movers).
+  // Falls back to the standard 2-man van crew so old quotes keep their pricing.
+  const crew = Math.max(1, Math.round(Number(crewSize) || cfg.defaultCrewSize));
+  // Effective hourly rate = per-mover rate × number of movers on Day 2.
+  const hourlyRate = round2(cfg.perPersonHourlyRate * crew);
   if (!enabled) {
-    return { enabled: false, returnFee: 0, hours: 0, hourlyRate: cfg.hourlyRate, labour: 0, fee: 0 };
+    return { enabled: false, returnFee: 0, hours: 0, crewSize: crew, perPersonHourlyRate: cfg.perPersonHourlyRate, hourlyRate, labour: 0, fee: 0 };
   }
   const h = Math.max(0, Number(hours) || 0);
-  const labour = round2(h * cfg.hourlyRate);
+  const labour = round2(h * hourlyRate);
   return {
     enabled: true,
     returnFee: cfg.returnFee,
     hours: h,
-    hourlyRate: cfg.hourlyRate,
+    crewSize: crew,
+    perPersonHourlyRate: cfg.perPersonHourlyRate,
+    hourlyRate,
     labour,
     fee: round2(cfg.returnFee + labour),
   };

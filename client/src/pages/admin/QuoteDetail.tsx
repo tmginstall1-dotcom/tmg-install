@@ -920,6 +920,7 @@ export default function AdminQuoteDetail() {
  staffTransportAllowance: !!quote.staffTransportAllowance,
  secondDayContinuation: !!quote.secondDayContinuation,
  secondDayHours: quote.secondDayHours ? String(quote.secondDayHours) : '0',
+ secondDayCrewSize: Number(quote.secondDayCrewSize) || PricingConfig.secondDay.defaultCrewSize,
  invoiceType: (quote.invoiceType === 'commercial') ? 'commercial' : 'residential',
  billingAddress: quote.billingAddress || '',
  billingCompanyName: quote.billingCompanyName || '',
@@ -1086,7 +1087,7 @@ export default function AdminQuoteDetail() {
  const editTransport = Number(editQuoteData.transportFee || 0);
  const editPromoDiscount = Number(quote?.promoDiscount || 0);
  const editGoodwillDiscount = Number(editQuoteData.goodwillDiscount || 0);
- const editSecondDay = calcSecondDayContinuation(!!editQuoteData.secondDayContinuation, editQuoteData.secondDayHours || 0).fee;
+ const editSecondDay = calcSecondDayContinuation(!!editQuoteData.secondDayContinuation, editQuoteData.secondDayHours || 0, editQuoteData.secondDayCrewSize).fee;
  const editTotal = Math.max(0, editSubtotal - editPromoDiscount - editGoodwillDiscount + editTransport + editSecondDay);
 
  const handlePrintQuote = () => {
@@ -1755,7 +1756,7 @@ export default function AdminQuoteDetail() {
  ${Number(q.transportFee || 0) > 0 ? `<div class="totals-row"><span class="k">Transport</span><span>S$${Number(q.transportFee).toFixed(2)}</span></div>` : ""}
  ${Number(q.promoDiscount || 0) > 0 ? `<div class="totals-row"><span class="k">Promo · ${esc(q.promoCode || "")}</span><span>−S$${Number(q.promoDiscount).toFixed(2)}</span></div>` : ""}
  ${Number((q as any).goodwillDiscount || 0) > 0 ? `<div class="totals-row"><span class="k">Goodwill discount${(q as any).goodwillReason ? ` · ${esc((q as any).goodwillReason)}` : ""}</span><span>−S$${Number((q as any).goodwillDiscount).toFixed(2)}</span></div>` : ""}
- ${(q as any).secondDayContinuation ? `<div class="totals-row"><span class="k">Second-day continuation${Number((q as any).secondDayHours) > 0 ? ` · ${Number((q as any).secondDayHours)}h` : ""}</span><span>S$${calcSecondDayContinuation(!!(q as any).secondDayContinuation, (q as any).secondDayHours || 0).fee.toFixed(2)}</span></div>` : ""}
+ ${(q as any).secondDayContinuation ? `<div class="totals-row"><span class="k">Second-day continuation${Number((q as any).secondDayHours) > 0 ? ` · ${Number((q as any).secondDayCrewSize) || PricingConfig.secondDay.defaultCrewSize} men × ${Number((q as any).secondDayHours)}h` : ""}</span><span>S$${calcSecondDayContinuation(!!(q as any).secondDayContinuation, (q as any).secondDayHours || 0, (q as any).secondDayCrewSize).fee.toFixed(2)}</span></div>` : ""}
  <div class="totals-row grand"><span class="k">Total</span><span>S$${Number(q.total || 0).toFixed(2)}</span></div>
  ${isFullyPaid ? `
  <div class="paid-stamp">
@@ -2410,7 +2411,7 @@ export default function AdminQuoteDetail() {
  />
  <span>
  <span className="block text-sm font-medium text-zinc-900">Job pushed to a second day (access delay)</span>
- <span className="block text-xs text-zinc-500 mt-0.5">Adds a ${PricingConfig.secondDay.returnFee} return fee + ${PricingConfig.secondDay.hourlyRate}/hr for Day-2 crew time to the balance. Use when loading-bay parking / lift access forced the job to finish the next day.</span>
+ <span className="block text-xs text-zinc-500 mt-0.5">Adds a ${PricingConfig.secondDay.returnFee} return fee + ${PricingConfig.secondDay.perPersonHourlyRate}/hr per mover for Day-2 crew time to the balance. Use when loading-bay parking / lift access forced the job to finish the next day.</span>
  </span>
  </label>
  {editQuoteData.secondDayContinuation && (
@@ -2424,11 +2425,20 @@ export default function AdminQuoteDetail() {
  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs">hrs</span>
  </div>
  </div>
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">Day-2 crew size (movers)</label>
+ <div className="relative w-32">
+ <input type="number" min="1" step="1" value={editQuoteData.secondDayCrewSize ?? PricingConfig.secondDay.defaultCrewSize} onChange={e => setEditQuoteData({ ...editQuoteData, secondDayCrewSize: Math.max(1, Math.round(Number(e.target.value) || 1)) })}
+ data-testid="input-second-day-crew"
+ className="h-9 w-full pl-3 pr-10 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs">men</span>
+ </div>
+ </div>
  {(() => {
- const sd = calcSecondDayContinuation(true, editQuoteData.secondDayHours || 0);
+ const sd = calcSecondDayContinuation(true, editQuoteData.secondDayHours || 0, editQuoteData.secondDayCrewSize);
  return (
  <p className="text-xs text-zinc-600" data-testid="text-second-day-fee-preview">
- ${sd.returnFee} return + {sd.hours}h × ${sd.hourlyRate} = <span className="font-semibold text-zinc-900">${sd.fee.toFixed(2)}</span> added to balance
+ ${sd.returnFee} return + {sd.crewSize} men × {sd.hours}h × ${sd.perPersonHourlyRate}/man = <span className="font-semibold text-zinc-900">${sd.fee.toFixed(2)}</span> added to balance
  </p>
  );
  })()}
@@ -3289,11 +3299,11 @@ export default function AdminQuoteDetail() {
  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold bg-indigo-400 text-white">2</div>
  <div>
  <span className="text-sm font-medium text-indigo-800">Second-Day Continuation</span>
- <p className="text-xs text-indigo-700 mt-0.5">${PricingConfig.secondDay.returnFee} return + {Number(quote.secondDayHours) || 0}h × ${PricingConfig.secondDay.hourlyRate}/hr · already included in total &amp; balance</p>
+ <p className="text-xs text-indigo-700 mt-0.5">${PricingConfig.secondDay.returnFee} return + {Number(quote.secondDayCrewSize) || PricingConfig.secondDay.defaultCrewSize} men × {Number(quote.secondDayHours) || 0}h × ${PricingConfig.secondDay.perPersonHourlyRate}/man · already included in total &amp; balance</p>
  </div>
  </div>
  <span className="text-sm font-semibold tabular-nums text-indigo-900" data-testid="text-second-day-charge">
- {formatMoney(calcSecondDayContinuation(true, quote.secondDayHours || 0).fee)}
+ {formatMoney(calcSecondDayContinuation(true, quote.secondDayHours || 0, quote.secondDayCrewSize).fee)}
  </span>
  </div>
  )}

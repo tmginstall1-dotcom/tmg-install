@@ -1024,7 +1024,8 @@ export class DatabaseStorage implements IStorage {
       data.quoteUpdates?.transportFee !== undefined ||
       data.quoteUpdates?.goodwillDiscount !== undefined ||
       data.quoteUpdates?.secondDayContinuation !== undefined ||
-      data.quoteUpdates?.secondDayHours !== undefined;
+      data.quoteUpdates?.secondDayHours !== undefined ||
+      data.quoteUpdates?.secondDayCrewSize !== undefined;
 
     if (pricingTouched) {
       // Re-fetch after the quoteUpdates write so we see the latest values.
@@ -1038,6 +1039,7 @@ export class DatabaseStorage implements IStorage {
       const secondDayFee = calcSecondDayContinuation(
         !!current?.secondDayContinuation,
         current?.secondDayHours ?? 0,
+        current?.secondDayCrewSize ?? undefined,
       ).fee;
 
       // Replace items only when caller explicitly provided them.
