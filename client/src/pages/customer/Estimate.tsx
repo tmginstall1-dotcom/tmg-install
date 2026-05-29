@@ -506,7 +506,13 @@ export default function EstimateWizard() {
         groups = groups.filter(g => tab.match!.some(kw => g.category.toLowerCase().includes(kw)));
       }
     }
-    if (!catalogSearch.trim()) return groups.slice(0, 16);
+    if (!catalogSearch.trim()) {
+      // On a specific category tab, show EVERY item in that category so newer
+      // or less-common options (e.g. the partial "Hydraulic Mechanism
+      // Attachment" line) aren't hidden behind the cap. Only the "All" tab is
+      // capped, to keep the initial list short.
+      return activeCategory === "All" ? groups.slice(0, 16) : groups;
+    }
     const q = catalogSearch.toLowerCase();
     return groups.filter(g =>
       g.name.toLowerCase().includes(q) || g.category.toLowerCase().includes(q) ||
