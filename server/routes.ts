@@ -2426,6 +2426,7 @@ export async function registerRoutes(
         userId: attendanceLogs.userId,
         clockInAt: attendanceLogs.clockInAt,
         clockOutAt: attendanceLogs.clockOutAt,
+        deductionMinutes: attendanceLogs.deductionMinutes,
       }).from(attendanceLogs);
 
       const monthlySalaryMap: Record<string, number> = {};
@@ -2435,43 +2436,58 @@ export async function registerRoutes(
       const hourlyStaff  = staffList.filter((s: any) =>
         parseFloat(s.monthlyRate || "0") === 0 && parseFloat(s.hourlyRate || "0") > 0);
 
-      for (const s of hourlyStaff) {
+      // Helper: accumulate actual hourly + overtime pay from real clock in/out
+      // records within the active range. Mirrors the payslip calc — regular hours
+      // are capped at 8h/day and the remainder is overtime; OT rate falls back to
+      // 1.5× the hourly rate when no explicit OT rate is set.
+      const addAttendancePay = (staffId: number, hRate: number, otRate: number) => {
         const myLogs = allAttLogs.filter(l =>
-          l.userId === s.id && l.clockInAt && l.clockOutAt && inRange(l.clockInAt)
+          l.userId === staffId && l.clockInAt && l.clockOutAt && inRange(l.clockInAt)
         );
         for (const log of myLogs) {
           const rawMs = log.clockOutAt!.getTime() - log.clockInAt!.getTime();
-          const dedMs = Math.max(0, ((log as any).deductionMinutes || 0)) * 60000;
+          const dedMs = Math.max(0, (log.deductionMinutes || 0)) * 60000;
           const hrs = Math.max(0, rawMs - dedMs) / 3600000;
-          const cost = Math.min(hrs, 8) * parseFloat(s.hourlyRate || "0")
-                     + Math.max(0, hrs - 8) * parseFloat(s.overtimeRate || s.hourlyRate || "0");
+          const cost = Math.min(hrs, 8) * hRate + Math.max(0, hrs - 8) * otRate;
+          if (cost === 0) continue;
           totalSalaryCost += cost;
           const key = `${log.clockInAt!.getFullYear()}-${String(log.clockInAt!.getMonth() + 1).padStart(2, "0")}`;
           monthlySalaryMap[key] = (monthlySalaryMap[key] || 0) + cost;
         }
+      };
+
+      // Purely hourly staff: pay = regular hrs × hourly rate + OT hrs × OT rate
+      for (const s of hourlyStaff) {
+        const hRate  = parseFloat(s.hourlyRate || "0");
+        const otRate = parseFloat(s.overtimeRate || "0") || (hRate * 1.5);
+        addAttendancePay(s.id, hRate, otRate);
       }
 
+      // Monthly-salaried staff: FULL basic salary for every month employed (no
+      // calendar-day proration — a salary is paid in full regardless of the date)
+      // PLUS any actual hourly + overtime pay earned from their clock in/out
+      // records, so the P&L cost matches what their payslip would pay them.
       for (const s of monthlyStaff) {
         const rate = parseFloat(s.monthlyRate || "0");
         if (rate === 0) continue;
+        const hRate  = parseFloat(s.hourlyRate || "0");
+        const otRate = parseFloat(s.overtimeRate || "0") || (hRate * 1.5);
         const startDate = s.startDate
           ? new Date(s.startDate)
           : new Date(now.getFullYear(), now.getMonth(), 1);
         // iterate month by month within the filter range
-        const iterFrom = rangeFrom && startDate < rangeFrom ? new Date(rangeFrom.getFullYear(), rangeFrom.getMonth(), 1) : new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-        const iterTo   = rangeTo ?? now;
+        const iterFrom = rangeFrom && startDate < rangeFrom
+          ? new Date(rangeFrom.getFullYear(), rangeFrom.getMonth(), 1)
+          : new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        const iterTo = rangeTo ?? now;
         const cur = new Date(iterFrom);
         while (cur <= iterTo) {
           const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`;
-          const isLastMonth = cur.getFullYear() === iterTo.getFullYear() && cur.getMonth() === iterTo.getMonth();
-          const isCurrentCalMonth = cur.getFullYear() === now.getFullYear() && cur.getMonth() === now.getMonth();
-          const monthCost = (isLastMonth && isCurrentCalMonth)
-            ? rate * (now.getDate() / new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate())
-            : rate;
-          monthlySalaryMap[key] = (monthlySalaryMap[key] || 0) + monthCost;
-          totalSalaryCost += monthCost;
+          monthlySalaryMap[key] = (monthlySalaryMap[key] || 0) + rate;
+          totalSalaryCost += rate;
           cur.setMonth(cur.getMonth() + 1);
         }
+        addAttendancePay(s.id, hRate, otRate);
       }
 
       // ── Expenses: approved receipts ──────────────────────────────────────────

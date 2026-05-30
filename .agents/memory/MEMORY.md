@@ -1,2 +1,3 @@
 - [Dev backend reload](dev-backend-reload.md) — `npm run dev` runs `tsx` without watch; restart the "Start application" workflow after schema/storage edits or Drizzle throws "No values to set".
 - [Per-job fee pattern](per-job-fee-pattern.md) — add new per-job fees by folding them into `editQuote` total recompute, not into payment/email endpoints.
+- [P&L salary calc](pnl-salary-calc.md) — P&L Staff Salary = full monthly salary (no calendar-day proration) + actual hourly/OT from attendance; keep in lockstep with payslip formula.

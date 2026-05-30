@@ -1176,7 +1176,7 @@ function PnLTab() {
  <KpiCard label="Total Expenses" value={fmtSGD(totalExpenses)}
  sub="Salary + approved claims" icon={Receipt} color="text-red-500" />
  <KpiCard label="Staff Salary" value={fmtSGD(totalSalaryCost)}
- sub="Monthly salary (prorated) + hourly hours" icon={Users} color="text-red-400" />
+ sub="Full monthly salary + hourly + overtime" icon={Users} color="text-red-400" />
  <KpiCard label="Receipts & Claims" value={fmtSGD(totalReceiptExpenses)}
  sub="Approved expense claims" icon={FileText} color="text-red-400" />
  <KpiCard label="Net Profit" value={fmtSGD(Math.abs(netProfit))}
@@ -1297,7 +1297,7 @@ function PnLTab() {
 
  <p className="text-xs text-zinc-400 text-center pb-2">
  TMG Revenue = completed/final-paid/closed job totals. GoGoVan = net transport payout (actualPrice after GoGoVan platform fee).
- Staff Salary = monthly rate × months employed (prorated for current month), or hours logged × hourly rate for hourly staff.
+ Staff Salary = full monthly salary for each month employed, plus actual hourly + overtime pay from clock in/out records (matches payslip). Hourly staff = hours logged × hourly rate + overtime.
  Receipts = approved expense claims only. Pending claims excluded until approved.
  </p>
  </div>
