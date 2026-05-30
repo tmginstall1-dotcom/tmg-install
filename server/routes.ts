@@ -2448,7 +2448,10 @@ export async function registerRoutes(
           const rawMs = log.clockOutAt!.getTime() - log.clockInAt!.getTime();
           const dedMs = Math.max(0, (log.deductionMinutes || 0)) * 60000;
           const hrs = Math.max(0, rawMs - dedMs) / 3600000;
-          const cost = Math.min(hrs, 8) * hRate + Math.max(0, hrs - 8) * otRate;
+          const otHrs = Math.max(0, hrs - 8);
+          // Meal allowance: $8 on any day with more than 3h overtime (matches payslip)
+          const mealAllowance = otHrs > 3 ? 8 : 0;
+          const cost = Math.min(hrs, 8) * hRate + otHrs * otRate + mealAllowance;
           if (cost === 0) continue;
           totalSalaryCost += cost;
           const key = `${log.clockInAt!.getFullYear()}-${String(log.clockInAt!.getMonth() + 1).padStart(2, "0")}`;
