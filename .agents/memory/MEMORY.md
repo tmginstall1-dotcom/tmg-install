@@ -1,4 +1,5 @@
 - [Dev backend reload](dev-backend-reload.md) — `npm run dev` runs `tsx` without watch; restart the "Start application" workflow after schema/storage edits or Drizzle throws "No values to set".
 - [Per-job fee pattern](per-job-fee-pattern.md) — add new per-job fees by folding them into `editQuote` total recompute, not into payment/email endpoints.
+- [Balance computation spots](balance-computation-spots.md) — outstanding balance is recomputed inline in ~7 routes + the email template; change them all together and subtract `getLedgerPaidTotal`, never the deposit baseline.
 - [Admin route authorization](admin-route-authz.md) — admin routes must check `caller.role==='admin'` via getUserById, not just session.userId; bind child resources to parent id to stop IDOR.
 - [P&L salary calc](pnl-salary-calc.md) — P&L Staff Salary = full monthly salary (no calendar-day proration) + actual hourly/OT from attendance; keep in lockstep with payslip formula.

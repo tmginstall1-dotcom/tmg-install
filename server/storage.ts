@@ -104,6 +104,7 @@ export interface IStorage {
   setPhaseCompletion(id: number, phase: 'dismantle' | 'delivery' | 'install', done: boolean, actor: { actorType: string; userId?: number; note?: string }): Promise<QuoteResponse | undefined>;
   updateQuotePayment(id: number, paymentType: 'deposit' | 'final', amount: string): Promise<QuoteResponse | undefined>;
   getQuotePayments(quoteId: number): Promise<QuotePayment[]>;
+  getLedgerPaidTotal(quoteId: number): Promise<number>;
   recordQuotePayment(payment: InsertQuotePayment, recordedBy?: number): Promise<QuoteResponse | undefined>;
   deleteQuotePayment(paymentId: number, quoteId?: number): Promise<QuoteResponse | undefined>;
   requestBooking(id: number, scheduledAt: Date, timeWindow: string): Promise<QuoteResponse | undefined>;
@@ -950,6 +951,14 @@ export class DatabaseStorage implements IStorage {
   // the quote total the quote is auto-marked paid_in_full.
   async getQuotePayments(quoteId: number): Promise<QuotePayment[]> {
     return await db.select().from(quotePayments).where(eq(quotePayments.quoteId, quoteId)).orderBy(desc(quotePayments.paidAt));
+  }
+
+  // Sum of every manually-recorded ledger payment for a quote. Used by the
+  // final/balance flows (Stripe link, WhatsApp/email message, invoice PDF) so
+  // the outstanding balance shrinks as the admin records partial payments.
+  async getLedgerPaidTotal(quoteId: number): Promise<number> {
+    const rows = await db.select().from(quotePayments).where(eq(quotePayments.quoteId, quoteId));
+    return rows.reduce((s, p) => s + (parseFloat(p.amount || "0") || 0), 0);
   }
 
   async recordQuotePayment(payment: InsertQuotePayment, recordedBy?: number) {

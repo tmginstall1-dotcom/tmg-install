@@ -682,11 +682,21 @@ export function rescheduleConfirmationEmail(quote: any): string {
   `);
 }
 
-export function finalPaymentEmail(quote: any, paymentLink: string): string {
+export function finalPaymentEmail(
+  quote: any,
+  paymentLink: string,
+  opts?: { balanceDue?: number; paymentsReceived?: number },
+): string {
   const c = quote.customer;
 
   const hasOvertime = Number(quote.additionalCharge || 0) > 0;
-  const baseBalance = Number(quote.finalAmount || 0);
+  // Static 50% balance from the quote record.
+  const grossBalance = Number(quote.finalAmount || 0);
+  // Partial payments the admin has logged in the ledger since.
+  const paymentsReceived = Number(opts?.paymentsReceived || 0);
+  // Live outstanding balance — prefer the caller-supplied figure (already net of
+  // any recorded partial payments) so the email matches the Stripe link / WhatsApp.
+  const baseBalance = opts?.balanceDue !== undefined ? Number(opts.balanceDue) : grossBalance;
   const overtimeAmt = Number(quote.additionalCharge || 0);
   const totalDueNow = baseBalance + overtimeAmt;
 
@@ -706,7 +716,8 @@ export function finalPaymentEmail(quote: any, paymentLink: string): string {
           ${quote.secondDayContinuation ? (() => { const sd = calcSecondDayContinuation(!!quote.secondDayContinuation, quote.secondDayHours || 0, quote.secondDayCrewSize); return totRow('#444444', `Second-day continuation${sd.hours > 0 ? ` (${sd.crewSize} men × ${sd.hours}h)` : ''}`, `$${sd.fee.toFixed(2)}`); })() : ''}
           ${totRow('#444444', 'Original total', `$${Number(quote.total || 0).toFixed(2)}`)}
           ${totRow('#15803d', 'Deposit paid (50%)', `-$${Number(quote.depositAmount || 0).toFixed(2)}`)}
-          ${totRow('#444444', 'Balance (50%)', `$${baseBalance.toFixed(2)}`)}
+          ${paymentsReceived > 0 ? totRow('#444444', 'Balance (50%)', `$${grossBalance.toFixed(2)}`) : totRow('#444444', 'Balance (50%)', `$${baseBalance.toFixed(2)}`)}
+          ${paymentsReceived > 0 ? totRow('#15803d', 'Payments received', `-$${paymentsReceived.toFixed(2)}`) : ''}
           ${hasOvertime ? totRow('#b45309', `${quote.additionalChargeNote || 'Overtime charges'}`, `+$${overtimeAmt.toFixed(2)}`) : ''}
           ${totRow('#111111', 'Total due now', `$${totalDueNow.toFixed(2)}`, true)}
         </tbody>

@@ -3410,12 +3410,15 @@ Category rules:
       let stripeType: string;
 
       if (isFinal) {
-        // Balance = total minus deposit already paid (fixed-price installation, no overtime)
+        // Balance = total minus deposit already paid (fixed-price installation, no overtime),
+        // then minus any partial payments the admin has already recorded in the ledger.
         const totalAmt = parseFloat(quote.total || "0");
         const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-        amount = parseFloat(quote.finalAmount || "0") > 0
+        const baseBalance = parseFloat(quote.finalAmount || "0") > 0
           ? parseFloat(quote.finalAmount!)
           : Math.max(0, totalAmt - depositPaid);
+        const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
+        amount = Math.max(0, baseBalance - ledgerPaid);
         description = `Balance Payment for ${quote.referenceNo} — TMG Install`;
         stripeType = "final";
       } else {
@@ -4412,9 +4415,12 @@ ${systemPrompt}` });
       } else {
         const totalFinal = parseFloat(quote.total || "0");
         const depositFinal = parseFloat(quote.depositAmount || "0") || totalFinal * 0.5;
-        amount = parseFloat(quote.finalAmount || "0") > 0
+        const baseBalance = parseFloat(quote.finalAmount || "0") > 0
           ? parseFloat(quote.finalAmount!)
           : Math.max(0, totalFinal - depositFinal);
+        // Subtract partial payments already recorded in the ledger.
+        const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
+        amount = Math.max(0, baseBalance - ledgerPaid);
         description = `Balance Payment for ${quote.referenceNo} — TMG Install`;
       }
 
@@ -5083,12 +5089,18 @@ ${systemPrompt}` });
       }
 
       // Balance = total minus deposit already paid (never charge the full total again)
-      // Fixed-price installation — balance is simply total minus deposit paid, no overtime
+      // Fixed-price installation — balance is simply total minus deposit paid, no overtime —
+      // then minus any partial payments already recorded in the ledger.
       const totalAmt = parseFloat(quote.total || "0");
       const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-      const finalAmount = parseFloat(quote.finalAmount || "0") > 0
+      const baseBalance = parseFloat(quote.finalAmount || "0") > 0
         ? parseFloat(quote.finalAmount!)
         : Math.max(0, totalAmt - depositPaid);
+      const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
+      const finalAmount = Math.max(0, baseBalance - ledgerPaid);
+      const balanceSubtext = ledgerPaid > 0
+        ? `_(remaining balance after S$${ledgerPaid.toFixed(2)} already received)_`
+        : `_(50% balance payment — deposit already received)_`;
       const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
       const stripeUrl = await createStripePaymentLink(
         `Balance Payment for ${quote.referenceNo} — TMG Install`,
@@ -5111,7 +5123,7 @@ ${systemPrompt}` });
 
       // ── Channel 1: Email ──────────────────────────────────────────────────
       if (hasRealEmail) {
-        const emailHtml = finalPaymentEmail(quote, paymentLink);
+        const emailHtml = finalPaymentEmail(quote, paymentLink, { balanceDue: finalAmount, paymentsReceived: ledgerPaid });
         emailOk = await sendEmail({
           to: quote.customer.email,
           subject: `[${quote.referenceNo}] Final Payment Due — TMG Install`,
@@ -5135,7 +5147,7 @@ ${systemPrompt}` });
           `Your installation for *${quote.referenceNo}* is now complete. Thank you for choosing TMG Install! 🙏\n\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
           `💳 *Balance Due: S$${finalAmount.toFixed(2)}*\n` +
-          `_(50% balance payment — deposit already received)_\n` +
+          `${balanceSubtext}\n` +
           `Please clear the balance to close your job.\n` +
           `━━━━━━━━━━━━━━━━━━━━\n\n` +
           waPayBlock(finalAmount, shortPayUrl) +
@@ -8179,9 +8191,15 @@ Respond directly — no JSON, just the message text.`,
       // ── Route A: Deposit already paid → send FINAL PAYMENT message ──────────
       if (quote.depositPaidAt) {
         const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-        const finalAmount = parseFloat(quote.finalAmount || "0") > 0
+        const baseBalance = parseFloat(quote.finalAmount || "0") > 0
           ? parseFloat(quote.finalAmount!)
           : Math.max(0, totalAmt - depositPaid);
+        // Subtract partial payments already recorded in the ledger.
+        const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
+        const finalAmount = Math.max(0, baseBalance - ledgerPaid);
+        const balanceSubtext = ledgerPaid > 0
+          ? `_(remaining balance after S$${ledgerPaid.toFixed(2)} already received)_`
+          : `_(50% balance payment — deposit already received)_`;
 
         const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}?type=final`;
         const waMsg =
@@ -8189,7 +8207,7 @@ Respond directly — no JSON, just the message text.`,
           `Your installation for *${quote.referenceNo}* is now complete. Thank you for choosing TMG Install! 🙏\n\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
           `💳 *Balance Due: S$${finalAmount.toFixed(2)}*\n` +
-          `_(50% balance payment — deposit already received)_\n` +
+          `${balanceSubtext}\n` +
           `Please clear the balance to close your job.\n` +
           `━━━━━━━━━━━━━━━━━━━━\n\n` +
           waPayBlock(finalAmount, shortPayUrl) +
@@ -8351,9 +8369,16 @@ Respond directly — no JSON, just the message text.`,
   async function buildPaymentMessageForQuote(quote: any, requestedType?: "deposit" | "final") {
     const totalAmt = parseFloat(quote.total || "0");
     const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-    const balance = parseFloat(quote.finalAmount || "0") > 0
+    const baseBalance = parseFloat(quote.finalAmount || "0") > 0
       ? parseFloat(quote.finalAmount!)
       : Math.max(0, totalAmt - depositPaid);
+    // Subtract any partial payments already recorded in the ledger so the copy-able
+    // snippet shows the same live balance as the Stripe link and invoice.
+    const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
+    const balance = Math.max(0, baseBalance - ledgerPaid);
+    const balanceSubtext = ledgerPaid > 0
+      ? `_(remaining balance after S$${ledgerPaid.toFixed(2)} already received)_`
+      : `_(50% balance payment — deposit already received)_`;
 
     // Auto-detect type from quote status when not specified
     const finalStatuses = ["completed", "final_payment_requested", "final_paid", "closed"];
@@ -8388,7 +8413,7 @@ Respond directly — no JSON, just the message text.`,
           `Your installation for *${quote.referenceNo}* is now complete. Thank you for choosing TMG Install! 🙏\n\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
           `💳 *Balance Due: S$${amount.toFixed(2)}*\n` +
-          `_(50% balance payment — deposit already received)_\n` +
+          `${balanceSubtext}\n` +
           `Please clear the balance to close your job.\n` +
           `━━━━━━━━━━━━━━━━━━━━\n\n` +
           waPayBlock(amount, shortPayUrl) +
@@ -8906,7 +8931,10 @@ Respond directly — no JSON, just the message text.`,
       const baseBalance = parseFloat(quote.finalAmount || "0") > 0
         ? parseFloat(quote.finalAmount!)
         : Math.max(0, quoteTotal - depositPaid);
-      const finalAmt = baseBalance.toFixed(2);
+      // Only collect what's still outstanding — subtract partial payments already
+      // recorded in the ledger so we don't double-count them.
+      const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
+      const finalAmt = Math.max(0, baseBalance - ledgerPaid).toFixed(2);
 
       // Mark final paid → auto-closes quote
       const updated = await storage.updateQuotePayment(id, "final", finalAmt);
