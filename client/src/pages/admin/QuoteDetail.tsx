@@ -8,7 +8,7 @@ import {
  ArrowLeft, UserPlus, CheckCircle2, Clock, MapPin, Receipt, AlertTriangle, 
  DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
  ClipboardList, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
- Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles, FileText, Copy, Users, PenLine,
+ Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles, FileText, Copy, Users, PenLine, Wallet,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -820,6 +820,49 @@ export default function AdminQuoteDetail() {
  },
  });
 
+ // Record Payment — log a partial/installment payment against this quote
+ const [showRecordPayment, setShowRecordPayment] = useState(false);
+ const [payAmount, setPayAmount] = useState("");
+ const [payMethod, setPayMethod] = useState("cash");
+ const [payNoteText, setPayNoteText] = useState("");
+ const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
+ const recordPayment = useMutation({
+   mutationFn: async () => {
+     const res = await apiRequest("POST", `/api/admin/quotes/${id}/payments`, {
+       amount: parseFloat(payAmount),
+       method: payMethod,
+       note: payNoteText.trim() || undefined,
+       paidAt: payDate ? new Date(payDate).toISOString() : undefined,
+     });
+     return await res.json();
+   },
+   onSuccess: () => {
+     queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', id] });
+     queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
+     setShowRecordPayment(false);
+     setPayAmount(""); setPayNoteText(""); setPayMethod("cash");
+     setPayDate(new Date().toISOString().slice(0, 10));
+     toast({ title: "Payment recorded", description: "The job balance has been updated." });
+   },
+   onError: (err: any) => {
+     toast({ title: "Error", description: err?.message || "Could not record payment.", variant: "destructive" });
+   },
+ });
+ const deletePayment = useMutation({
+   mutationFn: async (paymentId: number) => {
+     const res = await apiRequest("DELETE", `/api/admin/quotes/${id}/payments/${paymentId}`);
+     return await res.json();
+   },
+   onSuccess: () => {
+     queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', id] });
+     queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
+     toast({ title: "Payment removed", description: "The job balance has been updated." });
+   },
+   onError: (err: any) => {
+     toast({ title: "Error", description: err?.message || "Could not remove payment.", variant: "destructive" });
+   },
+ });
+
  // Mark final PayNow payment received — confirms customer paid via PayNow/Stripe, closes case, sends WA invoice
  const [showFinalPayConfirm, setShowFinalPayConfirm] = useState(false);
  const [finalPayNote, setFinalPayNote] = useState("");
@@ -899,6 +942,13 @@ export default function AdminQuoteDetail() {
  const effectiveFinal = parseFloat(quote.finalAmount || "0") > 0
  ? parseFloat(quote.finalAmount!)
  : quoteTotal * 0.5;
+
+ // Partial-payment ledger — running paid-so-far / balance-owing
+ const quotePaymentsList = ((quote.payments || []) as any[]);
+ const depositBaselinePaid = quote.depositPaidAt ? effectiveDeposit : 0;
+ const ledgerPaid = quotePaymentsList.reduce((s: number, p: any) => s + (parseFloat(p.amount || "0") || 0), 0);
+ const paidSoFar = quote.finalPaidAt ? quoteTotal : Math.min(quoteTotal, depositBaselinePaid + ledgerPaid);
+ const balanceOwing = Math.max(0, quoteTotal - paidSoFar);
 
  const canEdit = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booked', 'booking_pending', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff', 'completed', 'final_payment_requested', 'closed', 'final_paid'].includes(quote.status);
 
@@ -3310,6 +3360,62 @@ export default function AdminQuoteDetail() {
  </div>
  </div>
 
+ {/* Payments — partial-payment ledger */}
+ <div className="bg-white border border-zinc-200 rounded-none overflow-hidden">
+ <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+ <h3 className="text-sm font-semibold text-zinc-900">Payments</h3>
+ {!quote.finalPaidAt && quote.paymentStatus !== 'paid_in_full' && (
+ <button
+ onClick={() => { setPayAmount(balanceOwing > 0 ? balanceOwing.toFixed(2) : ""); setShowRecordPayment(true); }}
+ data-testid="button-record-payment"
+ className="h-8 px-3 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold uppercase tracking-wide rounded-none flex items-center gap-1.5 transition-colors"
+ >
+ <Plus className="w-3.5 h-3.5" /> Record Payment
+ </button>
+ )}
+ </div>
+ <div className="p-5 space-y-3">
+ <div className="grid grid-cols-2 gap-3">
+ <div className="p-3 rounded-lg border bg-emerald-50 border-emerald-200">
+ <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide">Paid so far</div>
+ <div className="text-lg font-bold tabular-nums text-emerald-800" data-testid="text-paid-so-far">{formatMoney(paidSoFar)}</div>
+ </div>
+ <div className={`p-3 rounded-lg border ${balanceOwing > 0 ? 'bg-amber-50 border-amber-200' : 'bg-zinc-50 border-zinc-200'}`}>
+ <div className={`text-[10px] font-semibold uppercase tracking-wide ${balanceOwing > 0 ? 'text-amber-700' : 'text-zinc-500'}`}>Balance owing</div>
+ <div className={`text-lg font-bold tabular-nums ${balanceOwing > 0 ? 'text-amber-900' : 'text-zinc-700'}`} data-testid="text-balance-owing">{formatMoney(balanceOwing)}</div>
+ </div>
+ </div>
+ {balanceOwing <= 0 && (quote.finalPaidAt || quote.paymentStatus === 'paid_in_full') && (
+ <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700" data-testid="status-paid-in-full">
+ <CheckCircle2 className="w-4 h-4" /> Paid in full
+ </div>
+ )}
+ {quotePaymentsList.length > 0 ? (
+ <div className="divide-y divide-zinc-100 border-t border-zinc-100 pt-1">
+ {quotePaymentsList.map((p: any) => (
+ <div key={p.id} className="flex items-center justify-between py-2" data-testid={`row-payment-${p.id}`}>
+ <div className="min-w-0">
+ <div className="text-sm font-semibold text-zinc-900 tabular-nums">{formatMoney(p.amount)} <span className="text-xs font-medium text-zinc-500 uppercase">· {String(p.method || 'cash').replace('_', ' ')}</span></div>
+ <div className="text-[11px] text-zinc-500">{p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}{p.note ? ` — ${p.note}` : ''}</div>
+ </div>
+ <button
+ onClick={() => { if (confirm('Remove this payment? The balance will be updated.')) deletePayment.mutate(p.id); }}
+ disabled={deletePayment.isPending}
+ data-testid={`button-delete-payment-${p.id}`}
+ className="text-zinc-400 hover:text-red-600 p-1 disabled:opacity-50 transition-colors"
+ title="Remove payment"
+ >
+ <Trash2 className="w-4 h-4" />
+ </button>
+ </div>
+ ))}
+ </div>
+ ) : (
+ <p className="text-xs text-zinc-400">No payments recorded yet.</p>
+ )}
+ </div>
+ </div>
+
  {/* Overtime / Additional Charges Calculator — relocation jobs only */}
  {['in_progress', 'at_pickup', 'in_transit', 'at_dropoff', 'completed', 'final_payment_requested', 'final_paid', 'closed'].includes(quote.status) &&
  (quote.items || []).some((item: any) => item.serviceType === 'relocate') && (
@@ -3643,6 +3749,55 @@ export default function AdminQuoteDetail() {
  {markPayNowPaid.isPending
  ? <><Loader2 className="w-4 h-4 animate-spin" /> Confirming…</>
  : <><CheckCircle2 className="w-4 h-4" /> Confirm Received</>}
+ </button>
+ </div>
+ </div>
+ </div>
+ )}
+
+ {/* Record Payment Modal — log a partial/installment payment */}
+ {showRecordPayment && (
+ <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" data-testid="modal-record-payment">
+ <div className="bg-white rounded-none w-full max-w-md overflow-hidden">
+ <div className="px-6 py-4 border-b border-zinc-100 flex items-center gap-3 bg-zinc-50">
+ <Wallet className="w-5 h-5 text-zinc-700" />
+ <h2 className="text-base font-semibold text-zinc-900">Record Payment</h2>
+ </div>
+ <div className="p-6 space-y-4">
+ <div className="bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-3 flex justify-between text-sm">
+ <span className="text-zinc-500">Balance owing</span>
+ <span className="font-bold tabular-nums text-amber-900">{formatMoney(balanceOwing)}</span>
+ </div>
+ <div>
+ <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Amount (S$)</label>
+ <input type="number" min="0" step="0.01" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0.00" data-testid="input-payment-amount" className="w-full h-9 px-3 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+ </div>
+ <div className="grid grid-cols-2 gap-3">
+ <div>
+ <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Method</label>
+ <select value={payMethod} onChange={e => setPayMethod(e.target.value)} data-testid="select-payment-method" className="w-full h-9 px-3 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 bg-white">
+ <option value="cash">Cash</option>
+ <option value="paynow">PayNow</option>
+ <option value="bank_transfer">Bank Transfer</option>
+ <option value="card">Card</option>
+ <option value="cheque">Cheque</option>
+ <option value="other">Other</option>
+ </select>
+ </div>
+ <div>
+ <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Date received</label>
+ <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} data-testid="input-payment-date" className="w-full h-9 px-3 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+ </div>
+ </div>
+ <div>
+ <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Note <span className="text-zinc-400 font-normal">(optional)</span></label>
+ <input type="text" value={payNoteText} onChange={e => setPayNoteText(e.target.value)} placeholder="e.g. cash on site, balance next week" data-testid="input-payment-note" className="w-full h-9 px-3 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+ </div>
+ </div>
+ <div className="px-6 pb-6 flex gap-3">
+ <button onClick={() => setShowRecordPayment(false)} data-testid="button-cancel-payment" className="flex-1 h-10 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">Cancel</button>
+ <button onClick={() => recordPayment.mutate()} disabled={recordPayment.isPending || !payAmount || parseFloat(payAmount) <= 0} data-testid="button-save-payment" className="flex-1 h-10 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition-colors">
+ {recordPayment.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><CheckCircle2 className="w-4 h-4" /> Save Payment</>}
  </button>
  </div>
  </div>

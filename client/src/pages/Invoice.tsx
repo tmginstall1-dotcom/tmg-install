@@ -55,6 +55,9 @@ type InvoicePayload = {
   finalAmount: string;
   finalPaidAt: string | null;
   paidInFull: boolean;
+  payments?: { id: number; amount: string; method: string; note: string | null; paidAt: string | null }[];
+  amountPaid?: string;
+  balanceDue?: string;
 };
 
 const money = (v: any) =>
@@ -377,12 +380,32 @@ export default function Invoice() {
                     <div className="text-[10px] text-emerald-600 text-right -mt-1">on {dt(data.finalPaidAt, true)}</div>
                   )}
 
-                  {data.paidInFull && (
-                    <div className="flex justify-between pt-2 mt-2 border-t border-emerald-200 text-emerald-800 font-black text-sm">
-                      <span>Balance Due</span>
-                      <span>S$0.00</span>
+                  {Array.isArray(data.payments) && data.payments.length > 0 && (
+                    <div className="pt-2 mt-2 border-t border-gray-200 space-y-1">
+                      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Payments received</div>
+                      {data.payments.map((p) => (
+                        <div key={p.id} className="flex justify-between text-[12px] text-emerald-700" data-testid={`invoice-payment-${p.id}`}>
+                          <span className="flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>{p.paidAt ? dt(p.paidAt, true) : ""}{p.method ? ` · ${String(p.method).replace("_", " ")}` : ""}</span>
+                          </span>
+                          <span className="font-semibold">{money(p.amount)}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
+
+                  <div
+                    className={`flex justify-between pt-2 mt-2 border-t font-black text-sm ${
+                      Number(data.paidInFull ? 0 : (data.balanceDue ?? 0)) > 0
+                        ? "border-amber-200 text-amber-800"
+                        : "border-emerald-200 text-emerald-800"
+                    }`}
+                    data-testid="invoice-balance-due"
+                  >
+                    <span>Balance Due</span>
+                    <span>{money(data.paidInFull ? "0" : (data.balanceDue ?? "0"))}</span>
+                  </div>
                 </div>
               </div>
             </div>

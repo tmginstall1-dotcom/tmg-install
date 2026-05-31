@@ -8488,6 +8488,75 @@ Respond directly — no JSON, just the message text.`,
   // ── Public + Admin: Customer-facing INVOICE / RECEIPT ───────────────────
   // Build a normalised invoice payload for a quote. Used by the public
   // invoice page (customer link) and the admin "Send invoice" dialog.
+  // ── Partial-payment ledger (Record Payment) ───────────────────────────────
+  // Admins log each payment a customer makes against a quote. The quote then
+  // shows paid-so-far / balance-owing and auto-marks paid_in_full at $0.
+  app.get("/api/admin/quotes/:id/payments", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    try {
+      const payments = await storage.getQuotePayments(id);
+      res.json(payments);
+    } catch (err: any) {
+      console.error("[Payments] list error:", err);
+      res.status(500).json({ message: "Failed to load payments" });
+    }
+  });
+
+  app.post("/api/admin/quotes/:id/payments", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    try {
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      if (quote.finalPaidAt || quote.paymentStatus === "paid_in_full") {
+        return res.status(409).json({ message: "This job is already fully paid." });
+      }
+      const body = z.object({
+        amount: z.coerce.number().positive("Amount must be greater than 0"),
+        method: z.enum(["cash", "paynow", "bank_transfer", "card", "cheque", "other"]).optional(),
+        note: z.string().max(500).optional().nullable(),
+        paidAt: z.coerce.date().optional(),
+      }).parse(req.body);
+
+      const updated = await storage.recordQuotePayment({
+        quoteId: id,
+        amount: body.amount.toFixed(2),
+        method: body.method || "cash",
+        note: body.note || null,
+        paidAt: body.paidAt ?? new Date(),
+      }, req.session.userId);
+      res.json(updated);
+    } catch (err: any) {
+      if (err?.issues) return res.status(400).json({ message: err.issues[0]?.message || "Invalid payment" });
+      console.error("[Payments] record error:", err);
+      res.status(500).json({ message: "Failed to record payment" });
+    }
+  });
+
+  app.delete("/api/admin/quotes/:id/payments/:paymentId", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = parseInt(req.params.id);
+    const paymentId = parseInt(req.params.paymentId);
+    if (isNaN(id) || isNaN(paymentId)) return res.status(400).json({ message: "Invalid ID" });
+    try {
+      const updated = await storage.deleteQuotePayment(paymentId, id);
+      if (!updated) return res.status(404).json({ message: "Payment not found" });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("[Payments] delete error:", err);
+      res.status(500).json({ message: "Failed to remove payment" });
+    }
+  });
+
   function buildInvoicePayload(quote: any) {
     const totalAmt = parseFloat(quote.total || "0");
     const depositAmt = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
@@ -8567,6 +8636,24 @@ Respond directly — no JSON, just the message text.`,
       finalAmount: finalAmt.toFixed(2),
       finalPaidAt: quote.finalPaidAt || null,
       paidInFull,
+      // Partial-payment ledger breakdown + running balance
+      payments: ((quote as any).payments || []).map((p: any) => ({
+        id: p.id,
+        amount: String(p.amount || "0"),
+        method: p.method || "cash",
+        note: p.note || null,
+        paidAt: p.paidAt || p.createdAt || null,
+      })),
+      amountPaid: (paidInFull
+        ? totalAmt
+        : Math.min(totalAmt, (quote.depositPaidAt ? depositAmt : 0)
+            + ((quote as any).payments || []).reduce((s: number, p: any) => s + (parseFloat(p.amount || "0") || 0), 0))
+      ).toFixed(2),
+      balanceDue: (paidInFull
+        ? 0
+        : Math.max(0, totalAmt - ((quote.depositPaidAt ? depositAmt : 0)
+            + ((quote as any).payments || []).reduce((s: number, p: any) => s + (parseFloat(p.amount || "0") || 0), 0)))
+      ).toFixed(2),
     };
   }
 

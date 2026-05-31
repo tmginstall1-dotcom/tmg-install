@@ -4,6 +4,7 @@ import {
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   attendanceAmendments, leaveRequests, payslips, staffLoans, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
   receipts, faqEntries, cannedReplies, pricingCorrections, ggvJobs,
+  quotePayments, type QuotePayment, type InsertQuotePayment,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
   type Team, type InsertTeam, type AttendanceLog, type InsertAttendanceLog, type AttendanceLogWithUser,
@@ -102,6 +103,9 @@ export interface IStorage {
   setCompletionSignature(id: number, signatureUrl: string, signedName: string): Promise<void>;
   setPhaseCompletion(id: number, phase: 'dismantle' | 'delivery' | 'install', done: boolean, actor: { actorType: string; userId?: number; note?: string }): Promise<QuoteResponse | undefined>;
   updateQuotePayment(id: number, paymentType: 'deposit' | 'final', amount: string): Promise<QuoteResponse | undefined>;
+  getQuotePayments(quoteId: number): Promise<QuotePayment[]>;
+  recordQuotePayment(payment: InsertQuotePayment, recordedBy?: number): Promise<QuoteResponse | undefined>;
+  deleteQuotePayment(paymentId: number, quoteId?: number): Promise<QuoteResponse | undefined>;
   requestBooking(id: number, scheduledAt: Date, timeWindow: string): Promise<QuoteResponse | undefined>;
   confirmBooking(id: number): Promise<QuoteResponse | undefined>;
   rescheduleBooking(id: number, scheduledAt: Date, timeWindow: string): Promise<QuoteResponse | undefined>;
@@ -682,6 +686,7 @@ export class DatabaseStorage implements IStorage {
     }));
 
     const updatesList = await db.select().from(jobUpdates).where(eq(jobUpdates.quoteId, quoteId)).orderBy(desc(jobUpdates.createdAt));
+    const paymentsList = await db.select().from(quotePayments).where(eq(quotePayments.quoteId, quoteId)).orderBy(desc(quotePayments.paidAt));
 
     return {
       ...quote,
@@ -690,6 +695,7 @@ export class DatabaseStorage implements IStorage {
       assignedTeam,
       items: itemsWithCatalog,
       updates: updatesList,
+      payments: paymentsList,
     };
   }
 
@@ -936,6 +942,79 @@ export class DatabaseStorage implements IStorage {
     }
 
     return await this.fetchQuoteDetails(id);
+  }
+
+  // ── Partial-payment ledger ────────────────────────────────────────────────
+  // Each row is one payment the customer actually made. Paid-so-far = any online
+  // deposit already on record + the sum of these ledger rows. When that covers
+  // the quote total the quote is auto-marked paid_in_full.
+  async getQuotePayments(quoteId: number): Promise<QuotePayment[]> {
+    return await db.select().from(quotePayments).where(eq(quotePayments.quoteId, quoteId)).orderBy(desc(quotePayments.paidAt));
+  }
+
+  async recordQuotePayment(payment: InsertQuotePayment, recordedBy?: number) {
+    const amt = parseFloat(String(payment.amount || "0"));
+    await db.insert(quotePayments).values({ ...payment, recordedBy: recordedBy ?? null });
+    await db.insert(jobUpdates).values({
+      quoteId: payment.quoteId,
+      statusChange: 'payment_recorded',
+      actorType: 'admin',
+      actorId: recordedBy,
+      note: `Payment of $${amt.toFixed(2)} received (${payment.method || "cash"})${payment.note ? ` — ${payment.note}` : ""}`,
+    });
+    await this.recomputeQuotePaymentState(payment.quoteId);
+    return await this.fetchQuoteDetails(payment.quoteId);
+  }
+
+  async deleteQuotePayment(paymentId: number, quoteId?: number) {
+    const [existing] = await db.select().from(quotePayments).where(eq(quotePayments.id, paymentId));
+    if (!existing) return undefined;
+    // Ownership guard — when a quoteId is supplied the payment must belong to it.
+    if (quoteId !== undefined && existing.quoteId !== quoteId) return undefined;
+    await db.delete(quotePayments).where(eq(quotePayments.id, paymentId));
+    await db.insert(jobUpdates).values({
+      quoteId: existing.quoteId,
+      statusChange: 'payment_removed',
+      actorType: 'admin',
+      note: `Payment of $${parseFloat(existing.amount || "0").toFixed(2)} removed`,
+    });
+    await this.recomputeQuotePaymentState(existing.quoteId);
+    return await this.fetchQuoteDetails(existing.quoteId);
+  }
+
+  // Baseline already-paid amount = an online deposit that was confirmed outside
+  // the ledger (depositPaidAt stamped). Manual ledger payments add on top.
+  private depositBaseline(quote: typeof quotes.$inferSelect): number {
+    if (!quote.depositPaidAt) return 0;
+    const dep = parseFloat(quote.depositAmount || "0") || 0;
+    if (dep > 0) return dep;
+    // Fallback for manually created jobs with no stored deposit amount — assume 50% split.
+    const total = parseFloat(quote.total || "0") || 0;
+    return total * 0.5;
+  }
+
+  private async recomputeQuotePaymentState(quoteId: number): Promise<void> {
+    const [quote] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
+    if (!quote) return;
+    const ledger = await db.select().from(quotePayments).where(eq(quotePayments.quoteId, quoteId));
+    const ledgerSum = ledger.reduce((s, p) => s + (parseFloat(p.amount || "0") || 0), 0);
+    const paid = this.depositBaseline(quote) + ledgerSum;
+    const total = parseFloat(quote.total || "0");
+    const now = new Date();
+
+    if (total > 0 && paid >= total - 0.005) {
+      // Fully settled — mark paid in full, stamping a final-paid date if missing.
+      const patch: Partial<typeof quotes.$inferInsert> = { paymentStatus: 'paid_in_full' };
+      if (!quote.finalPaidAt) patch.finalPaidAt = now;
+      await db.update(quotes).set(patch).where(eq(quotes.id, quoteId));
+    } else if (quote.paymentStatus === 'paid_in_full' && quote.finalPaidAt) {
+      // A previously fully-paid quote dropped below total (a payment was removed)
+      // — reopen the balance. Only reachable for ledger-managed quotes.
+      await db.update(quotes).set({
+        paymentStatus: quote.depositPaidAt ? 'deposit_paid' : 'unpaid',
+        finalPaidAt: null,
+      }).where(eq(quotes.id, quoteId));
+    }
   }
 
   async requestBooking(id: number, scheduledAt: Date, timeWindow: string) {

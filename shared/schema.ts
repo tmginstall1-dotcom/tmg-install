@@ -728,6 +728,25 @@ export type InsertQuoteItem = z.infer<typeof insertQuoteItemSchema>;
 export type JobUpdate = typeof jobUpdates.$inferSelect;
 export type InsertJobUpdate = z.infer<typeof insertJobUpdateSchema>;
 
+// Quote Payments — ledger of individual payments received against a quote.
+// Supports partial / installment settlements: each row is one payment the
+// customer made (cash, PayNow, bank transfer, card, etc.). Paid-so-far = sum
+// of these rows; balance = quote total − paid-so-far. When the balance reaches
+// zero the quote is auto-marked paid_in_full.
+export const quotePayments = pgTable("quote_payments", {
+  id: serial("id").primaryKey(),
+  quoteId: integer("quote_id").references(() => quotes.id).notNull(),
+  amount: numeric("amount").notNull(),                 // SGD received in this payment
+  method: text("method").notNull().default("cash"),    // cash | paynow | bank_transfer | card | cheque | other
+  note: text("note"),                                  // optional admin note (e.g. "balance to settle next week")
+  paidAt: timestamp("paid_at").notNull().defaultNow(), // when the money was received
+  recordedBy: integer("recorded_by").references(() => users.id), // admin who logged it
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertQuotePaymentSchema = createInsertSchema(quotePayments).omit({ id: true, createdAt: true, recordedBy: true });
+export type QuotePayment = typeof quotePayments.$inferSelect;
+export type InsertQuotePayment = z.infer<typeof insertQuotePaymentSchema>;
+
 // Custom API Request/Response Types
 
 // For customer submitting a quote
@@ -749,6 +768,7 @@ export type QuoteResponse = Quote & {
   updates?: JobUpdate[];
   assignedStaff?: User;
   assignedTeam?: Team & { members?: User[] };
+  payments?: QuotePayment[];
 };
 
 // ─── AI OPERATIONS LAYER ────────────────────────────────────────────────────
