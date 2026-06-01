@@ -11003,9 +11003,9 @@ Extract ALL job rows from the spreadsheet. Each row is one job. Columns (read le
 - bookingRef: Booking reference (e.g. "V045260161488")
 - timeStart: Start time in HH:MM format (e.g. "09:00")
 - timeEnd: End time in HH:MM format (e.g. "12:00")
-- listedPrice: Listed/gross price in dollars — the FIRST money column on the row (number, e.g. 138.70)
-- deduction: Deduction/fee amount — the column right after listedPrice, often shown as a small dollar amount (number, e.g. 32.11; use 0 if blank/empty/dash). NEVER copy listedPrice or actualPrice into this field.
-- actualPrice: Actual payout — this is ALWAYS exactly listedPrice MINUS deduction. Do the subtraction yourself. Do NOT read a separate column for this value. If listedPrice is 138.70 and deduction is 32.11, actualPrice MUST be 106.59. Never invent a value, never copy from another column.
+- listedPrice: the FIRST (leftmost) money column on the row — the listed / gross price, usually the LARGEST of the three money values (number, e.g. 587.90)
+- deduction: the SECOND (middle) money column — the fee / deduction amount (number, e.g. 107.87; use 0 if blank/empty/dash). Read it directly from that column.
+- actualPrice: the THIRD (rightmost) money column, sitting immediately before the service code — this is the ACTUAL installation payout TMG receives, usually the SMALLEST of the three money values (number, e.g. 53.94). READ THIS VALUE DIRECTLY from its own column. Do NOT compute it. Do NOT use listedPrice minus deduction — that is wrong. It is a separate printed column.
 - serviceType: Service code (e.g. "D+A", "R+A+DISS", "ASD+ASA")
 - remarks: Any notes text in the row (string or null)
 - address: Job address
@@ -11018,10 +11018,10 @@ Also extract from the header:
 - vehicleGroup: Header vehicle group text (e.g. "TMG1 GGV-029")
 - vehicleType: Header van type text (e.g. "EV VAN")
 
-CRITICAL ARITHMETIC RULE: For every row, actualPrice = listedPrice - deduction. Compute it. Round to 2 decimals. Do not skip this. The system will reject extractions that violate this rule.
+CRITICAL: Every row has THREE separate money columns — listedPrice, deduction, actualPrice — printed left to right. Read each one independently from its own column. actualPrice is NOT listedPrice minus deduction; it is the third printed money value (the actual payout), and it is usually the smallest of the three. Never compute, swap, or copy values between these three columns.
 
 Return ONLY valid JSON:
-{"date":null,"vehicleGroup":"TMG1 GGV-029","vehicleType":"EV VAN","jobs":[{"jobNo":"S045260062103","bookingRef":"V045260161488","timeStart":"09:00","timeEnd":"12:00","listedPrice":138.70,"deduction":32.11,"actualPrice":106.59,"serviceType":"D+A","remarks":null,"address":"17 Jalan Tenteram #08-120","postalCode":"321017","distanceKm":15.95,"ratePerKm":0.06,"flagged":false}]}`,
+{"date":null,"vehicleGroup":"TMG1 GGV-029","vehicleType":"EV VAN","jobs":[{"jobNo":"S045260062103","bookingRef":"V045260161488","timeStart":"09:00","timeEnd":"12:00","listedPrice":587.90,"deduction":107.87,"actualPrice":53.94,"serviceType":"D+A","remarks":null,"address":"17 Jalan Tenteram #08-120","postalCode":"321017","distanceKm":15.95,"ratePerKm":0.06,"flagged":false}]}`,
           },
           {
             role: "user",
@@ -11031,12 +11031,14 @@ Return ONLY valid JSON:
       });
       const parsed = JSON.parse(scanRes.choices[0]?.message?.content || "{}");
 
-      // ── Server-side math enforcement ─────────────────────────────────────
-      // GPT-4o vision frequently hallucinates the actualPrice column even
-      // when listedPrice and deduction are read correctly. For GGV the rule
-      // is non-negotiable: actualPrice = listedPrice − deduction. Recompute
-      // every row server-side so a bad vision read can never reach the
-      // review screen with wrong numbers.
+      // ── Server-side normalization ────────────────────────────────────────
+      // The sheet prints THREE independent money columns per row:
+      // listedPrice (gross), deduction (middle fee), and actualPrice (the
+      // real installation payout — the rightmost/smallest value). actualPrice
+      // is NOT listedPrice − deduction, so we must NOT recompute it: doing so
+      // was overwriting the correct payout (e.g. 53.94) with a wrong derived
+      // number (587.90 − 107.87 = 480.03). Read all three directly; only
+      // normalize formatting and flag rows where a key value is unreadable.
       if (Array.isArray(parsed?.jobs)) {
         const round2 = (n: number) => Math.round(n * 100) / 100;
         const toNum = (v: any): number | null => {
@@ -11047,39 +11049,24 @@ Return ONLY valid JSON:
         for (const j of parsed.jobs) {
           const listed = toNum(j.listedPrice);
           const deduct = toNum(j.deduction);
-          // If listedPrice failed to parse, force-flag the row — the math
-          // cannot be enforced and an unverified actualPrice must not pass
-          // through silently. The admin then has to fix listedPrice in the
-          // review screen before importing.
-          if (listed === null) {
-            j.flagged = true;
-            continue;
-          }
-          // Treat an unparseable but non-empty deduction as suspicious too —
-          // an empty cell legitimately means $0, but a value the AI read as
-          // gibberish should be reviewed before we silently coerce it to 0.
+          const actual = toNum(j.actualPrice);
+          // A non-empty deduction cell that failed to parse is suspicious —
+          // an empty cell legitimately means $0, but gibberish should be
+          // reviewed rather than silently coerced to 0.
           const deductionLooksBad =
             deduct === null &&
             j.deduction !== null &&
             j.deduction !== undefined &&
             String(j.deduction).trim() !== "";
-          const ded = deduct ?? 0;
-          const computed = round2(listed - ded);
-          const aiActual = toNum(j.actualPrice);
-          // Always overwrite with the canonical computation. Flag the row
-          // when the AI's value diverged (>$0.01) or when deduction itself
-          // looked bad, so the admin can sanity-check listed/deduct (one
-          // of them might be the actual misread).
-          if (
-            aiActual === null ||
-            Math.abs(aiActual - computed) > 0.01 ||
-            deductionLooksBad
-          ) {
+          // Flag the row when either key money value — the listed price or the
+          // actual payout — could not be parsed (or the deduction looked bad),
+          // so the admin fixes it in the review screen before importing.
+          if (listed === null || actual === null || deductionLooksBad) {
             j.flagged = true;
           }
-          j.actualPrice = computed;
-          j.deduction = round2(ded);
-          j.listedPrice = round2(listed);
+          j.listedPrice = listed === null ? null : round2(listed);
+          j.deduction = deduct === null ? 0 : round2(deduct);
+          j.actualPrice = actual === null ? null : round2(actual);
         }
       }
 
