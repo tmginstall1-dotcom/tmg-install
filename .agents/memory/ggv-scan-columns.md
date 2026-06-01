@@ -28,3 +28,10 @@ the three values independent — only normalize rounding and flag rows where
 listedPrice or actualPrice is unreadable. Downstream, revenue/P&L
 (`ggvEffective`) keys off `actualPrice`, and the admin review UI shows
 Listed/Deduction/Actual as three separate columns.
+
+**Delivery fee ($23.80):** delivery jobs (jobNo starts with "S") earn an extra
+flat $23.80 on top of `actualPrice`. This fee is NEVER stored in the DB — it is
+added on the fly everywhere actual is displayed/summed: backend `ggvEffective`
+(analytics/P&L) and frontend `effectiveActual` (saved jobs) / `effectiveScannedActual`
+(scan preview). Keep it computed-only in all three spots; storing it would
+double-count.

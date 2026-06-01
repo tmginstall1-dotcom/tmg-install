@@ -100,6 +100,11 @@ function effectiveActual(job: GGVJob): number {
  return (isNaN(base) ? 0 : base) + (isDeliveryJob(job.jobNo) ? DELIVERY_FEE : 0);
 }
 
+function effectiveScannedActual(job: ScannedJob): number {
+ const base = job.actualPrice ?? 0;
+ return base + (isDeliveryJob(job.jobNo) ? DELIVERY_FEE : 0);
+}
+
 function fmt(val: string | number | null | undefined, prefix = "$") {
  const n = typeof val === "number" ? val : parseFloat(val ?? "");
  if (isNaN(n)) return "—";
@@ -896,7 +901,12 @@ export default function GGVJobs() {
  </td>
  <td className="px-2 py-2 text-right text-black/55">{fmt(job.listedPrice)}</td>
  <td className="px-2 py-2 text-right text-[#C1121F]">{(job.deduction ?? 0) > 0 ? `-${fmt(job.deduction)}` : "—"}</td>
- <td className="px-2 py-2 text-right font-black text-[#0A0A0A]">{fmt(job.actualPrice)}</td>
+ <td className="px-2 py-2 text-right font-black text-[#0A0A0A]">
+ {fmt(effectiveScannedActual(job))}
+ {isDeliveryJob(job.jobNo) && (
+ <div className="text-[9px] font-medium text-black/55">+${DELIVERY_FEE.toFixed(2)} del.</div>
+ )}
+ </td>
  <td className="px-2 py-2">
  {job.serviceType
  ? <span className="bg-[#EBE9E2] text-[#0A0A0A]/65 px-1 py-0.5 rounded text-[10px] font-bold">{job.serviceType}</span>
@@ -916,7 +926,7 @@ export default function GGVJobs() {
  <tr className="border-t border-black/10 bg-white">
  <td colSpan={6} className="px-2 py-2 text-black/55">{selectedCount} selected</td>
  <td className="px-2 py-2 text-right font-black text-[#0A0A0A]">
- ${scanResult.jobs.filter((_, i) => selectedRows[i]).reduce((s, j) => s + (j.actualPrice ?? 0), 0).toFixed(2)}
+ ${scanResult.jobs.filter((_, i) => selectedRows[i]).reduce((s, j) => s + effectiveScannedActual(j), 0).toFixed(2)}
  </td>
  <td colSpan={5} />
  </tr>
