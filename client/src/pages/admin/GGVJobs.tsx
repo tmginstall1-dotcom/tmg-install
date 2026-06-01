@@ -392,7 +392,7 @@ export default function GGVJobs() {
 
  return (
  <div className="lg:pl-56 pt-14 min-h-screen bg-[#F5F4F0]">
- <div className="p-4 lg:p-6 max-w-[1600px] mx-auto">
+ <div className="p-4 lg:p-6 pb-28 md:pb-6 max-w-[1600px] mx-auto">
 
  {/* Header */}
  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
@@ -579,7 +579,7 @@ export default function GGVJobs() {
  </span>
  )}
  </div>
- <p className="text-xs text-black/55 mt-0.5 truncate">{job.address || "—"}</p>
+ <p className="text-xs text-black/55 mt-0.5 break-words leading-snug">{job.address || "—"}</p>
  </div>
  <div className="text-right shrink-0">
  <span className="text-lg font-black tabular-nums text-[#0A0A0A]">${effActual.toFixed(2)}</span>
