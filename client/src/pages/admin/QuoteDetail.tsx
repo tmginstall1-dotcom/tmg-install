@@ -1803,7 +1803,8 @@ export default function AdminQuoteDetail() {
  <div class="totals-wrap">
  <div class="totals">
  ${Number(q.discount || 0) > 0 ? `<div class="totals-row"><span class="k">Discount</span><span>−S$${Number(q.discount).toFixed(2)}</span></div>` : ""}
- ${Number(q.transportFee || 0) > 0 ? `<div class="totals-row"><span class="k">Transport</span><span>S$${Number(q.transportFee).toFixed(2)}</span></div>` : ""}
+ ${(Number(q.transportFee || 0) - Number((q as any).volumetricFee || 0)) > 0 ? `<div class="totals-row"><span class="k">Transport</span><span>S$${(Number(q.transportFee || 0) - Number((q as any).volumetricFee || 0)).toFixed(2)}</span></div>` : ""}
+ ${Number((q as any).volumetricFee || 0) > 0 ? `<div class="totals-row"><span class="k">Volumetric Handling</span><span>S$${Number((q as any).volumetricFee).toFixed(2)}</span></div>` : ""}
  ${Number(q.promoDiscount || 0) > 0 ? `<div class="totals-row"><span class="k">Promo · ${esc(q.promoCode || "")}</span><span>−S$${Number(q.promoDiscount).toFixed(2)}</span></div>` : ""}
  ${Number((q as any).goodwillDiscount || 0) > 0 ? `<div class="totals-row"><span class="k">Goodwill discount${(q as any).goodwillReason ? ` · ${esc((q as any).goodwillReason)}` : ""}</span><span>−S$${Number((q as any).goodwillDiscount).toFixed(2)}</span></div>` : ""}
  ${(q as any).secondDayContinuation ? `<div class="totals-row"><span class="k">Second-day continuation${Number((q as any).secondDayHours) > 0 ? ` · ${Number((q as any).secondDayCrewSize) || PricingConfig.secondDay.defaultCrewSize} men × ${Number((q as any).secondDayHours)}h` : ""}</span><span>S$${calcSecondDayContinuation(!!(q as any).secondDayContinuation, (q as any).secondDayHours || 0, (q as any).secondDayCrewSize).fee.toFixed(2)}</span></div>` : ""}
@@ -2535,10 +2536,18 @@ export default function AdminQuoteDetail() {
  <span className="font-medium text-green-700">−${editGoodwillDiscount.toFixed(2)}</span>
  </div>
  )}
+ {(editTransport - Number((quote as any).volumetricFee || 0)) > 0 && (
  <div className="flex justify-between sm:justify-end gap-6 text-sm mb-3">
  <span className="text-zinc-500">Transport</span>
- <span className="font-medium text-zinc-900">${editTransport.toFixed(2)}</span>
+ <span className="font-medium text-zinc-900">${(editTransport - Number((quote as any).volumetricFee || 0)).toFixed(2)}</span>
  </div>
+ )}
+ {Number((quote as any).volumetricFee || 0) > 0 && (
+ <div className="flex justify-between sm:justify-end gap-6 text-sm mb-3">
+ <span className="text-zinc-500">Volumetric Handling</span>
+ <span className="font-medium text-zinc-900">${Number((quote as any).volumetricFee).toFixed(2)}</span>
+ </div>
+ )}
  {editSecondDay > 0 && (
  <div className="flex justify-between sm:justify-end gap-6 text-sm mb-3">
  <span className="text-zinc-500">Second-day continuation</span>
@@ -2656,10 +2665,18 @@ export default function AdminQuoteDetail() {
  <span className="font-medium text-green-700 tabular-nums">−{formatMoney((quote as any).goodwillDiscount)}</span>
  </div>
  )}
+ {(Number(quote.transportFee || 0) - Number((quote as any).volumetricFee || 0)) > 0 && (
  <div className="flex justify-between text-sm">
  <span className="text-zinc-500">Transport Fee</span>
- <span className="font-medium text-zinc-900 tabular-nums">{formatMoney(quote.transportFee || 0)}</span>
+ <span className="font-medium text-zinc-900 tabular-nums">{formatMoney(Number(quote.transportFee || 0) - Number((quote as any).volumetricFee || 0))}</span>
  </div>
+ )}
+ {Number((quote as any).volumetricFee || 0) > 0 && (
+ <div className="flex justify-between text-sm">
+ <span className="text-zinc-500">Volumetric Handling</span>
+ <span className="font-medium text-zinc-900 tabular-nums">{formatMoney((quote as any).volumetricFee)}</span>
+ </div>
+ )}
  <div className="flex justify-between items-center pt-3 border-t border-zinc-200 mt-2">
  <span className="text-sm font-semibold text-zinc-900">Total Due</span>
  <span className="text-lg font-bold text-zinc-900 tabular-nums">{formatMoney(quote.total)}</span>

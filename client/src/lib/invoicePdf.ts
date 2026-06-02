@@ -49,6 +49,7 @@ export type InvoicePdfData = {
   items: InvoiceItem[];
   subtotal: string;
   transportFee: string;
+  volumetricFee?: string;
   discount: string;
   secondDayFee?: string;
   secondDayHours?: string;
@@ -360,9 +361,14 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
   doc.text(money(data.subtotal), totalsRight, y, { align: "right" });
   y += 5;
 
-  if (Number(data.transportFee || 0) > 0) {
+  if ((Number(data.transportFee || 0) - Number(data.volumetricFee || 0)) > 0) {
     doc.text("Transport fee", totalsX, y);
-    doc.text(money(data.transportFee), totalsRight, y, { align: "right" });
+    doc.text(money(Number(data.transportFee || 0) - Number(data.volumetricFee || 0)), totalsRight, y, { align: "right" });
+    y += 5;
+  }
+  if (Number(data.volumetricFee || 0) > 0) {
+    doc.text("Volumetric handling", totalsX, y);
+    doc.text(money(data.volumetricFee), totalsRight, y, { align: "right" });
     y += 5;
   }
   if (Number(data.discount || 0) > 0) {

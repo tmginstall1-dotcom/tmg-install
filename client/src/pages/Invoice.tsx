@@ -45,6 +45,7 @@ type InvoicePayload = {
   items: InvoiceItem[];
   subtotal: string;
   transportFee: string;
+  volumetricFee?: string;
   discount: string;
   secondDayFee?: string;
   secondDayHours?: string;
@@ -334,10 +335,16 @@ export default function Invoice() {
                     <span>Labour subtotal</span>
                     <span className="font-medium">{money(data.subtotal)}</span>
                   </div>
-                  {Number(data.transportFee || 0) > 0 && (
+                  {(Number(data.transportFee || 0) - Number(data.volumetricFee || 0)) > 0 && (
                     <div className="flex justify-between text-gray-700">
                       <span>Transport fee</span>
-                      <span className="font-medium">{money(data.transportFee)}</span>
+                      <span className="font-medium">{money(Number(data.transportFee || 0) - Number(data.volumetricFee || 0))}</span>
+                    </div>
+                  )}
+                  {Number(data.volumetricFee || 0) > 0 && (
+                    <div className="flex justify-between text-gray-700">
+                      <span>Volumetric handling</span>
+                      <span className="font-medium">{money(data.volumetricFee)}</span>
                     </div>
                   )}
                   {Number(data.discount || 0) > 0 && (

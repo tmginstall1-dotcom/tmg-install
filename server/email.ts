@@ -274,8 +274,11 @@ function totRow(color: string, label: string, value: string, bold = false): stri
   </tr>`;
 }
 
-function totals(subtotal: any, transport: any, total: any, deposit: any, balance: any, promoCode?: string | null, promoDiscount?: any, goodwillDiscount?: any, goodwillReason?: string | null, secondDayContinuation?: any, secondDayHours?: any, secondDayCrewSize?: any): string {
-  const hasTransport = Number(transport || 0) > 0;
+function totals(subtotal: any, transport: any, total: any, deposit: any, balance: any, promoCode?: string | null, promoDiscount?: any, goodwillDiscount?: any, goodwillReason?: string | null, secondDayContinuation?: any, secondDayHours?: any, secondDayCrewSize?: any, volumetric?: any): string {
+  const volAmt = Number(volumetric || 0);
+  const transportOnly = Number(transport || 0) - volAmt;
+  const hasTransport = transportOnly > 0;
+  const hasVolumetric = volAmt > 0;
   const hasPromo = promoCode && Number(promoDiscount || 0) > 0;
   const hasGoodwill = Number(goodwillDiscount || 0) > 0;
   const sd = calcSecondDayContinuation(!!secondDayContinuation, secondDayHours || 0, secondDayCrewSize);
@@ -291,7 +294,8 @@ function totals(subtotal: any, transport: any, total: any, deposit: any, balance
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
       <tbody>
         ${totRow('#444444', 'Labour', `$${Number(subtotal || 0).toFixed(2)}`)}
-        ${hasTransport ? totRow('#444444', 'Transport &amp; logistics', `$${Number(transport || 0).toFixed(2)}`) : ''}
+        ${hasTransport ? totRow('#444444', 'Transport &amp; logistics', `$${transportOnly.toFixed(2)}`) : ''}
+        ${hasVolumetric ? totRow('#444444', 'Volumetric handling', `$${volAmt.toFixed(2)}`) : ''}
         ${hasPromo ? totRow('#15803d', `Promo code (${safePromoCode})`, `-$${Number(promoDiscount || 0).toFixed(2)}`) : ''}
         ${hasGoodwill ? totRow('#15803d', goodwillLabel, `-$${Number(goodwillDiscount || 0).toFixed(2)}`) : ''}
         ${hasSecondDay ? totRow('#444444', `Second-day continuation${sd.hours > 0 ? ` (${sd.crewSize} men × ${sd.hours}h)` : ''}`, `$${sd.fee.toFixed(2)}`) : ''}
@@ -429,7 +433,7 @@ export function estimateSubmittedEmail(quote: any): string {
 
     ${section("Requested Work", itemsTable(quote.items))}
 
-    ${section("Estimated Pricing", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours, (quote as any).secondDayCrewSize))}
+    ${section("Estimated Pricing", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours, (quote as any).secondDayCrewSize, (quote as any).volumetricFee))}
 
     ${notice("info", `<strong>What happens next?</strong><br>Our team will review your estimate, confirm the pricing, and send you a deposit invoice. Once the 50% deposit is paid, your appointment slot is locked in.`)}
 
@@ -500,7 +504,7 @@ export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl
 
     ${section("Scope of Work", itemsTable(quote.items))}
 
-    ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours, (quote as any).secondDayCrewSize))}
+    ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours, (quote as any).secondDayCrewSize, (quote as any).volumetricFee))}
 
     ${section("Pay Deposit — 2 Ways", `
       ${ctaBlock(
@@ -540,7 +544,8 @@ export function depositReceivedEmail(quote: any): string {
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
         <tbody>
           ${totRow('#444444', 'Labour', `$${Number(quote.subtotal || 0).toFixed(2)}`)}
-          ${Number(quote.transportFee || 0) > 0 ? totRow('#444444', 'Transport &amp; logistics', `$${Number(quote.transportFee || 0).toFixed(2)}`) : ''}
+          ${(Number(quote.transportFee || 0) - Number((quote as any).volumetricFee || 0)) > 0 ? totRow('#444444', 'Transport &amp; logistics', `$${(Number(quote.transportFee || 0) - Number((quote as any).volumetricFee || 0)).toFixed(2)}`) : ''}
+          ${Number((quote as any).volumetricFee || 0) > 0 ? totRow('#444444', 'Volumetric handling', `$${Number((quote as any).volumetricFee || 0).toFixed(2)}`) : ''}
           ${quote.promoCode && Number(quote.promoDiscount || 0) > 0 ? totRow('#15803d', `Promo code (${quote.promoCode})`, `-$${Number(quote.promoDiscount || 0).toFixed(2)}`) : ''}
           ${totRow('#111111', 'Total', `$${Number(quote.total || 0).toFixed(2)}`, true)}
           ${totRow('#15803d', 'Deposit paid (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`)}
@@ -598,7 +603,7 @@ export function bookingRequestAdminEmail(quote: any): string {
 
     ${section("Scope of Work", itemsTable(quote.items))}
 
-    ${section("Financial Summary", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours, (quote as any).secondDayCrewSize))}
+    ${section("Financial Summary", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours, (quote as any).secondDayCrewSize, (quote as any).volumetricFee))}
 
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:32px 0 8px;text-align:center;">
       <tr>
@@ -711,7 +716,8 @@ export function finalPaymentEmail(
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
         <tbody>
           ${totRow('#444444', 'Labour', `$${Number(quote.subtotal || 0).toFixed(2)}`)}
-          ${Number(quote.transportFee || 0) > 0 ? totRow('#444444', 'Transport &amp; logistics', `$${Number(quote.transportFee || 0).toFixed(2)}`) : ''}
+          ${(Number(quote.transportFee || 0) - Number((quote as any).volumetricFee || 0)) > 0 ? totRow('#444444', 'Transport &amp; logistics', `$${(Number(quote.transportFee || 0) - Number((quote as any).volumetricFee || 0)).toFixed(2)}`) : ''}
+          ${Number((quote as any).volumetricFee || 0) > 0 ? totRow('#444444', 'Volumetric handling', `$${Number((quote as any).volumetricFee || 0).toFixed(2)}`) : ''}
           ${quote.promoCode && Number(quote.promoDiscount || 0) > 0 ? totRow('#15803d', `Promo code (${quote.promoCode})`, `-$${Number(quote.promoDiscount || 0).toFixed(2)}`) : ''}
           ${quote.secondDayContinuation ? (() => { const sd = calcSecondDayContinuation(!!quote.secondDayContinuation, quote.secondDayHours || 0, quote.secondDayCrewSize); return totRow('#444444', `Second-day continuation${sd.hours > 0 ? ` (${sd.crewSize} men × ${sd.hours}h)` : ''}`, `$${sd.fee.toFixed(2)}`); })() : ''}
           ${totRow('#444444', 'Original total', `$${Number(quote.total || 0).toFixed(2)}`)}
@@ -974,7 +980,7 @@ export function newEstimateAdminAlert(quote: any): string {
 
     ${section(`Items (${(quote.items || []).length})`, itemsTable(quote.items))}
 
-    ${section("Estimated Value", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours, (quote as any).secondDayCrewSize))}
+    ${section("Estimated Value", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours, (quote as any).secondDayCrewSize, (quote as any).volumetricFee))}
 
     ${quote.requiresManualReview ? notice("warn", `<strong>Manual Review Required</strong> — This estimate was flagged for manual review. Please verify all items and pricing before approving.`) : ''}
 

@@ -494,10 +494,25 @@ export default function QuoteStatus() {
                   <span>Subtotal</span>
                   <span className="tabular-nums">{formatMoney(quote.subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-xs text-black/45">
-                  <span>Transport</span>
-                  <span className="tabular-nums">{formatMoney(quote.transportFee)}</span>
-                </div>
+                {Number((quote as any).volumetricFee || 0) > 0 ? (
+                  <>
+                    {(Number(quote.transportFee || 0) - Number((quote as any).volumetricFee || 0)) > 0 && (
+                      <div className="flex justify-between text-xs text-black/45">
+                        <span>Transport</span>
+                        <span className="tabular-nums">{formatMoney(Number(quote.transportFee || 0) - Number((quote as any).volumetricFee || 0))}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-xs text-black/45">
+                      <span>Volumetric Handling</span>
+                      <span className="tabular-nums">{formatMoney((quote as any).volumetricFee)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between text-xs text-black/45">
+                    <span>Transport</span>
+                    <span className="tabular-nums">{formatMoney(quote.transportFee)}</span>
+                  </div>
+                )}
                 {Number(quote.promoDiscount || 0) > 0 && (
                   <div className="flex justify-between text-xs font-semibold text-emerald-700">
                     <span>Promo code ({quote.promoCode})</span>
@@ -734,10 +749,25 @@ export default function QuoteStatus() {
                   <span>Subtotal</span>
                   <span className="tabular-nums">{formatMoney(quote.subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-sm text-white/60">
-                  <span>Transport</span>
-                  <span className="tabular-nums">{formatMoney(quote.transportFee)}</span>
-                </div>
+                {Number((quote as any).volumetricFee || 0) > 0 ? (
+                  <>
+                    {(Number(quote.transportFee || 0) - Number((quote as any).volumetricFee || 0)) > 0 && (
+                      <div className="flex justify-between text-sm text-white/60">
+                        <span>Transport</span>
+                        <span className="tabular-nums">{formatMoney(Number(quote.transportFee || 0) - Number((quote as any).volumetricFee || 0))}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm text-white/60">
+                      <span>Volumetric Handling</span>
+                      <span className="tabular-nums">{formatMoney((quote as any).volumetricFee)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between text-sm text-white/60">
+                    <span>Transport</span>
+                    <span className="tabular-nums">{formatMoney(quote.transportFee)}</span>
+                  </div>
+                )}
                 {Number(quote.promoDiscount || 0) > 0 && (
                   <div className="flex justify-between text-sm font-semibold text-emerald-400">
                     <span>Promo ({quote.promoCode})</span>

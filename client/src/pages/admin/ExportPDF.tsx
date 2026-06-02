@@ -155,7 +155,8 @@ function DetailPanel({ q }: { q: any }) {
  <Section title="Financial Summary">
  <div className="space-y-1.5">
  <FinLine label="Labour" value={money(q.subtotal)} />
- {Number(q.transportFee || 0) > 0 && <FinLine label="Transport" value={money(q.transportFee)} />}
+ {(Number(q.transportFee || 0) - Number((q as any).volumetricFee || 0)) > 0 && <FinLine label="Transport" value={money(Number(q.transportFee || 0) - Number((q as any).volumetricFee || 0))} />}
+ {Number((q as any).volumetricFee || 0) > 0 && <FinLine label="Volumetric Handling" value={money((q as any).volumetricFee)} />}
  {Number(q.discount || 0) > 0 && <FinLine label="Discount" value={`−${money(q.discount)}`} red />}
  <div className="flex justify-between pt-2 mt-1 border-t-2 border-gray-900 font-black text-sm">
  <span>Grand Total</span><span>{money(q.total)}</span>
@@ -383,7 +384,8 @@ function PrintJob({ q, today }: { q: any; today: string }) {
  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9 }}>
  <tbody>
  <PFinRow label="Labour (Sub-total)" val={money(q.subtotal)} />
- {Number(q.transportFee || 0) > 0 && <PFinRow label="Transport Fee" val={money(q.transportFee)} />}
+ {(Number(q.transportFee || 0) - Number((q as any).volumetricFee || 0)) > 0 && <PFinRow label="Transport Fee" val={money(Number(q.transportFee || 0) - Number((q as any).volumetricFee || 0))} />}
+ {Number((q as any).volumetricFee || 0) > 0 && <PFinRow label="Volumetric Handling" val={money((q as any).volumetricFee)} />}
  {Number(q.discount || 0) > 0 && <PFinRow label="Discount" val={`− ${money(q.discount)}`} color="#dc2626" />}
  <tr style={{ borderTop: "2.5px solid #111", borderBottom: "2.5px solid #111" }}>
  <td style={{ padding: "7px 0", fontWeight: 900, fontSize: 13 }}>GRAND TOTAL</td>

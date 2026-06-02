@@ -188,6 +188,7 @@ export interface PricingResult {
   discountLine: { label: string; amount: number } | null;
   laborSubtotal: number;
   logisticsSubtotal: number;
+  volumetricFee: number;        // per-m³ handling portion of logisticsSubtotal (0 if none)
   discountAmount: number;
   grandTotal: number;
   depositAmount: number;
@@ -536,6 +537,7 @@ export function computePricing(input: PricingInput): PricingResult {
   // Special-handling SKUs (king bed, Pax, piano, phone booths, etc.) are
   // excluded — those items already keep their full catalog rate which has
   // the heavy-handling premium baked in, so charging again would double-bill.
+  let volumetricFeeOut = 0;
   if (input.needsRelocation) {
     const volumetricM3 = round2(
       input.items.reduce((s, it) => {
@@ -564,6 +566,7 @@ export function computePricing(input: PricingInput): PricingResult {
         prevCap = tier.upTo;
       }
       const volumetricFee = round2(rawFee);
+      volumetricFeeOut = volumetricFee;
       if (volumetricFee > 0) {
         // Blended rate label = total fee ÷ total volume.
         // Reads as "Volumetric Handling (1.50 m³ × $10)" for small loads and
@@ -638,6 +641,7 @@ export function computePricing(input: PricingInput): PricingResult {
     discountLine,
     laborSubtotal,
     logisticsSubtotal,
+    volumetricFee: volumetricFeeOut,
     discountAmount,
     grandTotal,
     depositAmount,
@@ -656,6 +660,7 @@ export function pricingToQuoteFields(result: PricingResult) {
     subtotal: result.laborSubtotal.toFixed(2),
     discount: result.discountAmount.toFixed(2),
     transportFee: result.logisticsSubtotal.toFixed(2),
+    volumetricFee: result.volumetricFee.toFixed(2),
     total: result.grandTotal.toFixed(2),
     depositAmount: result.depositAmount.toFixed(2),
     finalAmount: result.finalAmount.toFixed(2),

@@ -311,6 +311,11 @@ export const quotes = pgTable("quotes", {
   subtotal: numeric("subtotal").default("0"),
   discount: numeric("discount").default("0"),
   transportFee: numeric("transport_fee").default("0"),
+  // Portion of transportFee that is the per-m³ Volumetric Handling charge.
+  // transportFee still holds the FULL logistics subtotal (incl. this amount);
+  // this column only records how much of it is volumetric so quotes/invoices
+  // can show it as its own line. Defaults to 0 for non-wizard / legacy quotes.
+  volumetricFee: numeric("volumetric_fee").default("0"),
   total: numeric("total").default("0"),
 
   aiConfidenceScore: integer("ai_confidence_score"),
