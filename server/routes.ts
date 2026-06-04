@@ -4828,10 +4828,14 @@ ${systemPrompt}` });
         customerName: z.string().trim().max(120).optional(),
       }).parse(req.body);
 
-      // The final "completed" stage requires the customer's acknowledgment.
-      if (stage === 'completed') {
-        if (!signatureDataUrl) return res.status(400).json({ message: "Customer signature is required" });
-        if (!customerName) return res.status(400).json({ message: "Customer name is required" });
+      // The customer's acknowledgment is best-effort on the final "completed"
+      // stage: older deployed staff apps (the native Android build can't
+      // hot-update) don't send a signature, so we must not block completion
+      // when it's missing. Newer apps still capture and store it below.
+      // Acknowledgment is all-or-nothing, though: a client that sent one half
+      // but not the other signals a bug, so reject partial payloads.
+      if (stage === 'completed' && (!!signatureDataUrl !== !!customerName)) {
+        return res.status(400).json({ message: "Both customer signature and name are required together" });
       }
 
       const existing = await storage.getQuote(id);
@@ -4877,8 +4881,10 @@ ${systemPrompt}` });
 
       // Persist the customer acknowledgment BEFORE flipping status to completed,
       // so a failure here never leaves a job completed with no sign-off on record.
-      if (stage === 'completed') {
-        await storage.setCompletionSignature(id, signatureDataUrl!, customerName!);
+      // Only when the (newer) app actually captured a signature — older apps
+      // omit it, and completion must still succeed.
+      if (stage === 'completed' && signatureDataUrl && customerName) {
+        await storage.setCompletionSignature(id, signatureDataUrl, customerName);
       }
 
       const quote = await storage.updateQuoteStatus(id, stage, {
@@ -4919,11 +4925,23 @@ ${systemPrompt}` });
         gpsLng: z.number(),
         photoUrls: z.array(z.string()).min(1, "At least one completion photo is required"),
         note: z.string().optional(),
+        // Signature + customer name are best-effort: older deployed staff apps
+        // (the native Android build can't hot-update) don't send them, so we
+        // must not block job completion when they're missing. Newer apps that
+        // do capture a signature still have it stored below.
         signatureDataUrl: z.string()
           .regex(/^data:image\/(png|jpe?g);base64,/, "Invalid signature")
-          .max(2_000_000, "Signature is too large"),
-        customerName: z.string().trim().min(1, "Customer name is required").max(120),
+          .max(2_000_000, "Signature is too large")
+          .optional(),
+        customerName: z.string().trim().max(120).optional(),
       }).parse(req.body);
+
+      // Acknowledgment is all-or-nothing: a client that captured one half but
+      // not the other signals a bug, so reject partial payloads. Both absent is
+      // still allowed for legacy clients that don't capture signatures at all.
+      if (!!signatureDataUrl !== !!customerName) {
+        return res.status(400).json({ message: "Both customer signature and name are required together" });
+      }
 
       const existing = await storage.getQuote(id);
       if (!existing) return res.status(404).json({ message: "Quote not found" });
@@ -4952,7 +4970,11 @@ ${systemPrompt}` });
 
       // Persist the customer acknowledgment BEFORE flipping status, so a failure
       // here never leaves a job marked completed with no sign-off on record.
-      await storage.setCompletionSignature(id, signatureDataUrl, customerName);
+      // Only when the (newer) app actually captured a signature — older apps
+      // omit it, and completion must still succeed.
+      if (signatureDataUrl && customerName) {
+        await storage.setCompletionSignature(id, signatureDataUrl, customerName);
+      }
 
       const quote = await storage.updateQuoteStatus(id, 'completed', {
         actorType: 'staff',

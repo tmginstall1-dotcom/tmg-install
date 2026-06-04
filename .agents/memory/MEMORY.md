@@ -5,3 +5,4 @@
 - [P&L salary calc](pnl-salary-calc.md) — P&L Staff Salary = full monthly salary (no calendar-day proration) + actual hourly/OT from attendance; keep in lockstep with payslip formula.
 - [GGV scan columns](ggv-scan-columns.md) — GGV job-sheet has THREE money columns; actualPrice is the rightmost/smallest, read directly, never `listed − deduction`.
 - [Quote/invoice display surfaces](quote-invoice-display-surfaces.md) — money breakdown re-rendered in ~9 independent surfaces; Invoice.tsx + invoicePdf.ts are easy to miss; split display, keep totals preserved.
+- [Staff completion API compat](staff-completion-api-compat.md) — keep newly-added completion fields optional server-side; native/PWA staff bundles can't hot-update, so required fields 400 old clients.
