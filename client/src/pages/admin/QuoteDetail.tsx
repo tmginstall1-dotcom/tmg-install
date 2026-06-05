@@ -1506,9 +1506,9 @@ export default function AdminQuoteDetail() {
  guideline for reliable phone-camera scanning from paper.
  A white background and generous quiet zone (padding) are
  required for scanners to find the finder patterns.
- image-rendering: pixelated keeps the black modules crisp
- during print scaling instead of being blurred by browser
- anti-aliasing. */
+ The source asset is a clean square raster, so object-fit:
+ contain + image-rendering: auto give smooth, undistorted
+ downscaling that preserves scannability. */
  .qr-block .qr-frame {
  width: 150px; height: 150px; padding: 10px;
  background: #fff; border: 1px solid var(--line);
@@ -1518,9 +1518,8 @@ export default function AdminQuoteDetail() {
  .qr-block img {
  width: 150px; height: 150px; display: block;
  background: #fff; margin: 0; padding: 0; border: 0;
- image-rendering: -webkit-optimize-contrast;
- image-rendering: crisp-edges;
- image-rendering: pixelated;
+ object-fit: contain;
+ image-rendering: auto;
  -webkit-print-color-adjust: exact;
  print-color-adjust: exact;
  }
@@ -2935,7 +2934,7 @@ export default function AdminQuoteDetail() {
  src="/paynow-qr.png"
  alt="PayNow QR"
  data-testid="img-admin-paynow-qr"
- className="w-16 h-16 rounded object-cover border border-zinc-200 shrink-0"
+ className="w-16 h-16 rounded object-contain bg-white p-1 border border-zinc-200 shrink-0"
  />
  <div className="text-xs text-zinc-600 space-y-0.5">
  <p><span className="font-semibold">UEN:</span> 202424156H</p>
