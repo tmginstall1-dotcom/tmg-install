@@ -770,6 +770,45 @@ export async function seedDatabase() {
     });
   }
 
+  // Round: Blind / window-covering INSTALL + DISMANTLE prices.
+  // Bug fix — the catalog previously had blinds priced ONLY for dispose /
+  // dismantle_dispose / relocate. There was NO per-window INSTALL or
+  // DISMANTLE price for roller / venetian / roman / vertical / zebra /
+  // motorised blinds. As a result, "install 4 blinds" found no catalog
+  // match and fell back to the generic $150/unit rate (4 × $150 + fees ≈
+  // SGD 640+), badly over-quoting a simple job. These rows give the
+  // matcher real per-window install/dismantle labour rates (SG market:
+  // ~$40–50 install per window, dismantle ≈ 65% of install). Inserted
+  // idempotently by unique SKU so existing databases pick them up on the
+  // next boot; the marker is written last so a mid-block crash re-runs.
+  const pcBlindV1 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "PC-BLIND-V1-MARKER"));
+  if (pcBlindV1.length === 0) {
+    await db.insert(catalogItems).values([
+      { name: "Roller Blind (per window)",              sku: "ROLLERBL-INSTALL",   category: "Curtains & Blinds", serviceType: "install",   basePrice: "40.00", volumeM3: "0.04" },
+      { name: "Roller Blind (per window)",              sku: "ROLLERBL-DISMANTLE", category: "Curtains & Blinds", serviceType: "dismantle", basePrice: "25.00", volumeM3: "0.04" },
+      { name: "Venetian Blind (per window)",            sku: "VENETIAN-INSTALL",   category: "Curtains & Blinds", serviceType: "install",   basePrice: "45.00", volumeM3: "0.05" },
+      { name: "Venetian Blind (per window)",            sku: "VENETIAN-DISMANTLE", category: "Curtains & Blinds", serviceType: "dismantle", basePrice: "30.00", volumeM3: "0.05" },
+      { name: "Roman Blind (per window)",               sku: "ROMANBLI-INSTALL",   category: "Curtains & Blinds", serviceType: "install",   basePrice: "45.00", volumeM3: "0.04" },
+      { name: "Roman Blind (per window)",               sku: "ROMANBLI-DISMANTLE", category: "Curtains & Blinds", serviceType: "dismantle", basePrice: "30.00", volumeM3: "0.04" },
+      { name: "Vertical Blind (per window)",            sku: "VERTICAL-INSTALL",   category: "Curtains & Blinds", serviceType: "install",   basePrice: "45.00", volumeM3: "0.05" },
+      { name: "Vertical Blind (per window)",            sku: "VERTICAL-DISMANTLE", category: "Curtains & Blinds", serviceType: "dismantle", basePrice: "30.00", volumeM3: "0.05" },
+      { name: "Day and Night or Zebra Blind (per window)", sku: "DAYANDNI-INSTALL",   category: "Curtains & Blinds", serviceType: "install",   basePrice: "50.00", volumeM3: "0.05" },
+      { name: "Day and Night or Zebra Blind (per window)", sku: "DAYANDNI-DISMANTLE", category: "Curtains & Blinds", serviceType: "dismantle", basePrice: "30.00", volumeM3: "0.05" },
+      { name: "Motorised Blind or Curtain Track",       sku: "MOTORISE-INSTALL",   category: "Curtains & Blinds", serviceType: "install",   basePrice: "90.00", volumeM3: "0.06" },
+      { name: "Motorised Blind or Curtain Track",       sku: "MOTORISE-DISMANTLE", category: "Curtains & Blinds", serviceType: "dismantle", basePrice: "60.00", volumeM3: "0.06" },
+    ]).onConflictDoNothing();
+
+    // Marker last — only written if every row insert above succeeded.
+    await db.insert(catalogItems).values({
+      name: "_Price Correction Blind V1",
+      sku: "PC-BLIND-V1-MARKER",
+      category: "_System",
+      serviceType: "install",
+      basePrice: "0.00",
+      active: false,
+    }).onConflictDoNothing();
+  }
+
   // Round 8: Add missing relocate variants + comprehensive volumeM3 for all relocate items
   const r8 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "VOL2-UPDATED"));
   if (r8.length === 0) {

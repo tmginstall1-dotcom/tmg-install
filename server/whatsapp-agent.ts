@@ -510,7 +510,14 @@ const COMPOUND_SPLITS: Record<string, string[]> = {
   shoerack:    ["shoe"],
 };
 
-const STOPWORDS = new Set(["the", "a", "an", "of", "for", "and", "or", "with", "to", "my", "our", "your"]);
+const STOPWORDS = new Set([
+  "the", "a", "an", "of", "for", "and", "or", "with", "to", "my", "our", "your",
+  // Brand / generic qualifier words customers add that are NOT item types.
+  // Leaving them in pollutes the OR-match (e.g. "ikea blinds" would also match
+  // every IKEA-named install item and skew the median price). Strip them so
+  // only the real item noun ("blind") drives the catalog match.
+  "ikea", "hipvan", "castlery", "courts", "taobao",
+]);
 
 function normaliseToken(t: string): string {
   return t
@@ -778,6 +785,8 @@ ACCURACY RULES (most important — read carefully):
 STYLE RULES:
 - Be concise, warm, and sales-oriented
 - Ask ONLY the single most important missing piece of information per turn
+- NEVER re-ask for anything already present in KNOWN FACTS — if a fact is filled in, treat it as settled and move on to the NEXT MISSING FACT
+- If the customer just shared a specific detail (e.g. "each blind needs 4 holes", a floor number, a date), briefly acknowledge it in your reply before asking the next question — don't ignore it or repeat your previous message
 - Never ask multiple questions at once
 - Keep under 90 words
 - Use plain conversational language, no markdown
@@ -900,6 +909,21 @@ export async function runFollowUpScheduler(): Promise<void> {
         if (session.botPaused || session.aiOwnership === "human") {
           await db.update(aiWhatsappFollowups)
             .set({ status: "skipped", skipReason: "human_ownership" })
+            .where(eq(aiWhatsappFollowups.id, followup.id));
+          continue;
+        }
+
+        // Skip if the customer has replied SINCE this follow-up was queued.
+        // A "missing_info"/"quote_reminder" nudge is only meant for a customer
+        // who went quiet. If they kept chatting (lastInboundAt is newer than
+        // when we scheduled this), the live turn handler already responded with
+        // the right next step — firing the canned nudge now would repeat
+        // ourselves and look robotic. Cancel it instead.
+        const followupCreatedAt = followup.createdAt ? new Date(followup.createdAt) : null;
+        const lastInbound = session.lastInboundAt ? new Date(session.lastInboundAt) : null;
+        if (followupCreatedAt && lastInbound && lastInbound > followupCreatedAt) {
+          await db.update(aiWhatsappFollowups)
+            .set({ status: "cancelled", skipReason: "customer_active" })
             .where(eq(aiWhatsappFollowups.id, followup.id));
           continue;
         }
