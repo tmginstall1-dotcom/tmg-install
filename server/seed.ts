@@ -3077,4 +3077,62 @@ export async function seedDatabase() {
     console.log(`[startup] Round 32: Partial Parts Installation — inserted ${inserted} new SKU row(s) (assembly-assist / hydraulic mechanism).`);
   }
 
+  /* ─── Round 33: Hinged Door Wardrobe (3-door) SKU ─────────────────────────
+     Real-world: the "normal" swing-door (hinged) wardrobe is one of the most
+     common units in Singapore homes, and the 3-door size is the everyday
+     bestseller — wider than the compact 2-door but not as bulky as the 4-door.
+     Pre-R33 the catalog only had hinged 2-door and 4-door variants, so a
+     standard 3-door wardrobe had to be mis-mapped to a 2-door (under-quoted)
+     or a 4-door (over-quoted). The sliding line already covers 2/3/4 doors;
+     this round closes the gap on the hinged line.
+
+     Pricing is interpolated between the existing hinged 2-door and 4-door
+     across every service type, so the door-count ladder stays consistent:
+        install            $100  →  $125  →  $150
+        dismantle          $75   →  $92   →  $110
+        relocate           $105  →  $130  →  $156
+        dispose            $65   →  $82   →  $100
+        dismantle_dispose  $110  →  $138  →  $165
+     Transport volume 0.95 m³ sits between the 2-door (0.70) and 4-door (1.20).
+
+     Marker: HINGED-3DOOR-R33-MARKER.
+  */
+  const r33 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "HINGED-3DOOR-R33-MARKER")).limit(1);
+  if (r33.length === 0) {
+    const newRows: Array<{ sku: string; serviceType: string; basePrice: string; volumeM3: string }> = [
+      { sku: "HGD3-INSTALL",   serviceType: "install",           basePrice: "125.00", volumeM3: "0.95" },
+      { sku: "HGD3-DISMANTLE", serviceType: "dismantle",         basePrice: "92.00",  volumeM3: "0.95" },
+      { sku: "HGD3-RELOCATE",  serviceType: "relocate",          basePrice: "130.00", volumeM3: "0.95" },
+      { sku: "HGD3-DISPOSE",   serviceType: "dispose",           basePrice: "82.00",  volumeM3: "0.95" },
+      { sku: "HGD3-DIS-DISP",  serviceType: "dismantle_dispose", basePrice: "138.00", volumeM3: "0.95" },
+    ];
+    let inserted = 0;
+    for (const row of newRows) {
+      const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+      if (exists.length === 0) {
+        await db.insert(catalogItems).values({
+          name: "Hinged Door Wardrobe (3-door)",
+          sku: row.sku,
+          category: "Wardrobes",
+          serviceType: row.serviceType,
+          basePrice: row.basePrice,
+          volumeM3: row.volumeM3,
+          active: true,
+        } as any);
+        inserted++;
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__hinged_3door_r33_marker__",
+      sku: "HINGED-3DOOR-R33-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 33: Hinged Door Wardrobe (3-door) — inserted ${inserted} new SKU row(s).`);
+  }
+
 }

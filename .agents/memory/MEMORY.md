@@ -4,6 +4,7 @@
 - [Admin route authorization](admin-route-authz.md) — admin routes must check `caller.role==='admin'` via getUserById, not just session.userId; bind child resources to parent id to stop IDOR.
 - [P&L salary calc](pnl-salary-calc.md) — P&L Staff Salary = full monthly salary (no calendar-day proration) + actual hourly/OT from attendance; keep in lockstep with payslip formula.
 - [GGV scan columns](ggv-scan-columns.md) — GGV job-sheet has THREE money columns; actualPrice is the rightmost/smallest, read directly, never `listed − deduction`.
+- [Catalog seed Rounds](catalog-seed-rounds.md) — add/reprice catalog items via a new idempotent "Round N" migration in server/seed.ts (base array only seeds fresh DBs); restart workflow after.
 - [Blind install pricing gap](blind-install-pricing-gap.md) — catalog must cover EVERY serviceType (esp. `install`) per item; a missing one silently hits the $150 generic fallback and over-quotes.
 - [Quote/invoice display surfaces](quote-invoice-display-surfaces.md) — money breakdown re-rendered in ~9 surfaces; Invoice.tsx + invoicePdf.ts easy to miss; split display, keep totals.
 - [Staff completion API compat](staff-completion-api-compat.md) — keep new completion fields optional server-side; native/PWA staff bundles can't hot-update, so required fields 400 old clients.
