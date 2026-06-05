@@ -9,6 +9,7 @@
 import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
+import { requiresFullUpfront } from "@shared/pricing";
 
 const CO      = "The Moving Guy Pte Ltd";
 const UEN     = "202424156H";
@@ -406,36 +407,56 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
 
-  // Deposit line
-  if (data.depositPaidAt) doc.setTextColor(4, 120, 87);
-  else doc.setTextColor(107, 114, 128);
-  doc.text(`Deposit (50%)${data.depositPaidAt ? " - Paid" : ""}`, totalsX, y);
-  doc.setFont("helvetica", "bold");
-  doc.text(money(data.depositAmount), totalsRight, y, { align: "right" });
-  doc.setFont("helvetica", "normal");
-  y += 4;
-  if (data.depositPaidAt) {
-    doc.setTextColor(5, 150, 105);
-    doc.setFontSize(7);
-    doc.text(`on ${dt(data.depositPaidAt, true)}`, totalsRight, y, { align: "right" });
-    y += 3.5;
-    doc.setFontSize(8.5);
-  }
+  const isFullPayPdf = requiresFullUpfront(Number(data.total));
 
-  // Final balance line
-  if (data.finalPaidAt) doc.setTextColor(4, 120, 87);
-  else doc.setTextColor(107, 114, 128);
-  doc.text(`Final balance${data.finalPaidAt ? " - Paid" : ""}`, totalsX, y);
-  doc.setFont("helvetica", "bold");
-  doc.text(money(data.finalAmount), totalsRight, y, { align: "right" });
-  doc.setFont("helvetica", "normal");
-  y += 4;
-  if (data.finalPaidAt) {
-    doc.setTextColor(5, 150, 105);
-    doc.setFontSize(7);
-    doc.text(`on ${dt(data.finalPaidAt, true)}`, totalsRight, y, { align: "right" });
-    y += 3.5;
-    doc.setFontSize(8.5);
+  if (isFullPayPdf) {
+    // Full-upfront (under-threshold) jobs: single "Full payment" line, no split.
+    if (data.depositPaidAt) doc.setTextColor(4, 120, 87);
+    else doc.setTextColor(107, 114, 128);
+    doc.text(`Full payment${data.depositPaidAt ? " - Paid" : ""}`, totalsX, y);
+    doc.setFont("helvetica", "bold");
+    doc.text(money(data.total), totalsRight, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    y += 4;
+    if (data.depositPaidAt) {
+      doc.setTextColor(5, 150, 105);
+      doc.setFontSize(7);
+      doc.text(`on ${dt(data.depositPaidAt, true)}`, totalsRight, y, { align: "right" });
+      y += 3.5;
+      doc.setFontSize(8.5);
+    }
+  } else {
+    // Deposit line
+    if (data.depositPaidAt) doc.setTextColor(4, 120, 87);
+    else doc.setTextColor(107, 114, 128);
+    doc.text(`Deposit (50%)${data.depositPaidAt ? " - Paid" : ""}`, totalsX, y);
+    doc.setFont("helvetica", "bold");
+    doc.text(money(data.depositAmount), totalsRight, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    y += 4;
+    if (data.depositPaidAt) {
+      doc.setTextColor(5, 150, 105);
+      doc.setFontSize(7);
+      doc.text(`on ${dt(data.depositPaidAt, true)}`, totalsRight, y, { align: "right" });
+      y += 3.5;
+      doc.setFontSize(8.5);
+    }
+
+    // Final balance line
+    if (data.finalPaidAt) doc.setTextColor(4, 120, 87);
+    else doc.setTextColor(107, 114, 128);
+    doc.text(`Final balance${data.finalPaidAt ? " - Paid" : ""}`, totalsX, y);
+    doc.setFont("helvetica", "bold");
+    doc.text(money(data.finalAmount), totalsRight, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    y += 4;
+    if (data.finalPaidAt) {
+      doc.setTextColor(5, 150, 105);
+      doc.setFontSize(7);
+      doc.text(`on ${dt(data.finalPaidAt, true)}`, totalsRight, y, { align: "right" });
+      y += 3.5;
+      doc.setFontSize(8.5);
+    }
   }
 
   if (data.paidInFull) {

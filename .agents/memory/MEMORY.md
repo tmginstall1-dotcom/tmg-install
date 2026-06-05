@@ -1,8 +1,9 @@
 - [Dev backend reload](dev-backend-reload.md) — `npm run dev` runs `tsx` without watch; restart the "Start application" workflow after schema/storage edits or Drizzle throws "No values to set".
 - [Per-job fee pattern](per-job-fee-pattern.md) — add new per-job fees by folding them into `editQuote` total recompute, not into payment/email endpoints.
-- [Balance computation spots](balance-computation-spots.md) — outstanding balance is recomputed inline in ~7 routes + the email template; change them all together and subtract `getLedgerPaidTotal`, never the deposit baseline.
+- [Balance computation spots](balance-computation-spots.md) — outstanding balance recomputed inline in ~7 routes + email; change together, subtract getLedgerPaidTotal not the deposit baseline.
 - [Admin route authorization](admin-route-authz.md) — admin routes must check `caller.role==='admin'` via getUserById, not just session.userId; bind child resources to parent id to stop IDOR.
 - [P&L salary calc](pnl-salary-calc.md) — P&L Staff Salary = full monthly salary (no calendar-day proration) + actual hourly/OT from attendance; keep in lockstep with payslip formula.
 - [GGV scan columns](ggv-scan-columns.md) — GGV job-sheet has THREE money columns; actualPrice is the rightmost/smallest, read directly, never `listed − deduction`.
-- [Quote/invoice display surfaces](quote-invoice-display-surfaces.md) — money breakdown re-rendered in ~9 independent surfaces; Invoice.tsx + invoicePdf.ts are easy to miss; split display, keep totals preserved.
-- [Staff completion API compat](staff-completion-api-compat.md) — keep newly-added completion fields optional server-side; native/PWA staff bundles can't hot-update, so required fields 400 old clients.
+- [Quote/invoice display surfaces](quote-invoice-display-surfaces.md) — money breakdown re-rendered in ~9 surfaces; Invoice.tsx + invoicePdf.ts easy to miss; split display, keep totals.
+- [Staff completion API compat](staff-completion-api-compat.md) — keep new completion fields optional server-side; native/PWA staff bundles can't hot-update, so required fields 400 old clients.
+- [Threshold full-payment rule](threshold-full-payment-rule.md) — jobs <$150 pay in full; branch every payment surface on requiresFullUpfront(total), never re-derive the threshold inline.

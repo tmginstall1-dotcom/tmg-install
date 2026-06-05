@@ -14,7 +14,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatItemDescription } from "@/lib/itemLabel";
-import { calcOvertimeCharge, calcSecondDayContinuation, PricingConfig } from "@shared/pricing";
+import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig } from "@shared/pricing";
 import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
 import { InvoiceMessageDialog } from "@/components/shared/InvoiceMessageDialog";
 
@@ -934,14 +934,21 @@ export default function AdminQuoteDetail() {
  const hasMultiplePhases = applicablePhases.length > 1;
  const finalPaymentBlockedByPhases = hasMultiplePhases && !allPhasesDone;
 
- // Effective 50/50 split — falls back when stored amounts are 0 (e.g. manually created jobs)
+ // Effective split — small jobs (under the full-payment threshold) are paid in
+ // full up front (deposit = total, no balance). Larger jobs keep the usual 50/50,
+ // falling back to a computed half when stored amounts are 0 (e.g. manually created jobs).
  const quoteTotal = parseFloat(quote.total || "0");
- const effectiveDeposit = parseFloat(quote.depositAmount || "0") > 0
+ const isFullPayQuote = requiresFullUpfront(quoteTotal);
+ const effectiveDeposit = isFullPayQuote
+ ? quoteTotal
+ : (parseFloat(quote.depositAmount || "0") > 0
  ? parseFloat(quote.depositAmount!)
- : quoteTotal * 0.5;
- const effectiveFinal = parseFloat(quote.finalAmount || "0") > 0
+ : quoteTotal * 0.5);
+ const effectiveFinal = isFullPayQuote
+ ? 0
+ : (parseFloat(quote.finalAmount || "0") > 0
  ? parseFloat(quote.finalAmount!)
- : quoteTotal * 0.5;
+ : quoteTotal * 0.5);
 
  // Partial-payment ledger — running paid-so-far / balance-owing
  const quotePaymentsList = ((quote.payments || []) as any[]);
@@ -1166,8 +1173,11 @@ export default function AdminQuoteDetail() {
  const isFullyPaid = !!(q.finalPaidAt) || q.paymentStatus === "paid_in_full";
  const isDepositPaid = !!(q.depositPaidAt) || q.paymentStatus === "deposit_paid";
  const totalAmt = Number(q.total || 0);
- const depositAmt = Number(q.depositAmount || 0) > 0 ? Number(q.depositAmount) : totalAmt * 0.5;
- const balanceAmt = Number(q.finalAmount || 0) > 0 ? Number(q.finalAmount) : totalAmt * 0.5;
+ const fullPayDoc = requiresFullUpfront(totalAmt);
+ // Full-payment (under-threshold) jobs are always total / 0 — ignore any stale or
+ // legacy stored split so the printable doc matches the site-wide rule.
+ const depositAmt = fullPayDoc ? totalAmt : (Number(q.depositAmount || 0) > 0 ? Number(q.depositAmount) : totalAmt * 0.5);
+ const balanceAmt = fullPayDoc ? 0 : (Number(q.finalAmount || 0) > 0 ? Number(q.finalAmount) : totalAmt * 0.5);
 
  // Decide what kind of document this print is. Commercial customers
  // pay against an INVOICE (B2B norm: vendor issues invoice, customer
@@ -1204,7 +1214,7 @@ export default function AdminQuoteDetail() {
  if (q.status === "cancelled") return "CANCELLED";
  return String(q.status || "—").toUpperCase().replace(/_/g, " ");
  })();
- const termsLabel = isInvoiceDoc ? "Net 30" : (docType === "JOB ORDER" ? "50% Deposit Paid" : "50% Deposit");
+ const termsLabel = isInvoiceDoc ? "Net 30" : (docType === "JOB ORDER" ? (fullPayDoc ? "Paid in Full" : "50% Deposit Paid") : (fullPayDoc ? "Full Payment" : "50% Deposit"));
  // Stable invoice number: TMG-MOJN5PS9 → INV-MOJN5PS9
  const refTail = String(q.referenceNo || "").replace(/^TMG-?/i, "");
  const invoiceNo = `INV-${refTail || q.id}`;
@@ -1831,7 +1841,7 @@ export default function AdminQuoteDetail() {
  <div class="amount-due">
  <div class="lbl-wrap">
  <div class="lbl">${isInvoiceDoc ? "Amount Due" : "Total Payable"}</div>
- ${isInvoiceDoc ? `<div class="due-date">By ${esc(dueDate)} · Net 30</div>` : `<div class="due-date">50% deposit to confirm booking</div>`}
+ ${isInvoiceDoc ? `<div class="due-date">By ${esc(dueDate)} · Net 30</div>` : `<div class="due-date">${fullPayDoc ? "Full payment to confirm booking" : "50% deposit to confirm booking"}</div>`}
  </div>
  <div class="amt">S$${Number(q.total || 0).toFixed(2)}</div>
  </div>`}
@@ -1882,7 +1892,7 @@ export default function AdminQuoteDetail() {
  <li>By making payment, the customer is deemed to have read and accepted our full Terms &amp; Conditions at <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a>.</li>
  ` : `
  <li>This quotation is valid for <strong>14 days</strong> from the date of issue.</li>
- <li><strong>Payment Terms:</strong> 50% deposit is required to confirm the booking. The remaining balance is payable upon completion of the installation.</li>
+ <li><strong>Payment Terms:</strong> ${fullPayDoc ? "Full payment is required up front to confirm the booking." : "50% deposit is required to confirm the booking. The remaining balance is payable upon completion of the installation."}</li>
  <li>Rescheduling with less than <strong>24 hours' notice</strong> may incur a cancellation/admin fee.</li>
  <li><strong>On-site Charges:</strong> Any additional drilling requested on site is <strong>S$5 per hole</strong>. Wall-anchor / fastening hardware supplied on site is charged at cost.${hasRelocation ? ` For relocation work, extra labour beyond the agreed scope is <strong>S$50/hr per crew member</strong>.` : ""}</li>
  <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable. Long-carry &gt; 30 m or stairs without lift access incurs an additional fee, quoted on site before work proceeds.</li>
@@ -3139,7 +3149,7 @@ export default function AdminQuoteDetail() {
  )}
 
  <div className="pt-2 border-t border-zinc-100 space-y-2">
- {!quote.finalPaidAt && (
+ {!quote.finalPaidAt && !isFullPayQuote && (
  <button
  onClick={handleRequestFinalPayment}
  disabled={requestFinalPayment.isPending || finalPaymentBlockedByPhases}
@@ -3155,7 +3165,7 @@ export default function AdminQuoteDetail() {
  : "Mark Done & Request Final Payment"}
  </button>
  )}
- {!quote.finalPaidAt && (
+ {!quote.finalPaidAt && !isFullPayQuote && (
  <button
  onClick={() => setShowFinalPayConfirm(true)}
  data-testid="button-mark-final-received-manual"
@@ -3166,8 +3176,9 @@ export default function AdminQuoteDetail() {
  {/* Copy-message button is residential-only — commercial jobs skip the
      deposit/final 50-50 flow and use a Net-30 invoice instead, so the
      payment-message endpoint would generate an incorrect deposit message
-     for commercial in-progress jobs. */}
- {!quote.finalPaidAt && (quote as any).invoiceType !== 'commercial' && (
+     for commercial in-progress jobs. Full-payment jobs are already paid in
+     full up front, so there is no further payment message to send. */}
+ {!quote.finalPaidAt && !isFullPayQuote && (quote as any).invoiceType !== 'commercial' && (
  <button
  onClick={() => setShowPaymentMessageDialog(true)}
  data-testid="button-copy-customer-message-assigned"
@@ -3178,10 +3189,10 @@ export default function AdminQuoteDetail() {
  Copy / send manually
  </button>
  )}
- {quote.finalPaidAt && (
+ {(quote.finalPaidAt || isFullPayQuote) && (
  <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
- <p className="text-xs text-emerald-700 font-medium">Customer has fully paid — use <strong>Reopen</strong> in the header first if job needs to be redone, or <strong>Manual Close</strong> to close the case now.</p>
+ <p className="text-xs text-emerald-700 font-medium">{isFullPayQuote ? "Paid in full up front — no balance to collect. Use " : "Customer has fully paid — use "}<strong>Reopen</strong> in the header first if job needs to be redone, or <strong>Manual Close</strong> to close the case now.</p>
  </div>
  )}
  </div>
@@ -3212,6 +3223,11 @@ export default function AdminQuoteDetail() {
  <DollarSign className="w-4 h-4" />
  {sendCommercialInvoice.isPending ? "Sending Invoice…" : "Send Invoice (Net 30)"}
  </button>
+ </div>
+ ) : isFullPayQuote ? (
+ <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+ <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+ <p className="text-xs text-emerald-700 font-medium">Paid in full up front — no balance to collect. Use <strong>Manual Close</strong> to close the case.</p>
  </div>
  ) : (
  <div className="space-y-2">
@@ -3326,7 +3342,7 @@ export default function AdminQuoteDetail() {
  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${quote.depositPaidAt ? 'bg-emerald-500 text-white' : 'bg-zinc-200 text-zinc-500'}`}>
  {quote.depositPaidAt ? '✓' : '1'}
  </div>
- <span className={`text-sm font-medium ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Deposit (50%)</span>
+ <span className={`text-sm font-medium ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>{isFullPayQuote ? "Full Payment" : "Deposit (50%)"}</span>
  </div>
  <span className={`text-sm font-semibold tabular-nums ${quote.depositPaidAt ? 'text-emerald-800' : 'text-zinc-900'}`}>
  {formatMoney(effectiveDeposit)}
@@ -3338,7 +3354,7 @@ export default function AdminQuoteDetail() {
  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${quote.finalPaidAt ? 'bg-emerald-500 text-white' : 'bg-zinc-200 text-zinc-500'}`}>
  {quote.finalPaidAt ? '✓' : '2'}
  </div>
- <span className={`text-sm font-medium ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>Balance (50%)</span>
+ <span className={`text-sm font-medium ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-700'}`}>{isFullPayQuote ? "Balance" : "Balance (50%)"}</span>
  </div>
  <span className={`text-sm font-semibold tabular-nums ${quote.finalPaidAt ? 'text-emerald-800' : 'text-zinc-900'}`}>
  {formatMoney(effectiveFinal)}
@@ -3654,6 +3670,9 @@ export default function AdminQuoteDetail() {
  </button>
  </div>
  );
+ // Full-payment jobs are already paid in full up front — no final payment
+ // to collect, so the mobile action bar has nothing to show here.
+ if (isFullPayQuote) return null;
  return (
  <div className="lg:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-1 bg-white border-t border-zinc-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
  <button

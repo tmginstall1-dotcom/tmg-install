@@ -825,8 +825,8 @@ function buildQuoteReadyMessage(facts: CaseFacts): string {
     `Our team will review and send your itemised quote shortly.\n\n` +
     `📋 *What happens next:*\n` +
     `1️⃣ We review your details & price each item (< 4 hrs)\n` +
-    `2️⃣ You receive a fixed-price quote with a deposit payment link\n` +
-    `3️⃣ Pay the 50% deposit to lock in your slot ✅\n` +
+    `2️⃣ You receive a fixed-price quote with a secure payment link\n` +
+    `3️⃣ Pay to lock in your slot ✅ (smaller jobs are paid in full; larger jobs need a 50% deposit)\n` +
     `4️⃣ Our team arrives on the day — job done! 🚀\n\n` +
     `Is there anything else you'd like us to know?`
   );
@@ -920,7 +920,7 @@ export async function runFollowUpScheduler(): Promise<void> {
         const messages: Record<string, string> = {
           missing_info: "Hi! Just following up — we still need a few details to prepare your quote. What furniture items need to be installed, and what's your preferred date? We're 4.9★ rated and fully insured, ready to help! 😊",
           quote_reminder: "Hi! Just checking in on your TMG Install quote 👋\n\nYour itemised quote is ready — did you get a chance to review it? Happy to answer any questions or adjust anything before you decide.\n\nReply *yes* to proceed or let me know if you need changes! 😊",
-          deposit_reminder: "Hi! Friendly reminder from TMG Install 🔔\n\nYour slot is still on hold, but we can only hold it a little longer. Please complete the 50% deposit to confirm your booking.\n\n📋 *Next step:* Reply here and we'll resend your payment link right away!\n\nLet us know if you need any help — we're here!",
+          deposit_reminder: "Hi! Friendly reminder from TMG Install 🔔\n\nYour slot is still on hold, but we can only hold it a little longer. Please complete your payment to confirm your booking.\n\n📋 *Next step:* Reply here and we'll resend your payment link right away!\n\nLet us know if you need any help — we're here!",
           booking_reminder: "Hi! We're all set to confirm your TMG Install booking 🎉\n\nJust let us know if everything looks good and our team will send a final confirmation with your crew details.\n\nAny questions? Just reply here!",
           stale_reactivation: "Hi! We noticed we haven't heard from you in a while 👋\n\nIf you're still looking for furniture installation or dismantling in Singapore, we'd love to help — we're 4.9★ rated, fully insured, and available island-wide.\n\nJust reply here to get a free quote in 60 seconds! 😊",
         };

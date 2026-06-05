@@ -1,4 +1,4 @@
-import { PricingConfig, calcSecondDayContinuation } from "@shared/pricing";
+import { PricingConfig, calcSecondDayContinuation, requiresFullUpfront } from "@shared/pricing";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@tmginstall.com";
@@ -300,8 +300,10 @@ function totals(subtotal: any, transport: any, total: any, deposit: any, balance
         ${hasGoodwill ? totRow('#15803d', goodwillLabel, `-$${Number(goodwillDiscount || 0).toFixed(2)}`) : ''}
         ${hasSecondDay ? totRow('#444444', `Second-day continuation${sd.hours > 0 ? ` (${sd.crewSize} men × ${sd.hours}h)` : ''}`, `$${sd.fee.toFixed(2)}`) : ''}
         ${totRow('#111111', 'Total', `$${Number(total || 0).toFixed(2)}`, true)}
-        ${totRow('#15803d', 'Deposit paid (50%)', `$${Number(deposit || 0).toFixed(2)}`)}
-        ${totRow('#999999', 'Balance on completion (50%)', `$${Number(balance || 0).toFixed(2)}`)}
+        ${(Number(total || 0) > 0 && (requiresFullUpfront(Number(total || 0)) || Number(deposit || 0) >= Number(total || 0) - 0.005))
+          ? totRow('#15803d', 'Payable in full to confirm', `$${Number(total || 0).toFixed(2)}`)
+          : totRow('#15803d', 'Deposit to confirm (50%)', `$${Number(deposit || 0).toFixed(2)}`) +
+            totRow('#999999', 'Balance on completion (50%)', `$${Number(balance || 0).toFixed(2)}`)}
       </tbody>
     </table>`;
 }
@@ -415,6 +417,27 @@ function greeting(name: string, body: string): string {
 
 // ─── Customer-facing emails ─────────────────────────────────────────────────────
 
+// Site-wide rule: small jobs (deposit == total) are paid IN FULL up front — there
+// is no 50% deposit / 50% balance split. Templates use this to swap wording.
+function isFullPaymentQuote(quote: any): boolean {
+  const total = Number(quote.total || 0);
+  const deposit = Number(quote.depositAmount || 0);
+  // Threshold is the source of truth: under-$150 jobs are full-upfront even on
+  // legacy/manual rows that stored depositAmount = 0. Also treat any quote whose
+  // stored deposit already equals the total as full-payment.
+  return requiresFullUpfront(total) || (total > 0 && deposit >= total - 0.005);
+}
+
+// Amount the customer must transfer to confirm: for full-payment quotes this is
+// always the full total (covers legacy rows with depositAmount = 0); otherwise
+// it is the stored deposit, falling back to the configured deposit percentage.
+function displayDeposit(quote: any): number {
+  const total = Number(quote.total || 0);
+  const dep = Number(quote.depositAmount || 0);
+  if (isFullPaymentQuote(quote)) return total;
+  return dep > 0 ? dep : total * PricingConfig.deposit.pct;
+}
+
 export function estimateSubmittedEmail(quote: any): string {
   const c = quote.customer;
   return shell("Estimate Received", `
@@ -435,7 +458,9 @@ export function estimateSubmittedEmail(quote: any): string {
 
     ${section("Estimated Pricing", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours, (quote as any).secondDayCrewSize, (quote as any).volumetricFee))}
 
-    ${notice("info", `<strong>What happens next?</strong><br>Our team will review your estimate, confirm the pricing, and send you a deposit invoice. Once the 50% deposit is paid, your appointment slot is locked in.`)}
+    ${notice("info", isFullPaymentQuote(quote)
+      ? `<strong>What happens next?</strong><br>Our team will review your estimate, confirm the pricing, and send you a payment invoice. Because this is a smaller job, full payment is required to confirm your booking. Once paid, your appointment slot is locked in.`
+      : `<strong>What happens next?</strong><br>Our team will review your estimate, confirm the pricing, and send you a deposit invoice. Once the 50% deposit is paid, your appointment slot is locked in.`)}
 
     ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
 
@@ -444,7 +469,7 @@ export function estimateSubmittedEmail(quote: any): string {
 
     <p style="${FONT}font-size:11px;color:#bbbbbb;text-align:center;margin:0 0 28px;">
       By proceeding, you agree to our <a href="${TERMS_URL}" style="color:#888888;">Terms &amp; Conditions</a>.
-      The 50% deposit is non-refundable once payment is made.
+      ${isFullPaymentQuote(quote) ? "Payment is non-refundable once made." : "The 50% deposit is non-refundable once payment is made."}
     </p>
   `);
 }
@@ -452,7 +477,7 @@ export function estimateSubmittedEmail(quote: any): string {
 export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl?: string): string {
   const c = quote.customer;
   const { slotDate, timeWindow: slotTimeWindow } = quoteSlotForEmail(quote);
-  const depositAmt = `$${Number(quote.depositAmount || 0).toFixed(2)}`;
+  const depositAmt = `$${displayDeposit(quote).toFixed(2)}`;
   const PAYNOW_UEN = "202424156H";
   const PAYNOW_NAME = "TMG Install by The Moving Guy Pte Ltd";
 
@@ -486,14 +511,17 @@ export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl
     </table>
   `;
 
-  return shell("Deposit Invoice", `
-    ${greeting(c?.name, `Your estimate has been reviewed and approved. Please pay the 50% deposit below to confirm your appointment. Your slot will be held for <strong>48 hours</strong> from the time of this email.`)}
+  const fullPay = isFullPaymentQuote(quote);
+  return shell(fullPay ? "Payment Invoice" : "Deposit Invoice", `
+    ${greeting(c?.name, fullPay
+      ? `Your estimate has been reviewed and approved. Because this is a smaller job, the full amount is payable up front to confirm your appointment. Please pay below — your slot will be held for <strong>48 hours</strong> from the time of this email.`
+      : `Your estimate has been reviewed and approved. Please pay the 50% deposit below to confirm your appointment. Your slot will be held for <strong>48 hours</strong> from the time of this email.`)}
 
     ${refBlock(quote.referenceNo)}
 
     ${slotDate ? section("Your Slot", `
       ${dateBox(slotDate, slotTimeWindow)}
-      <p style="${FONT}font-size:12px;color:#aaaaaa;margin:10px 0 0;line-height:1.6;">This slot is provisionally reserved. Pay the deposit before it expires to guarantee your preferred date and time.</p>
+      <p style="${FONT}font-size:12px;color:#aaaaaa;margin:10px 0 0;line-height:1.6;">This slot is provisionally reserved. ${fullPay ? "Pay in full" : "Pay the deposit"} before it expires to guarantee your preferred date and time.</p>
     `) : ''}
 
     ${section("Service Details", infoTable([
@@ -506,7 +534,7 @@ export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl
 
     ${section("Payment Breakdown", totals(quote.subtotal, quote.transportFee, quote.total, quote.depositAmount, quote.finalAmount, quote.promoCode, quote.promoDiscount, (quote as any).goodwillDiscount, (quote as any).goodwillReason, (quote as any).secondDayContinuation, (quote as any).secondDayHours, (quote as any).secondDayCrewSize, (quote as any).volumetricFee))}
 
-    ${section("Pay Deposit — 2 Ways", `
+    ${section(fullPay ? "Pay in Full — 2 Ways" : "Pay Deposit — 2 Ways", `
       ${ctaBlock(
         "Option 1 — Pay by Card (Stripe)",
         depositAmt,
@@ -519,7 +547,9 @@ export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl
 
     ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
 
-    ${notice("warn", `<strong>Cancellation Policy</strong><br>Cancellation more than 48 hours before your appointment: deposit refunded minus a $30 admin fee.<br>Cancellation less than 48 hours before your appointment: deposit is forfeited in full.<br>Please review the full policy at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`)}
+    ${notice("warn", fullPay
+      ? `<strong>Cancellation Policy</strong><br>Cancellation more than 48 hours before your appointment: payment refunded minus a $30 admin fee.<br>Cancellation less than 48 hours before your appointment: payment is forfeited in full.<br>Please review the full policy at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`
+      : `<strong>Cancellation Policy</strong><br>Cancellation more than 48 hours before your appointment: deposit refunded minus a $30 admin fee.<br>Cancellation less than 48 hours before your appointment: deposit is forfeited in full.<br>Please review the full policy at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`)}
 
     ${contactStrip()}
 
@@ -533,8 +563,11 @@ export function depositReceivedEmail(quote: any): string {
   const c = quote.customer;
   const { slotDate, timeWindow: slotTimeWindow } = quoteSlotForEmail(quote);
 
+  const fullPay = isFullPaymentQuote(quote);
   return shell("Booking Confirmed", `
-    ${greeting(c?.name, `We've received your deposit — thank you. Your booking is now confirmed and our team has been notified. A technician will be assigned to your job and you'll receive your appointment confirmation shortly.`)}
+    ${greeting(c?.name, fullPay
+      ? `We've received your payment in full — thank you. Your booking is now confirmed and our team has been notified. A technician will be assigned to your job and you'll receive your appointment confirmation shortly. There is nothing further to pay.`
+      : `We've received your deposit — thank you. Your booking is now confirmed and our team has been notified. A technician will be assigned to your job and you'll receive your appointment confirmation shortly.`)}
 
     ${refBlock(quote.referenceNo)}
 
@@ -548,8 +581,10 @@ export function depositReceivedEmail(quote: any): string {
           ${Number((quote as any).volumetricFee || 0) > 0 ? totRow('#444444', 'Volumetric handling', `$${Number((quote as any).volumetricFee || 0).toFixed(2)}`) : ''}
           ${quote.promoCode && Number(quote.promoDiscount || 0) > 0 ? totRow('#15803d', `Promo code (${quote.promoCode})`, `-$${Number(quote.promoDiscount || 0).toFixed(2)}`) : ''}
           ${totRow('#111111', 'Total', `$${Number(quote.total || 0).toFixed(2)}`, true)}
-          ${totRow('#15803d', 'Deposit paid (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`)}
-          ${totRow('#999999', 'Balance due on completion (50%)', `$${Number(quote.finalAmount || 0).toFixed(2)}`)}
+          ${fullPay
+            ? totRow('#15803d', 'Paid in full', `$${Number(quote.total || 0).toFixed(2)}`)
+            : totRow('#15803d', 'Deposit paid (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`) +
+              totRow('#999999', 'Balance due on completion (50%)', `$${Number(quote.finalAmount || 0).toFixed(2)}`)}
         </tbody>
       </table>
     `)}
@@ -641,8 +676,10 @@ export function bookingConfirmationEmail(quote: any): string {
     ${section("Payment", `
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
         <tbody>
-          ${totRow('#15803d', 'Deposit paid (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`)}
-          ${totRow('#999999', 'Balance due on completion (50%)', `$${Number(quote.finalAmount || 0).toFixed(2)}`)}
+          ${isFullPaymentQuote(quote)
+            ? totRow('#15803d', 'Paid in full', `$${Number(quote.total || 0).toFixed(2)}`)
+            : totRow('#15803d', 'Deposit paid (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`) +
+              totRow('#999999', 'Balance due on completion (50%)', `$${Number(quote.finalAmount || 0).toFixed(2)}`)}
           ${totRow('#111111', 'Total', `$${Number(quote.total || 0).toFixed(2)}`, true)}
         </tbody>
       </table>
@@ -653,7 +690,9 @@ export function bookingConfirmationEmail(quote: any): string {
       "Keep the work area clear — remove personal items and fragile objects beforehand",
       "Ensure access to a power outlet if power tools will be required",
       "Have assembly manuals or reference materials ready for the technician",
-      `The remaining balance of <strong>$${Number(quote.finalAmount || 0).toFixed(2)}</strong> is due once all work is completed`,
+      ...(isFullPaymentQuote(quote)
+        ? ["Your booking is paid in full — no further payment is needed on the day"]
+        : [`The remaining balance of <strong>$${Number(quote.finalAmount || 0).toFixed(2)}</strong> is due once all work is completed`]),
     ]))}
 
     ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
@@ -910,8 +949,10 @@ export function caseClosedEmail(quote: any, reviewUrl?: string): string {
     ${section("Payment Receipt", `
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #111111;margin-top:2px;">
         <tbody>
-          ${totRow('#15803d', 'Deposit (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`)}
-          ${totRow('#15803d', 'Final payment (50%)', `$${Number(quote.finalAmount || 0).toFixed(2)}`)}
+          ${isFullPaymentQuote(quote)
+            ? totRow('#15803d', 'Paid in full', `$${Number(quote.total || 0).toFixed(2)}`)
+            : totRow('#15803d', 'Deposit (50%)', `$${Number(quote.depositAmount || 0).toFixed(2)}`) +
+              totRow('#15803d', 'Final payment (50%)', `$${Number(quote.finalAmount || 0).toFixed(2)}`)}
           ${totRow('#111111', 'Total Paid', `$${Number(quote.total || 0).toFixed(2)}`, true)}
         </tbody>
       </table>

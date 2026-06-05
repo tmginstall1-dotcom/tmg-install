@@ -41,7 +41,60 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-import { calcTransportFee, calcOvertimeCharge, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, type PricingItem, type PricingFloor } from "@shared/pricing";
+import { calcTransportFee, calcOvertimeCharge, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, FULL_PAYMENT_THRESHOLD, type PricingItem, type PricingFloor } from "@shared/pricing";
+
+/**
+ * Split a grand total into the up-front deposit and the remaining final amount,
+ * applying the site-wide rule: jobs below FULL_PAYMENT_THRESHOLD must be paid in
+ * full up front (deposit = total, final = 0). Larger jobs use the 50/50 split.
+ * Returns both values as 2-decimal strings ready for storage.
+ */
+function splitDepositFinal(grandTotal: number): { depositAmount: string; finalAmount: string } {
+  const total = isFinite(grandTotal) && grandTotal > 0 ? grandTotal : 0;
+  const deposit = requiresFullUpfront(total) ? total : total * PricingConfig.deposit.pct;
+  return { depositAmount: deposit.toFixed(2), finalAmount: (total - deposit).toFixed(2) };
+}
+
+/**
+ * Resolve the effective deposit baseline for a quote when the stored
+ * depositAmount is missing/zero (legacy or manually-created rows). Applies the
+ * site-wide rule: small jobs are paid in full up front (deposit = total), so the
+ * fallback must NOT be a naive 50% split for those — otherwise an under-threshold
+ * job with no stored amounts would wrongly appear to still owe a balance.
+ */
+function depositPaidFallback(total: number, storedDeposit?: string | null): number {
+  const t = isFinite(total) && total > 0 ? total : 0;
+  // Threshold is the source of truth: under-$150 jobs are ALWAYS paid in full up
+  // front, so the upfront charge must equal the total even if a stale/legacy or
+  // manually-entered split is stored on the row. Only fall back to the stored
+  // deposit (then the configured percentage) for jobs at/above the threshold.
+  if (requiresFullUpfront(t)) return t;
+  const stored = parseFloat(storedDeposit || "0");
+  if (stored > 0) return stored;
+  return t * PricingConfig.deposit.pct;
+}
+
+/**
+ * Single source of truth for the outstanding FINAL balance on a quote.
+ * Under-$150 jobs are paid in full up front, so they NEVER have a final balance —
+ * we return 0 regardless of any stale/legacy stored finalAmount. For jobs at/above
+ * the threshold we use the stored finalAmount (or total − deposit), then subtract
+ * any partial payments already recorded in the ledger.
+ */
+function finalBalanceOutstanding(
+  total: number,
+  storedFinal?: string | null,
+  storedDeposit?: string | null,
+  ledgerPaid: number = 0,
+): number {
+  const t = isFinite(total) && total > 0 ? total : 0;
+  if (requiresFullUpfront(t)) return 0;
+  const storedFin = parseFloat(storedFinal || "0");
+  const deposit = depositPaidFallback(t, storedDeposit);
+  const baseBalance = storedFin > 0 ? storedFin : Math.max(0, t - deposit);
+  const paid = isFinite(ledgerPaid) && ledgerPaid > 0 ? ledgerPaid : 0;
+  return Math.max(0, baseBalance - paid);
+}
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable } from "@shared/schema";
 import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable, aiFeatureFlags, customerRatings } from "@shared/schema";
@@ -411,7 +464,8 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     if (calloutFee > 0) surchargeLines.push(`• Mobilisation & coordination — SGD $${calloutFee.toFixed(0)}`);
 
     const grandTotal = laborTotal + floorSurcharge + accessSurcharge + transportFee + calloutFee;
-    const deposit = grandTotal * 0.5;
+    const fullUpfront = requiresFullUpfront(grandTotal);
+    const deposit = fullUpfront ? grandTotal : grandTotal * 0.5;
 
     if (grandTotal === 0) return null;
 
@@ -427,7 +481,9 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     }
     msg += `\n\n─────────────────────────────\n`;
     msg += `Total: SGD $${grandTotal.toFixed(0)} (No GST)\n`;
-    msg += `Deposit to confirm: SGD $${deposit.toFixed(0)}\n`;
+    msg += fullUpfront
+      ? `Full payment to confirm: SGD $${deposit.toFixed(0)}\n`
+      : `Deposit to confirm: SGD $${deposit.toFixed(0)}\n`;
     msg += `─────────────────────────────\n\n`;
     msg += `This is a fixed price — no surprises on the day. ✅\n\n`;
     // Floor surcharge outcome statement
@@ -546,8 +602,8 @@ Typical item pricing (per item, SGD):
 Process / how it works:
 1. Customer tells us what they need → we prepare a confirmed quote
 2. Admin reviews and confirms pricing → sends a deposit payment link
-3. Customer pays 50% deposit → slot is locked in
-4. Team arrives on the agreed date; full payment (remaining 50%) on job completion
+3. For jobs under S$150, customer pays in full to lock the slot; for S$150 and above, a 50% deposit locks the slot
+4. Team arrives on the agreed date; for S$150+ jobs the remaining 50% balance is paid on completion
 5. Payment methods: PayNow, bank transfer, credit/debit card
 
 Scheduling:
@@ -574,7 +630,7 @@ Services: installation/assembly, dismantling, relocation (all-in-one), disposal/
 Coverage: all of Singapore — HDB, condo, landed, commercial & office.
 Pricing: from $80/item install, $60/item dismantle, $80/item disposal, from $200 relocation. $39.90 mobilisation & coordination fee on all non-relocation jobs. No GST.
 Common prices: bed frame install $80–150, wardrobe install $120–300, sofa dismantle $80–100, dining set $80–120.
-Payment: 50% deposit (PayNow / bank transfer / card) to confirm booking; 50% on completion.
+Payment: jobs under S$150 are paid in full to confirm booking; jobs S$150 and above need a 50% deposit to confirm and 50% on completion (PayNow / bank transfer / card).
 Availability: weekdays & weekends (subject to slots). Min. 48h notice. Morning (9am–12pm) or afternoon (1pm–5pm).
 All tools supplied. Customer doesn't need to be home for some pickup/disposal jobs.
 Rescheduling: min. 48h notice. Large/complex jobs may need on-site assessment.
@@ -622,11 +678,11 @@ async function buildBotKnowledge(): Promise<{ faqBlock: string; hoursBlock: stri
     const sla = settings.business_response_sla || "within 2 hours during business hours";
     const urgent = settings.business_urgent_policy || "Same-day urgent service may be possible — ask admin.";
     const areas = settings.business_service_areas || "All of Singapore — HDB, condo, landed, commercial.";
-    const policyBlock = `Payment: ${depositPct}% deposit to confirm booking; balance on completion. PayNow / bank transfer / card.\nResponse time: ${sla}.\nUrgent jobs: ${urgent}\nService areas: ${areas}`;
+    const policyBlock = `Payment: jobs under S$150 are paid in full to confirm booking; jobs S$150 and above need a ${depositPct}% deposit to confirm and the balance on completion. PayNow / bank transfer / card.\nResponse time: ${sla}.\nUrgent jobs: ${urgent}\nService areas: ${areas}`;
 
     return { faqBlock, hoursBlock, policyBlock };
   } catch {
-    return { faqBlock: FAQ_KNOWLEDGE, hoursBlock: "Weekdays & weekends, 9am–6pm.", policyBlock: "50% deposit required. PayNow / bank transfer / card." };
+    return { faqBlock: FAQ_KNOWLEDGE, hoursBlock: "Weekdays & weekends, 9am–6pm.", policyBlock: "Jobs under S$150: full payment to confirm. Jobs S$150 and above: 50% deposit to confirm, 50% on completion. PayNow / bank transfer / card." };
   }
 }
 
@@ -1660,10 +1716,13 @@ export async function registerRoutes(
           const hasRealEmailWh = quote.customer.email &&
             !quote.customer.email.endsWith("@tmginstall.com") &&
             quote.customer.email.includes("@");
+          const fullPayWh = requiresFullUpfront(parseFloat(quote.total || "0"));
           if (hasRealEmailWh) {
             await sendEmail({
               to: quote.customer.email,
-              subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
+              subject: fullPayWh
+                ? `[${quote.referenceNo}] Payment Received in Full — Slot Confirmed!`
+                : `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
               html: depositReceivedEmail(quote),
             });
           }
@@ -1672,7 +1731,7 @@ export async function registerRoutes(
           const rawTrackPhoneWh = quote.customerWhatsappPhone || quote.customer?.phone;
           const trackPhone = rawTrackPhoneWh ? normalizeSGPhone(rawTrackPhoneWh) : null;
           if (trackPhone) {
-            const trackMsg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
+            const trackMsg = `✅ *${fullPayWh ? "Payment received in full" : "Deposit received"} — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
             await sendWhatsAppMessage(trackPhone, trackMsg).catch(() => {});
           }
         }
@@ -3413,19 +3472,18 @@ Category rules:
         // Balance = total minus deposit already paid (fixed-price installation, no overtime),
         // then minus any partial payments the admin has already recorded in the ledger.
         const totalAmt = parseFloat(quote.total || "0");
-        const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-        const baseBalance = parseFloat(quote.finalAmount || "0") > 0
-          ? parseFloat(quote.finalAmount!)
-          : Math.max(0, totalAmt - depositPaid);
         const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
-        amount = Math.max(0, baseBalance - ledgerPaid);
+        amount = finalBalanceOutstanding(totalAmt, quote.finalAmount, quote.depositAmount, ledgerPaid);
         description = `Balance Payment for ${quote.referenceNo} — TMG Install`;
         stripeType = "final";
       } else {
-        amount = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total || "0") * 0.5;
-        description = `50% Deposit for ${quote.referenceNo} — TMG Install`;
+        amount = depositPaidFallback(parseFloat(quote.total || "0"), quote.depositAmount);
+        description = `${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment" : "50% Deposit"} for ${quote.referenceNo} — TMG Install`;
         stripeType = "deposit";
       }
+
+      // Full-upfront / already-settled jobs have no final balance — don't mint a link.
+      if (isFinal && amount <= 0.005) return res.redirect(quotePageUrl);
 
       const stripeUrl = await createStripePaymentLink(
         description,
@@ -3939,13 +3997,14 @@ ${systemPrompt}` });
           notes:               body.notes || undefined,
           subtotal:            subtotal.toFixed(2),
           total:               grandTotal.toFixed(2),
-          // Always store 50/50 split — use admin override if provided, else auto-compute
+          // Use admin override if provided, else auto-compute applying the
+          // site-wide rule (jobs under threshold are full-payment up front).
           depositAmount:       parseFloat(body.depositAmount || "0") > 0
                                  ? body.depositAmount
-                                 : (grandTotal * 0.50).toFixed(2),
+                                 : splitDepositFinal(grandTotal).depositAmount,
           finalAmount:         parseFloat(body.depositAmount || "0") > 0
                                  ? (grandTotal - parseFloat(body.depositAmount)).toFixed(2)
-                                 : (grandTotal * 0.50).toFixed(2),
+                                 : splitDepositFinal(grandTotal).finalAmount,
           paymentStatus:       body.paymentStatus === "paid_in_full" ? "paid_in_full" : body.paymentStatus === "deposit_paid" ? "deposit_paid" : "unpaid",
           requiresManualReview: false,
           promoCode:           appliedPromoCode || undefined,
@@ -4131,8 +4190,7 @@ ${systemPrompt}` });
       const grandTotalLegacy = totalEstimate + calloutFeeAdj;
       // ────────────────────────────────────────────────────────────────────────
 
-      const depositAmount = (grandTotalLegacy * 0.50).toFixed(2);
-      const finalAmount = (grandTotalLegacy * 0.50).toFixed(2);
+      const { depositAmount, finalAmount } = splitDepositFinal(grandTotalLegacy);
 
       const quote = await storage.createQuote(
         input.customer,
@@ -4254,10 +4312,10 @@ ${systemPrompt}` });
 
       // Send deposit request when admin sets status to deposit_requested
       if (input.status === "deposit_requested" && quote.customer) {
-        const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.5;
+        const depositAmt = depositPaidFallback(parseFloat(quote.total || "0"), quote.depositAmount);
         const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
         const stripeUrl = await createStripePaymentLink(
-          `Deposit for ${quote.referenceNo} — TMG Install`,
+          `${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment" : "Deposit"} for ${quote.referenceNo} — TMG Install`,
           depositAmt,
           { quoteId: String(quote.id), type: "deposit", referenceNo: quote.referenceNo },
           quotePageUrl
@@ -4274,7 +4332,7 @@ ${systemPrompt}` });
           const emailHtml = depositRequestEmail(quote, paymentLink);
           const sent = await sendEmail({
             to: quote.customer.email,
-            subject: `[${quote.referenceNo}] Deposit Payment Required — TMG Install`,
+            subject: `[${quote.referenceNo}] ${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment Required" : "Deposit Payment Required"} — TMG Install`,
             html: emailHtml,
           });
           if (sent) {
@@ -4296,9 +4354,9 @@ ${systemPrompt}` });
             `Hi *${quote.customer.name || "there"}* 👋\n\n` +
             `Your quote *${quote.referenceNo}* has been approved by TMG Install!\n\n` +
             `━━━━━━━━━━━━━━━━━━━━\n` +
-            `💰 *50% Deposit Required: S$${depositAmt.toFixed(2)}*\n` +
+            `💰 *${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment Required" : "50% Deposit Required"}: S$${depositAmt.toFixed(2)}*\n` +
             `${slotLine}` +
-            `Your slot is reserved once we receive your deposit.\n` +
+            `Your slot is reserved once we receive your ${requiresFullUpfront(parseFloat(quote.total || "0")) ? "payment" : "deposit"}.\n` +
             `━━━━━━━━━━━━━━━━━━━━\n\n` +
             waPayBlock(depositAmt, shortPayUrl) +
             `\n\n_Slot held for 48 hours. Reply here if you need help._`;
@@ -4367,6 +4425,7 @@ ${systemPrompt}` });
       
       // After deposit paid, send slot confirmation email + WhatsApp tracking link
       if (input.paymentType === 'deposit' && quote.customer) {
+        const fullPayDep = requiresFullUpfront(parseFloat(quote.total || "0"));
         const hasRealEmailDep = quote.customer.email &&
           !quote.customer.email.endsWith("@tmginstall.com") &&
           quote.customer.email.includes("@");
@@ -4374,14 +4433,16 @@ ${systemPrompt}` });
           const emailHtml = depositReceivedEmail(quote);
           await sendEmail({
             to: quote.customer.email,
-            subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
+            subject: fullPayDep
+              ? `[${quote.referenceNo}] Payment Received in Full — Slot Confirmed!`
+              : `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
             html: emailHtml,
           });
         }
         const rawTrackPhone = quote.customerWhatsappPhone || quote.customer?.phone;
         const trackPhone = rawTrackPhone ? normalizeSGPhone(rawTrackPhone) : null;
         if (trackPhone) {
-          const trackMsg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
+          const trackMsg = `✅ *${fullPayDep ? "Payment received in full" : "Deposit received"} — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
           await sendWhatsAppMessage(trackPhone, trackMsg).catch(() => {});
         }
       }
@@ -4410,18 +4471,20 @@ ${systemPrompt}` });
       let description: string;
 
       if (type === "deposit") {
-        amount = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.5;
-        description = `Deposit for ${quote.referenceNo} — TMG Install`;
+        amount = depositPaidFallback(parseFloat(quote.total || "0"), quote.depositAmount);
+        description = `${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment" : "Deposit"} for ${quote.referenceNo} — TMG Install`;
       } else {
         const totalFinal = parseFloat(quote.total || "0");
-        const depositFinal = parseFloat(quote.depositAmount || "0") || totalFinal * 0.5;
-        const baseBalance = parseFloat(quote.finalAmount || "0") > 0
-          ? parseFloat(quote.finalAmount!)
-          : Math.max(0, totalFinal - depositFinal);
         // Subtract partial payments already recorded in the ledger.
         const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
-        amount = Math.max(0, baseBalance - ledgerPaid);
+        amount = finalBalanceOutstanding(totalFinal, quote.finalAmount, quote.depositAmount, ledgerPaid);
         description = `Balance Payment for ${quote.referenceNo} — TMG Install`;
+      }
+
+      // Hard-stop: full-payment (under-threshold) jobs and any already-settled
+      // quote have no outstanding balance — never create a final charge for them.
+      if (type === "final" && amount <= 0.005) {
+        return res.status(400).json({ message: "This booking has no outstanding balance." });
       }
 
       const stripeUrl = await createStripePaymentLink(
@@ -4498,10 +4561,13 @@ ${systemPrompt}` });
           quote.customer.email.includes("@");
 
         if (type === "deposit") {
+          const fullPayVp = requiresFullUpfront(parseFloat(quote.total || "0"));
           if (hasRealEmailVp) {
             await sendEmail({
               to: quote.customer.email,
-              subject: `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
+              subject: fullPayVp
+                ? `[${quote.referenceNo}] Payment Received in Full — Slot Confirmed!`
+                : `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
               html: depositReceivedEmail(quote),
             });
           }
@@ -4509,7 +4575,7 @@ ${systemPrompt}` });
           const rawVpPhone = quote.customerWhatsappPhone || quote.customer?.phone;
           const vpTrackPhone = rawVpPhone ? normalizeSGPhone(rawVpPhone) : null;
           if (vpTrackPhone) {
-            const trackMsg = `✅ *Deposit received — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
+            const trackMsg = `✅ *${fullPayVp ? "Payment received in full" : "Deposit received"} — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${quote.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
             await sendWhatsAppMessage(vpTrackPhone, trackMsg).catch(() => {});
           }
           console.log(`Payment verified (no-webhook): deposit paid for ${quote.referenceNo}`);
@@ -5114,12 +5180,17 @@ ${systemPrompt}` });
       // Fixed-price installation — balance is simply total minus deposit paid, no overtime —
       // then minus any partial payments already recorded in the ledger.
       const totalAmt = parseFloat(quote.total || "0");
-      const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-      const baseBalance = parseFloat(quote.finalAmount || "0") > 0
-        ? parseFloat(quote.finalAmount!)
-        : Math.max(0, totalAmt - depositPaid);
       const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
-      const finalAmount = Math.max(0, baseBalance - ledgerPaid);
+      const finalAmount = finalBalanceOutstanding(totalAmt, quote.finalAmount, quote.depositAmount, ledgerPaid);
+
+      // Small jobs are paid IN FULL up front — there is no balance to collect.
+      // Block the final-payment request so admins don't send a $0 invoice.
+      if (finalAmount <= 0.005 || quote.paymentStatus === "paid_in_full") {
+        return res.status(409).json({
+          message: "This job is already paid in full — no final payment is due.",
+        });
+      }
+
       const balanceSubtext = ledgerPaid > 0
         ? `_(remaining balance after S$${ledgerPaid.toFixed(2)} already received)_`
         : `_(50% balance payment — deposit already received)_`;
@@ -5986,8 +6057,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
       // Promo code applied to total (callout fee already included in logisticsFee)
       const grandTotal = Math.max(0, rawTotal - promoDiscountAmt);
 
-      const depositAmount = (grandTotal * 0.50).toFixed(2);
-      const finalAmount = (grandTotal * 0.50).toFixed(2);
+      const { depositAmount, finalAmount } = splitDepositFinal(grandTotal);
       const referenceNo = `TMG-${randomBytes(6).toString("hex").toUpperCase()}`;
 
       // Hold expiry: 48 hours from submission
@@ -7144,7 +7214,7 @@ FAQ ANSWER STYLE — answer briefly and directly, then stop. Examples:
 - "Yes, we do dismantling and reassembly. Which item do you need help with?"
 - "We cover all of Singapore — HDB, condo, landed, and commercial."
 - "No GST — all our prices are nett."
-- "50% deposit to confirm, balance on the day of job."
+- "Jobs under S$150 are paid in full to confirm; S$150 and above take a 50% deposit to confirm and the balance on the day of the job."
 - "We don't conduct pre-visit site surveys, but if you share the item list and some photos, our team can put together an accurate quote for your office. For larger commercial projects, we can also arrange a call to discuss the scope. 😊"
 - "We handle office relocations regularly — workstations, desks, partitions, storage units and more. Could you share roughly how many items and some photos so we can prepare a detailed quote?"
 If the case is unusual or complex, say the team will review and follow up.`
@@ -7981,8 +8051,7 @@ Return ONLY valid JSON.`,
 
         const grandTotal = Math.max(0, grandTotalBeforePromo - promoDiscountWA);
 
-        const depositAmount = (grandTotal * 0.50).toFixed(2);
-        const finalAmount = (grandTotal * 0.50).toFixed(2);
+        const { depositAmount, finalAmount } = splitDepositFinal(grandTotal);
 
         // Build the notes field: include date display + special remarks from customer
         const noteParts: string[] = [];
@@ -8066,7 +8135,9 @@ Return ONLY valid JSON.`,
         const promoLine = promoDiscountWA > 0 ? `🏷️ Promo (${waPromoCode}): *-$${promoDiscountWA.toFixed(2)}*\n` : "";
         const transportLine = transportFee > 0 ? `🚛 Transport: *$${transportFee.toFixed(2)}*\n` : "";
         const totalLine = `💰 *Total: $${grandTotal.toFixed(2)}*`;
-        const depositLine = `⬇️ *Deposit (50%): $${depositAmount}*`;
+        const depositLine = requiresFullUpfront(grandTotal)
+          ? `⬇️ *Full payment to confirm booking: $${depositAmount}*`
+          : `⬇️ *Deposit (50%): $${depositAmount}*`;
 
         const relocationNote = session.isRelocation
           ? isCarryOnly
@@ -8102,10 +8173,10 @@ Return ONLY valid JSON.`,
           relocationNote +
           bundleUpsellNote +
           `📋 *What happens next:*\n` +
-          `1️⃣ Send your 50% deposit to lock in your slot\n` +
+          `1️⃣ Send your ${requiresFullUpfront(parseFloat(quote.total || "0")) ? "full payment" : "50% deposit"} to lock in your slot\n` +
           `2️⃣ We confirm your booking & send a reminder\n` +
           `3️⃣ Our crew arrives on the day — all done! 🎉\n\n` +
-          `💳 *Pay deposit now:* Our team will send the PayNow / card link shortly.\n\n` +
+          `💳 *${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Pay in full now" : "Pay deposit now"}:* Our team will send the PayNow / card link shortly.\n\n` +
           `Need to add or change anything? Just reply here! 😊\n\n` +
           `Track your quote: ${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`
         );
@@ -8138,7 +8209,7 @@ COMPANY INFO:
 - Pricing: from SGD 80/item; $39.90 mobilisation & coordination fee on all non-relocation jobs; relocation adds transport fee
 - Mobilisation & coordination fee: a flat $39.90 added to all installation and dismantling jobs (not relocation). It covers the crew's transport to your location, crew dispatch logistics, and job coordination. It is essentially the crew mobilisation charge — NOT a pre-visit or site inspection fee. There is no separate pre-visit; the crew comes once on the job day.
 - Coverage: HDB flats, condos, landed property, commercial/offices — all of Singapore
-- Payment: 50% deposit (PayNow/bank transfer/card), 50% balance on job completion
+- Payment: jobs under S$150 are paid in full to confirm; S$150 and above is 50% deposit (PayNow/bank transfer/card) + 50% balance on job completion
 - Typical turnaround: quote within 1 business day, job booked after deposit confirmed
 - Weekdays and weekends available
 - Team provides all tools and equipment
@@ -8213,13 +8284,14 @@ Respond directly — no JSON, just the message text.`,
 
       // ── Route A: Deposit already paid → send FINAL PAYMENT message ──────────
       if (quote.depositPaidAt) {
-        const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-        const baseBalance = parseFloat(quote.finalAmount || "0") > 0
-          ? parseFloat(quote.finalAmount!)
-          : Math.max(0, totalAmt - depositPaid);
         // Subtract partial payments already recorded in the ledger.
         const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
-        const finalAmount = Math.max(0, baseBalance - ledgerPaid);
+        const finalAmount = finalBalanceOutstanding(totalAmt, quote.finalAmount, quote.depositAmount, ledgerPaid);
+        // Full-upfront (under-threshold) / already-settled jobs have no balance —
+        // never send a "Balance Due" message for them.
+        if (finalAmount <= 0.005 || quote.paymentStatus === "paid_in_full") {
+          return res.status(409).json({ message: "This job is already paid in full — no final payment is due." });
+        }
         const balanceSubtext = ledgerPaid > 0
           ? `_(remaining balance after S$${ledgerPaid.toFixed(2)} already received)_`
           : `_(50% balance payment — deposit already received)_`;
@@ -8246,9 +8318,7 @@ Respond directly — no JSON, just the message text.`,
       }
 
       // ── Route B: Deposit not yet paid → send DEPOSIT message ────────────────
-      const effectiveDeposit = parseFloat(quote.depositAmount || "0") > 0
-        ? parseFloat(quote.depositAmount!)
-        : totalAmt * 0.5;
+      const effectiveDeposit = depositPaidFallback(totalAmt, quote.depositAmount);
       const depositAmountStr = effectiveDeposit.toFixed(2);
 
       // Use short URL in WhatsApp — cleaner than raw 200-char Stripe URL
@@ -8259,6 +8329,7 @@ Respond directly — no JSON, just the message text.`,
         timeWindow: (quote as any).timeWindow || undefined,
         preferredDate: (quote as any).preferredDate || undefined,
         preferredTimeWindow: (quote as any).preferredTimeWindow || undefined,
+        fullPay: requiresFullUpfront(totalAmt),
       });
 
       console.log(`[WhatsApp] Deposit payment message sent to +${phone} for ${quote.referenceNo}`);
@@ -8296,10 +8367,10 @@ Respond directly — no JSON, just the message text.`,
       const quote = await storage.getQuote(id);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
 
-      const depositAmt = parseFloat(quote.depositAmount || "0") || parseFloat(quote.total) * 0.5;
+      const depositAmt = depositPaidFallback(parseFloat(quote.total || "0"), quote.depositAmount);
       const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
       const stripeUrl = await createStripePaymentLink(
-        `Deposit for ${quote.referenceNo} — TMG Install`,
+        `${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment" : "Deposit"} for ${quote.referenceNo} — TMG Install`,
         depositAmt,
         { quoteId: String(quote.id), type: "deposit", referenceNo: quote.referenceNo },
         quotePageUrl
@@ -8320,7 +8391,7 @@ Respond directly — no JSON, just the message text.`,
         const emailHtml = depositRequestEmail(quote, paymentLink);
         emailResendOk = await sendEmail({
           to: quote.customer!.email,
-          subject: `[${quote.referenceNo}] Deposit Payment Required — TMG Install`,
+          subject: `[${quote.referenceNo}] ${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment Required" : "Deposit Payment Required"} — TMG Install`,
           html: emailHtml,
         });
         if (emailResendOk) {
@@ -8337,13 +8408,14 @@ Respond directly — no JSON, just the message text.`,
         const waResendPhone = normalizeSGPhone(rawResendPhone);
         const shortPayUrl = `${APP_URL}/pay/${quote.referenceNo}`;
         const resendSlotLine = formatSlotLineForQuote(quote);
+        const fullPayResend = requiresFullUpfront(parseFloat(quote.total || "0"));
         const waResendMsg =
           `Hi *${quote.customer?.name || "there"}* 👋\n\n` +
-          `Friendly reminder from *TMG Install* — your quote *${quote.referenceNo}* is approved and awaiting your deposit.\n\n` +
+          `Friendly reminder from *TMG Install* — your quote *${quote.referenceNo}* is approved and awaiting your ${fullPayResend ? "payment" : "deposit"}.\n\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
-          `💰 *50% Deposit Required: S$${depositAmt.toFixed(2)}*\n` +
+          `💰 *${fullPayResend ? "Full Payment Required" : "50% Deposit Required"}: S$${depositAmt.toFixed(2)}*\n` +
           `${resendSlotLine}` +
-          `Your slot is reserved once we receive your deposit.\n` +
+          `Your slot is reserved once we receive your ${fullPayResend ? "payment" : "deposit"}.\n` +
           `━━━━━━━━━━━━━━━━━━━━\n\n` +
           waPayBlock(depositAmt, shortPayUrl) +
           `\n\n_Slot held for 48 hours. Reply here if you need help._`;
@@ -8391,26 +8463,30 @@ Respond directly — no JSON, just the message text.`,
   // customer experience is identical regardless of channel.
   async function buildPaymentMessageForQuote(quote: any, requestedType?: "deposit" | "final") {
     const totalAmt = parseFloat(quote.total || "0");
-    const depositPaid = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-    const baseBalance = parseFloat(quote.finalAmount || "0") > 0
-      ? parseFloat(quote.finalAmount!)
-      : Math.max(0, totalAmt - depositPaid);
     // Subtract any partial payments already recorded in the ledger so the copy-able
     // snippet shows the same live balance as the Stripe link and invoice.
     const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
-    const balance = Math.max(0, baseBalance - ledgerPaid);
+    const balance = finalBalanceOutstanding(totalAmt, quote.finalAmount, quote.depositAmount, ledgerPaid);
     const balanceSubtext = ledgerPaid > 0
       ? `_(remaining balance after S$${ledgerPaid.toFixed(2)} already received)_`
       : `_(50% balance payment — deposit already received)_`;
 
-    // Auto-detect type from quote status when not specified
+    // Auto-detect type from quote status when not specified. Full-upfront jobs
+    // (under the threshold) never have a separate final payment, so always treat
+    // them as a single full payment request regardless of status.
     const finalStatuses = ["completed", "final_payment_requested", "final_paid", "closed"];
     const depositPaidAlready = !!quote.depositPaidAt;
-    const type: "deposit" | "final" = requestedType
-      ? requestedType
-      : (depositPaidAlready || finalStatuses.includes(quote.status)) ? "final" : "deposit";
+    const isFullPay = requiresFullUpfront(totalAmt);
+    // Full-upfront jobs never have a separate final balance. Even if an admin
+    // forces ?type=final, coerce back to the single full-payment request so the
+    // snippet can never advertise a zero "Balance Due".
+    const type: "deposit" | "final" = isFullPay
+      ? "deposit"
+      : requestedType
+        ? requestedType
+        : (depositPaidAlready || finalStatuses.includes(quote.status)) ? "final" : "deposit";
 
-    const amount = type === "final" ? balance : (parseFloat(quote.depositAmount || "0") || totalAmt * 0.5);
+    const amount = type === "final" ? balance : (depositPaidFallback(totalAmt, quote.depositAmount));
     const shortPayUrl = type === "final"
       ? `${APP_URL}/pay/${quote.referenceNo}?type=final`
       : `${APP_URL}/pay/${quote.referenceNo}`;
@@ -8420,7 +8496,7 @@ Respond directly — no JSON, just the message text.`,
     const stripeUrl = await createStripePaymentLink(
       type === "final"
         ? `Balance Payment for ${quote.referenceNo} — TMG Install`
-        : `Deposit for ${quote.referenceNo} — TMG Install`,
+        : `${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment" : "Deposit"} for ${quote.referenceNo} — TMG Install`,
       amount,
       { quoteId: String(quote.id), type, referenceNo: quote.referenceNo },
       quotePageUrl,
@@ -8446,9 +8522,9 @@ Respond directly — no JSON, just the message text.`,
           `Hi *${customerName}* 👋\n\n` +
           `Your quote *${quote.referenceNo}* has been approved by TMG Install!\n\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
-          `💰 *50% Deposit Required: S$${amount.toFixed(2)}*\n` +
+          `💰 *${isFullPay ? "Full Payment Required" : "50% Deposit Required"}: S$${amount.toFixed(2)}*\n` +
           `${slotLine}` +
-          `Your slot is reserved once we receive your deposit.\n` +
+          `Your slot is reserved once we receive your ${isFullPay ? "payment" : "deposit"}.\n` +
           `━━━━━━━━━━━━━━━━━━━━\n\n` +
           waPayBlock(amount, shortPayUrl) +
           `\n\n_Slot held for 48 hours. Reply here if you need help._`
@@ -8607,10 +8683,10 @@ Respond directly — no JSON, just the message text.`,
 
   function buildInvoicePayload(quote: any) {
     const totalAmt = parseFloat(quote.total || "0");
-    const depositAmt = parseFloat(quote.depositAmount || "0") || totalAmt * 0.5;
-    const finalAmt = parseFloat(quote.finalAmount || "0") > 0
-      ? parseFloat(quote.finalAmount!)
-      : Math.max(0, totalAmt - depositAmt);
+    const depositAmt = depositPaidFallback(totalAmt, quote.depositAmount);
+    // Full-upfront (under-threshold) jobs have no final balance, even on stale
+    // legacy rows — force 0 so the invoice matches the site-wide rule.
+    const finalAmt = finalBalanceOutstanding(totalAmt, quote.finalAmount, quote.depositAmount);
     const paidInFull = !!quote.finalPaidAt
       || quote.paymentStatus === "paid_in_full"
       || quote.status === "final_paid"
@@ -8865,7 +8941,7 @@ Respond directly — no JSON, just the message text.`,
       const quote = await storage.getQuote(id);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
 
-      const depositAmt = (parseFloat(quote.depositAmount || "0") || parseFloat(quote.total || "0") * 0.5).toFixed(2);
+      const depositAmt = (depositPaidFallback(parseFloat(quote.total || "0"), quote.depositAmount)).toFixed(2);
       const { note } = z.object({ note: z.string().optional() }).parse(req.body);
 
       // Idempotent recovery: deposit was already recorded (e.g. via Stripe webhook or
@@ -8912,11 +8988,14 @@ Respond directly — no JSON, just the message text.`,
       const hasRealEmailPn = updated.customer.email &&
         !updated.customer.email.endsWith("@tmginstall.com") &&
         updated.customer.email.includes("@");
+      const fullPayPn = requiresFullUpfront(parseFloat(updated.total || "0"));
       if (hasRealEmailPn) {
         try {
           await sendEmail({
             to: updated.customer.email,
-            subject: `[${updated.referenceNo}] Deposit Received — Slot Confirmed!`,
+            subject: fullPayPn
+              ? `[${updated.referenceNo}] Payment Received in Full — Slot Confirmed!`
+              : `[${updated.referenceNo}] Deposit Received — Slot Confirmed!`,
             html: depositReceivedEmail(updated),
           });
         } catch (emailErr) {
@@ -8927,7 +9006,7 @@ Respond directly — no JSON, just the message text.`,
       const rawTrackPhonePn = updated.customerWhatsappPhone || updated.customer?.phone;
       const trackPhone = rawTrackPhonePn ? normalizeSGPhone(rawTrackPhonePn) : null;
       if (trackPhone) {
-        const msg = `✅ *Deposit received via PayNow — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${updated.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
+        const msg = `✅ *${fullPayPn ? "Payment received in full" : "Deposit received"} via PayNow — your job is confirmed!*\n\nTrack your installation progress here:\n${APP_URL}/track/${updated.referenceNo}\n\n_We'll be in touch shortly to confirm your schedule._ 👷`;
         await sendWhatsAppMessage(trackPhone, msg).catch(() => {});
       }
 
@@ -8951,14 +9030,15 @@ Respond directly — no JSON, just the message text.`,
 
       const { note } = z.object({ note: z.string().optional() }).parse(req.body);
       const quoteTotal = parseFloat(quote.total || "0");
-      const depositPaid = parseFloat(quote.depositAmount || "0") || quoteTotal * 0.5;
-      const baseBalance = parseFloat(quote.finalAmount || "0") > 0
-        ? parseFloat(quote.finalAmount!)
-        : Math.max(0, quoteTotal - depositPaid);
       // Only collect what's still outstanding — subtract partial payments already
       // recorded in the ledger so we don't double-count them.
       const ledgerPaid = await storage.getLedgerPaidTotal(quote.id);
-      const finalAmt = Math.max(0, baseBalance - ledgerPaid).toFixed(2);
+      const finalAmtNum = finalBalanceOutstanding(quoteTotal, quote.finalAmount, quote.depositAmount, ledgerPaid);
+      // Full-upfront / already-settled jobs have no final balance to collect.
+      if (finalAmtNum <= 0.005 || quote.paymentStatus === "paid_in_full") {
+        return res.status(409).json({ message: "This job is already paid in full — no final payment is due." });
+      }
+      const finalAmt = finalAmtNum.toFixed(2);
 
       // Mark final paid → auto-closes quote
       const updated = await storage.updateQuotePayment(id, "final", finalAmt);
@@ -9006,10 +9086,15 @@ Respond directly — no JSON, just the message text.`,
         ...(transport > 0 ? [`Transport: S$${transport.toFixed(2)}`] : []),
         `─────────────────`,
         `*Total: S$${totalAmt.toFixed(2)}*`,
-        ...(deposit > 0 ? [
-          `Deposit paid: S$${deposit.toFixed(2)}`,
-          `Balance paid: S$${(totalAmt - deposit).toFixed(2)}`,
-        ] : []),
+        ...(requiresFullUpfront(totalAmt)
+          ? [`Paid in full: S$${totalAmt.toFixed(2)}`]
+          : (() => {
+              const depPaid = depositPaidFallback(totalAmt, updated.depositAmount);
+              return [
+                `Deposit paid: S$${depPaid.toFixed(2)}`,
+                `Balance paid: S$${Math.max(0, totalAmt - depPaid).toFixed(2)}`,
+              ];
+            })()),
         ``,
         `✅ *FULLY PAID — CASE CLOSED*`,
         `Thank you for choosing *TMG Install*! 🙏`,
@@ -10109,8 +10194,8 @@ Respond directly — no JSON, just the message text.`,
         subtotal: laborTotalWithSurcharges.toFixed(2),
         transportFee: transportFee.toFixed(2),
         total: grandTotal.toFixed(2),
-        depositAmount: (grandTotal * 0.5).toFixed(2),
-        finalAmount: (grandTotal * 0.5).toFixed(2),
+        depositAmount: splitDepositFinal(grandTotal).depositAmount,
+        finalAmount: splitDepositFinal(grandTotal).finalAmount,
         requiresManualReview: true,
         relocationMode: finalRelocationMode,
         pickupAddress: session.isRelocation ? address : null,
@@ -10135,7 +10220,8 @@ Respond directly — no JSON, just the message text.`,
 
     // ── Send itemised confirmation to customer on WhatsApp ────────────────────
     try {
-      const adminDepositAmt = (grandTotal * 0.5).toFixed(2);
+      const adminFullUpfront = requiresFullUpfront(grandTotal);
+      const adminDepositAmt = splitDepositFinal(grandTotal).depositAmount;
       const adminSvcEmoji: Record<string, string> = {
         install: "🔧", dismantle: "🔨", relocate: "🚛", dispose: "🗑️",
         dismantle_dispose: "🗑️", surcharge: "📐", discount: "💚", adjustment: "➕",
@@ -10166,8 +10252,11 @@ Respond directly — no JSON, just the message text.`,
         `Subtotal: *$${laborTotalWithSurcharges.toFixed(2)}*\n` +
         (transportFee > 0 ? `🚛 Transport: *$${transportFee.toFixed(2)}*\n` : "") +
         `💰 *Total: $${grandTotal.toFixed(2)}*\n` +
-        `⬇️ *Deposit (50%): $${adminDepositAmt}*\n\n` +
-        `To confirm your booking, please make the *50% deposit ($${adminDepositAmt})* via PayNow/bank transfer — our team will send payment details shortly.\n\n` +
+        (adminFullUpfront
+          ? `⬇️ *Full payment to confirm booking: $${adminDepositAmt}*\n\n` +
+            `To confirm your booking, please make the *full payment ($${adminDepositAmt})* via PayNow/bank transfer — our team will send payment details shortly.\n\n`
+          : `⬇️ *Deposit (50%): $${adminDepositAmt}*\n\n` +
+            `To confirm your booking, please make the *50% deposit ($${adminDepositAmt})* via PayNow/bank transfer — our team will send payment details shortly.\n\n`) +
         `Track your quote: ${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}\n\n` +
         `Thanks for choosing TMG Install! 🙏 Reply *hi* anytime for a new quote.`
       );

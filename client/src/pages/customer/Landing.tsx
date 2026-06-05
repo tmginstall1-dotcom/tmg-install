@@ -956,8 +956,8 @@ export default function Landing() {
               {
                 step: "02",
                 icon: CreditCard,
-                title: "Pay a small deposit",
-                desc: "Secure your slot with a 50% deposit via Stripe or PayNow. The remaining 50% is only due after the job is done.",
+                title: "Pay to confirm your slot",
+                desc: "Secure your slot via Stripe or PayNow. Smaller jobs are paid in full; for larger jobs a 50% deposit holds your slot, with the balance due after the job is done.",
               },
               {
                 step: "03",
@@ -1211,7 +1211,7 @@ export default function Landing() {
             {[
               { step: "01", label: "Get Quote",     desc: "60-second estimate online", icon: FileText },
               { step: "02", label: "We Review",     desc: "Admin verifies & confirms",  icon: ScanSearch },
-              { step: "03", label: "Pay Deposit",   desc: "Secure Stripe · 50% upfront", icon: CreditCard },
+              { step: "03", label: "Pay to Confirm", desc: "Secure Stripe · full or 50% upfront", icon: CreditCard },
               { step: "04", label: "Job Done",      desc: "Crew on-site, balance after",  icon: CheckCircle2 },
             ].map(({ step, label, desc, icon: Icon }) => (
               <div key={step} className="bg-white/5 border border-white/10 rounded-2xl p-6 group hover:bg-white/10 hover:border-amber-400/30 transition-all shadow-lg">
@@ -1281,8 +1281,8 @@ export default function Landing() {
                   },
                   {
                     n: "07", icon: CreditCard,
-                    title: "Deposit Paid",
-                    body: "Pay 50% online to lock in your date. The job is now fully confirmed.",
+                    title: "Payment to Confirm",
+                    body: "Pay online to lock in your date — smaller jobs in full, larger jobs a 50% deposit. The job is now confirmed.",
                     tag: "Stripe / PayNow"
                   },
                 ]).map(({ n, icon: Icon, title, body, tag }, i) => (
@@ -1315,8 +1315,8 @@ export default function Landing() {
                   },
                   {
                     n: "09", icon: CheckCircle2,
-                    title: "Completion & Final 50%",
-                    body: "Inspect the work. Once satisfied, the crew generates a digital invoice and you pay the final 50% via card or PayNow.",
+                    title: "Completion & Balance",
+                    body: "Inspect the work. Once satisfied, the crew generates a digital invoice. Any remaining balance (the final 50% on larger jobs) is paid via card or PayNow.",
                     tag: "Satisfaction guaranteed"
                   },
                 ]).map(({ n, icon: Icon, title, body, tag }, i) => (
@@ -1373,7 +1373,7 @@ export default function Landing() {
                 {([
                   { n: "05", title: "Admin Review",   body: "Team verifies auto-price." },
                   { n: "06", title: "Quote Approved", body: "Receive official PDF quote." },
-                  { n: "07", title: "Deposit Paid",   body: "Pay 50% to lock date." },
+                  { n: "07", title: "Pay to Confirm", body: "Full or 50% to lock date." },
                 ]).map(({ n, title, body }) => (
                   <div key={n} className="flex gap-4 relative">
                     <div className="w-px bg-white/10 absolute left-4 top-10 bottom-[-24px] last:hidden" />
@@ -1397,7 +1397,7 @@ export default function Landing() {
               <div className="space-y-6">
                 {([
                   { n: "08", title: "Arrival & Work", body: "Live GPS tracking of crew." },
-                  { n: "09", title: "Final 50%",      body: "Inspect & pay balance." },
+                  { n: "09", title: "Final Balance",  body: "Inspect & pay any balance." },
                 ]).map(({ n, title, body }) => (
                   <div key={n} className="flex gap-4 relative">
                     <div className="w-px bg-white/10 absolute left-4 top-10 bottom-[-24px] last:hidden" />

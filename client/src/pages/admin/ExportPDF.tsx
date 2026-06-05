@@ -4,6 +4,7 @@ import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } f
 import { Printer, ArrowLeft, X, SlidersHorizontal, Search, MapPin, Clock, CheckCircle2, FileText } from "lucide-react";
 import { useState, useMemo } from "react";
 import { formatItemDescription } from "@/lib/itemLabel";
+import { requiresFullUpfront } from "@shared/pricing";
 
 /* ─── Constants ─────────────────────────────────────────────── */
 const CO = "The Moving Guy Pte Ltd";
@@ -161,6 +162,19 @@ function DetailPanel({ q }: { q: any }) {
  <div className="flex justify-between pt-2 mt-1 border-t-2 border-gray-900 font-black text-sm">
  <span>Grand Total</span><span>{money(q.total)}</span>
  </div>
+ {requiresFullUpfront(Number(q.total)) ? (
+ <div className={`flex items-center justify-between text-xs pt-1 ${q.depositPaidAt ? "text-emerald-600" : "text-black/45"}`}>
+ <div className="flex items-center gap-1">
+ {q.depositPaidAt ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border border-black/20" />}
+ <span>Full payment</span>
+ </div>
+ <div className="text-right">
+ <span className="font-semibold">{money(q.total)}</span>
+ {q.depositPaidAt && <div className="text-[10px] text-emerald-400">{dt(q.depositPaidAt, true)}</div>}
+ </div>
+ </div>
+ ) : (
+ <>
  <div className={`flex items-center justify-between text-xs pt-1 ${q.depositPaidAt ? "text-emerald-600" : "text-black/45"}`}>
  <div className="flex items-center gap-1">
  {q.depositPaidAt ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border border-black/20" />}
@@ -181,6 +195,8 @@ function DetailPanel({ q }: { q: any }) {
  {q.finalPaidAt && <div className="text-[10px] text-emerald-400">{dt(q.finalPaidAt, true)}</div>}
  </div>
  </div>
+ </>
+ )}
  </div>
  </Section>
 
@@ -392,6 +408,21 @@ function PrintJob({ q, today }: { q: any; today: string }) {
  <td style={{ padding: "7px 0", fontWeight: 900, fontSize: 13, textAlign: "right" }}>{money(q.total)}</td>
  </tr>
  <tr><td colSpan={2} style={{ height: 8 }} /></tr>
+ {requiresFullUpfront(Number(q.total)) ? (
+ <>
+ <PFinRow
+ label={`Full payment${q.depositPaidAt ? " — PAID ✓" : " — UNPAID"}`}
+ val={money(q.total)}
+ color={q.depositPaidAt ? "#15803d" : "#9ca3af"}
+ />
+ {q.depositPaidAt && (
+ <tr><td colSpan={2} style={{ fontSize: 8, color: "#6b7280", paddingLeft: 12, paddingBottom: 3 }}>
+ Paid on {dt(q.depositPaidAt, true)}
+ </td></tr>
+ )}
+ </>
+ ) : (
+ <>
  <PFinRow
  label={`Deposit 50%${q.depositPaidAt ? " — PAID ✓" : " — UNPAID"}`}
  val={money(q.depositAmount)}
@@ -411,6 +442,8 @@ function PrintJob({ q, today }: { q: any; today: string }) {
  <tr><td colSpan={2} style={{ fontSize: 8, color: "#6b7280", paddingLeft: 12, paddingBottom: 3 }}>
  Paid on {dt(q.finalPaidAt, true)}
  </td></tr>
+ )}
+ </>
  )}
  </tbody>
  </table>

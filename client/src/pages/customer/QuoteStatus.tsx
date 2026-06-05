@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
+import { requiresFullUpfront } from "@shared/pricing";
 
 const WHATSAPP_HREF = "https://wa.me/6580880757?text=hi";
 const WHATSAPP_DISPLAY = "+65 8088 0757";
@@ -195,21 +196,30 @@ export default function QuoteStatus() {
     return null;
   })();
 
+  // Threshold is the source of truth for which payment scheme applies. Display
+  // amounts fall back to the total for legacy/manual full-pay rows that may have
+  // stored depositAmount = 0.
+  const isFullPay = requiresFullUpfront(Number(quote?.total || 0));
+  // Full-payment jobs always show/charge the full total — never a stale or legacy
+  // stored split (the backend charges the total via depositPaidFallback).
+  const depositDisplay = isFullPay
+    ? Number(quote?.total || 0)
+    : Number(quote?.depositAmount || 0);
   const statusMessages: Record<string, string> = {
     submitted: "Your quote request has been received and is being reviewed.",
     under_review: "Our team is reviewing your quote.",
-    approved: "Your quote is approved! Awaiting deposit request from our team.",
-    deposit_requested: "Please pay the deposit to confirm your booking.",
-    deposit_paid: "Deposit received! Our team will reach out shortly to confirm your appointment.",
+    approved: isFullPay ? "Your quote is approved! Awaiting payment request from our team." : "Your quote is approved! Awaiting deposit request from our team.",
+    deposit_requested: isFullPay ? "Please complete the full payment to confirm your booking." : "Please pay the deposit to confirm your booking.",
+    deposit_paid: isFullPay ? "Payment received! Our team will reach out shortly to confirm your appointment." : "Deposit received! Our team will reach out shortly to confirm your appointment.",
     booking_requested: "Your booking request has been received. We'll confirm your slot shortly.",
-    booked: "Your deposit is paid and booking is confirmed. Our team will arrive at the scheduled time.",
+    booked: isFullPay ? "Your payment is complete and booking is confirmed. Our team will arrive at the scheduled time." : "Your deposit is paid and booking is confirmed. Our team will arrive at the scheduled time.",
     assigned: "A team member has been assigned to your job.",
     in_progress: "Your job is currently in progress.",
     at_pickup: "Our movers have arrived at your pickup address and are loading your items.",
     in_transit: "Your items are loaded — our movers are on the way to your dropoff address.",
     at_dropoff: "Our movers have arrived at your dropoff address and are unloading.",
-    completed: "Your job is complete. Please make the final payment.",
-    final_payment_requested: "Please complete your final payment.",
+    completed: isFullPay ? "Your job is complete. Thank you — your payment is fully settled." : "Your job is complete. Please make the final payment.",
+    final_payment_requested: isFullPay ? "Your payment is fully settled — nothing further is due." : "Please complete your final payment.",
     final_paid: "Final payment received. Your case is closing.",
     closed: "Your case is closed. Thank you for choosing TMG Install.",
     cancelled: "This quote has been cancelled.",
@@ -257,7 +267,9 @@ export default function QuoteStatus() {
             <CheckCircle2 className="w-5 h-5 text-black shrink-0" />
             <div>
               <p className="font-bold text-black text-sm flex items-center gap-2"><AccentSquare /> Payment received</p>
-              {quote && ["final_paid", "closed", "completed", "in_progress", "at_pickup", "in_transit", "at_dropoff", "assigned"].includes(quote.status) ? (
+              {isFullPay ? (
+                <p className="text-xs text-black/50 mt-0.5">Your full payment has been confirmed. Thank you for choosing TMG Install!</p>
+              ) : quote && ["final_paid", "closed", "completed", "in_progress", "at_pickup", "in_transit", "at_dropoff", "assigned"].includes(quote.status) ? (
                 <p className="text-xs text-black/50 mt-0.5">Your final payment has been confirmed. Thank you for choosing TMG Install!</p>
               ) : (
                 <p className="text-xs text-black/50 mt-0.5">Your deposit has been confirmed. You can now book your appointment below.</p>
@@ -304,7 +316,7 @@ export default function QuoteStatus() {
                 <p className="font-black text-sm uppercase tracking-wide" style={{ letterSpacing: "0.1em" }}>
                   Payment Link Sent to Your Email
                 </p>
-                <p className="text-white/60 text-xs mt-0.5">Follow the steps below to complete your deposit</p>
+                <p className="text-white/60 text-xs mt-0.5">Follow the steps below to complete your {isFullPay ? "payment" : "deposit"}</p>
               </div>
             </div>
             <div className="bg-[rgba(250,250,247,0.88)] px-5 py-5">
@@ -315,7 +327,7 @@ export default function QuoteStatus() {
                   <div>
                     <p className="font-bold text-sm text-black">Open your email inbox</p>
                     <p className="text-xs text-black/55 mt-0.5 leading-relaxed">
-                      Look for an email from <span className="font-semibold text-black">TMG Install</span> with the subject <span className="font-semibold text-black">"Your Deposit Payment Link"</span>.
+                      Look for an email from <span className="font-semibold text-black">TMG Install</span> with the subject <span className="font-semibold text-black">{isFullPay ? '"Your Payment Link"' : '"Your Deposit Payment Link"'}</span>.
                     </p>
                   </div>
                 </div>
@@ -346,7 +358,7 @@ export default function QuoteStatus() {
                   <div>
                     <p className="font-bold text-sm text-black">Click the payment link in the email</p>
                     <p className="text-xs text-black/55 mt-0.5 leading-relaxed">
-                      The link takes you to a secure Stripe checkout page. Alternatively, use the <span className="font-semibold text-black">Pay Deposit Now</span> button on this page.
+                      The link takes you to a secure Stripe checkout page. Alternatively, use the <span className="font-semibold text-black">{isFullPay ? "Pay In Full Now" : "Pay Deposit Now"}</span> button on this page.
                     </p>
                   </div>
                 </div>
@@ -368,7 +380,7 @@ export default function QuoteStatus() {
               <div className="mt-5 border border-black/10 bg-black/[0.02] px-4 py-3 flex items-start gap-2.5">
                 <Info className="w-4 h-4 text-black/40 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-black/50 leading-relaxed">
-                  <span className="font-bold text-black">Can't find the email?</span> You can also pay directly using the <span className="font-semibold">Pay Deposit Now</span> button in the Payment Summary below. If you need help, contact us on WhatsApp.
+                  <span className="font-bold text-black">Can't find the email?</span> You can also pay directly using the <span className="font-semibold">{isFullPay ? "Pay In Full Now" : "Pay Deposit Now"}</span> button in the Payment Summary below. If you need help, contact us on WhatsApp.
                 </p>
               </div>
             </div>
@@ -407,15 +419,19 @@ export default function QuoteStatus() {
                   num: 3,
                   done: false,
                   color: "bg-black/20",
-                  title: "Deposit payment link sent",
-                  desc: "A 50% deposit secures your slot. We'll send a payment link via email and WhatsApp — check your Junk/Spam folder too.",
+                  title: isFullPay ? "Payment link sent" : "Deposit payment link sent",
+                  desc: isFullPay
+                    ? "Full payment secures your slot. We'll send a payment link via email and WhatsApp — check your Junk/Spam folder too."
+                    : "A 50% deposit secures your slot. We'll send a payment link via email and WhatsApp — check your Junk/Spam folder too.",
                 },
                 {
                   num: 4,
                   done: false,
                   color: "bg-black/20",
                   title: "Booking confirmed",
-                  desc: "Once the deposit is paid, your appointment is locked in. You'll receive a confirmation with your technician's details.",
+                  desc: isFullPay
+                    ? "Once payment is made, your appointment is locked in. You'll receive a confirmation with your technician's details."
+                    : "Once the deposit is paid, your appointment is locked in. You'll receive a confirmation with your technician's details.",
                 },
               ].map(({ num, done, color, title, desc }) => (
                 <div key={num} className="flex items-start gap-4">
@@ -448,9 +464,9 @@ export default function QuoteStatus() {
           <motion.div {...fadeUp(0.02)} className="mb-8 flex items-start gap-3.5 border border-black/12 bg-black/[0.015] px-5 py-4">
             <Mail className="w-4 h-4 text-black/40 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-bold text-black mb-0.5">Your quote is approved — deposit link coming</p>
+              <p className="text-sm font-bold text-black mb-0.5">Your quote is approved — {isFullPay ? "payment link coming" : "deposit link coming"}</p>
               <p className="text-xs text-black/55 leading-relaxed">
-                Our team will send a deposit payment link to your registered email shortly. Check your inbox and your Junk / Spam / Promotions folder.
+                Our team will send a {isFullPay ? "payment link" : "deposit payment link"} to your registered email shortly. Check your inbox and your Junk / Spam / Promotions folder.
               </p>
               <div className="flex items-center gap-1.5 mt-2.5">
                 <MailWarning className="w-3.5 h-3.5 text-amber-500" />
@@ -571,7 +587,7 @@ export default function QuoteStatus() {
               {quote.preferredDate && ["submitted", "deposit_requested"].includes(quote.status) && (
                 <div className="mx-6 mb-5 border border-black/12 bg-amber-50/60 p-4">
                   <p className="text-[10px] font-semibold tracking-widest uppercase text-amber-700/70 mb-3" style={{ letterSpacing: "0.15em" }}>
-                    Slot Reserved (Pending Deposit)
+                    Slot Reserved (Pending {isFullPay ? "Payment" : "Deposit"})
                   </p>
                   <div className="flex items-center gap-2 font-bold text-sm text-black">
                     <CalendarDays className="w-4 h-4 text-amber-600/60" />
@@ -581,7 +597,7 @@ export default function QuoteStatus() {
                     <Clock className="w-4 h-4 text-black/30" />
                     {quote.preferredTimeWindow}
                   </div>
-                  <p className="text-xs text-black/40 mt-2">Your slot is held for 48 hours — pay the deposit to confirm it.</p>
+                  <p className="text-xs text-black/40 mt-2">Your slot is held for 48 hours — {isFullPay ? "complete payment" : "pay the deposit"} to confirm it.</p>
                 </div>
               )}
 
@@ -784,27 +800,36 @@ export default function QuoteStatus() {
                   <span className="text-sm uppercase tracking-wide" style={{ letterSpacing: "0.08em" }}>Total</span>
                   <span className="tabular-nums">{formatMoney(quote.total)}</span>
                 </div>
-                <div className="flex justify-between text-xs text-white/40">
-                  <span>50% Deposit</span>
-                  <span className={`tabular-nums ${quote.depositPaidAt ? "line-through" : ""}`}>{formatMoney(quote.depositAmount)}</span>
-                </div>
-                <div className="flex justify-between text-xs text-white/40">
-                  <span>Balance Due</span>
-                  <span className={`tabular-nums ${quote.finalPaidAt ? "line-through" : ""}`}>{formatMoney(quote.finalAmount)}</span>
-                </div>
+                {isFullPay ? (
+                  <div className="flex justify-between text-xs text-white/40">
+                    <span>Full Payment</span>
+                    <span className={`tabular-nums ${quote.depositPaidAt ? "line-through" : ""}`}>{formatMoney(depositDisplay)}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-xs text-white/40">
+                      <span>50% Deposit</span>
+                      <span className={`tabular-nums ${quote.depositPaidAt ? "line-through" : ""}`}>{formatMoney(quote.depositAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-white/40">
+                      <span>Balance Due</span>
+                      <span className={`tabular-nums ${quote.finalPaidAt ? "line-through" : ""}`}>{formatMoney(quote.finalAmount)}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Pay Deposit */}
               {quote.status === "deposit_requested" && (
                 <div className="px-6 pb-6 border-t border-white/10 pt-5 space-y-4">
                   <div>
-                    <p className="text-xs text-white/50 mb-1">Deposit Required</p>
-                    <p className="text-2xl font-black mb-4 tabular-nums">{formatMoney(quote.depositAmount)}</p>
+                    <p className="text-xs text-white/50 mb-1">{isFullPay ? "Full Payment Required" : "Deposit Required"}</p>
+                    <p className="text-2xl font-black mb-4 tabular-nums">{formatMoney(depositDisplay)}</p>
                     <button onClick={() => handleStripeCheckout("deposit")} disabled={checkoutLoading} data-testid="button-pay-deposit"
                       className="w-full bg-white text-black font-bold py-3.5 text-sm uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-60 hover:bg-white/90 transition-colors"
                       style={{ letterSpacing: "0.12em" }}>
                       {checkoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                      {checkoutLoading ? "Opening Checkout…" : "Pay Deposit Now"}
+                      {checkoutLoading ? "Opening Checkout…" : (isFullPay ? "Pay In Full Now" : "Pay Deposit Now")}
                     </button>
                   </div>
                   {/* PayNow QR alternative */}
@@ -836,7 +861,7 @@ export default function QuoteStatus() {
               {quote.status === "deposit_paid" && !quote.preferredDate && (
                 <div className="px-6 pb-5 border-t border-white/10 pt-5 text-center">
                   <Clock className="w-6 h-6 mx-auto mb-2 text-white/40" />
-                  <p className="font-bold text-sm">Deposit Received</p>
+                  <p className="font-bold text-sm">{isFullPay ? "Payment Received in Full" : "Deposit Received"}</p>
                   <p className="text-xs text-white/40 mt-1">Our team will contact you shortly to schedule your appointment.</p>
                 </div>
               )}
@@ -865,8 +890,8 @@ export default function QuoteStatus() {
                 </div>
               )}
 
-              {/* Pay Final */}
-              {["completed", "final_payment_requested"].includes(quote.status) && (
+              {/* Pay Final — only for jobs that still owe a balance (skip full-payment jobs) */}
+              {!isFullPay && Number(quote.finalAmount || 0) > 0 && ["completed", "final_payment_requested"].includes(quote.status) && (
                 <div className="px-6 pb-6 border-t border-white/10 pt-5">
                   <p className="text-xs text-white/50 mb-1">Balance Due</p>
                   <p className="text-2xl font-black mb-4 tabular-nums">{formatMoney(quote.finalAmount)}</p>

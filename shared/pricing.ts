@@ -88,6 +88,10 @@ export const PricingConfig = {
   },
   deposit: {
     pct: 0.50, // 50% deposit, 50% final
+    // Site-wide rule: jobs cheaper than this threshold must be paid IN FULL to
+    // confirm the booking (no 50/50 split). Jobs at or above it keep the usual
+    // 50% deposit now + 50% final after the job is done.
+    fullPaymentThreshold: 150,
   },
   secondDay: {
     // Second-Day Continuation — when a single-day job spills into the next day
@@ -107,6 +111,22 @@ export const PricingConfig = {
 // flood the bulk-discount tier table — a single 120-hole wardrobe is one job,
 // not 120 items. This helper applies the perHoleBulkWeight to such lines so
 // tier selection reflects "true item count" rather than physical hole count.
+// --------------------------------------------------------------------------
+// Full-payment threshold helper
+// --------------------------------------------------------------------------
+// Single source of truth for the "small job = pay in full" rule used across the
+// pricing engine, server routes, emails and UI. A job whose grand total is below
+// this threshold must be paid IN FULL up front to confirm the booking; there is
+// no separate final payment. Jobs at or above it keep the 50% deposit + 50%
+// final split.
+export const FULL_PAYMENT_THRESHOLD = PricingConfig.deposit.fullPaymentThreshold;
+
+/** True when a job total is small enough that it must be paid in full up front. */
+export function requiresFullUpfront(total: number): boolean {
+  const t = typeof total === "number" ? total : parseFloat(String(total ?? 0));
+  return isFinite(t) && t > 0 && t < FULL_PAYMENT_THRESHOLD;
+}
+
 export function bulkWeightedQty(items: { name: string; quantity: number }[]): number {
   const w = PricingConfig.perHoleBulkWeight;
   return items.reduce((sum, it) => {
@@ -632,7 +652,11 @@ export function computePricing(input: PricingInput): PricingResult {
 
   const logisticsSubtotal = round2(feeLines.reduce((s, f) => s + f.amount, 0));
   const grandTotal = round2(laborAfterDiscount + logisticsSubtotal);
-  const depositAmount = round2(grandTotal * cfg.deposit.pct);
+  // Small jobs (below the threshold) must be paid IN FULL up front — the
+  // "deposit" becomes the whole total and there is no final payment. Larger
+  // jobs keep the usual 50% deposit + 50% final split.
+  const fullUpfront = grandTotal > 0 && grandTotal < cfg.deposit.fullPaymentThreshold;
+  const depositAmount = fullUpfront ? grandTotal : round2(grandTotal * cfg.deposit.pct);
   const finalAmount = round2(grandTotal - depositAmount);
 
   return {

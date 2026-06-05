@@ -71,12 +71,15 @@ export default function Terms() {
           <Section title="3. Deposit and Payment">
             <ul>
               <li>
-                A <strong>50% non-refundable deposit</strong> is required to confirm your appointment.
-                Work will not be scheduled until the deposit is received.
+                For smaller jobs (total under <strong>S$150</strong>), <strong>full payment</strong> is required
+                to confirm your appointment. For larger jobs (<strong>S$150 and above</strong>), a
+                <strong> 50% non-refundable deposit</strong> is required to confirm your appointment.
+                Work will not be scheduled until the required payment is received.
               </li>
               <li>
-                The remaining <strong>50% balance is due upon completion</strong> of all work at the site.
-                A payment link will be sent to you electronically once the job is marked complete.
+                For larger jobs (S$150 and above), the remaining <strong>50% balance is due upon completion</strong>
+                of all work at the site. A payment link will be sent to you electronically once the job is marked
+                complete. Smaller jobs paid in full upfront have no balance due on completion.
               </li>
               <li>
                 Payments are processed securely via <strong>Stripe</strong>. We accept all major credit and debit cards.

@@ -34,6 +34,7 @@ import {
   catalogItems,
 } from "@shared/schema";
 import { callLLM } from "./ai-llm-client";
+import { requiresFullUpfront } from "@shared/pricing";
 import {
   executePlatformAction,
   gadsExecCredsCheck,
@@ -3572,9 +3573,15 @@ Respond with strict JSON only.`;
         `- ${it.quantity}× ${it.detectedName ?? it.originalDescription} (${it.serviceType})`
       ).join("\n") || "(no items captured yet)";
 
+      const paymentBrief = quote.total
+        ? (requiresFullUpfront(Number(quote.total))
+            ? "mention that full payment is required to confirm the booking (no balance afterwards)"
+            : "mention a 50% deposit to confirm the booking, with the remaining 50% due on completion")
+        : "mention that a deposit (or full payment for smaller jobs) confirms the booking";
+
       const intentBrief: Record<string, string> = {
         follow_up:   "Polite follow-up — customer received the quote but hasn't responded. Encourage them to confirm or ask questions.",
-        send_quote:  "Email accompanies an attached PDF quote. Summarise scope and total, mention 50% deposit to confirm booking.",
+        send_quote:  `Email accompanies an attached PDF quote. Summarise scope and total, ${paymentBrief}.`,
         reschedule:  "We need to reschedule their booking. Apologise briefly, offer flexibility, ask for preferred new date/window.",
         reminder:    "Friendly day-before reminder of their confirmed booking. Confirm date, time-window, address, contact info.",
         custom:      "Use the extraInstructions verbatim as the brief.",

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { calcSecondDayContinuation } from "@shared/pricing";
+import { calcSecondDayContinuation, requiresFullUpfront, PricingConfig } from "@shared/pricing";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   attendanceAmendments, leaveRequests, payslips, staffLoans, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
@@ -889,12 +889,27 @@ export class DatabaseStorage implements IStorage {
         note: `Deposit payment of $${amount} received`
       });
 
+      // Site-wide rule: small jobs (deposit == total) are paid IN FULL up front,
+      // so there is no separate final payment — mark them paid_in_full right away
+      // and stamp the final-paid date so balance/invoice flows treat them as settled.
+      const totalNum = parseFloat(q?.total || "0") || 0;
+      const depNum = parseFloat(q?.depositAmount || "0") || 0;
+      const paidNum = parseFloat(String(amount ?? "0")) || 0;
+      // Settle as paid_in_full ONLY when the money received actually covers the
+      // total — either the amount just charged or the stored deposit equals the
+      // total. Under-$150 jobs reach this because the upfront charge is the full
+      // total (see depositPaidFallback); we deliberately do NOT auto-settle on
+      // the threshold alone, so a partial payment can never flip to paid_in_full.
+      const fullyPaidUpfront = totalNum > 0 && (depNum >= totalNum - 0.005 || paidNum >= totalNum - 0.005);
+      const depositPaymentStatus = fullyPaidUpfront ? 'paid_in_full' : 'deposit_paid';
+
       if (q?.preferredDate && q?.preferredTimeWindow) {
         // Auto-confirm the booking using the slot chosen during the estimate
         const scheduledAt = new Date(q.preferredDate + 'T12:00:00');
         await db.update(quotes).set({
           depositPaidAt: now,
-          paymentStatus: 'deposit_paid',
+          paymentStatus: depositPaymentStatus,
+          ...(fullyPaidUpfront ? { finalPaidAt: now } : {}),
           status: 'booked',
           scheduledAt,
           timeWindow: q.preferredTimeWindow,
@@ -912,7 +927,8 @@ export class DatabaseStorage implements IStorage {
         // No preferred slot — fall back to deposit_paid (admin can book manually)
         await db.update(quotes).set({
           depositPaidAt: now,
-          paymentStatus: 'deposit_paid',
+          paymentStatus: depositPaymentStatus,
+          ...(fullyPaidUpfront ? { finalPaidAt: now } : {}),
           status: 'deposit_paid',
         }).where(eq(quotes.id, id));
       }
@@ -997,9 +1013,11 @@ export class DatabaseStorage implements IStorage {
     if (!quote.depositPaidAt) return 0;
     const dep = parseFloat(quote.depositAmount || "0") || 0;
     if (dep > 0) return dep;
-    // Fallback for manually created jobs with no stored deposit amount — assume 50% split.
+    // Fallback for manually created jobs with no stored deposit amount. Apply the
+    // site-wide rule: small jobs are paid in full up front (deposit = total), so a
+    // naive 50% split would wrongly leave a phantom balance on under-threshold jobs.
     const total = parseFloat(quote.total || "0") || 0;
-    return total * 0.5;
+    return requiresFullUpfront(total) ? total : total * PricingConfig.deposit.pct;
   }
 
   private async recomputeQuotePaymentState(quoteId: number): Promise<void> {
@@ -1170,8 +1188,12 @@ export class DatabaseStorage implements IStorage {
         depositAmount = Number(current.depositAmount || 0).toFixed(2);
         finalAmount = Math.max(0, total - Number(depositAmount)).toFixed(2);
       } else {
-        depositAmount = (total * 0.50).toFixed(2);
-        finalAmount = (total * 0.50).toFixed(2);
+        // No money moved yet — recompute the split with the site-wide rule:
+        // small jobs are paid in full up front (deposit = total, final = 0),
+        // larger jobs keep the usual 50/50.
+        const dep = requiresFullUpfront(total) ? total : total * PricingConfig.deposit.pct;
+        depositAmount = dep.toFixed(2);
+        finalAmount = Math.max(0, total - dep).toFixed(2);
       }
       await db.update(quotes).set({
         subtotal: subtotal.toFixed(2),

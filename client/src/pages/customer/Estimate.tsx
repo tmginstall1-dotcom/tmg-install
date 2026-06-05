@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import type { CatalogItem } from "@shared/schema";
-import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, requiresSpecialHandling, type PricingCatalogEntry } from "@shared/pricing";
+import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, requiresSpecialHandling, requiresFullUpfront, type PricingCatalogEntry } from "@shared/pricing";
 import { buildHandoffWaUrl, type HandoffPayload } from "@shared/whatsapp-handoff";
 
 /* ─────────────────── Editorial primitives (mirror homepage) ───────────────────
@@ -598,7 +598,12 @@ export default function EstimateWizard() {
   const hasDRMode = isRelocation && items.some(i => i.serviceType === 'relocate' && i.relocateMode === 'full');
   // Promo discount applied to the grand total (which already includes the $60 callout fee)
   const grandTotalAfterPromo = Math.max(0, total - promoDiscount);
-  const effectiveDeposit = Math.round(grandTotalAfterPromo * 0.5 * 100) / 100;
+  // Small jobs are paid IN FULL up front (no 50/50 split). Larger jobs keep the
+  // usual 50% deposit + 50% balance.
+  const fullUpfront = requiresFullUpfront(grandTotalAfterPromo);
+  const effectiveDeposit = fullUpfront
+    ? Math.round(grandTotalAfterPromo * 100) / 100
+    : Math.round(grandTotalAfterPromo * 0.5 * 100) / 100;
   const effectiveFinal = Math.round((grandTotalAfterPromo - effectiveDeposit) * 100) / 100;
 
   const applyPromo = useCallback(async (code: string) => {
@@ -2228,14 +2233,14 @@ export default function EstimateWizard() {
                         {new Date(slotDateStr + "T12:00:00").toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "short", year: "numeric" })},{" "}
                         {TIME_SLOTS.find(t => t.value === slotTime)?.time}
                       </p>
-                      <p className="text-xs text-black/35 mt-1">Held 48 hours — confirmed after deposit is paid.</p>
+                      <p className="text-xs text-black/35 mt-1">Held 48 hours — confirmed after {fullUpfront ? "full payment" : "deposit"} is paid.</p>
                     </div>
                   </div>
                 )}
 
                 <div className="border border-black/8 bg-black/[0.012] px-4 py-3">
                   <p className="text-xs text-black/45">
-                    <strong>Note:</strong> This is your <em>preferred</em> slot — our team confirms it after deposit is paid.
+                    <strong>Note:</strong> This is your <em>preferred</em> slot — our team confirms it after {fullUpfront ? "full payment" : "deposit"} is paid.
                   </p>
                 </div>
               </div>
@@ -2519,11 +2524,17 @@ export default function EstimateWizard() {
                           </p>
                         </div>
                       )}
-                      <div className="flex justify-between text-black/45"><span>Deposit after confirmation (50%)</span><span className="font-black">${effectiveDeposit.toFixed(2)}</span></div>
-                      <div className="flex justify-between text-black/45"><span>Balance on completion (50%)</span><span>${effectiveFinal.toFixed(2)}</span></div>
+                      {fullUpfront ? (
+                        <div className="flex justify-between text-black/45"><span>Full payment to confirm</span><span className="font-black">${effectiveDeposit.toFixed(2)}</span></div>
+                      ) : (
+                        <>
+                          <div className="flex justify-between text-black/45"><span>Deposit after confirmation (50%)</span><span className="font-black">${effectiveDeposit.toFixed(2)}</span></div>
+                          <div className="flex justify-between text-black/45"><span>Balance on completion (50%)</span><span>${effectiveFinal.toFixed(2)}</span></div>
+                        </>
+                      )}
                       <div className="flex items-start gap-2 text-[11px] text-black/55 leading-relaxed mt-2 border-t border-black/8 pt-3">
                         <Check className="w-3.5 h-3.5 text-black/40 shrink-0 mt-0.5" />
-                        <span>Submitting this request <strong>does not charge you</strong>. We'll confirm details &amp; your slot by WhatsApp first — only then does the deposit secure your booking.</span>
+                        <span>Submitting this request <strong>does not charge you</strong>. We'll confirm details &amp; your slot by WhatsApp first — only then does {fullUpfront ? "your full payment secure" : "the deposit secure"} your booking.</span>
                       </div>
                       {pricingResult.feeLines.some(f => f.label.toLowerCase().includes('stairs') || f.label.toLowerCase().includes('access')) && !accessAnswered && (
                         <div className="flex items-start gap-2 text-[11px] text-amber-700 leading-relaxed mt-1">
@@ -2551,8 +2562,12 @@ export default function EstimateWizard() {
                     {[
                       { n: 1, t: "We review your request", d: "Usually within a few hours during business hours." },
                       { n: 2, t: "We confirm details & slot by WhatsApp", d: "Final pricing locked in once we agree on the schedule." },
-                      { n: 3, t: "Deposit secures the booking", d: "50% deposit only after you've confirmed — sent via PayNow or card link." },
-                      { n: 4, t: "Balance is paid after completion", d: "Once the job is done and you're happy with the work." },
+                      ...(fullUpfront
+                        ? [{ n: 3, t: "Full payment secures the booking", d: "Full payment only after you've confirmed — sent via PayNow or card link." }]
+                        : [
+                            { n: 3, t: "Deposit secures the booking", d: "50% deposit only after you've confirmed — sent via PayNow or card link." },
+                            { n: 4, t: "Balance is paid after completion", d: "Once the job is done and you're happy with the work." },
+                          ]),
                     ].map(s => (
                       <li key={s.n} className="flex items-start gap-3">
                         <span className="w-6 h-6 shrink-0 bg-black text-white text-[11px] font-black flex items-center justify-center mt-0.5">{s.n}</span>
@@ -2619,7 +2634,7 @@ export default function EstimateWizard() {
             <div className="flex items-center gap-3 text-right">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.1em] text-black/40">{items.length} item{items.length !== 1 ? "s" : ""}</p>
-                <p className="text-xs text-black/40">50% deposit ${effectiveDeposit.toFixed(2)}</p>
+                <p className="text-xs text-black/40">{fullUpfront ? "Full payment" : "50% deposit"} ${effectiveDeposit.toFixed(2)}</p>
               </div>
             </div>
           </div>
@@ -2763,8 +2778,8 @@ export default function EstimateWizard() {
             <section>
               <h3 className="font-black text-sm uppercase tracking-[0.04em] text-black mb-1.5">2. Deposit & Payment Policy</h3>
               <ul className="list-disc pl-5 space-y-1">
-                <li>A <strong>50% non-refundable deposit</strong> is required to confirm your booking.</li>
-                <li>The remaining <strong>50% balance is due upon completion</strong> of the work. Once our admin team has verified the completed work, a payment link will be sent to your email for the balance payment.</li>
+                <li>For jobs <strong>under S$150</strong>, <strong>full payment</strong> is required up front to confirm your booking.</li>
+                <li>For jobs <strong>S$150 and above</strong>, a <strong>50% non-refundable deposit</strong> is required to confirm your booking, with the remaining <strong>50% balance due upon completion</strong>. Once our admin team has verified the completed work, a payment link will be sent to your email for the balance payment.</li>
                 <li>Accepted payment methods: <strong>Stripe (credit/debit card), PayNow, bank transfer, or cash</strong>.</li>
                 <li>Failure to pay the balance within the stipulated timeframe may result in legal action and recovery of costs.</li>
               </ul>

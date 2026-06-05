@@ -461,9 +461,11 @@ export async function sendWhatsAppPaymentLink(
     timeWindow?: string | null;
     preferredDate?: string;
     preferredTimeWindow?: string;
+    fullPay?: boolean;
   }
 ): Promise<void> {
   const name = opts?.customerName ? `Hi *${opts.customerName}* 👋` : "Hi there 👋";
+  const fullPay = !!opts?.fullPay;
   // Prefer admin-confirmed scheduledAt/timeWindow over the customer's original
   // preferredDate so reschedules are reflected in customer messages.
   let slotLine = "";
@@ -481,11 +483,11 @@ export async function sendWhatsAppPaymentLink(
 
   const msg =
     `${name}\n\n` +
-    `Friendly reminder from *TMG Install* — your quote *${referenceNo}* is approved and your deposit is due.\n\n` +
+    `Friendly reminder from *TMG Install* — your quote *${referenceNo}* is approved and your ${fullPay ? "payment" : "deposit"} is due.\n\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
-    `💰 *50% Deposit Required: S$${depositAmount}*\n` +
+    `💰 *${fullPay ? "Full Payment Required" : "50% Deposit Required"}: S$${depositAmount}*\n` +
     `${slotLine}` +
-    `Your slot is reserved once we receive the deposit.\n` +
+    `Your slot is reserved once we receive your ${fullPay ? "payment" : "deposit"}.\n` +
     `━━━━━━━━━━━━━━━━━━━━\n\n` +
     `💳 *Pay by Card* (instant confirmation):\n` +
     `👉 ${paymentLink}\n\n` +

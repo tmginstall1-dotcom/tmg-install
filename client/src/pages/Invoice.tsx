@@ -4,6 +4,7 @@ import { Printer, Loader2, AlertCircle, CheckCircle2, Download } from "lucide-re
 import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { downloadInvoicePdf } from "@/lib/invoicePdf";
+import { requiresFullUpfront } from "@shared/pricing";
 
 const CO      = "The Moving Guy Pte Ltd";
 const UEN     = "202424156H";
@@ -366,25 +367,42 @@ export default function Invoice() {
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-gray-200 space-y-1.5">
-                  <div className={`flex justify-between text-[12px] ${data.depositPaidAt ? "text-emerald-700" : "text-gray-500"}`}>
-                    <span className="flex items-center gap-1.5">
-                      {data.depositPaidAt && <CheckCircle2 className="w-3.5 h-3.5" />}
-                      <span>Deposit (50%){data.depositPaidAt ? " — Paid" : ""}</span>
-                    </span>
-                    <span className="font-semibold">{money(data.depositAmount)}</span>
-                  </div>
-                  {data.depositPaidAt && (
-                    <div className="text-[10px] text-emerald-600 text-right -mt-1">on {dt(data.depositPaidAt, true)}</div>
-                  )}
-                  <div className={`flex justify-between text-[12px] ${data.finalPaidAt ? "text-emerald-700" : "text-gray-500"}`}>
-                    <span className="flex items-center gap-1.5">
-                      {data.finalPaidAt && <CheckCircle2 className="w-3.5 h-3.5" />}
-                      <span>Final balance{data.finalPaidAt ? " — Paid" : ""}</span>
-                    </span>
-                    <span className="font-semibold">{money(data.finalAmount)}</span>
-                  </div>
-                  {data.finalPaidAt && (
-                    <div className="text-[10px] text-emerald-600 text-right -mt-1">on {dt(data.finalPaidAt, true)}</div>
+                  {requiresFullUpfront(Number(data.total)) ? (
+                    <>
+                      <div className={`flex justify-between text-[12px] ${data.depositPaidAt ? "text-emerald-700" : "text-gray-500"}`}>
+                        <span className="flex items-center gap-1.5">
+                          {data.depositPaidAt && <CheckCircle2 className="w-3.5 h-3.5" />}
+                          <span>Full payment{data.depositPaidAt ? " — Paid" : ""}</span>
+                        </span>
+                        <span className="font-semibold">{money(data.total)}</span>
+                      </div>
+                      {data.depositPaidAt && (
+                        <div className="text-[10px] text-emerald-600 text-right -mt-1">on {dt(data.depositPaidAt, true)}</div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className={`flex justify-between text-[12px] ${data.depositPaidAt ? "text-emerald-700" : "text-gray-500"}`}>
+                        <span className="flex items-center gap-1.5">
+                          {data.depositPaidAt && <CheckCircle2 className="w-3.5 h-3.5" />}
+                          <span>Deposit (50%){data.depositPaidAt ? " — Paid" : ""}</span>
+                        </span>
+                        <span className="font-semibold">{money(data.depositAmount)}</span>
+                      </div>
+                      {data.depositPaidAt && (
+                        <div className="text-[10px] text-emerald-600 text-right -mt-1">on {dt(data.depositPaidAt, true)}</div>
+                      )}
+                      <div className={`flex justify-between text-[12px] ${data.finalPaidAt ? "text-emerald-700" : "text-gray-500"}`}>
+                        <span className="flex items-center gap-1.5">
+                          {data.finalPaidAt && <CheckCircle2 className="w-3.5 h-3.5" />}
+                          <span>Final balance{data.finalPaidAt ? " — Paid" : ""}</span>
+                        </span>
+                        <span className="font-semibold">{money(data.finalAmount)}</span>
+                      </div>
+                      {data.finalPaidAt && (
+                        <div className="text-[10px] text-emerald-600 text-right -mt-1">on {dt(data.finalPaidAt, true)}</div>
+                      )}
+                    </>
                   )}
 
                   {Array.isArray(data.payments) && data.payments.length > 0 && (
