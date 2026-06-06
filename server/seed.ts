@@ -3135,4 +3135,65 @@ export async function seedDatabase() {
     console.log(`[startup] Round 33: Hinged Door Wardrobe (3-door) — inserted ${inserted} new SKU row(s).`);
   }
 
+  /* ─── Round 34: Small Appliances & Items (relocation) ─────────────────────
+     Real-world: customers frequently list small portable appliances and
+     office odds-and-ends in a move (toaster, hair dryer, desktop printer,
+     office task chair, water filter/dispenser). Pre-R34 these had no catalog
+     entry, so the quoter had nothing to price them against and they fell
+     through to a generic estimate.
+
+     This round adds a dedicated "Small Appliances & Items" group so each is
+     individually quotable for a Relocate, with a curated transport volume
+     (volumeM3 = footprint in the van) that feeds the trip/volume calc. These
+     are carry-as-is items — no install/dismantle service applies — so only a
+     relocate row is created, matching the existing relocate-only appliance
+     pattern. Prices are low per-item add-ons; the $80 job minimum still
+     governs tiny single-item jobs.
+
+        Toaster                     $15   0.03 m³
+        Hair Dryer                  $12   0.02 m³
+        Office Printer              $30   0.08 m³
+        Office Desk Chair           $30   0.30 m³
+        Water Filter / Dispenser    $25   0.10 m³
+
+     Marker: SMALL-ITEMS-R34-MARKER.
+  */
+  const r34 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "SMALL-ITEMS-R34-MARKER")).limit(1);
+  if (r34.length === 0) {
+    const newRows: Array<{ name: string; sku: string; basePrice: string; volumeM3: string }> = [
+      { name: "Toaster",                  sku: "SMITM-TOASTER-RELOCATE",     basePrice: "15.00", volumeM3: "0.03" },
+      { name: "Hair Dryer",               sku: "SMITM-HAIRDRYER-RELOCATE",   basePrice: "12.00", volumeM3: "0.02" },
+      { name: "Office Printer",           sku: "SMITM-PRINTER-RELOCATE",     basePrice: "30.00", volumeM3: "0.08" },
+      { name: "Office Desk Chair",        sku: "SMITM-DESKCHAIR-RELOCATE",   basePrice: "30.00", volumeM3: "0.30" },
+      { name: "Water Filter / Dispenser", sku: "SMITM-WATERFILTER-RELOCATE", basePrice: "25.00", volumeM3: "0.10" },
+    ];
+    let inserted = 0;
+    for (const row of newRows) {
+      const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+      if (exists.length === 0) {
+        await db.insert(catalogItems).values({
+          name: row.name,
+          sku: row.sku,
+          category: "Small Appliances & Items",
+          serviceType: "relocate",
+          basePrice: row.basePrice,
+          volumeM3: row.volumeM3,
+          active: true,
+        } as any);
+        inserted++;
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__small_items_r34_marker__",
+      sku: "SMALL-ITEMS-R34-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 34: Small Appliances & Items — inserted ${inserted} new relocate SKU row(s).`);
+  }
+
 }

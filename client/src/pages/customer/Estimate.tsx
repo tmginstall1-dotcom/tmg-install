@@ -493,6 +493,7 @@ export default function EstimateWizard() {
     { label: "Sofas",    match: ["sofas", "living room", "ikea living room"] },
     { label: "Dining",   match: ["dining"] },
     { label: "Office",   match: ["office", "meeting pods & phone booths"] },
+    { label: "Appliances", match: ["appliances"] },
     { label: "IKEA",     match: ["ikea beds", "ikea wardrobes", "ikea living room", "ikea shelving", "ikea storage", "ikea study", "ikea bedroom"] },
     { label: "Storage",  match: ["storage", "ikea shelving", "ikea storage"] },
   ];
