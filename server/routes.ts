@@ -344,13 +344,18 @@ async function buildJobEstimateMessage(session: NonNullable<Awaited<ReturnType<t
     let existingCorrections: { detectedDescription: string }[] = [];
     try { existingCorrections = await storage.getPricingCorrections(); } catch { /* ignore */ }
 
-    /** Fuzzy-match helper: find a catalog entry by item name + serviceType */
-    const findCatalogEntry = (name: string, svcType: string) => catalog.find(c =>
-      c.serviceType === svcType &&
-      (name.toLowerCase().includes(c.name.toLowerCase()) ||
-       c.name.toLowerCase().includes(name.toLowerCase()) ||
-       name.toLowerCase().split(/\s+/).some((w: string) => w.length > 3 && c.name.toLowerCase().includes(w)))
-    );
+    /** Fuzzy-match helper: find a catalog entry by item name + serviceType.
+     *  Also matches whitespace/punctuation-insensitively so compact phrasings
+     *  like "airfryer" / "air-fryer" still resolve to "Air Fryer ..." . */
+    const compactName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const findCatalogEntry = (name: string, svcType: string) => catalog.find(c => {
+      if (c.serviceType !== svcType) return false;
+      const n = name.toLowerCase(), cn = c.name.toLowerCase();
+      if (n.includes(cn) || cn.includes(n)) return true;
+      if (n.split(/\s+/).some((w: string) => w.length > 3 && cn.includes(w))) return true;
+      const nk = compactName(name), ck = compactName(c.name);
+      return nk.length >= 5 && ck.length >= 5 && (ck.includes(nk) || nk.includes(ck));
+    });
 
     const drPct = PricingConfig.fallback.relocateDRDiscount; // 0.40
 
@@ -5786,6 +5791,8 @@ Respond with ONLY a JSON array (no prose, no markdown):
         if (dC === cC) return 90;
         if (c.includes(d) || d.includes(c)) return 80;
         if (cC.includes(dC) || dC.includes(cC)) return 75;
+        const dK = dC.replace(/[^a-z0-9]+/g, ""), cK = cC.replace(/[^a-z0-9]+/g, "");
+        if (dK.length >= 5 && cK.length >= 5 && (cK.includes(dK) || dK.includes(cK))) return 72;
         for (const family of CAT_FAMILIES) {
           const detHas = family.some(kw => d.includes(kw));
           const catHas = family.some(kw => c.includes(kw));

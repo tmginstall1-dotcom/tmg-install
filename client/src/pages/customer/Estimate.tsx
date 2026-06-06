@@ -731,9 +731,12 @@ export default function EstimateWizard() {
       else if (backM) { itemName = backM[1].trim(); qty = parseInt(backM[2]); }
 
       const lc = itemName.toLowerCase();
+      const lcK = lc.replace(/[^a-z0-9]+/g, "");
       const matched = catalogGroups.find(g => {
         const gn = g.name.toLowerCase();
-        return gn.includes(lc) || lc.includes(gn) || gn.split(" ").slice(0, 2).join(" ") === lc.split(" ").slice(0, 2).join(" ");
+        const gnK = gn.replace(/[^a-z0-9]+/g, "");
+        return gn.includes(lc) || lc.includes(gn) || gn.split(" ").slice(0, 2).join(" ") === lc.split(" ").slice(0, 2).join(" ") ||
+          (lcK.length >= 5 && gnK.length >= 5 && (gnK.includes(lcK) || lcK.includes(gnK)));
       });
       if (matched) {
         // Same dismantle_dispose → dispose fallback as addCatalogGroup, so
@@ -822,6 +825,8 @@ export default function EstimateWizard() {
     if (dC === cC) return 90;
     if (c.includes(d) || d.includes(c)) return 80;
     if (cC.includes(dC) || dC.includes(cC)) return 75;
+    const dK = dC.replace(/[^a-z0-9]+/g, ""), cK = cC.replace(/[^a-z0-9]+/g, "");
+    if (dK.length >= 5 && cK.length >= 5 && (cK.includes(dK) || dK.includes(cK))) return 72;
     // Hard veto: if detected and catalog belong to different exclusive category families, score 0
     for (const family of CATEGORY_FAMILIES) {
       const detHas = family.some(kw => d.includes(kw));
