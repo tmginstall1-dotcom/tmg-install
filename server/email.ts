@@ -218,7 +218,7 @@ function relocationOvertimeNotice(): string {
     `<strong>Relocation — Additional Charges Notice</strong><br>` +
     `Your quoted price includes the <strong>scheduled crew time shown on your quote</strong> (movers × hours on site). ` +
     `If the job runs longer than the scheduled time, additional time is charged at ` +
-    `<strong>$${PricingConfig.secondDay.perPersonHourlyRate} per mover, per hour</strong>, billed in 30-minute blocks (no cap).<br><br>` +
+    `<strong>$${PricingConfig.overtime.perPersonHourlyRate} per mover, per hour</strong>, billed in 30-minute blocks (no cap).<br><br>` +
     `To keep things running on time, please ensure all items are ready for collection and the route is clear before the crew arrives. ` +
     `If you expect a longer job, please let us know in advance via WhatsApp.`
   );
@@ -771,7 +771,7 @@ export function finalPaymentEmail(
     ${hasOvertime ? notice("warn",
       `<strong>Overtime charge applied automatically.</strong><br>` +
       `${quote.additionalChargeNote || `Overtime charges: $${overtimeAmt.toFixed(2)}`}<br><br>` +
-      `Additional time is billed at <strong>$${PricingConfig.secondDay.perPersonHourlyRate} per mover, per hour</strong> (in 30-minute blocks, no cap) beyond your job's scheduled crew time. ` +
+      `Additional time is billed at <strong>$${PricingConfig.overtime.perPersonHourlyRate} per mover, per hour</strong> (in 30-minute blocks, no cap) beyond your job's scheduled crew time. ` +
       `If you have any questions about this charge, please contact us on WhatsApp before completing payment.`
     ) : ''}
 

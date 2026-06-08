@@ -4845,7 +4845,7 @@ ${systemPrompt}` });
 
     // Overtime allowance = THIS job's scheduled crew time (movers × scheduled
     // hours derived from scope), not a flat 2-hour window. Rate scales with crew
-    // size at $30/mover/hr, with NO cap — overruns are fully recovered.
+    // size at $50/mover/hr, with NO cap — overruns are fully recovered.
     const schedule = getJobSchedule({
       items: items.map((i: any) => ({
         serviceType: i.serviceType,

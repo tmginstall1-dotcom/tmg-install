@@ -54,10 +54,11 @@ export const PricingConfig = {
     // only a fallback when no per-job schedule is supplied.
     capMinutes: 120,    // Fallback included minutes when no scheduled time is given
     blockMinutes: 30,   // Charge in 30-minute blocks once the scheduled time is used up
-    // Rate is computed per job as crewSize × secondDay.perPersonHourlyRate
-    // ($30 per mover, per hour) → e.g. 2 movers = $30 per 30-min block, 3 movers = $45.
-    blockRate: 30,      // Legacy 2-crew default; live rate now scales with crew size
-    // NO cap — every extra hour is fully recovered at $30 per mover per hour.
+    // Live rate is computed per job as crewSize × overtime.perPersonHourlyRate
+    // ($50 per mover, per hour) → e.g. 2 movers = $50 per 30-min block, 3 movers = $75.
+    perPersonHourlyRate: 50, // SGD per mover, per hour beyond scheduled crew time
+    blockRate: 30,      // Legacy 2-crew default (unused by live calc); rate now scales with crew size
+    // NO cap — every extra hour is fully recovered at $50 per mover per hour.
   },
   hiace: {
     capacityM3: 6.0,  // Toyota Hiace usable cargo volume per trip (cubic metres)
@@ -102,7 +103,7 @@ export const PricingConfig = {
     // because of on-site access delays (loading-bay parking, lift congestion).
     // The crew has to be re-dispatched (van + movers) and a fresh slot burned.
     returnFee: 120,            // SGD flat re-mobilisation fee charged once when the job continues to Day 2
-    perPersonHourlyRate: 30,   // SGD per mover, per hour of actual Day-2 on-site time ($30/person/hr; matches overtime $5/person/10min)
+    perPersonHourlyRate: 30,   // SGD per mover, per hour of actual Day-2 on-site time ($30/person/hr; Day-2 continuation only — NOT the overtime rate)
     defaultCrewSize: 2,        // standard van crew = 2 movers; admin can raise this per job for bigger teams
     hourlyRate: 60,            // legacy effective 2-man rate (perPersonHourlyRate × defaultCrewSize) — kept for back-compat
   },
@@ -115,9 +116,10 @@ export const PricingConfig = {
   // floor, the engine FLAGS it for admin review (warn-only — it never silently
   // changes the customer's price). All numbers are tunable here.
   //
-  // The loaded mover cost reuses TMG's own crew rate ($30/mover/hour, the same
-  // rate already used for overtime and second-day continuation) so the floor is
-  // grounded in real business numbers, not guesses.
+  // The loaded mover cost is based on TMG's own crew cost rate ($30/mover/hour)
+  // so the floor is grounded in real business numbers, not guesses. This is a
+  // COST basis and is independent of the customer-facing overtime rate (which is
+  // higher — see overtime.perPersonHourlyRate).
   costFloor: {
     enabled: true,
     marginPct: 0.30,             // target profit as a % of price (30% = aggressive/competitive)
@@ -434,8 +436,8 @@ export interface OvertimeResult {
   charge: number;              // total overtime charge (SGD), NO cap
   includedMinutes: number;     // scheduled allowance used for this job
   crewSize: number;            // movers on site (drives the per-block rate)
-  ratePerBlock: number;        // SGD per 30-min block = crew × $30 × 0.5
-  overtimePerManPerHour: number; // SGD per mover, per hour ($30)
+  ratePerBlock: number;        // SGD per 30-min block = crew × $50 × 0.5
+  overtimePerManPerHour: number; // SGD per mover, per hour ($50)
   overMinutes: number;         // minutes worked beyond the scheduled allowance
 }
 
@@ -444,7 +446,7 @@ export interface OvertimeResult {
  *
  * - `includedMinutes` is the job's own scheduled crew time (from getJobSchedule).
  *   When omitted it falls back to the flat overtime.capMinutes (back-compat).
- * - The per-block rate scales with `crewSize`: crew × $30/mover/hr, billed in
+ * - The per-block rate scales with `crewSize`: crew × $50/mover/hr, billed in
  *   30-minute blocks. There is NO cap — overruns are fully recovered.
  */
 export function calcOvertimeCharge(
@@ -456,7 +458,7 @@ export function calcOvertimeCharge(
   const includedMinutes = opts?.includedMinutes != null && opts.includedMinutes >= 0
     ? opts.includedMinutes
     : cfg.capMinutes;
-  const overtimePerManPerHour = PricingConfig.secondDay.perPersonHourlyRate;
+  const overtimePerManPerHour = cfg.perPersonHourlyRate;
   const ratePerBlock = round2(crew * overtimePerManPerHour * (cfg.blockMinutes / 60));
 
   if (actualMinutes <= includedMinutes) {
@@ -474,7 +476,7 @@ export interface JobSchedule {
   scheduledMinutes: number;    // scheduledHours × 60 — the overtime allowance
   overtimePerManPerHour: number; // SGD per mover, per hour beyond scheduled time
   blockMinutes: number;        // overtime billing block size (30 min)
-  ratePerBlock: number;        // SGD per 30-min block = crew × $30 × 0.5
+  ratePerBlock: number;        // SGD per 30-min block = crew × $50 × 0.5
 }
 
 /**
@@ -499,7 +501,7 @@ export function getJobSchedule(args: {
   });
   const scheduledHours = Math.max(0.5, Math.ceil(rawHours * 2) / 2);
   const scheduledMinutes = Math.round(scheduledHours * 60);
-  const overtimePerManPerHour = PricingConfig.secondDay.perPersonHourlyRate;
+  const overtimePerManPerHour = PricingConfig.overtime.perPersonHourlyRate;
   const blockMinutes = PricingConfig.overtime.blockMinutes;
   const ratePerBlock = round2(crew * overtimePerManPerHour * (blockMinutes / 60));
   return { crewSize: crew, scheduledHours, scheduledMinutes, overtimePerManPerHour, blockMinutes, ratePerBlock };

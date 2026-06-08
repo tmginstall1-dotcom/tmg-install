@@ -20,8 +20,16 @@ Math surfaces: `getJobSchedule()` / `calcOvertimeCharge()` in `shared/pricing.ts
 `applyRelocationOvertime()`.
 
 **Why:** allowance is derived from JOB SCOPE (estimateCrewHours → scheduledMinutes),
-NOT from dividing the total price, and overtime = crewSize × $30/mover/hr in 30-min
+NOT from dividing the total price, and overtime = crewSize × overtime rate in 30-min
 blocks with NO cap (the old $200 maxCharge / flat 120-min allowance is retired).
+
+**Rate config:** the overtime per-mover-hour rate has its OWN field
+`PricingConfig.overtime.perPersonHourlyRate` (currently $50) — it is DECOUPLED from
+`PricingConfig.secondDay.perPersonHourlyRate` (currently $30, used only for Day-2
+continuation). They were briefly the same value; never re-couple them. `calcOvertimeCharge`
+and `getJobSchedule` read the overtime field; `terms.ts` overtime body must use `ot`,
+not `sd`. Hardcoded "$N/mover/hr" copy in Estimate.tsx + Landing.tsx must be updated by
+hand when the rate changes (they are not interpolated from config).
 
 **How to apply:**
 - Customer-shown scheduled hours must use the SAME `getJobSchedule` inputs the server

@@ -2149,7 +2149,7 @@ export default function EstimateWizard() {
                         <div data-testid="notice-relocation-cap" className="mt-3 flex items-start gap-2 bg-blue-50 border border-blue-200 rounded px-3 py-2.5">
                           <span className="text-blue-500 text-base leading-none mt-0.5">⏱</span>
                           <div className="text-xs text-blue-800 leading-relaxed">
-                            <span className="font-black">Scheduled crew time (Carry Only).</span> Your price covers the scheduled crew time shown above. If the job runs longer, additional time is $30 per mover, per hour — billed in 30-min blocks, no cap.
+                            <span className="font-black">Scheduled crew time (Carry Only).</span> Your price covers the scheduled crew time shown above. If the job runs longer, additional time is $50 per mover, per hour — billed in 30-min blocks, no cap.
                           </div>
                         </div>
                       )}
@@ -2528,7 +2528,7 @@ export default function EstimateWizard() {
                         <div data-testid="notice-relocation-cap-review" className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded px-3 py-2 mt-1">
                           <span className="text-blue-500 text-sm leading-none mt-0.5">⏱</span>
                           <p className="text-xs text-blue-800 leading-relaxed">
-                            <span className="font-black">Scheduled crew time (Carry Only).</span> Your price covers the scheduled crew time shown above. If the job runs longer, additional time is $30 per mover, per hour — billed in 30-min blocks, no cap.
+                            <span className="font-black">Scheduled crew time (Carry Only).</span> Your price covers the scheduled crew time shown above. If the job runs longer, additional time is $50 per mover, per hour — billed in 30-min blocks, no cap.
                           </p>
                         </div>
                       )}
@@ -2825,7 +2825,7 @@ export default function EstimateWizard() {
               <ul className="list-disc pl-5 space-y-1">
                 <li>The estimate provided is based on the items and services described at the time of booking. Any additional items or services discovered on-site will be quoted separately and must be agreed upon before work commences.</li>
                 <li>Additional charges may apply for <strong>stairs access</strong> (if no lift is available), <strong>difficult access</strong>, or <strong>disposal of old furniture</strong> (if requested).</li>
-                <li><strong>Relocation jobs</strong> include the <strong>scheduled crew time shown on your quote</strong> (movers × hours on site). Time beyond the schedule is charged at $30 per mover, per hour — billed in 30-minute blocks, no cap — and our team will advise you on-site.</li>
+                <li><strong>Relocation jobs</strong> include the <strong>scheduled crew time shown on your quote</strong> (movers × hours on site). Time beyond the schedule is charged at $50 per mover, per hour — billed in 30-minute blocks, no cap — and our team will advise you on-site.</li>
                 <li>Waiting time exceeding <strong>30 minutes</strong> beyond the scheduled window due to customer delays may incur a waiting fee of $20 per 30 minutes.</li>
               </ul>
             </section>

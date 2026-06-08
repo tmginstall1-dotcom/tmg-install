@@ -51,7 +51,7 @@ export function getQuoteTerms(opts?: { isRelocation?: boolean }): QuoteTerm[] {
   if (isRelocation) {
     terms.push({
       title: "Crew & included time",
-      body: `Your price covers a ${sd.defaultCrewSize}-person crew for the scheduled on-site time shown on this quote (based on the items and distance for your job). If the job runs beyond the scheduled time, additional time is charged at ${money(sd.perPersonHourlyRate)} per mover, per hour, billed in ${ot.blockMinutes}-minute blocks.`,
+      body: `Your price covers a ${sd.defaultCrewSize}-person crew for the scheduled on-site time shown on this quote (based on the items and distance for your job). If the job runs beyond the scheduled time, additional time is charged at ${money(ot.perPersonHourlyRate)} per mover, per hour, billed in ${ot.blockMinutes}-minute blocks.`,
     });
     terms.push({
       title: "Same-day completion",
