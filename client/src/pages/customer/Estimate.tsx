@@ -17,6 +17,7 @@ import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import type { CatalogItem } from "@shared/schema";
 import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, requiresSpecialHandling, requiresFullUpfront, type PricingCatalogEntry } from "@shared/pricing";
 import { buildHandoffWaUrl, type HandoffPayload } from "@shared/whatsapp-handoff";
+import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
 
 /* ─────────────────── Editorial primitives (mirror homepage) ───────────────────
    Inlined here so the estimate wizard matches the editorial language of "/"
@@ -2598,9 +2599,10 @@ export default function EstimateWizard() {
           </motion.div>
         </AnimatePresence>
 
-        {/* T&C checkbox — step 5 only */}
+        {/* Standard terms + T&C checkbox — step 5 only */}
         {step === 5 && (
           <div className="mt-6 p-4 border border-black/10 bg-black/[0.015]">
+            <QuoteTermsBlock isRelocation={isRelocation} className="mb-4 pb-4 border-b border-black/10" />
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"

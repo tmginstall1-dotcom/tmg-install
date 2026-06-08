@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { downloadInvoicePdf } from "@/lib/invoicePdf";
 import { requiresFullUpfront } from "@shared/pricing";
+import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
 
 const CO      = "The Moving Guy Pte Ltd";
 const UEN     = "202424156H";
@@ -433,6 +434,11 @@ export default function Invoice() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Standard Terms & Conditions */}
+            <div className="px-7 py-5 border-t border-gray-100">
+              <QuoteTermsBlock isRelocation={data.items.some((it) => it.serviceType === "relocate")} />
             </div>
 
             {/* Footer */}

@@ -14,7 +14,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatItemDescription } from "@/lib/itemLabel";
-import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig } from "@shared/pricing";
+import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig, evaluateJobMargin } from "@shared/pricing";
 import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
 import { InvoiceMessageDialog } from "@/components/shared/InvoiceMessageDialog";
 
@@ -939,6 +939,28 @@ export default function AdminQuoteDetail() {
  // falling back to a computed half when stored amounts are 0 (e.g. manually created jobs).
  const quoteTotal = parseFloat(quote.total || "0");
  const isFullPayQuote = requiresFullUpfront(quoteTotal);
+
+ // Cost-floor / margin guard — warns (never auto-changes) when a job is priced
+ // below the safe minimum that still hits the target margin. Works for every
+ // quote (customer-created, admin-created, or WhatsApp) since it recomputes from
+ // the stored items + total. Volume data is optional — the estimator falls back
+ // to per-item time estimates when it's missing.
+ const marginItems = (quote.items || [])
+   .filter((i: any) => i.serviceType !== 'discount')
+   .map((i: any) => ({
+     serviceType: i.serviceType,
+     quantity: Number(i.quantity) || 1,
+     volumeM3: i.volumeM3 != null ? Number(i.volumeM3) : undefined,
+     carryOnly: !!i.carryOnly,
+   }));
+ const marginIsRelocation = marginItems.some((i: any) => i.serviceType === 'relocate') || !!(quote as any).samePropertyMove;
+ const marginEval = evaluateJobMargin({
+   items: marginItems,
+   grandTotal: quoteTotal,
+   distanceKm: Number(quote.distanceKm) || 0,
+   isRelocation: marginIsRelocation,
+   crewSize: Number((quote as any).secondDayCrewSize) || undefined,
+ });
  const effectiveDeposit = isFullPayQuote
  ? quoteTotal
  : (parseFloat(quote.depositAmount || "0") > 0
@@ -2692,6 +2714,30 @@ export default function AdminQuoteDetail() {
  </div>
  </div>
  </div>
+ {marginEval.enabled && marginEval.belowFloor && (
+ <div className="bg-red-50 border-t border-red-200 px-4 sm:px-5 py-4" data-testid="banner-margin-warning">
+ <div className="flex items-start gap-2.5">
+ <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+ <div className="text-sm text-red-800 space-y-1">
+ <p className="font-semibold">Pricing warning — below safe minimum</p>
+ <p>
+ This job is priced at <span className="font-semibold tabular-nums">{formatMoney(marginEval.grandTotal)}</span>, but the safe minimum to hit a {Math.round(marginEval.marginPct * 100)}% margin is <span className="font-semibold tabular-nums">{formatMoney(marginEval.costFloor)}</span> — short by <span className="font-semibold tabular-nums">{formatMoney(marginEval.shortfall)}</span>.
+ </p>
+ <p className="text-xs text-red-700">
+ Estimated cost {formatMoney(marginEval.estimatedCost)} for ~{marginEval.estimatedHours}h of a {marginEval.crewSize}-person crew. Raise the price, or accept knowingly if you have a reason.
+ </p>
+ </div>
+ </div>
+ </div>
+ )}
+ {marginEval.enabled && !marginEval.belowFloor && marginEval.grandTotal > 0 && (
+ <div className="bg-emerald-50 border-t border-emerald-200 px-4 sm:px-5 py-2.5" data-testid="banner-margin-ok">
+ <p className="text-xs text-emerald-700 flex items-center gap-1.5">
+ <span>✓</span>
+ Margin healthy — est. cost {formatMoney(marginEval.estimatedCost)}, ~{Math.round(marginEval.actualMarginPct * 100)}% margin at this price.
+ </p>
+ </div>
+ )}
  </>
  )}
  </div>

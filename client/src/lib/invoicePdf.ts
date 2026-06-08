@@ -10,6 +10,7 @@ import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { requiresFullUpfront } from "@shared/pricing";
+import { getQuoteTerms, QUOTE_TERMS_HEADING } from "@shared/terms";
 
 const CO      = "The Moving Guy Pte Ltd";
 const UEN     = "202424156H";
@@ -470,6 +471,28 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
     doc.text("Balance Due", totalsX, y);
     doc.text("S$0.00", totalsRight, y, { align: "right" });
     y += 4;
+  }
+
+  // ── Standard Terms & Conditions ──────────────────────────────────
+  {
+    const isReloc = (data.items || []).some((it) => it.serviceType === "relocate");
+    const terms = getQuoteTerms({ isRelocation: isReloc });
+    y += 8;
+    if (y + 16 > pageH - 18) { doc.addPage(); y = 14; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(17, 17, 17);
+    doc.text(QUOTE_TERMS_HEADING, marginX, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(107, 114, 128);
+    terms.forEach((t, i) => {
+      const wrapped = doc.splitTextToSize(`${i + 1}. ${t.title}: ${t.body}`, contentW);
+      if (y + wrapped.length * 3.1 > pageH - 18) { doc.addPage(); y = 14; }
+      doc.text(wrapped, marginX, y);
+      y += wrapped.length * 3.1 + 1.4;
+    });
   }
 
   // ── Footer ───────────────────────────────────────────────────────

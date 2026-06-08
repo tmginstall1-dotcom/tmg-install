@@ -102,6 +102,33 @@ export const PricingConfig = {
     defaultCrewSize: 2,        // standard van crew = 2 movers; admin can raise this per job for bigger teams
     hourlyRate: 60,            // legacy effective 2-man rate (perPersonHourlyRate × defaultCrewSize) — kept for back-compat
   },
+  // --------------------------------------------------------------------------
+  // Cost-floor / margin guard — the "never lose money" safety net.
+  // --------------------------------------------------------------------------
+  // We estimate the real cost of running a job (crew time × loaded hourly cost
+  // + the van/fuel portion of transport) and work out the lowest price that
+  // still leaves the target profit margin. If a quote is priced below that
+  // floor, the engine FLAGS it for admin review (warn-only — it never silently
+  // changes the customer's price). All numbers are tunable here.
+  //
+  // The loaded mover cost reuses TMG's own crew rate ($30/mover/hour, the same
+  // rate already used for overtime and second-day continuation) so the floor is
+  // grounded in real business numbers, not guesses.
+  costFloor: {
+    enabled: true,
+    marginPct: 0.30,             // target profit as a % of price (30% = aggressive/competitive)
+    loadedMoverHourlyCost: 30,   // SGD — fully-loaded cost per mover per hour (wages + on-costs)
+    defaultCrewSize: 2,          // standard van crew
+    absoluteMinJobPrice: 150,    // SGD — never quote a job below this, margin aside
+    enforce: false,              // false = warn only (admin decides); true = would auto-raise
+    // Crew-time estimate model (hours):
+    baseHours: 1.0,              // fixed setup + load/unload + paperwork per job
+    hoursPerM3: 0.6,             // handling time per cubic metre carried
+    hoursPerDRItem: 0.75,        // extra time per dismantle-&-reinstall (relocate) item
+    hoursPerCarryItem: 0.15,     // extra time per carry-only relocate item
+    hoursPerLaborItem: 0.4,      // extra time per install / dismantle / dispose item
+    travelHoursPerKm: 0.04,      // round-trip driving + buffer (~25 km/h effective)
+  },
 };
 
 // --------------------------------------------------------------------------
@@ -202,6 +229,26 @@ export interface FeeLine {
   amount: number;
 }
 
+/**
+ * Result of the cost-floor / margin check for a job. `belowFloor` is the signal
+ * that a quote would not make the target margin — the UI surfaces this as a
+ * warning so the admin can raise the price or accept it knowingly.
+ */
+export interface JobMargin {
+  enabled: boolean;
+  estimatedHours: number;   // estimated crew-hours for the job
+  crewSize: number;         // movers assumed
+  estimatedCost: number;    // crew labour + vehicle cost (SGD)
+  marginFloor: number;      // cost / (1 - targetMargin)
+  absoluteMin: number;      // hard minimum job price
+  costFloor: number;        // max(absoluteMin, marginFloor) — the safe minimum price
+  grandTotal: number;       // what the job is actually priced at
+  belowFloor: boolean;      // true = priced below the safe minimum (loss risk)
+  shortfall: number;        // how far below the floor (0 if healthy)
+  marginPct: number;        // target margin used
+  actualMarginPct: number;  // realised margin at the current price
+}
+
 export interface PricingResult {
   itemLines: ItemLine[];
   feeLines: FeeLine[];
@@ -219,6 +266,7 @@ export interface PricingResult {
   totalVolumeM3: number;        // sum of all item volumes (0 if no volume data)
   numTrips: number;             // Toyota Hiace trips needed (1 if no volume data)
   hasVolumeData: boolean;       // true if at least one item has volumeM3
+  margin: JobMargin;            // cost-floor / margin guard result
 }
 
 // --------------------------------------------------------------------------
@@ -386,6 +434,108 @@ export function calcOvertimeCharge(actualMinutes: number): { blocks: number; cha
   const blocks = Math.ceil((actualMinutes - cfg.capMinutes) / cfg.blockMinutes);
   const charge = Math.min(blocks * cfg.blockRate, cfg.maxCharge);
   return { blocks, charge };
+}
+
+/**
+ * Estimate how many crew-hours a job will realistically take. Used by the
+ * cost-floor guard to work out the real cost of running the job. Gracefully
+ * handles missing volume data by leaning on per-item time estimates.
+ */
+export function estimateCrewHours(args: {
+  items: { serviceType: string; quantity: number; volumeM3?: number | null; carryOnly?: boolean }[];
+  totalVolumeM3?: number;
+  distanceKm?: number;
+  isRelocation?: boolean;
+}): number {
+  const c = PricingConfig.costFloor;
+  const items = args.items || [];
+  let hours = c.baseHours;
+
+  // Volume-based handling time (use provided total, else sum item volumes).
+  const vol = args.totalVolumeM3 != null && args.totalVolumeM3 > 0
+    ? args.totalVolumeM3
+    : items.reduce((s, it) => {
+        const v = it.volumeM3 != null && isFinite(it.volumeM3) && it.volumeM3 > 0 ? it.volumeM3 : 0;
+        return s + v * Math.max(1, Math.round(it.quantity || 1));
+      }, 0);
+  if (vol > 0) hours += c.hoursPerM3 * vol;
+
+  // Per-item handling time (D&R relocations are the most labour-intensive).
+  for (const it of items) {
+    const qty = Math.max(1, Math.round(it.quantity || 1));
+    let per: number;
+    if (it.serviceType === 'relocate') {
+      per = it.carryOnly ? c.hoursPerCarryItem : c.hoursPerDRItem;
+    } else {
+      per = c.hoursPerLaborItem;
+    }
+    hours += per * qty;
+  }
+
+  // Travel time for relocations (round trip + buffer).
+  if (args.isRelocation && args.distanceKm && args.distanceKm > 0) {
+    hours += c.travelHoursPerKm * args.distanceKm;
+  }
+
+  return round2(hours);
+}
+
+/**
+ * Cost-floor / margin guard. Estimates the real cost of a job and the lowest
+ * price that still hits the target margin, then compares it to the quoted
+ * grand total. Pure + side-effect free so it can run identically on the server,
+ * in the customer estimate wizard, and in the admin quote screen.
+ */
+export function evaluateJobMargin(args: {
+  items: { serviceType: string; quantity: number; volumeM3?: number | null; carryOnly?: boolean }[];
+  grandTotal: number;
+  totalVolumeM3?: number;
+  distanceKm?: number;
+  isRelocation?: boolean;
+  crewSize?: number;
+}): JobMargin {
+  const c = PricingConfig.costFloor;
+  const crew = Math.max(1, Math.round(Number(args.crewSize) || c.defaultCrewSize));
+  const hours = estimateCrewHours({
+    items: args.items,
+    totalVolumeM3: args.totalVolumeM3,
+    distanceKm: args.distanceKm,
+    isRelocation: args.isRelocation,
+  });
+
+  const crewCost = crew * hours * c.loadedMoverHourlyCost;
+
+  // Vehicle cost = van base + per-km fuel (the helper's labour is already counted
+  // in crewCost, so we deliberately exclude the transport helperFee here to avoid
+  // double-counting). Only relocations incur a vehicle cost.
+  let vehicleCost = 0;
+  if (args.isRelocation) {
+    const t = PricingConfig.transport;
+    const extraKm = Math.max(0, (args.distanceKm || 0) - t.includedKm);
+    vehicleCost = t.vanBase + extraKm * t.ratePerKm;
+  }
+
+  const estimatedCost = round2(crewCost + vehicleCost);
+  const marginFloor = c.marginPct < 1 ? round2(estimatedCost / (1 - c.marginPct)) : estimatedCost;
+  const costFloor = round2(Math.max(c.absoluteMinJobPrice, marginFloor));
+  const gt = round2(Number(args.grandTotal) || 0);
+  const belowFloor = c.enabled && gt > 0 && gt < costFloor;
+  const actualMarginPct = gt > 0 ? round2((gt - estimatedCost) / gt) : 0;
+
+  return {
+    enabled: c.enabled,
+    estimatedHours: hours,
+    crewSize: crew,
+    estimatedCost,
+    marginFloor,
+    absoluteMin: c.absoluteMinJobPrice,
+    costFloor,
+    grandTotal: gt,
+    belowFloor,
+    shortfall: belowFloor ? round2(costFloor - gt) : 0,
+    marginPct: c.marginPct,
+    actualMarginPct,
+  };
 }
 
 /** Look up a catalog install price for an item name (for fallback multipliers). */
@@ -659,6 +809,23 @@ export function computePricing(input: PricingInput): PricingResult {
   const depositAmount = fullUpfront ? grandTotal : round2(grandTotal * cfg.deposit.pct);
   const finalAmount = round2(grandTotal - depositAmount);
 
+  // ── G) Margin / cost-floor guard (warn-only) ────────────────────────────
+  const margin = evaluateJobMargin({
+    items: input.items,
+    grandTotal,
+    totalVolumeM3,
+    distanceKm: input.distanceKm,
+    isRelocation: input.needsRelocation,
+  });
+  if (margin.enabled && margin.belowFloor) {
+    requiresAdminReview = true;
+    reviewReasons.push(
+      `Below cost floor — priced $${grandTotal.toFixed(2)} vs safe minimum $${margin.costFloor.toFixed(2)} ` +
+      `(target ${Math.round(margin.marginPct * 100)}% margin on ~${margin.estimatedHours}h crew time). ` +
+      `Short by $${margin.shortfall.toFixed(2)}.`,
+    );
+  }
+
   return {
     itemLines,
     feeLines,
@@ -675,6 +842,7 @@ export function computePricing(input: PricingInput): PricingResult {
     totalVolumeM3,
     numTrips,
     hasVolumeData,
+    margin,
   };
 }
 

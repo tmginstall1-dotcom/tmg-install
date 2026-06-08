@@ -17,6 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import { requiresFullUpfront } from "@shared/pricing";
+import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
 
 const WHATSAPP_HREF = "https://wa.me/6580880757?text=hi";
 const WHATSAPP_DISPLAY = "+65 8088 0757";
@@ -545,6 +546,21 @@ export default function QuoteStatus() {
                   <span className="uppercase tracking-wide text-sm" style={{ letterSpacing: "0.08em" }}>Total</span>
                   <span className="tabular-nums">{formatMoney(quote.total)}</span>
                 </div>
+              </div>
+            </motion.div>
+
+            {/* Standard Terms & Conditions */}
+            <motion.div {...fadeUp(0.1)} className="border border-black/12 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
+              <div className="px-6 py-4 border-b border-black/8">
+                <p className="text-[10px] font-semibold tracking-widest uppercase text-black/60" style={{ letterSpacing: "0.15em" }}>
+                  <span className="inline-flex items-center gap-2"><AccentSquare /> Standard Terms &amp; Conditions</span>
+                </p>
+              </div>
+              <div className="px-6 py-5">
+                <QuoteTermsBlock
+                  heading={false}
+                  isRelocation={quote.items?.some((i: any) => i.serviceType === "relocate") || !!(quote as any).samePropertyMove}
+                />
               </div>
             </motion.div>
 
