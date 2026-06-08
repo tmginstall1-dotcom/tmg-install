@@ -4926,6 +4926,58 @@ ${systemPrompt}` });
     }
   });
 
+  // Staff: On-Site Time Clock — tap "Arrived on site" / "Going off site".
+  // Independent of the status state machine so it works for both installation
+  // and relocation jobs and across multiple days. Each "arrive" opens a session
+  // and each "leave" closes it; the system computes hours per day and auto-fills
+  // Second-Day Continuation when a job spans 2+ days (see recordSiteDeparture).
+  app.post("/api/quotes/:id/site-clock", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const id = parseInt(req.params.id);
+      const { action } = z.object({ action: z.enum(['arrive', 'leave']) }).parse(req.body);
+
+      const existing = await storage.getQuote(id);
+      if (!existing) return res.status(404).json({ message: "Quote not found" });
+
+      // Authz mirrors /arrived and /stage: assigned staff, a member of the
+      // assigned team, or an admin.
+      const caller = await storage.getUserById(req.session.userId);
+      if (!caller || (caller.role !== 'staff' && caller.role !== 'admin')) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      if (caller.role === 'staff') {
+        const assignedStaffId = (existing as any).assignedStaffId;
+        const assignedTeamId  = (existing as any).assignedTeamId;
+        const callerTeamId    = (caller as any).teamId;
+        const assignedSolo = assignedStaffId != null && assignedStaffId === caller.id;
+        const onAssignedTeam = assignedTeamId != null && callerTeamId != null && assignedTeamId === callerTeamId;
+        if (!assignedSolo && !onAssignedTeam) {
+          return res.status(403).json({ message: "You are not assigned to this job" });
+        }
+      }
+
+      const visits = Array.isArray((existing as any).siteVisits) ? (existing as any).siteVisits : [];
+      const hasOpen = visits.some((v: any) => v && v.arrivedAt && !v.leftAt);
+      if (action === 'arrive' && hasOpen) {
+        return res.status(400).json({ message: "You're already checked in on site" });
+      }
+      if (action === 'leave' && !hasOpen) {
+        return res.status(400).json({ message: "You're not checked in on site" });
+      }
+
+      const quote = action === 'arrive'
+        ? await storage.recordSiteArrival(id, caller.id)
+        : await storage.recordSiteDeparture(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      res.json(quote);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      console.error(`[SiteClock] Error for quote #${req.params.id}:`, err);
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   // Staff: Relocation stage transition (simple 3-step flow)
   //   assigned       → at_pickup   (pickup photo)
   //   at_pickup      → at_dropoff  (dropoff photo)

@@ -4,6 +4,8 @@
 - [Admin route authorization](admin-route-authz.md) — admin routes must check `caller.role==='admin'` via getUserById, not just session.userId; bind child resources to parent id to stop IDOR.
 - [P&L salary calc](pnl-salary-calc.md) — P&L Staff Salary = full monthly salary (no calendar-day proration) + actual hourly/OT from attendance; keep in lockstep with payslip formula.
 - [GGV scan columns](ggv-scan-columns.md) — GGV job-sheet has THREE money columns; actualPrice is the rightmost/smallest, read directly, never `listed − deduction`.
+- [On-site time clock](on-site-time-clock.md) — split sessions at SGT (fixed UTC+8) midnight; multi-day folds Day-2 hours into editQuote auto.
+- [drizzle push interactive](drizzle-push-interactive.md) — `db:push` prompts can't be piped; for simple column adds run ALTER TABLE via psql instead.
 - [Overtime policy surfaces](overtime-policy-surfaces.md) — scheduled-time/overtime wording+math is duplicated across terms/email/Estimate/Landing/pricing/QuoteDetail/server; change in lockstep; invoice payload must carry volumeM3+carryOnly+distanceKm.
 - [Staff job action gating](staff-job-action-gating.md) — jobs can be `booked` WITH an assignment (admin/WhatsApp create, deposit auto-book); staff actions + server guards must treat booked-with-assignment like `assigned`.
 - [Catalog seed Rounds](catalog-seed-rounds.md) — add/reprice catalog items via a new idempotent "Round N" migration in server/seed.ts (base array only seeds fresh DBs); restart workflow after.

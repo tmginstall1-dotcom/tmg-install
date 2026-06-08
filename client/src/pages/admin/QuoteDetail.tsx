@@ -14,7 +14,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatItemDescription } from "@/lib/itemLabel";
-import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig, evaluateJobMargin, getJobSchedule } from "@shared/pricing";
+import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig, evaluateJobMargin, getJobSchedule, computeSiteTime, type SiteVisit } from "@shared/pricing";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
 import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
 import { InvoiceMessageDialog } from "@/components/shared/InvoiceMessageDialog";
@@ -2536,6 +2536,35 @@ export default function AdminQuoteDetail() {
  <p className="text-[11px] text-zinc-400">Leave hours at 0 to charge just the ${PricingConfig.secondDay.returnFee} return fee, then enter the actual Day-2 hours once the crew finishes.</p>
  </div>
  )}
+ {(() => {
+ const summary = computeSiteTime((quote.siteVisits as SiteVisit[] | undefined) || []);
+ if (summary.days.length === 0) return null;
+ const fmt = (iso: string) => new Date(iso).toLocaleTimeString('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' });
+ return (
+ <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3" data-testid="section-site-time-log">
+ <p className="text-xs font-semibold text-zinc-700 mb-2">Recorded on-site time (auto-tracked by staff app)</p>
+ <div className="space-y-2">
+ {summary.days.map((day) => (
+ <div key={day.date} className="text-xs text-zinc-600">
+ <div className="flex items-center justify-between font-medium text-zinc-800">
+ <span>Day {day.dayNumber} · {day.label}</span>
+ <span data-testid={`text-admin-site-day-hours-${day.dayNumber}`}>{day.hours.toFixed(2)}h</span>
+ </div>
+ {day.visits.map((v, i) => (
+ <div key={i} className="flex items-center justify-between text-zinc-500 pl-2">
+ <span>{fmt(v.arrivedAt)} – {v.open ? 'on site now' : fmt(v.leftAt!)}</span>
+ {!v.open && <span>{v.hours.toFixed(2)}h</span>}
+ </div>
+ ))}
+ </div>
+ ))}
+ </div>
+ {summary.spansMultipleDays && (
+ <p className="text-[11px] text-zinc-500 mt-2">Day-2 hours ({summary.secondDayHours.toFixed(2)}h) were auto-filled into Second-Day Continuation above when the crew checked out.</p>
+ )}
+ </div>
+ );
+ })()}
  </div>
  <div>
  <label className="text-xs font-medium text-zinc-500 block mb-1.5">Goodwill Discount</label>

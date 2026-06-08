@@ -1,10 +1,11 @@
 import { useParams, Link } from "wouter";
-import { useQuote, useStaffArrived, useStaffCompleted, useStaffStage } from "@/hooks/use-quotes";
+import { useQuote, useStaffArrived, useStaffCompleted, useStaffStage, useStaffSiteClock } from "@/hooks/use-quotes";
+import { computeSiteTime, type SiteVisit } from "@shared/pricing";
 import { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft, CheckCircle2, X, Loader2, Clock, Package, User, CalendarDays,
   Upload, AlertTriangle, ZoomIn, ImagePlus, Navigation2, MapPin, Radio, ListChecks, Square, SquareCheck, Truck,
-  PenLine, RotateCcw,
+  PenLine, RotateCcw, LogIn, LogOut, Timer,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
@@ -394,6 +395,7 @@ export default function JobDetail() {
   const arrivedMutation = useStaffArrived();
   const completedMutation = useStaffCompleted();
   const stageMutation = useStaffStage();
+  const siteClockMutation = useStaffSiteClock();
   const { toast } = useToast();
   const { user } = useAuth();
   const { isTracking, startTracking, stopTracking } = useBackgroundLocation();
@@ -629,6 +631,31 @@ export default function JobDetail() {
   const actionMeta = action ? metaFor(action) : null;
   const isAtDropoffOrCompleted = relocation && ['at_dropoff', 'completed'].includes(job.status);
 
+  // On-Site Time Clock state. Sessions are stored on the quote; the system
+  // groups them by Singapore day and auto-fills Second-Day Continuation hours.
+  const siteVisits = (job.siteVisits as SiteVisit[] | undefined) || [];
+  const siteSummary = computeSiteTime(siteVisits);
+  const onSite = siteSummary.hasOpenVisit;
+  const fmtTime = (iso: string) => format(new Date(iso), "h:mma");
+  const handleSiteClock = (action: 'arrive' | 'leave') => {
+    siteClockMutation.mutate(
+      { id: job.id, action },
+      {
+        onSuccess: () => toast({
+          title: action === 'arrive' ? "Checked in on site" : "Checked out — off site",
+          description: action === 'arrive'
+            ? "Your on-site time is now being tracked."
+            : "Your on-site hours have been recorded.",
+        }),
+        onError: (err: any) => toast({
+          title: "Could not update on-site time",
+          description: err?.message || "Please try again.",
+          variant: "destructive",
+        }),
+      },
+    );
+  };
+
   return (
     <div className="min-h-screen bg-secondary/20 pb-36">
 
@@ -767,6 +794,79 @@ export default function JobDetail() {
                   <p className="text-sm font-semibold">{job.customer.name} · {job.customer.phone}</p>
                 </div>
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* On-Site Time Clock */}
+        <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-5 py-3 border-b bg-secondary/30 flex items-center gap-2">
+            <Timer className="w-4 h-4 text-muted-foreground" />
+            <p className="font-black text-sm">On-Site Time</p>
+            {onSite && (
+              <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-black uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                <Radio className="w-3 h-3" /> On site now
+              </span>
+            )}
+          </div>
+          <div className="px-5 py-4 space-y-4">
+            <button
+              type="button"
+              onClick={() => handleSiteClock(onSite ? 'leave' : 'arrive')}
+              disabled={siteClockMutation.isPending}
+              data-testid="button-site-clock"
+              className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-black text-sm uppercase tracking-wide transition-colors disabled:opacity-60 ${
+                onSite
+                  ? 'bg-rose-600 text-white hover:bg-rose-700'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              }`}
+            >
+              {siteClockMutation.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : onSite ? (
+                <><LogOut className="w-5 h-5" /> Going Off Site</>
+              ) : (
+                <><LogIn className="w-5 h-5" /> Arrived On Site</>
+              )}
+            </button>
+
+            {siteSummary.days.length > 0 ? (
+              <div className="space-y-3">
+                {siteSummary.days.map((day) => (
+                  <div key={day.date} className="rounded-xl border bg-secondary/20 p-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-xs font-black uppercase tracking-wide">
+                        Day {day.dayNumber}
+                        <span className="ml-1.5 text-muted-foreground font-bold normal-case">{day.label}</span>
+                      </p>
+                      <span className="text-xs font-black" data-testid={`text-site-day-hours-${day.dayNumber}`}>
+                        {day.hours.toFixed(2)}h
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {day.visits.map((v, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs text-muted-foreground font-semibold">
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="w-3 h-3" />
+                            {fmtTime(v.arrivedAt)} – {v.open ? <span className="text-emerald-600 font-black">on site now</span> : fmtTime(v.leftAt!)}
+                          </span>
+                          {!v.open && <span className="font-bold">{v.hours.toFixed(2)}h</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {siteSummary.spansMultipleDays && (
+                  <p className="text-[11px] font-semibold text-muted-foreground leading-snug">
+                    This job spans more than one day. The {siteSummary.secondDayHours.toFixed(2)}h after Day 1
+                    have been added automatically as Second-Day Continuation on the quote.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs font-semibold text-muted-foreground text-center">
+                Tap "Arrived On Site" when you start work. Your hours are tracked automatically.
+              </p>
             )}
           </div>
         </div>

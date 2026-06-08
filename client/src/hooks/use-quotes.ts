@@ -220,6 +220,30 @@ export function useStaffArrived() {
   });
 }
 
+export function useStaffSiteClock() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, action }: { id: number | string; action: 'arrive' | 'leave' }) => {
+      const res = await fetch(`${API_BASE}/api/quotes/${id}/site-clock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Could not update on-site time");
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.quotes.get.path, variables.id] });
+      queryClient.invalidateQueries({ queryKey: [api.quotes.list.path] });
+      queryClient.invalidateQueries({ queryKey: ['/api/staff/quotes'] });
+    },
+  });
+}
+
 export function useStaffStage() {
   const queryClient = useQueryClient();
   return useMutation({

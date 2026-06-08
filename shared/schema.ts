@@ -401,6 +401,15 @@ export const quotes = pgTable("quotes", {
   secondDayHours: numeric("second_day_hours").default("0"), // actual Day-2 on-site hours
   secondDayCrewSize: integer("second_day_crew_size").default(2), // movers on Day 2 — admin-adjustable for bigger crews
 
+  // On-Site Time Clock: staff tap "Arrived on site" / "Going off site" in the
+  // app. Each entry is one on-site session. The system groups sessions by
+  // Singapore calendar date to show hours per day, and when a job spans 2+ days
+  // it auto-fills secondDayHours above (the Day-2+ time) so the Second-Day
+  // Continuation charge is accurate without anyone guessing. See
+  // computeSiteTime() in shared/pricing.ts. Format:
+  //   [{ arrivedAt: ISO-string, leftAt: ISO-string | null, byUserId?: number }]
+  siteVisits: jsonb("site_visits").default([]),
+
   // Invoice / quotation billing presentation. The work-site address (above)
   // is where staff actually go; these fields determine how the customer is
   // billed on the printed Quotation / Invoice / Receipt.

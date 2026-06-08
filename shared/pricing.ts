@@ -319,6 +319,140 @@ export function calcSecondDayContinuation(enabled: boolean, hours: number | stri
   };
 }
 
+/* -------------------------------------------------------------------------- */
+/* On-Site Time Clock                                                         */
+/* -------------------------------------------------------------------------- */
+
+/** One on-site session, recorded when staff tap "Arrived" / "Going off site". */
+export interface SiteVisit {
+  arrivedAt: string;       // ISO timestamp when staff arrived on site
+  leftAt?: string | null;  // ISO timestamp when they went off site (null = still on site)
+  byUserId?: number;       // staff user who recorded it
+}
+
+export interface SiteTimeVisit {
+  arrivedAt: string;
+  leftAt: string | null;
+  hours: number;           // closed-session duration in hours (0 while still on site)
+  open: boolean;           // true = on site now (no leftAt yet)
+}
+
+export interface SiteTimeDay {
+  date: string;            // YYYY-MM-DD in Singapore time
+  label: string;           // e.g. "Mon, 8 Jun"
+  dayNumber: number;       // 1 = first day on site, 2 = next day, ...
+  visits: SiteTimeVisit[];
+  hours: number;           // total closed-session hours that day
+}
+
+export interface SiteTimeSummary {
+  days: SiteTimeDay[];
+  day1Hours: number;       // hours on the first on-site day
+  secondDayHours: number;  // total hours on every day AFTER the first
+  totalHours: number;      // all on-site hours
+  hasOpenVisit: boolean;   // someone is currently checked in on site
+  spansMultipleDays: boolean;
+}
+
+const SITE_TZ = "Asia/Singapore";
+
+function sgDateKey(iso: string): string {
+  // en-CA renders as YYYY-MM-DD, which sorts correctly as a string.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: SITE_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date(iso));
+}
+
+function sgDateLabel(iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: SITE_TZ, weekday: "short", day: "numeric", month: "short",
+  }).format(new Date(iso));
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Singapore is a fixed UTC+8 with no daylight saving, so the start of any SGT
+// calendar day is an exact instant and every SGT day is exactly 24h long.
+function sgDayStartMs(dateKey: string): number {
+  return new Date(`${dateKey}T00:00:00.000+08:00`).getTime();
+}
+
+/**
+ * Group raw on-site sessions into per-day totals (Singapore time).
+ *
+ * Day 1 is the first calendar date the crew was on site; any later date counts
+ * toward Second-Day Continuation. A session that runs past midnight is split at
+ * the Singapore day boundary so each day gets only the hours actually worked
+ * that day (e.g. 23:00–01:00 → 1h on Day 1, 1h on Day 2). Open sessions (no
+ * leftAt yet) contribute 0 hours until the staff member taps "Going off site".
+ */
+export function computeSiteTime(visits?: SiteVisit[] | null): SiteTimeSummary {
+  const list = Array.isArray(visits) ? visits.filter(v => v && v.arrivedAt) : [];
+  const sorted = [...list].sort(
+    (a, b) => new Date(a.arrivedAt).getTime() - new Date(b.arrivedAt).getTime(),
+  );
+
+  // Accumulate raw (unrounded) hours per SGT day, plus per-day display segments.
+  const byDate = new Map<string, SiteTimeDay>();
+  let hasOpenVisit = false;
+
+  const ensureDay = (dateKey: string, anchorIso: string): SiteTimeDay => {
+    let day = byDate.get(dateKey);
+    if (!day) {
+      day = { date: dateKey, label: sgDateLabel(anchorIso), dayNumber: 0, visits: [], hours: 0 };
+      byDate.set(dateKey, day);
+    }
+    return day;
+  };
+
+  for (const v of sorted) {
+    const open = !v.leftAt;
+    if (open) {
+      hasOpenVisit = true;
+      const key = sgDateKey(v.arrivedAt);
+      ensureDay(key, v.arrivedAt).visits.push({ arrivedAt: v.arrivedAt, leftAt: null, hours: 0, open: true });
+      continue;
+    }
+
+    const startMs = new Date(v.arrivedAt).getTime();
+    const endMs = new Date(v.leftAt!).getTime();
+    if (!(endMs > startMs)) {
+      // Zero / negative duration — record as a 0h segment on the arrival day.
+      const key = sgDateKey(v.arrivedAt);
+      ensureDay(key, v.arrivedAt).visits.push({ arrivedAt: v.arrivedAt, leftAt: v.leftAt!, hours: 0, open: false });
+      continue;
+    }
+
+    // Walk the session day-by-day in SGT, clipping to each day's boundary.
+    let cursor = startMs;
+    while (cursor < endMs) {
+      const cursorIso = new Date(cursor).toISOString();
+      const key = sgDateKey(cursorIso);
+      const nextBoundary = sgDayStartMs(key) + DAY_MS;
+      const segEnd = Math.min(endMs, nextBoundary);
+      const hrs = (segEnd - cursor) / 3_600_000;
+      const day = ensureDay(key, cursorIso);
+      day.visits.push({
+        arrivedAt: new Date(cursor).toISOString(),
+        leftAt: new Date(segEnd).toISOString(),
+        hours: round2(hrs),
+        open: false,
+      });
+      day.hours += hrs;
+      cursor = segEnd;
+    }
+  }
+
+  const days = Array.from(byDate.values()).sort((a, b) => (a.date < b.date ? -1 : 1));
+  days.forEach((d, i) => { d.dayNumber = i + 1; d.hours = round2(d.hours); });
+
+  const day1Hours = days[0]?.hours ?? 0;
+  const secondDayHours = round2(days.slice(1).reduce((s, d) => s + d.hours, 0));
+  const totalHours = round2(days.reduce((s, d) => s + d.hours, 0));
+
+  return { days, day1Hours, secondDayHours, totalHours, hasOpenVisit, spansMultipleDays: days.length > 1 };
+}
+
 /**
  * Compute the Dismantle & Reinstall (D&R) price for a relocation item.
  *

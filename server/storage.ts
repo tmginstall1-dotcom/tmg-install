@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { calcSecondDayContinuation, requiresFullUpfront, PricingConfig } from "@shared/pricing";
+import { calcSecondDayContinuation, requiresFullUpfront, PricingConfig, computeSiteTime, type SiteVisit } from "@shared/pricing";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   attendanceAmendments, leaveRequests, payslips, staffLoans, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
@@ -115,6 +115,8 @@ export interface IStorage {
     quoteUpdates?: Partial<typeof quotes.$inferInsert>;
     items?: Omit<InsertQuoteItem, 'quoteId'>[];
   }): Promise<QuoteResponse | undefined>;
+  recordSiteArrival(id: number, userId: number): Promise<QuoteResponse | undefined>;
+  recordSiteDeparture(id: number): Promise<QuoteResponse | undefined>;
   updateAdditionalCharge(id: number, additionalCharge: string, additionalChargeNote: string): Promise<QuoteResponse | undefined>;
   addJobUpdate(update: InsertJobUpdate): Promise<void>;
   deleteQuote(id: number): Promise<void>;
@@ -1254,6 +1256,69 @@ export class DatabaseStorage implements IStorage {
       });
     }
 
+    return await this.fetchQuoteDetails(id);
+  }
+
+  // On-Site Time Clock — staff tap "Arrived on site". Opens a new session.
+  // No-op if a session is already open (guarded again in the route).
+  async recordSiteArrival(id: number, userId: number): Promise<QuoteResponse | undefined> {
+    // Lock the quote row so concurrent arrive/leave taps cannot clobber each
+    // other's siteVisits array (read-modify-write).
+    const ok = await db.transaction(async (tx) => {
+      const rows = await tx.select().from(quotes).where(eq(quotes.id, id)).for('update');
+      const cur = rows[0];
+      if (!cur) return false;
+      const visits: SiteVisit[] = Array.isArray((cur as any).siteVisits) ? [...(cur as any).siteVisits] : [];
+      const hasOpen = visits.some(v => v && v.arrivedAt && !v.leftAt);
+      if (!hasOpen) {
+        visits.push({ arrivedAt: new Date().toISOString(), leftAt: null, byUserId: userId });
+        await tx.update(quotes).set({ siteVisits: visits }).where(eq(quotes.id, id));
+      }
+      return true;
+    });
+    if (!ok) return undefined;
+    return await this.fetchQuoteDetails(id);
+  }
+
+  // On-Site Time Clock — staff tap "Going off site". Closes the latest open
+  // session. If the recorded sessions now span 2+ Singapore calendar days, the
+  // Day-2+ hours are folded into Second-Day Continuation via editQuote so the
+  // total/balance recompute automatically.
+  async recordSiteDeparture(id: number): Promise<QuoteResponse | undefined> {
+    // Lock the row, close the latest open session, and persist — atomically.
+    const result = await db.transaction(async (tx) => {
+      const rows = await tx.select().from(quotes).where(eq(quotes.id, id)).for('update');
+      const cur = rows[0];
+      if (!cur) return { found: false, visits: [] as SiteVisit[] };
+      const visits: SiteVisit[] = Array.isArray((cur as any).siteVisits) ? [...(cur as any).siteVisits] : [];
+      let closed = false;
+      for (let i = visits.length - 1; i >= 0; i--) {
+        if (visits[i] && visits[i].arrivedAt && !visits[i].leftAt) {
+          visits[i] = { ...visits[i], leftAt: new Date().toISOString() };
+          closed = true;
+          break;
+        }
+      }
+      if (closed) {
+        await tx.update(quotes).set({ siteVisits: visits }).where(eq(quotes.id, id));
+      }
+      return { found: true, visits, closed };
+    });
+    if (!result.found) return undefined;
+    if (!result.closed) return await this.fetchQuoteDetails(id);
+
+    // If the recorded sessions span 2+ Singapore days, fold the Day-2+ hours
+    // into Second-Day Continuation so the total/balance recompute. The tracked
+    // on-site time is the source of truth for these fields.
+    const summary = computeSiteTime(result.visits);
+    if (summary.spansMultipleDays && summary.secondDayHours > 0) {
+      await this.editQuote(id, {
+        quoteUpdates: {
+          secondDayContinuation: true,
+          secondDayHours: summary.secondDayHours.toFixed(2),
+        },
+      });
+    }
     return await this.fetchQuoteDetails(id);
   }
 
