@@ -103,9 +103,9 @@ export const PricingConfig = {
     // because of on-site access delays (loading-bay parking, lift congestion).
     // The crew has to be re-dispatched (van + movers) and a fresh slot burned.
     returnFee: 120,            // SGD flat re-mobilisation fee charged once when the job continues to Day 2
-    perPersonHourlyRate: 30,   // SGD per mover, per hour of actual Day-2 on-site time ($30/person/hr; Day-2 continuation only — NOT the overtime rate)
+    perPersonHourlyRate: 50,   // SGD per mover, per hour of actual Day-2 on-site time ($50/person/hr; matches the overtime rate)
     defaultCrewSize: 2,        // standard van crew = 2 movers; admin can raise this per job for bigger teams
-    hourlyRate: 60,            // legacy effective 2-man rate (perPersonHourlyRate × defaultCrewSize) — kept for back-compat
+    hourlyRate: 100,           // legacy effective 2-man rate (perPersonHourlyRate × defaultCrewSize) — kept for back-compat
   },
   // --------------------------------------------------------------------------
   // Cost-floor / margin guard — the "never lose money" safety net.
