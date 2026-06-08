@@ -38,6 +38,12 @@ changes (not interpolated); terms.ts / email.ts / QuoteDetail read the rates fro
   charges against: per-item `volumeM3` + `carryOnly` and top-level `distanceKm`. The
   invoice payload (`buildInvoicePayload` in `server/routes.ts`) must carry those item
   fields + distanceKm, or the invoice's scheduled-hours note diverges from the charge.
+- Shared `terms.ts` clauses are NOT job-specific: never hardcode crew size (e.g.
+  `defaultCrewSize`-person crew) or other per-job numbers there — it will contradict the
+  job-specific `QuoteScheduleNote`. Keep the actual movers×hours=man-hours figure in
+  QuoteScheduleNote (web) + invoicePdf (PDF) only, in lockstep. Relocation-only phrases
+  in otherwise-shared clauses (e.g. "included on-site time" in the Payment clause) must be
+  gated on `isRelocation`, or non-relocation quotes reference a block that isn't shown.
 - Overtime applies to Carry-Only relocation only; D&R is per-item and skips overtime.
   Gate on the authoritative `relocationMode` ('full'=skip, 'carry'=charge); the legacy
   per-item fallback must key off `carryOnly===false` (or carryOnly null AND unitPrice>0)

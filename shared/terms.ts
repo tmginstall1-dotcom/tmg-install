@@ -51,7 +51,7 @@ export function getQuoteTerms(opts?: { isRelocation?: boolean }): QuoteTerm[] {
   if (isRelocation) {
     terms.push({
       title: "Crew & included time",
-      body: `Your price covers a ${sd.defaultCrewSize}-person crew for the scheduled on-site time shown on this quote (based on the items and distance for your job). If the job runs beyond the scheduled time, additional time is charged at ${money(ot.perPersonHourlyRate)} per mover, per hour, billed in ${ot.blockMinutes}-minute blocks.`,
+      body: `Your price covers the crew and scheduled on-site time shown on this quote (based on the items and distance for your job). If the job runs beyond the scheduled time, additional time is charged at ${money(ot.perPersonHourlyRate)} per mover, per hour, billed in ${ot.blockMinutes}-minute blocks.`,
     });
     terms.push({
       title: "Same-day completion",
@@ -84,9 +84,12 @@ export function getQuoteTerms(opts?: { isRelocation?: boolean }): QuoteTerm[] {
     body: `Promo codes cannot be combined with other discounts (including the dismantle-&-reinstall bundle rate) and do not apply to survey-required or specialty items. One promotion per job.`,
   });
 
+  const acceptance = isRelocation
+    ? "Paying the deposit confirms that you accept this quote, the included on-site time shown above, and these Standard Terms & Conditions."
+    : "Paying the deposit confirms that you accept this quote and these Standard Terms & Conditions.";
   terms.push({
     title: "Payment",
-    body: `A ${Math.round(dep.pct * 100)}% deposit confirms the booking and the balance is due on completion. Jobs under ${money(dep.fullPaymentThreshold)} are payable in full to confirm the booking.`,
+    body: `A ${Math.round(dep.pct * 100)}% deposit confirms the booking and the balance is due on completion. Jobs under ${money(dep.fullPaymentThreshold)} are payable in full to confirm the booking. ${acceptance}`,
   });
 
   terms.push({

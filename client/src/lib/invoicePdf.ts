@@ -491,18 +491,21 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
         isRelocation: true,
         crewSize: Number(data.secondDayCrewSize) || undefined,
       });
-      const schedHrs = sched.scheduledHours % 1 === 0 ? `${sched.scheduledHours}` : sched.scheduledHours.toFixed(1);
+      const fmtH = (n: number) => (n % 1 === 0 ? `${n}` : n.toFixed(1));
+      const schedHrs = fmtH(sched.scheduledHours);
+      const manHrs = fmtH(sched.scheduledHours * sched.crewSize);
+      const crewRate = sched.overtimePerManPerHour * sched.crewSize;
       y += 8;
       if (y + 12 > pageH - 18) { doc.addPage(); y = 14; }
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
       doc.setTextColor(17, 17, 17);
-      doc.text(`Scheduled: ${sched.crewSize} mover${sched.crewSize !== 1 ? "s" : ""} × ~${schedHrs} hour${schedHrs === "1" ? "" : "s"} on site`, marginX, y);
+      doc.text(`Included on-site time: ${sched.crewSize} mover${sched.crewSize !== 1 ? "s" : ""} × ${schedHrs} hour${schedHrs === "1" ? "" : "s"} = ${manHrs} man-hours`, marginX, y);
       y += 4;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
       doc.setTextColor(107, 114, 128);
-      const schedWrap = doc.splitTextToSize(`Extra time beyond this is S$${sched.overtimePerManPerHour} per mover, per hour (billed in ${sched.blockMinutes}-minute blocks).`, contentW);
+      const schedWrap = doc.splitTextToSize(`Extra time beyond this is S$${sched.overtimePerManPerHour} per mover, per hour (= S$${crewRate}/hour for your ${sched.crewSize}-person crew), billed in ${sched.blockMinutes}-minute blocks.`, contentW);
       doc.text(schedWrap, marginX, y);
       y += schedWrap.length * 3.1;
     }
