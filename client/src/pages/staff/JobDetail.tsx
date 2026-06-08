@@ -154,7 +154,20 @@ function isRelocationJob(job: any): boolean {
   if (!job) return false;
   const items: any[] = job.items || [];
   if (items.some((i: any) => i.serviceType === 'relocate')) return true;
-  if (job.pickupAddress && job.dropoffAddress) return true;
+  // A non-empty pickup OR dropoff address only ever exists on relocation jobs —
+  // installation/dismantle jobs never set one. This reliably catches
+  // admin/WhatsApp-created moves whose line items are generic ("manual") and
+  // which may not always have BOTH addresses filled in.
+  if (job.pickupAddress && String(job.pickupAddress).trim()) return true;
+  if (job.dropoffAddress && String(job.dropoffAddress).trim()) return true;
+  // Admin/WhatsApp jobs also flag the move via selectedServices (e.g. "Relocation").
+  let services: any = job.selectedServices;
+  if (typeof services === 'string') {
+    try { services = JSON.parse(services); } catch { services = []; }
+  }
+  if (Array.isArray(services) && services.some((s: any) => typeof s === 'string' && s.toLowerCase().includes('relocat'))) {
+    return true;
+  }
   return false;
 }
 
@@ -178,9 +191,16 @@ type Action =
 
 function nextAction(job: any): Action | null {
   if (!job) return null;
+  // A job assigned at admin/WhatsApp creation (or a pre-assigned quote that was
+  // auto-booked on deposit) can sit at status "booked" with a staff/team already
+  // attached. Such a job is ready to be worked, so we treat "booked" the same as
+  // "assigned" — but only when there IS an assignment, otherwise the crew is
+  // genuinely still waiting for the admin to assign someone.
+  const assigned = !!(job.assignedStaffId || job.assignedTeamId);
   const relocation = isRelocationJob(job);
   if (relocation) {
     switch (job.status) {
+      case 'booked':      return assigned ? { kind: 'stage_at_pickup' } : null;
       case 'assigned':    return { kind: 'stage_at_pickup' };
       case 'at_pickup':   return { kind: 'stage_at_dropoff' };
       // Legacy: any quote already at 'in_transit' from the old flow
@@ -191,6 +211,7 @@ function nextAction(job: any): Action | null {
     }
   }
   switch (job.status) {
+    case 'booked':      return assigned ? { kind: 'install_arrive' } : null;
     case 'assigned':    return { kind: 'install_arrive' };
     case 'in_progress': return { kind: 'install_complete' };
     default: return null;
@@ -1084,7 +1105,7 @@ export default function JobDetail() {
             </div>
           )}
 
-          {job.status === 'booked' && !pendingAction && (
+          {job.status === 'booked' && !action && (
             <div className="w-full py-3.5 px-4 text-center font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 rounded-2xl border border-blue-200 dark:border-blue-800 text-sm flex items-center justify-center gap-2">
               <CheckCircle2 className="w-4 h-4" /> Booking confirmed — awaiting staff assignment
             </div>

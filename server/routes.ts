@@ -4857,6 +4857,32 @@ ${systemPrompt}` });
         note: z.string().optional()
       }).parse(req.body);
 
+      const existing = await storage.getQuote(id);
+      if (!existing) return res.status(404).json({ message: "Quote not found" });
+
+      // Authz: only the assigned staff member, a member of the assigned team,
+      // or an admin may check in to a job (mirrors /stage and /completed-checkout).
+      const caller = await storage.getUserById(req.session.userId);
+      if (!caller || (caller.role !== 'staff' && caller.role !== 'admin')) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      if (caller.role === 'staff') {
+        const assignedStaffId = (existing as any).assignedStaffId;
+        const assignedTeamId  = (existing as any).assignedTeamId;
+        const callerTeamId    = (caller as any).teamId;
+        const assignedSolo = assignedStaffId != null && assignedStaffId === caller.id;
+        const onAssignedTeam = assignedTeamId != null && callerTeamId != null && assignedTeamId === callerTeamId;
+        if (!assignedSolo && !onAssignedTeam) {
+          return res.status(403).json({ message: "You are not assigned to this job" });
+        }
+      }
+
+      // A job becomes actionable for staff once it is "assigned" — or "booked"
+      // with an assignment (admin/WhatsApp-created jobs are booked-with-staff).
+      if (existing.status !== 'assigned' && existing.status !== 'booked') {
+        return res.status(400).json({ message: `Cannot check in from "${existing.status}" status` });
+      }
+
       const quote = await storage.updateQuoteStatus(id, 'in_progress', {
         actorType: 'staff',
         note: note || 'Staff arrived at location',
@@ -4936,7 +4962,7 @@ ${systemPrompt}` });
       // compatibility with quotes started on the old 4-stage flow.
       const cur = existing.status;
       const ok =
-        (stage === 'at_pickup'  && cur === 'assigned') ||
+        (stage === 'at_pickup'  && (cur === 'assigned' || cur === 'booked')) ||
         (stage === 'at_dropoff' && (cur === 'at_pickup' || cur === 'in_transit')) ||
         (stage === 'completed'  && (cur === 'at_dropoff' || cur === 'in_progress'));
       if (!ok) {
