@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { requiresFullUpfront } from "@shared/pricing";
 import { getQuoteTerms, QUOTE_TERMS_HEADING } from "@shared/terms";
+import { getJobSchedule } from "@shared/pricing";
 
 const CO      = "The Moving Guy Pte Ltd";
 const UEN     = "202424156H";
@@ -476,6 +477,36 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
   // ── Standard Terms & Conditions ──────────────────────────────────
   {
     const isReloc = (data.items || []).some((it) => it.serviceType === "relocate");
+
+    // Job schedule line — what the price covers (movers × scheduled hours).
+    if (isReloc) {
+      const sched = getJobSchedule({
+        items: (data.items || []).filter((it) => it.serviceType !== "discount").map((it) => ({
+          serviceType: it.serviceType || "",
+          quantity: Number(it.quantity) || 1,
+          volumeM3: (it as any).volumeM3 != null ? Number((it as any).volumeM3) : undefined,
+          carryOnly: !!(it as any).carryOnly,
+        })),
+        distanceKm: (data as any).samePropertyMove ? 0 : (Number((data as any).distanceKm) || 0),
+        isRelocation: true,
+        crewSize: Number(data.secondDayCrewSize) || undefined,
+      });
+      const schedHrs = sched.scheduledHours % 1 === 0 ? `${sched.scheduledHours}` : sched.scheduledHours.toFixed(1);
+      y += 8;
+      if (y + 12 > pageH - 18) { doc.addPage(); y = 14; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(17, 17, 17);
+      doc.text(`Scheduled: ${sched.crewSize} mover${sched.crewSize !== 1 ? "s" : ""} × ~${schedHrs} hour${schedHrs === "1" ? "" : "s"} on site`, marginX, y);
+      y += 4;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(107, 114, 128);
+      const schedWrap = doc.splitTextToSize(`Extra time beyond this is S$${sched.overtimePerManPerHour} per mover, per hour (billed in ${sched.blockMinutes}-minute blocks).`, contentW);
+      doc.text(schedWrap, marginX, y);
+      y += schedWrap.length * 3.1;
+    }
+
     const terms = getQuoteTerms({ isRelocation: isReloc });
     y += 8;
     if (y + 16 > pageH - 18) { doc.addPage(); y = 14; }

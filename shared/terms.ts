@@ -40,7 +40,6 @@ export function getQuoteTerms(opts?: { isRelocation?: boolean }): QuoteTerm[] {
   const sd = PricingConfig.secondDay;
   const fl = PricingConfig.floor;
   const dep = PricingConfig.deposit;
-  const includedHours = Math.round(ot.capMinutes / 60);
 
   const terms: QuoteTerm[] = [];
 
@@ -52,7 +51,7 @@ export function getQuoteTerms(opts?: { isRelocation?: boolean }): QuoteTerm[] {
   if (isRelocation) {
     terms.push({
       title: "Crew & included time",
-      body: `Relocation pricing covers a ${sd.defaultCrewSize}-person crew and up to ${includedHours} hour${includedHours === 1 ? "" : "s"} of on-site time. Additional time is charged at ${money(ot.blockRate)} per ${ot.blockMinutes} minutes (up to ${money(ot.maxCharge)} per day).`,
+      body: `Your price covers a ${sd.defaultCrewSize}-person crew for the scheduled on-site time shown on this quote (based on the items and distance for your job). If the job runs beyond the scheduled time, additional time is charged at ${money(sd.perPersonHourlyRate)} per mover, per hour, billed in ${ot.blockMinutes}-minute blocks.`,
     });
     terms.push({
       title: "Same-day completion",

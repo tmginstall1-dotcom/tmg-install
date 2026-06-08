@@ -41,7 +41,7 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-import { calcTransportFee, calcOvertimeCharge, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, FULL_PAYMENT_THRESHOLD, type PricingItem, type PricingFloor } from "@shared/pricing";
+import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, FULL_PAYMENT_THRESHOLD, type PricingItem, type PricingFloor } from "@shared/pricing";
 
 /**
  * Split a grand total into the up-front deposit and the remaining final amount,
@@ -4781,10 +4781,19 @@ ${systemPrompt}` });
     if (!isRelocation) return;
 
     const items: any[] = Array.isArray(raw.items) ? raw.items : [];
-    const hasDRItems = items.some(
-      (i: any) => i.serviceType === 'relocate' && parseFloat(i.unitPrice ?? '0') > 0
-    );
-    if (hasDRItems) {
+    // Overtime applies to Carry-Only relocation; D&R (full dismantle + reinstall)
+    // jobs are priced per-item and have no time window, so they skip overtime.
+    // Use the authoritative relocationMode field; fall back to per-item flags only
+    // for legacy rows. Carry-only items can have unitPrice>0 (special handling),
+    // so D&R detection keys off carryOnly === false, NOT a positive price.
+    const relocateItems = items.filter((i: any) => i.serviceType === 'relocate');
+    const isDRJob =
+      raw.relocationMode === 'full' ? true
+      : raw.relocationMode === 'carry' ? false
+      : (relocateItems.length > 0 && relocateItems.some((i: any) =>
+          i.carryOnly === false || (i.carryOnly == null && parseFloat(i.unitPrice ?? '0') > 0)
+        ));
+    if (isDRJob) {
       console.log(`[Overtime] Quote #${id}: D&R job — no overtime charge applied`);
       return;
     }
@@ -4834,14 +4843,32 @@ ${systemPrompt}` });
       return;
     }
 
-    const { blocks, charge } = calcOvertimeCharge(durationMinutes);
+    // Overtime allowance = THIS job's scheduled crew time (movers × scheduled
+    // hours derived from scope), not a flat 2-hour window. Rate scales with crew
+    // size at $30/mover/hr, with NO cap — overruns are fully recovered.
+    const schedule = getJobSchedule({
+      items: items.map((i: any) => ({
+        serviceType: i.serviceType,
+        quantity: Number(i.quantity) || 1,
+        volumeM3: i.volumeM3 != null ? Number(i.volumeM3) : undefined,
+        carryOnly: i.carryOnly != null ? !!i.carryOnly : i.serviceType === 'relocate',
+      })),
+      distanceKm: raw.samePropertyMove ? 0 : (Number(raw.distanceKm) || 0),
+      isRelocation: true,
+      crewSize: Number(raw.secondDayCrewSize) || undefined,
+    });
+
+    const { blocks, charge, ratePerBlock, includedMinutes } = calcOvertimeCharge(durationMinutes, {
+      includedMinutes: schedule.scheduledMinutes,
+      crewSize: schedule.crewSize,
+    });
     if (charge > 0) {
-      const overMin = durationMinutes - PricingConfig.overtime.capMinutes;
-      const overtimeNote = `Overtime: ${blocks} block${blocks !== 1 ? 's' : ''} × $${PricingConfig.overtime.blockRate} — labour ran ${durationMinutes} min (${overMin} min over ${PricingConfig.overtime.capMinutes}-min allowance) [${windowDesc}]`;
+      const overMin = durationMinutes - includedMinutes;
+      const overtimeNote = `Overtime: ${blocks} block${blocks !== 1 ? 's' : ''} × $${ratePerBlock} (${schedule.crewSize} movers) — labour ran ${durationMinutes} min (${overMin} min over ${includedMinutes}-min scheduled allowance) [${windowDesc}]`;
       await storage.updateAdditionalCharge(id, charge.toFixed(2), overtimeNote);
-      console.log(`[Overtime] Quote #${id}: ${durationMinutes} min (${windowDesc}) → $${charge.toFixed(2)} auto-applied`);
+      console.log(`[Overtime] Quote #${id}: ${durationMinutes} min (${windowDesc}) → $${charge.toFixed(2)} auto-applied (allowance ${includedMinutes} min)`);
     } else {
-      console.log(`[Overtime] Quote #${id}: ${durationMinutes} min (${windowDesc}) — within ${PricingConfig.overtime.capMinutes}-min allowance, no charge`);
+      console.log(`[Overtime] Quote #${id}: ${durationMinutes} min (${windowDesc}) — within ${includedMinutes}-min scheduled allowance, no charge`);
     }
   }
 
@@ -8741,6 +8768,10 @@ Respond directly — no JSON, just the message text.`,
       quantity: it.quantity || 1,
       unitPrice: String(it.unitPrice || "0"),
       subtotal: String(it.subtotal || "0"),
+      // Needed by getJobSchedule so the invoice's scheduled-hours note matches
+      // the server's overtime allowance (volume + carry-only drive crew hours).
+      volumeM3: it.volumeM3 != null ? Number(it.volumeM3) : undefined,
+      carryOnly: it.carryOnly != null ? !!it.carryOnly : it.serviceType === "relocate",
     }));
 
     // Resolve billing presentation. Each quote can override the customer's
@@ -8774,6 +8805,7 @@ Respond directly — no JSON, just the message text.`,
       // Work-site / service location (where the staff actually go)
       serviceAddress: quote.serviceAddress || null,
       samePropertyMove: (quote as any).samePropertyMove === true,
+      distanceKm: (quote as any).samePropertyMove === true ? 0 : (Number((quote as any).distanceKm) || 0),
       pickupAddress: quote.pickupAddress || null,
       dropoffAddress: quote.dropoffAddress || null,
       scheduledAt: quote.scheduledAt || null,

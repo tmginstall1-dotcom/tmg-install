@@ -216,10 +216,9 @@ function isCarryOnlyRelocation(quote: any): boolean {
 function relocationOvertimeNotice(): string {
   return notice("warn",
     `<strong>Relocation — Additional Charges Notice</strong><br>` +
-    `Your quoted price includes up to <strong>2 hours (120 minutes)</strong> of crew and vehicle time. ` +
-    `If the job runs longer than 120 minutes, the following additional charges apply:<br><br>` +
-    `<strong>+$30 per 30-minute block</strong> &nbsp;&middot;&nbsp; Maximum cap: <strong>$200</strong><br><br>` +
-    `These charges are based on Lalamove's standard overtime rates (2 crew × $5 per person per 10 min). ` +
+    `Your quoted price includes the <strong>scheduled crew time shown on your quote</strong> (movers × hours on site). ` +
+    `If the job runs longer than the scheduled time, additional time is charged at ` +
+    `<strong>$${PricingConfig.secondDay.perPersonHourlyRate} per mover, per hour</strong>, billed in 30-minute blocks (no cap).<br><br>` +
     `To keep things running on time, please ensure all items are ready for collection and the route is clear before the crew arrives. ` +
     `If you expect a longer job, please let us know in advance via WhatsApp.`
   );
@@ -772,7 +771,7 @@ export function finalPaymentEmail(
     ${hasOvertime ? notice("warn",
       `<strong>Overtime charge applied automatically.</strong><br>` +
       `${quote.additionalChargeNote || `Overtime charges: $${overtimeAmt.toFixed(2)}`}<br><br>` +
-      `Charges are billed at <strong>$${PricingConfig.overtime.blockRate} per 30-minute block</strong> beyond the included 120-minute allowance, capped at $200. ` +
+      `Additional time is billed at <strong>$${PricingConfig.secondDay.perPersonHourlyRate} per mover, per hour</strong> (in 30-minute blocks, no cap) beyond your job's scheduled crew time. ` +
       `If you have any questions about this charge, please contact us on WhatsApp before completing payment.`
     ) : ''}
 

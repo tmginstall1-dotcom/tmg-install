@@ -14,7 +14,8 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatItemDescription } from "@/lib/itemLabel";
-import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig, evaluateJobMargin } from "@shared/pricing";
+import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig, evaluateJobMargin, getJobSchedule } from "@shared/pricing";
+import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
 import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
 import { InvoiceMessageDialog } from "@/components/shared/InvoiceMessageDialog";
 
@@ -957,6 +958,14 @@ export default function AdminQuoteDetail() {
  const marginEval = evaluateJobMargin({
    items: marginItems,
    grandTotal: quoteTotal,
+   distanceKm: Number(quote.distanceKm) || 0,
+   isRelocation: marginIsRelocation,
+   crewSize: Number((quote as any).secondDayCrewSize) || undefined,
+ });
+ // Job schedule (movers × scheduled hours) drives the overtime allowance: extra
+ // time is charged against THIS job's scheduled time, not a flat 2-hour window.
+ const jobSchedule = getJobSchedule({
+   items: marginItems,
    distanceKm: Number(quote.distanceKm) || 0,
    isRelocation: marginIsRelocation,
    crewSize: Number((quote as any).secondDayCrewSize) || undefined,
@@ -3503,7 +3512,7 @@ export default function AdminQuoteDetail() {
  <h3 className="text-sm font-semibold text-zinc-900">Overtime / Additional Charges</h3>
  </div>
  <div className="p-5 space-y-4">
- <p className="text-xs text-zinc-500">Standard job includes <strong>{PricingConfig.overtime.capMinutes} min</strong> crew time. Overtime is charged at <strong>${PricingConfig.overtime.blockRate}/30 min</strong> block (max ${PricingConfig.overtime.maxCharge}).</p>
+ <p className="text-xs text-zinc-500">This job is scheduled for <strong>{jobSchedule.crewSize} mover{jobSchedule.crewSize !== 1 ? 's' : ''} × {jobSchedule.scheduledHours}h</strong> ({jobSchedule.scheduledMinutes} min). Overtime beyond that is <strong>${jobSchedule.overtimePerManPerHour}/mover/hr</strong> = ${jobSchedule.ratePerBlock}/{jobSchedule.blockMinutes} min block — <strong>no cap</strong>.</p>
 
  {/* Overtime calculator */}
  <div className="space-y-2">
@@ -3522,21 +3531,21 @@ export default function AdminQuoteDetail() {
  {jobMinutes && Number(jobMinutes) > 0 && (
  <div className="text-sm font-semibold text-amber-700 tabular-nums whitespace-nowrap">
  {(() => {
- const { blocks, charge } = calcOvertimeCharge(Number(jobMinutes));
+ const { blocks, charge, ratePerBlock } = calcOvertimeCharge(Number(jobMinutes), { includedMinutes: jobSchedule.scheduledMinutes, crewSize: jobSchedule.crewSize });
  return charge > 0
- ? `${blocks} block${blocks !== 1 ? 's' : ''} × $${PricingConfig.overtime.blockRate} = $${charge.toFixed(2)}`
+ ? `${blocks} block${blocks !== 1 ? 's' : ''} × $${ratePerBlock} = $${charge.toFixed(2)}`
  : 'No overtime';
  })()}
  </div>
  )}
  </div>
- {jobMinutes && Number(jobMinutes) > 0 && calcOvertimeCharge(Number(jobMinutes)).charge > 0 && (
+ {jobMinutes && Number(jobMinutes) > 0 && calcOvertimeCharge(Number(jobMinutes), { includedMinutes: jobSchedule.scheduledMinutes, crewSize: jobSchedule.crewSize }).charge > 0 && (
  <button
  data-testid="button-use-overtime"
  onClick={() => {
- const { blocks, charge } = calcOvertimeCharge(Number(jobMinutes));
+ const { blocks, charge, ratePerBlock } = calcOvertimeCharge(Number(jobMinutes), { includedMinutes: jobSchedule.scheduledMinutes, crewSize: jobSchedule.crewSize });
  setAddChargeCustom(charge.toFixed(2));
- setAddChargeNote(`Overtime: ${blocks} block${blocks !== 1 ? 's' : ''} × $${PricingConfig.overtime.blockRate} (job was ${jobMinutes} min)`);
+ setAddChargeNote(`Overtime: ${blocks} block${blocks !== 1 ? 's' : ''} × $${ratePerBlock} (job was ${jobMinutes} min vs ${jobSchedule.scheduledMinutes} min scheduled)`);
  }}
  className="text-xs text-[#0A0A0A] hover:underline"
  >

@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import { requiresFullUpfront } from "@shared/pricing";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
+import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
 
 const WHATSAPP_HREF = "https://wa.me/6580880757?text=hi";
 const WHATSAPP_DISPLAY = "+65 8088 0757";
@@ -557,6 +558,15 @@ export default function QuoteStatus() {
                 </p>
               </div>
               <div className="px-6 py-5">
+                {(quote.items?.some((i: any) => i.serviceType === "relocate") || !!(quote as any).samePropertyMove) && (
+                  <QuoteScheduleNote
+                    items={(quote.items || []).filter((i: any) => i.serviceType !== "discount").map((i: any) => ({ serviceType: i.serviceType, quantity: Number(i.quantity) || 1, volumeM3: i.volumeM3 != null ? Number(i.volumeM3) : undefined, carryOnly: !!i.carryOnly }))}
+                    distanceKm={(quote as any).samePropertyMove ? 0 : (Number((quote as any).distanceKm) || 0)}
+                    isRelocation={quote.items?.some((i: any) => i.serviceType === "relocate") || !!(quote as any).samePropertyMove}
+                    crewSize={Number((quote as any).secondDayCrewSize) || undefined}
+                    className="mb-4"
+                  />
+                )}
                 <QuoteTermsBlock
                   heading={false}
                   isRelocation={quote.items?.some((i: any) => i.serviceType === "relocate") || !!(quote as any).samePropertyMove}

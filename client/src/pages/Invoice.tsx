@@ -6,6 +6,7 @@ import { formatItemDescription } from "@/lib/itemLabel";
 import { downloadInvoicePdf } from "@/lib/invoicePdf";
 import { requiresFullUpfront } from "@shared/pricing";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
+import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
 
 const CO      = "The Moving Guy Pte Ltd";
 const UEN     = "202424156H";
@@ -438,6 +439,15 @@ export default function Invoice() {
 
             {/* Standard Terms & Conditions */}
             <div className="px-7 py-5 border-t border-gray-100">
+              {data.items.some((it) => it.serviceType === "relocate") && (
+                <QuoteScheduleNote
+                  items={data.items.filter((it) => it.serviceType !== "discount").map((it) => ({ serviceType: it.serviceType || "", quantity: Number(it.quantity) || 1, volumeM3: (it as any).volumeM3 != null ? Number((it as any).volumeM3) : undefined, carryOnly: !!(it as any).carryOnly }))}
+                  distanceKm={data.samePropertyMove ? 0 : (Number((data as any).distanceKm) || 0)}
+                  isRelocation={data.items.some((it) => it.serviceType === "relocate")}
+                  crewSize={Number(data.secondDayCrewSize) || undefined}
+                  className="mb-4"
+                />
+              )}
               <QuoteTermsBlock isRelocation={data.items.some((it) => it.serviceType === "relocate")} />
             </div>
 

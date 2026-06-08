@@ -1461,7 +1461,7 @@ export default function Landing() {
                   <p className="text-xs font-black uppercase tracking-widest text-amber-400 mb-2">Dismantle & Reinstall — Full Service</p>
                   <p className="text-sm text-white/70 font-body mb-4">Transport + dismantle at origin + reassemble at destination.</p>
                   <p className="text-lg font-bold text-white mb-2">From <span className="text-amber-400">$58</span> <span className="text-xs text-amber-400/70 font-normal ml-1">+ D&R labor per item below</span></p>
-                  <p className="text-xs text-amber-400/50 font-medium">+$0.50/km · 2-hour crew window · Overtime applies</p>
+                  <p className="text-xs text-amber-400/50 font-medium">+$0.50/km · Scheduled crew time · Overtime $30/mover/hr</p>
                 </div>
               </div>
             )}
@@ -1649,7 +1649,7 @@ export default function Landing() {
             
             <div className="px-6 sm:px-10 py-6 sm:py-8 bg-black/60 border-t border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <p className="font-body text-sm text-white/50 leading-relaxed max-w-3xl">
-                Van $28 (first 3 km) + helper $30 = <strong className="text-white/80">$58 minimum</strong> · 2-hour crew window included · Overtime $30/30-min block (max $200) · No mobilisation fee on relocation jobs.
+                Van $28 (first 3 km) + helper $30 = <strong className="text-white/80">$58 minimum</strong> · Scheduled crew time included · Overtime $30/mover/hr (30-min blocks, no cap) · No mobilisation fee on relocation jobs.
               </p>
               <Link
                 href="/estimate"

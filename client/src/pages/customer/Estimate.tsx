@@ -18,6 +18,7 @@ import type { CatalogItem } from "@shared/schema";
 import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, requiresSpecialHandling, requiresFullUpfront, type PricingCatalogEntry } from "@shared/pricing";
 import { buildHandoffWaUrl, type HandoffPayload } from "@shared/whatsapp-handoff";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
+import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
 
 /* ─────────────────── Editorial primitives (mirror homepage) ───────────────────
    Inlined here so the estimate wizard matches the editorial language of "/"
@@ -2148,7 +2149,7 @@ export default function EstimateWizard() {
                         <div data-testid="notice-relocation-cap" className="mt-3 flex items-start gap-2 bg-blue-50 border border-blue-200 rounded px-3 py-2.5">
                           <span className="text-blue-500 text-base leading-none mt-0.5">⏱</span>
                           <div className="text-xs text-blue-800 leading-relaxed">
-                            <span className="font-black">2-hour job cap (Carry Only).</span> Carry Only pricing covers up to 120 minutes of crew and vehicle time. If the job runs longer: +$30 per 30-min block, capped at $200.
+                            <span className="font-black">Scheduled crew time (Carry Only).</span> Your price covers the scheduled crew time shown above. If the job runs longer, additional time is $30 per mover, per hour — billed in 30-min blocks, no cap.
                           </div>
                         </div>
                       )}
@@ -2527,7 +2528,7 @@ export default function EstimateWizard() {
                         <div data-testid="notice-relocation-cap-review" className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded px-3 py-2 mt-1">
                           <span className="text-blue-500 text-sm leading-none mt-0.5">⏱</span>
                           <p className="text-xs text-blue-800 leading-relaxed">
-                            <span className="font-black">2-hour job cap (Carry Only).</span> Carry Only pricing covers up to 120 minutes of crew and vehicle time. If the job runs longer: +$30 per 30-min block, capped at $200.
+                            <span className="font-black">Scheduled crew time (Carry Only).</span> Your price covers the scheduled crew time shown above. If the job runs longer, additional time is $30 per mover, per hour — billed in 30-min blocks, no cap.
                           </p>
                         </div>
                       )}
@@ -2602,6 +2603,14 @@ export default function EstimateWizard() {
         {/* Standard terms + T&C checkbox — step 5 only */}
         {step === 5 && (
           <div className="mt-6 p-4 border border-black/10 bg-black/[0.015]">
+            {isRelocation && (
+              <QuoteScheduleNote
+                items={items.map(i => ({ serviceType: i.serviceType, quantity: i.quantity, volumeM3: i.volumeM3, carryOnly: i.relocateMode === 'carry' }))}
+                distanceKm={samePropertyMove ? 0 : distanceKm}
+                isRelocation={isRelocation}
+                className="mb-4"
+              />
+            )}
             <QuoteTermsBlock isRelocation={isRelocation} className="mb-4 pb-4 border-b border-black/10" />
             <label className="flex items-start gap-3 cursor-pointer">
               <input
@@ -2816,7 +2825,7 @@ export default function EstimateWizard() {
               <ul className="list-disc pl-5 space-y-1">
                 <li>The estimate provided is based on the items and services described at the time of booking. Any additional items or services discovered on-site will be quoted separately and must be agreed upon before work commences.</li>
                 <li>Additional charges may apply for <strong>stairs access</strong> (if no lift is available), <strong>difficult access</strong>, or <strong>disposal of old furniture</strong> (if requested).</li>
-                <li><strong>Relocation jobs</strong> include up to <strong>120 minutes (2 hours)</strong> of crew time. Jobs that exceed 120 minutes incur +$30 per 30-minute block, capped at $200 — our team will advise you on-site.</li>
+                <li><strong>Relocation jobs</strong> include the <strong>scheduled crew time shown on your quote</strong> (movers × hours on site). Time beyond the schedule is charged at $30 per mover, per hour — billed in 30-minute blocks, no cap — and our team will advise you on-site.</li>
                 <li>Waiting time exceeding <strong>30 minutes</strong> beyond the scheduled window due to customer delays may incur a waiting fee of $20 per 30 minutes.</li>
               </ul>
             </section>

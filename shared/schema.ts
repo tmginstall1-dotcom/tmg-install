@@ -370,8 +370,8 @@ export const quotes = pgTable("quotes", {
   goodwillDiscount: numeric("goodwill_discount").default("0"),
   goodwillReason: text("goodwill_reason"),
 
-  // Relocation mode: "carry" = Carry Only (no dismantle, transport+labor only, 120-min cap with overtime)
-  //                   "full"  = Full D&R (dismantle + transport + reinstall, no time cap)
+  // Relocation mode: "carry" = Carry Only (no dismantle, transport+labor only; overtime past scheduled crew time)
+  //                   "full"  = Full D&R (dismantle + transport + reinstall, per-item pricing, no overtime)
   // Used by email overtime notice gating and admin display. Null for non-relocation jobs.
   relocationMode: text("relocation_mode"),
 

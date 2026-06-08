@@ -49,11 +49,15 @@ export const PricingConfig = {
     get minFee() { return this.vanBase + this.helperFee; }, // $58 minimum
   },
   overtime: {
-    // Relocation-only jobs: base price covers 120 minutes of crew time (matches Lalamove 2-hour window)
-    capMinutes: 120,    // Included minutes before overtime kicks in
-    blockMinutes: 30,   // Charge in 30-minute blocks after the cap
-    blockRate: 30,      // SGD per 30-min block (2 crew × $5/person/10 min = $10/10 min)
-    maxCharge: 200,     // Maximum overtime charge per job
+    // Overtime is measured against each job's own SCHEDULED crew-hours (derived
+    // from the job scope — see getJobSchedule), not a flat window. capMinutes is
+    // only a fallback when no per-job schedule is supplied.
+    capMinutes: 120,    // Fallback included minutes when no scheduled time is given
+    blockMinutes: 30,   // Charge in 30-minute blocks once the scheduled time is used up
+    // Rate is computed per job as crewSize × secondDay.perPersonHourlyRate
+    // ($30 per mover, per hour) → e.g. 2 movers = $30 per 30-min block, 3 movers = $45.
+    blockRate: 30,      // Legacy 2-crew default; live rate now scales with crew size
+    // NO cap — every extra hour is fully recovered at $30 per mover per hour.
   },
   hiace: {
     capacityM3: 6.0,  // Toyota Hiace usable cargo volume per trip (cubic metres)
@@ -425,15 +429,80 @@ export function calcTransportFee(distanceKm: number): number {
   return round2(Math.max(cfg.minFee, rawFee));
 }
 
-/** Calculate overtime charge for relocation jobs that exceed the 120-min cap.
- *  Returns { blocks, charge } where charge = blocks × $30, capped at $200.
+export interface OvertimeResult {
+  blocks: number;              // number of 30-min blocks charged
+  charge: number;              // total overtime charge (SGD), NO cap
+  includedMinutes: number;     // scheduled allowance used for this job
+  crewSize: number;            // movers on site (drives the per-block rate)
+  ratePerBlock: number;        // SGD per 30-min block = crew × $30 × 0.5
+  overtimePerManPerHour: number; // SGD per mover, per hour ($30)
+  overMinutes: number;         // minutes worked beyond the scheduled allowance
+}
+
+/**
+ * Calculate the overtime charge for a job that runs beyond its SCHEDULED time.
+ *
+ * - `includedMinutes` is the job's own scheduled crew time (from getJobSchedule).
+ *   When omitted it falls back to the flat overtime.capMinutes (back-compat).
+ * - The per-block rate scales with `crewSize`: crew × $30/mover/hr, billed in
+ *   30-minute blocks. There is NO cap — overruns are fully recovered.
  */
-export function calcOvertimeCharge(actualMinutes: number): { blocks: number; charge: number } {
+export function calcOvertimeCharge(
+  actualMinutes: number,
+  opts?: { includedMinutes?: number; crewSize?: number },
+): OvertimeResult {
   const cfg = PricingConfig.overtime;
-  if (actualMinutes <= cfg.capMinutes) return { blocks: 0, charge: 0 };
-  const blocks = Math.ceil((actualMinutes - cfg.capMinutes) / cfg.blockMinutes);
-  const charge = Math.min(blocks * cfg.blockRate, cfg.maxCharge);
-  return { blocks, charge };
+  const crew = Math.max(1, Math.round(Number(opts?.crewSize) || PricingConfig.secondDay.defaultCrewSize));
+  const includedMinutes = opts?.includedMinutes != null && opts.includedMinutes >= 0
+    ? opts.includedMinutes
+    : cfg.capMinutes;
+  const overtimePerManPerHour = PricingConfig.secondDay.perPersonHourlyRate;
+  const ratePerBlock = round2(crew * overtimePerManPerHour * (cfg.blockMinutes / 60));
+
+  if (actualMinutes <= includedMinutes) {
+    return { blocks: 0, charge: 0, includedMinutes, crewSize: crew, ratePerBlock, overtimePerManPerHour, overMinutes: 0 };
+  }
+  const overMinutes = actualMinutes - includedMinutes;
+  const blocks = Math.ceil(overMinutes / cfg.blockMinutes);
+  const charge = round2(blocks * ratePerBlock); // NO cap — full recovery
+  return { blocks, charge, includedMinutes, crewSize: crew, ratePerBlock, overtimePerManPerHour, overMinutes };
+}
+
+export interface JobSchedule {
+  crewSize: number;            // movers assigned (defaults to standard van crew)
+  scheduledHours: number;      // on-site time we plan for, rounded up to nearest 0.5h
+  scheduledMinutes: number;    // scheduledHours × 60 — the overtime allowance
+  overtimePerManPerHour: number; // SGD per mover, per hour beyond scheduled time
+  blockMinutes: number;        // overtime billing block size (30 min)
+  ratePerBlock: number;        // SGD per 30-min block = crew × $30 × 0.5
+}
+
+/**
+ * Work out the customer-facing SCHEDULE for a job: how many movers for how long.
+ * Scheduled time comes from the job SCOPE (estimateCrewHours), NOT from dividing
+ * the price — dividing the price over-promises free hours. Rounded UP to the
+ * nearest half-hour so we never under-promise on-site time.
+ */
+export function getJobSchedule(args: {
+  items: { serviceType: string; quantity: number; volumeM3?: number | null; carryOnly?: boolean }[];
+  totalVolumeM3?: number;
+  distanceKm?: number;
+  isRelocation?: boolean;
+  crewSize?: number;
+}): JobSchedule {
+  const crew = Math.max(1, Math.round(Number(args.crewSize) || PricingConfig.costFloor.defaultCrewSize));
+  const rawHours = estimateCrewHours({
+    items: args.items,
+    totalVolumeM3: args.totalVolumeM3,
+    distanceKm: args.distanceKm,
+    isRelocation: args.isRelocation,
+  });
+  const scheduledHours = Math.max(0.5, Math.ceil(rawHours * 2) / 2);
+  const scheduledMinutes = Math.round(scheduledHours * 60);
+  const overtimePerManPerHour = PricingConfig.secondDay.perPersonHourlyRate;
+  const blockMinutes = PricingConfig.overtime.blockMinutes;
+  const ratePerBlock = round2(crew * overtimePerManPerHour * (blockMinutes / 60));
+  return { crewSize: crew, scheduledHours, scheduledMinutes, overtimePerManPerHour, blockMinutes, ratePerBlock };
 }
 
 /**
