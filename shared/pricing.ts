@@ -119,7 +119,7 @@ export const PricingConfig = {
     marginPct: 0.30,             // target profit as a % of price (30% = aggressive/competitive)
     loadedMoverHourlyCost: 30,   // SGD — fully-loaded cost per mover per hour (wages + on-costs)
     defaultCrewSize: 2,          // standard van crew
-    absoluteMinJobPrice: 150,    // SGD — never quote a job below this, margin aside
+    absoluteMinJobPrice: 0,      // SGD — no hard minimum; TMG takes small jobs too. Margin guard still applies.
     enforce: false,              // false = warn only (admin decides); true = would auto-raise
     // Crew-time estimate model (hours):
     baseHours: 1.0,              // fixed setup + load/unload + paperwork per job
