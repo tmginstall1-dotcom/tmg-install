@@ -50,6 +50,12 @@ changes (not interpolated); terms.ts / email.ts / QuoteDetail read the rates fro
   — never plain `unitPrice>0`, because carry-only special-handling items can have a
   positive unit price. Keep this gating in lockstep with `isCarryOnlyRelocation` in
   `server/email.ts`.
+- The admin PRINTED quotation/job-order (`handlePrintQuote` in admin `QuoteDetail.tsx`)
+  now renders `getQuoteTerms()` + a `getJobSchedule`-driven "Included on-site time" box
+  (gated `!isInvoiceDoc && hasRelocation`) instead of a hardcoded T&C list — so it can no
+  longer drift from the web. BUT the TAX-INVOICE branch in the same function still has its
+  OWN hardcoded invoice-specific terms (Net 30, late-payment, defect-claim, drilling) — it
+  is intentionally separate and was NOT migrated.
 - The standalone `/terms` page (`client/src/pages/customer/Terms.tsx`) is a THIRD
   policy surface alongside the per-quote block (`shared/terms.ts`) and the schedule note.
   It reads engine numbers from `PricingConfig` + `QuoteTermsPolicy` (don't re-hardcode

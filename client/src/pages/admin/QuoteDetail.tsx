@@ -16,6 +16,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig, evaluateJobMargin, getJobSchedule, computeSiteTime, type SiteVisit } from "@shared/pricing";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
+import { getQuoteTerms } from "@shared/terms";
 import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
 import { InvoiceMessageDialog } from "@/components/shared/InvoiceMessageDialog";
 
@@ -1186,6 +1187,27 @@ export default function AdminQuoteDetail() {
  // re-arranging and on-site decisions commonly extend crew time). Pure
  // installation jobs are charged on agreed scope only.
  const hasRelocation = (items || []).some((i: any) => i.serviceType === 'relocate');
+ // Scheduled on-site time for this job, computed with the SAME engine the web
+ // estimate uses, so the printed quote shows the included man-hours that the
+ // Standard Terms & Conditions below refer to.
+ const printSchedule = getJobSchedule({
+   items: (items || []).map((i: any) => ({
+     serviceType: i.serviceType,
+     quantity: Number(i.quantity) || 1,
+     volumeM3: i.volumeM3,
+     carryOnly: i.carryOnly,
+   })),
+   totalVolumeM3: Number((q as any).totalVolumeM3) || undefined,
+   distanceKm: Number(q.distanceKm) || 0,
+   isRelocation: hasRelocation,
+   crewSize: Number((q as any).secondDayCrewSize) || undefined,
+ });
+ const fmtHrs = (n: number) => (n % 1 === 0 ? `${n}` : n.toFixed(1));
+ const printManHours = fmtHrs(printSchedule.scheduledHours * printSchedule.crewSize);
+ const printCrewRate = printSchedule.overtimePerManPerHour * printSchedule.crewSize;
+ // Single shared source of truth for the customer-facing terms — identical
+ // wording to the web estimate and the standalone /terms page.
+ const quoteTerms = getQuoteTerms({ isRelocation: hasRelocation });
  const scheduledDate = q.scheduledAt ? new Date(q.scheduledAt).toLocaleDateString("en-SG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : null;
  const address = (q as any).samePropertyMove
  ? (q.pickupAddress || q.serviceAddress || "—")
@@ -1902,6 +1924,17 @@ export default function AdminQuoteDetail() {
  </div>
  </div>`}
 
+ <!-- Included on-site time (relocation quotes / job orders only) -->
+ ${(!isInvoiceDoc && hasRelocation) ? `
+ <div style="margin-top:18px;border:1px solid #e5e7eb;background:#f9fafb;border-radius:4px;padding:10px 12px;">
+ <div style="font-size:11px;color:#374151;line-height:1.5;">
+ <strong>Included on-site time:</strong> ${printSchedule.crewSize} mover${printSchedule.crewSize !== 1 ? "s" : ""} × ${fmtHrs(printSchedule.scheduledHours)} hour${fmtHrs(printSchedule.scheduledHours) === "1" ? "" : "s"} = <strong>${printManHours} man-hours</strong>.
+ </div>
+ <div style="font-size:11px;color:#6b7280;line-height:1.5;margin-top:2px;">
+ Extra time beyond this is $${printSchedule.overtimePerManPerHour} per mover, per hour (= $${printCrewRate}/hour for your ${printSchedule.crewSize}-person crew), billed in ${printSchedule.blockMinutes}-minute blocks.
+ </div>
+ </div>` : ""}
+
  <!-- Terms & Conditions -->
  <div class="tnc">
  <h3>
@@ -1921,16 +1954,8 @@ export default function AdminQuoteDetail() {
  <li>All prices are in Singapore Dollars (SGD) and are <strong>not subject to GST</strong> (The Moving Guy Pte Ltd is not GST-registered).</li>
  <li>By making payment, the customer is deemed to have read and accepted our full Terms &amp; Conditions at <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a>.</li>
  ` : `
- <li>This quotation is valid for <strong>14 days</strong> from the date of issue.</li>
- <li><strong>Payment Terms:</strong> ${fullPayDoc ? "Full payment is required up front to confirm the booking." : "50% deposit is required to confirm the booking. The remaining balance is payable upon completion of the installation."}</li>
- <li>Rescheduling with less than <strong>24 hours' notice</strong> may incur a cancellation/admin fee.</li>
- <li><strong>On-site Charges:</strong> Any additional drilling requested on site is <strong>S$5 per hole</strong>. Wall-anchor / fastening hardware supplied on site is charged at cost.${hasRelocation ? ` For relocation work, extra labour beyond the agreed scope is <strong>S$50/hr per crew member</strong>.` : ""}</li>
- <li>Transport fee applies for locations outside central Singapore or where lift access is unavailable. Long-carry &gt; 30 m or stairs without lift access incurs an additional fee, quoted on site before work proceeds.</li>
- <li>The Moving Guy Pte Ltd is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
- <li>Customer is responsible for ensuring clear access to the premises on the scheduled date and time.</li>
- <li>Any additional work not stated in this quotation will be charged separately and agreed upon in writing.</li>
+ ${quoteTerms.map((t) => `<li><strong>${esc(t.title)}.</strong> ${esc(t.body)}</li>`).join("\n ")}
  <li>All prices are in Singapore Dollars (SGD) and are <strong>not subject to GST</strong> (we are not GST-registered).</li>
- <li>By paying the deposit, the customer is deemed to have read and accepted our full Terms &amp; Conditions at <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a>.</li>
  `}
  </ol>
  </div>
