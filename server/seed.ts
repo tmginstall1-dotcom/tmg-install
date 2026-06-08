@@ -3196,4 +3196,72 @@ export async function seedDatabase() {
     console.log(`[startup] Round 34: Small Appliances & Items — inserted ${inserted} new relocate SKU row(s).`);
   }
 
+  /* ─── Round 35: Display Cabinet door-count variants (SG market) ───────────
+     Real-world: glass-front display cabinets are sold and moved in standard
+     door-count sizes (2 / 3 / 4 / 6 door). Pre-R35 the catalog had only a
+     single generic "Display Cabinet", so a compact 2-door unit and a large
+     6-door wall of cabinets were quoted at the same price. This round adds a
+     door-count ladder priced for the Singapore market — consistent with the
+     existing wardrobe door-count ladder, plus a modest premium for the
+     careful handling that fragile glass doors require.
+
+     Per-variant pricing (install / dismantle / relocate-carry / dispose /
+     dismantle_dispose, with transport volume in m³). The price the customer
+     sees for a Relocate is the bundled D&R rate = (install + dismantle) × 0.60
+     (see computeDRPrice), shown in the (D&R $) column below:
+        2-door   100 / 75  / 120 / 60  / 110    0.50 m³   (D&R $105)
+        3-door   130 / 95  / 150 / 75  / 140    0.70 m³   (D&R $135)
+        4-door   160 / 115 / 185 / 95  / 170    0.95 m³   (D&R $165)
+        6-door   220 / 160 / 250 / 130 / 230    1.40 m³   (D&R $228)
+     The generic "Display Cabinet" row is left in place as the default for an
+     unspecified size.
+
+     Marker: DISPLAY-CABINET-DOORS-R35-MARKER.
+  */
+  const r35 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "DISPLAY-CABINET-DOORS-R35-MARKER")).limit(1);
+  if (r35.length === 0) {
+    const variants: Array<{ name: string; skuBase: string; install: string; dismantle: string; relocate: string; dispose: string; disDisp: string; volumeM3: string }> = [
+      { name: "Display Cabinet (2-door)", skuBase: "DISPCAB-2DR", install: "100.00", dismantle: "75.00",  relocate: "120.00", dispose: "60.00",  disDisp: "110.00", volumeM3: "0.50" },
+      { name: "Display Cabinet (3-door)", skuBase: "DISPCAB-3DR", install: "130.00", dismantle: "95.00",  relocate: "150.00", dispose: "75.00",  disDisp: "140.00", volumeM3: "0.70" },
+      { name: "Display Cabinet (4-door)", skuBase: "DISPCAB-4DR", install: "160.00", dismantle: "115.00", relocate: "185.00", dispose: "95.00",  disDisp: "170.00", volumeM3: "0.95" },
+      { name: "Display Cabinet (6-door)", skuBase: "DISPCAB-6DR", install: "220.00", dismantle: "160.00", relocate: "250.00", dispose: "130.00", disDisp: "230.00", volumeM3: "1.40" },
+    ];
+    let inserted = 0;
+    for (const v of variants) {
+      const rows: Array<{ sku: string; serviceType: string; basePrice: string }> = [
+        { sku: `${v.skuBase}-INSTALL`,   serviceType: "install",           basePrice: v.install },
+        { sku: `${v.skuBase}-DISMANTLE`, serviceType: "dismantle",         basePrice: v.dismantle },
+        { sku: `${v.skuBase}-RELOCATE`,  serviceType: "relocate",          basePrice: v.relocate },
+        { sku: `${v.skuBase}-DISPOSE`,   serviceType: "dispose",           basePrice: v.dispose },
+        { sku: `${v.skuBase}-DIS-DISP`,  serviceType: "dismantle_dispose", basePrice: v.disDisp },
+      ];
+      for (const row of rows) {
+        const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+        if (exists.length === 0) {
+          await db.insert(catalogItems).values({
+            name: v.name,
+            sku: row.sku,
+            category: "Storage",
+            serviceType: row.serviceType,
+            basePrice: row.basePrice,
+            volumeM3: v.volumeM3,
+            active: true,
+          } as any);
+          inserted++;
+        }
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__display_cabinet_doors_r35_marker__",
+      sku: "DISPLAY-CABINET-DOORS-R35-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 35: Display Cabinet door-count variants (2/3/4/6-door) — inserted ${inserted} new SKU row(s).`);
+  }
+
 }
