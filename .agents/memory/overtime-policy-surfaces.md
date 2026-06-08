@@ -50,3 +50,11 @@ changes (not interpolated); terms.ts / email.ts / QuoteDetail read the rates fro
   — never plain `unitPrice>0`, because carry-only special-handling items can have a
   positive unit price. Keep this gating in lockstep with `isCarryOnlyRelocation` in
   `server/email.ts`.
+- The standalone `/terms` page (`client/src/pages/customer/Terms.tsx`) is a THIRD
+  policy surface alongside the per-quote block (`shared/terms.ts`) and the schedule note.
+  It reads engine numbers from `PricingConfig` + `QuoteTermsPolicy` (don't re-hardcode
+  rates/threshold/deposit/floor/validity), but the carry-only overtime caveat and the
+  cancellation-boundary wording are plain prose that must stay worded the SAME as
+  `shared/terms.ts` (e.g. "included time/overtime apply to carry moves; D&R per item",
+  and ">48h = refund less $30 / 48h-or-less = forfeit"). `QuoteTermsPolicy.cancelForfeitHours`
+  and `freeRescheduleHours` are TEXT-ONLY (no logic reads them); both are 48.

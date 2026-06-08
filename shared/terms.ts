@@ -22,7 +22,7 @@ export interface QuoteTerm {
 export const QuoteTermsPolicy = {
   validityDays: 14,            // how long a quote stays valid
   freeRescheduleHours: 48,     // free reschedule notice window
-  cancelForfeitHours: 24,      // cancellations inside this window may forfeit deposit
+  cancelForfeitHours: 48,      // cancellations inside this window may forfeit deposit
 };
 
 function money(n: number): string {
@@ -51,7 +51,7 @@ export function getQuoteTerms(opts?: { isRelocation?: boolean }): QuoteTerm[] {
   if (isRelocation) {
     terms.push({
       title: "Crew & included time",
-      body: `Your price covers the crew and scheduled on-site time shown on this quote (based on the items and distance for your job). If the job runs beyond the scheduled time, additional time is charged at ${money(ot.perPersonHourlyRate)} per mover, per hour, billed in ${ot.blockMinutes}-minute blocks.`,
+      body: `Your price covers the crew and scheduled on-site time shown on this quote (based on the items and distance for your job). If the job runs beyond the scheduled time, additional time is charged at ${money(ot.perPersonHourlyRate)} per mover, per hour, billed in ${ot.blockMinutes}-minute blocks. Included on-site time and hourly overtime apply to carry-and-transport moves; dismantle-and-reinstall items are priced individually per item and are not billed by the hour.`,
     });
     terms.push({
       title: "Same-day completion",
@@ -94,7 +94,7 @@ export function getQuoteTerms(opts?: { isRelocation?: boolean }): QuoteTerm[] {
 
   terms.push({
     title: "Reschedule & cancellation",
-    body: `Rescheduling is free with at least ${QuoteTermsPolicy.freeRescheduleHours} hours' notice. Cancellations within ${QuoteTermsPolicy.cancelForfeitHours} hours of the scheduled time may forfeit the deposit.`,
+    body: `Your first reschedule is free with at least ${QuoteTermsPolicy.freeRescheduleHours} hours' notice; further changes or short-notice requests may incur a $30 admin fee. Cancellations more than ${QuoteTermsPolicy.cancelForfeitHours} hours before the appointment are refunded less a $30 admin fee; cancellations ${QuoteTermsPolicy.cancelForfeitHours} hours or less before the appointment forfeit the deposit. See our full Terms & Conditions for details.`,
   });
 
   terms.push({
