@@ -13,6 +13,7 @@ import { SiFacebook, SiInstagram } from "react-icons/si";
 import { useSEO } from "@/hooks/use-seo";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { usePageTracker, trackEvent } from "@/hooks/use-tracker";
+import { getPackage } from "@shared/packages";
 
 /* ──────────────────────────────────────────────────────────────────
    TMG INSTALL — EDITORIAL HOMEPAGE
@@ -2396,16 +2397,7 @@ function PromoBar() {
 
 /* ─────────────────────── FEATURED PACKAGE ─────────────────────── */
 
-const PACKAGE_INCLUDES = [
-  "2 movers + van",
-  "Up to 2 hours on-site",
-  "1 van trip included",
-  "Dismantle up to 2 furniture items",
-  "Relocate Point A to Point B (Singapore main island)",
-  "Reassemble up to 2 furniture items",
-  "Up to 8 drilling holes included",
-  "Basic positioning & adjustment",
-];
+const ESSENTIAL = getPackage("essential-move")!;
 
 function FeaturedPackage() {
   return (
@@ -2442,11 +2434,11 @@ function FeaturedPackage() {
               style={{ fontSize: "clamp(34px, 5vw, 72px)" }}
               data-testid="text-package-name"
             >
-              Essential Move + Setup
+              {ESSENTIAL.name}
             </h3>
 
             <p className="mt-6 text-black/60 text-base md:text-lg leading-relaxed max-w-[440px]">
-              Dismantle, move, and reassemble your essentials — handled by 2 movers and a van in a single trip.
+              {ESSENTIAL.blurb}
             </p>
 
             <div className="mt-9 flex items-baseline gap-3 flex-wrap">
@@ -2455,20 +2447,20 @@ function FeaturedPackage() {
                 style={{ fontSize: "clamp(46px, 7vw, 96px)" }}
                 data-testid="text-package-price"
               >
-                S$288
+                S${ESSENTIAL.price}
               </span>
               <span className="text-[12px] md:text-sm tracking-[0.22em] uppercase font-bold text-black/50">
-                NET <span style={{ color: ACCENT }}>·</span> up to 2 hrs
+                NET <span style={{ color: ACCENT }}>·</span> up to {ESSENTIAL.durationHours} hrs
               </span>
             </div>
 
             <div className="mt-9 flex flex-col items-start gap-3">
               <a
-                href="/estimate"
+                href={`/book/${ESSENTIAL.id}`}
                 onClick={(e) => {
                   e.preventDefault();
                   trackEvent("cta_package_essential", "/");
-                  window.location.assign("/estimate");
+                  window.location.assign(`/book/${ESSENTIAL.id}`);
                 }}
                 data-testid="package-cta-quote"
                 aria-label="Book the Essential Move and Setup package"
@@ -2491,7 +2483,7 @@ function FeaturedPackage() {
               </a>
 
               <div className="flex items-center gap-3 text-[10px] tracking-[0.18em] uppercase font-bold text-black/45 mt-1">
-                <span>60-second form</span>
+                <span>Fixed NET price</span>
                 <span aria-hidden="true">·</span>
                 <span>Pay only after we confirm</span>
               </div>
@@ -2504,7 +2496,7 @@ function FeaturedPackage() {
               What's included
             </p>
             <ul className="grid sm:grid-cols-2 sm:gap-x-12">
-              {PACKAGE_INCLUDES.map((item, i) => (
+              {ESSENTIAL.includes.map((item, i) => (
                 <li
                   key={i}
                   className="flex items-start gap-3 py-4 border-b"
@@ -2517,7 +2509,7 @@ function FeaturedPackage() {
               ))}
             </ul>
             <p className="mt-8 text-black/55 text-xs md:text-sm leading-relaxed max-w-[600px]" data-testid="text-package-fineprint">
-              Price is all-in (no GST). Covers Point A to Point B within the Singapore main island. Beyond 2 hours, overtime applies at our usual rate. Extra drilling beyond 8 holes is charged at our usual drilling rate. Additional items, extra van trips or off-island trips are quoted on-site. Promo codes don't apply to the NET package price.
+              {ESSENTIAL.fineprint.join(" ")}
             </p>
           </div>
         </div>

@@ -42,6 +42,7 @@ const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, relocationBundleBlocksPromo, FULL_PAYMENT_THRESHOLD, type PricingItem, type PricingFloor } from "@shared/pricing";
+import { getPackage } from "@shared/packages";
 
 /**
  * Split a grand total into the up-front deposit and the remaining final amount,
@@ -3890,6 +3891,115 @@ ${systemPrompt}` });
     } catch (e: any) {
       console.error("[scan-attachment]", e.message);
       res.status(500).json({ message: e.message || "Scan failed" });
+    }
+  });
+
+  // ── Public: Book a fixed-price service package ──────────────────────────────
+  // Creates a quote locked to the package's NET price. The price is read
+  // server-side from the shared package definition (never trusted from the
+  // client). Stored as a single manual line item so the existing editQuote
+  // recompute (total = sum of item subtotals − discounts + fees) keeps the
+  // fixed price intact; overtime / extra drilling are added later by admin as
+  // additional lines per the package rules.
+  const PKG_BOOK_RL = new Map<string, { count: number; windowStart: number }>();
+  const PKG_BOOK_RL_WINDOW_MS = 60_000;
+  const PKG_BOOK_RL_MAX = 5; // 5 package bookings per IP per minute
+  app.post("/api/quotes/package", async (req, res) => {
+    try {
+      // ── Per-IP rate limit (public endpoint — guard against spam quotes) ──────
+      const ip = (req.headers["x-forwarded-for"]?.toString().split(",")[0].trim() || req.socket.remoteAddress || "unknown");
+      const nowMs = Date.now();
+      const bucket = PKG_BOOK_RL.get(ip);
+      if (!bucket || nowMs - bucket.windowStart > PKG_BOOK_RL_WINDOW_MS) {
+        PKG_BOOK_RL.set(ip, { count: 1, windowStart: nowMs });
+      } else {
+        bucket.count += 1;
+        if (bucket.count > PKG_BOOK_RL_MAX) {
+          return res.status(429).json({ message: "Too many requests. Please try again in a minute." });
+        }
+      }
+      if (PKG_BOOK_RL.size > 5000) {
+        for (const [k, v] of Array.from(PKG_BOOK_RL.entries())) {
+          if (nowMs - v.windowStart > PKG_BOOK_RL_WINDOW_MS) PKG_BOOK_RL.delete(k);
+        }
+      }
+
+      const body = z.object({
+        packageId:           z.string().min(1),
+        name:                z.string().min(1),
+        phone:               z.string().min(6),
+        email:               z.string().email(),
+        pickupAddress:       z.string().min(1),
+        dropoffAddress:      z.string().min(1),
+        preferredDate:       z.string().optional().nullable(),
+        preferredTimeWindow: z.string().optional().nullable(),
+        notes:               z.string().max(2000).optional().nullable(),
+      }).parse(req.body);
+
+      const pkg = getPackage(body.packageId);
+      if (!pkg) return res.status(404).json({ message: "Unknown package" });
+
+      const refNo = `TMG-${randomBytes(6).toString("hex").toUpperCase()}`;
+      const phone = body.phone.replace(/\D/g, "");
+
+      const price = pkg.price;
+      const { depositAmount, finalAmount } = splitDepositFinal(price);
+
+      const noteLines = [
+        `Booked via "${pkg.name}" package — S$${price} NET, up to ${pkg.durationHours} hrs, ${pkg.drillingHoles} drill holes.`,
+        body.notes?.trim() ? `Customer notes: ${body.notes.trim()}` : "",
+      ].filter(Boolean).join("\n\n");
+
+      const quote = await storage.createQuote(
+        {
+          name: body.name,
+          email: body.email.trim(),
+          phone: body.phone,
+          companyName: undefined,
+        },
+        {
+          referenceNo:           refNo,
+          serviceAddress:        body.pickupAddress,
+          pickupAddress:         body.pickupAddress,
+          dropoffAddress:        body.dropoffAddress,
+          status:                "submitted",
+          sourceChannel:         "web",
+          customerWhatsappPhone: phone,
+          selectedServices:      JSON.stringify(pkg.services),
+          // Store the chosen slot as preferredDate/preferredTimeWindow (mirrors
+          // the estimate wizard) so paying the deposit auto-confirms the slot via
+          // updateQuotePayment's auto-book branch. scheduledAt is set at that point.
+          preferredDate:         body.preferredDate || undefined,
+          preferredTimeWindow:   body.preferredTimeWindow || undefined,
+          notes:                 noteLines,
+          subtotal:              price.toFixed(2),
+          total:                 price.toFixed(2),
+          depositAmount,
+          finalAmount,
+          paymentStatus:         "unpaid",
+          requiresManualReview:  false,
+        },
+        [
+          {
+            originalDescription: `${pkg.name} — Package (up to ${pkg.durationHours} hrs, ${pkg.drillingHoles} drill holes)`,
+            serviceType:         "manual" as const,
+            quantity:            1,
+            unitPrice:           price.toFixed(2),
+            subtotal:            price.toFixed(2),
+            remark:              "Fixed NET package price. Overtime / extra drilling billed at usual rates.",
+          },
+        ],
+      );
+
+      if (quote?.referenceNo) {
+        logAttributionEvent(quote.id, quote.referenceNo, "lead_submitted", parseFloat(quote.total ?? "0"), quote.sourceChannel ?? undefined).catch(() => {});
+      }
+
+      res.json({ id: quote.id, referenceNo: quote.referenceNo });
+    } catch (e: any) {
+      if (e?.issues) return res.status(400).json({ message: "Invalid booking details", issues: e.issues });
+      console.error("[quotes/package]", e?.message);
+      res.status(500).json({ message: e?.message || "Booking failed" });
     }
   });
 

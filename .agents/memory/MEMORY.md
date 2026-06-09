@@ -14,3 +14,4 @@
 - [Staff completion API compat](staff-completion-api-compat.md) — keep new completion fields optional server-side; native/PWA staff bundles can't hot-update, so required fields 400 old clients.
 - [Threshold full-payment rule](threshold-full-payment-rule.md) — jobs <$150 pay in full; branch every payment surface on requiresFullUpfront(total), never re-derive the threshold inline.
 - [Promo no-stacking](promo-no-stacking.md) — promo codes never combine with the relocation D&R bundle (carry-only exempt); enforce via shared relocationBundleBlocksPromo on wizard submit + WhatsApp, client+server in lockstep.
+- [Fixed-price packages](packages-fixed-price.md) — model package bookings as a quote with ONE manual line at the package price (survives editQuote recompute); price read server-side from shared/packages.ts; store preferredDate+preferredTimeWindow for deposit auto-book.
