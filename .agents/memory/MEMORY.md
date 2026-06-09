@@ -13,3 +13,4 @@
 - [Quote/invoice display surfaces](quote-invoice-display-surfaces.md) — money breakdown re-rendered in ~9 surfaces; Invoice.tsx + invoicePdf.ts easy to miss; split display, keep totals.
 - [Staff completion API compat](staff-completion-api-compat.md) — keep new completion fields optional server-side; native/PWA staff bundles can't hot-update, so required fields 400 old clients.
 - [Threshold full-payment rule](threshold-full-payment-rule.md) — jobs <$150 pay in full; branch every payment surface on requiresFullUpfront(total), never re-derive the threshold inline.
+- [Promo no-stacking](promo-no-stacking.md) — promo codes never combine with the relocation D&R bundle (carry-only exempt); enforce via shared relocationBundleBlocksPromo on wizard submit + WhatsApp, client+server in lockstep.

@@ -527,6 +527,29 @@ export function computeDRPrice(installPrice?: number, dismantlePrice?: number, c
 }
 
 /**
+ * Single source of truth for the "no promo stacking on relocation" rule.
+ *
+ * The Dismantle-&-Reinstall (D&R) bundle rate ("Relocation: D&R bundle rate
+ * applied — 40% off install + dismantle combined") is itself a promotional
+ * discount. Per company policy a general promo code (e.g. TMG50) CANNOT be
+ * combined with it. This returns true when the cart contains at least one
+ * relocate item priced on the D&R bundle (relocateMode 'full', which is also
+ * the default when no mode is set). Carry-only relocations get NO bundle
+ * discount, so they are not blocked here and may still use a promo code.
+ *
+ * Every surface that applies a promo (customer wizard server route, the
+ * /api/promo/validate endpoint, and the Estimate UI) must consult this helper
+ * so the rule is enforced identically and a promo never stacks on the bundle.
+ */
+export function relocationBundleBlocksPromo(
+  items: { serviceType?: string | null; relocateMode?: string | null }[],
+): boolean {
+  return items.some(
+    (i) => i.serviceType === "relocate" && i.relocateMode !== "carry",
+  );
+}
+
+/**
  * Effective Carry-Only price.
  *
  * Rule: for normal items, Carry Only labour is $0 — the transport fee

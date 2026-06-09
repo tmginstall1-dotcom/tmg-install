@@ -41,7 +41,7 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, FULL_PAYMENT_THRESHOLD, type PricingItem, type PricingFloor } from "@shared/pricing";
+import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, relocationBundleBlocksPromo, FULL_PAYMENT_THRESHOLD, type PricingItem, type PricingFloor } from "@shared/pricing";
 
 /**
  * Split a grand total into the up-front deposit and the remaining final amount,
@@ -6156,7 +6156,12 @@ Respond with ONLY a JSON array (no prose, no markdown):
       let promoDiscountAmt = 0;
       let appliedPromoCode: string | null = null;
       const requestedPromo = input.promoCode?.trim().toUpperCase() || null;
-      if (requestedPromo) {
+      // No-stacking rule: the relocation D&R bundle rate is already a discount,
+      // so a general promo code can NEVER be combined with it. If the cart is a
+      // D&R relocation we void the promo entirely (regardless of what the client
+      // sent), so the customer is never given two discounts on the same job.
+      const blockPromoForRelocation = relocationBundleBlocksPromo(input.items);
+      if (requestedPromo && !blockPromoForRelocation) {
         try {
           const promoRows = await db.select().from(promoCodes)
             .where(eq(promoCodes.code, requestedPromo)).limit(1);
@@ -8140,7 +8145,11 @@ Return ONLY valid JSON.`,
         const waStructuredState = parsedStructuredStateWA;
         const waPromoCode: string | null = waStructuredState?.promo_code ? waStructuredState.promo_code.trim().toUpperCase() : null;
         let promoDiscountWA = 0;
-        if (waPromoCode) {
+        // No-stacking rule: the relocation dismantle & reinstall (D&R) bundle rate
+        // is already a discount, so a promo code can't be combined with it — same
+        // rule the customer wizard enforces. Carry-only relocations get no bundle
+        // discount, so they may still use a promo.
+        if (waPromoCode && !isFullDR) {
           try {
             const promoRows = await db.select().from(promoCodes)
               .where(eq(promoCodes.code, waPromoCode)).limit(1);
@@ -9736,8 +9745,13 @@ Respond directly — no JSON, just the message text.`,
 
   // POST /api/promo/validate — public: validates a promo code before submission
   app.post("/api/promo/validate", async (req, res) => {
-    const { code, orderTotal } = req.body as { code?: string; orderTotal?: number };
+    const { code, orderTotal, hasRelocationBundle } = req.body as { code?: string; orderTotal?: number; hasRelocationBundle?: boolean };
     if (!code?.trim()) return res.status(400).json({ valid: false, message: "No code provided" });
+    // No-stacking rule: the relocation Dismantle-&-Reinstall (D&R) bundle rate
+    // already includes a discount, so a promo code can't be combined with it.
+    if (hasRelocationBundle === true) {
+      return res.json({ valid: false, message: "Promo codes can't be combined with relocation (dismantle & reinstall) bundle pricing — the bundle rate already includes a discount." });
+    }
     try {
       const rows = await db.select().from(promoCodes)
         .where(eq(promoCodes.code, code.trim().toUpperCase())).limit(1);

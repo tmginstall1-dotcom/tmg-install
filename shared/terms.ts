@@ -81,7 +81,7 @@ export function getQuoteTerms(opts?: { isRelocation?: boolean }): QuoteTerm[] {
 
   terms.push({
     title: "Promotions & discounts",
-    body: `Promo codes cannot be combined with other discounts (including the dismantle-&-reinstall bundle rate) and do not apply to survey-required or specialty items. One promotion per job.`,
+    body: `Only one discount applies per job — promo codes cannot be combined with any other discount or promotion. In particular, relocation jobs priced with the dismantle-&-reinstall (D&R) bundle rate already include a built-in discount, so promo codes do NOT stack on top of relocation / D&R bundle pricing. Promo codes also do not apply to survey-required or specialty items.`,
   });
 
   const acceptance = isRelocation

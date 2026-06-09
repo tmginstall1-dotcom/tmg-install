@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
 import type { CatalogItem } from "@shared/schema";
-import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, requiresSpecialHandling, requiresFullUpfront, type PricingCatalogEntry } from "@shared/pricing";
+import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, requiresSpecialHandling, requiresFullUpfront, relocationBundleBlocksPromo, type PricingCatalogEntry } from "@shared/pricing";
 import { buildHandoffWaUrl, type HandoffPayload } from "@shared/whatsapp-handoff";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
@@ -599,6 +599,13 @@ export default function EstimateWizard() {
 
   // D&R mode = at least one relocate item with full dismantle+reinstall — NO time cap applies
   const hasDRMode = isRelocation && items.some(i => i.serviceType === 'relocate' && i.relocateMode === 'full');
+  // No-stacking rule: shared helper, identical to the server. A relocate item
+  // with any mode other than 'carry' (including unset, which the submit payload
+  // normalizes to 'full') is on the D&R bundle rate and CANNOT take a promo
+  // code on top. Carry-only relocations get no bundle discount, so they may
+  // still use a promo. This stays in lockstep with the server so the UI never
+  // shows a promo as applied that the server will silently strip.
+  const promoBlockedByRelocation = relocationBundleBlocksPromo(items);
   // Promo discount applied to the grand total (which already includes the $60 callout fee)
   const grandTotalAfterPromo = Math.max(0, total - promoDiscount);
   // Small jobs are paid IN FULL up front (no 50/50 split). Larger jobs keep the
@@ -612,13 +619,23 @@ export default function EstimateWizard() {
   const applyPromo = useCallback(async (code: string) => {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) return;
+    // No-stacking rule: the relocation D&R bundle rate is already a discount,
+    // so promo codes can't be combined with it. Block the apply up front with a
+    // clear message instead of round-tripping to the server.
+    if (promoBlockedByRelocation) {
+      setPromoCode(null);
+      setPromoDiscount(0);
+      setPromoStatus("invalid");
+      setPromoMessage("Promo codes can't be combined with relocation (dismantle & reinstall) bundle pricing — the bundle rate already includes a discount.");
+      return;
+    }
     setPromoStatus("validating");
     setPromoMessage("");
     try {
       const res = await fetch("/api/promo/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: trimmed, orderTotal: total }),
+        body: JSON.stringify({ code: trimmed, orderTotal: total, hasRelocationBundle: promoBlockedByRelocation }),
       });
       const data = await res.json();
       if (data.valid) {
@@ -636,7 +653,7 @@ export default function EstimateWizard() {
       setPromoStatus("invalid");
       setPromoMessage("Could not validate code. Try again.");
     }
-  }, [total]);
+  }, [total, promoBlockedByRelocation]);
 
   const removePromo = useCallback(() => {
     setPromoCode(null);
@@ -645,6 +662,19 @@ export default function EstimateWizard() {
     setPromoMessage("");
     setPromoInput("");
   }, []);
+
+  // No-stacking rule: if the cart turns into a relocation D&R bundle AFTER a
+  // promo was already applied (e.g. the customer switches an item to dismantle
+  // & reinstall), drop the promo automatically and explain why. This keeps the
+  // UI in sync with the server, which voids the promo on D&R jobs regardless.
+  useEffect(() => {
+    if (promoBlockedByRelocation && promoDiscount > 0) {
+      setPromoCode(null);
+      setPromoDiscount(0);
+      setPromoStatus("invalid");
+      setPromoMessage("Promo removed — promo codes can't be combined with relocation (dismantle & reinstall) bundle pricing, which already includes a discount.");
+    }
+  }, [promoBlockedByRelocation, promoDiscount]);
 
   // ── Catalog add ───────────────────────────────────────────────────────────
 
@@ -665,7 +695,7 @@ export default function EstimateWizard() {
       if (relevant.length === 0) {
         // No matching service variants — add as custom for each selected service
         effectiveServices.forEach(st => {
-          updated.push({ id: uid(), sku: "", name: group.name, category: group.category, serviceType: st, quantity: qty, unitPrice: 0, isCustom: true });
+          updated.push({ id: uid(), sku: "", name: group.name, category: group.category, serviceType: st, quantity: qty, unitPrice: 0, isCustom: true, ...(st === 'relocate' ? { relocateMode: 'full' as const } : {}) });
         });
       } else {
         // For relocation: show as a SINGLE line with a full/carry toggle
@@ -708,7 +738,7 @@ export default function EstimateWizard() {
             if (existing) {
               updated = updated.map(i => i.catalogItemId === entry.id ? { ...i, quantity: i.quantity + qty } : i);
             } else {
-              updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice, volumeM3: entry.volumeM3, isCustom: false });
+              updated.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: group.name, category: group.category, serviceType: entry.serviceType, quantity: qty, unitPrice, volumeM3: entry.volumeM3, isCustom: false, ...(entry.serviceType === 'relocate' ? { relocateMode: 'full' as const } : {}) });
             }
           });
         }
@@ -750,11 +780,11 @@ export default function EstimateWizard() {
           : services;
         const relevant = matched.entries.filter(e => effectiveServices.includes(e.serviceType));
         relevant.forEach(entry => {
-          newItems.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: matched.name, category: matched.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), volumeM3: entry.volumeM3, isCustom: false });
+          newItems.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: matched.name, category: matched.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), volumeM3: entry.volumeM3, isCustom: false, ...(entry.serviceType === 'relocate' ? { relocateMode: 'full' as const } : {}) });
         });
       } else {
         services.forEach(st => {
-          newItems.push({ id: uid(), sku: "", name: itemName, category: "Custom", serviceType: st, quantity: qty, unitPrice: 0, isCustom: true });
+          newItems.push({ id: uid(), sku: "", name: itemName, category: "Custom", serviceType: st, quantity: qty, unitPrice: 0, isCustom: true, ...(st === 'relocate' ? { relocateMode: 'full' as const } : {}) });
         });
       }
     });
@@ -932,6 +962,7 @@ export default function EstimateWizard() {
               setItems(prev => [...prev, {
                 id: uid(), sku: "", name: agg.name, category: "Custom",
                 serviceType: st, quantity: agg.qty, unitPrice: 0, isCustom: true,
+                ...(st === 'relocate' ? { relocateMode: 'full' as const } : {}),
               }]);
             });
             nameList.push(agg.qty > 1 ? `${agg.name} ×${agg.qty}` : agg.name);
@@ -993,8 +1024,8 @@ export default function EstimateWizard() {
         detectedPhotoUrl: detectedPhotos[0]?.thumbnail || undefined,
         preferredDate: slotDateStr || undefined,
         preferredTimeWindow: slotTime || undefined,
-        promoCode: promoCode || undefined,
-        promoDiscount: promoDiscount > 0 ? promoDiscount : undefined,
+        promoCode: promoBlockedByRelocation ? undefined : (promoCode || undefined),
+        promoDiscount: !promoBlockedByRelocation && promoDiscount > 0 ? promoDiscount : undefined,
       };
       const res = await fetch("/api/quotes/wizard", {
         method: "POST",
@@ -2326,7 +2357,16 @@ export default function EstimateWizard() {
                 {/* Promo code field */}
                 <div className="bg-[rgba(250,250,247,0.88)] border border-black/12 p-6">
                   <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-4">Promo Code</p>
-                  {promoStatus === "valid" && promoCode ? (
+                  {promoBlockedByRelocation ? (
+                    <div className="px-4 py-3 bg-amber-50 border border-amber-200" data-testid="promo-relocation-blocked">
+                      <p className="text-xs font-semibold text-amber-800">
+                        Promo codes can't be combined with relocation pricing.
+                      </p>
+                      <p className="text-[11px] text-amber-700 mt-1">
+                        Your dismantle &amp; reinstall (D&amp;R) bundle already includes a 40% discount, so a promo code can't be added on top. Only one discount applies per job.
+                      </p>
+                    </div>
+                  ) : promoStatus === "valid" && promoCode ? (
                     <div className="flex items-center justify-between gap-3 px-4 py-3 bg-green-50 border border-green-200">
                       <div>
                         <div className="flex items-center gap-2">
