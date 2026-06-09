@@ -1,10 +1,21 @@
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRoute, useLocation, Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRight, ArrowLeft, ShieldCheck, MessageCircle, Lock } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowLeft,
+  ShieldCheck,
+  MessageCircle,
+  Lock,
+  MapPin,
+  Loader2,
+  Check,
+  X,
+} from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { trackEvent } from "@/hooks/use-tracker";
@@ -77,11 +88,278 @@ function Field({
   );
 }
 
+// ── Singapore address autocomplete (OneMap, via backend proxy) ──────────────
+interface AddressSuggestion {
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+function toTitle(s: string): string {
+  return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function useAddressSuggestions(query: string) {
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!query || query.trim().length < 3) {
+      setSuggestions([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        // OneMap blocks direct browser (CORS) calls, so go through our proxy.
+        const res = await fetch(`/api/onemap/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        const results: AddressSuggestion[] = (data.results || [])
+          .slice(0, 6)
+          .map((r: any) => {
+            const parts: string[] = [];
+            if (r.BLK_NO && r.BLK_NO !== "NIL") parts.push(r.BLK_NO);
+            if (r.ROAD_NAME && r.ROAD_NAME !== "NIL") parts.push(toTitle(r.ROAD_NAME));
+            if (r.BUILDING && r.BUILDING !== "NIL") parts.push(toTitle(r.BUILDING));
+            if (r.POSTAL && r.POSTAL !== "NIL") parts.push(`Singapore ${r.POSTAL}`);
+            return {
+              address: parts.join(", "),
+              lat: parseFloat(r.LATITUDE),
+              lng: parseFloat(r.LONGITUDE),
+            };
+          });
+        setSuggestions(results);
+      } catch {
+        setSuggestions([]);
+      }
+      setLoading(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+  return { suggestions, loading };
+}
+
+function AddressField({
+  label,
+  htmlFor,
+  value,
+  onChange,
+  onConfirmSelect,
+  selected,
+  placeholder,
+  hint,
+  error,
+  testid,
+}: {
+  label: string;
+  htmlFor: string;
+  value: string;
+  onChange: (v: string) => void;
+  onConfirmSelect: (address: string) => void;
+  selected: boolean;
+  placeholder?: string;
+  hint?: string;
+  error?: string;
+  testid: string;
+}) {
+  const [show, setShow] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const { suggestions, loading } = useAddressSuggestions(value);
+
+  const updateRect = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setRect({ left: r.left, top: r.bottom, width: r.width });
+  }, []);
+
+  useEffect(() => {
+    if (!show) return;
+    updateRect();
+    window.addEventListener("scroll", updateRect, true);
+    window.addEventListener("resize", updateRect);
+    return () => {
+      window.removeEventListener("scroll", updateRect, true);
+      window.removeEventListener("resize", updateRect);
+    };
+  }, [show, updateRect, suggestions.length]);
+
+  useEffect(() => {
+    setActive(-1);
+  }, [suggestions]);
+
+  useEffect(() => {
+    function handler(e: Event) {
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setShow(false);
+    }
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
+  }, []);
+
+  function pick(s: AddressSuggestion) {
+    onConfirmSelect(s.address);
+    setShow(false);
+    setActive(-1);
+    inputRef.current?.blur();
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!show || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((a) => (a + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((a) => (a <= 0 ? suggestions.length - 1 : a - 1));
+    } else if (e.key === "Enter") {
+      if (active >= 0 && active < suggestions.length) {
+        e.preventDefault();
+        pick(suggestions[active]);
+      }
+    } else if (e.key === "Escape") {
+      setShow(false);
+    }
+  }
+
+  const longEnough = value.trim().length >= 3;
+  const noResults = longEnough && !loading && suggestions.length === 0;
+  const dropdownOpen = show && longEnough && (suggestions.length > 0 || loading || noResults);
+
+  return (
+    <div ref={wrapRef} className="flex flex-col gap-2">
+      <label
+        htmlFor={htmlFor}
+        className="text-[10px] tracking-[0.2em] uppercase font-bold text-black/55"
+      >
+        {label}
+      </label>
+      <div className="relative">
+        <MapPin
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-black/30 pointer-events-none"
+          aria-hidden="true"
+        />
+        <input
+          id={htmlFor}
+          ref={inputRef}
+          value={value}
+          autoComplete="off"
+          aria-autocomplete="list"
+          aria-expanded={dropdownOpen}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setShow(true);
+            updateRect();
+          }}
+          onFocus={() => {
+            setShow(true);
+            updateRect();
+          }}
+          onKeyDown={onKeyDown}
+          className="w-full bg-white border-2 pl-11 pr-11 py-3 text-[15px] outline-none transition-colors focus:border-black placeholder:text-black/30"
+          style={{ borderColor: selected ? "#16a34a" : LINE }}
+          placeholder={placeholder}
+          data-testid={testid}
+        />
+        {loading ? (
+          <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] animate-spin text-black/30 pointer-events-none" />
+        ) : selected ? (
+          <Check className="absolute right-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-green-600 pointer-events-none" />
+        ) : value ? (
+          <button
+            type="button"
+            onClick={() => {
+              onChange("");
+              inputRef.current?.focus();
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-black/30 hover:text-black transition-colors"
+            aria-label="Clear address"
+            data-testid={`${testid}-clear`}
+          >
+            <X className="w-[16px] h-[16px]" />
+          </button>
+        ) : null}
+      </div>
+      {hint && !error && <p className="text-[11px] text-black/40">{hint}</p>}
+      {error && (
+        <p className="text-[11px] font-semibold text-red-600" data-testid={`error-${htmlFor}`}>
+          {error}
+        </p>
+      )}
+      {dropdownOpen &&
+        rect &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "fixed",
+              left: rect.left,
+              top: rect.top + 4,
+              width: rect.width,
+              zIndex: 9999,
+              maxHeight: "46vh",
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+            }}
+            className="bg-white border-2 shadow-[0_12px_30px_rgba(0,0,0,0.16)]"
+            data-testid={`${testid}-suggestions`}
+          >
+            {suggestions.length === 0 && loading && (
+              <div className="flex items-center gap-2 px-4 py-3 text-[13px] text-black/45">
+                <Loader2 className="w-4 h-4 animate-spin" /> Searching Singapore addresses…
+              </div>
+            )}
+            {noResults && (
+              <div className="px-4 py-3 text-[13px] text-black/50">
+                No matching address found. Try the postal code, or type the full address and
+                we'll confirm it with you.
+              </div>
+            )}
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(s);
+                }}
+                onMouseEnter={() => setActive(i)}
+                className="w-full text-left flex items-start gap-3 px-4 py-3 text-[14px] border-b last:border-0 transition-colors"
+                style={{
+                  borderColor: LINE,
+                  background: i === active ? "rgba(42,245,106,0.16)" : "#fff",
+                }}
+                data-testid={`${testid}-option-${i}`}
+              >
+                <MapPin className="mt-[2px] w-4 h-4 shrink-0 text-black/40" aria-hidden="true" />
+                <span className="leading-snug">{s.address}</span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
 export default function PackageBooking() {
   const [, params] = useRoute("/book/:packageId");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const pkg = params?.packageId ? getPackage(params.packageId) : undefined;
+  const [pickupConfirmed, setPickupConfirmed] = useState(false);
+  const [dropoffConfirmed, setDropoffConfirmed] = useState(false);
 
   useEffect(() => {
     document.title = pkg
@@ -254,35 +532,56 @@ export default function PackageBooking() {
               <h2 className="text-[11px] tracking-[0.22em] uppercase font-bold text-black/40 border-b pb-3" style={{ borderColor: LINE }}>
                 02 — Move details
               </h2>
-              <Field
-                label="Pickup address (Point A)"
-                htmlFor="pickupAddress"
-                error={form.formState.errors.pickupAddress?.message}
-              >
-                <input
-                  id="pickupAddress"
-                  className={inputClass}
-                  style={{ borderColor: LINE }}
-                  placeholder="Block, unit, street, postal code"
-                  data-testid="input-pickup"
-                  {...form.register("pickupAddress")}
-                />
-              </Field>
-              <Field
-                label="Delivery address (Point B)"
-                htmlFor="dropoffAddress"
-                hint="Singapore main island. Off-island trips are quoted separately."
-                error={form.formState.errors.dropoffAddress?.message}
-              >
-                <input
-                  id="dropoffAddress"
-                  className={inputClass}
-                  style={{ borderColor: LINE }}
-                  placeholder="Block, unit, street, postal code"
-                  data-testid="input-dropoff"
-                  {...form.register("dropoffAddress")}
-                />
-              </Field>
+              <Controller
+                control={form.control}
+                name="pickupAddress"
+                render={({ field }) => (
+                  <AddressField
+                    label="Pickup address (Point A)"
+                    htmlFor="pickupAddress"
+                    value={field.value}
+                    onChange={(v) => {
+                      field.onChange(v);
+                      if (pickupConfirmed) setPickupConfirmed(false);
+                    }}
+                    onConfirmSelect={(address) => {
+                      field.onChange(address);
+                      setPickupConfirmed(true);
+                      form.clearErrors("pickupAddress");
+                    }}
+                    selected={pickupConfirmed && field.value.length > 0}
+                    placeholder="Start typing — e.g. Block 261 Serangoon"
+                    hint="Type to search Singapore addresses, then pick from the list."
+                    error={form.formState.errors.pickupAddress?.message}
+                    testid="input-pickup"
+                  />
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="dropoffAddress"
+                render={({ field }) => (
+                  <AddressField
+                    label="Delivery address (Point B)"
+                    htmlFor="dropoffAddress"
+                    value={field.value}
+                    onChange={(v) => {
+                      field.onChange(v);
+                      if (dropoffConfirmed) setDropoffConfirmed(false);
+                    }}
+                    onConfirmSelect={(address) => {
+                      field.onChange(address);
+                      setDropoffConfirmed(true);
+                      form.clearErrors("dropoffAddress");
+                    }}
+                    selected={dropoffConfirmed && field.value.length > 0}
+                    placeholder="Start typing — e.g. 550261"
+                    hint="Singapore main island. Off-island trips are quoted separately."
+                    error={form.formState.errors.dropoffAddress?.message}
+                    testid="input-dropoff"
+                  />
+                )}
+              />
             </section>
 
             <section className="flex flex-col gap-5">
