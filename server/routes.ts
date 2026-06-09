@@ -5190,7 +5190,15 @@ ${systemPrompt}` });
       // Allow editing before and after deposit is paid, plus admin-created booked/assigned jobs.
       // booking_pending and in_progress are also editable so admins can reschedule a job
       // that's already been started or is sitting in the date-TBD state.
-      const editableStatuses = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booking_pending', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff'];
+      //
+      // Completed / awaiting-final-payment jobs are ALSO editable so the admin can
+      // reconcile the quote to what actually happened on site (e.g. the real hole
+      // count was 8, not the quoted number) BEFORE the balance is collected.
+      // editQuote() protects already-paid money: it keeps the recorded deposit and
+      // shifts the difference onto the outstanding balance. Fully-paid (final_paid),
+      // closed, and cancelled jobs stay locked — the money has settled or the job is
+      // terminal, so the quote must not change.
+      const editableStatuses = ['submitted', 'under_review', 'approved', 'deposit_requested', 'deposit_paid', 'booking_pending', 'booked', 'assigned', 'in_progress', 'at_pickup', 'in_transit', 'at_dropoff', 'completed', 'job_completed', 'final_payment_requested', 'awaiting_final_payment'];
       if (!editableStatuses.includes(existing.status)) {
         return res.status(400).json({ message: "Quote cannot be edited in its current status" });
       }
