@@ -425,6 +425,9 @@ function Hero() {
 
       {/* Mid-left mini nav tag — DESKTOP ONLY (was overlapping ghost text on mobile) */}
       <div className="hidden md:flex absolute top-[55%] left-[8%] z-20 flex-col gap-1.5 items-start">
+        <a href="#package">
+          <Tag accent>PACKAGE →</Tag>
+        </a>
         <a href="#services">
           <Tag>SERVICES →</Tag>
         </a>
@@ -2391,6 +2394,138 @@ function PromoBar() {
 
 /* ─────────────────────── Page ─────────────────────── */
 
+/* ─────────────────────── FEATURED PACKAGE ─────────────────────── */
+
+const PACKAGE_INCLUDES = [
+  "2 movers + van",
+  "Up to 2 hours on-site",
+  "1 van trip included",
+  "Dismantle up to 2 furniture items",
+  "Relocate from Point A to Point B",
+  "Reassemble up to 2 furniture items",
+  "Up to 8 drilling holes included",
+  "Basic positioning & adjustment",
+];
+
+function FeaturedPackage() {
+  return (
+    <section
+      id="package"
+      className="relative py-28 md:py-40 px-6 md:px-10 lg:px-14"
+      style={{ background: PAPER, color: INK, borderTop: `1px solid ${LINE}` }}
+      data-testid="section-package"
+    >
+      <DotGrid opacity={0.35} />
+      <div className="relative mx-auto max-w-[1600px]">
+        <SectionHeader
+          no="01"
+          eyebrow="Featured Package"
+          title={
+            <>
+              Our most-booked<br />package.
+            </>
+          }
+        />
+
+        <div className="grid grid-cols-12 gap-y-12 md:gap-x-12 border-t" style={{ borderColor: LINE }}>
+          {/* LEFT — name, price, CTA */}
+          <div
+            className="col-span-12 md:col-span-5 pt-10 md:pt-16 md:border-r md:pr-12"
+            style={{ borderColor: LINE }}
+          >
+            <div className="mb-7">
+              <Tag accent>★ Most Popular</Tag>
+            </div>
+
+            <h3
+              className="font-serif italic font-black tracking-[-0.02em] leading-[0.95]"
+              style={{ fontSize: "clamp(34px, 5vw, 72px)" }}
+              data-testid="text-package-name"
+            >
+              Essential Move + Setup
+            </h3>
+
+            <p className="mt-6 text-black/60 text-base md:text-lg leading-relaxed max-w-[440px]">
+              Dismantle, move, and reassemble your essentials — handled by 2 movers and a van in a single trip.
+            </p>
+
+            <div className="mt-9 flex items-baseline gap-3 flex-wrap">
+              <span
+                className="font-serif italic font-black tracking-[-0.02em]"
+                style={{ fontSize: "clamp(46px, 7vw, 96px)" }}
+                data-testid="text-package-price"
+              >
+                S$288
+              </span>
+              <span className="text-[12px] md:text-sm tracking-[0.22em] uppercase font-bold text-black/50">
+                NET <span style={{ color: ACCENT }}>·</span> up to 2 hrs
+              </span>
+            </div>
+
+            <div className="mt-9 flex flex-col items-start gap-3">
+              <a
+                href="/estimate"
+                onClick={(e) => {
+                  e.preventDefault();
+                  trackEvent("cta_package_essential", "/");
+                  window.location.assign("/estimate");
+                }}
+                data-testid="package-cta-quote"
+                aria-label="Book the Essential Move and Setup package"
+                className="group inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-4 font-bold text-[14px] tracking-[0.18em] uppercase transition-transform duration-200 active:scale-[0.98] shadow-[0_6px_0_rgba(0,0,0,0.92)] hover:shadow-[0_4px_0_rgba(0,0,0,0.92)] hover:-translate-y-[2px]"
+                style={{ background: ACCENT, color: INK, border: "2px solid " + INK }}
+              >
+                Book this package
+                <span className="text-[18px] font-black transition-transform duration-200 group-hover:translate-x-1">→</span>
+              </a>
+
+              <a
+                href={WHATSAPP}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackEvent("cta_package_whatsapp", "/")}
+                data-testid="package-cta-whatsapp"
+                className="inline-flex items-center gap-2 text-[11px] tracking-[0.2em] uppercase font-bold text-black/55 hover:text-black transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" /> Ask on WhatsApp
+              </a>
+
+              <div className="flex items-center gap-3 text-[10px] tracking-[0.18em] uppercase font-bold text-black/45 mt-1">
+                <span>60-second form</span>
+                <span aria-hidden="true">·</span>
+                <span>Pay only after we confirm</span>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT — inclusions */}
+          <div className="col-span-12 md:col-span-7 md:pt-16">
+            <p className="text-[10px] tracking-[0.22em] uppercase font-bold text-black/40 mb-3">
+              What's included
+            </p>
+            <ul className="grid sm:grid-cols-2 sm:gap-x-12">
+              {PACKAGE_INCLUDES.map((item, i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-3 py-4 border-b"
+                  style={{ borderColor: LINE }}
+                  data-testid={`package-include-${i}`}
+                >
+                  <AccentSquare className="mt-[6px] shrink-0" />
+                  <span className="text-[15px] md:text-base leading-snug">{item}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-8 text-black/55 text-xs md:text-sm leading-relaxed max-w-[600px]" data-testid="text-package-fineprint">
+              Beyond 2 hours, overtime applies at our usual rate. Extra drilling beyond 8 holes is charged at our usual drilling rate. Additional items, distance or van trips are quoted on-site. Promo codes don't apply to the NET package price.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function LandingCinematic() {
   usePageTracker("/");
   useSEO({
@@ -2421,6 +2556,7 @@ export default function LandingCinematic() {
       <ScrollProgress />
       <Hero />
       <Marquee />
+      <FeaturedPackage />
       <AssemblyScroll />
       <Services />
       <WhyTMG />
