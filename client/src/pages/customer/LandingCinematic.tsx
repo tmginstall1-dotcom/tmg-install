@@ -2401,7 +2401,7 @@ const PACKAGE_INCLUDES = [
   "Up to 2 hours on-site",
   "1 van trip included",
   "Dismantle up to 2 furniture items",
-  "Relocate from Point A to Point B",
+  "Relocate Point A to Point B (Singapore main island)",
   "Reassemble up to 2 furniture items",
   "Up to 8 drilling holes included",
   "Basic positioning & adjustment",
@@ -2517,7 +2517,7 @@ function FeaturedPackage() {
               ))}
             </ul>
             <p className="mt-8 text-black/55 text-xs md:text-sm leading-relaxed max-w-[600px]" data-testid="text-package-fineprint">
-              Beyond 2 hours, overtime applies at our usual rate. Extra drilling beyond 8 holes is charged at our usual drilling rate. Additional items, distance or van trips are quoted on-site. Promo codes don't apply to the NET package price.
+              Price is all-in (no GST). Covers Point A to Point B within the Singapore main island. Beyond 2 hours, overtime applies at our usual rate. Extra drilling beyond 8 holes is charged at our usual drilling rate. Additional items, extra van trips or off-island trips are quoted on-site. Promo codes don't apply to the NET package price.
             </p>
           </div>
         </div>
