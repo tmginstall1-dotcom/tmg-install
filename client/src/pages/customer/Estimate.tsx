@@ -1761,7 +1761,7 @@ export default function EstimateWizard() {
                             className="w-full text-left px-4 py-3 hover:bg-slate-50 active:bg-slate-100 border-b border-black/6 last:border-0 transition-colors flex items-center justify-between gap-3"
                           >
                             <div className="min-w-0">
-                              <p className="font-semibold text-sm truncate">{group.name}</p>
+                              <p className="font-semibold text-sm leading-tight break-words">{group.name}</p>
                               <p className="text-xs text-black/35">{group.category}</p>
                               {showLiftWarning && (
                                 <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mt-1" data-testid={`badge-lift-warning-${group.name.toLowerCase().replace(/\s+/g, '-')}`}>
