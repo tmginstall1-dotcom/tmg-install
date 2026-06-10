@@ -3264,4 +3264,95 @@ export async function seedDatabase() {
     console.log(`[startup] Round 35: Display Cabinet door-count variants (2/3/4/6-door) — inserted ${inserted} new SKU row(s).`);
   }
 
+  /* ─── Round 36: IKEA PAX Wardrobe — per-frame, door-type pricing ──────────
+     Problem: the old catalog had ONE flat "IKEA Pax Wardrobe" price for every
+     design. A tiny 50cm single open frame and a 3-bay sliding-mirror wall were
+     quoted identically — over-charging small jobs and under-charging the big,
+     labour-heavy ones (the real cost drivers are the NUMBER of frames/bays and
+     the DOOR TYPE: open < hinged < sliding/mirror).
+
+     Fix: retire the single flat PAX item and replace it with a per-frame ladder
+     by door type. The customer sets quantity = the number of frames/bays, and
+     picks the door type that matches their wardrobe. Prices are PER FRAME and
+     calibrated to the Singapore market (IKEA's own assembly ≈ 20% of retail; a
+     modest premium is justified for dismantling/reassembling used furniture).
+
+     Per-frame pricing (install / dismantle / relocate-carry / dispose /
+     dismantle_dispose, with transport volume in m³). The Relocate price the
+     customer sees is the bundled D&R rate = (install + dismantle) × 0.60
+     (see computeDRPrice), shown in the (D&R $) column:
+        No doors (open)          75  / 45 / 72  / 40 / 70   0.40 m³  (D&R $72)
+        Hinged doors            100  / 60 / 96  / 45 / 85   0.42 m³  (D&R $96)
+        Sliding / mirror doors  130  / 78 / 125 / 55 / 105  0.45 m³  (D&R $125)
+
+     Marker: PAX-PERFRAME-R36B-MARKER.
+  */
+  const r36 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "PAX-PERFRAME-R36B-MARKER")).limit(1);
+  if (r36.length === 0) {
+    // 1. Retire every legacy WHOLE-UNIT PAX representation (the flat single-price
+    //    item plus the older door-count whole-unit variants). These all quote one
+    //    price regardless of how many frames the customer has, which is exactly the
+    //    over/under-charging problem the per-frame ladder below fixes.
+    //    getCatalogItems() filters active=true, so deactivating hides them from the
+    //    estimator while leaving history intact. Names are matched exactly so the new
+    //    "IKEA PAX Wardrobe (per frame, ...)" rows are never affected.
+    const legacyNames = [
+      "IKEA Pax Wardrobe",
+      "IKEA PAX Wardrobe (2-door)",
+      "IKEA PAX Wardrobe (3-door)",
+      "IKEA PAX Wardrobe (Sliding Doors)",
+    ];
+    let retired = 0;
+    for (const nm of legacyNames) {
+      const existingRows = await db.select({ id: catalogItems.id }).from(catalogItems).where(eq(catalogItems.name, nm));
+      if (existingRows.length > 0) {
+        await db.update(catalogItems).set({ active: false }).where(eq(catalogItems.name, nm));
+        retired += existingRows.length;
+      }
+    }
+
+    // 2. Per-frame, door-type ladder. Quantity = number of frames/bays.
+    const variants: Array<{ name: string; skuBase: string; install: string; dismantle: string; relocate: string; dispose: string; disDisp: string; volumeM3: string }> = [
+      { name: "IKEA PAX Wardrobe (per frame, no doors)",                skuBase: "PAX-PF-OPEN",  install: "75.00",  dismantle: "45.00", relocate: "72.00",  dispose: "40.00", disDisp: "70.00",  volumeM3: "0.40" },
+      { name: "IKEA PAX Wardrobe (per frame, hinged doors)",           skuBase: "PAX-PF-HINGE", install: "100.00", dismantle: "60.00", relocate: "96.00",  dispose: "45.00", disDisp: "85.00",  volumeM3: "0.42" },
+      { name: "IKEA PAX Wardrobe (per frame, sliding / mirror doors)", skuBase: "PAX-PF-SLIDE", install: "130.00", dismantle: "78.00", relocate: "125.00", dispose: "55.00", disDisp: "105.00", volumeM3: "0.45" },
+    ];
+    let inserted = 0;
+    for (const v of variants) {
+      const rows: Array<{ sku: string; serviceType: string; basePrice: string }> = [
+        { sku: `${v.skuBase}-INSTALL`,   serviceType: "install",           basePrice: v.install },
+        { sku: `${v.skuBase}-DISMANTLE`, serviceType: "dismantle",         basePrice: v.dismantle },
+        { sku: `${v.skuBase}-RELOCATE`,  serviceType: "relocate",          basePrice: v.relocate },
+        { sku: `${v.skuBase}-DISPOSE`,   serviceType: "dispose",           basePrice: v.dispose },
+        { sku: `${v.skuBase}-DIS-DISP`,  serviceType: "dismantle_dispose", basePrice: v.disDisp },
+      ];
+      for (const row of rows) {
+        const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+        if (exists.length === 0) {
+          await db.insert(catalogItems).values({
+            name: v.name,
+            sku: row.sku,
+            category: "IKEA Wardrobes",
+            serviceType: row.serviceType,
+            basePrice: row.basePrice,
+            volumeM3: v.volumeM3,
+            active: true,
+          } as any);
+          inserted++;
+        }
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__pax_perframe_r36b_marker__",
+      sku: "PAX-PERFRAME-R36B-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 36: PAX per-frame door-type ladder — retired ${retired} legacy whole-unit PAX row(s), inserted ${inserted} per-frame SKU row(s).`);
+  }
+
 }

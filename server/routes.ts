@@ -586,9 +586,11 @@ Typical item pricing (per item, SGD):
 - Double bed frame: $75 install, $55 dismantle
 - Queen bed frame: $80 install, $60 dismantle
 - King bed frame: $100 install, $80 dismantle
-- IKEA PAX Wardrobe (2-door): $130 install, $90 dismantle, $120 dismantle & dispose, $148 relocate
-- IKEA PAX Wardrobe (3-door): $160 install, $110 dismantle, $140 dismantle & dispose, $162 relocate
-- IKEA PAX Wardrobe (Sliding Doors): $180 install, $120 dismantle, $165 dismantle & dispose, $195 relocate
+- IKEA PAX Wardrobe — priced PER FRAME/BAY (count the number of frames the customer has):
+-   • No doors (open frame): $75 install, $45 dismantle, $40 dispose, $70 dismantle & dispose — per frame
+-   • Hinged doors: $100 install, $60 dismantle, $45 dispose, $85 dismantle & dispose — per frame
+-   • Sliding / mirror doors: $130 install, $78 dismantle, $55 dispose, $105 dismantle & dispose — per frame
+-   • Relocate (Dismantle & Reinstall bundle) = (install + dismantle) × 0.6, per frame
 - Sliding door wardrobe (2-door, non-PAX): $120 install, $85 dismantle
 - Sliding door wardrobe (3-door, non-PAX): $160 install, $110 dismantle
 - Hinged door wardrobe (4-door): $150 install, $110 dismantle
@@ -4234,7 +4236,7 @@ ${systemPrompt}` });
               Use 'dismantle_dispose' when customer wants furniture dismantled AND then disposed (bundle — cheaper).
               Estimate a reasonable unit price (in SGD, numerical value only) based on typical Singapore market rates.
               Return a JSON object with an 'items' array. Each item should have:
-              - 'detectedName': string (e.g. 'IKEA Pax Wardrobe')
+              - 'detectedName': string (e.g. 'IKEA PAX Wardrobe (per frame, hinged doors)')
               - 'serviceType': string ('install', 'dismantle', 'relocate', 'dispose', or 'dismantle_dispose')
               - 'quantity': number
               - 'estimatedUnitPrice': number
@@ -8053,16 +8055,18 @@ CATALOG (match item names exactly when possible):
 ${compactCatalog}
 
 Return a JSON object with an 'items' array. Each item must have:
-- 'detectedName': string — use the EXACT catalog name if matched (e.g. 'IKEA PAX Wardrobe (3-door)'), otherwise a short descriptive name
+- 'detectedName': string — use the EXACT catalog name if matched (e.g. 'IKEA PAX Wardrobe (per frame, hinged doors)'), otherwise a short descriptive name
 - 'serviceType': string — must be one of the valid types above
 - 'quantity': number (default 1)
 - 'estimatedUnitPrice': number — use catalog price when matched, otherwise estimate (applies to both carry-only and full D&R modes; carry-only still incurs per-item labour for heavy 2-man items)
 - 'confidence': number (0–100)
 
 MATCHING TIPS:
-- "pax 2 door" → "IKEA PAX Wardrobe (2-door)"
-- "pax 3 door" or "pax wardrobe" → "IKEA PAX Wardrobe (3-door)"
-- "pax sliding" → "IKEA PAX Wardrobe (Sliding Doors)"
+- IKEA PAX wardrobes are priced PER FRAME/BAY. Count the number of side-by-side frames/bays and set quantity = that count, then pick the door type:
+  • open / no doors → "IKEA PAX Wardrobe (per frame, no doors)"
+  • hinged doors → "IKEA PAX Wardrobe (per frame, hinged doors)"
+  • sliding or mirror doors → "IKEA PAX Wardrobe (per frame, sliding / mirror doors)"
+  • If door type is unclear, assume hinged doors.
 - Use the catalog name exactly as shown.
 Return ONLY valid JSON.`,
               },

@@ -33,3 +33,26 @@ The catalog is fully DB-driven: customer estimator (`/api/catalog`), AI photo
 detection, and WhatsApp matching all read names/rows from the DB, so no extra
 wiring is needed once the rows are seeded. After editing seed.ts, restart the
 "Start application" workflow (tsx, no watch) so the new round runs.
+
+**Gotcha — orphan rows not in seed.ts:** the live DB can contain catalog rows that
+were created outside seed.ts (admin UI / ad-hoc) and therefore are NOT reproduced
+on a fresh/production DB. When a Round needs to retire a family of items, deactivate
+by **exact name** for every known legacy name (not just the seeded one) so dev and
+prod converge. To re-run a Round after it already ran in dev, bump its marker SKU
+(e.g. `...-R36-` → `...-R36B-`) — the per-row SKU-exists checks keep inserts
+idempotent while deactivation re-applies.
+
+**Retiring vs deleting:** prefer `active=false` over delete. `getCatalogItems()`
+filters `active=true`, so deactivating hides an item from the estimator/photo/AI
+surfaces while preserving history. Also add the same `eq(active,true)` filter to
+any direct catalog query (e.g. WhatsApp `findCatalogMatch`) so retired rows don't
+leak back into matching.
+
+**PAX wardrobe pricing model (chosen):** IKEA PAX is priced **per frame/bay**
+(quantity = number of frames) × **door type** (open < hinged < sliding/mirror),
+seeded as 3 named variants `IKEA PAX Wardrobe (per frame, ...)`. Do NOT reintroduce
+a single flat PAX price or whole-unit door-count PAX variants — they over/under-charge
+because one price fits every design. Relocate base = (install+dismantle)×0.6 to match
+`computeDRPrice` D&R bundle.
+**Why:** SG benchmarking (IKEA assembly ≈ 20% of retail; movers quote opaquely) showed
+frame-count + door-type are the real cost drivers; a flat price is unfair both ways.

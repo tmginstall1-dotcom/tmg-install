@@ -564,7 +564,7 @@ async function findCatalogMatch(
   const tokens = expandTerm(rawTerm);
   if (tokens.length === 0) return null;
 
-  const baseWhere = eq(catalogItems.serviceType, catalogService);
+  const baseWhere = and(eq(catalogItems.serviceType, catalogService), eq(catalogItems.active, true));
 
   // Pass 1: STRICT — name must contain all tokens (best precision)
   let rows: Array<{ name: string; basePrice: string }> = [];
