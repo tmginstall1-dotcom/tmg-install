@@ -725,3 +725,13 @@ section[data-testid^="section-"] {
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
+
+/* ── Hide the scrollbar on horizontally-scrollable rows (e.g. mobile tab
+   switchers) while keeping the content fully scrollable via touch/trackpad. ── */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

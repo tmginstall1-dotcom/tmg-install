@@ -1510,10 +1510,10 @@ export default function Analytics() {
  </div>
  <div className="flex items-center gap-2 flex-wrap">
  {/* Tab switcher */}
- <div className="flex p-1 rounded-lg border border-zinc-200 bg-zinc-100 overflow-hidden">
+ <div className="flex p-1 rounded-lg border border-zinc-200 bg-zinc-100 overflow-x-auto max-w-full no-scrollbar">
  {TABS.map(({ key, label, icon: Icon }) => (
  <button key={key} onClick={() => setTab(key)} data-testid={`tab-${key}`}
- className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+ className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all shrink-0 whitespace-nowrap ${
  tab === key ? "bg-white text-zinc-900 border border-zinc-200" : "text-zinc-500 hover:text-zinc-700"
  }`}>
  <Icon className="w-3.5 h-3.5" />
