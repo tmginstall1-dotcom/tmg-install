@@ -42,6 +42,11 @@ const MANUAL_VERB_PREFIXES = [
   "additional", "extra", "ad-hoc", "adhoc",
   "labour", "labor", "manpower", "handyman",
   "charge", "charges", "fee", "fees", "allowance", "discount",
+  // "Supply"/"Provide" wording (incl. the "To supply …" / "To provide …"
+  // phrasing admins use for labour-only lines) — show the typed text as-is
+  // instead of forcing "Installation of …" in front.
+  "supply", "supplying", "to supply",
+  "provide", "providing", "provision", "provision of", "to provide",
 ];
 
 function itemKey(it: any): string {
