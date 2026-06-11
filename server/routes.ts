@@ -5975,7 +5975,7 @@ STRICTLY DO NOT LIST any of the following — return nothing for these:
 - Walls, floors, ceilings, doors, windows, stairs, railings, or architectural surfaces
 - Food, beverages, bottles, or consumables
 - Mattresses, bedding, pillows, or linen (only the BED FRAME itself, not the mattress on top)
-- Lighting fixtures (ceiling lights, floor lamps, table lamps — unless it's a structural lamp that requires installation)
+- Lighting fixtures (ceiling lights, floor lamps, table lamps — unless it's a structural lamp that requires installation). EXCEPTION: if you can CLEARLY see LED light strips or sensor spotlights mounted INSIDE or on top of a wardrobe/closet, list "Wardrobe Lighting Installation (per light / strip)" with quantity = the number of separate strips/spotlights visible. Only do this at HIGH confidence — if you are not sure the wardrobe already has lights fitted, do NOT add it.
 
 COUNTING RULES:
 - Count individual chairs separately: 4 dining chairs around a table → quantity: 4

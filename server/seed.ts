@@ -3355,4 +3355,40 @@ export async function seedDatabase() {
     console.log(`[startup] Round 36: PAX per-frame door-type ladder — retired ${retired} legacy whole-unit PAX row(s), inserted ${inserted} per-frame SKU row(s).`);
   }
 
+  /* ─── Round 37: Wardrobe Lighting Installation (per light / strip) ─────────
+     The Moving Guy now offers wardrobe interior lighting installation as an
+     add-on service. The customer supplies the IKEA light kit (sensor LED strip
+     / spotlights); we fit it, hide the wiring, and connect the driver. Charged
+     PER LIGHT / STRIP installed at $20 each — the customer sets quantity = the
+     number of lights/strips they want fitted. Install-only add-on (no
+     dismantle/relocate/dispose variants); negligible transport volume since the
+     light kit is customer-supplied.
+     Marker: WARDROBE-LIGHTING-R37-MARKER. */
+  const r37 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "WARDROBE-LIGHTING-R37-MARKER")).limit(1);
+  if (r37.length === 0) {
+    let inserted = 0;
+    const existing = await db.select().from(catalogItems).where(eq(catalogItems.sku, "WARDROBE-LIGHT-INSTALL")).limit(1);
+    if (existing.length === 0) {
+      await db.insert(catalogItems).values({
+        name: "Wardrobe Lighting Installation (per light / strip)",
+        sku: "WARDROBE-LIGHT-INSTALL",
+        category: "Wardrobes",
+        serviceType: "install",
+        basePrice: "20.00",
+        volumeM3: "0.02",
+        active: true,
+      } as any);
+      inserted++;
+    }
+    await db.insert(catalogItems).values({
+      name: "__wardrobe_lighting_r37_marker__",
+      sku: "WARDROBE-LIGHTING-R37-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+    console.log(`[startup] Round 37: Wardrobe Lighting Installation — inserted ${inserted} new SKU row(s) ($20 per light/strip).`);
+  }
+
 }
