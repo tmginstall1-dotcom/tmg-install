@@ -177,6 +177,41 @@ export function bulkWeightedQty(items: { name: string; quantity: number }[]): nu
 }
 
 // --------------------------------------------------------------------------
+// Reconciled quote-total helper
+// --------------------------------------------------------------------------
+// SINGLE SOURCE OF TRUTH for the formula that recomputes a quote's grand total
+// from its stored parts when it is edited. `editQuote` (server/storage.ts) and
+// the reconciliation tests must both go through this helper so the test asserts
+// the REAL production arithmetic and can never silently drift from it.
+//
+//   total = subtotal − promo − goodwill + transportFee + secondDayFee
+//
+// where, for a multi-stop quote, subtotal = laborSubtotal and the transportFee
+// column holds the FULL logistics bucket (transport + volumetric + extra-stop
+// fee = logisticsSubtotal). The result is clamped at 0 and rounded to cents.
+export interface QuoteTotalParts {
+  subtotal: number;        // sum of non-discount line items (labour for multi-stop)
+  transportFee?: number;   // transportFee column = logisticsSubtotal for multi-stop
+  promoDiscount?: number;
+  goodwillDiscount?: number;
+  secondDayFee?: number;
+}
+
+export function reconcileQuoteTotal(parts: QuoteTotalParts): number {
+  const subtotal = Number(parts.subtotal) || 0;
+  const transportFee = Number(parts.transportFee) || 0;
+  const promoDiscount = Number(parts.promoDiscount) || 0;
+  const goodwillDiscount = Number(parts.goodwillDiscount) || 0;
+  const secondDayFee = Number(parts.secondDayFee) || 0;
+  return round2(
+    Math.max(
+      0,
+      subtotal - promoDiscount - goodwillDiscount + transportFee + secondDayFee,
+    ),
+  );
+}
+
+// --------------------------------------------------------------------------
 // Input / output types
 // --------------------------------------------------------------------------
 

@@ -30,13 +30,14 @@ import assert from "node:assert/strict";
 import {
   computeMultiStopRelocationPrice,
   calcSecondDayContinuation,
+  reconcileQuoteTotal,
 } from "../shared/pricing.ts";
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-// Mirrors the editQuote total recompute in server/storage.ts. Kept in lockstep
-// with that formula so this test fails loudly if either the pricing buckets or
-// the reconciliation arithmetic drift apart.
+// Drives the REAL production helper (reconcileQuoteTotal) that editQuote uses in
+// server/storage.ts, so this test asserts the actual recompute arithmetic and
+// can never silently drift from it.
 function recomputeStoredTotal(args: {
   laborSubtotal: number; // subtotal column = sum of non-discount line items
   transportFeeColumn: number; // transportFee column = logisticsSubtotal
@@ -51,12 +52,13 @@ function recomputeStoredTotal(args: {
     goodwillDiscount = 0,
     secondDayFee = 0,
   } = args;
-  return round2(
-    Math.max(
-      0,
-      laborSubtotal - promoDiscount - goodwillDiscount + transportFeeColumn + secondDayFee,
-    ),
-  );
+  return reconcileQuoteTotal({
+    subtotal: laborSubtotal,
+    transportFee: transportFeeColumn,
+    promoDiscount,
+    goodwillDiscount,
+    secondDayFee,
+  });
 }
 
 const MULTI_STOP_INPUT = {

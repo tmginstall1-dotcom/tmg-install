@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { calcSecondDayContinuation, requiresFullUpfront, PricingConfig, computeSiteTime, type SiteVisit } from "@shared/pricing";
+import { calcSecondDayContinuation, requiresFullUpfront, reconcileQuoteTotal, PricingConfig, computeSiteTime, type SiteVisit } from "@shared/pricing";
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   attendanceAmendments, leaveRequests, payslips, staffLoans, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
@@ -1176,7 +1176,7 @@ export class DatabaseStorage implements IStorage {
       const subtotal = itemRows
         .filter(r => r.serviceType !== 'discount')
         .reduce((sum, r) => sum + Number(r.subtotal || 0), 0);
-      const total = Math.max(0, subtotal - promoDiscount - goodwillDiscount + transportFee + secondDayFee);
+      const total = reconcileQuoteTotal({ subtotal, promoDiscount, goodwillDiscount, transportFee, secondDayFee });
 
       // Protect already-collected money: if the deposit was paid at an
       // earlier amount, keep that amount and shift the difference onto the
