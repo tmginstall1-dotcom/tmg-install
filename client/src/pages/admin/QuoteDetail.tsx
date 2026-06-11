@@ -9,18 +9,35 @@ import {
  DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
  ClipboardList, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
  Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles, FileText, Copy, Users, PenLine, Wallet,
+ ArrowRight, Route, Truck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatItemDescription } from "@/lib/itemLabel";
-import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig, evaluateJobMargin, getJobSchedule, computeSiteTime, type SiteVisit } from "@shared/pricing";
+import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig, evaluateJobMargin, getJobSchedule, computeSiteTime, computeMultiStopRelocationPrice, type SiteVisit, type MultiStopPriceResult } from "@shared/pricing";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
 import { getQuoteTerms } from "@shared/terms";
 import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
 import { InvoiceMessageDialog } from "@/components/shared/InvoiceMessageDialog";
+import type { QuoteStop } from "@shared/schema";
+import { genStopId, groupStops, itemRouteLabel } from "@/lib/stops";
 
 const TERMINAL_STATUSES_UI = ['closed', 'cancelled'];
+
+// Multi-stop relocation (additive) editing helpers.
+type MultiStopResult = MultiStopPriceResult;
+interface EditStop {
+ id: string;
+ kind: "pickup" | "dropoff";
+ address: string;
+ postalCode: string;
+ floor: string;
+ hasLift: boolean | null;
+}
+const makeEditStop = (kind: "pickup" | "dropoff"): EditStop => ({
+ id: genStopId(), kind, address: "", postalCode: "", floor: "", hasLift: null,
+});
 
 function formatMoney(v: any) {
  return `$${Number(v || 0).toFixed(2)}`;
@@ -590,6 +607,13 @@ export default function AdminQuoteDetail() {
  const [editCustomer, setEditCustomer] = useState<any>({});
  const [editQuoteData, setEditQuoteData] = useState<any>({});
  const [editItems, setEditItems] = useState<any[]>([]);
+ // Multi-stop relocation (additive) editing state.
+ const [editStops, setEditStops] = useState<EditStop[]>([]);
+ const [editTotalVolume, setEditTotalVolume] = useState("");
+ const [editDistanceKm, setEditDistanceKm] = useState<number | null>(null);
+ const [editCalc, setEditCalc] = useState<MultiStopResult | null>(null);
+ const [editCalcError, setEditCalcError] = useState<string | null>(null);
+ const [editCalcLoading, setEditCalcLoading] = useState(false);
  const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
  // These setters are still called from send-handlers; the values are no longer
@@ -1018,6 +1042,27 @@ export default function AdminQuoteDetail() {
  goodwillDiscount: quote.goodwillDiscount ? String(quote.goodwillDiscount) : '0',
  goodwillReason: quote.goodwillReason || '',
  });
+ // Seed the multi-stop builder from stored stops; fall back to the legacy
+ // single pickup/dropoff so existing relocation quotes edit cleanly.
+ const storedStops: QuoteStop[] = Array.isArray((quote as any).stops) ? (quote as any).stops : [];
+ if (storedStops.length > 0) {
+ setEditStops(storedStops.map((s: any) => ({
+ id: s.id || genStopId(),
+ kind: s.kind === 'dropoff' ? 'dropoff' : 'pickup',
+ address: s.address || '',
+ postalCode: s.postalCode || '',
+ floor: s.floor || '',
+ hasLift: s.hasLift ?? null,
+ })));
+ } else {
+ setEditStops([
+ { ...makeEditStop('pickup'), address: quote.pickupAddress || quote.serviceAddress || '' },
+ { ...makeEditStop('dropoff'), address: quote.dropoffAddress || '' },
+ ]);
+ }
+ setEditTotalVolume(quote.volumeM3 ? String(quote.volumeM3) : '');
+ setEditDistanceKm(quote.distanceKm != null ? Number(quote.distanceKm) : null);
+ setEditCalc(null); setEditCalcError(null); setEditCalcLoading(false);
  setEditItems((quote.items || []).filter((item: any) => item.serviceType !== 'discount').map((item: any) => ({
  catalogItemId: item.catalogItemId,
  originalDescription: item.detectedName || item.originalDescription,
@@ -1026,15 +1071,35 @@ export default function AdminQuoteDetail() {
  quantity: item.quantity,
  unitPrice: String(item.unitPrice),
  subtotal: String(item.subtotal),
+ fromStopId: item.fromStopId || null,
+ toStopId: item.toStopId || null,
  })));
  setIsEditing(true);
  };
 
  const handleSaveEdit = async () => {
  try {
+ // Clean multi-stop data — only stops that carry an address are persisted.
+ const cleanStops: QuoteStop[] = editStops
+ .filter(s => s.address.trim())
+ .map(s => ({
+ id: s.id,
+ kind: s.kind,
+ address: s.address.trim(),
+ postalCode: s.postalCode.trim() || null,
+ floor: s.floor.trim() || null,
+ hasLift: s.hasLift,
+ }));
+ const validStopIds = new Set(cleanStops.map(s => s.id));
+ const firstPickup = cleanStops.find(s => s.kind === 'pickup');
+ const firstDropoff = cleanStops.find(s => s.kind === 'dropoff');
+ const isReloc = (editItems || []).some((i: any) => i.serviceType === 'relocate');
  const items = editItems.map(item => ({
  ...item,
  subtotal: (Number(item.unitPrice) * Number(item.quantity)).toFixed(2),
+ // Drop stale tags that point at removed stops.
+ fromStopId: validStopIds.has(item.fromStopId) ? item.fromStopId : null,
+ toStopId: validStopIds.has(item.toStopId) ? item.toStopId : null,
  }));
  await editQuote.mutateAsync({
  id,
@@ -1042,6 +1107,17 @@ export default function AdminQuoteDetail() {
  quoteUpdates: {
  ...editQuoteData,
  transportFee: editQuoteData.transportFee,
+ // Multi-stop relocation (additive). Keep legacy single addresses in
+ // sync with the first pickup/dropoff so all other surfaces reconcile.
+ ...(isReloc && cleanStops.length > 0
+ ? {
+ stops: cleanStops,
+ pickupAddress: firstPickup?.address || editQuoteData.pickupAddress || '',
+ dropoffAddress: firstDropoff?.address || editQuoteData.dropoffAddress || '',
+ ...(editDistanceKm != null ? { distanceKm: String(editDistanceKm) } : {}),
+ ...(editTotalVolume.trim() ? { volumeM3: editTotalVolume.trim() } : {}),
+ }
+ : {}),
  },
  items,
  });
@@ -1170,6 +1246,66 @@ export default function AdminQuoteDetail() {
  updated.subtotal = (Number(updated.unitPrice) * Number(updated.quantity)).toFixed(2);
  return updated;
  }));
+ };
+
+ // ── Multi-stop relocation (additive) edit helpers ──
+ const editPickupStops = editStops.filter(s => s.kind === 'pickup');
+ const editDropoffStops = editStops.filter(s => s.kind === 'dropoff');
+ const editIsMultiStop = editPickupStops.length > 1 || editDropoffStops.length > 1;
+ const addEditStop = (kind: 'pickup' | 'dropoff') => setEditStops(prev => [...prev, makeEditStop(kind)]);
+ const removeEditStop = (stopId: string) => setEditStops(prev => {
+ const target = prev.find(s => s.id === stopId);
+ if (!target) return prev;
+ if (prev.filter(s => s.kind === target.kind).length <= 1) return prev;
+ setEditItems(items => items.map(it => ({
+ ...it,
+ fromStopId: it.fromStopId === stopId ? null : it.fromStopId,
+ toStopId: it.toStopId === stopId ? null : it.toStopId,
+ })));
+ return prev.filter(s => s.id !== stopId);
+ });
+ const updateEditStop = (stopId: string, field: keyof EditStop, value: string | boolean | null) =>
+ setEditStops(prev => prev.map(s => s.id === stopId ? { ...s, [field]: value } : s));
+
+ const calcEditPrice = async () => {
+ const pus = editStops.filter(s => s.kind === 'pickup' && s.address.trim());
+ const dos = editStops.filter(s => s.kind === 'dropoff' && s.address.trim());
+ if (pus.length === 0 || dos.length === 0) {
+ toast({ title: "Add addresses first", description: "Enter at least one pick-up and one drop-off address.", variant: "destructive" });
+ return;
+ }
+ setEditCalcLoading(true);
+ setEditCalcError(null);
+ try {
+ const waypoints = [...pus, ...dos].map(s => ({
+ address: `${s.address}${s.postalCode ? ` ${s.postalCode}` : ""}`.trim(),
+ }));
+ const res = await apiRequest("POST", "/api/distance", { waypoints });
+ const data = await res.json();
+ const dist = data.routeFound ? Number(data.distanceKm) || 0 : 0;
+ setEditDistanceKm(dist);
+ const extraStops = Math.max(0, pus.length - 1) + Math.max(0, dos.length - 1);
+ const labor = editItems.reduce((sum, i) => sum + Number(i.unitPrice) * Number(i.quantity), 0);
+ const result = computeMultiStopRelocationPrice({
+ laborSubtotal: labor,
+ totalVolumeM3: parseFloat(editTotalVolume || "0") || 0,
+ distanceKm: dist,
+ extraStops,
+ });
+ setEditCalc(result);
+ // The transportFee column holds the full logistics bucket; editTotal
+ // recomputes from subtotal + transportFee, so this drives the new total.
+ setEditQuoteData((prev: any) => ({ ...prev, transportFee: result.logisticsSubtotal.toFixed(2) }));
+ if (!data.routeFound) {
+ toast({ title: "Distance unavailable", description: "Couldn't compute driving distance — priced without transport. Adjust manually if needed.", variant: "destructive" });
+ } else {
+ toast({ title: "Price calculated", description: `Logistics S$${result.logisticsSubtotal.toFixed(2)} applied to Transport Fee. You can still override it.` });
+ }
+ } catch (err: any) {
+ setEditCalcError(err?.message || "Could not calculate price.");
+ } finally {
+ setEditCalcLoading(false);
+ }
  };
 
  const editSubtotal = editItems.reduce((sum, i) => sum + Number(i.unitPrice) * Number(i.quantity), 0);
@@ -2168,16 +2304,134 @@ export default function AdminQuoteDetail() {
  className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors"
  data-testid="input-edit-address" />
  </div>
- <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
- <div>
- <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Pickup Address</label>
- <input value={editQuoteData.pickupAddress || ''} onChange={e => setEditQuoteData({ ...editQuoteData, pickupAddress: e.target.value })}
- className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ {/* ── Multi-stop relocation builder (additive) ── */}
+ <div className="border border-zinc-200 rounded-lg p-4 space-y-4 bg-zinc-50/50">
+ <div className="flex items-center gap-2">
+ <Route className="w-4 h-4 text-zinc-500" />
+ <span className="text-xs font-semibold uppercase tracking-wider text-zinc-700">Pick-up & Drop-off Stops</span>
  </div>
- <div>
- <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Dropoff Address</label>
- <input value={editQuoteData.dropoffAddress || ''} onChange={e => setEditQuoteData({ ...editQuoteData, dropoffAddress: e.target.value })}
+
+ {/* Pick-up stops */}
+ <div className="space-y-3">
+ {editPickupStops.map((s, idx) => (
+ <div key={s.id} className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2" data-testid={`edit-stop-pickup-${idx}`}>
+ <div className="flex items-center gap-2">
+ <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+ <span className="text-[10px] font-bold text-blue-600">{idx + 1}</span>
+ </div>
+ <span className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">Pick-up {idx + 1}</span>
+ {editPickupStops.length > 1 && (
+ <button type="button" data-testid={`button-edit-remove-pickup-${idx}`} onClick={() => removeEditStop(s.id)}
+ className="ml-auto w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+ <Trash2 className="w-3.5 h-3.5" />
+ </button>
+ )}
+ </div>
+ <input value={s.address} onChange={e => updateEditStop(s.id, 'address', e.target.value)}
+ data-testid={`input-edit-pickup-address-${idx}`} placeholder="Blk 123 Tampines St 86, Singapore 520123"
  className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ <div className="grid grid-cols-2 gap-2">
+ <input value={s.floor} onChange={e => updateEditStop(s.id, 'floor', e.target.value)}
+ placeholder="Floor / Unit e.g. #04-56"
+ className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ <select value={s.hasLift === null ? '' : s.hasLift ? 'yes' : 'no'}
+ onChange={e => updateEditStop(s.id, 'hasLift', e.target.value === '' ? null : e.target.value === 'yes')}
+ className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]">
+ <option value="">Lift? —</option>
+ <option value="yes">Lift available</option>
+ <option value="no">No lift</option>
+ </select>
+ </div>
+ </div>
+ ))}
+ <button type="button" data-testid="button-edit-add-pickup" onClick={() => addEditStop('pickup')}
+ className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium">
+ <Plus className="w-3.5 h-3.5" /> Add pick-up stop
+ </button>
+ </div>
+
+ <div className="flex items-center justify-center text-zinc-400">
+ <ArrowRight className="w-4 h-4" />
+ </div>
+
+ {/* Drop-off stops */}
+ <div className="space-y-3">
+ {editDropoffStops.map((s, idx) => (
+ <div key={s.id} className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2" data-testid={`edit-stop-dropoff-${idx}`}>
+ <div className="flex items-center gap-2">
+ <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+ <span className="text-[10px] font-bold text-green-600">{String.fromCharCode(65 + idx)}</span>
+ </div>
+ <span className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">Drop-off {String.fromCharCode(65 + idx)}</span>
+ {editDropoffStops.length > 1 && (
+ <button type="button" data-testid={`button-edit-remove-dropoff-${idx}`} onClick={() => removeEditStop(s.id)}
+ className="ml-auto w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+ <Trash2 className="w-3.5 h-3.5" />
+ </button>
+ )}
+ </div>
+ <input value={s.address} onChange={e => updateEditStop(s.id, 'address', e.target.value)}
+ data-testid={`input-edit-dropoff-address-${idx}`} placeholder="Blk 456 Jurong West Ave 3, Singapore 640456"
+ className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ <div className="grid grid-cols-2 gap-2">
+ <input value={s.floor} onChange={e => updateEditStop(s.id, 'floor', e.target.value)}
+ placeholder="Floor / Unit e.g. #12-88"
+ className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ <select value={s.hasLift === null ? '' : s.hasLift ? 'yes' : 'no'}
+ onChange={e => updateEditStop(s.id, 'hasLift', e.target.value === '' ? null : e.target.value === 'yes')}
+ className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]">
+ <option value="">Lift? —</option>
+ <option value="yes">Lift available</option>
+ <option value="no">No lift</option>
+ </select>
+ </div>
+ </div>
+ ))}
+ <button type="button" data-testid="button-edit-add-dropoff" onClick={() => addEditStop('dropoff')}
+ className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700 font-medium">
+ <Plus className="w-3.5 h-3.5" /> Add drop-off stop
+ </button>
+ </div>
+
+ {/* Total volume + Calculate price */}
+ <div className="pt-3 border-t border-zinc-200">
+ <label className="text-xs font-medium text-zinc-500 mb-1.5 flex items-center gap-1.5">
+ <Truck className="w-3 h-3" /> Total load volume (m³) — for transport & handling
+ </label>
+ <div className="flex gap-2">
+ <input type="number" min="0" step="0.1" value={editTotalVolume} onChange={e => setEditTotalVolume(e.target.value)}
+ data-testid="input-edit-total-volume" placeholder="e.g. 8.5"
+ className="h-9 flex-1 px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ <button type="button" data-testid="button-edit-calculate-price" onClick={calcEditPrice} disabled={editCalcLoading}
+ className="h-9 px-4 rounded-lg text-sm font-medium bg-zinc-900 hover:bg-zinc-800 text-white shrink-0 disabled:opacity-60">
+ {editCalcLoading ? "Calculating…" : "Calculate price"}
+ </button>
+ </div>
+ {editCalcError && (
+ <div className="mt-1.5 flex items-center gap-1.5 text-xs text-red-600">
+ <XCircle className="w-3.5 h-3.5 shrink-0" /> {editCalcError}
+ </div>
+ )}
+ {editCalc && !editCalcError && (
+ <div className="mt-2 px-3 py-2.5 bg-white rounded-lg border border-zinc-200 space-y-1 text-xs" data-testid="edit-calc-breakdown">
+ {editDistanceKm !== null && (
+ <div className="flex justify-between text-zinc-500">
+ <span>Route distance</span>
+ <span className="font-mono">{editDistanceKm.toFixed(1)} km · {editCalc.numTrips} trip{editCalc.numTrips !== 1 ? "s" : ""}</span>
+ </div>
+ )}
+ {editCalc.breakdown.map((b, i) => (
+ <div key={i} className="flex justify-between text-zinc-500">
+ <span>{b.label}</span>
+ <span className="font-mono">${b.amount.toFixed(2)}</span>
+ </div>
+ ))}
+ <div className="flex justify-between font-semibold text-zinc-900 pt-1 border-t border-zinc-200">
+ <span>Logistics applied to Transport Fee</span>
+ <span className="font-mono">${editCalc.logisticsSubtotal.toFixed(2)}</span>
+ </div>
+ </div>
+ )}
  </div>
  </div>
  <div>
@@ -2398,13 +2652,38 @@ export default function AdminQuoteDetail() {
  </span>
  </div>
  )}
- {quote.pickupAddress && (
+ {(() => {
+ const grouped = groupStops((quote as any).stops);
+ const hasMulti = !(quote as any).samePropertyMove && (grouped.pickups.length + grouped.dropoffs.length) > 0
+ && (grouped.pickups.length > 1 || grouped.dropoffs.length > 1);
+ if (!hasMulti) return null;
+ return (
+ <div className="grid grid-cols-[100px_1fr] gap-2 items-start" data-testid="view-multistop">
+ <span className="text-xs text-zinc-500 mt-0.5">Stops</span>
+ <div className="space-y-2">
+ {grouped.pickups.map((s) => (
+ <div key={s.id} className="flex items-start gap-2" data-testid={`view-stop-${s.id}`}>
+ <span className="mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-[10px] font-bold text-blue-600 shrink-0">{s.label.replace('Pickup ', '')}</span>
+ <span className="text-sm text-zinc-900 leading-snug">{s.address}{s.floor ? `, ${s.floor}` : ''}{s.hasLift != null ? ` (lift: ${s.hasLift ? 'yes' : 'no'})` : ''}</span>
+ </div>
+ ))}
+ {grouped.dropoffs.map((s) => (
+ <div key={s.id} className="flex items-start gap-2" data-testid={`view-stop-${s.id}`}>
+ <span className="mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 text-[10px] font-bold text-green-600 shrink-0">{s.label.replace('Drop-off ', '')}</span>
+ <span className="text-sm text-zinc-900 leading-snug">{s.address}{s.floor ? `, ${s.floor}` : ''}{s.hasLift != null ? ` (lift: ${s.hasLift ? 'yes' : 'no'})` : ''}</span>
+ </div>
+ ))}
+ </div>
+ </div>
+ );
+ })()}
+ {quote.pickupAddress && !(groupStops((quote as any).stops).pickups.length > 1 || groupStops((quote as any).stops).dropoffs.length > 1) && (
  <div className="grid grid-cols-[100px_1fr] gap-2 items-start">
  <span className="text-xs text-zinc-500 mt-0.5">{(quote as any).samePropertyMove ? "Property" : "Pickup At"}</span>
  <span className="text-sm text-zinc-900 leading-snug">{quote.pickupAddress}</span>
  </div>
  )}
- {quote.dropoffAddress && !(quote as any).samePropertyMove && (
+ {quote.dropoffAddress && !(quote as any).samePropertyMove && !(groupStops((quote as any).stops).pickups.length > 1 || groupStops((quote as any).stops).dropoffs.length > 1) && (
  <div className="grid grid-cols-[100px_1fr] gap-2 items-start">
  <span className="text-xs text-zinc-500 mt-0.5">Dropoff At</span>
  <span className="text-sm text-zinc-900 leading-snug">{quote.dropoffAddress}</span>
@@ -2487,6 +2766,29 @@ export default function AdminQuoteDetail() {
  className="h-9 w-full pl-6 pr-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
  </div>
  </div>
+ {/* Multi-stop route tag — only when there are extra stops. */}
+ {editIsMultiStop && (
+ <div className="flex items-center gap-2">
+ <Route className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+ <select value={item.fromStopId || ''} onChange={e => updateEditItem(i, 'fromStopId', e.target.value || null)}
+ data-testid={`select-edit-item-from-${i}`}
+ className="h-8 flex-1 text-xs border border-zinc-300 rounded-md px-2 bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]">
+ <option value="">From pick-up…</option>
+ {editPickupStops.map((s, pi) => (
+ <option key={s.id} value={s.id}>Pickup {pi + 1}</option>
+ ))}
+ </select>
+ <ArrowRight className="w-3 h-3 text-zinc-400 shrink-0" />
+ <select value={item.toStopId || ''} onChange={e => updateEditItem(i, 'toStopId', e.target.value || null)}
+ data-testid={`select-edit-item-to-${i}`}
+ className="h-8 flex-1 text-xs border border-zinc-300 rounded-md px-2 bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]">
+ <option value="">To drop-off…</option>
+ {editDropoffStops.map((s, di) => (
+ <option key={s.id} value={s.id}>Drop-off {String.fromCharCode(65 + di)}</option>
+ ))}
+ </select>
+ </div>
+ )}
  </div>
  <button onClick={() => removeEditItem(i)} className="inline-flex items-center justify-center w-9 h-9 sm:w-auto sm:px-3 rounded-lg text-red-600 bg-white border border-zinc-300 hover:bg-red-50 hover:border-red-200 transition-colors self-start">
  <Trash2 className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline text-sm font-medium">Remove</span>
@@ -2677,6 +2979,11 @@ export default function AdminQuoteDetail() {
  <p className="text-xs text-zinc-400 mt-0.5 capitalize">
  {item.serviceType} · qty {item.quantity} · ${Number(item.unitPrice).toFixed(0)}/ea
  </p>
+ {itemRouteLabel((quote as any).stops, item.fromStopId, item.toStopId) && (
+ <p className="text-xs text-zinc-500 mt-0.5 inline-flex items-center gap-1" data-testid={`item-route-${item.id}`}>
+ <Route className="w-3 h-3" /> {itemRouteLabel((quote as any).stops, item.fromStopId, item.toStopId)}
+ </p>
+ )}
  {item.remark && (
  <p className="text-xs text-zinc-400 mt-1 italic leading-snug">{item.remark}</p>
  )}
@@ -2704,6 +3011,11 @@ export default function AdminQuoteDetail() {
  <td className="px-5 py-3 border-b border-zinc-100">
  <p className="text-sm font-medium text-zinc-900 leading-tight">{item.detectedName || item.originalDescription}</p>
  <p className="text-xs text-zinc-500 mt-0.5 capitalize">{item.serviceType} · ${Number(item.unitPrice).toFixed(0)}/ea</p>
+ {itemRouteLabel((quote as any).stops, item.fromStopId, item.toStopId) && (
+ <p className="text-xs text-zinc-500 mt-0.5 inline-flex items-center gap-1" data-testid={`item-route-desktop-${item.id}`}>
+ <Route className="w-3 h-3" /> {itemRouteLabel((quote as any).stops, item.fromStopId, item.toStopId)}
+ </p>
+ )}
  {item.remark && (
  <p className="text-xs text-zinc-400 mt-0.5 italic leading-snug">{item.remark}</p>
  )}

@@ -290,6 +290,20 @@ export const whatsappSessions = pgTable("whatsapp_sessions", {
 });
 export type WhatsAppSession = typeof whatsappSessions.$inferSelect;
 
+// Multi-stop relocation — a single pickup or drop-off location on a job.
+// Stored as a jsonb array on quotes.stops (ADDITIVE; legacy quotes have []).
+// `id` is a stable client-generated string so line items can reference it
+// across edits (editQuote deletes + re-inserts line items every save).
+export const quoteStopSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum(["pickup", "dropoff"]),
+  address: z.string().min(1),
+  postalCode: z.string().nullable().optional(),
+  floor: z.string().nullable().optional(),
+  hasLift: z.boolean().nullable().optional(),
+});
+export type QuoteStop = z.infer<typeof quoteStopSchema>;
+
 // Quotes / Jobs
 // Status machine:
 // submitted → deposit_requested → deposit_paid → booking_requested → booked → assigned → in_progress → completed → final_payment_requested → final_paid → closed
@@ -324,6 +338,12 @@ export const quotes = pgTable("quotes", {
   // Relocation-specific fields
   pickupAddress: text("pickup_address"),
   dropoffAddress: text("dropoff_address"),
+  // Multi-stop relocation (ADDITIVE) — ordered list of pickup + drop-off stops.
+  // When empty, the legacy single pickupAddress/dropoffAddress behaviour applies.
+  // Each stop carries a stable client-generated id so line items can reference
+  // their source pickup (fromStopId) and destination drop-off (toStopId) even
+  // though editQuote deletes + re-inserts the line items on every edit.
+  stops: jsonb("stops").$type<QuoteStop[]>().default([]),
   accessDifficulty: text("access_difficulty"), // 'easy' | 'medium' | 'hard'
   floorsInfo: text("floors_info"), // JSON stringified array
   selectedServices: text("selected_services"), // JSON stringified array
@@ -465,6 +485,11 @@ export const quoteItems = pgTable("quote_items", {
   quantity: integer("quantity").notNull().default(1),
   unitPrice: numeric("unit_price").notNull().default("0"),
   subtotal: numeric("subtotal").notNull().default("0"),
+  // Multi-stop relocation links (ADDITIVE) — which pickup this item comes from
+  // and which drop-off it goes to, referencing quotes.stops[].id. Null on legacy
+  // single-leg quotes.
+  fromStopId: text("from_stop_id"),
+  toStopId: text("to_stop_id"),
 }, (t) => ({
   quoteItemsQuoteIdx: index("quote_items_quote_id_idx").on(t.quoteId),
 }));

@@ -20,3 +20,4 @@
 - [OneMap search quirk](onemap-search-quirk.md) — /api/onemap/search returns 200 + full results but with a deprecation `error` field; branch on status+results.length, never on `error`; "Block" prefix breaks matching.
 - [Admin mobile safe-area](admin-mobile-safe-area.md) — admin page wrappers must pad past the fixed 64px bottom nav + env(safe-area-inset-bottom); flat pb-24 hides tail content on notched phones.
 - [Invoice line verb labels](invoice-line-verb-labels.md) — itemLabel.ts is the one line-label formatter; check typed-verb (startsWithKnownVerb) BEFORE the service_type verb or install-typed "To supply…" lines double-prefix to "Installation of…".
+- [Multi-stop relocation](multi-stop-relocation.md) — additive; multi-stop iff groupStops().all.length>2; labels only via lib/stops.ts; transportFee=full logistics bucket; display surfaces must stay in lockstep.

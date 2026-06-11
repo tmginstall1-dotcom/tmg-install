@@ -9,6 +9,8 @@
 import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
+import { groupStops, itemRouteLabel } from "@/lib/stops";
+import type { QuoteStop } from "@shared/schema";
 import { requiresFullUpfront } from "@shared/pricing";
 import { getQuoteTerms, QUOTE_TERMS_HEADING } from "@shared/terms";
 import { getJobSchedule } from "@shared/pricing";
@@ -29,6 +31,8 @@ type InvoiceItem = {
   quantity: number;
   unitPrice: string;
   subtotal: string;
+  fromStopId?: string | null;
+  toStopId?: string | null;
 };
 
 export type InvoicePdfData = {
@@ -46,6 +50,8 @@ export type InvoicePdfData = {
   serviceAddress: string | null;
   pickupAddress: string | null;
   dropoffAddress: string | null;
+  samePropertyMove?: boolean;
+  stops?: QuoteStop[] | null;
   scheduledAt: string | null;
   timeWindow: string | null;
   completedAt: string | null;
@@ -253,7 +259,16 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(31, 41, 55); // gray-800
-  if (data.pickupAddress) {
+  const pdfGrouped = groupStops(data.stops);
+  const pdfMultiStop = pdfGrouped.all.length > 2;
+  if (pdfMultiStop) {
+    for (const s of pdfGrouped.all) {
+      const extra = `${s.floor ? `, ${s.floor}` : ""}${s.hasLift === false ? " (no lift)" : ""}`;
+      const stopLines = doc.splitTextToSize(`${s.label}: ${s.address}${extra}`, contentW);
+      doc.text(stopLines, marginX, y);
+      y += stopLines.length * 4;
+    }
+  } else if (data.pickupAddress) {
     const pickupLines  = doc.splitTextToSize(`Pickup: ${data.pickupAddress}`, contentW);
     const dropoffLines = doc.splitTextToSize(`Drop-off: ${data.dropoffAddress || "—"}`, contentW);
     doc.text(pickupLines, marginX, y);
@@ -306,7 +321,8 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
     y += 8;
   } else {
     data.items.forEach((it, i) => {
-      const desc = formatItemDescription(it, data.items);
+      const routeLabel = itemRouteLabel(data.stops, it.fromStopId, it.toStopId);
+      const desc = formatItemDescription(it, data.items) + (routeLabel ? `\n${routeLabel}` : "");
       const wrapped = doc.splitTextToSize(desc, contentW - 60);
       const rowH = Math.max(7, wrapped.length * 4 + 3);
 

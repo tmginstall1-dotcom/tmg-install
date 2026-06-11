@@ -135,12 +135,21 @@ export const api = {
       method: 'POST' as const,
       path: '/api/distance' as const,
       input: z.object({
-        pickupAddress: z.string().min(1),
-        dropoffAddress: z.string().min(1),
+        // Legacy single-leg inputs (kept for back-compat).
+        pickupAddress: z.string().min(1).optional(),
+        dropoffAddress: z.string().min(1).optional(),
         pickupLat: z.number().optional(),
         pickupLng: z.number().optional(),
         dropoffLat: z.number().optional(),
         dropoffLng: z.number().optional(),
+        // Multi-stop: an ordered list of waypoints (pickups then drop-offs).
+        // When 2+ are supplied, the route distance is the sum across the whole
+        // chain in the given order. Takes precedence over pickup/dropoff.
+        waypoints: z.array(z.object({
+          address: z.string().min(1),
+          lat: z.number().optional(),
+          lng: z.number().optional(),
+        })).optional(),
       }),
       responses: {
         200: z.object({ distanceKm: z.number(), routeFound: z.boolean(), error: z.string().optional() }),

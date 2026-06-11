@@ -14,8 +14,11 @@ import {
   User, MapPin, Calendar, Clock, Package,
   Plus, Trash2, CheckCircle2, ExternalLink, Sparkles, Upload,
   X, FileImage, AlertCircle, ChevronDown, ChevronUp,
-  ArrowRight, Truck, Wrench, Mail, Tag, CheckCircle, XCircle,
+  ArrowRight, Truck, Wrench, Mail, Tag, CheckCircle, XCircle, Route,
 } from "lucide-react";
+import { computeMultiStopRelocationPrice, type MultiStopPriceResult } from "@shared/pricing";
+import type { QuoteStop } from "@shared/schema";
+import { genStopId, groupStops } from "@/lib/stops";
 
 const SERVICE_OPTIONS = [
   "Assembly", "Dismantling", "Relocation", "Wall Mounting",
@@ -53,9 +56,16 @@ const CONFIDENCE_COLORS: Record<string, string> = {
 
 type JobType = "standard" | "relocation";
 
-type LineItem = { id: number; description: string; quantity: number; unitPrice: string; remark?: string | null; aiGenerated?: boolean };
+type LineItem = { id: number; description: string; quantity: number; unitPrice: string; remark?: string | null; aiGenerated?: boolean; fromStopId?: string | null; toStopId?: string | null };
 let _id = 1;
 const genId = () => _id++;
+
+// Multi-stop relocation — editable stop in the builder. Mirrors QuoteStop but
+// keeps form-friendly types (empty strings instead of null) for the inputs.
+type StopForm = { id: string; kind: "pickup" | "dropoff"; address: string; postalCode: string; floor: string; hasLift: boolean | null };
+const makeStop = (kind: "pickup" | "dropoff"): StopForm => ({
+  id: genStopId(), kind, address: "", postalCode: "", floor: "", hasLift: null,
+});
 
 type StaffMember = { id: number; name: string; role: string };
 
@@ -123,13 +133,16 @@ export function CreateJobModal({ open, onClose }: Props) {
   const [serviceAddress, setServiceAddress]   = useState("");
   const [dropoffAddress, setDropoffAddress]   = useState("");
 
-  // Relocation-specific
-  const [pickupFloor, setPickupFloor]         = useState("");
-  const [dropoffFloor, setDropoffFloor]       = useState("");
-  const [pickupLift, setPickupLift]           = useState<boolean | null>(null);
-  const [dropoffLift, setDropoffLift]         = useState<boolean | null>(null);
+  // Relocation-specific — multi-stop builder (one pickup + one drop-off by default)
+  const [stops, setStops]                     = useState<StopForm[]>(() => [makeStop("pickup"), makeStop("dropoff")]);
   const [includeDismantle, setIncludeDismantle] = useState(false);
   const [includeAssembly, setIncludeAssembly]   = useState(false);
+  // "Calculate price" inputs / results
+  const [totalVolumeM3, setTotalVolumeM3]     = useState("");
+  const [distanceKm, setDistanceKm]           = useState<number | null>(null);
+  const [calcLoading, setCalcLoading]         = useState(false);
+  const [calcResult, setCalcResult]           = useState<MultiStopPriceResult | null>(null);
+  const [calcError, setCalcError]             = useState<string | null>(null);
 
   // Schedule
   const [services, setServices]               = useState<string[]>([]);
@@ -226,10 +239,10 @@ export function CreateJobModal({ open, onClose }: Props) {
           unitPrice:   parseFloat(i.unitPrice || "0"),
         })),
         services,
-        pickupFloor:  isRelocation ? (pickupFloor || null)  : null,
-        pickupLift:   isRelocation ? pickupLift              : null,
-        dropoffFloor: isRelocation ? (dropoffFloor || null) : null,
-        dropoffLift:  isRelocation ? dropoffLift             : null,
+        pickupFloor:  isRelocation ? (stops.find(s => s.kind === "pickup")?.floor || null)   : null,
+        pickupLift:   isRelocation ? (stops.find(s => s.kind === "pickup")?.hasLift ?? null) : null,
+        dropoffFloor: isRelocation ? (stops.find(s => s.kind === "dropoff")?.floor || null)  : null,
+        dropoffLift:  isRelocation ? (stops.find(s => s.kind === "dropoff")?.hasLift ?? null) : null,
         notes:        notes.trim() || null,
       });
       const data: CoachResult = await res.json();
@@ -352,16 +365,43 @@ export function CreateJobModal({ open, onClose }: Props) {
   const handleSubmit = () => {
     if (!customerName.trim()) return toast({ title: "Customer name required", variant: "destructive" });
     if (!customerPhone.trim()) return toast({ title: "Customer phone required", variant: "destructive" });
-    if (!serviceAddress.trim()) return toast({ title: isRelocation ? "Pick-up address required" : "Service address required", variant: "destructive" });
-    if (isRelocation && !dropoffAddress.trim()) return toast({ title: "Drop-off address required", variant: "destructive" });
+
+    // Multi-stop relocation — clean stops that have an address; the first
+    // pickup/drop-off back-fill the legacy single-address fields server-side.
+    const cleanStops: QuoteStop[] = isRelocation
+      ? stops
+          .filter(s => s.address.trim())
+          .map(s => ({
+            id: s.id,
+            kind: s.kind,
+            address: s.address.trim(),
+            postalCode: s.postalCode.trim() || null,
+            floor: s.floor.trim() || null,
+            hasLift: s.hasLift,
+          }))
+      : [];
+    const firstPickup  = cleanStops.find(s => s.kind === "pickup");
+    const firstDropoff = cleanStops.find(s => s.kind === "dropoff");
+
+    if (isRelocation) {
+      if (!firstPickup)  return toast({ title: "Pick-up address required", variant: "destructive" });
+      if (!firstDropoff) return toast({ title: "Drop-off address required", variant: "destructive" });
+    } else if (!serviceAddress.trim()) {
+      return toast({ title: "Service address required", variant: "destructive" });
+    }
 
     const validItems = items.filter(i => i.description.trim());
 
-    // Build floor/access note for relocation
+    // Build floor/access note for relocation from the stop details.
     const accessLines: string[] = [];
     if (isRelocation) {
-      if (pickupFloor) accessLines.push(`Pick-up: ${pickupFloor}${pickupLift !== null ? ` (lift: ${pickupLift ? "yes" : "no"})` : ""}`);
-      if (dropoffFloor) accessLines.push(`Drop-off: ${dropoffFloor}${dropoffLift !== null ? ` (lift: ${dropoffLift ? "yes" : "no"})` : ""}`);
+      const { pickups, dropoffs } = groupStops(cleanStops);
+      [...pickups, ...dropoffs].forEach(s => {
+        const bits: string[] = [];
+        if (s.floor) bits.push(s.floor);
+        if (s.hasLift !== null && s.hasLift !== undefined) bits.push(`lift: ${s.hasLift ? "yes" : "no"}`);
+        if (bits.length) accessLines.push(`${s.label}: ${bits.join(", ")}`);
+      });
       if (includeDismantle) accessLines.push("Include dismantling at pick-up");
       if (includeAssembly) accessLines.push("Include assembly at drop-off");
     }
@@ -374,8 +414,8 @@ export function CreateJobModal({ open, onClose }: Props) {
       customerName:     customerName.trim(),
       customerPhone:    customerPhone.trim(),
       customerEmail:    customerEmail.trim() || null,
-      serviceAddress:   serviceAddress.trim(),
-      dropoffAddress:   isRelocation ? dropoffAddress.trim() : null,
+      serviceAddress:   isRelocation ? (firstPickup?.address || serviceAddress.trim()) : serviceAddress.trim(),
+      dropoffAddress:   isRelocation ? (firstDropoff?.address || null) : null,
       isRelocation,
       scheduledDate:    scheduledDate || null,
       timeWindow:       scheduledDate ? timeWindow : null,
@@ -390,11 +430,18 @@ export function CreateJobModal({ open, onClose }: Props) {
       sourceChannel,
       promoCode:        promoCode || null,
       promoDiscount:    promoDiscount > 0 ? promoDiscount.toFixed(2) : "0",
+      // Multi-stop relocation (additive) — empty for standard jobs.
+      stops:            isRelocation && cleanStops.length > 0 ? cleanStops : undefined,
+      distanceKm:       isRelocation && distanceKm !== null ? String(distanceKm) : undefined,
+      transportFee:     isRelocation && calcResult ? calcResult.logisticsSubtotal.toFixed(2) : undefined,
+      volumetricFee:    isRelocation && calcResult ? calcResult.volumetricFee.toFixed(2) : undefined,
       items: validItems.map(i => ({
         description: i.description,
         quantity:    i.quantity,
         unitPrice:   i.unitPrice || "0",
         remark:      i.remark || null,
+        fromStopId:  isRelocation ? (i.fromStopId || null) : null,
+        toStopId:    isRelocation ? (i.toStopId || null) : null,
       })),
     });
   };
@@ -408,7 +455,8 @@ export function CreateJobModal({ open, onClose }: Props) {
     setJobType("standard");
     setCustomerName(""); setCustomerPhone(""); setCustomerEmail("");
     setServiceAddress(""); setDropoffAddress("");
-    setPickupFloor(""); setDropoffFloor(""); setPickupLift(null); setDropoffLift(null);
+    setStops([makeStop("pickup"), makeStop("dropoff")]);
+    setTotalVolumeM3(""); setDistanceKm(null); setCalcResult(null); setCalcError(null); setCalcLoading(false);
     setIncludeDismantle(false); setIncludeAssembly(false);
     setServices([]); setScheduledDate(""); setTimeWindow("09:00-12:00"); setTwCustomMode(false);
     setItems([{ id: genId(), description: "", quantity: 1, unitPrice: "" }]);
@@ -426,8 +474,77 @@ export function CreateJobModal({ open, onClose }: Props) {
 
   const addItem = () => setItems(prev => [...prev, { id: genId(), description: "", quantity: 1, unitPrice: "" }]);
   const removeItem = (id: number) => setItems(prev => prev.filter(i => i.id !== id));
-  const updateItem = (id: number, field: keyof LineItem, value: string | number) => {
+  const updateItem = (id: number, field: keyof LineItem, value: string | number | null) => {
     setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i));
+  };
+
+  // ── Multi-stop builder helpers ──────────────────────────────────────────────
+  const addStop = (kind: "pickup" | "dropoff") =>
+    setStops(prev => {
+      // Keep pickups grouped before drop-offs so labels read in order.
+      const next = [...prev, makeStop(kind)];
+      return [...next.filter(s => s.kind === "pickup"), ...next.filter(s => s.kind === "dropoff")];
+    });
+  const removeStop = (id: string) =>
+    setStops(prev => {
+      const target = prev.find(s => s.id === id);
+      if (!target) return prev;
+      // Never let a kind drop below one stop.
+      if (prev.filter(s => s.kind === target.kind).length <= 1) return prev;
+      // Clear any line-item tags that referenced the removed stop.
+      setItems(items => items.map(i => ({
+        ...i,
+        fromStopId: i.fromStopId === id ? null : i.fromStopId,
+        toStopId:   i.toStopId === id ? null : i.toStopId,
+      })));
+      return prev.filter(s => s.id !== id);
+    });
+  const updateStop = (id: string, field: keyof StopForm, value: string | boolean | null) =>
+    setStops(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+
+  const pickupStops  = stops.filter(s => s.kind === "pickup");
+  const dropoffStops = stops.filter(s => s.kind === "dropoff");
+  const isMultiStop  = pickupStops.length > 1 || dropoffStops.length > 1;
+
+  // "Calculate price": geocode the full multi-stop route, then suggest a total
+  // from labour + transport + volumetric + per-extra-stop fee. Admin can override.
+  const calcPrice = async () => {
+    const pus = stops.filter(s => s.kind === "pickup"  && s.address.trim());
+    const dos = stops.filter(s => s.kind === "dropoff" && s.address.trim());
+    if (pus.length === 0 || dos.length === 0) {
+      toast({ title: "Add addresses first", description: "Enter at least one pick-up and one drop-off address.", variant: "destructive" });
+      return;
+    }
+    setCalcLoading(true);
+    setCalcError(null);
+    try {
+      const waypoints = [...pus, ...dos].map(s => ({
+        address: `${s.address}${s.postalCode ? ` ${s.postalCode}` : ""}`.trim(),
+      }));
+      const res = await apiRequest("POST", "/api/distance", { waypoints });
+      const data = await res.json();
+      const dist = data.routeFound ? Number(data.distanceKm) || 0 : 0;
+      setDistanceKm(dist);
+      const extraStops = Math.max(0, pus.length - 1) + Math.max(0, dos.length - 1);
+      const result = computeMultiStopRelocationPrice({
+        laborSubtotal: itemsTotal,
+        totalVolumeM3: parseFloat(totalVolumeM3 || "0") || 0,
+        distanceKm: dist,
+        extraStops,
+      });
+      setCalcResult(result);
+      // Apply suggested total (less any promo) as the override; admin can edit.
+      setManualTotal(Math.max(0, result.grandTotal - promoDiscount).toFixed(2));
+      if (!data.routeFound) {
+        toast({ title: "Distance unavailable", description: "Couldn't compute driving distance — priced without transport. Adjust the total manually if needed.", variant: "destructive" });
+      } else {
+        toast({ title: "Price calculated", description: `Suggested total S$${result.grandTotal.toFixed(2)} applied. You can still override it.` });
+      }
+    } catch (e: any) {
+      setCalcError(e?.message || "Could not calculate price. Try again.");
+    } finally {
+      setCalcLoading(false);
+    }
   };
 
   const LiftToggle = ({
@@ -724,36 +841,56 @@ export function CreateJobModal({ open, onClose }: Props) {
             <Section icon={<MapPin className="w-4 h-4 text-zinc-500" />} title={isRelocation ? "Locations" : "Job Address"}>
               {isRelocation ? (
                 <div className="space-y-4">
-                  {/* Pickup */}
-                  <div className="rounded-xl border border-zinc-200 p-4 space-y-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                        <span className="text-[10px] font-bold text-blue-600">A</span>
-                      </div>
-                      <span className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">Pick-up Address</span>
-                    </div>
-                    <div>
-                      <Input
-                        data-testid="input-service-address"
-                        value={serviceAddress}
-                        onChange={e => setServiceAddress(e.target.value)}
-                        placeholder="Blk 123 Tampines St 86, #04-56, Singapore 520123"
-                        className="h-9 text-sm border-zinc-300"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs text-zinc-500 mb-1.5 block">Floor / Unit</Label>
+                  {/* ── Pick-up stops ── */}
+                  <div className="space-y-3">
+                    {pickupStops.map((s, idx) => (
+                      <div key={s.id} className="rounded-xl border border-zinc-200 p-4 space-y-3" data-testid={`stop-pickup-${idx}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                            <span className="text-[10px] font-bold text-blue-600">{idx + 1}</span>
+                          </div>
+                          <span className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">Pick-up {idx + 1}</span>
+                          {pickupStops.length > 1 && (
+                            <button
+                              type="button"
+                              data-testid={`button-remove-pickup-${idx}`}
+                              onClick={() => removeStop(s.id)}
+                              className="ml-auto w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                         <Input
-                          data-testid="input-pickup-floor"
-                          value={pickupFloor}
-                          onChange={e => setPickupFloor(e.target.value)}
-                          placeholder="e.g. #04-56"
+                          data-testid={`input-pickup-address-${idx}`}
+                          value={s.address}
+                          onChange={e => updateStop(s.id, "address", e.target.value)}
+                          placeholder="Blk 123 Tampines St 86, Singapore 520123"
                           className="h-9 text-sm border-zinc-300"
                         />
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs text-zinc-500 mb-1.5 block">Floor / Unit</Label>
+                            <Input
+                              data-testid={`input-pickup-floor-${idx}`}
+                              value={s.floor}
+                              onChange={e => updateStop(s.id, "floor", e.target.value)}
+                              placeholder="e.g. #04-56"
+                              className="h-9 text-sm border-zinc-300"
+                            />
+                          </div>
+                          <LiftToggle value={s.hasLift} onChange={v => updateStop(s.id, "hasLift", v)} label="Lift Available?" />
+                        </div>
                       </div>
-                      <LiftToggle value={pickupLift} onChange={setPickupLift} label="Lift Available?" />
-                    </div>
+                    ))}
+                    <button
+                      type="button"
+                      data-testid="button-add-pickup"
+                      onClick={() => addStop("pickup")}
+                      className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium px-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add pick-up stop
+                    </button>
                   </div>
 
                   {/* Arrow */}
@@ -765,36 +902,56 @@ export function CreateJobModal({ open, onClose }: Props) {
                     </div>
                   </div>
 
-                  {/* Dropoff */}
-                  <div className="rounded-xl border border-zinc-200 p-4 space-y-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                        <span className="text-[10px] font-bold text-green-600">B</span>
-                      </div>
-                      <span className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">Drop-off Address</span>
-                    </div>
-                    <div>
-                      <Input
-                        data-testid="input-dropoff-address"
-                        value={dropoffAddress}
-                        onChange={e => setDropoffAddress(e.target.value)}
-                        placeholder="Blk 456 Jurong West Ave 3, #12-88, Singapore 640456"
-                        className="h-9 text-sm border-zinc-300"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs text-zinc-500 mb-1.5 block">Floor / Unit</Label>
+                  {/* ── Drop-off stops ── */}
+                  <div className="space-y-3">
+                    {dropoffStops.map((s, idx) => (
+                      <div key={s.id} className="rounded-xl border border-zinc-200 p-4 space-y-3" data-testid={`stop-dropoff-${idx}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                            <span className="text-[10px] font-bold text-green-600">{String.fromCharCode(65 + idx)}</span>
+                          </div>
+                          <span className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">Drop-off {String.fromCharCode(65 + idx)}</span>
+                          {dropoffStops.length > 1 && (
+                            <button
+                              type="button"
+                              data-testid={`button-remove-dropoff-${idx}`}
+                              onClick={() => removeStop(s.id)}
+                              className="ml-auto w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                         <Input
-                          data-testid="input-dropoff-floor"
-                          value={dropoffFloor}
-                          onChange={e => setDropoffFloor(e.target.value)}
-                          placeholder="e.g. #12-88"
+                          data-testid={`input-dropoff-address-${idx}`}
+                          value={s.address}
+                          onChange={e => updateStop(s.id, "address", e.target.value)}
+                          placeholder="Blk 456 Jurong West Ave 3, Singapore 640456"
                           className="h-9 text-sm border-zinc-300"
                         />
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs text-zinc-500 mb-1.5 block">Floor / Unit</Label>
+                            <Input
+                              data-testid={`input-dropoff-floor-${idx}`}
+                              value={s.floor}
+                              onChange={e => updateStop(s.id, "floor", e.target.value)}
+                              placeholder="e.g. #12-88"
+                              className="h-9 text-sm border-zinc-300"
+                            />
+                          </div>
+                          <LiftToggle value={s.hasLift} onChange={v => updateStop(s.id, "hasLift", v)} label="Lift Available?" />
+                        </div>
                       </div>
-                      <LiftToggle value={dropoffLift} onChange={setDropoffLift} label="Lift Available?" />
-                    </div>
+                    ))}
+                    <button
+                      type="button"
+                      data-testid="button-add-dropoff"
+                      onClick={() => addStop("dropoff")}
+                      className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700 font-medium px-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add drop-off stop
+                    </button>
                   </div>
 
                   {/* Relocation scope */}
@@ -937,45 +1094,78 @@ export function CreateJobModal({ open, onClose }: Props) {
             <Section icon={<Package className="w-4 h-4 text-zinc-500" />} title="Items & Pricing">
               <div className="space-y-2">
                 {items.map((item, idx) => (
-                  <div key={item.id} className="flex items-center gap-2" data-testid={`item-row-${idx}`}>
-                    <div className="relative flex-1">
-                      {item.aiGenerated && (
-                        <Sparkles className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-violet-400 pointer-events-none" />
-                      )}
+                  <div key={item.id} className="space-y-1.5" data-testid={`item-row-${idx}`}>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        {item.aiGenerated && (
+                          <Sparkles className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-violet-400 pointer-events-none" />
+                        )}
+                        <Input
+                          data-testid={`input-item-description-${idx}`}
+                          value={item.description}
+                          onChange={e => updateItem(item.id, "description", e.target.value)}
+                          placeholder={isRelocation ? "e.g. 3-seater sofa relocation" : "e.g. IKEA Kallax shelf assembly"}
+                          className={`h-9 text-sm border-zinc-300 ${item.aiGenerated ? "pl-8" : ""}`}
+                        />
+                      </div>
                       <Input
-                        data-testid={`input-item-description-${idx}`}
-                        value={item.description}
-                        onChange={e => updateItem(item.id, "description", e.target.value)}
-                        placeholder={isRelocation ? "e.g. 3-seater sofa relocation" : "e.g. IKEA Kallax shelf assembly"}
-                        className={`h-9 text-sm border-zinc-300 ${item.aiGenerated ? "pl-8" : ""}`}
+                        data-testid={`input-item-qty-${idx}`}
+                        type="number" min={1}
+                        value={item.quantity}
+                        onChange={e => updateItem(item.id, "quantity", parseInt(e.target.value) || 1)}
+                        className="h-9 w-16 text-sm border-zinc-300 text-center"
                       />
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400">$</span>
+                        <Input
+                          data-testid={`input-item-price-${idx}`}
+                          type="number" min={0} step={0.01}
+                          value={item.unitPrice}
+                          onChange={e => updateItem(item.id, "unitPrice", e.target.value)}
+                          placeholder="0"
+                          className="h-9 w-24 pl-6 text-sm border-zinc-300"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item.id)}
+                        disabled={items.length === 1}
+                        className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-30"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <Input
-                      data-testid={`input-item-qty-${idx}`}
-                      type="number" min={1}
-                      value={item.quantity}
-                      onChange={e => updateItem(item.id, "quantity", parseInt(e.target.value) || 1)}
-                      className="h-9 w-16 text-sm border-zinc-300 text-center"
-                    />
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400">$</span>
-                      <Input
-                        data-testid={`input-item-price-${idx}`}
-                        type="number" min={0} step={0.01}
-                        value={item.unitPrice}
-                        onChange={e => updateItem(item.id, "unitPrice", e.target.value)}
-                        placeholder="0"
-                        className="h-9 w-24 pl-6 text-sm border-zinc-300"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeItem(item.id)}
-                      disabled={items.length === 1}
-                      className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-30"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+
+                    {/* Multi-stop route tag — only when there is more than one
+                        pickup or drop-off, so simple A→B jobs stay uncluttered. */}
+                    {isRelocation && isMultiStop && (
+                      <div className="flex items-center gap-2 pl-1">
+                        <Route className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                        <select
+                          data-testid={`select-item-from-${idx}`}
+                          value={item.fromStopId || ""}
+                          onChange={e => updateItem(item.id, "fromStopId", e.target.value || null)}
+                          className="h-8 text-xs border border-zinc-300 rounded-md px-2 bg-white text-zinc-700"
+                        >
+                          <option value="">From pick-up…</option>
+                          {pickupStops.map((s, i) => (
+                            <option key={s.id} value={s.id}>Pickup {i + 1}</option>
+                          ))}
+                        </select>
+                        <ArrowRight className="w-3 h-3 text-zinc-400 shrink-0" />
+                        <select
+                          data-testid={`select-item-to-${idx}`}
+                          value={item.toStopId || ""}
+                          onChange={e => updateItem(item.id, "toStopId", e.target.value || null)}
+                          className="h-8 text-xs border border-zinc-300 rounded-md px-2 bg-white text-zinc-700"
+                        >
+                          <option value="">To drop-off…</option>
+                          {dropoffStops.map((s, i) => (
+                            <option key={s.id} value={s.id}>Drop-off {String.fromCharCode(65 + i)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 ))}
                 <button
@@ -987,6 +1177,62 @@ export function CreateJobModal({ open, onClose }: Props) {
                   <Plus className="w-3.5 h-3.5" /> Add item
                 </button>
               </div>
+
+              {/* ── Multi-stop "Calculate price" (relocation only) ── */}
+              {isRelocation && (
+                <div className="mt-4 pt-3 border-t border-zinc-100">
+                  <Label className="text-xs text-zinc-500 mb-1.5 flex items-center gap-1.5">
+                    <Truck className="w-3 h-3" /> Total load volume (m³) — for transport & handling
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      data-testid="input-total-volume"
+                      type="number" min={0} step={0.1}
+                      value={totalVolumeM3}
+                      onChange={e => setTotalVolumeM3(e.target.value)}
+                      placeholder="e.g. 8.5"
+                      className="h-9 text-sm border-zinc-300 flex-1"
+                    />
+                    <Button
+                      type="button"
+                      data-testid="button-calculate-price"
+                      onClick={calcPrice}
+                      disabled={calcLoading}
+                      className="h-9 px-4 text-sm bg-zinc-900 hover:bg-zinc-800 text-white shrink-0"
+                    >
+                      {calcLoading
+                        ? <span className="flex items-center gap-1.5"><div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> Calculating…</span>
+                        : "Calculate price"}
+                    </Button>
+                  </div>
+                  {calcError && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-xs text-red-600">
+                      <XCircle className="w-3.5 h-3.5 shrink-0" /> {calcError}
+                    </div>
+                  )}
+                  {calcResult && !calcError && (
+                    <div className="mt-2 px-3 py-2.5 bg-zinc-50 rounded-lg border border-zinc-100 space-y-1 text-xs" data-testid="calc-breakdown">
+                      {distanceKm !== null && (
+                        <div className="flex justify-between text-zinc-500">
+                          <span>Route distance</span>
+                          <span className="font-mono">{distanceKm.toFixed(1)} km · {calcResult.numTrips} trip{calcResult.numTrips !== 1 ? "s" : ""}</span>
+                        </div>
+                      )}
+                      {calcResult.breakdown.map((b, i) => (
+                        <div key={i} className="flex justify-between text-zinc-500">
+                          <span>{b.label}</span>
+                          <span className="font-mono">${b.amount.toFixed(2)}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between font-semibold text-zinc-900 pt-1 border-t border-zinc-200">
+                        <span>Suggested total (labour + logistics)</span>
+                        <span className="font-mono">${calcResult.grandTotal.toFixed(2)}</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 pt-0.5">Applied to the override total below — you can still edit it.</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ── Promo Code ── */}
               <div className="mt-4 pt-3 border-t border-zinc-100">

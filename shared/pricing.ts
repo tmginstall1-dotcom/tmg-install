@@ -63,6 +63,14 @@ export const PricingConfig = {
   hiace: {
     capacityM3: 6.0,  // Toyota Hiace usable cargo volume per trip (cubic metres)
   },
+  multiStop: {
+    // Multi-stop relocation — flat fee charged for every stop BEYOND the first
+    // pickup and the first drop-off. Singapore June-2026 market: full-service
+    // movers ~$50/extra location, app platforms +$8–$17/stop. TMG is van/budget
+    // tier, so $30 sits sensibly between the two. ONE configurable constant —
+    // never hard-code the per-stop fee inline.
+    additionalStopFee: 30, // SGD per extra stop
+  },
   carryHandling: {
     // Tiered per-cubic-metre crew labour fee for Carry Only jobs, on top of
     // the transport fee. Transport covers van + 2 movers for up to 2 hours,
@@ -218,6 +226,12 @@ export interface PricingInput {
    * pricing branches continue to apply.
    */
   samePropertyMove?: boolean;
+  /**
+   * Multi-stop relocation — number of stops BEYOND the first pickup and first
+   * drop-off, i.e. (pickups − 1) + (dropoffs − 1), clamped at 0. Default 0 so
+   * single-leg quotes produce exactly the same numbers as before.
+   */
+  extraStops?: number;
 }
 
 export interface ItemLine {
@@ -588,6 +602,119 @@ export function calcTransportFee(distanceKm: number): number {
   return round2(Math.max(cfg.minFee, rawFee));
 }
 
+/** Number of Toyota Hiace trips needed for a given total volume (min 1). */
+export function calcNumTrips(totalVolumeM3: number): number {
+  const vol = isFinite(totalVolumeM3) && totalVolumeM3 > 0 ? totalVolumeM3 : 0;
+  if (vol <= 0) return 1;
+  return Math.max(1, Math.ceil(vol / PricingConfig.hiace.capacityM3));
+}
+
+/**
+ * Tiered per-m³ volumetric handling fee (marginal bands, like income-tax).
+ * Single source of truth so both computePricing and the multi-stop admin
+ * helper produce identical numbers.
+ */
+export function calcVolumetricHandlingFee(volumeM3: number): number {
+  const vol = isFinite(volumeM3) && volumeM3 > 0 ? volumeM3 : 0;
+  if (vol <= 0) return 0;
+  let remaining = vol;
+  let prevCap = 0;
+  let rawFee = 0;
+  for (const tier of PricingConfig.carryHandling.tiers) {
+    if (remaining <= 0) break;
+    const bandSize = tier.upTo - prevCap;
+    const taken = Math.min(remaining, bandSize);
+    rawFee += taken * tier.ratePerM3;
+    remaining -= taken;
+    prevCap = tier.upTo;
+  }
+  return round2(rawFee);
+}
+
+/**
+ * Multi-stop additional-stop fee. `extraStops` = stops beyond the first pickup
+ * and first drop-off, i.e. (pickups − 1) + (dropoffs − 1), clamped at 0.
+ * Single configurable rate lives in PricingConfig.multiStop.additionalStopFee.
+ */
+export function calcAdditionalStopFee(extraStops: number): number {
+  const n = Math.max(0, Math.floor(extraStops || 0));
+  return round2(n * PricingConfig.multiStop.additionalStopFee);
+}
+
+export interface MultiStopPriceInput {
+  laborSubtotal: number;   // sum of the manual line-item handling/D&R labour
+  totalVolumeM3: number;   // total load volume across all stops
+  distanceKm: number;      // FULL multi-stop route distance (pickups → drop-offs)
+  extraStops: number;      // stops beyond first pickup + first drop-off
+  samePropertyMove?: boolean; // when true, skip transport/distance entirely
+}
+
+export interface MultiStopPriceResult {
+  laborSubtotal: number;
+  transportFee: number;       // per-trip transport × trips (0 for same-property)
+  volumetricFee: number;      // tiered per-m³ handling
+  additionalStopFee: number;  // extra-stop fee
+  numTrips: number;
+  logisticsSubtotal: number;  // transport + volumetric + additionalStop (stored in transportFee column)
+  grandTotal: number;         // laborSubtotal + logisticsSubtotal
+  breakdown: FeeLine[];       // human-readable lines for the admin UI
+}
+
+/**
+ * Admin "Calculate price" helper for a multi-stop relocation. Reuses the same
+ * transport / volumetric / additional-stop primitives as computePricing so the
+ * suggested total is consistent with the rest of the engine. The admin can
+ * always override the suggested grand total.
+ */
+export function computeMultiStopRelocationPrice(input: MultiStopPriceInput): MultiStopPriceResult {
+  const laborSubtotal = round2(Math.max(0, input.laborSubtotal || 0));
+  const totalVolumeM3 = round2(Math.max(0, input.totalVolumeM3 || 0));
+  const distanceKm = Math.max(0, input.distanceKm || 0);
+  const numTrips = calcNumTrips(totalVolumeM3);
+
+  const breakdown: FeeLine[] = [];
+
+  let transportFee = 0;
+  if (!input.samePropertyMove) {
+    const feePerTrip = calcTransportFee(distanceKm);
+    transportFee = round2(feePerTrip * numTrips);
+    breakdown.push({
+      label: numTrips > 1
+        ? `Transport / Relocation Logistics (${numTrips} trips × $${feePerTrip.toFixed(0)})`
+        : 'Transport / Relocation Logistics',
+      amount: transportFee,
+    });
+  }
+
+  const volumetricFee = calcVolumetricHandlingFee(totalVolumeM3);
+  if (volumetricFee > 0) {
+    breakdown.push({ label: `Volumetric Handling (${totalVolumeM3.toFixed(2)} m³)`, amount: volumetricFee });
+  }
+
+  const additionalStopFee = calcAdditionalStopFee(input.extraStops);
+  if (additionalStopFee > 0) {
+    const n = Math.max(0, Math.floor(input.extraStops || 0));
+    breakdown.push({
+      label: `Additional Stops (${n} × $${PricingConfig.multiStop.additionalStopFee})`,
+      amount: additionalStopFee,
+    });
+  }
+
+  const logisticsSubtotal = round2(transportFee + volumetricFee + additionalStopFee);
+  const grandTotal = round2(laborSubtotal + logisticsSubtotal);
+
+  return {
+    laborSubtotal,
+    transportFee,
+    volumetricFee,
+    additionalStopFee,
+    numTrips,
+    logisticsSubtotal,
+    grandTotal,
+    breakdown,
+  };
+}
+
 export interface OvertimeResult {
   blocks: number;              // number of 30-min blocks charged
   charge: number;              // total overtime charge (SGD), NO cap
@@ -882,9 +1009,7 @@ export function computePricing(input: PricingInput): PricingResult {
   const totalVolumeM3 = hasVolumeData
     ? round2(itemLines.reduce((s, l) => s + (l.volumeM3 ?? 0) * l.quantity, 0))
     : 0;
-  const numTrips = hasVolumeData
-    ? Math.max(1, Math.ceil(totalVolumeM3 / cfg.hiace.capacityM3))
-    : 1;
+  const numTrips = calcNumTrips(totalVolumeM3);
 
   // ── E) Fee lines ────────────────────────────────────────────────────────
 
@@ -916,6 +1041,20 @@ export function computePricing(input: PricingInput): PricingResult {
     if (input.distanceKm === 0) {
       requiresAdminReview = true;
       reviewReasons.push('Distance calculation failed — transport fee is provisional at minimum rate');
+    }
+  }
+
+  // Multi-stop additional-stop fee — flat charge per stop beyond the first
+  // pickup + first drop-off. Default 0 (single-leg) so existing quotes are
+  // unchanged. Skipped for same-property moves (no transport / extra legs).
+  if (input.needsRelocation && !input.samePropertyMove) {
+    const extraStops = Math.max(0, Math.floor(input.extraStops || 0));
+    const additionalStopFee = calcAdditionalStopFee(extraStops);
+    if (additionalStopFee > 0) {
+      feeLines.push({
+        label: `Additional Stops (${extraStops} × $${cfg.multiStop.additionalStopFee})`,
+        amount: additionalStopFee,
+      });
     }
   }
 
@@ -951,19 +1090,9 @@ export function computePricing(input: PricingInput): PricingResult {
     );
     if (volumetricM3 > 0) {
       // Apply marginal tiered rate — like income tax bands.
-      // 0–2 m³ at $10, 2–5 m³ at $15, 5+ m³ at $20.
-      let remaining = volumetricM3;
-      let prevCap = 0;
-      let rawFee = 0;
-      for (const tier of cfg.carryHandling.tiers) {
-        if (remaining <= 0) break;
-        const bandSize = tier.upTo - prevCap;
-        const taken = Math.min(remaining, bandSize);
-        rawFee += taken * tier.ratePerM3;
-        remaining -= taken;
-        prevCap = tier.upTo;
-      }
-      const volumetricFee = round2(rawFee);
+      // 0–2 m³ at $10, 2–5 m³ at $15, 5+ m³ at $20. (Shared helper so the
+      // multi-stop admin calculator produces identical numbers.)
+      const volumetricFee = calcVolumetricHandlingFee(volumetricM3);
       volumetricFeeOut = volumetricFee;
       if (volumetricFee > 0) {
         // Blended rate label = total fee ÷ total volume.

@@ -3,6 +3,8 @@ import { useParams } from "wouter";
 import { Printer, Loader2, AlertCircle, CheckCircle2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
+import { groupStops, itemRouteLabel } from "@/lib/stops";
+import type { QuoteStop } from "@shared/schema";
 import { downloadInvoicePdf } from "@/lib/invoicePdf";
 import { requiresFullUpfront } from "@shared/pricing";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
@@ -24,6 +26,8 @@ type InvoiceItem = {
   quantity: number;
   unitPrice: string;
   subtotal: string;
+  fromStopId?: string | null;
+  toStopId?: string | null;
 };
 
 type InvoicePayload = {
@@ -42,6 +46,7 @@ type InvoicePayload = {
   pickupAddress: string | null;
   dropoffAddress: string | null;
   samePropertyMove?: boolean;
+  stops?: QuoteStop[] | null;
   scheduledAt: string | null;
   timeWindow: string | null;
   completedAt: string | null;
@@ -285,21 +290,45 @@ export default function Invoice() {
             {/* Service location */}
             <div className="px-7 pb-5">
               <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Service Location</div>
-              {data.pickupAddress ? (
-                data.samePropertyMove ? (
-                  <div className="text-[13px] text-gray-800">
-                    <div><span className="text-gray-500">Property:</span> {data.pickupAddress}</div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">Same-Property Move — items relocated within the same address.</div>
-                  </div>
+              {(() => {
+                const grouped = groupStops(data.stops);
+                const isMultiStop = grouped.all.length > 2;
+                if (isMultiStop) {
+                  return (
+                    <div className="text-[13px] text-gray-800 space-y-1.5" data-testid="invoice-stops">
+                      {grouped.pickups.map((s) => (
+                        <div key={s.id}>
+                          <span className="text-gray-500">{s.label}:</span> {s.address}
+                          {s.floor ? `, ${s.floor}` : ""}
+                          {s.hasLift === false ? " (no lift)" : ""}
+                        </div>
+                      ))}
+                      {grouped.dropoffs.map((s) => (
+                        <div key={s.id}>
+                          <span className="text-gray-500">{s.label}:</span> {s.address}
+                          {s.floor ? `, ${s.floor}` : ""}
+                          {s.hasLift === false ? " (no lift)" : ""}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                return data.pickupAddress ? (
+                  data.samePropertyMove ? (
+                    <div className="text-[13px] text-gray-800">
+                      <div><span className="text-gray-500">Property:</span> {data.pickupAddress}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">Same-Property Move — items relocated within the same address.</div>
+                    </div>
+                  ) : (
+                    <div className="text-[13px] text-gray-800">
+                      <div><span className="text-gray-500">Pickup:</span> {data.pickupAddress}</div>
+                      <div><span className="text-gray-500">Drop-off:</span> {data.dropoffAddress || "—"}</div>
+                    </div>
+                  )
                 ) : (
-                  <div className="text-[13px] text-gray-800">
-                    <div><span className="text-gray-500">Pickup:</span> {data.pickupAddress}</div>
-                    <div><span className="text-gray-500">Drop-off:</span> {data.dropoffAddress || "—"}</div>
-                  </div>
-                )
-              ) : (
-                <div className="text-[13px] text-gray-800">{data.serviceAddress || "—"}</div>
-              )}
+                  <div className="text-[13px] text-gray-800">{data.serviceAddress || "—"}</div>
+                );
+              })()}
             </div>
 
             {/* Items */}
@@ -320,7 +349,14 @@ export default function Invoice() {
                   )}
                   {data.items.map((it, i) => (
                     <tr key={it.id} style={{ background: i % 2 ? "#f9fafb" : "#fff" }} data-testid={`row-invoice-item-${it.id}`}>
-                      <td className="px-3 py-2 align-top text-gray-800">{formatItemDescription(it, data.items)}</td>
+                      <td className="px-3 py-2 align-top text-gray-800">
+                        {formatItemDescription(it, data.items)}
+                        {itemRouteLabel(data.stops, it.fromStopId, it.toStopId) && (
+                          <span className="block text-[11px] text-gray-500 mt-0.5" data-testid={`invoice-item-route-${it.id}`}>
+                            {itemRouteLabel(data.stops, it.fromStopId, it.toStopId)}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-center align-top text-gray-700">{it.quantity}</td>
                       <td className="px-3 py-2 text-right align-top text-gray-700">{money(it.unitPrice)}</td>
                       <td className="px-3 py-2 text-right align-top font-semibold text-gray-900">{money(it.subtotal)}</td>

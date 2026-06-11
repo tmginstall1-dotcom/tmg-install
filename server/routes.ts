@@ -97,7 +97,7 @@ function finalBalanceOutstanding(
   return Math.max(0, baseBalance - paid);
 }
 import { db } from "./db";
-import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable } from "@shared/schema";
+import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable, quoteStopSchema } from "@shared/schema";
 import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable, aiFeatureFlags, customerRatings } from "@shared/schema";
 import { eq, and, or, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
 
@@ -4155,11 +4155,18 @@ ${systemPrompt}` });
         sourceChannel:    z.string().optional().default("whatsapp"),
         promoCode:        z.string().optional().nullable(),
         promoDiscount:    z.string().optional().default("0"),
+        // Multi-stop relocation (additive)
+        stops:            z.array(quoteStopSchema).optional(),
+        distanceKm:       z.string().optional().nullable(),
+        transportFee:     z.string().optional().nullable(),
+        volumetricFee:    z.string().optional().nullable(),
         items:            z.array(z.object({
           description: z.string().min(1),
           quantity:    z.number().int().positive().default(1),
           unitPrice:   z.string().default("0"),
           remark:      z.string().nullable().optional(),
+          fromStopId:  z.string().nullable().optional(),
+          toStopId:    z.string().nullable().optional(),
         })).optional().default([]),
       }).parse(req.body);
 
@@ -4197,6 +4204,12 @@ ${systemPrompt}` });
       // Use real email if provided, otherwise use placeholder for WA-only customers
       const customerEmail = body.customerEmail?.trim() || `${phone}@tmginstall.com`;
 
+      // Multi-stop relocation — derive first pickup / first drop-off for the
+      // legacy single-address fields so existing displays keep working.
+      const stops = body.stops || [];
+      const firstPickup = stops.find(s => s.kind === "pickup");
+      const firstDropoff = stops.find(s => s.kind === "dropoff");
+
       // Build items — include promo line if applicable
       const allItems = [
         ...body.items.map(item => ({
@@ -4206,6 +4219,8 @@ ${systemPrompt}` });
           unitPrice:           item.unitPrice,
           subtotal:            (item.quantity * parseFloat(item.unitPrice || "0")).toFixed(2),
           remark:              item.remark || null,
+          fromStopId:          item.fromStopId || null,
+          toStopId:            item.toStopId || null,
         })),
         ...(promoDiscountAmt > 0 && appliedPromoCode ? [{
           originalDescription: `Promo Discount (${appliedPromoCode})`,
@@ -4227,8 +4242,16 @@ ${systemPrompt}` });
         {
           referenceNo:         refNo,
           serviceAddress:      body.serviceAddress,
-          dropoffAddress:      body.dropoffAddress || undefined,
-          pickupAddress:       body.isRelocation ? body.serviceAddress : undefined,
+          dropoffAddress:      firstDropoff?.address || body.dropoffAddress || undefined,
+          pickupAddress:       body.isRelocation ? (firstPickup?.address || body.serviceAddress) : undefined,
+          // Multi-stop relocation (additive). transportFee holds the full
+          // logistics bucket (transport + volumetric + extra-stop fee) so the
+          // total recompute on edit reconciles; volumetricFee is broken out for
+          // the invoice's "Volumetric handling" line.
+          stops:               stops.length > 0 ? stops : undefined,
+          distanceKm:          body.distanceKm || undefined,
+          transportFee:        body.transportFee || undefined,
+          volumetricFee:       body.volumetricFee || undefined,
           status:              "booked",
           sourceChannel:       body.sourceChannel || "whatsapp",
           customerWhatsappPhone: phone,
@@ -5454,6 +5477,10 @@ ${systemPrompt}` });
           pickupAddress: z.string().optional(),
           dropoffAddress: z.string().optional(),
           transportFee: z.string().optional(),
+          // Multi-stop relocation (additive)
+          stops: z.array(quoteStopSchema).optional(),
+          distanceKm: z.string().nullable().optional(),
+          volumetricFee: z.string().nullable().optional(),
           selectedServices: z.string().optional(),
           notes: z.string().optional(),
           staffTransportAllowance: z.boolean().optional(),
@@ -5485,6 +5512,8 @@ ${systemPrompt}` });
           quantity: z.number().min(1),
           unitPrice: z.string(),
           subtotal: z.string(),
+          fromStopId: z.string().nullable().optional(),
+          toStopId: z.string().nullable().optional(),
         })).optional(),
       }).parse(req.body);
 
@@ -6180,7 +6209,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
   // ── Route distance calculation (OneMap geocode → OSRM route) ──────────────
   app.post(api.distance.calculate.path, async (req, res) => {
     try {
-      const { pickupAddress, dropoffAddress, pickupLat, pickupLng, dropoffLat, dropoffLng } =
+      const { pickupAddress, dropoffAddress, pickupLat, pickupLng, dropoffLat, dropoffLng, waypoints } =
         api.distance.calculate.input.parse(req.body);
 
       // Geocode address to lat/lng using OneMap (if not already provided)
@@ -6194,17 +6223,33 @@ Respond with ONLY a JSON array (no prose, no markdown):
         return { lat: parseFloat(first.LATITUDE), lng: parseFloat(first.LONGITUDE) };
       }
 
-      const [from, to] = await Promise.all([
-        geocode(pickupAddress, { lat: pickupLat, lng: pickupLng }),
-        geocode(dropoffAddress, { lat: dropoffLat, lng: dropoffLng }),
-      ]);
+      // Build the ordered list of stops to route through. Multi-stop waypoints
+      // take precedence; otherwise fall back to the legacy pickup → dropoff leg.
+      const legs: { address: string; lat?: number; lng?: number }[] =
+        (waypoints && waypoints.length >= 2)
+          ? waypoints
+          : [
+              ...(pickupAddress ? [{ address: pickupAddress, lat: pickupLat, lng: pickupLng }] : []),
+              ...(dropoffAddress ? [{ address: dropoffAddress, lat: dropoffLat, lng: dropoffLng }] : []),
+            ];
 
-      if (!from || !to) {
-        return res.json({ distanceKm: 0, routeFound: false, error: "Could not geocode one or both addresses" });
+      if (legs.length < 2) {
+        return res.json({ distanceKm: 0, routeFound: false, error: "Need at least two addresses to compute a distance" });
       }
 
-      // Route distance via OSRM (free, no API key, covers Singapore)
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
+      const coords = await Promise.all(
+        legs.map(l => geocode(l.address, { lat: l.lat, lng: l.lng })),
+      );
+
+      if (coords.some(c => !c)) {
+        return res.json({ distanceKm: 0, routeFound: false, error: "Could not geocode one or more addresses" });
+      }
+
+      // Route distance via OSRM (free, no API key, covers Singapore). OSRM
+      // accepts a chain of coordinates in one request and returns the summed
+      // driving distance across the whole ordered route.
+      const coordStr = coords.map(c => `${c!.lng},${c!.lat}`).join(";");
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=false`;
       const routeRes = await fetch(osrmUrl, { signal: AbortSignal.timeout(8000) });
       const routeData = await routeRes.json();
 
@@ -9080,6 +9125,9 @@ Respond directly — no JSON, just the message text.`,
       // the server's overtime allowance (volume + carry-only drive crew hours).
       volumeM3: it.volumeM3 != null ? Number(it.volumeM3) : undefined,
       carryOnly: it.carryOnly != null ? !!it.carryOnly : it.serviceType === "relocate",
+      // Multi-stop relocation — per-line route tagging
+      fromStopId: it.fromStopId || null,
+      toStopId: it.toStopId || null,
     }));
 
     // Resolve billing presentation. Each quote can override the customer's
@@ -9116,6 +9164,8 @@ Respond directly — no JSON, just the message text.`,
       distanceKm: (quote as any).samePropertyMove === true ? 0 : (Number((quote as any).distanceKm) || 0),
       pickupAddress: quote.pickupAddress || null,
       dropoffAddress: quote.dropoffAddress || null,
+      // Multi-stop relocation — full grouped stop list (empty for single-leg)
+      stops: Array.isArray((quote as any).stops) ? (quote as any).stops : [],
       scheduledAt: quote.scheduledAt || null,
       timeWindow: quote.timeWindow || null,
       completedAt: quote.finalPaidAt || null,

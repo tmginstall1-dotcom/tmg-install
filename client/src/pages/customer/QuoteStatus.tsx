@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
+import { groupStops, itemRouteLabel } from "@/lib/stops";
 import { requiresFullUpfront } from "@shared/pricing";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
@@ -499,6 +500,9 @@ export default function QuoteStatus() {
                     <div>
                       <p className="font-semibold text-sm text-black">{item.detectedName || item.originalDescription}</p>
                       <p className="text-xs text-black/40 mt-0.5 capitalize">{item.serviceType} · Qty {item.quantity}</p>
+                      {itemRouteLabel((quote as any).stops, item.fromStopId, item.toStopId) && (
+                        <p className="text-xs text-black/55 mt-0.5" data-testid={`tracking-item-route-${item.id}`}>{itemRouteLabel((quote as any).stops, item.fromStopId, item.toStopId)}</p>
+                      )}
                     </div>
                     <p className="font-bold text-sm text-black tabular-nums">{formatMoney(item.subtotal)}</p>
                   </div>
@@ -595,18 +599,37 @@ export default function QuoteStatus() {
                   <p className="text-[10px] text-black/35 font-semibold uppercase mb-1.5" style={{ letterSpacing: "0.12em" }}>Service Address</p>
                   <p className="font-semibold text-sm text-black">{quote.serviceAddress}</p>
                 </div>
-                {quote.pickupAddress && (
-                  <div>
-                    <p className="text-[10px] text-black/35 font-semibold uppercase mb-1.5" style={{ letterSpacing: "0.12em" }}>Pickup</p>
-                    <p className="font-semibold text-sm text-black">{quote.pickupAddress}</p>
-                  </div>
-                )}
-                {quote.dropoffAddress && (
-                  <div>
-                    <p className="text-[10px] text-black/35 font-semibold uppercase mb-1.5" style={{ letterSpacing: "0.12em" }}>Dropoff</p>
-                    <p className="font-semibold text-sm text-black">{quote.dropoffAddress}</p>
-                  </div>
-                )}
+                {(() => {
+                  const grouped = groupStops((quote as any).stops);
+                  if (grouped.all.length > 2) {
+                    return grouped.all.map((s) => (
+                      <div key={s.id} data-testid={`tracking-stop-${s.id}`}>
+                        <p className="text-[10px] text-black/35 font-semibold uppercase mb-1.5" style={{ letterSpacing: "0.12em" }}>{s.label}</p>
+                        <p className="font-semibold text-sm text-black">
+                          {s.address}
+                          {s.floor ? `, ${s.floor}` : ""}
+                          {s.hasLift === false ? " (no lift)" : ""}
+                        </p>
+                      </div>
+                    ));
+                  }
+                  return (
+                    <>
+                      {quote.pickupAddress && (
+                        <div>
+                          <p className="text-[10px] text-black/35 font-semibold uppercase mb-1.5" style={{ letterSpacing: "0.12em" }}>Pickup</p>
+                          <p className="font-semibold text-sm text-black">{quote.pickupAddress}</p>
+                        </div>
+                      )}
+                      {quote.dropoffAddress && (
+                        <div>
+                          <p className="text-[10px] text-black/35 font-semibold uppercase mb-1.5" style={{ letterSpacing: "0.12em" }}>Dropoff</p>
+                          <p className="font-semibold text-sm text-black">{quote.dropoffAddress}</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Slot held (submitted / deposit_requested) */}
