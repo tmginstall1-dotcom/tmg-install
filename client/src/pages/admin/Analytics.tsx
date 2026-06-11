@@ -1304,8 +1304,181 @@ function PnLTab() {
  );
 }
 
+/* ─── Daily Sales tab ────────────────────────────────────────────────────────── */
+type DailySalesData = {
+  months: { month: string; label: string; booking: number; ggv: number; total: number; bookingJobs: number; ggvJobs: number }[];
+  selectedMonth: string;
+  days: { date: string; day: number; weekday: string; booking: number; ggv: number; total: number; bookingJobs: number; ggvJobs: number }[];
+  summary: { month: string; label: string; booking: number; ggv: number; total: number; bookingJobs: number; ggvJobs: number };
+};
+
+const BOOKING_COLOR = "#18181b";
+const GGV_COLOR = "#06b6d4";
+
+function money2(v: number) {
+  return `$${v.toLocaleString("en-SG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function DailySalesTab() {
+  const [month, setMonth] = useState<string>("");
+
+  const { data, isLoading } = useQuery<DailySalesData>({
+    queryKey: ["/api/admin/analytics/daily-sales", month || "default"],
+    queryFn: async () => {
+      const qs = month ? `?month=${month}` : "";
+      const res = await fetch(`${API_BASE}/api/admin/analytics/daily-sales${qs}`, { credentials: "include" });
+      return res.json();
+    },
+    refetchInterval: 120_000,
+  });
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-8 h-8 border-2 border-[#0A0A0A] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const { months, summary, days } = data;
+  const activeMonth = month || data.selectedMonth;
+
+  if (months.length === 0) {
+    return <EmptyState msg="No sales recorded yet" />;
+  }
+
+  // Chart data — only days that actually have sales keeps the bars readable
+  const chartDays = days.filter(d => d.total > 0).map(d => ({ label: String(d.day), booking: d.booking, ggv: d.ggv }));
+
+  return (
+    <div className="space-y-6">
+      {/* Month selector */}
+      <div className="bg-white border border-slate-200 rounded-none px-4 py-3 flex flex-wrap items-center gap-3">
+        <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Month</label>
+        <select
+          value={activeMonth}
+          onChange={e => setMonth(e.target.value)}
+          data-testid="select-sales-month"
+          className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-zinc-200 bg-white text-zinc-900"
+        >
+          {months.map(m => (
+            <option key={m.month} value={m.month}>{m.label}</option>
+          ))}
+        </select>
+        <span className="text-xs text-zinc-400">Daily breakdown of sales for the selected month</span>
+      </div>
+
+      {/* Monthly summary KPIs */}
+      <div>
+        <SectionTitle>{summary.label} — Monthly Sales</SectionTitle>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <KpiCard label="Total Sales" value={money2(summary.total)} icon={DollarSign} color="text-emerald-500"
+            sub={`${summary.bookingJobs + summary.ggvJobs} jobs`} valueClass="text-zinc-900" />
+          <KpiCard label="Booking (Jobs via App)" value={money2(summary.booking)} icon={Briefcase} color="text-zinc-700"
+            sub={`${summary.bookingJobs} jobs`} />
+          <KpiCard label="GoGoVan" value={money2(summary.ggv)} icon={Package} color="text-cyan-500"
+            sub={`${summary.ggvJobs} jobs`} />
+        </div>
+      </div>
+
+      {/* Daily stacked bar chart */}
+      <Panel title="Daily Sales — Booking vs GoGoVan" icon={BarChart2}>
+        {chartDays.length === 0 ? <EmptyState msg="No sales this month" /> : (
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={chartDays} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={48}
+                tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+              <Tooltip
+                contentStyle={{ fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 8 }}
+                formatter={(val: any, name: string) => [money2(Number(val)), name]}
+                labelFormatter={l => `Day ${l}`}
+              />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#64748b", paddingTop: 8 }} />
+              <Bar dataKey="booking" name="Booking" stackId="s" fill={BOOKING_COLOR} radius={[0, 0, 0, 0]} barSize={16} />
+              <Bar dataKey="ggv" name="GoGoVan" stackId="s" fill={GGV_COLOR} radius={[3, 3, 0, 0]} barSize={16} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </Panel>
+
+      {/* Daily breakdown table */}
+      <Panel title="Daily Breakdown" icon={FileText}>
+        <div className="overflow-x-auto -mx-5">
+          <table className="w-full text-sm min-w-[480px]">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wider text-zinc-400 border-b border-zinc-100">
+                <th className="text-left font-semibold px-5 py-2">Date</th>
+                <th className="text-right font-semibold px-3 py-2">Booking</th>
+                <th className="text-right font-semibold px-3 py-2">GoGoVan</th>
+                <th className="text-right font-semibold px-5 py-2">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {days.map(d => {
+                const isWeekend = d.weekday === "Sat" || d.weekday === "Sun";
+                const hasSales = d.total > 0;
+                return (
+                  <tr key={d.date} data-testid={`row-daily-sales-${d.date}`}
+                    className={`border-b border-zinc-50 ${hasSales ? "" : "text-zinc-300"}`}>
+                    <td className="px-5 py-2 whitespace-nowrap">
+                      <span className={`font-medium ${hasSales ? "text-zinc-900" : ""}`}>{d.day}</span>
+                      <span className={`ml-1.5 text-xs ${isWeekend ? "text-amber-500" : "text-zinc-400"}`}>{d.weekday}</span>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums" data-testid={`text-booking-${d.date}`}>
+                      {d.booking > 0 ? money2(d.booking) : <span className="text-zinc-300">—</span>}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums" data-testid={`text-ggv-${d.date}`}>
+                      {d.ggv > 0 ? money2(d.ggv) : <span className="text-zinc-300">—</span>}
+                    </td>
+                    <td className="px-5 py-2 text-right tabular-nums font-semibold" data-testid={`text-total-${d.date}`}>
+                      {hasSales ? money2(d.total) : <span className="text-zinc-300">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-zinc-200 font-bold text-zinc-900">
+                <td className="px-5 py-3">Month Total</td>
+                <td className="px-3 py-3 text-right tabular-nums" data-testid="text-month-booking">{money2(summary.booking)}</td>
+                <td className="px-3 py-3 text-right tabular-nums" data-testid="text-month-ggv">{money2(summary.ggv)}</td>
+                <td className="px-5 py-3 text-right tabular-nums" data-testid="text-month-total">{money2(summary.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </Panel>
+
+      {/* All months overview */}
+      <Panel title="All Months" icon={TrendingUp}>
+        <div className="space-y-1">
+          {months.map(m => (
+            <button
+              key={m.month}
+              onClick={() => setMonth(m.month)}
+              data-testid={`button-month-${m.month}`}
+              className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                m.month === activeMonth ? "bg-zinc-100" : "hover:bg-zinc-50"
+              }`}
+            >
+              <span className="text-sm font-medium text-zinc-900 w-28 shrink-0">{m.label}</span>
+              <span className="flex-1 flex items-center gap-3 justify-end text-xs">
+                <span className="text-zinc-500">Booking <span className="font-semibold text-zinc-700">{money2(m.booking)}</span></span>
+                <span className="text-zinc-500">GGV <span className="font-semibold text-cyan-600">{money2(m.ggv)}</span></span>
+              </span>
+              <span className="text-sm font-bold text-zinc-900 w-24 text-right shrink-0">{money2(m.total)}</span>
+            </button>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 /* ─── Main Page ──────────────────────────────────────────────────────────────── */
-type Tab = "business" | "website" | "operations" | "pnl";
+type Tab = "business" | "website" | "operations" | "pnl" | "sales";
 
 export default function Analytics() {
  const [tab, setTab] = useState<Tab>("business");
@@ -1318,6 +1491,7 @@ export default function Analytics() {
 
  const TABS: { key: Tab; label: string; icon: any }[] = [
  { key: "business", label: "Business", icon: BarChart2 },
+ { key: "sales", label: "Daily Sales", icon: DollarSign },
  { key: "operations", label: "Operations", icon: Activity },
  { key: "pnl", label: "P&L", icon: PiggyBank },
  { key: "website", label: "Website", icon: Globe },
@@ -1348,7 +1522,7 @@ export default function Analytics() {
  ))}
  </div>
  {/* Day range — hidden on P&L tab (all-time data) */}
- {tab !== "pnl" && (
+ {tab !== "pnl" && tab !== "sales" && (
  <div className="flex p-1 rounded-lg border border-zinc-200 bg-zinc-100 overflow-hidden">
  {dayOptions.map(opt => (
  <button key={opt.value} onClick={() => setActiveDays(opt.value)} data-testid={`days-${opt.value}`}
@@ -1367,6 +1541,7 @@ export default function Analytics() {
 
  <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
  {tab === "business" && <BusinessTab days={days} />}
+ {tab === "sales" && <DailySalesTab />}
  {tab === "operations" && <OperationsTab days={days} />}
  {tab === "pnl" && <PnLTab />}
  {tab === "website" && <WebsiteTab days={webDays} />}

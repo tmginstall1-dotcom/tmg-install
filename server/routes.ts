@@ -2641,6 +2641,121 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ── Daily Sales report ──────────────────────────────────────────────────────
+  // Monthly sales broken down day-by-day, split into Booking (TMG quotes) vs
+  // GoGoVan. Uses the SAME revenue definitions as /pnl so the totals reconcile:
+  //   • Booking sale = quote.total on scheduledAt||createdAt, for done/paid statuses
+  //   • GGV sale     = actualPrice (+ $23.80 delivery fee if jobNo starts "S") on date
+  // Dates are bucketed with the SAME local-time logic as /pnl so the monthly
+  // totals reconcile exactly with the P&L tab.
+  app.get("/api/admin/analytics/daily-sales", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const DONE_STATUSES = ["completed", "final_payment_requested", "final_paid", "closed"];
+      const GGV_DELIVERY_FEE = 23.80;
+
+      // Calendar key for a timestamp → { monthKey:"YYYY-MM", dayKey:"YYYY-MM-DD" }.
+      // Mirrors /pnl's getFullYear()/getMonth() bucketing so month totals match.
+      const keyOf = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return { monthKey: `${y}-${m}`, dayKey: `${y}-${m}-${day}` };
+      };
+
+      type Bucket = { booking: number; ggv: number; bookingJobs: number; ggvJobs: number };
+      const monthMap: Record<string, Bucket> = {};
+      const dayMap: Record<string, Bucket> = {};
+      const ensure = (map: Record<string, Bucket>, k: string): Bucket =>
+        (map[k] ||= { booking: 0, ggv: 0, bookingJobs: 0, ggvJobs: 0 });
+
+      // ── Booking (TMG) revenue ──
+      const allQuotes = await db.select({
+        id: quotesTable.id, status: quotesTable.status,
+        total: quotesTable.total, scheduledAt: quotesTable.scheduledAt,
+        createdAt: quotesTable.createdAt,
+      }).from(quotesTable);
+
+      for (const q of allQuotes) {
+        if (!DONE_STATUSES.includes(q.status)) continue;
+        const d = q.scheduledAt || q.createdAt;
+        if (!d) continue;
+        const amt = parseFloat(q.total || "0");
+        if (isNaN(amt)) continue;
+        const { monthKey, dayKey } = keyOf(d);
+        const m = ensure(monthMap, monthKey); m.booking += amt; m.bookingJobs += 1;
+        const dd = ensure(dayMap, dayKey);    dd.booking += amt; dd.bookingJobs += 1;
+      }
+
+      // ── GoGoVan revenue ──
+      const allGGV = await db.select({
+        date: ggvJobsTable.date, actualPrice: ggvJobsTable.actualPrice, jobNo: ggvJobsTable.jobNo,
+      }).from(ggvJobsTable);
+
+      const ggvEffective = (j: { actualPrice: string | null; jobNo: string | null }): number => {
+        const base = parseFloat(j.actualPrice || "0");
+        const fee = j.jobNo?.trim()?.toUpperCase()?.startsWith("S") ? GGV_DELIVERY_FEE : 0;
+        return (isNaN(base) ? 0 : base) + fee;
+      };
+
+      for (const j of allGGV) {
+        const raw = j.date?.trim();
+        if (!raw || !/^\d{4}-\d{2}-\d{2}/.test(raw)) continue; // ggv.date is "YYYY-MM-DD" text
+        const { monthKey, dayKey } = keyOf(new Date(raw)); // same parsing as /pnl
+        const amt = ggvEffective(j);
+        const m = ensure(monthMap, monthKey); m.ggv += amt; m.ggvJobs += 1;
+        const dd = ensure(dayMap, dayKey);    dd.ggv += amt; dd.ggvJobs += 1;
+      }
+
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+
+      // All months that have any sales, newest first
+      const months = Object.keys(monthMap).sort().reverse().map(k => {
+        const m = monthMap[k];
+        return {
+          month: k,
+          label: new Date(k + "-01T00:00:00").toLocaleDateString("en-SG", { month: "short", year: "numeric" }),
+          booking: r2(m.booking), ggv: r2(m.ggv), total: r2(m.booking + m.ggv),
+          bookingJobs: m.bookingJobs, ggvJobs: m.ggvJobs,
+        };
+      });
+
+      // Which month to drill into (default: most recent with sales, else current)
+      const nowKey = keyOf(new Date()).monthKey;
+      const requested = (req.query.month as string | undefined)?.trim();
+      const selectedMonth = (requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested))
+        ? requested
+        : (months[0]?.month || nowKey);
+
+      // Every day of the selected month (zeros included for a complete picture)
+      const [sy, sm] = selectedMonth.split("-").map(Number);
+      const daysInMonth = new Date(sy, sm, 0).getDate();
+      const days = [];
+      for (let dnum = 1; dnum <= daysInMonth; dnum++) {
+        const dayKey = `${selectedMonth}-${String(dnum).padStart(2, "0")}`;
+        const dd = dayMap[dayKey] || { booking: 0, ggv: 0, bookingJobs: 0, ggvJobs: 0 };
+        days.push({
+          date: dayKey, day: dnum,
+          weekday: new Date(dayKey + "T00:00:00").toLocaleDateString("en-SG", { weekday: "short" }),
+          booking: r2(dd.booking), ggv: r2(dd.ggv), total: r2(dd.booking + dd.ggv),
+          bookingJobs: dd.bookingJobs, ggvJobs: dd.ggvJobs,
+        });
+      }
+
+      const sel = monthMap[selectedMonth] || { booking: 0, ggv: 0, bookingJobs: 0, ggvJobs: 0 };
+      const summary = {
+        month: selectedMonth,
+        label: new Date(selectedMonth + "-01T00:00:00").toLocaleDateString("en-SG", { month: "long", year: "numeric" }),
+        booking: r2(sel.booking), ggv: r2(sel.ggv), total: r2(sel.booking + sel.ggv),
+        bookingJobs: sel.bookingJobs, ggvJobs: sel.ggvJobs,
+      };
+
+      res.json({ months, selectedMonth, days, summary });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // -- Android crash reporter (unauthenticated — fires from native crash handler) --
   app.post("/api/crash-report", (req, res) => {
     const report = req.body?.crash ?? JSON.stringify(req.body);
