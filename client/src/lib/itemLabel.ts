@@ -71,12 +71,15 @@ export function formatItemServiceLabel(item: any, allItems: any[] = []): string 
 
 export function formatItemDescription(item: any, allItems: any[] = []): string {
   const name = String(item?.detectedName || item?.originalDescription || "Service").trim();
+  // If the admin already typed a recognised verb at the start of the line
+  // (e.g. "Site survey fee", "To supply labour for ..."), show the name
+  // verbatim — never prepend a verb. This applies REGARDLESS of the line's
+  // service type, so a labour line keyed as "install" still reads as typed
+  // instead of becoming "Installation of To supply labour for ...".
+  if (startsWithKnownVerb(name)) return name;
   const verb = formatItemServiceLabel(item, allItems);
   if (verb) return `${verb} of ${name}`;
-  // Manual or unknown service type: default to "Installation of …" so the
-  // BCA-style verb-noun format is consistent across every invoice line.
-  // If the admin already typed a recognised verb (e.g. "Site survey fee"),
-  // show the name verbatim.
-  if (startsWithKnownVerb(name)) return name;
+  // Manual or unknown service type with a plain noun name: default to
+  // "Installation of …" so the BCA-style verb-noun format stays consistent.
   return `Installation of ${name}`;
 }

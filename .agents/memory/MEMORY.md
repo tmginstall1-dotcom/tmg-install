@@ -19,3 +19,4 @@
 - [Fixed-price packages](packages-fixed-price.md) — model package bookings as a quote with ONE manual line at the package price (survives editQuote recompute); price read server-side from shared/packages.ts; store preferredDate+preferredTimeWindow for deposit auto-book.
 - [OneMap search quirk](onemap-search-quirk.md) — /api/onemap/search returns 200 + full results but with a deprecation `error` field; branch on status+results.length, never on `error`; "Block" prefix breaks matching.
 - [Admin mobile safe-area](admin-mobile-safe-area.md) — admin page wrappers must pad past the fixed 64px bottom nav + env(safe-area-inset-bottom); flat pb-24 hides tail content on notched phones.
+- [Invoice line verb labels](invoice-line-verb-labels.md) — itemLabel.ts is the one line-label formatter; check typed-verb (startsWithKnownVerb) BEFORE the service_type verb or install-typed "To supply…" lines double-prefix to "Installation of…".
