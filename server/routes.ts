@@ -842,12 +842,22 @@ RESIDENTIAL FURNITURE:
           • 3 panels  → "Sliding Door Wardrobe (3-door)"
           • 4 OR MORE panels  → "Sliding Door Wardrobe (4-door / Mirror)"   ← heavy-tier SKU, use this for ANY wide multi-panel sliding wardrobe
           • If any of the panels are MIRRORED (full-length mirror reflecting the room) → ALWAYS use "Sliding Door Wardrobe (4-door / Mirror)" even if only 3 panels are visible. Mirrors mean fragile glass, padding, and 2-man handling — the heavier price tier is required.
+       IMPORTANT — this whole "Sliding Door Wardrobe" rule (including the mirror rule above) applies ONLY to genuine SLIDING-door wardrobes: doors slide left/right on a continuous top + bottom track, doors overlap each other, and there are NO handles sticking out. It does NOT apply to HINGED-door wardrobes (doors swing open outward on side hinges, each door has its own knob/handle). A HINGED wardrobe that happens to have mirror doors is still a HINGED wardrobe — do NOT call it a "Sliding Door Wardrobe (4-door / Mirror)". In particular, IKEA PAX wardrobes are almost always HINGED — see the PAX rule (2b) below.
        NEVER split a single wide sliding wardrobe into multiple items. Specifically:
           • A 4-panel sliding wardrobe is NOT "3-door sliding wardrobe + swing door cabinet". It is ONE item with quantity 1, mapped to "Sliding Door Wardrobe (4-door / Mirror)".
           • A wardrobe with 2 mirrored sliding doors flanked by 2 white sliding doors = ONE "Sliding Door Wardrobe (4-door / Mirror)", quantity 1.
           • Do NOT add a "Swing Door Cabinet" alongside a sliding wardrobe unless there is a CLEARLY SEPARATE freestanding hinged-door cabinet sitting beside the wardrobe (i.e. a different piece of furniture with its own carcass and a visible gap from the wardrobe).
        Telltale sign you're looking at a single wide sliding wardrobe: continuous top rail / track running across all panels, panels overlap on the same rails, no vertical gap between panels.
        Conversely, if you can clearly see TWO (or more) physically separate sliding wardrobes or cabinets of the same type in the photo — each with its own carcass, its own top rail, and a visible vertical gap between them — return ONE catalog entry with quantity equal to the number of separate units (e.g. {"name": "Sliding Door Wardrobe (3-door)", "quantity": 2}). Do NOT silently merge truly separate units, and do NOT list them as different SKUs.
+
+   2b. IKEA PAX WARDROBE — VERY COMMON, and it is PRICED PER FRAME (not as a single sliding wardrobe). Read this carefully:
+       A PAX is a modular, frame-based wardrobe. Tell-tale signs: tall flat rectangular bays (≈200–236cm) standing side by side; doors are almost always HINGED (each door swings open on side hinges and has its own knob/handle), usually in flat or shaker-panel styles, and frequently a MIX of solid panel doors and full-length MIRROR doors; the bays can run straight along a wall OR meet at a 90° L-shape / CORNER.
+       • Map a PAX to the matching per-frame catalog item by the DOOR MECHANISM (not by whether a mirror is present):
+            – Open frames with no doors                                  → "IKEA PAX Wardrobe (per frame, no doors)"
+            – HINGED doors (swing open, individual handles) — INCLUDING when some doors are mirrored → "IKEA PAX Wardrobe (per frame, hinged doors)"
+            – SLIDING doors (slide on a track, overlap, no handles)      → "IKEA PAX Wardrobe (per frame, sliding / mirror doors)"
+       • Set quantity = the NUMBER OF FRAMES / BAYS (each bay ≈ 50–100cm wide vertical section). For an L-shape / CORNER PAX, count the corner section as ONE extra frame and add the frames on each side (e.g. two bays + corner + two bays = quantity 5). Return ONE line item with that total frame count as the quantity.
+       • A PAX (even a wide one, even with mirror doors, even an L-shape corner) must map to the per-frame PAX items above — do NOT map it to the generic "Sliding Door Wardrobe" SKUs.
 
 3. DESK / WORK TABLE: Has a FLAT HORIZONTAL WORK SURFACE at roughly sitting height (~75cm), designed for working at while seated. Legs are clearly visible. The surface area is the dominant feature. A small side drawer is possible but NOT the primary feature. Do NOT call a chest of drawers a desk.
 

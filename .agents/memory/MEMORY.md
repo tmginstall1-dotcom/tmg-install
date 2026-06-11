@@ -15,5 +15,6 @@
 - [Threshold full-payment rule](threshold-full-payment-rule.md) — jobs <$150 pay in full; branch every payment surface on requiresFullUpfront(total), never re-derive the threshold inline.
 - [Promo no-stacking](promo-no-stacking.md) — promo codes never combine with the relocation D&R bundle (carry-only exempt); enforce via shared relocationBundleBlocksPromo on wizard submit + WhatsApp, client+server in lockstep.
 - [Analytics revenue reconciliation](analytics-revenue-reconciliation.md) — new sales/revenue reports must copy /pnl's revenue defs AND its local-time (not SGT-shifted) date bucketing to reconcile.
+- [PAX vision detection](pax-vision-detection.md) — map IKEA PAX (incl. corner/L-shape) to per-frame SKUs by door mechanism; scope the mirror→sliding rule to genuine sliding only.
 - [Fixed-price packages](packages-fixed-price.md) — model package bookings as a quote with ONE manual line at the package price (survives editQuote recompute); price read server-side from shared/packages.ts; store preferredDate+preferredTimeWindow for deposit auto-book.
 - [OneMap search quirk](onemap-search-quirk.md) — /api/onemap/search returns 200 + full results but with a deprecation `error` field; branch on status+results.length, never on `error`; "Block" prefix breaks matching.
