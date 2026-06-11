@@ -755,7 +755,7 @@ export default function AdminReceipts() {
  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
  return (
- <div className="min-h-screen bg-white pt-14 lg:pl-56 pb-24">
+ <div className="min-h-screen bg-white pt-14 lg:pl-56 pb-[calc(64px+env(safe-area-inset-bottom)+2rem)] lg:pb-12">
 
  {/* Page Header */}
  <div className="bg-white border-b border-black/12 px-5 py-4 mb-5">

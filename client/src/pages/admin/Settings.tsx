@@ -235,7 +235,7 @@ export default function AdminSettings() {
  };
 
  return (
- <div className="min-h-screen bg-[#F5F4F0] pt-14 lg:pl-56 pb-24">
+ <div className="min-h-screen bg-[#F5F4F0] pt-14 lg:pl-56 pb-[calc(64px+env(safe-area-inset-bottom)+2rem)] lg:pb-12">
  <div className="bg-white border-b border-black/12 px-6 py-5 mb-6">
  <div className="max-w-2xl mx-auto">
  <p className="text-xs text-black/45 mb-1">Management → Settings</p>

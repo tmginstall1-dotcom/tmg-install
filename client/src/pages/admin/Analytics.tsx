@@ -1498,7 +1498,7 @@ export default function Analytics() {
  ];
 
  return (
- <div className="min-h-screen bg-[#F5F4F0] pt-14 lg:pl-56 pb-24">
+ <div className="min-h-screen bg-[#F5F4F0] pt-14 lg:pl-56 pb-[calc(64px+env(safe-area-inset-bottom)+2rem)] lg:pb-12">
  {/* Header */}
  <div className="bg-white border-b border-zinc-200 px-6 py-5">
  <div className="max-w-5xl mx-auto">
