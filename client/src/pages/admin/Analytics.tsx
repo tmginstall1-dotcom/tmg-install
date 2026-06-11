@@ -1510,7 +1510,7 @@ export default function Analytics() {
  </div>
  <div className="flex items-center gap-2 flex-wrap">
  {/* Tab switcher */}
- <div className="flex p-1 rounded-lg border border-zinc-200 bg-zinc-100 overflow-x-auto max-w-full no-scrollbar">
+ <div className="flex flex-wrap gap-1 p-1 rounded-lg border border-zinc-200 bg-zinc-100 max-w-full">
  {TABS.map(({ key, label, icon: Icon }) => (
  <button key={key} onClick={() => setTab(key)} data-testid={`tab-${key}`}
  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all shrink-0 whitespace-nowrap ${
