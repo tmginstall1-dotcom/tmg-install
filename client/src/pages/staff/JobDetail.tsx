@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useBackgroundLocation } from "@/hooks/use-background-location";
+import { groupStops, itemRouteLabel } from "@/lib/stops";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -478,6 +479,10 @@ export default function JobDetail() {
 
   const relocation = isRelocationJob(job);
   const sameProp = isSameProperty(job);
+  // Multi-stop relocation: only treat as multi-stop when there are >2 stops.
+  // 0–2 stops fall back to the legacy pickup/drop-off block (see lib/stops.ts).
+  const groupedStops = groupStops((job as any).stops);
+  const isMultiStop = groupedStops.all.length > 2;
   const steps = relocation
     ? (sameProp ? RELOCATION_STEPS_SAMEPROP : RELOCATION_STEPS_FULL)
     : INSTALL_STEPS;
@@ -744,7 +749,29 @@ export default function JobDetail() {
                 </div>
               </div>
             )}
-            {relocation && (job.pickupAddress || job.dropoffAddress) && (
+            {relocation && isMultiStop && (
+              <div className="space-y-2">
+                {groupedStops.all.map((s, idx) => {
+                  const isPickup = s.kind === "pickup";
+                  return (
+                    <div key={s.id} className="flex items-start gap-2.5" data-testid={`stop-${s.id}`}>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black ${
+                        isPickup ? 'bg-sky-500 text-white' : 'bg-fuchsia-500 text-white'
+                      }`}>{s.label.replace(/^Pickup\s/, "P").replace(/^Drop-off\s/, "")}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wide mb-0.5">{s.label}</p>
+                        <p className="text-sm font-semibold" data-testid={`text-stop-address-${s.id}`}>
+                          {s.address}
+                          {s.floor ? `, ${s.floor}` : ""}
+                          {s.hasLift === false ? " (no lift)" : ""}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {relocation && !isMultiStop && (job.pickupAddress || job.dropoffAddress) && (
               <div className="space-y-2">
                 {job.pickupAddress && (
                   <div className="flex items-start gap-2.5">
@@ -887,6 +914,11 @@ export default function JobDetail() {
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm leading-tight">{item.detectedName || item.originalDescription}</p>
                     <p className="text-xs text-muted-foreground capitalize">{item.serviceType}</p>
+                    {isMultiStop && itemRouteLabel((job as any).stops, item.fromStopId, item.toStopId) && (
+                      <p className="text-xs font-bold text-primary mt-0.5" data-testid={`text-item-route-${item.id ?? i}`}>
+                        {itemRouteLabel((job as any).stops, item.fromStopId, item.toStopId)}
+                      </p>
+                    )}
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-sm font-black">×{item.quantity}</p>
