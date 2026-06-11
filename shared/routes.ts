@@ -7,6 +7,7 @@ import {
   insertQuoteItemSchema, quoteItems,
   insertJobUpdateSchema, jobUpdates,
   quoteRequestSchema,
+  quoteStopSchema,
   QuoteResponse
 } from './schema';
 
@@ -102,6 +103,9 @@ export const api = {
         dropoffAddress: z.string().optional(),
         accessDifficulty: z.enum(['easy', 'medium', 'hard']).optional(),
         floorsInfo: z.string().optional(),
+        // Multi-stop relocation (ADDITIVE) — ordered list of pickup + drop-off
+        // stops. Omitted / empty for single-leg quotes (legacy behaviour).
+        stops: z.array(quoteStopSchema).optional(),
         items: z.array(z.object({
           catalogItemId: z.number().optional(),
           quantity: z.number().min(1),
@@ -111,6 +115,10 @@ export const api = {
           sku: z.string().optional(),
           relocateMode: z.enum(['carry', 'full']).optional(),
           wrap: z.boolean().optional(), // customer opted into bubble-wrap protection ($10/unit)
+          // Multi-stop links — which pickup this item comes from / drop-off it
+          // goes to, referencing stops[].id. Null/omitted on single-leg quotes.
+          fromStopId: z.string().optional(),
+          toStopId: z.string().optional(),
         })),
         customItems: z.array(z.object({
           description: z.string().min(1),

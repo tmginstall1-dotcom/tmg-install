@@ -14,7 +14,8 @@ import {
   CalendarDays, Clock, MessageCircle
 } from "lucide-react";
 import { SlotPicker, type SlotAvailability } from "@/components/SlotPicker";
-import type { CatalogItem } from "@shared/schema";
+import type { CatalogItem, QuoteStop } from "@shared/schema";
+import { groupStops, countExtraStops, genStopId } from "@/lib/stops";
 import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, requiresSpecialHandling, requiresFullUpfront, relocationBundleBlocksPromo, type PricingCatalogEntry } from "@shared/pricing";
 import { buildHandoffWaUrl, type HandoffPayload } from "@shared/whatsapp-handoff";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
@@ -69,10 +70,27 @@ interface LineItem {
   carryPrice?: number;   // carry-only catalog price
   fullPrice?: number;    // dismantle + install combined price
   wrap?: boolean;        // customer opted into bubble-wrap protection ($10/unit)
+  // Multi-stop relocation — which pickup this item comes from / drop-off it
+  // goes to (references a stop id). Undefined = use the default first stop.
+  fromStopId?: string;
+  toStopId?: string;
 }
 
 interface Floor {
   level: string;
+  hasLift: boolean;
+}
+
+// Multi-stop relocation — an EXTRA pickup or drop-off beyond the primary
+// pickup + primary drop-off the wizard already collects. Additive: when the
+// list is empty the quote stays a single-leg relocation.
+interface ExtraStop {
+  id: string;
+  kind: "pickup" | "dropoff";
+  address: string;
+  lat?: number;
+  lng?: number;
+  floor: string;
   hasLift: boolean;
 }
 
@@ -349,6 +367,13 @@ export default function EstimateWizard() {
   // we surface a "confirmed on-site" caveat in the review summary.
   const [accessAnswered, setAccessAnswered] = useState(false);
   const [stairsAnswer, setStairsAnswer] = useState<"no" | "yes" | "unsure" | null>(null);
+  // Multi-stop relocation — EXTRA pickups / drop-offs beyond the primary pair.
+  // Empty = single-leg (legacy behaviour, no stops[] persisted). Stable ids for
+  // the primary pickup / drop-off so line items can reference them across the
+  // grouped stop list (Pickup 1 / Drop-off A).
+  const [extraStops, setExtraStops] = useState<ExtraStop[]>([]);
+  const [primaryPickupStopId] = useState(() => genStopId());
+  const [primaryDropoffStopId] = useState(() => genStopId());
   // Step 3
   const [items, setItems] = useState<LineItem[]>([]);
 
@@ -525,11 +550,81 @@ export default function EstimateWizard() {
 
   const showCatalogResults = catalogFocused || catalogSearch.trim().length > 0;
 
+  // ── Multi-stop relocation derived state ──────────────────────────────────
+  // The primary pickup / drop-off plus any EXTRA stops, assembled into the
+  // canonical ordered list (all pickups first, then all drop-offs) so the
+  // shared groupStops/labelForStop helpers number them as Pickup 1/2…,
+  // Drop-off A/B…. Empty unless the customer added at least one extra stop.
+  // Extra stops only count when this is a true different-address relocation.
+  // For non-relocation services or Same-Property Moves they must be ignored
+  // entirely (no floor surcharges, no stop fee, not persisted) even if the
+  // customer added some and then toggled the mode.
+  const activeExtraStops = useMemo(
+    () => (isRelocation && !samePropertyMove) ? extraStops : [],
+    [isRelocation, samePropertyMove, extraStops],
+  );
+  const extraPickups = useMemo(() => activeExtraStops.filter(s => s.kind === "pickup"), [activeExtraStops]);
+  const extraDropoffs = useMemo(() => activeExtraStops.filter(s => s.kind === "dropoff"), [activeExtraStops]);
 
-  // ── Auto-calculate route distance when both relocation addresses are set ──
+  const allStops = useMemo<QuoteStop[]>(() => {
+    if (!isRelocation || samePropertyMove || extraStops.length === 0) return [];
+    const list: QuoteStop[] = [];
+    list.push({
+      id: primaryPickupStopId, kind: "pickup", address: pickupAddress,
+      postalCode: null, floor: floors[0]?.level ?? null, hasLift: floors[0]?.hasLift ?? null,
+    });
+    extraPickups.forEach(s => list.push({
+      id: s.id, kind: "pickup", address: s.address,
+      postalCode: null, floor: s.floor || null, hasLift: s.hasLift,
+    }));
+    list.push({
+      id: primaryDropoffStopId, kind: "dropoff", address: dropoffAddress,
+      postalCode: null, floor: floors[1]?.level ?? null, hasLift: floors[1]?.hasLift ?? null,
+    });
+    extraDropoffs.forEach(s => list.push({
+      id: s.id, kind: "dropoff", address: s.address,
+      postalCode: null, floor: s.floor || null, hasLift: s.hasLift,
+    }));
+    return list;
+  }, [isRelocation, samePropertyMove, extraStops, extraPickups, extraDropoffs, pickupAddress, dropoffAddress, floors, primaryPickupStopId, primaryDropoffStopId]);
+
+  const isMultiStop = allStops.length > 2;
+  const extraStopCount = isMultiStop ? countExtraStops(allStops) : 0;
+  const stopGroups = useMemo(() => groupStops(allStops), [allStops]);
+
+  function addExtraStop(kind: "pickup" | "dropoff") {
+    setExtraStops(prev => [...prev, { id: genStopId(), kind, address: "", floor: "0", hasLift: true }]);
+  }
+  function updateExtraStop(id: string, patch: Partial<ExtraStop>) {
+    setExtraStops(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
+  }
+  function removeExtraStop(id: string) {
+    setExtraStops(prev => prev.filter(s => s.id !== id));
+    // Clear any item tags that pointed at the removed stop so we never persist a
+    // dangling reference.
+    setItems(prev => prev.map(i => ({
+      ...i,
+      fromStopId: i.fromStopId === id ? undefined : i.fromStopId,
+      toStopId: i.toStopId === id ? undefined : i.toStopId,
+    })));
+  }
+
+  // ── Auto-calculate route distance when relocation addresses are set ──
+  // Single-leg: pickup → drop-off. Multi-stop: the full chain (all pickups in
+  // order, then all drop-offs) via the /api/distance `waypoints` field, which
+  // sums the whole route.
 
   useEffect(() => {
-    if (!isRelocation || !pickupAddress || !dropoffAddress) return;
+    if (!isRelocation) return;
+    const multi = isMultiStop;
+    const waypoints = [
+      { address: pickupAddress, lat: pickupLatLng?.lat, lng: pickupLatLng?.lng },
+      ...extraPickups.map(s => ({ address: s.address, lat: s.lat, lng: s.lng })),
+      { address: dropoffAddress, lat: dropoffLatLng?.lat, lng: dropoffLatLng?.lng },
+      ...extraDropoffs.map(s => ({ address: s.address, lat: s.lat, lng: s.lng })),
+    ];
+    // Don't fire until every leg has an address.
+    if (waypoints.some(w => !w.address)) return;
     setDistanceLoading(true);
     setDistanceError("");
     const timer = setTimeout(async () => {
@@ -537,7 +632,7 @@ export default function EstimateWizard() {
         const res = await fetch("/api/distance", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: JSON.stringify(multi ? { waypoints } : {
             pickupAddress,
             dropoffAddress,
             pickupLat: pickupLatLng?.lat,
@@ -557,7 +652,7 @@ export default function EstimateWizard() {
       }
     }, 600);
     return () => clearTimeout(timer);
-  }, [pickupAddress, dropoffAddress, pickupLatLng, dropoffLatLng, isRelocation]);
+  }, [pickupAddress, dropoffAddress, pickupLatLng, dropoffLatLng, isRelocation, isMultiStop, extraPickups, extraDropoffs]);
 
   // ── Pricing computation (central engine) ──────────────────────────────────
 
@@ -582,15 +677,22 @@ export default function EstimateWizard() {
       wrap: i.wrap === true,
     })),
     needsRelocation: isRelocation,
-    floors: floors.map(f => ({ level: parseInt(f.level) || 0, hasLift: f.hasLift })),
+    // Floor surcharges cover EVERY location — the primary pickup/drop-off floors
+    // plus each extra stop's floor.
+    floors: [
+      ...floors.map(f => ({ level: parseInt(f.level) || 0, hasLift: f.hasLift })),
+      ...activeExtraStops.map(s => ({ level: parseInt(s.floor) || 0, hasLift: s.hasLift })),
+    ],
     accessDifficulty,
     // Same-Property Moves don't have travel distance — force to 0 so the
     // engine's "transport fee" branch is skipped and we don't trip the
     // "distance calculation failed" admin-review warning.
     distanceKm: samePropertyMove ? 0 : distanceKm,
+    // Per-extra-stop fee for multi-stop relocations (0 for single-leg).
+    extraStops: extraStopCount,
     catalogEntries,
     samePropertyMove: isRelocation && samePropertyMove,
-  }), [items, isRelocation, samePropertyMove, floors, accessDifficulty, distanceKm, catalogEntries]);
+  }), [items, isRelocation, samePropertyMove, floors, activeExtraStops, extraStopCount, accessDifficulty, distanceKm, catalogEntries]);
 
   const subtotal = pricingResult.laborSubtotal;
   const total = pricingResult.grandTotal;
@@ -1005,8 +1107,18 @@ export default function EstimateWizard() {
         // unmodified, and the printed invoice doesn't show a blank destination.
         dropoffAddress: isRelocation ? (samePropertyMove ? pickupAddress : dropoffAddress) : undefined,
         accessDifficulty: isRelocation ? accessDifficulty : undefined,
-        floorsInfo: isRelocation ? JSON.stringify(floors) : undefined,
+        // Multi-stop: include every stop's floor so the server's floor-surcharge
+        // recompute sees all locations, not just the primary pickup/drop-off.
+        floorsInfo: isRelocation
+          ? JSON.stringify([
+              ...floors,
+              ...activeExtraStops.map(s => ({ level: s.floor || "0", hasLift: s.hasLift })),
+            ])
+          : undefined,
         samePropertyMove: isRelocation && samePropertyMove ? true : undefined,
+        // Multi-stop relocation — only sent when the customer added extra stops.
+        // Single-leg quotes omit stops[] entirely (legacy behaviour preserved).
+        stops: isMultiStop ? allStops : undefined,
         items: items.map(i => ({
           catalogItemId: i.catalogItemId,
           quantity: i.quantity,
@@ -1016,6 +1128,10 @@ export default function EstimateWizard() {
           sku: i.sku,
           relocateMode: i.serviceType === 'relocate' ? (i.relocateMode || 'full') : undefined,
           wrap: i.wrap === true ? true : undefined,
+          // Per-item from/to tagging — default to the first pickup / drop-off
+          // when the customer didn't pick one. Only sent for multi-stop quotes.
+          fromStopId: isMultiStop ? (i.fromStopId || primaryPickupStopId) : undefined,
+          toStopId: isMultiStop ? (i.toStopId || primaryDropoffStopId) : undefined,
         })),
         customItems: [],
         logisticsFee: pricingResult.logisticsSubtotal,
@@ -1107,6 +1223,9 @@ export default function EstimateWizard() {
       if (!isRelocation) return serviceAddress.length > 2;
       // Same-Property Move only needs the pickup address (it IS the address)
       if (samePropertyMove) return pickupAddress.length > 2;
+      // Every added extra stop must have a real address before we can advance,
+      // otherwise the server's stop validation would reject the submission late.
+      if (extraStops.some(s => s.address.trim().length < 3)) return false;
       return pickupAddress.length > 2 && dropoffAddress.length > 2;
     }
     if (step === 3) return items.length > 0;
@@ -1552,6 +1671,66 @@ export default function EstimateWizard() {
                           }
                         </div>
                       )}
+
+                      {/* ── Additional stops (multi-stop relocation) ── */}
+                      {!samePropertyMove && (
+                        <div className="border border-black/10 bg-white p-4" data-testid="section-additional-stops">
+                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-1">Additional stops <span className="text-black/25 font-normal normal-case tracking-normal">(optional)</span></p>
+                          <p className="text-[11px] text-black/45 mb-3 leading-snug">Picking up from more than one place, or dropping off at multiple addresses? Add the extra stops here. Each extra stop adds a ${PricingConfig.multiStop.additionalStopFee} stop fee.</p>
+
+                          {extraStops.length > 0 && (
+                            <div className="space-y-4 mb-3">
+                              {extraStops.map(es => {
+                                const label = stopGroups.all.find(s => s.id === es.id)?.label
+                                  ?? (es.kind === "pickup" ? "Pickup" : "Drop-off");
+                                return (
+                                  <div key={es.id} className="border border-black/10 bg-[rgba(250,250,247,0.7)] p-3 space-y-3" data-testid={`extra-stop-${es.id}`}>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-black uppercase tracking-[0.1em] text-black/55">{label}</span>
+                                      <button type="button" onClick={() => removeExtraStop(es.id)}
+                                        data-testid={`button-remove-stop-${es.id}`}
+                                        className="text-black/30 hover:text-black hover:bg-slate-100 p-1 transition-colors">
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                    <AddressInput required label={`${label} Address`} value={es.address}
+                                      onSelect={(addr, lat, lng) => updateExtraStop(es.id, { address: addr, lat: lat ?? undefined, lng: lng ?? undefined })}
+                                      placeholder="Start typing an address…" />
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-xs text-black/40 font-black uppercase">Floor</span>
+                                      <input type="number" min="0" max="50" value={es.floor}
+                                        onChange={e => updateExtraStop(es.id, { floor: e.target.value })}
+                                        className="w-20 px-3 py-2 bg-white border border-black/10 text-center outline-none focus:border-black text-sm"
+                                        data-testid={`input-stop-floor-${es.id}`} />
+                                      <label className="flex items-center gap-2 text-sm cursor-pointer text-black/60">
+                                        <input type="checkbox" checked={es.hasLift}
+                                          onChange={e => updateExtraStop(es.id, { hasLift: e.target.checked })}
+                                          className="w-4 h-4 accent-black"
+                                          data-testid={`checkbox-stop-lift-${es.id}`} />
+                                        Has lift
+                                      </label>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={() => addExtraStop("pickup")}
+                              data-testid="button-add-pickup-stop"
+                              className="text-[10px] font-black uppercase tracking-[0.1em] text-black/50 hover:text-black flex items-center gap-1 border border-black/15 px-3 py-2 hover:border-black/40 transition-colors">
+                              <Plus className="w-3.5 h-3.5" /> Add pickup stop
+                            </button>
+                            <button type="button" onClick={() => addExtraStop("dropoff")}
+                              data-testid="button-add-dropoff-stop"
+                              className="text-[10px] font-black uppercase tracking-[0.1em] text-black/50 hover:text-black flex items-center gap-1 border border-black/15 px-3 py-2 hover:border-black/40 transition-colors">
+                              <Plus className="w-3.5 h-3.5" /> Add drop-off stop
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.15em] text-black/40 mb-3">Floor details <span className="text-black/25 font-normal normal-case tracking-normal">(affects pricing)</span></p>
                         {floors.map((floor, i) => (
@@ -2106,6 +2285,34 @@ export default function EstimateWizard() {
                                 >
                                   Carry Only
                                 </button>
+                              </div>
+                            )}
+                            {/* Multi-stop: tag which pickup this item comes from
+                                and which drop-off it goes to. Defaults to the
+                                first pickup / drop-off. */}
+                            {isMultiStop && item.serviceType === 'relocate' && (
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.06em] text-black/40">
+                                <span>From</span>
+                                <select
+                                  data-testid={`select-from-stop-${item.id}`}
+                                  value={item.fromStopId || primaryPickupStopId}
+                                  onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, fromStopId: e.target.value } : i))}
+                                  className="px-2 py-1 bg-white border border-black/15 outline-none focus:border-black normal-case font-semibold tracking-normal text-black/70">
+                                  {stopGroups.pickups.map(s => (
+                                    <option key={s.id} value={s.id}>{s.label}</option>
+                                  ))}
+                                </select>
+                                <ArrowRight className="w-3 h-3" />
+                                <span>To</span>
+                                <select
+                                  data-testid={`select-to-stop-${item.id}`}
+                                  value={item.toStopId || primaryDropoffStopId}
+                                  onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, toStopId: e.target.value } : i))}
+                                  className="px-2 py-1 bg-white border border-black/15 outline-none focus:border-black normal-case font-semibold tracking-normal text-black/70">
+                                  {stopGroups.dropoffs.map(s => (
+                                    <option key={s.id} value={s.id}>{s.label}</option>
+                                  ))}
+                                </select>
                               </div>
                             )}
                           </div>

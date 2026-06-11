@@ -6395,6 +6395,16 @@ Respond with ONLY a JSON array (no prose, no markdown):
           .filter(e => isFinite(e.basePrice) && e.basePrice > 0);
       } catch { /* catalog load failed — engine will use genericFallback */ }
 
+      // Multi-stop relocation (ADDITIVE) — derive the extra-stop count from the
+      // submitted stops server-side so a hostile client can't claim more/fewer
+      // stops than it actually sent. extraStops = (pickups − 1) + (drop-offs − 1).
+      const wizardStops = input.stops || [];
+      const pickupStopCount = wizardStops.filter(s => s.kind === "pickup").length;
+      const dropoffStopCount = wizardStops.filter(s => s.kind === "dropoff").length;
+      const extraStopsServer = Math.max(0, pickupStopCount - 1) + Math.max(0, dropoffStopCount - 1);
+      const firstPickupStop = wizardStops.find(s => s.kind === "pickup");
+      const firstDropoffStop = wizardStops.find(s => s.kind === "dropoff");
+
       const serverPricing = computePricing({
         items: canonicalPricingItems,
         needsRelocation: needsRelocationServer,
@@ -6402,6 +6412,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
         floors: canonicalFloors,
         accessDifficulty: (input.accessDifficulty as "easy" | "medium" | "hard") || "easy",
         distanceKm: input.samePropertyMove === true ? 0 : (input.distanceKm ?? 0),
+        extraStops: input.samePropertyMove === true ? 0 : extraStopsServer,
         catalogEntries: pricingCatalogEntries,
       });
 
@@ -6507,6 +6518,15 @@ Respond with ONLY a JSON array (no prose, no markdown):
             quantity: qty,
             unitPrice: unit.toFixed(2),
             subtotal: (unit * qty).toFixed(2),
+            // Multi-stop links — only meaningful when stops[] is present. Fall
+            // back to the first pickup / first drop-off so every item is routed
+            // even if the client didn't tag it individually.
+            fromStopId: wizardStops.length > 0
+              ? (item.fromStopId || firstPickupStop?.id || null)
+              : null,
+            toStopId: wizardStops.length > 0
+              ? (item.toStopId || firstDropoffStop?.id || null)
+              : null,
           };
         }),
         ...(input.customItems || []).map(item => ({
@@ -6540,8 +6560,13 @@ Respond with ONLY a JSON array (no prose, no markdown):
         {
           referenceNo,
           serviceAddress: input.serviceAddress,
-          pickupAddress: input.pickupAddress,
-          dropoffAddress: input.dropoffAddress,
+          // Multi-stop: keep the legacy single pickup/drop-off fields populated
+          // from the first pickup / first drop-off so every existing display
+          // surface (that reads pickupAddress/dropoffAddress) keeps working.
+          pickupAddress: firstPickupStop?.address || input.pickupAddress,
+          dropoffAddress: firstDropoffStop?.address || input.dropoffAddress,
+          // Persist the full ordered stop list (ADDITIVE). Empty for single-leg.
+          stops: wizardStops.length > 0 ? wizardStops : undefined,
           accessDifficulty: input.accessDifficulty,
           floorsInfo: input.floorsInfo,
           selectedServices: JSON.stringify(input.selectedServices),
