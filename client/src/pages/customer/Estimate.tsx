@@ -917,12 +917,39 @@ export default function EstimateWizard() {
 
       const lc = itemName.toLowerCase();
       const lcK = lc.replace(/[^a-z0-9]+/g, "");
-      const matched = catalogGroups.find(g => {
+      let matched = catalogGroups.find(g => {
         const gn = g.name.toLowerCase();
         const gnK = gn.replace(/[^a-z0-9]+/g, "");
         return gn.includes(lc) || lc.includes(gn) || gn.split(" ").slice(0, 2).join(" ") === lc.split(" ").slice(0, 2).join(" ") ||
           (lcK.length >= 5 && gnK.length >= 5 && (gnK.includes(lcK) || lcK.includes(gnK)));
       });
+      // Second chance (runs ONLY on a direct miss): strip well-known
+      // appliance/furniture BRAND words and singularise, then re-run the SAME
+      // strict substring matcher. We deliberately AVOID a loose word-overlap
+      // score here — substring containment keeps genuinely-custom lines (e.g.
+      // "Gaming desk") as custom instead of auto-pricing them, while still
+      // resolving colloquial phrasings like "Decathlon chairs" → a chair,
+      // "Tefal pots" → "Pots & Pans", or "Bagpack" → "Backpack".
+      if (!matched) {
+        const singular = (s: string) => s.replace(/\b([a-z]{4,})s\b/g, "$1");
+        const norm = lc
+          // Only unambiguous appliance/kitchenware brand tokens — deliberately
+          // NOT common English words (e.g. "sharp", "prism") that could strip
+          // meaning from a genuine custom line.
+          .replace(/\b(decathlon|mayer|zojirushi|aerogaz|sterra|lagourmet|corelle|corell|tefal|philips|panasonic|xiaomi|europace|khind|toshiba|kdk)\b/g, " ")
+          .replace(/\bbagpack\b/g, "backpack")
+          .replace(/\s+/g, " ").trim();
+        const normS = singular(norm);
+        const normK = normS.replace(/[^a-z0-9]+/g, "");
+        if (normS && normS !== lc) {
+          matched = catalogGroups.find(g => {
+            const gnS = singular(g.name.toLowerCase());
+            const gnK = gnS.replace(/[^a-z0-9]+/g, "");
+            return gnS.includes(normS) || normS.includes(gnS) ||
+              (normK.length >= 5 && gnK.length >= 5 && (gnK.includes(normK) || normK.includes(gnK)));
+          });
+        }
+      }
       if (matched) {
         matchedCount++;
         // Same dismantle_dispose → dispose fallback as addCatalogGroup, so

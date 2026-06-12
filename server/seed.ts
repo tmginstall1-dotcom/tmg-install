@@ -3391,4 +3391,84 @@ export async function seedDatabase() {
     console.log(`[startup] Round 37: Wardrobe Lighting Installation — inserted ${inserted} new SKU row(s) ($20 per light/strip).`);
   }
 
+  /* ─── Round 38: Common loose move items (boxes, bags, small appliances) ────
+     Customers pasting a real moving list routinely include everyday loose
+     items the catalog had no row for — Toyogo / cardboard boxes, Batam carrier
+     bags, luggage, small kitchen appliances, kitchenware, a study/arm chair,
+     a store rack, a movable trolley, a standing mirror, etc. With no catalog
+     match these fell through to the relocate GENERIC fallback ($150 × 1.5 =
+     ~$225 EACH), which badly over-quoted a normal move (e.g. 17 loose bags →
+     ~$3,825). See attached "33 items / $17,185" example.
+
+     This round adds dedicated RELOCATE rows so each is auto-detected on paste
+     and priced at a sensible, Singapore-market carry rate, comparative to the
+     existing Carton Box ($3.50–$18), Air Fryer ($30) and chair ($25–33) rows.
+     These are carry-as-is items (no install/dismantle service), so only a
+     relocate row is created — matching the Round 34 small-appliance pattern.
+     Names are kept short and generic so the estimator's paste matcher resolves
+     colloquial phrasings (e.g. "Mayer rice cooker" → "Rice Cooker", "Toyogo
+     boxes" → "Toyogo Box", "Movable trolley" → "Trolley").
+
+     Marker: LOOSE-MOVE-ITEMS-R38-MARKER.
+  */
+  const r38 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "LOOSE-MOVE-ITEMS-R38-MARKER")).limit(1);
+  if (r38.length === 0) {
+    const newRows: Array<{ name: string; sku: string; category: string; basePrice: string; volumeM3: string }> = [
+      // Boxes, bags & containers
+      { name: "Toyogo Box",        sku: "R38-TOYOGO-BOX-RELOCATE",     category: "Moving Boxes", basePrice: "8.00",  volumeM3: "0.10" },
+      { name: "Cardbox",           sku: "R38-CARDBOX-RELOCATE",        category: "Moving Boxes", basePrice: "6.00",  volumeM3: "0.08" },
+      { name: "Batam Bag",         sku: "R38-BATAM-BAG-RELOCATE",      category: "Moving Boxes", basePrice: "8.00",  volumeM3: "0.12" },
+      { name: "Loose Bag",         sku: "R38-LOOSE-BAG-RELOCATE",      category: "Moving Boxes", basePrice: "6.00",  volumeM3: "0.06" },
+      { name: "Luggage",           sku: "R38-LUGGAGE-RELOCATE",        category: "Moving Boxes", basePrice: "10.00", volumeM3: "0.10" },
+      { name: "Backpack",          sku: "R38-BACKPACK-RELOCATE",       category: "Moving Boxes", basePrice: "5.00",  volumeM3: "0.04" },
+      { name: "Laundry Basket",    sku: "R38-LAUNDRY-BASKET-RELOCATE", category: "Moving Boxes", basePrice: "8.00",  volumeM3: "0.10" },
+      // Small appliances & kitchenware
+      { name: "Hotpot Cooker",     sku: "R38-HOTPOT-COOKER-RELOCATE",  category: "Small Appliances & Items", basePrice: "20.00", volumeM3: "0.04" },
+      { name: "Rice Cooker",       sku: "R38-RICE-COOKER-RELOCATE",    category: "Small Appliances & Items", basePrice: "18.00", volumeM3: "0.03" },
+      { name: "Water Boiler",      sku: "R38-WATER-BOILER-RELOCATE",   category: "Small Appliances & Items", basePrice: "18.00", volumeM3: "0.03" },
+      { name: "Water Dispenser",   sku: "R38-WATER-DISPENSER-RELOCATE",category: "Small Appliances & Items", basePrice: "25.00", volumeM3: "0.10" },
+      { name: "Air Purifier",      sku: "R38-AIR-PURIFIER-RELOCATE",   category: "Small Appliances & Items", basePrice: "30.00", volumeM3: "0.10" },
+      { name: "Air Cooler",        sku: "R38-AIR-COOLER-RELOCATE",     category: "Small Appliances & Items", basePrice: "35.00", volumeM3: "0.15" },
+      { name: "Monitor",           sku: "R38-MONITOR-RELOCATE",        category: "Small Appliances & Items", basePrice: "18.00", volumeM3: "0.05" },
+      { name: "Pots & Pans",       sku: "R38-POTS-PANS-RELOCATE",      category: "Small Appliances & Items", basePrice: "12.00", volumeM3: "0.06" },
+      { name: "Plates & Crockery", sku: "R38-PLATES-RELOCATE",         category: "Small Appliances & Items", basePrice: "10.00", volumeM3: "0.05" },
+      // Chairs & seating
+      { name: "Study Chair",       sku: "R38-STUDY-CHAIR-RELOCATE",    category: "Chairs & Seating", basePrice: "25.00", volumeM3: "0.15" },
+      { name: "Arm Chair",         sku: "R38-ARM-CHAIR-RELOCATE",      category: "Chairs & Seating", basePrice: "33.00", volumeM3: "0.40" },
+      { name: "Folding Chair",     sku: "R38-FOLDING-CHAIR-RELOCATE",  category: "Chairs & Seating", basePrice: "22.00", volumeM3: "0.20" },
+      // Storage & misc
+      { name: "Store Rack",        sku: "R38-STORE-RACK-RELOCATE",     category: "Storage & Misc", basePrice: "40.00", volumeM3: "0.30" },
+      { name: "Trolley",           sku: "R38-TROLLEY-RELOCATE",        category: "Storage & Misc", basePrice: "30.00", volumeM3: "0.15" },
+      { name: "Standing Mirror",   sku: "R38-STANDING-MIRROR-RELOCATE",category: "Mirrors & Decor", basePrice: "54.00", volumeM3: "0.12" },
+      { name: "Wedding Easel",     sku: "R38-WEDDING-EASEL-RELOCATE",  category: "Mirrors & Decor", basePrice: "25.00", volumeM3: "0.08" },
+    ];
+    let inserted = 0;
+    for (const row of newRows) {
+      const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+      if (exists.length === 0) {
+        await db.insert(catalogItems).values({
+          name: row.name,
+          sku: row.sku,
+          category: row.category,
+          serviceType: "relocate",
+          basePrice: row.basePrice,
+          volumeM3: row.volumeM3,
+          active: true,
+        } as any);
+        inserted++;
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__loose_move_items_r38_marker__",
+      sku: "LOOSE-MOVE-ITEMS-R38-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 38: Common loose move items — inserted ${inserted} new relocate SKU row(s).`);
+  }
+
 }

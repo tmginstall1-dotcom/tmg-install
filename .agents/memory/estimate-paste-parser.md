@@ -27,3 +27,19 @@ heuristic is a backstop applied only to the stripped item name.
 Quantity is parsed from a trailing/mid "x N" (last match wins) so
 "Toyogo boxes x8 (6big, 2small)" → qty 8; trailing parentheticals are cleaned
 from the name.
+
+**Two-stage matcher:** applyPaste first runs the crude substring `.find`
+(catalog name ⊂ pasted text, or vice versa, or first-2-words, or alnum-key
+includes ≥5); only on a miss does it retry with a brand-strip + singularise
+pass and re-run the SAME strict substring matcher.
+**Do NOT** use the loose word-overlap scorer (`bestCatalogMatch`, score 40 = a
+single shared noun) as the paste fallback — in the customer paste flow a
+single-token overlap will auto-price unrelated custom lines (financial-integrity
+risk). Substring containment after brand-strip is the safe fallback: it leaves
+genuinely-custom lines ("Gaming desk") as custom while still catching
+"Decathlon chairs" → a chair, "Tefal pots" → "Pots & Pans", "Bagpack" →
+"Backpack".
+**Why:** unmatched relocate items hit the generic fallback (~$225 ea = $150 ×
+1.5) and massively over-quote real moves; the fix is catalog relocate rows for
+the loose items PLUS this strict brand-strip fallback. Keep catalog names for
+common loose items short so the crude first stage hits before the fallback.
