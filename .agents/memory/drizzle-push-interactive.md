@@ -35,6 +35,13 @@ non-zero (rename prompt), schema is ahead of committed migrations → fail telli
 the author to run `npx drizzle-kit generate`. Use a RELATIVE out path: drizzle
 literally prefixes `./` so an absolute out becomes `.//tmp/...` and breaks.
 
+**Guard against a DB falling behind committed migrations:**
+`scripts/check-pending-migrations.sh` (complement of check-migrations.sh) reads
+the highest `created_at` from `drizzle.__drizzle_migrations` and reports every
+journal entry whose `when` is newer (those are unapplied). Read-only; exit 0 if
+DATABASE_URL unset or DB up to date, exit 1 listing pending tags otherwise.
+Point DATABASE_URL at prod to check prod. NOT registered as a validation.
+
 **Why:** moved off push because its interactive rename prompt can't run in the
 merge environment. Verified end-to-end against a fresh temp DB, an adopted
 push-built DB, idempotent re-runs, and an incremental migration.
