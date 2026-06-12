@@ -27,6 +27,14 @@ The script stamps the first/baseline migration as already-applied (insert into
 exists and the journal is empty, so migrate skips recreating tables. Fresh DBs
 (no `quotes`) skip the stamp and migrate creates everything.
 
+**Guard against forgetting to generate:** `scripts/check-migrations.sh`
+(registered as the `migrations` validation) copies `migrations/` to a throwaway
+`.tmp-migcheck/` and runs `drizzle-kit generate` there with CLI flags (no
+DATABASE_URL needed) and stdin closed. If a new `.sql` appears OR generate exits
+non-zero (rename prompt), schema is ahead of committed migrations → fail telling
+the author to run `npx drizzle-kit generate`. Use a RELATIVE out path: drizzle
+literally prefixes `./` so an absolute out becomes `.//tmp/...` and breaks.
+
 **Why:** moved off push because its interactive rename prompt can't run in the
 merge environment. Verified end-to-end against a fresh temp DB, an adopted
 push-built DB, idempotent re-runs, and an incremental migration.

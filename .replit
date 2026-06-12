@@ -43,6 +43,10 @@ args = "Start application"
 task = "workflow.run"
 args = "test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "migrations"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -59,6 +63,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npx tsx --test tests/*.test.ts"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "migrations"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/check-migrations.sh"
 
 [workflows.workflow.metadata]
 isValidation = true
