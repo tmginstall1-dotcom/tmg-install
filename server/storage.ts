@@ -1130,6 +1130,7 @@ export class DatabaseStorage implements IStorage {
     const pricingTouched =
       data.items !== undefined ||
       data.quoteUpdates?.transportFee !== undefined ||
+      data.quoteUpdates?.volumetricFee !== undefined ||
       data.quoteUpdates?.goodwillDiscount !== undefined ||
       data.quoteUpdates?.secondDayContinuation !== undefined ||
       data.quoteUpdates?.secondDayHours !== undefined ||
@@ -1140,6 +1141,14 @@ export class DatabaseStorage implements IStorage {
       const existingQuote = await db.select().from(quotes).where(eq(quotes.id, id));
       const current = existingQuote[0];
       const transportFee = Number(current?.transportFee ?? 0);
+      // volumetricFee is the per-m³ handling portion that lives INSIDE the
+      // transportFee bucket; it's only ever broken back out for display
+      // (Transport line = transportFee − volumetricFee). If an admin manually
+      // lowers the Transport Fee below the stored volumetric portion, the
+      // display would hide the Transport line while still showing Volumetric,
+      // and the visible breakdown would stop summing to the total. Clamp it to
+      // the bucket so every read surface (invoice, emails, PDFs) reconciles.
+      const volumetricFee = Math.min(Number(current?.volumetricFee || 0), transportFee);
       const promoDiscount = Number(current?.promoDiscount || 0);
       const goodwillDiscount = Number(current?.goodwillDiscount || 0);
       // Second-Day Continuation fee (flat return fee + Day-2 hourly) — folded
@@ -1200,6 +1209,7 @@ export class DatabaseStorage implements IStorage {
       await db.update(quotes).set({
         subtotal: subtotal.toFixed(2),
         total: total.toFixed(2),
+        volumetricFee: volumetricFee.toFixed(2),
         depositAmount,
         finalAmount,
       }).where(eq(quotes.id, id));

@@ -23,3 +23,4 @@
 - [Invoice line verb labels](invoice-line-verb-labels.md) — itemLabel.ts is the one line-label formatter; check typed-verb (startsWithKnownVerb) BEFORE the service_type verb or install-typed "To supply…" lines double-prefix to "Installation of…".
 - [Estimate paste-list parser](estimate-paste-parser.md) — applyPaste in Estimate.tsx is the only paste→items parser; skip SG address/header/postal/unit lines, run the weak street check AFTER stripping qty so "Road bike x1" survives.
 - [Multi-stop relocation](multi-stop-relocation.md) — additive; multi-stop iff groupStops().all.length>2; labels only via lib/stops.ts; transportFee=full logistics bucket; display surfaces must stay in lockstep.
+- [volumetricFee invariant](volumetric-fee-invariant.md) — volumetricFee is a display subset INSIDE transportFee (not a separate total addend); keep volumetricFee<=transportFee in lockstep on every edit path or the breakdown stops summing.

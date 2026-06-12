@@ -1029,6 +1029,11 @@ export default function AdminQuoteDetail() {
  pickupAddress: quote.pickupAddress || '',
  dropoffAddress: quote.dropoffAddress || '',
  transportFee: quote.transportFee || '0',
+ // volumetricFee is the per-m³ handling portion that lives INSIDE the
+ // transportFee bucket. Carry it in the edit form so a recalc/save keeps it
+ // in lockstep with transportFee — otherwise the Transport/Volumetric split
+ // goes stale and the breakdown stops summing to the total.
+ volumetricFee: (quote as any).volumetricFee || '0',
  notes: quote.notes || '',
  staffTransportAllowance: !!quote.staffTransportAllowance,
  secondDayContinuation: !!quote.secondDayContinuation,
@@ -1295,7 +1300,9 @@ export default function AdminQuoteDetail() {
  setEditCalc(result);
  // The transportFee column holds the full logistics bucket; editTotal
  // recomputes from subtotal + transportFee, so this drives the new total.
- setEditQuoteData((prev: any) => ({ ...prev, transportFee: result.logisticsSubtotal.toFixed(2) }));
+ // Persist the volumetric portion in lockstep so the Transport/Volumetric
+ // display split stays consistent with the new bucket.
+ setEditQuoteData((prev: any) => ({ ...prev, transportFee: result.logisticsSubtotal.toFixed(2), volumetricFee: result.volumetricFee.toFixed(2) }));
  if (!data.routeFound) {
  toast({ title: "Distance unavailable", description: "Couldn't compute driving distance — priced without transport. Adjust manually if needed.", variant: "destructive" });
  } else {
@@ -1310,6 +1317,10 @@ export default function AdminQuoteDetail() {
 
  const editSubtotal = editItems.reduce((sum, i) => sum + Number(i.unitPrice) * Number(i.quantity), 0);
  const editTransport = Number(editQuoteData.transportFee || 0);
+ // Volumetric is a portion *inside* the transportFee bucket. Clamp it to the
+ // bucket so the preview's Transport line (bucket − volumetric) can never go
+ // negative and the displayed lines always sum back to the total.
+ const editVolumetric = Math.min(Number(editQuoteData.volumetricFee || 0), editTransport);
  const editPromoDiscount = Number(quote?.promoDiscount || 0);
  const editGoodwillDiscount = Number(editQuoteData.goodwillDiscount || 0);
  const editSecondDay = calcSecondDayContinuation(!!editQuoteData.secondDayContinuation, editQuoteData.secondDayHours || 0, editQuoteData.secondDayCrewSize).fee;
@@ -2932,16 +2943,16 @@ export default function AdminQuoteDetail() {
  <span className="font-medium text-green-700">−${editGoodwillDiscount.toFixed(2)}</span>
  </div>
  )}
- {(editTransport - Number((quote as any).volumetricFee || 0)) > 0 && (
+ {(editTransport - editVolumetric) > 0 && (
  <div className="flex justify-between sm:justify-end gap-6 text-sm mb-3">
  <span className="text-zinc-500">Transport</span>
- <span className="font-medium text-zinc-900">${(editTransport - Number((quote as any).volumetricFee || 0)).toFixed(2)}</span>
+ <span className="font-medium text-zinc-900">${(editTransport - editVolumetric).toFixed(2)}</span>
  </div>
  )}
- {Number((quote as any).volumetricFee || 0) > 0 && (
+ {editVolumetric > 0 && (
  <div className="flex justify-between sm:justify-end gap-6 text-sm mb-3">
  <span className="text-zinc-500">Volumetric Handling</span>
- <span className="font-medium text-zinc-900">${Number((quote as any).volumetricFee).toFixed(2)}</span>
+ <span className="font-medium text-zinc-900">${editVolumetric.toFixed(2)}</span>
  </div>
  )}
  {editSecondDay > 0 && (
