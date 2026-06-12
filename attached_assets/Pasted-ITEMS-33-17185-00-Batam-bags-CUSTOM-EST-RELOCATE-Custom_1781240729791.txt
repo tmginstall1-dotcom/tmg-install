@@ -1,0 +1,609 @@
+ITEMS (33)
+$17185.00
+Batam bags
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+6
+
+~$1350.00
+~$225.00 ea
+
+Toyogo boxes
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+8
+
+~$1800.00
+~$225.00 ea
+
+Luggages
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+2
+
+~$450.00
+~$225.00 ea
+
+Cardboxes
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+2
+
+~$450.00
+~$225.00 ea
+
+Study / Computer Table
+STUDY-RELOCATE
+RELOCATE
+Bedroom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+$70.00
+$70.00 ea
+
+Loose bags/items
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+17
+
+~$3825.00
+~$225.00 ea
+
+Large standing mirror
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Wedding easel
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Aerogaz hotpot cooker
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Mayer rice cooker
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Zojirushi water boiler
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Stanley water dispenser
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+LaGourmet pan + Corell plates
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Tefal pots
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Prism monitor
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Study / Computer Table
+STUDY-RELOCATE
+RELOCATE
+Bedroom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+$70.00
+$70.00 ea
+
+Study chair
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Sterra air purifier
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Air cooler
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Store rack
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Laundry basket
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Decathlon chairs
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+3
+
+~$675.00
+~$225.00 ea
+
+Decathlon arm chair
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Bagpack
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+~$225.00
+~$225.00 ea
+
+Luggages
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+2
+
+~$450.00
+~$225.00 ea
+
+Batam bags
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+3
+
+~$675.00
+~$225.00 ea
+
+Movable trolley
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+2
+
+~$450.00
+~$225.00 ea
+
+Study / Computer Table
+STUDY-RELOCATE
+RELOCATE
+Bedroom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+$70.00
+$70.00 ea
+
+Boxes of books
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+8
+
+~$1800.00
+~$225.00 ea
+
+Side drawers
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+2
+
+~$450.00
+~$225.00 ea
+
+Single-sized bed frame
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+2
+
+~$450.00
+~$225.00 ea
+
+Single mattress
+CUSTOM
+EST.
+RELOCATE
+Custom
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+2
+
+~$450.00
+~$225.00 ea
+
+Super Single Bed Frame
+SSB-RELOCATE
+RELOCATE
+Beds
+WRAP +$10
+Dismantle & Reinstall
+Carry Only
+FROM
+
+TO
+
+
+1
+
+$100.00
+$100.00 ea
+
+Labor subtotal
+$17185.00
+Relocation: D&R bundle rate applied — 40% off (install + dismantle combined)
+Bulk Discount (10%)
+-$1718.50
+Transport / Relocation Logistics
++$68.30
+Additional Stops (5 × $30)
++$150.00
+Volumetric Handling (1.75 m³ × $10/m³)
++$17.50
+1.75 m³
+1 trip
+ESTIMATED TOTAL
+$15702.30
+✓
+No overtime charges. Your job includes full dismantle & reinstall service. D&R labor covers the complete job duration — no additional time-based charges apply.
