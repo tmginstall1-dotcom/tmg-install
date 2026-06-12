@@ -462,8 +462,19 @@ function MessageBubble({
  <video
  src={mediaSrc}
  controls
+ playsInline
+ preload="metadata"
  className="rounded-none max-w-full max-h-64 w-full block"
  />
+ <a
+ href={`${mediaSrc}?download=1`}
+ download
+ className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium opacity-70 hover:opacity-100"
+ data-testid={`link-download-video-${msg.id}`}
+ >
+ <Download className="w-3.5 h-3.5 flex-shrink-0" />
+ Download video
+ </a>
  {msg.body && msg.body !== "[Video]" && (
  <p className="text-sm px-2 pt-1 pb-0.5 leading-relaxed break-words">{formatWhatsAppText(msg.body)}</p>
  )}

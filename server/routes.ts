@@ -10277,8 +10277,51 @@ Respond directly — no JSON, just the message text.`,
       const { mediaId } = req.params;
       const { base64, mimeType } = await downloadWhatsAppMedia(mediaId);
       const buf = Buffer.from(base64, "base64");
-      res.setHeader("Content-Type", mimeType || "image/jpeg");
+      const type = mimeType || "application/octet-stream";
+
+      // Optional forced download — used by the "Download video" link so the
+      // admin can save the file instead of only playing it inline.
+      if (req.query.download) {
+        const ext = type.split("/")[1]?.split(";")[0] || "bin";
+        res.setHeader("Content-Disposition", `attachment; filename="whatsapp-${mediaId}.${ext}"`);
+      }
+
+      res.setHeader("Content-Type", type);
       res.setHeader("Cache-Control", "private, max-age=86400");
+      // Range support is required for <video>/<audio> playback in Safari/iOS,
+      // which refuses to play (or download) a media element unless the server
+      // answers byte-range requests with 206 Partial Content.
+      res.setHeader("Accept-Ranges", "bytes");
+
+      const range = req.headers.range;
+      const rangeMatch = range ? /^bytes=(\d*)-(\d*)$/.exec(range) : null;
+      if (rangeMatch) {
+        const total = buf.length;
+        let start: number;
+        let end: number;
+        if (!rangeMatch[1] && rangeMatch[2]) {
+          // Suffix range ("bytes=-N") — serve the last N bytes (RFC 7233).
+          const suffixLen = parseInt(rangeMatch[2], 10);
+          start = isNaN(suffixLen) ? 0 : Math.max(0, total - suffixLen);
+          end = total - 1;
+        } else {
+          start = rangeMatch[1] ? parseInt(rangeMatch[1], 10) : 0;
+          end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : total - 1;
+        }
+        if (isNaN(start)) start = 0;
+        if (isNaN(end) || end >= total) end = total - 1;
+        if (start > end || start >= total) {
+          res.setHeader("Content-Range", `bytes */${total}`);
+          return res.status(416).end();
+        }
+        const chunk = buf.subarray(start, end + 1);
+        res.status(206);
+        res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+        res.setHeader("Content-Length", chunk.length);
+        return res.send(chunk);
+      }
+
+      res.setHeader("Content-Length", buf.length);
       res.send(buf);
     } catch {
       res.status(404).json({ message: "Media not found or expired" });
