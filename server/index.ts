@@ -709,6 +709,15 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
     `));
 
     console.log("[startup] DB schema ready, TMG50 seeded.");
+
+    // Loudly warn (non-fatal) if the connected DB is behind committed migrations.
+    try {
+      const { warnIfBehindOnMigrations } = await import("./check-pending-migrations");
+      await warnIfBehindOnMigrations(pool);
+    } catch (e: any) {
+      console.warn("[startup] migration drift check warning:", e?.message || e);
+    }
+
     await pool.end();
   } catch (e: any) {
     console.warn("[startup] DB setup warning (non-fatal):", e?.message || e);
