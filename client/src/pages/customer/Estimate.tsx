@@ -20,6 +20,7 @@ import { computePricing, PricingConfig, computeDRPrice, effectiveCarryPrice, req
 import { buildHandoffWaUrl, type HandoffPayload } from "@shared/whatsapp-handoff";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
+import { useToast } from "@/hooks/use-toast";
 
 /* ─────────────────── Editorial primitives (mirror homepage) ───────────────────
    Inlined here so the estimate wizard matches the editorial language of "/"
@@ -395,6 +396,7 @@ export default function EstimateWizard() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [pasteText, setPasteText] = useState("");
   const [showPaste, setShowPaste] = useState(false);
+  const { toast } = useToast();
   const [photoDetecting, setPhotoDetecting] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const [detectedPhotos, setDetectedPhotos] = useState<{ thumbnail: string; names: string[]; count: number }[]>([]);
@@ -853,16 +855,65 @@ export default function EstimateWizard() {
 
   // ── Paste parsing ─────────────────────────────────────────────────────────
 
+  // Lines that are clearly NOT items — stop headers, addresses, phones, etc.
+  // Customers often paste a whole moving brief (pick-up / drop-off blocks with
+  // postal codes and unit numbers), so we filter those out instead of turning
+  // every line into a $0 "custom" item.
+  const isNonItemLine = (s: string): boolean => {
+    const lc = s.toLowerCase();
+    // Stop / section headers on their own line: "Pick-up", "Drop-off:", "To:", etc.
+    if (/^(pick[\s-]*up|pickup|drop[\s-]*off|dropoff|deliver(y|ies)?|collect(ion)?|destination|origin|address|location|unit|floor|level|from|to|stop)\s*[:#.-]*\s*$/i.test(s)) return true;
+    // Singapore postal code (6 digits, often in parentheses) → address line
+    if (/\b\d{6}\b/.test(s)) return true;
+    // Unit number like #11-3227, #04-131
+    if (/#\s*\d{1,3}\s*-\s*\d{1,4}/.test(s)) return true;
+    // Block / Blk + number → address line
+    if (/\b(blk|block)\b\s*\.?\s*\d+/i.test(lc)) return true;
+    // Phone numbers (SG 8-digit starting 6/8/9, or with +65)
+    if (/(\+?65[\s-]?)?\b[689]\d{3}[\s-]?\d{4}\b/.test(s)) return true;
+    return false;
+  };
+
+  // Backstop for an address with NO postal code / unit number — a house or block
+  // number paired with a street/estate name. Run on the item name AFTER the
+  // quantity is stripped so a genuine item like "Road bike x1" → "Road bike"
+  // (no digit) is kept, while "294 Choa Chu Kang Avenue 2" is dropped.
+  const looksLikeStreetAddress = (s: string): boolean =>
+    /\d/.test(s) && /\b(jalan|jln|lorong|lor|road|rd|avenue|ave|street|st|lane|ln|drive|dr|crescent|cres|close|walk|terrace|ter|boulevard|bukit|bkt|tanjong|kampong|kampung|geylang|hougang|yishun|tampines|bedok|jurong|woodlands|sengkang|punggol|serangoon)\b/i.test(s.toLowerCase());
+
   const applyPaste = () => {
     const lines = pasteText.trim().split("\n").filter(l => l.trim());
     const newItems: LineItem[] = [];
+    let skipped = 0, matchedCount = 0, customCount = 0;
     lines.forEach(line => {
-      const t = line.trim();
+      // Strip leading list markers: bullets (•, -, *, –, ·, ●…), "1." / "2)" numbering,
+      // and emoji keycap digits (1️⃣ 2️⃣ …) used to label pick-up / drop-off stops.
+      let t = line.trim();
+      t = t.replace(/^[\u0030-\u0039]\uFE0F?\u20E3\s*/, "");      // emoji keycap digit
+      t = t.replace(/^[\s•\-*–·▪◦●○»>~]+/, "");                    // bullets / dashes
+      t = t.replace(/^\d+\s*[.)]\s+/, "");                          // "1. " / "2) " numbering
+      t = t.trim();
+
+      // Drop blank lines and anything that is clearly an address / header / phone.
+      if (!t || !/[a-z]/i.test(t) || isNonItemLine(t)) { skipped++; return; }
+
+      // Quantity: prefer an explicit "x N" / "× N" anywhere (take the last one,
+      // so "Toyogo boxes x8 (6big, 2small)" → qty 8, name "Toyogo boxes"); else
+      // a leading count like "6 cardboxes".
       let qty = 1, itemName = t;
-      const frontM = t.match(/^(\d+)\s+(.+)$/);
-      const backM = t.match(/^(.+?)\s+[x×]\s*(\d+)$/i);
-      if (frontM) { qty = parseInt(frontM[1]); itemName = frontM[2].trim(); }
-      else if (backM) { itemName = backM[1].trim(); qty = parseInt(backM[2]); }
+      const xMatches = Array.from(t.matchAll(/(?:^|\s)[x×]\s*(\d+)(?!\d)/gi));
+      if (xMatches.length) {
+        const last = xMatches[xMatches.length - 1];
+        qty = parseInt(last[1]) || 1;
+        itemName = t.slice(0, last.index).trim();
+      } else {
+        const frontM = t.match(/^(\d+)\s+(.+)$/);
+        if (frontM) { qty = parseInt(frontM[1]) || 1; itemName = frontM[2].trim(); }
+      }
+      // Clean a trailing descriptive parenthetical ("(6big, 2small)", "(1 ikea)")
+      // and dangling punctuation so the catalog match works on the bare name.
+      itemName = itemName.replace(/\s*\([^)]*\)\s*$/, "").replace(/[,;:.\s]+$/, "").trim();
+      if (!itemName || looksLikeStreetAddress(itemName)) { skipped++; return; }
 
       const lc = itemName.toLowerCase();
       const lcK = lc.replace(/[^a-z0-9]+/g, "");
@@ -873,6 +924,7 @@ export default function EstimateWizard() {
           (lcK.length >= 5 && gnK.length >= 5 && (gnK.includes(lcK) || lcK.includes(gnK)));
       });
       if (matched) {
+        matchedCount++;
         // Same dismantle_dispose → dispose fallback as addCatalogGroup, so
         // pasted "1 mattress" doesn't get tagged as Dismantle + Dispose.
         const groupHasDD = matched.entries.some(e => e.serviceType === 'dismantle_dispose');
@@ -885,6 +937,7 @@ export default function EstimateWizard() {
           newItems.push({ id: uid(), catalogItemId: entry.id, sku: entry.sku, name: matched.name, category: matched.category, serviceType: entry.serviceType, quantity: qty, unitPrice: parseFloat(entry.basePrice), volumeM3: entry.volumeM3, isCustom: false, ...(entry.serviceType === 'relocate' ? { relocateMode: 'full' as const } : {}) });
         });
       } else {
+        customCount++;
         services.forEach(st => {
           newItems.push({ id: uid(), sku: "", name: itemName, category: "Custom", serviceType: st, quantity: qty, unitPrice: 0, isCustom: true, ...(st === 'relocate' ? { relocateMode: 'full' as const } : {}) });
         });
@@ -893,6 +946,23 @@ export default function EstimateWizard() {
     setItems(prev => [...prev, ...newItems]);
     setPasteText("");
     setShowPaste(false);
+
+    const added = matchedCount + customCount;
+    if (added === 0) {
+      toast({
+        title: "No items found",
+        description: "We couldn't pick out any items from that text — it looked like addresses or notes. Try pasting one item per line, e.g. \"Computer table x1\".",
+        variant: "destructive",
+      });
+    } else {
+      const bits: string[] = [];
+      if (customCount > 0) bits.push(`${customCount} not in our catalog (we'll price ${customCount === 1 ? "it" : "them"} for you)`);
+      if (skipped > 0) bits.push(`${skipped} address/header line${skipped === 1 ? "" : "s"} skipped`);
+      toast({
+        title: `Added ${added} item${added === 1 ? "" : "s"}`,
+        description: bits.length ? bits.join(" · ") : undefined,
+      });
+    }
   };
 
   // ── Photo AI detection ────────────────────────────────────────────────────
