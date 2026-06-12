@@ -1,4 +1,4 @@
-import { PricingConfig, calcSecondDayContinuation, requiresFullUpfront } from "@shared/pricing";
+import { PricingConfig, calcSecondDayContinuation, requiresFullUpfront, depositPaidFallback, isFullPaymentQuote as isFullPaymentTotal } from "@shared/pricing";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@tmginstall.com";
@@ -299,7 +299,7 @@ function totals(subtotal: any, transport: any, total: any, deposit: any, balance
         ${hasGoodwill ? totRow('#15803d', goodwillLabel, `-$${Number(goodwillDiscount || 0).toFixed(2)}`) : ''}
         ${hasSecondDay ? totRow('#444444', `Second-day continuation${sd.hours > 0 ? ` (${sd.crewSize} men × ${sd.hours}h)` : ''}`, `$${sd.fee.toFixed(2)}`) : ''}
         ${totRow('#111111', 'Total', `$${Number(total || 0).toFixed(2)}`, true)}
-        ${(Number(total || 0) > 0 && (requiresFullUpfront(Number(total || 0)) || Number(deposit || 0) >= Number(total || 0) - 0.005))
+        ${isFullPaymentTotal(total, deposit)
           ? totRow('#15803d', 'Payable in full to confirm', `$${Number(total || 0).toFixed(2)}`)
           : totRow('#15803d', 'Deposit to confirm (50%)', `$${Number(deposit || 0).toFixed(2)}`) +
             totRow('#999999', 'Balance on completion (50%)', `$${Number(balance || 0).toFixed(2)}`)}
@@ -416,25 +416,21 @@ function greeting(name: string, body: string): string {
 
 // ─── Customer-facing emails ─────────────────────────────────────────────────────
 
-// Site-wide rule: small jobs (deposit == total) are paid IN FULL up front — there
-// is no 50% deposit / 50% balance split. Templates use this to swap wording.
+// Quote-shaped wrapper over the shared settlement rule (single source of truth
+// in @shared/pricing). Under-threshold jobs are full-upfront even on legacy/manual
+// rows; a stored deposit that already covers the total also counts as full-payment.
 function isFullPaymentQuote(quote: any): boolean {
-  const total = Number(quote.total || 0);
-  const deposit = Number(quote.depositAmount || 0);
-  // Threshold is the source of truth: under-$150 jobs are full-upfront even on
-  // legacy/manual rows that stored depositAmount = 0. Also treat any quote whose
-  // stored deposit already equals the total as full-payment.
-  return requiresFullUpfront(total) || (total > 0 && deposit >= total - 0.005);
+  return isFullPaymentTotal(quote.total, quote.depositAmount);
 }
 
 // Amount the customer must transfer to confirm: for full-payment quotes this is
 // always the full total (covers legacy rows with depositAmount = 0); otherwise
-// it is the stored deposit, falling back to the configured deposit percentage.
+// it is the stored deposit, falling back to the configured deposit percentage
+// via the shared depositPaidFallback helper.
 function displayDeposit(quote: any): number {
   const total = Number(quote.total || 0);
-  const dep = Number(quote.depositAmount || 0);
   if (isFullPaymentQuote(quote)) return total;
-  return dep > 0 ? dep : total * PricingConfig.deposit.pct;
+  return depositPaidFallback(total, quote.depositAmount);
 }
 
 export function estimateSubmittedEmail(quote: any): string {

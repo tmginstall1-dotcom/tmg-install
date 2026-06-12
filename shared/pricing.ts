@@ -212,6 +212,83 @@ export function reconcileQuoteTotal(parts: QuoteTotalParts): number {
 }
 
 // --------------------------------------------------------------------------
+// Deposit / balance helpers — SINGLE SOURCE OF TRUTH for settlement math
+// --------------------------------------------------------------------------
+// The customer-facing deposit, final amount and outstanding balance were
+// previously recomputed inline across many server routes and the email layer,
+// so a rule change could silently miss a surface. These helpers centralise the
+// arithmetic so every surface (Stripe links, WhatsApp, email, invoice PDF,
+// admin views) and the reconciliation tests share one rule and can never drift.
+//
+// All three respect the site-wide full-payment threshold: jobs below it are paid
+// IN FULL up front (deposit = total, final = 0), so they never carry a final
+// balance even on stale/legacy rows. Jobs at/above it keep the 50% deposit +
+// 50% final split.
+
+/**
+ * Split a grand total into the up-front deposit and the remaining final amount.
+ * Returns both values as 2-decimal strings ready for storage.
+ */
+export function splitDepositFinal(grandTotal: number): { depositAmount: string; finalAmount: string } {
+  const total = isFinite(grandTotal) && grandTotal > 0 ? grandTotal : 0;
+  const deposit = requiresFullUpfront(total) ? total : total * PricingConfig.deposit.pct;
+  return { depositAmount: deposit.toFixed(2), finalAmount: (total - deposit).toFixed(2) };
+}
+
+/**
+ * Resolve the effective deposit baseline for a quote when the stored
+ * depositAmount is missing/zero (legacy or manually-created rows). Small jobs are
+ * paid in full up front (deposit = total), so the fallback must NOT be a naive
+ * 50% split for those — otherwise an under-threshold job with no stored amounts
+ * would wrongly appear to still owe a balance.
+ */
+export function depositPaidFallback(total: number, storedDeposit?: string | null): number {
+  const t = isFinite(total) && total > 0 ? total : 0;
+  // Threshold is the source of truth: under-threshold jobs are ALWAYS paid in
+  // full up front, so the upfront charge must equal the total even if a
+  // stale/legacy or manually-entered split is stored on the row. Only fall back
+  // to the stored deposit (then the configured percentage) for jobs at/above it.
+  if (requiresFullUpfront(t)) return t;
+  const stored = parseFloat(storedDeposit || "0");
+  if (stored > 0) return stored;
+  return t * PricingConfig.deposit.pct;
+}
+
+/**
+ * Single source of truth for the outstanding FINAL balance on a quote.
+ * Under-threshold jobs are paid in full up front, so they NEVER have a final
+ * balance — we return 0 regardless of any stale/legacy stored finalAmount. For
+ * jobs at/above the threshold we use the stored finalAmount (or total − deposit),
+ * then subtract any partial payments already recorded in the ledger.
+ */
+export function finalBalanceOutstanding(
+  total: number,
+  storedFinal?: string | null,
+  storedDeposit?: string | null,
+  ledgerPaid: number = 0,
+): number {
+  const t = isFinite(total) && total > 0 ? total : 0;
+  if (requiresFullUpfront(t)) return 0;
+  const storedFin = parseFloat(storedFinal || "0");
+  const deposit = depositPaidFallback(t, storedDeposit);
+  const baseBalance = storedFin > 0 ? storedFin : Math.max(0, t - deposit);
+  const paid = isFinite(ledgerPaid) && ledgerPaid > 0 ? ledgerPaid : 0;
+  return Math.max(0, baseBalance - paid);
+}
+
+/**
+ * True when a quote is settled in a single up-front payment (no 50/50 split):
+ * either it is under the full-payment threshold, or the stored deposit already
+ * covers the whole total (e.g. a manually fully-paid job). Used by display
+ * surfaces to swap "deposit + balance" wording for "payable in full".
+ */
+export function isFullPaymentQuote(total: number | string | null | undefined, deposit?: number | string | null): boolean {
+  const t = Number(total) || 0;
+  const d = Number(deposit) || 0;
+  return requiresFullUpfront(t) || (t > 0 && d >= t - 0.005);
+}
+
+// --------------------------------------------------------------------------
 // Input / output types
 // --------------------------------------------------------------------------
 

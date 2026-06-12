@@ -41,61 +41,12 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, relocationBundleBlocksPromo, FULL_PAYMENT_THRESHOLD, type PricingItem, type PricingFloor } from "@shared/pricing";
+import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, relocationBundleBlocksPromo, FULL_PAYMENT_THRESHOLD, splitDepositFinal, depositPaidFallback, finalBalanceOutstanding, type PricingItem, type PricingFloor } from "@shared/pricing";
 import { getPackage } from "@shared/packages";
 
-/**
- * Split a grand total into the up-front deposit and the remaining final amount,
- * applying the site-wide rule: jobs below FULL_PAYMENT_THRESHOLD must be paid in
- * full up front (deposit = total, final = 0). Larger jobs use the 50/50 split.
- * Returns both values as 2-decimal strings ready for storage.
- */
-function splitDepositFinal(grandTotal: number): { depositAmount: string; finalAmount: string } {
-  const total = isFinite(grandTotal) && grandTotal > 0 ? grandTotal : 0;
-  const deposit = requiresFullUpfront(total) ? total : total * PricingConfig.deposit.pct;
-  return { depositAmount: deposit.toFixed(2), finalAmount: (total - deposit).toFixed(2) };
-}
-
-/**
- * Resolve the effective deposit baseline for a quote when the stored
- * depositAmount is missing/zero (legacy or manually-created rows). Applies the
- * site-wide rule: small jobs are paid in full up front (deposit = total), so the
- * fallback must NOT be a naive 50% split for those — otherwise an under-threshold
- * job with no stored amounts would wrongly appear to still owe a balance.
- */
-function depositPaidFallback(total: number, storedDeposit?: string | null): number {
-  const t = isFinite(total) && total > 0 ? total : 0;
-  // Threshold is the source of truth: under-$150 jobs are ALWAYS paid in full up
-  // front, so the upfront charge must equal the total even if a stale/legacy or
-  // manually-entered split is stored on the row. Only fall back to the stored
-  // deposit (then the configured percentage) for jobs at/above the threshold.
-  if (requiresFullUpfront(t)) return t;
-  const stored = parseFloat(storedDeposit || "0");
-  if (stored > 0) return stored;
-  return t * PricingConfig.deposit.pct;
-}
-
-/**
- * Single source of truth for the outstanding FINAL balance on a quote.
- * Under-$150 jobs are paid in full up front, so they NEVER have a final balance —
- * we return 0 regardless of any stale/legacy stored finalAmount. For jobs at/above
- * the threshold we use the stored finalAmount (or total − deposit), then subtract
- * any partial payments already recorded in the ledger.
- */
-function finalBalanceOutstanding(
-  total: number,
-  storedFinal?: string | null,
-  storedDeposit?: string | null,
-  ledgerPaid: number = 0,
-): number {
-  const t = isFinite(total) && total > 0 ? total : 0;
-  if (requiresFullUpfront(t)) return 0;
-  const storedFin = parseFloat(storedFinal || "0");
-  const deposit = depositPaidFallback(t, storedDeposit);
-  const baseBalance = storedFin > 0 ? storedFin : Math.max(0, t - deposit);
-  const paid = isFinite(ledgerPaid) && ledgerPaid > 0 ? ledgerPaid : 0;
-  return Math.max(0, baseBalance - paid);
-}
+// Deposit / balance settlement helpers (splitDepositFinal, depositPaidFallback,
+// finalBalanceOutstanding) are the single source of truth in @shared/pricing so
+// every customer-facing surface and the reconciliation tests share one rule.
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable, quoteStopSchema } from "@shared/schema";
 import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable, aiFeatureFlags, customerRatings } from "@shared/schema";
