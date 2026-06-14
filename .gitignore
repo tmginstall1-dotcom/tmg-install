@@ -10,3 +10,4 @@ vite.config.ts.*
 *.keystore.b64
 # Firebase service account credentials — store in FIREBASE_SERVICE_ACCOUNT env var
 attached_assets/*firebase-adminsdk*.json
+.tmp-checkmig-*
