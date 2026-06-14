@@ -26,26 +26,104 @@ Disallow: /admin/
 Disallow: /staff/
 Disallow: /api/
 
-# AI training crawlers — opt out (we don't license content for model training)
+# AI search & answer engines — explicitly allowed so we get cited in
+# ChatGPT, Perplexity, Claude, Google AI Overviews, Bing Copilot, etc.
+# Public pages only; admin/customer-private paths stay blocked.
 User-agent: GPTBot
-Disallow: /
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+Disallow: /quotes/
+Disallow: /status/
+Disallow: /pay/
+Disallow: /checkout/
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+Disallow: /quotes/
+Disallow: /status/
+Disallow: /pay/
+Disallow: /checkout/
 
 User-agent: ChatGPT-User
 Allow: /
-
-User-agent: CCBot
-Disallow: /
-
-User-agent: anthropic-ai
-Disallow: /
-
-User-agent: ClaudeBot
-Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
 
 User-agent: PerplexityBot
 Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+Disallow: /quotes/
+Disallow: /status/
+Disallow: /pay/
+Disallow: /checkout/
+
+User-agent: Perplexity-User
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+Disallow: /quotes/
+Disallow: /status/
+Disallow: /pay/
+Disallow: /checkout/
+
+User-agent: Claude-Web
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+
+User-agent: anthropic-ai
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+Disallow: /quotes/
+Disallow: /status/
+Disallow: /pay/
+Disallow: /checkout/
 
 User-agent: Google-Extended
-Disallow: /
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+Disallow: /quotes/
+Disallow: /status/
+Disallow: /pay/
+Disallow: /checkout/
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+
+User-agent: CCBot
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+Disallow: /quotes/
+Disallow: /status/
+Disallow: /pay/
+Disallow: /checkout/
 
 Sitemap: https://tmginstall.com/sitemap.xml
