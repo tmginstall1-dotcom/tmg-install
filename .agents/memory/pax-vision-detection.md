@@ -22,6 +22,16 @@ paths. Two rules matter for wardrobes:
   present; the corner takes its own door's mechanism; frame counts across all
   the PAX lines must sum to the total incl. the corner. Only collapse to one
   line when the whole run is genuinely a single mechanism.
+- The customer estimator endpoint (`/api/catalog/detect-items`) ALSO carries a
+  separate "Walk-in / Built-in Wardrobe (per hole)" rule that competes with the
+  per-frame PAX rule. It once listed "Pax mounted to a wall" as a per-hole
+  example, so a freestanding PAX got mis-detected as per-hole ×60. Per-hole is
+  ONLY for EXPOSED wall-drilled rail/shelf systems (Elfa/Algot/Boaxel) with NO
+  enclosed carcass and NO full-height doors. A PAX (enclosed box carcass on its
+  own base, full-height doors, even corner/mixed/wall-fixed) is per-FRAME, never
+  per-hole. But "not per-hole" ≠ PAX: a genuine non-PAX enclosed sliding/hinged
+  wardrobe stays a "Sliding Door Wardrobe (N-door)" via section 2/2a — keep all
+  three buckets (per-hole / PAX per-frame / generic wardrobe) mutually exclusive.
 
 **Why:** a PAX corner L-shape with hinged mirror doors was being mis-detected as
 "Sliding Door Wardrobe (4-door / Mirror)" because the old prompt forced any mirror
