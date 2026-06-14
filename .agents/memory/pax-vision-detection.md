@@ -15,6 +15,13 @@ paths. Two rules matter for wardrobes:
   per-frame catalog items by DOOR MECHANISM (open / hinged / sliding), with
   quantity = number of frames/bays. Hinged-with-mirror stays hinged. For an
   L-shape/corner PAX, count the corner section as one extra frame.
+- A single PAX run frequently MIXES mechanisms (open hanging/drawer bays +
+  hinged bays + a corner). The guide must NOT force "ONE line item" — that
+  collapses the open bays + corner into a flat hinged count (the reported
+  "L-shape detected as ×4 hinged" bug). Return ONE line item PER mechanism
+  present; the corner takes its own door's mechanism; frame counts across all
+  the PAX lines must sum to the total incl. the corner. Only collapse to one
+  line when the whole run is genuinely a single mechanism.
 
 **Why:** a PAX corner L-shape with hinged mirror doors was being mis-detected as
 "Sliding Door Wardrobe (4-door / Mirror)" because the old prompt forced any mirror
