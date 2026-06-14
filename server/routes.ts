@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { logAttributionEvent, registerAiRoutes } from "./ai-routes";
 import { registerPhoneIntakeRoutes } from "./phone-intake";
-import { servicesHubPage, ikeaAssemblyPage, wardrobeInstallationPage, bedAssemblyPage, furnitureDismantlingPage, officeFurniturePage, furnitureRelocationPage, tvMountingPage, sofaAssemblyPage, mattressInstallationPage, taobaoFurnitureInstallationPage, castleryFurnitureAssemblyPage, hdbMovingServicesPage, condoMovingServicesPage, lazadaFurnitureInstallationPage, shopeeFurnitureInstallationPage, gymEquipmentInstallationPage, furnitureRepairAdjustmentPage, sitemapXml } from "./seo-pages";
+import { servicesHubPage, ikeaAssemblyPage, wardrobeInstallationPage, bedAssemblyPage, furnitureDismantlingPage, officeFurniturePage, furnitureRelocationPage, tvMountingPage, sofaAssemblyPage, mattressInstallationPage, taobaoFurnitureInstallationPage, castleryFurnitureAssemblyPage, hdbMovingServicesPage, condoMovingServicesPage, lazadaFurnitureInstallationPage, shopeeFurnitureInstallationPage, gymEquipmentInstallationPage, furnitureRepairAdjustmentPage, furnitureInstallationCostPage, ikeaAssemblyCostPage, tmgVsTraditionalMoversPage, hdbVsCondoMovingPage, setReviewData, sitemapXml } from "./seo-pages";
 import { api } from "@shared/routes";
 import { initVapid, getVapidPublicKey, addSubscription, removeSubscription, sendPushToAdmins } from "./push";
 import { z } from "zod";
@@ -1637,6 +1637,10 @@ export async function registerRoutes(
   app.get("/services/shopee-furniture-installation-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(shopeeFurnitureInstallationPage()));
   app.get("/services/gym-equipment-installation-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(gymEquipmentInstallationPage()));
   app.get("/services/furniture-repair-adjustment-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(furnitureRepairAdjustmentPage()));
+  app.get("/guides/furniture-installation-cost-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(furnitureInstallationCostPage()));
+  app.get("/guides/ikea-assembly-cost-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(ikeaAssemblyCostPage()));
+  app.get("/guides/tmg-install-vs-traditional-movers", (_req, res) => res.status(200).set("Content-Type", "text/html").end(tmgVsTraditionalMoversPage()));
+  app.get("/guides/hdb-vs-condo-moving-singapore", (_req, res) => res.status(200).set("Content-Type", "text/html").end(hdbVsCondoMovingPage()));
 
   // Dynamic sitemap.xml — auto-generated from SERVICE_PAGES registry
   app.get("/sitemap.xml", (_req, res) => {
@@ -9975,6 +9979,128 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
+  // ── Public: reviews (real, admin-managed) ──────────────────────────────────
+  app.get("/api/public/reviews", async (_req, res) => {
+    try {
+      const list = await storage.getReviews(true);
+      const rValue = (await getSetting("reviews_rating_value")) || "4.9";
+      const rCount = (await getSetting("reviews_rating_count")) || "127";
+      res.json({
+        ratingValue: rValue,
+        ratingCount: rCount,
+        reviews: list.map(r => ({
+          id: r.id, author: r.author, location: r.location,
+          rating: r.rating, text: r.text, reviewDate: r.reviewDate, source: r.source,
+        })),
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to load reviews" });
+    }
+  });
+
+  // ── Admin: Reviews CRUD + aggregate rating ─────────────────────────────────
+  app.get("/api/admin/reviews", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const list = await storage.getReviews();
+      const rValue = (await getSetting("reviews_rating_value")) || "4.9";
+      const rCount = (await getSetting("reviews_rating_count")) || "127";
+      res.json({ reviews: list, ratingValue: rValue, ratingCount: rCount });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to load reviews" });
+    }
+  });
+
+  app.post("/api/admin/reviews", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const data = req.body as { author?: string; text?: string; location?: string; rating?: number; reviewDate?: string; source?: string; featured?: boolean; sortOrder?: number };
+      if (!data.author?.trim() || !data.text?.trim()) {
+        return res.status(400).json({ message: "Author name and review text are required" });
+      }
+      const review = await storage.createReview({
+        author: data.author.trim(),
+        text: data.text.trim(),
+        location: data.location?.trim() || null,
+        rating: Math.min(5, Math.max(1, Number(data.rating) || 5)),
+        reviewDate: data.reviewDate?.trim() || null,
+        source: data.source?.trim() || "google",
+        featured: data.featured !== false,
+        sortOrder: Number(data.sortOrder) || 0,
+      });
+      await refreshReviewCache();
+      res.json(review);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to create review" });
+    }
+  });
+
+  app.patch("/api/admin/reviews/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      const b = req.body as Record<string, any>;
+      const data: Record<string, any> = {};
+      if (b.author !== undefined) data.author = String(b.author).trim();
+      if (b.text !== undefined) data.text = String(b.text).trim();
+      if (b.location !== undefined) data.location = String(b.location).trim() || null;
+      if (b.rating !== undefined) data.rating = Math.min(5, Math.max(1, Number(b.rating) || 5));
+      if (b.reviewDate !== undefined) data.reviewDate = String(b.reviewDate).trim() || null;
+      if (b.source !== undefined) data.source = String(b.source).trim() || "google";
+      if (b.featured !== undefined) data.featured = !!b.featured;
+      if (b.sortOrder !== undefined) data.sortOrder = Number(b.sortOrder) || 0;
+      const review = await storage.updateReview(id, data);
+      if (!review) return res.status(404).json({ message: "Review not found" });
+      await refreshReviewCache();
+      res.json(review);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to update review" });
+    }
+  });
+
+  app.delete("/api/admin/reviews/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      await storage.deleteReview(parseInt(req.params.id));
+      await refreshReviewCache();
+      res.json({ message: "Deleted" });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to delete review" });
+    }
+  });
+
+  app.post("/api/admin/review-rating", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const { ratingValue, ratingCount } = req.body as { ratingValue?: string | number; ratingCount?: string | number };
+      if (ratingValue !== undefined) {
+        const v = Math.min(5, Math.max(0, Number(ratingValue) || 0));
+        await setSetting("reviews_rating_value", v.toFixed(1));
+      }
+      if (ratingCount !== undefined) {
+        const c = Math.max(0, Math.floor(Number(ratingCount) || 0));
+        await setSetting("reviews_rating_count", String(c));
+      }
+      await refreshReviewCache();
+      res.json({
+        ratingValue: (await getSetting("reviews_rating_value")) || "4.9",
+        ratingCount: (await getSetting("reviews_rating_count")) || "127",
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to update rating" });
+    }
+  });
+
   // ── Admin: Canned Replies ──────────────────────────────────────────────────
   app.get("/api/admin/canned-replies", async (_req, res) => {
     try {
@@ -11479,6 +11605,29 @@ Respond directly — no JSON, just the message text.`,
     await db.insert(appSettings).values({ key, value })
       .onConflictDoUpdate({ target: appSettings.key, set: { value } });
   }
+
+  // Refresh the SSR review cache (real reviews + admin-set aggregate rating).
+  async function refreshReviewCache(): Promise<void> {
+    try {
+      const list = await storage.getReviews(true);
+      const rValue = (await getSetting("reviews_rating_value")) || "4.9";
+      const rCount = (await getSetting("reviews_rating_count")) || "127";
+      setReviewData({
+        reviews: list.map(r => ({
+          name: r.author,
+          loc: r.location || "",
+          stars: r.rating,
+          date: r.reviewDate || "",
+          text: r.text,
+        })),
+        ratingValue: rValue,
+        ratingCount: rCount,
+      });
+    } catch {
+      /* keep the static fallback already baked into seo-pages */
+    }
+  }
+  refreshReviewCache();
 
   // Utility: detect repeat customer and apply loyalty discount if applicable
   async function applyLoyaltyDiscount(quoteId: number, customerEmail: string): Promise<void> {

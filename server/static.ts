@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import fs from "fs";
 import path from "path";
+import { injectHomepageRating } from "./seo-pages";
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "public");
@@ -76,6 +77,6 @@ export function serveStatic(app: Express) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     const pathname = req.path;
     const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
-    res.send(isAdmin ? indexHtmlAdmin : indexHtmlPublic);
+    res.send(injectHomepageRating(isAdmin ? indexHtmlAdmin : indexHtmlPublic));
   });
 }

@@ -15,6 +15,7 @@ import {
   type GpsTrackPoint, type SiteEvent, type WhatsAppSession, type WhatsAppMessage,
   type Receipt, type ReceiptWithUser,
   type FaqEntry, type InsertFaqEntry, type CannedReply, type InsertCannedReply,
+  reviews, type Review, type InsertReview,
   type PricingCorrection, type InsertPricingCorrection,
   type GGVJob, type InsertGGVJob,
   subcontractors, jobSubcontracts,
@@ -157,6 +158,10 @@ export interface IStorage {
   createFaqEntry(data: InsertFaqEntry): Promise<FaqEntry>;
   updateFaqEntry(id: number, data: Partial<InsertFaqEntry>): Promise<FaqEntry | undefined>;
   deleteFaqEntry(id: number): Promise<void>;
+  getReviews(featuredOnly?: boolean): Promise<Review[]>;
+  createReview(data: InsertReview): Promise<Review>;
+  updateReview(id: number, data: Partial<InsertReview>): Promise<Review | undefined>;
+  deleteReview(id: number): Promise<void>;
 
   // Canned Replies
   getCannedReplies(activeOnly?: boolean): Promise<CannedReply[]>;
@@ -2123,6 +2128,28 @@ export class DatabaseStorage implements IStorage {
 
   async deleteFaqEntry(id: number): Promise<void> {
     await db.delete(faqEntries).where(eq(faqEntries.id, id));
+  }
+
+  async getReviews(featuredOnly = false): Promise<Review[]> {
+    const q = db.select().from(reviews);
+    if (featuredOnly) {
+      return q.where(eq(reviews.featured, true)).orderBy(reviews.sortOrder, desc(reviews.id));
+    }
+    return q.orderBy(reviews.sortOrder, desc(reviews.id));
+  }
+
+  async createReview(data: InsertReview): Promise<Review> {
+    const [created] = await db.insert(reviews).values(data).returning();
+    return created;
+  }
+
+  async updateReview(id: number, data: Partial<InsertReview>): Promise<Review | undefined> {
+    const [updated] = await db.update(reviews).set(data).where(eq(reviews.id, id)).returning();
+    return updated;
+  }
+
+  async deleteReview(id: number): Promise<void> {
+    await db.delete(reviews).where(eq(reviews.id, id));
   }
 
   // ── Canned Replies ───────────────────────────────────────────────────────────

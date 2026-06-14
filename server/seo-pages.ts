@@ -56,6 +56,14 @@ export const SERVICE_PAGES: Array<{ slug: string; label: string; priority: numbe
   { slug: "furniture-repair-adjustment-singapore",   label: "Furniture Repair & Adjustment",  priority: 0.8  },
 ];
 
+/* ── Guide / cost / comparison pages (answer-style content for Google + AI) ─── */
+export const GUIDE_PAGES: Array<{ slug: string; label: string; priority: number }> = [
+  { slug: "furniture-installation-cost-singapore", label: "Furniture Installation Cost Guide", priority: 0.85 },
+  { slug: "ikea-assembly-cost-singapore",          label: "IKEA Assembly Cost Guide",          priority: 0.85 },
+  { slug: "tmg-install-vs-traditional-movers",     label: "TMG Install vs Traditional Movers", priority: 0.75 },
+  { slug: "hdb-vs-condo-moving-singapore",         label: "HDB vs Condo Moving Guide",         priority: 0.75 },
+];
+
 /* ── Reviews used both visually and in JSON-LD ──────────────────────────────── */
 const REVIEWS = [
   { name: "Prapat S.",  loc: "Toa Payoh HDB",    stars: 5, date: "2026-03-15", text: "Fast, professional and reliable. The team assembled our entire IKEA PAX wardrobe in under 2 hours. Very neat job — no damage at all. Will definitely use again." },
@@ -64,6 +72,45 @@ const REVIEWS = [
   { name: "Rachel L.",  loc: "Bishan Condo",     stars: 5, date: "2026-01-18", text: "Needed same-day assembly for a new bed frame delivery. TMG Install accommodated us at short notice. The price was fair and the workmanship was excellent." },
 ];
 
+/* ── Live review cache ───────────────────────────────────────────────────────
+   Populated by the server at startup and refreshed whenever an admin edits
+   reviews or the aggregate rating. Keeping it in a module-level variable lets
+   the (synchronous) SSR page builders read real, admin-managed data without
+   becoming async. Falls back to the static REVIEWS above when empty. */
+export type ReviewItem = { name: string; loc: string; stars: number; date: string; text: string };
+let REVIEW_CACHE: { reviews: ReviewItem[]; ratingValue: string; ratingCount: string } | null = null;
+export function setReviewData(data: { reviews: ReviewItem[]; ratingValue: string; ratingCount: string }): void {
+  REVIEW_CACHE = data;
+}
+function activeReviews(): ReviewItem[] {
+  return REVIEW_CACHE && REVIEW_CACHE.reviews.length ? REVIEW_CACHE.reviews : REVIEWS;
+}
+function ratingValue(): string { return REVIEW_CACHE?.ratingValue || "4.9"; }
+function ratingCount(): string { return REVIEW_CACHE?.ratingCount || "127"; }
+/* Sync the homepage (client/index.html) JSON-LD aggregate rating numbers with
+   the admin-set values so the homepage never diverges from the SSR pages.
+   Only the aggregate numbers are synced — the homepage review list is React-rendered. */
+export function injectHomepageRating(html: string): string {
+  return html
+    .replace(/("aggregateRating"\s*:\s*\{[^}]*?"ratingValue"\s*:\s*)"[^"]*"/, `$1"${ratingValue()}"`)
+    .replace(/("reviewCount"\s*:\s*)"[^"]*"/, `$1"${ratingCount()}"`);
+}
+/* Escape user-managed strings before interpolating into HTML. */
+function esc(s: string): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+function formatReviewDate(d: string): string {
+  const m = /^(\d{4})-(\d{2})-\d{2}$/.exec(d);
+  if (!m) return d;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[parseInt(m[2], 10) - 1]} ${m[1]}`;
+}
+
 function shell({
   title,
   description,
@@ -71,6 +118,8 @@ function shell({
   schema,
   body,
   breadcrumb,
+  section = "Services",
+  sectionHref,
 }: {
   title: string;
   description: string;
@@ -78,11 +127,18 @@ function shell({
   schema: object[];
   body: string;
   breadcrumb: string;
+  section?: string;
+  sectionHref?: string;
 }): string {
   const slugMatch = canonical.match(/\/services\/([^/?#]+)/);
   const slug = slugMatch ? slugMatch[1] : "";
   const ogImagePath = OG_IMAGES[slug] || "/og-image.png";
   const ogImageUrl = `${DOMAIN}${ogImagePath}`;
+
+  const sectionCrumb = (sectionHref || section === "Services")
+    ? `<a href="${sectionHref || "/services"}">${section}</a>`
+    : `<span>${section}</span>`;
+  const quickAnswerHtml = quickAnswerBox(extractQuickAnswer(schema));
 
   const enrichedSchema = schema.map(item => {
     if ((item as any)["@type"] === "Service") {
@@ -90,14 +146,14 @@ function shell({
       if (!enriched.aggregateRating) {
         enriched.aggregateRating = {
           "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "reviewCount": "127",
+          "ratingValue": ratingValue(),
+          "reviewCount": ratingCount(),
           "bestRating": "5",
           "worstRating": "1",
         };
       }
       if (!enriched.review) {
-        enriched.review = REVIEWS.map(r => ({
+        enriched.review = activeReviews().map(r => ({
           "@type": "Review",
           "author": { "@type": "Person", "name": r.name },
           "reviewRating": { "@type": "Rating", "ratingValue": String(r.stars), "bestRating": "5" },
@@ -112,7 +168,7 @@ function shell({
     }
     return item;
   });
-  const schemaJson = JSON.stringify(enrichedSchema, null, 0);
+  const schemaJson = JSON.stringify(enrichedSchema, null, 0).replace(/</g, "\\u003c");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -178,6 +234,29 @@ function shell({
     .breadcrumb-inner { max-width: 900px; margin: 0 auto; font-size: 0.8rem; color: #94a3b8; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
     .breadcrumb-inner a { color: #64748b; }
     .breadcrumb-inner a:hover { color: #3b82f6; }
+
+    /* Quick answer (GEO direct-answer box) */
+    .quick-answer { background: #eff6ff; border-bottom: 1px solid #dbeafe; padding: 1.25rem 1.5rem; }
+    .quick-answer-inner { max-width: 900px; margin: 0 auto; border-left: 4px solid #3b82f6; padding-left: 1rem; }
+    .qa-eyebrow { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #2563eb; margin-bottom: 0.35rem; }
+    .qa-q { font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 0.35rem; }
+    .qa-a { font-size: 0.92rem; color: #334155; margin: 0; line-height: 1.6; }
+
+    /* Comparison table */
+    .compare-table { width: 100%; border-collapse: collapse; margin-top: 1.25rem; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; font-size: 0.9rem; }
+    .compare-table th, .compare-table td { padding: 0.8rem 1rem; text-align: left; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .compare-table th { background: #0f172a; color: #fff; font-weight: 600; }
+    .compare-table td:first-child { font-weight: 600; color: #334155; }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table tr:nth-child(even) td { background: #f8fafc; }
+    .compare-yes { color: #16a34a; font-weight: 700; }
+    .compare-no { color: #dc2626; font-weight: 700; }
+
+    /* Stat strip */
+    .stat-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+    .stat-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; text-align: center; }
+    .stat-num { font-size: 1.6rem; font-weight: 800; color: #3b82f6; line-height: 1.1; }
+    .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 0.35rem; }
 
     /* Content */
     .content { max-width: 900px; margin: 0 auto; padding: 3rem 1.5rem; }
@@ -260,11 +339,12 @@ function shell({
     <div class="breadcrumb-inner">
       <a href="/">Home</a>
       <span>›</span>
-      <span>Services</span>
+      ${sectionCrumb}
       <span>›</span>
       <span>${breadcrumb}</span>
     </div>
   </div>
+  ${quickAnswerHtml}
   ${body}
   ${reviewsSection()}
   <footer class="footer">
@@ -272,6 +352,10 @@ function shell({
       <h3>Our Services</h3>
       <div class="footer-services-grid">
         ${SERVICE_PAGES.map(p => `<a href="/services/${p.slug}">→ ${p.label}</a>`).join("\n        ")}
+      </div>
+      <h3 style="margin-top:1.75rem;">Guides &amp; Pricing</h3>
+      <div class="footer-services-grid">
+        ${GUIDE_PAGES.map(p => `<a href="/guides/${p.slug}">→ ${p.label}</a>`).join("\n        ")}
       </div>
     </div>
     <div class="footer-bottom">
@@ -302,22 +386,44 @@ function trustBar(): string {
   </div>`;
 }
 
+/* ── GEO: auto direct-answer box pulled from the first FAQ in a page's schema ──
+   AI engines (ChatGPT, Perplexity, Google AI Overviews) heavily favour pages
+   that answer the question directly and high in the document. Every page that
+   ships a FAQPage automatically gets a concise "Quick Answer" block at the top
+   — no per-page edits required. */
+function extractQuickAnswer(schema: object[]): { q: string; a: string } | null {
+  const faq = schema.find(s => (s as any)["@type"] === "FAQPage") as any;
+  if (!faq || !Array.isArray(faq.mainEntity) || faq.mainEntity.length === 0) return null;
+  const first = faq.mainEntity[0];
+  const q = first?.name;
+  const a = first?.acceptedAnswer?.text;
+  if (!q || !a) return null;
+  return { q: String(q), a: String(a) };
+}
+
+function quickAnswerBox(qa: { q: string; a: string } | null): string {
+  if (!qa) return "";
+  return `
+  <div class="quick-answer">
+    <div class="quick-answer-inner">
+      <div class="qa-eyebrow">Quick Answer</div>
+      <div class="qa-q">${qa.q}</div>
+      <p class="qa-a">${qa.a}</p>
+    </div>
+  </div>`;
+}
+
 function reviewsSection(): string {
-  const reviews = [
-    { name: "Prapat S.", loc: "Toa Payoh HDB", stars: 5, date: "Mar 2026", text: "Fast, professional and reliable. The team assembled our entire IKEA PAX wardrobe in under 2 hours. Very neat job — no damage at all. Will definitely use again." },
-    { name: "Michelle T.", loc: "Tampines EC", stars: 5, date: "Feb 2026", text: "Booked through the website and got a quote in 60 seconds — exactly as advertised. The installer arrived on time, worked efficiently and cleaned up everything. Highly recommend!" },
-    { name: "David K.", loc: "Jurong West HDB", stars: 5, date: "Mar 2026", text: "Got my TV wall-mounted on a concrete wall. The team brought all the right drill bits and secured it perfectly. Cable management looks super clean. Great service!" },
-    { name: "Rachel L.", loc: "Bishan Condo", stars: 5, date: "Jan 2026", text: "Needed same-day assembly for a new bed frame delivery. TMG Install accommodated us at short notice. The price was fair and the workmanship was excellent." },
-  ];
+  const reviews = activeReviews();
 
   const cards = reviews.map(r => `
     <div class="review-card" itemscope itemtype="https://schema.org/Review">
       <div class="review-stars">${"★".repeat(r.stars)}</div>
-      <p class="review-text" itemprop="reviewBody">"${r.text}"</p>
+      <p class="review-text" itemprop="reviewBody">"${esc(r.text)}"</p>
       <div itemprop="author" itemscope itemtype="https://schema.org/Person">
-        <div class="review-author" itemprop="name">${r.name}</div>
+        <div class="review-author" itemprop="name">${esc(r.name)}</div>
       </div>
-      <div class="review-loc">${r.loc} · ${r.date}</div>
+      <div class="review-loc">${esc(r.loc)}${r.loc && r.date ? " · " : ""}${esc(formatReviewDate(r.date))}</div>
       <meta itemprop="ratingValue" content="${r.stars}" />
       <meta itemprop="bestRating" content="5" />
     </div>`).join("");
@@ -326,7 +432,7 @@ function reviewsSection(): string {
   <section class="reviews-section">
     <div class="reviews-inner">
       <h2>What Our Customers Say</h2>
-      <p class="reviews-subtitle">4.9 ★ average rating · 127+ verified reviews from Singapore customers</p>
+      <p class="reviews-subtitle">${ratingValue()} ★ average rating · ${ratingCount()}+ verified reviews from Singapore customers</p>
       <div class="reviews-grid" itemprop="review">
         ${cards}
       </div>
@@ -2527,6 +2633,373 @@ export function furnitureRepairAdjustmentPage(): string {
 }
 
 /* ── Dynamic sitemap.xml — auto-generated from SERVICE_PAGES registry ───────── */
+/* ════════════════════════════════════════════════════════════════════════════
+   GUIDE / COST / COMPARISON PAGES
+   Answer-style content built to win Google featured snippets and AI-engine
+   citations (ChatGPT, Perplexity, Google AI Overviews). Each leads with a
+   direct answer, hard numbers, a table, and real-question FAQs.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+const GUIDE_UPDATED = "June 2026";
+
+function guideSchema(canonical: string, title: string, description: string, faq: Array<{ q: string; a: string }>) {
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": title,
+      "description": description,
+      "datePublished": "2026-01-12",
+      "dateModified": "2026-06-14",
+      "author": { "@type": "Organization", "name": BRAND, "url": DOMAIN },
+      "publisher": { "@type": "Organization", "name": BRAND, "logo": { "@type": "ImageObject", "url": `${DOMAIN}/og-image.png` } },
+      "mainEntityOfPage": canonical,
+      "url": canonical,
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": faq.map(f => ({ "@type": "Question", "name": f.q, "acceptedAnswer": { "@type": "Answer", "text": f.a } })),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": DOMAIN },
+        { "@type": "ListItem", "position": 2, "name": "Guides", "item": `${DOMAIN}/services` },
+        { "@type": "ListItem", "position": 3, "name": title, "item": canonical },
+      ],
+    },
+  ];
+}
+
+function guideCta(): string {
+  return `
+    <div class="section">
+      <div class="cta-box">
+        <h2>Get Your Exact Price in 60 Seconds</h2>
+        <p>Skip the phone tag. See an itemised, upfront quote online — then book your slot.</p>
+        <div class="cta-btns">
+          <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+          <a href="${WHATSAPP}" class="btn-ghost">WhatsApp: <span class="cta-phone">${PHONE}</span></a>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── Guide 1: Furniture Installation Cost Singapore ─────────────────────────── */
+export function furnitureInstallationCostPage(): string {
+  const title = "How Much Does Furniture Installation Cost in Singapore? (2026 Guide)";
+  const description = "A clear 2026 price guide to furniture installation and assembly in Singapore. Real per-item rates for IKEA, wardrobes, beds, TVs, sofas and office furniture, plus what affects the price.";
+  const canonical = `${DOMAIN}/guides/furniture-installation-cost-singapore`;
+
+  const faq = [
+    { q: "How much does furniture installation cost in Singapore?", a: "Most furniture installation in Singapore costs between $40 and $200 per item in 2026. Small items like a LACK table start from $40, a standard bed frame or shelving unit is around $60–$80, and a full PAX wardrobe system is $150–$200. You get the exact itemised price upfront before booking." },
+    { q: "Do installers charge by the hour or per item?", a: "TMG Install charges a fixed price per item, not by the hour. This means no surprise charges if a job takes longer than expected — the quote you see online is the price you pay." },
+    { q: "Is there a minimum charge for furniture assembly?", a: "Yes. Because every job involves travel and setup, there is a small minimum order. The fastest way to see whether your order meets it is to add your items to the instant quote tool — it shows the total immediately." },
+    { q: "Does the price include wall-mounting and securing?", a: "Yes. Securing tall furniture like wardrobes and bookshelves to the wall for safety is included in the install price. TV wall-mounting is priced separately because it depends on the wall type and bracket." },
+    { q: "Is same-day furniture installation more expensive?", a: "No. Same-day and next-day slots are offered at the same per-item price, subject to availability. You simply pick the earliest slot when you book." },
+  ];
+
+  const schema = guideSchema(canonical, title, description, faq);
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Updated ${GUIDE_UPDATED}</div>
+    <h1>How Much Does <em>Furniture Installation</em><br/>Cost in Singapore?</h1>
+    <p class="hero-desc">A straight-talking 2026 price guide — real per-item rates, what changes the price, and how to get your exact total in under a minute.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+
+    <div class="section">
+      <h2>The Short Answer</h2>
+      <p>In 2026, most furniture installation in Singapore costs <strong>$40–$200 per item</strong>. Small flat-pack pieces start from $40, beds and shelving land around $60–$80, and a full wardrobe system runs $150–$200. TMG Install prices every job <strong>per item, upfront</strong> — so you know the total before you book, with no hourly surprises.</p>
+      <div class="stat-strip">
+        <div class="stat-box"><div class="stat-num">$40+</div><div class="stat-label">Per small item</div></div>
+        <div class="stat-box"><div class="stat-num">60 sec</div><div class="stat-label">To get your quote</div></div>
+        <div class="stat-box"><div class="stat-num">8am–8pm</div><div class="stat-label">7 days a week</div></div>
+        <div class="stat-box"><div class="stat-num">4.9 ★</div><div class="stat-label">Customer rating</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>2026 Price Guide by Item</h2>
+      <p>These are typical starting prices. Your exact total depends on size, quantity and any wall-mounting — see the <a href="${CTA_URL}" style="color:#3b82f6;font-weight:600;">instant quote tool</a> for your itemised price.</p>
+      <div class="pricing-table">
+        <div class="pricing-row"><span class="pricing-item">Small items (side table, LACK, stool)</span><span class="pricing-price">from $40</span></div>
+        <div class="pricing-row"><span class="pricing-item">Shelving unit (BILLY, KALLAX)</span><span class="pricing-price">from $60</span></div>
+        <div class="pricing-row"><span class="pricing-item">TV console / media unit</span><span class="pricing-price">from $60</span></div>
+        <div class="pricing-row"><span class="pricing-item">Bed frame (standard)</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Dining table & chairs (set)</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Wardrobe (2-door)</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Office desk & drawer unit</span><span class="pricing-price">from $60</span></div>
+        <div class="pricing-row"><span class="pricing-item">TV wall-mounting</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">PAX wardrobe system (with doors)</span><span class="pricing-price">from $180</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>What Affects the Price?</h2>
+      <h3>Item size and complexity</h3>
+      <p>A single shelf takes minutes; a PAX wardrobe with sliding doors, drawers and top cabinets takes hours. Bigger and more complex pieces cost more because they take more skill and time.</p>
+      <h3>Quantity</h3>
+      <p>Installing several pieces in one visit is more cost-effective than separate trips, because the travel and setup are shared across the order.</p>
+      <h3>Wall-mounting and securing</h3>
+      <p>Securing wardrobes and bookshelves to the wall is included. TV wall-mounting is priced separately because concrete, brick and partition walls need different brackets and fixings.</p>
+      <h3>Access and location</h3>
+      <p>Island-wide service is standard. Very tight access, no-lift walk-ups or special handling for oversized items may need an on-site survey, which we flag before booking.</p>
+    </div>
+
+    <div class="section">
+      <h2>How to Get Your Exact Price</h2>
+      <ol>
+        <li>Open the <a href="${CTA_URL}" style="color:#3b82f6;font-weight:600;">instant quote tool</a>.</li>
+        <li>Add your items (or paste your IKEA/Taobao order list).</li>
+        <li>See an itemised, upfront total in about 60 seconds.</li>
+        <li>Pick your slot — same-day available — and book.</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      ${faq.map(f => `<div class="faq-item"><div class="faq-q">${f.q}</div><div class="faq-a">${f.a}</div></div>`).join("\n      ")}
+    </div>
+
+    ${guideCta()}
+
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "Furniture Installation Cost", section: "Guides" });
+}
+
+/* ── Guide 2: IKEA Assembly Cost Singapore ──────────────────────────────────── */
+export function ikeaAssemblyCostPage(): string {
+  const title = "IKEA Assembly Cost in Singapore — 2026 Price Guide";
+  const description = "What does IKEA assembly cost in Singapore in 2026? Real per-item prices for PAX, BILLY, KALLAX, MALM and more, how long it takes, and how to book a same-day installer.";
+  const canonical = `${DOMAIN}/guides/ikea-assembly-cost-singapore`;
+
+  const faq = [
+    { q: "How much does IKEA assembly cost in Singapore?", a: "IKEA assembly in Singapore starts from $40 for small items like a LACK table and $60 for a BILLY or KALLAX shelf. A MALM or HEMNES bed is around $80, and a full PAX wardrobe with doors is $150–$200. Prices are fixed per item and shown upfront." },
+    { q: "How much does it cost to assemble a PAX wardrobe?", a: "A single PAX frame without doors starts from $150. With hinged or sliding doors, drawers and interior organisers, expect $180–$200+ depending on the configuration. Securing it to the wall is included." },
+    { q: "How long does IKEA assembly take?", a: "A small item takes 30–60 minutes. A bed frame is about an hour. A full PAX wardrobe system with doors and drawers can take 2–3 hours. You get an estimated duration when you book." },
+    { q: "Can you collect my IKEA order and assemble it?", a: "Yes — we offer a collect-and-assemble service. WhatsApp us your IKEA order details and we'll arrange collection and assembly in one visit." },
+    { q: "Do I need to provide any tools?", a: "No. The team brings every tool needed. Just have your IKEA boxes at the spot where the furniture will go." },
+  ];
+
+  const schema = guideSchema(canonical, title, description, faq);
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Updated ${GUIDE_UPDATED}</div>
+    <h1><em>IKEA Assembly</em> Cost<br/>in Singapore (2026)</h1>
+    <p class="hero-desc">Exact per-item IKEA assembly prices, how long each piece takes, and how to book a same-day installer — no phone calls.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+
+    <div class="section">
+      <h2>The Short Answer</h2>
+      <p>IKEA assembly in Singapore costs from <strong>$40 for small items</strong>, around <strong>$60 for BILLY/KALLAX shelving</strong>, <strong>$80 for a MALM bed</strong>, and <strong>$150–$200 for a full PAX wardrobe</strong> with doors. Every price is fixed per item and shown upfront — no hourly charges, no surprises.</p>
+      <div class="stat-strip">
+        <div class="stat-box"><div class="stat-num">$40+</div><div class="stat-label">Small IKEA item</div></div>
+        <div class="stat-box"><div class="stat-num">$150+</div><div class="stat-label">PAX wardrobe</div></div>
+        <div class="stat-box"><div class="stat-num">2–3 hrs</div><div class="stat-label">Full PAX build</div></div>
+        <div class="stat-box"><div class="stat-num">Same-day</div><div class="stat-label">Slots available</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>IKEA Assembly Prices by Item (2026)</h2>
+      <div class="pricing-table">
+        <div class="pricing-row"><span class="pricing-item">Small items (LACK table, stool)</span><span class="pricing-price">from $40</span></div>
+        <div class="pricing-row"><span class="pricing-item">BILLY / KALLAX shelving</span><span class="pricing-price">from $60</span></div>
+        <div class="pricing-row"><span class="pricing-item">TV console / media unit</span><span class="pricing-price">from $60</span></div>
+        <div class="pricing-row"><span class="pricing-item">Desk & ALEX drawer unit</span><span class="pricing-price">from $60</span></div>
+        <div class="pricing-row"><span class="pricing-item">MALM / HEMNES bed frame</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">Dining table & chairs (set)</span><span class="pricing-price">from $80</span></div>
+        <div class="pricing-row"><span class="pricing-item">PAX wardrobe (single, no doors)</span><span class="pricing-price">from $150</span></div>
+        <div class="pricing-row"><span class="pricing-item">PAX wardrobe (with doors)</span><span class="pricing-price">from $180</span></div>
+      </div>
+      <p style="margin-top:1rem;">Need the total for a mixed order? The <a href="${CTA_URL}" style="color:#3b82f6;font-weight:600;">instant quote tool</a> lets you paste your full IKEA list and prices it line by line.</p>
+    </div>
+
+    <div class="section">
+      <h2>How Long Does Each Piece Take?</h2>
+      <ul>
+        <li><strong>Small items</strong> (LACK, side tables): 30–60 minutes</li>
+        <li><strong>Shelving</strong> (BILLY, KALLAX): about 1 hour</li>
+        <li><strong>Bed frames</strong> (MALM, HEMNES): about 1 hour</li>
+        <li><strong>PAX wardrobe</strong> with doors and drawers: 2–3 hours</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      ${faq.map(f => `<div class="faq-item"><div class="faq-q">${f.q}</div><div class="faq-a">${f.a}</div></div>`).join("\n      ")}
+    </div>
+
+    ${guideCta()}
+
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "IKEA Assembly Cost", section: "Guides" });
+}
+
+/* ── Guide 3: TMG Install vs Traditional Movers ─────────────────────────────── */
+export function tmgVsTraditionalMoversPage(): string {
+  const title = "TMG Install vs Traditional Movers vs DIY — Which Is Best? (Singapore)";
+  const description = "Comparing TMG Install's per-item installation against traditional movers and DIY assembly in Singapore: pricing transparency, booking, expertise, damage risk and speed.";
+  const canonical = `${DOMAIN}/guides/tmg-install-vs-traditional-movers`;
+
+  const faq = [
+    { q: "Is TMG Install cheaper than traditional movers?", a: "For assembly and installation, usually yes — because you pay a fixed price per item with no hourly meter. Traditional movers often quote by the hour or as a bundled day rate, which makes the final cost harder to predict for an installation-focused job." },
+    { q: "Should I assemble furniture myself or hire an installer?", a: "DIY saves money but costs time and risks damage to expensive pieces, especially PAX wardrobes and beds. A professional installer guarantees the job is built correctly, secured to the wall, and cleaned up — usually in a fraction of the time." },
+    { q: "What is the difference between a mover and an installer?", a: "Movers transport boxes and furniture between addresses. An installer assembles, mounts and secures furniture. TMG Install specialises in installation and also offers relocation (dismantle at the old home, reinstall at the new one)." },
+    { q: "Do I get a fixed price before booking?", a: "With TMG Install, yes — you see an itemised, upfront total online before you commit. Many traditional movers only confirm the final price after an on-site survey or once the job is done." },
+  ];
+
+  const schema = guideSchema(canonical, title, description, faq);
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Updated ${GUIDE_UPDATED}</div>
+    <h1><em>TMG Install</em> vs Traditional<br/>Movers vs DIY</h1>
+    <p class="hero-desc">A side-by-side look at cost, transparency, expertise and risk — so you can pick the right option for your furniture in Singapore.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+
+    <div class="section">
+      <h2>The Short Answer</h2>
+      <p>For assembling and installing furniture in Singapore, <strong>TMG Install</strong> gives you a fixed, itemised price upfront, specialist installers and wall-securing included. <strong>Traditional movers</strong> are best when you mainly need transport. <strong>DIY</strong> is cheapest but slowest and carries the highest risk of damage to costly pieces.</p>
+    </div>
+
+    <div class="section">
+      <h2>Side-by-Side Comparison</h2>
+      <table class="compare-table">
+        <thead>
+          <tr><th>What matters</th><th>TMG Install</th><th>Traditional Movers</th><th>DIY</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Upfront fixed price</td><td><span class="compare-yes">Yes — itemised online</span></td><td>Often hourly / after survey</td><td>Free, but your time</td></tr>
+          <tr><td>Booking</td><td>Online in ~60 seconds</td><td>Calls, quotes, surveys</td><td>—</td></tr>
+          <tr><td>Assembly expertise</td><td><span class="compare-yes">Specialist installers</span></td><td>Varies by crew</td><td>Depends on you</td></tr>
+          <tr><td>Wall-securing included</td><td><span class="compare-yes">Yes</span></td><td>Sometimes extra</td><td><span class="compare-no">DIY risk</span></td></tr>
+          <tr><td>Damage risk</td><td>Low — insured</td><td>Low–medium</td><td><span class="compare-no">Higher</span></td></tr>
+          <tr><td>Speed</td><td>Fast, same-day available</td><td>Scheduled days ahead</td><td>Slowest</td></tr>
+          <tr><td>Best for</td><td>Assembly & installation</td><td>Whole-home transport</td><td>Simple, cheap items</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>When to Choose Each</h2>
+      <h3>Choose TMG Install when…</h3>
+      <p>You've bought furniture (IKEA, Taobao, Castlery, retail) and need it assembled, mounted and secured properly, with a price you can see before booking.</p>
+      <h3>Choose traditional movers when…</h3>
+      <p>Your main need is moving boxes and existing furniture between homes. For the assembly side of a move, TMG Install also offers a dismantle-and-reinstall relocation service.</p>
+      <h3>Choose DIY when…</h3>
+      <p>The item is small and simple, you have the time and tools, and it doesn't need wall-securing.</p>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      ${faq.map(f => `<div class="faq-item"><div class="faq-q">${f.q}</div><div class="faq-a">${f.a}</div></div>`).join("\n      ")}
+    </div>
+
+    ${guideCta()}
+
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "TMG Install vs Movers", section: "Guides" });
+}
+
+/* ── Guide 4: HDB vs Condo Moving in Singapore ──────────────────────────────── */
+export function hdbVsCondoMovingPage(): string {
+  const title = "HDB vs Condo Moving in Singapore — Rules, Permits & Costs (2026)";
+  const description = "Moving into an HDB flat or a condo in Singapore? Compare lift booking, permits, timing rules, access and typical costs, plus how furniture installation fits in.";
+  const canonical = `${DOMAIN}/guides/hdb-vs-condo-moving-singapore`;
+
+  const faq = [
+    { q: "What's the difference between moving into an HDB and a condo in Singapore?", a: "The biggest differences are access rules. Condos usually require you to book the service lift in advance, may charge a refundable deposit, and restrict moving to certain hours. HDB flats are generally more flexible but you still need to manage lift size, corridor access and timing with neighbours." },
+    { q: "Do I need to book the lift to move into a condo?", a: "Almost always, yes. Most condo management offices require advance booking of the service (cargo) lift, sometimes with a deposit and padding installed. Check with your management office before your move date." },
+    { q: "Are there time restrictions for moving in Singapore?", a: "Condos commonly restrict moving and renovation deliveries to weekday and Saturday daytime hours, with no Sundays or public holidays. HDB is more flexible, but being considerate of neighbours and avoiding late hours is expected." },
+    { q: "How does furniture installation fit into a move?", a: "After your furniture arrives, TMG Install can assemble and secure everything the same day. For a full move, our relocation service dismantles at the old address and reinstalls at the new one, working around your lift booking window." },
+  ];
+
+  const schema = guideSchema(canonical, title, description, faq);
+
+  const body = `
+  <section class="hero">
+    <div class="hero-badge">Updated ${GUIDE_UPDATED}</div>
+    <h1>Moving Into an <em>HDB vs Condo</em><br/>in Singapore</h1>
+    <p class="hero-desc">Lift booking, permits, timing rules, access and typical costs — plus how to get your furniture assembled the same day.</p>
+    <div class="hero-btns">
+      <a href="${CTA_URL}" class="btn-primary">Get an Instant Quote</a>
+      <a href="${WHATSAPP}" class="btn-ghost">WhatsApp Us</a>
+    </div>
+  </section>
+  ${trustBar()}
+  <main class="content">
+
+    <div class="section">
+      <h2>The Short Answer</h2>
+      <p>Moving into a <strong>condo</strong> usually means booking the service lift in advance, a possible refundable deposit, and restricted move-in hours. Moving into an <strong>HDB</strong> flat is generally more flexible, but you still plan around lift size and neighbours. In both, professional assembly gets your home set up the same day your furniture arrives.</p>
+    </div>
+
+    <div class="section">
+      <h2>HDB vs Condo — Key Differences</h2>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Factor</th><th>HDB Flat</th><th>Condo / Private</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Service lift booking</td><td>Usually not required</td><td><span class="compare-yes">Usually required in advance</span></td></tr>
+          <tr><td>Deposit for move-in</td><td>Rare</td><td>Common (refundable)</td></tr>
+          <tr><td>Move-in time limits</td><td>Flexible</td><td>Set hours, often no Sun/PH</td></tr>
+          <tr><td>Lift padding</td><td>Not required</td><td>Often required</td></tr>
+          <tr><td>Access</td><td>Corridors, common lift</td><td>Cargo lift, loading bay</td></tr>
+          <tr><td>Management approval</td><td>Minimal</td><td>Management office sign-off</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:1rem;">Always confirm the exact rules with your HDB town council or condo management office before your move date.</p>
+    </div>
+
+    <div class="section">
+      <h2>Planning Your Move</h2>
+      <h3>1. Confirm access early</h3>
+      <p>For a condo, book the service lift and ask about deposits, padding and allowed hours. For HDB, check lift dimensions for large items.</p>
+      <h3>2. Schedule delivery and assembly together</h3>
+      <p>Line up your furniture delivery and installation so everything is built and secured on the same day — no living around flat-pack boxes.</p>
+      <h3>3. Use a relocation service for existing furniture</h3>
+      <p>TMG Install can dismantle at your old home and reinstall at the new one, working within your lift-booking window.</p>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+      ${faq.map(f => `<div class="faq-item"><div class="faq-q">${f.q}</div><div class="faq-a">${f.a}</div></div>`).join("\n      ")}
+    </div>
+
+    ${guideCta()}
+
+  </main>`;
+
+  return shell({ title, description, canonical, schema, body, breadcrumb: "HDB vs Condo Moving", section: "Guides" });
+}
+
 export function sitemapXml(): string {
   const today = new Date().toISOString().slice(0, 10);
   const staticPages = [
@@ -2543,7 +3016,12 @@ export function sitemapXml(): string {
     priority: p.priority.toString(),
     changefreq: "monthly",
   }));
-  const all = [...staticPages, ...servicePages, ...legalPages];
+  const guidePages = GUIDE_PAGES.map(p => ({
+    loc: `${DOMAIN}/guides/${p.slug}`,
+    priority: p.priority.toString(),
+    changefreq: "monthly",
+  }));
+  const all = [...staticPages, ...servicePages, ...guidePages, ...legalPages];
   const urls = all.map(u => `  <url>
     <loc>${u.loc}</loc>
     <lastmod>${today}</lastmod>

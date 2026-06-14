@@ -183,6 +183,23 @@ export const appSettings = pgTable("app_settings", {
 });
 export type AppSetting = typeof appSettings.$inferSelect;
 
+// ── Customer reviews (shown on SSR landing pages + used in review JSON-LD) ────
+export const reviews = pgTable("reviews", {
+  id: serial("id").primaryKey(),
+  author: text("author").notNull(),
+  location: text("location"),                          // e.g. "Toa Payoh HDB"
+  rating: integer("rating").notNull().default(5),      // 1–5
+  text: text("text").notNull(),
+  reviewDate: text("review_date"),                     // free text, e.g. "2026-03-15" or "Mar 2026"
+  source: text("source").default("google"),            // google | facebook | manual
+  featured: boolean("featured").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
+export type InsertReview = z.infer<typeof insertReviewSchema>;
+export type Review = typeof reviews.$inferSelect;
+
 // Promo Codes — marketing discount codes (e.g. TMG50 = $50 off for first 100 customers)
 export const promoCodes = pgTable("promo_codes", {
   id: serial("id").primaryKey(),

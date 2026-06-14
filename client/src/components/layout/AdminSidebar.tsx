@@ -138,6 +138,7 @@ export function AdminSidebar() {
 
         <SectionLabel>Growth</SectionLabel>
         <NavItem href="/admin/seo"           icon={Search}          label="SEO"         active={isActive("/admin/seo")} />
+        <NavItem href="/admin/reviews"       icon={Star}            label="Reviews"     active={isActive("/admin/reviews")} />
         <NavItem href="/admin/ai"            icon={Bot}             label="AI Ops"      active={isActive("/admin/ai")} />
 
         <SectionLabel>System</SectionLabel>

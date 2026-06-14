@@ -15,6 +15,13 @@
       "when": 1781453882482,
       "tag": "0001_clammy_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781466835377,
+      "tag": "0002_parched_talos",
+      "breakpoints": true
     }
   ]
 }
