@@ -1096,7 +1096,7 @@ export default function AdminQuoteDetail() {
  additionalTripCharge: (quote as any).additionalTripCharge ? String((quote as any).additionalTripCharge) : '0',
  specialRemarks: (quote as any).specialRemarks || '',
  ownMoverInvolved: !!(quote as any).ownMoverInvolved,
- depositRefundable: (quote as any).depositRefundable ?? true,
+ depositRefundable: (quote as any).depositRefundable === true,
  cancellationNoticeHours: (quote as any).cancellationNoticeHours != null ? String((quote as any).cancellationNoticeHours) : '',
  });
  // Seed the multi-stop builder from stored stops; fall back to the legacy
@@ -3043,7 +3043,7 @@ export default function AdminQuoteDetail() {
  <span className="block text-sm font-medium text-zinc-900">Customer's own mover / transport involved</span>
  </label>
  <label className="flex items-start gap-2.5 cursor-pointer select-none" data-testid="toggle-deposit-refundable">
- <input type="checkbox" checked={editQuoteData.depositRefundable !== false}
+ <input type="checkbox" checked={editQuoteData.depositRefundable === true}
  onChange={e => setEditQuoteData({ ...editQuoteData, depositRefundable: e.target.checked })}
  className="mt-0.5 w-4 h-4 rounded border-zinc-300 text-[#0A0A0A] focus:ring-[#0A0A0A]" />
  <span className="block text-sm font-medium text-zinc-900">Deposit refundable (subject to cancellation policy)</span>
