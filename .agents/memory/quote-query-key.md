@@ -1,21 +1,19 @@
 ---
-name: Quote detail query-key
+name: Quote detail query-key invariant
 description: The canonical TanStack key for a single quote and the invalidation footgun in admin mutations.
 ---
 
-The single-quote query (`useQuote`) is keyed `[api.quotes.get.path, id, refNo]`,
-where `api.quotes.get.path` === `'/api/quotes/:id'` (the literal route pattern,
-NOT `'/api/quotes'`). The list query is `[api.quotes.list.path]` === `'/api/quotes'`.
+The single-quote detail query is keyed off the literal route pattern
+`'/api/quotes/:id'` (NOT `'/api/quotes'`). The list query is keyed `'/api/quotes'`.
 
 **Rule:** to refresh the quote detail after a mutation, invalidate
-`['/api/quotes/:id', id]` (prefix-matches the 3-element key). Invalidating
-`['/api/quotes', id]` does NOT match and leaves the detail panel stale.
+`['/api/quotes/:id', id]`. Invalidating `['/api/quotes', id]` does NOT match the
+detail key and leaves the panel stale.
 
-**Why:** QuoteDetail.tsx does not import `api`, so its mutations use literal
-string keys and have drifted into mixed forms (`['/api/quotes/:id', id]`,
-`['/api/quotes/${id}']`, `['/api/quotes', id]`). Only the `'/api/quotes/:id'`
-form actually invalidates the detail. A refund mutation shipped with the wrong
-`'/api/quotes'` key and showed stale acceptance/refund data until manual refresh.
+**Why:** admin quote mutations use literal string keys (no shared `api` import)
+and have drifted into mixed forms; only the `'/api/quotes/:id'` form invalidates
+the detail. A mutation shipped with the wrong `'/api/quotes'` key and showed
+stale data until a manual refresh.
 
-**How to apply:** when adding any admin quote mutation in QuoteDetail.tsx, use
+**How to apply:** when adding any admin quote mutation, use
 `['/api/quotes/:id', id]` for the detail and `['/api/quotes']` for the list.

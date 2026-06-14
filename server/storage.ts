@@ -2390,12 +2390,20 @@ export class DatabaseStorage implements IStorage {
     if (!current) return undefined;
     const acceptedVersion = data.version ?? current.version ?? 1;
     const acceptedAmount = data.amount ?? Number(current.total || 0);
+    // Build a concrete snapshot reference tying this acceptance to the exact
+    // quote document version the customer agreed to (the PDF is generated
+    // client-side, so we store a deterministic reference, not a binary file).
+    const pdfRef = data.pdfRef
+      ?? `${current.referenceNo || `Q${quoteId}`}-v${acceptedVersion}`;
     await db.update(quotes).set({
       termsAcceptedAt: new Date(),
       termsAcceptedIp: data.ip ?? null,
       termsAcceptedAmount: acceptedAmount.toFixed(2),
       termsAcceptedVersion: acceptedVersion,
-      termsAcceptedPdfRef: data.pdfRef ?? null,
+      termsAcceptedPdfRef: pdfRef,
+      // The accepted version is now the current one again — clear the
+      // "superseded" flag set when a prior accepted version was edited.
+      superseded: false,
     }).where(eq(quotes.id, quoteId));
     await this.addDisputeEvent({
       quoteId,
@@ -2414,6 +2422,9 @@ export class DatabaseStorage implements IStorage {
     // re-accept the updated scope/price before paying.
     await db.update(quotes).set({
       version: nextVersion,
+      // Mark the prior accepted version as superseded; the customer must accept
+      // the new version before paying (recordTermsAcceptance clears this).
+      superseded: true,
       termsAcceptedAt: null,
       termsAcceptedIp: null,
       termsAcceptedAmount: null,

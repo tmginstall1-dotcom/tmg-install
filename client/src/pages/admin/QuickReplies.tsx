@@ -8,9 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
-  ArrowLeft, MessageSquareText, Plus, Pencil, Trash2, X, ToggleLeft, ToggleRight,
+  ArrowLeft, MessageSquareText, Plus, Pencil, Trash2, X, ToggleLeft, ToggleRight, Copy,
 } from "lucide-react";
 import type { QuickReplyTemplate } from "@shared/schema";
+import { renderQuickReply, type BusinessRules } from "@shared/businessRules";
 
 function TemplateModal({
   template,
@@ -139,6 +140,21 @@ export default function AdminQuickReplies() {
     queryKey: ["/api/admin/quick-replies"],
   });
 
+  // Live business-rule values used to fill {{placeholders}} when copying.
+  const { data: rules } = useQuery<BusinessRules>({
+    queryKey: ["/api/business-rules"],
+  });
+
+  const copyTemplate = async (t: QuickReplyTemplate) => {
+    const text = rules ? renderQuickReply(t.body, rules) : t.body;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied", description: "Message copied with live values filled in." });
+    } catch {
+      toast({ title: "Copy failed", description: text, variant: "destructive" });
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: (data: Partial<QuickReplyTemplate>) => apiRequest("POST", "/api/admin/quick-replies", data),
     onSuccess: () => {
@@ -256,6 +272,14 @@ export default function AdminQuickReplies() {
                       <p className="text-xs text-black/55 whitespace-pre-wrap line-clamp-2">{t.body}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0 ml-2">
+                      <button
+                        data-testid={`copy-template-${t.id}`}
+                        onClick={() => copyTemplate(t)}
+                        className="p-1.5 rounded-none hover:bg-[#EBE9E2] text-black/45 hover:text-black/65 transition-colors"
+                        title="Copy message with live values"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         data-testid={`toggle-active-template-${t.id}`}
                         onClick={() => toggleActive(t)}

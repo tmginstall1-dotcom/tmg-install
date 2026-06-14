@@ -82,7 +82,17 @@ type InvoicePayload = {
   termsAcceptedAt?: string | null;
   termsAcceptedAmount?: string | null;
   termsAcceptedVersion?: number | null;
+  termsAcceptedPdfRef?: string | null;
   version?: number | null;
+  superseded?: boolean;
+  // Cancellation / refund status
+  cancellationRequestedAt?: string | null;
+  cancellationReason?: string | null;
+  refundApprovedAmount?: string | null;
+  refundReason?: string | null;
+  refundMethod?: string | null;
+  refundDueByAt?: string | null;
+  refundCompletedAt?: string | null;
 };
 
 type PolicyClause = { title: string; body: string };
@@ -518,7 +528,7 @@ export default function Invoice() {
             </div>
 
             {/* Schedule, scope & acceptance notes */}
-            {(data.timingMode === "split" || (data.afterOfficeWaived && data.afterOfficeInvolved) || data.specialRemarks || data.termsAcceptedAt) && (
+            {(
               <div className="px-7 pb-5">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Schedule & Scope Notes</div>
                 <div className="space-y-1 text-[12px] text-gray-700" data-testid="invoice-scope-notes">
@@ -546,7 +556,7 @@ export default function Invoice() {
                       <span className="font-medium text-gray-800 whitespace-pre-line">{data.specialRemarks}</span>
                     </div>
                   )}
-                  {data.termsAcceptedAt && (
+                  {data.termsAcceptedAt ? (
                     <div className="text-emerald-700 flex items-center gap-1.5" data-testid="invoice-terms-accepted">
                       <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                       <span>
@@ -554,6 +564,32 @@ export default function Invoice() {
                         {data.termsAcceptedVersion != null ? ` · quote v${data.termsAcceptedVersion}` : ""}
                         {data.termsAcceptedAmount != null ? ` · at ${money(data.termsAcceptedAmount)}` : ""}
                       </span>
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 italic" data-testid="invoice-terms-legacy">
+                      Legacy quote — acceptance record not available
+                    </div>
+                  )}
+                  {data.cancellationRequestedAt && (
+                    <div data-testid="invoice-cancellation-status">
+                      <span className="text-gray-500">Cancellation requested:</span>{" "}
+                      <span className="font-medium text-gray-800">{dt(data.cancellationRequestedAt, true)}</span>
+                      {data.cancellationReason ? <span className="text-gray-600"> — {data.cancellationReason}</span> : null}
+                    </div>
+                  )}
+                  {(data.refundApprovedAmount != null || data.refundCompletedAt) && (
+                    <div data-testid="invoice-refund-status">
+                      <span className="text-gray-500">Refund:</span>{" "}
+                      <span className="font-medium text-gray-800">
+                        {data.refundApprovedAmount != null ? money(data.refundApprovedAmount) : "—"}
+                        {data.refundMethod ? ` · ${data.refundMethod}` : ""}
+                        {data.refundCompletedAt
+                          ? ` · completed ${dt(data.refundCompletedAt)}`
+                          : data.refundDueByAt
+                            ? ` · due by ${dt(data.refundDueByAt)}`
+                            : " · pending"}
+                      </span>
+                      {data.refundReason ? <span className="text-gray-600"> — {data.refundReason}</span> : null}
                     </div>
                   )}
                 </div>

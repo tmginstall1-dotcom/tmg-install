@@ -86,6 +86,14 @@ export type InvoicePdfData = {
   termsAcceptedAmount?: string | null;
   termsAcceptedVersion?: number | null;
   version?: number | null;
+  // Cancellation / refund status
+  cancellationRequestedAt?: string | null;
+  cancellationReason?: string | null;
+  refundApprovedAmount?: string | null;
+  refundReason?: string | null;
+  refundMethod?: string | null;
+  refundDueByAt?: string | null;
+  refundCompletedAt?: string | null;
   // Business-rules policy clauses (fetched from /api/business-rules by the
   // caller and passed in). Rendered as a "Terms & Policy" section.
   policyClauses?: { title: string; body: string }[] | null;
@@ -540,7 +548,7 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
       noteRows.push(["After-office surcharge", "Waived"]);
     }
 
-    if (noteRows.length || data.specialRemarks || data.termsAcceptedAt) {
+    {
       y += 8;
       if (y + 12 > pageH - 18) { doc.addPage(); y = 14; }
       doc.setFont("helvetica", "bold");
@@ -574,6 +582,33 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
         doc.text(`Terms accepted: ${parts.join(" · ")}`, marginX, y);
         y += 4.5;
         doc.setTextColor(...bodyColor);
+      } else {
+        // Legacy quote with no acceptance record on file.
+        if (y + 5 > pageH - 18) { doc.addPage(); y = 14; }
+        doc.text("Legacy quote — acceptance record not available", marginX, y);
+        y += 4.5;
+      }
+
+      if (data.cancellationRequestedAt) {
+        const txt = `Cancellation requested: ${dt(data.cancellationRequestedAt, true)}${data.cancellationReason ? ` — ${data.cancellationReason}` : ""}`;
+        const wrapped = doc.splitTextToSize(txt, contentW);
+        if (y + wrapped.length * 4 > pageH - 18) { doc.addPage(); y = 14; }
+        doc.text(wrapped, marginX, y);
+        y += wrapped.length * 4 + 0.5;
+      }
+
+      if (data.refundApprovedAmount != null || data.refundCompletedAt) {
+        const status = data.refundCompletedAt
+          ? `completed ${dt(data.refundCompletedAt)}`
+          : data.refundDueByAt
+            ? `due by ${dt(data.refundDueByAt)}`
+            : "pending";
+        const amt = data.refundApprovedAmount != null ? money(data.refundApprovedAmount) : "—";
+        const txt = `Refund: ${amt}${data.refundMethod ? ` · ${data.refundMethod}` : ""} · ${status}${data.refundReason ? ` — ${data.refundReason}` : ""}`;
+        const wrapped = doc.splitTextToSize(txt, contentW);
+        if (y + wrapped.length * 4 > pageH - 18) { doc.addPage(); y = 14; }
+        doc.text(wrapped, marginX, y);
+        y += wrapped.length * 4 + 0.5;
       }
     }
   }

@@ -252,3 +252,118 @@ export function termsAcceptedForCurrentVersion(quote: {
   const acceptedVersion = quote.termsAcceptedVersion ?? 0;
   return acceptedVersion >= currentVersion;
 }
+
+// ── Quick-reply template library ────────────────────────────────────────────
+// Reusable WhatsApp / message snippets for the common dispute scenarios. Bodies
+// contain {{placeholders}} that are substituted with live Business Rules values
+// via renderQuickReply, so the wording stays consistent with the single source
+// of truth even when an admin tweaks deposit %, surcharge %, etc.
+
+const money2 = (n: number) =>
+  `$${Number(n || 0).toLocaleString("en-SG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+/** Map of {{placeholder}} -> live value derived from the business rules. */
+export function quickReplyPlaceholders(rules: BusinessRules): Record<string, string> {
+  return {
+    deposit_pct: `${Math.round(rules.depositPct * 100)}%`,
+    full_payment_threshold: money2(rules.fullPaymentThreshold),
+    cancellation_window: `${rules.cancellationWindowHours} hours`,
+    after_office_cutoff: rules.afterOfficeCutoff,
+    after_office_pct: `${rules.afterOfficeSurchargePct}%`,
+    refund_days: `${rules.refundProcessingDays} business day${rules.refundProcessingDays === 1 ? "" : "s"}`,
+    trip_charge: money2(rules.additionalTripCharge),
+    drilling_rate: money2(rules.drillingPerHoleRate),
+    working_hours: `${rules.workingHoursStart}–${rules.workingHoursEnd}`,
+  };
+}
+
+/** Replace {{placeholders}} in a template body with live business-rule values. */
+export function renderQuickReply(body: string, rules: BusinessRules): string {
+  const map = quickReplyPlaceholders(rules);
+  return (body || "").replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (full, key) => {
+    const v = map[String(key).toLowerCase()];
+    return v != null ? v : full;
+  });
+}
+
+export type DefaultQuickReply = {
+  slug: string;
+  title: string;
+  category: string;
+  body: string;
+  sortOrder: number;
+};
+
+/** Seed set covering every dispute scenario named in the spec. */
+export const DEFAULT_QUICK_REPLIES: DefaultQuickReply[] = [
+  {
+    slug: "deposit-required",
+    title: "Deposit required to confirm",
+    category: "payment",
+    sortOrder: 10,
+    body: "Hi! To confirm your booking we collect a {{deposit_pct}} deposit, with the balance due on completion. Jobs under {{full_payment_threshold}} are payable in full upfront. Paying the deposit also confirms you accept the quote, its scope and timing.",
+  },
+  {
+    slug: "one-continuous-slot",
+    title: "One continuous time slot",
+    category: "scope",
+    sortOrder: 20,
+    body: "Just to set expectations: the quoted price covers one continuous on-site session. If the work needs to be split across separate time slots (e.g. dismantle in the morning, reinstall in the evening), that counts as an extra trip and is charged separately.",
+  },
+  {
+    slug: "split-timing-charge",
+    title: "Split-timing extra charge",
+    category: "scope",
+    sortOrder: 30,
+    body: "Splitting the job into a morning dismantle and a later reinstall means our crew makes two separate trips, so an additional trip charge of {{trip_charge}} applies. We'll confirm this in writing before we proceed.",
+  },
+  {
+    slug: "after-office-surcharge",
+    title: "After-office surcharge",
+    category: "scope",
+    sortOrder: 40,
+    body: "Work that runs after {{after_office_cutoff}} is outside standard hours ({{working_hours}}) and carries a {{after_office_pct}} after-office surcharge. Let us know if you'd like to keep the job within standard hours instead.",
+  },
+  {
+    slug: "cancellation-under-window",
+    title: "Cancellation under notice window",
+    category: "cancellation",
+    sortOrder: 50,
+    body: "Cancellations need at least {{cancellation_window}} notice. As this is within {{cancellation_window}} of the scheduled slot, the deposit is forfeited because the slot and crew were already reserved.",
+  },
+  {
+    slug: "deposit-non-refundable",
+    title: "Deposit non-refundable",
+    category: "cancellation",
+    sortOrder: 60,
+    body: "Please note the deposit is non-refundable once your slot is reserved, except as set out in our cancellation policy. This protects the crew time we set aside for your job.",
+  },
+  {
+    slug: "goodwill-dismantling",
+    title: "Goodwill — dismantling",
+    category: "goodwill",
+    sortOrder: 70,
+    body: "As a goodwill gesture we can include the dismantling at no extra charge this time. This is a one-off and isn't part of the standard quoted scope.",
+  },
+  {
+    slug: "goodwill-refund-approved",
+    title: "Goodwill — refund approved",
+    category: "refund",
+    sortOrder: 80,
+    body: "We've reviewed your case and approved a goodwill refund. We'll process it to your original payment method shortly and send confirmation once it's done.",
+  },
+  {
+    slug: "refund-timing",
+    title: "Refund processing time",
+    category: "refund",
+    sortOrder: 90,
+    body: "Approved refunds are processed within {{refund_days}}. Once sent, it may take a little longer to appear depending on your bank.",
+  },
+  {
+    slug: "refer-to-quotation",
+    title: "Refer to quotation",
+    category: "general",
+    sortOrder: 100,
+    body: "The full scope, schedule and terms — including timing, surcharges and the cancellation/refund policy — are set out in your quotation, which you accepted before payment. Happy to walk you through any specific line.",
+  },
+];

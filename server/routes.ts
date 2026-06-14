@@ -9235,7 +9235,17 @@ Respond directly — no JSON, just the message text.`,
       termsAcceptedAt: (quote as any).termsAcceptedAt || null,
       termsAcceptedAmount: (quote as any).termsAcceptedAmount != null ? String((quote as any).termsAcceptedAmount) : null,
       termsAcceptedVersion: (quote as any).termsAcceptedVersion != null ? Number((quote as any).termsAcceptedVersion) : null,
+      termsAcceptedPdfRef: (quote as any).termsAcceptedPdfRef || null,
       version: Number((quote as any).version) || 1,
+      superseded: !!(quote as any).superseded,
+      // Cancellation / refund status (shown on the invoice when applicable)
+      cancellationRequestedAt: (quote as any).cancellationRequestedAt || null,
+      cancellationReason: (quote as any).cancellationReason || null,
+      refundApprovedAmount: (quote as any).refundApprovedAmount != null ? String((quote as any).refundApprovedAmount) : null,
+      refundReason: (quote as any).refundReason || null,
+      refundMethod: (quote as any).refundMethod || null,
+      refundDueByAt: (quote as any).refundDueByAt || null,
+      refundCompletedAt: (quote as any).refundCompletedAt || null,
       // Partial-payment ledger breakdown + running balance
       payments: ((quote as any).payments || []).map((p: any) => ({
         id: p.id,

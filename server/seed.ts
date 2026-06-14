@@ -1,7 +1,8 @@
 import { db } from "./db";
-import { users, catalogItems, faqEntries, cannedReplies } from "@shared/schema";
+import { users, catalogItems, faqEntries, cannedReplies, quickReplyTemplates } from "@shared/schema";
 import { eq, count, sql, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { DEFAULT_QUICK_REPLIES } from "@shared/businessRules";
 
 const ACCOUNTS = [
   { username: "admin", password: "Admin@TMG2026", role: "admin", name: "System Admin" },
@@ -3469,6 +3470,32 @@ export async function seedDatabase() {
     } as any);
 
     console.log(`[startup] Round 38: Common loose move items — inserted ${inserted} new relocate SKU row(s).`);
+  }
+
+  // Quick-reply template library — seed the dispute-scenario templates idempotently
+  // (by slug). Bodies keep {{placeholders}} so live business-rule values are
+  // substituted at render time. Existing edited templates are never overwritten.
+  let qrInserted = 0;
+  for (const tpl of DEFAULT_QUICK_REPLIES) {
+    const exists = await db
+      .select({ id: quickReplyTemplates.id })
+      .from(quickReplyTemplates)
+      .where(eq(quickReplyTemplates.slug, tpl.slug))
+      .limit(1);
+    if (exists.length === 0) {
+      await db.insert(quickReplyTemplates).values({
+        slug: tpl.slug,
+        title: tpl.title,
+        category: tpl.category,
+        body: tpl.body,
+        sortOrder: tpl.sortOrder,
+        active: true,
+      } as any);
+      qrInserted++;
+    }
+  }
+  if (qrInserted > 0) {
+    console.log(`[startup] Quick-reply templates — inserted ${qrInserted} new template(s).`);
   }
 
 }
