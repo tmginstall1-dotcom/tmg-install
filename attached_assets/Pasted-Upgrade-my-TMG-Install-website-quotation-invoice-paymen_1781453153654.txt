@@ -1,0 +1,234 @@
+Upgrade my TMG Install website, quotation, invoice, payment, PDF, email, and admin flow so all customer-facing rules are clear, consistent, and enforced before payment.
+
+Context:
+We had a dispute because the customer paid deposit after receiving a quote, but later wanted dismantling in the morning and reinstallation in the evening. Our quote included dismantle + reinstallation, but it was based on one continuous job slot. Split timing creates extra manpower/trip cost. Customer also said she did not know after-office timing has surcharge. We need the whole system to clearly show these rules before customer confirms and pays.
+
+Main goal:
+Prevent future misunderstanding by making all quote terms, invoice terms, booking terms, refund terms, and scheduling rules fully aligned across the website, admin panel, PDF quotation, invoice, payment page, confirmation email, and customer acceptance flow.
+
+Please implement the following:
+
+1. Add a central “Business Rules / Terms Settings” section in admin
+    Create editable settings so admin can update these rules without editing code:
+
+* Deposit percentage, default 50%.
+* Deposit is required to confirm booking.
+* Deposit is non-refundable once manpower and slot are reserved.
+* Cancellation less than 48 hours before appointment: deposit forfeited.
+* Refund processing time: within 1 business working day after receiving refund details.
+* Standard working hours.
+* Evening / after-office definition: after 5.30pm.
+* After-office surcharge: default 30%.
+* Split job rule: dismantle + reinstallation quote is based on one continuous job slot unless stated otherwise.
+* If customer requests morning dismantle and evening/another day installation, this is considered split timing and requires additional trip/manpower charge.
+* Additional trip/manpower charge field should be configurable.
+* Own mover / third-party mover disclaimer: any damage, missing parts, or transport issue caused by customer’s own mover is not under our responsibility.
+* Site condition disclaimer: final cost may change if access, stairs, lift restriction, parking, loading bay, hidden damage, missing parts, or extra work is different from information provided.
+* No debris disposal unless stated in quote.
+* Drilling extra hole rate, default S$5 per hole.
+
+2. Add clear customer acceptance before payment
+    Before customer can pay deposit, show a required checkbox:
+    “I have read and accepted the quotation, scope of work, booking terms, cancellation policy, deposit policy, and surcharge rules.”
+
+Record in database:
+
+* Customer accepted terms: yes/no.
+* Acceptance timestamp.
+* IP address if available.
+* Quote version accepted.
+* PDF quotation URL / snapshot accepted.
+* Payment timestamp.
+* Payment amount.
+* Accepted quote amount.
+
+Do not allow deposit payment unless checkbox is ticked.
+
+3. Upgrade quotation PDF
+    Every quotation PDF must clearly include:
+
+* Customer name.
+* Job address / from-to address.
+* Job date and time slot.
+* Scope of work.
+* Itemized breakdown.
+* Dismantle / installation / relocation scope.
+* Whether work is one continuous slot or split timing.
+* Whether after-office surcharge applies.
+* Deposit required.
+* Balance payable.
+* Terms and conditions section.
+
+Add this important wording inside the quotation:
+
+“Quoted price is based on the stated scope of work, address, date, time slot, and access condition. Any change of timing, additional trip, split schedule, after-office work, additional manpower, waiting time, access difficulty, or extra scope may require additional charges.”
+
+“Dismantle + reinstallation price is based on one continuous job arrangement unless stated otherwise. If dismantling and reinstallation are requested at different timings or on different days, this will be treated as split timing and additional trip/manpower charges may apply.”
+
+“Evening / after-office work refers to work scheduled after 5.30pm and may be subject to after-office surcharge unless waived in writing.”
+
+“Deposit payment confirms acceptance of this quotation and the terms stated. Booking slot and manpower will only be reserved after deposit payment.”
+
+“Cancellation less than 48 hours before the appointment may result in deposit forfeiture, as manpower and schedule would have already been reserved.”
+
+“Refunds, if approved by management as goodwill, will be processed within 1 business working day after receiving complete refund details.”
+
+4. Upgrade invoice layout
+    Invoices must match the same rules as quotations.
+    Add:
+
+* Original quote reference number.
+* Deposit paid.
+* Balance due.
+* Payment status.
+* Job status.
+* Accepted terms timestamp if available.
+* Cancellation/refund status if applicable.
+* Notes section for special arrangement.
+
+If refund is approved, invoice/admin should show:
+
+* Refund approved amount.
+* Refund reason.
+* Refund method.
+* Refund details received date.
+* Refund due by 1 business working day.
+* Refund completed date.
+* Internal admin note.
+
+5. Upgrade admin quote creation flow
+    When admin creates or reviews a quotation, add fields:
+
+* Is this one continuous job? yes/no.
+* Is this split timing? yes/no.
+* Dismantle date/time.
+* Reinstallation date/time.
+* Is after 5.30pm involved? yes/no.
+* Apply after-office surcharge? yes/no.
+* Waive after-office surcharge? yes/no, with admin reason.
+* Additional trip/manpower charge.
+* Special terms / remarks.
+* Customer own mover involved? yes/no.
+* Deposit refundable? default no.
+* Cancellation notice period: default 48 hours.
+
+If admin selects split timing or after-office time, show warning:
+“Please confirm surcharge/additional trip charge is added or waived in writing. This must be shown clearly in the quotation before payment.”
+
+6. Upgrade customer quote page
+    The customer quote page must show a clean summary before payment:
+
+* Total quote amount.
+* Deposit amount.
+* Balance amount.
+* Date/time slot.
+* Work scope.
+* Important terms.
+* Surcharge rules.
+* Cancellation rule.
+* Refund rule.
+* Required checkbox before payment.
+
+Add a short highlighted warning box:
+“Important: This quote is based on one continuous job slot unless stated otherwise. Split timing, after-office work after 5.30pm, extra trip, or additional manpower may require extra charges.”
+
+7. Email templates alignment
+    Update all customer emails to include matching terms:
+
+* Quote email.
+* Deposit payment request email.
+* Booking confirmation email.
+* Reminder email.
+* Cancellation email.
+* Refund confirmation email.
+* Job completed / balance payment email.
+
+Quote email should say:
+“Please review the quotation carefully before making deposit payment. Deposit payment confirms acceptance of the quotation, scope of work, schedule, and terms.”
+
+Booking confirmation email should say:
+“Your booking is confirmed based on the quoted scope, date, time slot, and terms accepted during payment.”
+
+Cancellation email should say:
+“As the booking slot and manpower were reserved, cancellation less than 48 hours before the appointment may result in deposit forfeiture according to the accepted quotation terms.”
+
+Refund email should say:
+“Your refund has been approved as a goodwill arrangement. Once we receive your refund details, it will be processed within 1 business working day.”
+
+8. Add quote version control
+    Every time admin edits a quote after sending:
+
+* Create new quote version.
+* Mark old quote version as superseded.
+* Customer must accept the latest version before paying.
+* Store which version was accepted.
+* PDF should show version number.
+
+9. Add internal dispute protection log
+    Create an internal log for each case:
+
+* Quote sent time.
+* Customer viewed quote time if possible.
+* Customer accepted terms time.
+* Deposit paid time.
+* Schedule reserved time.
+* Any admin changes.
+* Any customer cancellation request.
+* Any refund approval.
+* Any goodwill arrangement.
+
+This log is for admin only.
+
+10. Add admin quick reply templates
+    Create reusable WhatsApp/message templates in admin for:
+
+* Deposit required to confirm booking.
+* One continuous slot explanation.
+* Split timing additional charge.
+* After-office surcharge explanation.
+* Cancellation less than 48 hours.
+* Deposit non-refundable explanation.
+* Goodwill dismantling option.
+* Goodwill refund approval.
+* Refund timing: 1 business working day.
+* Ask customer to refer to quotation shared.
+
+Example quick replies:
+
+“Hi, please refer to the quotation shared earlier. Payment of deposit confirms acceptance of the quoted scope, schedule, and terms.”
+
+“Hi, the quote includes dismantle + reinstallation, but it is based on one continuous job slot. If dismantling and installation are at separate timings, this is considered split timing and additional trip/manpower charges may apply.”
+
+“Hi, evening / after-office timing refers to work after 5.30pm and may be subject to surcharge unless waived in writing.”
+
+“Hi, as the job is scheduled within less than 48 hours, the booking slot and manpower have already been reserved. Based on the accepted quotation terms, the deposit is non-refundable.”
+
+“Hi, after reviewing the matter, we will proceed with the refund as a goodwill arrangement. Once we receive your refund details, the refund will be processed within 1 business working day.”
+
+11. Data and compatibility
+    Do not break existing quotes, invoices, customers, cases, or payments.
+    Add database migration safely.
+    For existing quotes without accepted terms timestamp, show “Legacy quote — acceptance record not available.”
+    Make all new quotes use the new flow.
+12. Design requirements
+    Keep the design clean, professional, mobile-friendly, and suitable for Singapore customers.
+    Important terms should be visible, not hidden in tiny text.
+    Use clear sections, checkboxes, highlight boxes, and PDF-friendly formatting.
+    Ensure the quote/invoice PDF looks professional and easy to read.
+13. Testing
+    Test these scenarios:
+
+* Normal quote with one continuous job slot.
+* Quote with dismantle + reinstall same slot.
+* Quote with morning dismantle and evening reinstall.
+* Quote after 5.30pm with surcharge.
+* Admin waives after-office surcharge with reason.
+* Customer tries to pay without accepting terms.
+* Customer accepts terms and pays deposit.
+* Customer cancels less than 48 hours before appointment.
+* Refund approved as goodwill.
+* Invoice shows deposit, balance, refund status correctly.
+* Quote version changes after admin edit and customer must accept latest version.
+
+Final expected result:
+The whole website, quotation, invoice, payment, email, and admin workflow must clearly protect the company, reduce disputes, and ensure customers understand the quote terms before paying deposit.
