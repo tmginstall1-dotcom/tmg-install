@@ -65,6 +65,19 @@ if (process.env.ALLOWED_ORIGINS_EXTRA) {
     }
   }
 }
+// Allow the Replit-provided preview/deployment domains so the app works inside
+// the Replit webview (dev) and on the .replit.app deployment without manual
+// configuration. These are comma-separated bare hostnames (no scheme).
+for (const envName of ["REPLIT_DOMAINS", "REPLIT_DEV_DOMAIN"]) {
+  const value = process.env[envName];
+  if (!value) continue;
+  for (const raw of value.split(",")) {
+    const host = raw.trim();
+    if (host) {
+      try { ALLOWED_ORIGINS.add(new URL(`https://${host}`).origin); } catch { /* ignore malformed */ }
+    }
+  }
+}
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   const origin = req.headers.origin as string | undefined;

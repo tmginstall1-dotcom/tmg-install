@@ -25,3 +25,4 @@
 - [Multi-stop relocation](multi-stop-relocation.md) — additive; multi-stop iff groupStops().all.length>2; labels only via lib/stops.ts; transportFee=full logistics bucket; display surfaces must stay in lockstep.
 - [volumetricFee invariant](volumetric-fee-invariant.md) — volumetricFee is a display subset INSIDE transportFee (not a separate total addend); keep volumetricFee<=transportFee in lockstep on every edit path or the breakdown stops summing.
 - [Quote detail query-key](quote-query-key.md) — single-quote key is `['/api/quotes/:id', id]` (route pattern), NOT `['/api/quotes', id]`; wrong key leaves QuoteDetail panels stale after mutations.
+- [CSRF allowed-origins](csrf-allowed-origins.md) — add REPLIT_DOMAINS/REPLIT_DEV_DOMAIN to ALLOWED_ORIGINS or every POST 403s in the Replit preview/deploy env; GETs are exempt so they mask it.
