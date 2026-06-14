@@ -9,7 +9,7 @@ import {
  DollarSign, Phone, MessageCircle, Edit2, Save, X, Plus, Trash2, Calendar, XCircle, Camera,
  ClipboardList, CalendarCheck, Zap, BadgeCheck, AlertOctagon, Send, Loader2, Mail,
  Printer, Timer, QrCode, RotateCcw, Handshake, Sparkles, FileText, Copy, Users, PenLine, Wallet,
- ArrowRight, Route, Truck,
+ ArrowRight, Route, Truck, Shield,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -774,6 +774,43 @@ export default function AdminQuoteDetail() {
  },
  });
 
+ // ── Dispute-protection: acceptance record, dispute log, refund (Task #34) ──
+ const [disputeNote, setDisputeNote] = useState("");
+ const [showRefundForm, setShowRefundForm] = useState(false);
+ const [refundForm, setRefundForm] = useState({ refundApprovedAmount: "", refundReason: "", refundMethod: "", refundCompletedAt: "", refundInternalNote: "" });
+
+ const { data: disputeEvents = [] } = useQuery<any[]>({
+ queryKey: ['/api/admin/quotes', id, 'dispute-events'],
+ queryFn: async () => {
+ const res = await fetch(`/api/admin/quotes/${id}/dispute-events`, { credentials: "include" });
+ return res.json();
+ },
+ enabled: !!id,
+ });
+
+ const addDisputeEvent = useMutation({
+ mutationFn: (detail: string) => apiRequest("POST", `/api/admin/quotes/${id}/dispute-events`, { detail }),
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ['/api/admin/quotes', id, 'dispute-events'] });
+ setDisputeNote("");
+ toast({ title: "Note added to dispute log" });
+ },
+ onError: () => toast({ title: "Failed to add note", variant: "destructive" }),
+ });
+
+ const refundMutation = useMutation({
+ mutationFn: (body: any) => apiRequest("POST", `/api/admin/quotes/${id}/refund`, body),
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', id] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
+ queryClient.invalidateQueries({ queryKey: ['/api/admin/quotes', id, 'dispute-events'] });
+ setShowRefundForm(false);
+ setRefundForm({ refundApprovedAmount: "", refundReason: "", refundMethod: "", refundCompletedAt: "", refundInternalNote: "" });
+ toast({ title: "Refund recorded" });
+ },
+ onError: () => toast({ title: "Failed to record refund", variant: "destructive" }),
+ });
+
  // ── Subcontract state ──────────────────────────────────────────────────────
  const [showSubForm, setShowSubForm] = useState(false);
  const [subForm, setSubForm] = useState({ subcontractorId: "", agreedCost: "", notes: "" });
@@ -1046,6 +1083,21 @@ export default function AdminQuoteDetail() {
  poNumber: quote.poNumber || '',
  goodwillDiscount: quote.goodwillDiscount ? String(quote.goodwillDiscount) : '0',
  goodwillReason: quote.goodwillReason || '',
+ // Dispute-protection scope / timing / surcharge fields (Task #34).
+ timingMode: (quote as any).timingMode === 'split' ? 'split' : 'continuous',
+ dismantleAt: (quote as any).dismantleAt ? new Date((quote as any).dismantleAt).toISOString().slice(0, 10) : '',
+ dismantleTimeWindow: (quote as any).dismantleTimeWindow || '',
+ reinstallAt: (quote as any).reinstallAt ? new Date((quote as any).reinstallAt).toISOString().slice(0, 10) : '',
+ reinstallTimeWindow: (quote as any).reinstallTimeWindow || '',
+ afterOfficeInvolved: !!(quote as any).afterOfficeInvolved,
+ afterOfficeSurchargeAmount: (quote as any).afterOfficeSurchargeAmount ? String((quote as any).afterOfficeSurchargeAmount) : '0',
+ afterOfficeWaived: !!(quote as any).afterOfficeWaived,
+ afterOfficeWaiverReason: (quote as any).afterOfficeWaiverReason || '',
+ additionalTripCharge: (quote as any).additionalTripCharge ? String((quote as any).additionalTripCharge) : '0',
+ specialRemarks: (quote as any).specialRemarks || '',
+ ownMoverInvolved: !!(quote as any).ownMoverInvolved,
+ depositRefundable: (quote as any).depositRefundable ?? true,
+ cancellationNoticeHours: (quote as any).cancellationNoticeHours != null ? String((quote as any).cancellationNoticeHours) : '',
  });
  // Seed the multi-stop builder from stored stops; fall back to the legacy
  // single pickup/dropoff so existing relocation quotes edit cleanly.
@@ -1112,6 +1164,17 @@ export default function AdminQuoteDetail() {
  quoteUpdates: {
  ...editQuoteData,
  transportFee: editQuoteData.transportFee,
+ // Normalize dispute-protection (Task #34) fields to server-expected shapes.
+ dismantleAt: editQuoteData.timingMode === 'split' && editQuoteData.dismantleAt ? new Date(`${editQuoteData.dismantleAt}T00:00:00`).toISOString() : null,
+ reinstallAt: editQuoteData.timingMode === 'split' && editQuoteData.reinstallAt ? new Date(`${editQuoteData.reinstallAt}T00:00:00`).toISOString() : null,
+ dismantleTimeWindow: editQuoteData.timingMode === 'split' ? (editQuoteData.dismantleTimeWindow || null) : null,
+ reinstallTimeWindow: editQuoteData.timingMode === 'split' ? (editQuoteData.reinstallTimeWindow || null) : null,
+ afterOfficeSurchargeApplied: !!editQuoteData.afterOfficeInvolved && Number(editQuoteData.afterOfficeSurchargeAmount || 0) > 0,
+ afterOfficeSurchargeAmount: editQuoteData.afterOfficeSurchargeAmount ? String(editQuoteData.afterOfficeSurchargeAmount) : '0',
+ afterOfficeWaiverReason: editQuoteData.afterOfficeWaiverReason || null,
+ additionalTripCharge: editQuoteData.additionalTripCharge ? String(editQuoteData.additionalTripCharge) : '0',
+ specialRemarks: editQuoteData.specialRemarks || null,
+ cancellationNoticeHours: editQuoteData.cancellationNoticeHours !== '' && editQuoteData.cancellationNoticeHours != null ? Number(editQuoteData.cancellationNoticeHours) : undefined,
  // Multi-stop relocation (additive). Keep legacy single addresses in
  // sync with the first pickup/dropoff so all other surfaces reconcile.
  ...(isReloc && cleanStops.length > 0
@@ -2874,6 +2937,124 @@ export default function AdminQuoteDetail() {
  <p className="text-[11px] text-zinc-400">Leave hours at 0 to charge just the ${PricingConfig.secondDay.returnFee} return fee, then enter the actual Day-2 hours once the crew finishes.</p>
  </div>
  )}
+ {/* ── Dispute-protection: scope, timing & surcharges (Task #34) ── */}
+ <div className="border border-zinc-200 rounded-lg p-3 bg-zinc-50 space-y-3" data-testid="section-scope-timing">
+ <p className="text-xs font-semibold text-zinc-700">Scope, timing & surcharges</p>
+ {/* Timing mode */}
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">Job timing</label>
+ <div className="inline-flex rounded-md bg-zinc-100 p-0.5">
+ <button type="button" onClick={() => setEditQuoteData({ ...editQuoteData, timingMode: 'continuous' })}
+ data-testid="button-timing-continuous"
+ className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${editQuoteData.timingMode !== 'split' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200'}`}>
+ One continuous slot
+ </button>
+ <button type="button" onClick={() => setEditQuoteData({ ...editQuoteData, timingMode: 'split' })}
+ data-testid="button-timing-split"
+ className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${editQuoteData.timingMode === 'split' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200'}`}>
+ Split (dismantle + reinstall)
+ </button>
+ </div>
+ </div>
+ {editQuoteData.timingMode === 'split' && (
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">Dismantle date</label>
+ <input type="date" value={editQuoteData.dismantleAt || ''} onChange={e => setEditQuoteData({ ...editQuoteData, dismantleAt: e.target.value })}
+ data-testid="input-dismantle-date"
+ className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ </div>
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">Dismantle time window</label>
+ <input type="text" placeholder="e.g. 9am–12pm" value={editQuoteData.dismantleTimeWindow || ''} onChange={e => setEditQuoteData({ ...editQuoteData, dismantleTimeWindow: e.target.value })}
+ data-testid="input-dismantle-window"
+ className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ </div>
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">Reinstall date</label>
+ <input type="date" value={editQuoteData.reinstallAt || ''} onChange={e => setEditQuoteData({ ...editQuoteData, reinstallAt: e.target.value })}
+ data-testid="input-reinstall-date"
+ className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ </div>
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">Reinstall time window</label>
+ <input type="text" placeholder="e.g. 2pm–5pm" value={editQuoteData.reinstallTimeWindow || ''} onChange={e => setEditQuoteData({ ...editQuoteData, reinstallTimeWindow: e.target.value })}
+ data-testid="input-reinstall-window"
+ className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ </div>
+ </div>
+ )}
+ {/* After-office surcharge */}
+ <label className="flex items-start gap-2.5 cursor-pointer select-none" data-testid="toggle-after-office">
+ <input type="checkbox" checked={!!editQuoteData.afterOfficeInvolved}
+ onChange={e => setEditQuoteData({ ...editQuoteData, afterOfficeInvolved: e.target.checked })}
+ className="mt-0.5 w-4 h-4 rounded border-zinc-300 text-[#0A0A0A] focus:ring-[#0A0A0A]" />
+ <span>
+ <span className="block text-sm font-medium text-zinc-900">After-office work involved</span>
+ <span className="block text-xs text-zinc-500 mt-0.5">Work expected to run past standard hours; add the surcharge amount below.</span>
+ </span>
+ </label>
+ {editQuoteData.afterOfficeInvolved && (
+ <div className="pl-6 space-y-2">
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">After-office surcharge</label>
+ <div className="relative w-32">
+ <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">$</span>
+ <input type="number" min="0" step="0.01" value={editQuoteData.afterOfficeSurchargeAmount || '0'} onChange={e => setEditQuoteData({ ...editQuoteData, afterOfficeSurchargeAmount: e.target.value })}
+ data-testid="input-after-office-amount"
+ className="h-9 w-full pl-6 pr-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ </div>
+ </div>
+ <label className="flex items-start gap-2.5 cursor-pointer select-none" data-testid="toggle-after-office-waived">
+ <input type="checkbox" checked={!!editQuoteData.afterOfficeWaived}
+ onChange={e => setEditQuoteData({ ...editQuoteData, afterOfficeWaived: e.target.checked })}
+ className="mt-0.5 w-4 h-4 rounded border-zinc-300 text-[#0A0A0A] focus:ring-[#0A0A0A]" />
+ <span className="block text-sm font-medium text-zinc-900">Waive this surcharge (charge $0)</span>
+ </label>
+ {editQuoteData.afterOfficeWaived && (
+ <input type="text" placeholder="Reason for waiver (shown on quote)" value={editQuoteData.afterOfficeWaiverReason || ''} onChange={e => setEditQuoteData({ ...editQuoteData, afterOfficeWaiverReason: e.target.value })}
+ data-testid="input-after-office-waiver-reason"
+ className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ )}
+ </div>
+ )}
+ {/* Additional trip charge */}
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">Additional trip / manpower charge</label>
+ <div className="relative w-32">
+ <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">$</span>
+ <input type="number" min="0" step="0.01" value={editQuoteData.additionalTripCharge || '0'} onChange={e => setEditQuoteData({ ...editQuoteData, additionalTripCharge: e.target.value })}
+ data-testid="input-additional-trip"
+ className="h-9 w-full pl-6 pr-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ </div>
+ </div>
+ {/* Special remarks */}
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">Special remarks (shown to customer)</label>
+ <textarea value={editQuoteData.specialRemarks || ''} onChange={e => setEditQuoteData({ ...editQuoteData, specialRemarks: e.target.value })}
+ data-testid="input-special-remarks" rows={2}
+ className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ </div>
+ {/* Own mover + deposit refundable + cancellation window */}
+ <label className="flex items-start gap-2.5 cursor-pointer select-none" data-testid="toggle-own-mover">
+ <input type="checkbox" checked={!!editQuoteData.ownMoverInvolved}
+ onChange={e => setEditQuoteData({ ...editQuoteData, ownMoverInvolved: e.target.checked })}
+ className="mt-0.5 w-4 h-4 rounded border-zinc-300 text-[#0A0A0A] focus:ring-[#0A0A0A]" />
+ <span className="block text-sm font-medium text-zinc-900">Customer's own mover / transport involved</span>
+ </label>
+ <label className="flex items-start gap-2.5 cursor-pointer select-none" data-testid="toggle-deposit-refundable">
+ <input type="checkbox" checked={editQuoteData.depositRefundable !== false}
+ onChange={e => setEditQuoteData({ ...editQuoteData, depositRefundable: e.target.checked })}
+ className="mt-0.5 w-4 h-4 rounded border-zinc-300 text-[#0A0A0A] focus:ring-[#0A0A0A]" />
+ <span className="block text-sm font-medium text-zinc-900">Deposit refundable (subject to cancellation policy)</span>
+ </label>
+ <div>
+ <label className="text-xs font-medium text-zinc-500 block mb-1.5">Cancellation notice (hours) — blank uses default</label>
+ <input type="number" min="0" step="1" value={editQuoteData.cancellationNoticeHours ?? ''} onChange={e => setEditQuoteData({ ...editQuoteData, cancellationNoticeHours: e.target.value })}
+ data-testid="input-cancellation-hours"
+ className="h-9 w-32 px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ </div>
+ </div>
  {(() => {
  const summary = computeSiteTime((quote.siteVisits as SiteVisit[] | undefined) || []);
  if (summary.days.length === 0) return null;
@@ -3135,6 +3316,144 @@ export default function AdminQuoteDetail() {
  <AlertTriangle className="w-3.5 h-3.5" /> Internal Notes
  </h3>
  <p className="text-sm text-amber-900 whitespace-pre-wrap leading-relaxed">{quote.notes}</p>
+ </div>
+ )}
+
+ {/* ── Terms acceptance, dispute log & refund (Task #34) ───────────── */}
+ {!isEditing && (
+ <div className="bg-white border border-zinc-200 rounded-none overflow-hidden" data-testid="section-dispute-protection">
+ <div className="flex items-center justify-between px-5 py-3.5 bg-zinc-50 border-b border-zinc-200">
+ <h3 className="text-xs font-semibold text-zinc-600 uppercase tracking-wider flex items-center gap-2">
+ <Shield className="w-3.5 h-3.5" /> Terms, Acceptance & Disputes
+ </h3>
+ <span className="text-[11px] font-medium text-zinc-500" data-testid="text-quote-version">
+ v{(quote as any).version || 1}{(quote as any).superseded ? " (superseded)" : ""}
+ </span>
+ </div>
+
+ <div className="px-5 py-4 space-y-4">
+ {/* Acceptance record */}
+ <div className="rounded-lg border border-zinc-200 p-3" data-testid="block-acceptance-record">
+ <p className="text-xs font-semibold text-zinc-700 mb-1.5">Customer acceptance</p>
+ {(quote as any).termsAcceptedAt ? (
+ <div className="text-xs text-zinc-600 space-y-0.5" data-testid="text-accepted">
+ <p>Accepted <span className="font-medium text-zinc-900">{new Date((quote as any).termsAcceptedAt).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}</span></p>
+ <p>Version accepted: v{(quote as any).termsAcceptedVersion ?? '—'} · Amount: ${Number((quote as any).termsAcceptedAmount || 0).toFixed(2)}</p>
+ {(quote as any).termsAcceptedIp && <p className="text-zinc-400">IP: {(quote as any).termsAcceptedIp}</p>}
+ </div>
+ ) : (
+ <p className="text-xs text-amber-700" data-testid="text-not-accepted">Not yet accepted by customer. Deposit checkout is blocked until they accept on the quote page.</p>
+ )}
+ </div>
+
+ {/* Cancellation request */}
+ {(quote as any).cancellationRequestedAt && (
+ <div className="rounded-lg border border-amber-200 bg-amber-50 p-3" data-testid="block-cancellation">
+ <p className="text-xs font-semibold text-amber-800 mb-1">Cancellation requested</p>
+ <p className="text-xs text-amber-900">{new Date((quote as any).cancellationRequestedAt).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}</p>
+ {(quote as any).cancellationReason && <p className="text-xs text-amber-900 mt-1 whitespace-pre-wrap">Reason: {(quote as any).cancellationReason}</p>}
+ </div>
+ )}
+
+ {/* Refund record / action */}
+ <div className="rounded-lg border border-zinc-200 p-3" data-testid="block-refund">
+ <div className="flex items-center justify-between mb-1.5">
+ <p className="text-xs font-semibold text-zinc-700">Refund</p>
+ <button type="button" data-testid="button-toggle-refund" onClick={() => setShowRefundForm(v => !v)}
+ className="text-xs font-medium text-[#0A0A0A] hover:underline">{showRefundForm ? 'Close' : 'Record refund'}</button>
+ </div>
+ {(quote as any).refundApprovedAmount != null && (
+ <div className="text-xs text-zinc-600 space-y-0.5 mb-2" data-testid="text-refund-record">
+ <p>Approved: <span className="font-medium text-zinc-900">${Number((quote as any).refundApprovedAmount || 0).toFixed(2)}</span>{(quote as any).refundMethod ? ` · ${(quote as any).refundMethod}` : ''}</p>
+ {(quote as any).refundReason && <p>Reason: {(quote as any).refundReason}</p>}
+ {(quote as any).refundDueByAt && <p>Due by: {new Date((quote as any).refundDueByAt).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' })}</p>}
+ {(quote as any).refundCompletedAt && <p className="text-emerald-700">Completed: {new Date((quote as any).refundCompletedAt).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' })}</p>}
+ </div>
+ )}
+ {showRefundForm && (
+ <div className="space-y-2 pt-2 border-t border-zinc-100">
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+ <div>
+ <label className="text-[11px] font-medium text-zinc-500 block mb-1">Approved amount</label>
+ <div className="relative">
+ <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+ <input type="number" min="0" step="0.01" value={refundForm.refundApprovedAmount} onChange={e => setRefundForm(f => ({ ...f, refundApprovedAmount: e.target.value }))}
+ data-testid="input-refund-amount"
+ className="h-8 w-full pl-6 pr-2 border border-zinc-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]" />
+ </div>
+ </div>
+ <div>
+ <label className="text-[11px] font-medium text-zinc-500 block mb-1">Method</label>
+ <input type="text" placeholder="PayNow / bank transfer" value={refundForm.refundMethod} onChange={e => setRefundForm(f => ({ ...f, refundMethod: e.target.value }))}
+ data-testid="input-refund-method"
+ className="h-8 w-full px-2 border border-zinc-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]" />
+ </div>
+ </div>
+ <div>
+ <label className="text-[11px] font-medium text-zinc-500 block mb-1">Reason</label>
+ <input type="text" value={refundForm.refundReason} onChange={e => setRefundForm(f => ({ ...f, refundReason: e.target.value }))}
+ data-testid="input-refund-reason"
+ className="h-8 w-full px-2 border border-zinc-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]" />
+ </div>
+ <div>
+ <label className="text-[11px] font-medium text-zinc-500 block mb-1">Completed date (leave blank if still processing)</label>
+ <input type="date" value={refundForm.refundCompletedAt} onChange={e => setRefundForm(f => ({ ...f, refundCompletedAt: e.target.value }))}
+ data-testid="input-refund-completed"
+ className="h-8 w-full px-2 border border-zinc-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]" />
+ </div>
+ <div>
+ <label className="text-[11px] font-medium text-zinc-500 block mb-1">Internal note (not shown to customer)</label>
+ <input type="text" value={refundForm.refundInternalNote} onChange={e => setRefundForm(f => ({ ...f, refundInternalNote: e.target.value }))}
+ data-testid="input-refund-internal-note"
+ className="h-8 w-full px-2 border border-zinc-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]" />
+ </div>
+ <button type="button" disabled={refundMutation.isPending || !refundForm.refundApprovedAmount}
+ data-testid="button-save-refund"
+ onClick={() => refundMutation.mutate({
+ refundApprovedAmount: refundForm.refundApprovedAmount,
+ refundReason: refundForm.refundReason || undefined,
+ refundMethod: refundForm.refundMethod || undefined,
+ refundCompletedAt: refundForm.refundCompletedAt ? new Date(`${refundForm.refundCompletedAt}T00:00:00`).toISOString() : undefined,
+ refundInternalNote: refundForm.refundInternalNote || undefined,
+ })}
+ className="h-8 px-3 bg-zinc-900 text-white text-xs font-semibold rounded-lg hover:bg-zinc-800 disabled:opacity-50">
+ {refundMutation.isPending ? 'Saving…' : 'Save refund'}
+ </button>
+ </div>
+ )}
+ </div>
+
+ {/* Dispute / activity log */}
+ <div data-testid="block-dispute-log">
+ <p className="text-xs font-semibold text-zinc-700 mb-2">Dispute & activity log</p>
+ <div className="space-y-2 max-h-64 overflow-y-auto">
+ {disputeEvents.length === 0 ? (
+ <p className="text-xs text-zinc-400">No events logged yet.</p>
+ ) : (
+ disputeEvents.map((ev: any) => (
+ <div key={ev.id} className="text-xs border-l-2 border-zinc-200 pl-3 py-0.5" data-testid={`row-dispute-event-${ev.id}`}>
+ <div className="flex items-center justify-between">
+ <span className="font-medium text-zinc-800">{(ev.eventType || 'event').replace(/_/g, ' ')}</span>
+ <span className="text-zinc-400">{ev.createdAt ? new Date(ev.createdAt).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }) : ''}</span>
+ </div>
+ {ev.detail && <p className="text-zinc-600 mt-0.5 whitespace-pre-wrap">{ev.detail}</p>}
+ {ev.actorType && ev.actorType !== 'system' && <p className="text-zinc-400 mt-0.5">by {ev.actorType}</p>}
+ </div>
+ ))
+ )}
+ </div>
+ <div className="flex items-center gap-2 mt-3">
+ <input type="text" value={disputeNote} onChange={e => setDisputeNote(e.target.value)}
+ placeholder="Add a note to the log…" data-testid="input-dispute-note"
+ onKeyDown={e => { if (e.key === 'Enter' && disputeNote.trim()) addDisputeEvent.mutate(disputeNote.trim()); }}
+ className="h-8 flex-1 px-2 border border-zinc-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]" />
+ <button type="button" disabled={addDisputeEvent.isPending || !disputeNote.trim()}
+ data-testid="button-add-dispute-note"
+ onClick={() => addDisputeEvent.mutate(disputeNote.trim())}
+ className="h-8 px-3 bg-zinc-900 text-white text-xs font-semibold rounded-lg hover:bg-zinc-800 disabled:opacity-50">Add</button>
+ </div>
+ </div>
+ </div>
  </div>
  )}
 

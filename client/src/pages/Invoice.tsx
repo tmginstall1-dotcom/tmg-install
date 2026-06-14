@@ -67,7 +67,25 @@ type InvoicePayload = {
   payments?: { id: number; amount: string; method: string; note: string | null; paidAt: string | null }[];
   amountPaid?: string;
   balanceDue?: string;
+  // ── Dispute-protection: scope / timing / surcharge presentation ──
+  timingMode?: string | null;
+  dismantleAt?: string | null;
+  dismantleTimeWindow?: string | null;
+  reinstallAt?: string | null;
+  reinstallTimeWindow?: string | null;
+  afterOfficeInvolved?: boolean;
+  afterOfficeSurchargeApplied?: boolean;
+  afterOfficeSurchargeAmount?: string;
+  afterOfficeWaived?: boolean;
+  additionalTripCharge?: string;
+  specialRemarks?: string | null;
+  termsAcceptedAt?: string | null;
+  termsAcceptedAmount?: string | null;
+  termsAcceptedVersion?: number | null;
+  version?: number | null;
 };
+
+type PolicyClause = { title: string; body: string };
 
 const money = (v: any) =>
   `S$${Number(v || 0).toLocaleString("en-SG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -81,6 +99,20 @@ export default function Invoice() {
   const [data, setData] = useState<InvoicePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [policyClauses, setPolicyClauses] = useState<PolicyClause[]>([]);
+
+  // Business-rules policy clauses — shared source of truth so the invoice
+  // wording matches the customer quote page, emails and admin screens.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/business-rules")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => {
+        if (!cancelled && body && Array.isArray(body.clauses)) setPolicyClauses(body.clauses);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,11 +140,11 @@ export default function Invoice() {
     }
     if (params.get("download") === "1") {
       const t = setTimeout(() => {
-        try { downloadInvoicePdf(data); } catch (e) { console.error("PDF download failed", e); }
+        try { downloadInvoicePdf({ ...data, policyClauses }); } catch (e) { console.error("PDF download failed", e); }
       }, 350);
       return () => clearTimeout(t);
     }
-  }, [data]);
+  }, [data, policyClauses]);
 
   return (
     <>
@@ -136,7 +168,7 @@ export default function Invoice() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => data && downloadInvoicePdf(data)}
+              onClick={() => data && downloadInvoicePdf({ ...data, policyClauses })}
               disabled={!data}
               className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
               data-testid="button-download-invoice-pdf"
@@ -398,6 +430,18 @@ export default function Invoice() {
                       <span className="font-medium">{money(data.secondDayFee)}</span>
                     </div>
                   )}
+                  {Number(data.additionalTripCharge || 0) > 0 && (
+                    <div className="flex justify-between text-gray-700" data-testid="invoice-additional-trip">
+                      <span>Additional trip / manpower</span>
+                      <span className="font-medium">{money(data.additionalTripCharge)}</span>
+                    </div>
+                  )}
+                  {!data.afterOfficeWaived && data.afterOfficeSurchargeApplied && Number(data.afterOfficeSurchargeAmount || 0) > 0 && (
+                    <div className="flex justify-between text-gray-700" data-testid="invoice-after-office-surcharge">
+                      <span>After-office surcharge</span>
+                      <span className="font-medium">{money(data.afterOfficeSurchargeAmount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between pt-2 mt-1 border-t-2 border-gray-900 font-black text-base text-gray-900">
                     <span>Grand Total</span>
                     <span data-testid="text-invoice-total">{money(data.total)}</span>
@@ -473,6 +517,49 @@ export default function Invoice() {
               </div>
             </div>
 
+            {/* Schedule, scope & acceptance notes */}
+            {(data.timingMode === "split" || (data.afterOfficeWaived && data.afterOfficeInvolved) || data.specialRemarks || data.termsAcceptedAt) && (
+              <div className="px-7 pb-5">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Schedule & Scope Notes</div>
+                <div className="space-y-1 text-[12px] text-gray-700" data-testid="invoice-scope-notes">
+                  {data.timingMode === "split" && (
+                    <>
+                      <div data-testid="invoice-split-dismantle">
+                        <span className="text-gray-500">Split timing — Dismantle:</span>{" "}
+                        <span className="font-medium text-gray-800">{dt(data.dismantleAt)}{data.dismantleTimeWindow ? ` · ${data.dismantleTimeWindow}` : ""}</span>
+                      </div>
+                      <div data-testid="invoice-split-reinstall">
+                        <span className="text-gray-500">Split timing — Reinstall:</span>{" "}
+                        <span className="font-medium text-gray-800">{dt(data.reinstallAt)}{data.reinstallTimeWindow ? ` · ${data.reinstallTimeWindow}` : ""}</span>
+                      </div>
+                    </>
+                  )}
+                  {data.afterOfficeWaived && data.afterOfficeInvolved && (
+                    <div data-testid="invoice-after-office-waived">
+                      <span className="text-gray-500">After-office surcharge:</span>{" "}
+                      <span className="font-medium text-gray-800">Waived</span>
+                    </div>
+                  )}
+                  {data.specialRemarks && (
+                    <div data-testid="invoice-special-remarks">
+                      <span className="text-gray-500">Special remarks:</span>{" "}
+                      <span className="font-medium text-gray-800 whitespace-pre-line">{data.specialRemarks}</span>
+                    </div>
+                  )}
+                  {data.termsAcceptedAt && (
+                    <div className="text-emerald-700 flex items-center gap-1.5" data-testid="invoice-terms-accepted">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        Terms accepted: {dt(data.termsAcceptedAt, true)}
+                        {data.termsAcceptedVersion != null ? ` · quote v${data.termsAcceptedVersion}` : ""}
+                        {data.termsAcceptedAmount != null ? ` · at ${money(data.termsAcceptedAmount)}` : ""}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Standard Terms & Conditions */}
             <div className="px-7 py-5 border-t border-gray-100">
               {data.items.some((it) => it.serviceType === "relocate") && (
@@ -485,6 +572,19 @@ export default function Invoice() {
                 />
               )}
               <QuoteTermsBlock isRelocation={data.items.some((it) => it.serviceType === "relocate")} />
+
+              {policyClauses.length > 0 && (
+                <div className="mt-5 pt-4 border-t border-gray-100" data-testid="invoice-policy-summary">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Terms &amp; Policy</div>
+                  <ol className="list-decimal pl-4 space-y-1 text-[11px] text-gray-500 leading-relaxed">
+                    {policyClauses.map((c, i) => (
+                      <li key={i} data-testid={`invoice-policy-clause-${i}`}>
+                        <span className="font-semibold text-gray-700">{c.title}:</span> {c.body}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
             </div>
 
             {/* Footer */}

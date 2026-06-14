@@ -27,6 +27,8 @@ import {
   commercialBookingConfirmEmail,
   commercialInvoiceEmail,
   caseClosedEmail,
+  cancellationEmail,
+  refundEmail,
   newEstimateAdminAlert,
   staffGpsSummaryEmail,
   computeGpsStops,
@@ -49,6 +51,8 @@ import { getPackage } from "@shared/packages";
 // every customer-facing surface and the reconciliation tests share one rule.
 import { db } from "./db";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable, quoteStopSchema } from "@shared/schema";
+import { termsAcceptedForCurrentVersion, getBusinessPolicyClauses, getBusinessPolicyText, BusinessRuleFields, type BusinessRules } from "@shared/businessRules";
+import { loadBusinessRules, saveBusinessRules } from "./businessRules";
 import { aiWhatsappFollowups as aiWaFollowupsTable, aiWhatsappHandoffs as aiWaHandoffsTable, aiAuditLog as aiAuditLogTable, aiFeatureFlags, customerRatings } from "@shared/schema";
 import { eq, and, or, isNull, desc, gte, lte, sql as drizzleSql, inArray } from "drizzle-orm";
 
@@ -673,7 +677,7 @@ async function sendCaseClosedNotifications(quote: any): Promise<void> {
     closedViaMail = await sendEmail({
       to: quote.customer.email,
       subject: `[${ref}] Payment Received — Case Closed`,
-      html: caseClosedEmail(quote, reviewUrl),
+      html: caseClosedEmail(quote, reviewUrl, await loadBusinessRules()),
     });
     if (closedViaMail) console.log(`[Closed] Receipt email → ${quote.customer.email} for ${ref}`);
     else               console.error(`[Closed] Receipt email FAILED for ${ref}`);
@@ -1694,7 +1698,7 @@ export async function registerRoutes(
               subject: fullPayWh
                 ? `[${quote.referenceNo}] Payment Received in Full — Slot Confirmed!`
                 : `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
-              html: depositReceivedEmail(quote),
+              html: depositReceivedEmail(quote, await loadBusinessRules()),
             });
           }
           console.log(`Stripe webhook: deposit paid for ${quote.referenceNo} (SGD ${amountPaid})`);
@@ -4547,7 +4551,7 @@ ${systemPrompt}` });
           quote.customer.email.includes("@");
 
         if (hasRealEmail) {
-          const emailHtml = depositRequestEmail(quote, paymentLink);
+          const emailHtml = depositRequestEmail(quote, paymentLink, undefined, await loadBusinessRules());
           const sent = await sendEmail({
             to: quote.customer.email,
             subject: `[${quote.referenceNo}] ${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment Required" : "Deposit Payment Required"} — TMG Install`,
@@ -4648,7 +4652,7 @@ ${systemPrompt}` });
           !quote.customer.email.endsWith("@tmginstall.com") &&
           quote.customer.email.includes("@");
         if (hasRealEmailDep) {
-          const emailHtml = depositReceivedEmail(quote);
+          const emailHtml = depositReceivedEmail(quote, await loadBusinessRules());
           await sendEmail({
             to: quote.customer.email,
             subject: fullPayDep
@@ -4689,6 +4693,17 @@ ${systemPrompt}` });
       let description: string;
 
       if (type === "deposit") {
+        // Dispute-protection: the customer must explicitly accept the current
+        // version of the quote terms before any first (deposit/full) payment.
+        // Legacy quotes created before this feature have version 1 and a null
+        // acceptance; once a quote reaches deposit checkout the customer page
+        // collects acceptance first, so block here if it is missing/stale.
+        if (!termsAcceptedForCurrentVersion(quote)) {
+          return res.status(409).json({
+            code: "TERMS_NOT_ACCEPTED",
+            message: "Please review and accept the quote terms before paying.",
+          });
+        }
         amount = depositPaidFallback(parseFloat(quote.total || "0"), quote.depositAmount);
         description = `${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment" : "Deposit"} for ${quote.referenceNo} — TMG Install`;
       } else {
@@ -4786,7 +4801,7 @@ ${systemPrompt}` });
               subject: fullPayVp
                 ? `[${quote.referenceNo}] Payment Received in Full — Slot Confirmed!`
                 : `[${quote.referenceNo}] Deposit Received — Slot Confirmed!`,
-              html: depositReceivedEmail(quote),
+              html: depositReceivedEmail(quote, await loadBusinessRules()),
             });
           }
           // Send tracker link via WhatsApp (fallback to customer.phone for web-booked)
@@ -4878,7 +4893,7 @@ ${systemPrompt}` });
 
       // Send booking confirmation email to customer
       if (quote.customer) {
-        const emailHtml = bookingConfirmationEmail(quote);
+        const emailHtml = bookingConfirmationEmail(quote, await loadBusinessRules());
         await sendEmail({
           to: quote.customer.email,
           subject: `[${quote.referenceNo}] Booking Confirmed ✅ — TMG Install`,
@@ -4939,7 +4954,7 @@ ${systemPrompt}` });
 
       // Send reschedule confirmation to customer
       if (quote.customer) {
-        const emailHtml = rescheduleConfirmationEmail(quote);
+        const emailHtml = rescheduleConfirmationEmail(quote, await loadBusinessRules());
         await sendEmail({
           to: quote.customer.email,
           subject: `[${quote.referenceNo}] Reschedule Request Received`,
@@ -5456,6 +5471,22 @@ ${systemPrompt}` });
           // String to match the numeric column type used elsewhere.
           goodwillDiscount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").optional(),
           goodwillReason: z.string().max(500).nullable().optional(),
+          // ── Dispute-protection: scope / timing / surcharge fields ──────────
+          timingMode: z.enum(['continuous', 'split']).optional(),
+          dismantleAt: z.string().datetime().optional().nullable().transform(v => v ? new Date(v) : v),
+          dismantleTimeWindow: z.string().nullable().optional(),
+          reinstallAt: z.string().datetime().optional().nullable().transform(v => v ? new Date(v) : v),
+          reinstallTimeWindow: z.string().nullable().optional(),
+          afterOfficeInvolved: z.boolean().optional(),
+          afterOfficeSurchargeApplied: z.boolean().optional(),
+          afterOfficeSurchargeAmount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").optional(),
+          afterOfficeWaived: z.boolean().optional(),
+          afterOfficeWaiverReason: z.string().max(500).nullable().optional(),
+          additionalTripCharge: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").optional(),
+          specialRemarks: z.string().max(2000).nullable().optional(),
+          ownMoverInvolved: z.boolean().optional(),
+          depositRefundable: z.boolean().optional(),
+          cancellationNoticeHours: z.coerce.number().int().min(0).max(720).optional(),
         }).optional(),
         items: z.array(z.object({
           catalogItemId: z.number().nullable().optional(),
@@ -5472,6 +5503,29 @@ ${systemPrompt}` });
 
       const updated = await storage.editQuote(id, { customerUpdates, quoteUpdates, items });
       if (!updated) return res.status(404).json({ message: "Quote not found" });
+
+      // Dispute-protection: if this quote was ALREADY accepted by the customer
+      // and the admin changed its scope/price/timing, invalidate the prior
+      // acceptance by bumping the version so the customer must re-accept the
+      // updated terms before paying. Status-only or note-only edits don't bump.
+      const scopeOrPriceChanged =
+        items !== undefined ||
+        quoteUpdates?.transportFee !== undefined ||
+        quoteUpdates?.volumetricFee !== undefined ||
+        quoteUpdates?.goodwillDiscount !== undefined ||
+        quoteUpdates?.secondDayContinuation !== undefined ||
+        quoteUpdates?.secondDayHours !== undefined ||
+        quoteUpdates?.secondDayCrewSize !== undefined ||
+        quoteUpdates?.additionalTripCharge !== undefined ||
+        quoteUpdates?.afterOfficeSurchargeAmount !== undefined ||
+        quoteUpdates?.afterOfficeWaived !== undefined ||
+        quoteUpdates?.timingMode !== undefined ||
+        quoteUpdates?.scheduledAt !== undefined ||
+        quoteUpdates?.timeWindow !== undefined;
+      if (existing.termsAcceptedAt && !existing.finalPaidAt && scopeOrPriceChanged) {
+        const reVersioned = await storage.bumpQuoteVersion(id);
+        return res.json(reVersioned ?? updated);
+      }
       res.json(updated);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -5553,7 +5607,7 @@ ${systemPrompt}` });
 
       // ── Channel 1: Email ──────────────────────────────────────────────────
       if (hasRealEmail) {
-        const emailHtml = finalPaymentEmail(quote, paymentLink, { balanceDue: finalAmount, paymentsReceived: ledgerPaid });
+        const emailHtml = finalPaymentEmail(quote, paymentLink, { balanceDue: finalAmount, paymentsReceived: ledgerPaid }, await loadBusinessRules());
         emailOk = await sendEmail({
           to: quote.customer.email,
           subject: `[${quote.referenceNo}] Final Payment Due — TMG Install`,
@@ -6629,7 +6683,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
           await sendEmail({
             to: quote.customer.email,
             subject: `Estimate Received — ${quote.referenceNo} | TMG Install`,
-            html: estimateSubmittedEmail(quote),
+            html: estimateSubmittedEmail(quote, await loadBusinessRules()),
           });
         }
       } catch (custEmailErr) {
@@ -8782,7 +8836,7 @@ Respond directly — no JSON, just the message text.`,
 
       // ── Channel 1: Email ──────────────────────────────────────────────────
       if (hasRealEmail) {
-        const emailHtml = depositRequestEmail(quote, paymentLink);
+        const emailHtml = depositRequestEmail(quote, paymentLink, undefined, await loadBusinessRules());
         emailResendOk = await sendEmail({
           to: quote.customer!.email,
           subject: `[${quote.referenceNo}] ${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment Required" : "Deposit Payment Required"} — TMG Install`,
@@ -9165,6 +9219,23 @@ Respond directly — no JSON, just the message text.`,
       finalAmount: finalAmt.toFixed(2),
       finalPaidAt: quote.finalPaidAt || null,
       paidInFull,
+      // ── Dispute-protection: scope / timing / surcharge presentation ─────────
+      timingMode: (quote as any).timingMode || "continuous",
+      dismantleAt: (quote as any).dismantleAt || null,
+      dismantleTimeWindow: (quote as any).dismantleTimeWindow || null,
+      reinstallAt: (quote as any).reinstallAt || null,
+      reinstallTimeWindow: (quote as any).reinstallTimeWindow || null,
+      afterOfficeInvolved: !!(quote as any).afterOfficeInvolved,
+      afterOfficeSurchargeApplied: !!(quote as any).afterOfficeSurchargeApplied,
+      afterOfficeSurchargeAmount: String((quote as any).afterOfficeSurchargeAmount || "0"),
+      afterOfficeWaived: !!(quote as any).afterOfficeWaived,
+      additionalTripCharge: String((quote as any).additionalTripCharge || "0"),
+      specialRemarks: (quote as any).specialRemarks || null,
+      // Terms-acceptance record (shown on the quotation/invoice when present)
+      termsAcceptedAt: (quote as any).termsAcceptedAt || null,
+      termsAcceptedAmount: (quote as any).termsAcceptedAmount != null ? String((quote as any).termsAcceptedAmount) : null,
+      termsAcceptedVersion: (quote as any).termsAcceptedVersion != null ? Number((quote as any).termsAcceptedVersion) : null,
+      version: Number((quote as any).version) || 1,
       // Partial-payment ledger breakdown + running balance
       payments: ((quote as any).payments || []).map((p: any) => ({
         id: p.id,
@@ -9400,7 +9471,7 @@ Respond directly — no JSON, just the message text.`,
             subject: fullPayPn
               ? `[${updated.referenceNo}] Payment Received in Full — Slot Confirmed!`
               : `[${updated.referenceNo}] Deposit Received — Slot Confirmed!`,
-            html: depositReceivedEmail(updated),
+            html: depositReceivedEmail(updated, await loadBusinessRules()),
           });
         } catch (emailErr) {
           console.error("[PayNow] Email failed:", emailErr);
@@ -9543,6 +9614,304 @@ Respond directly — no JSON, just the message text.`,
       res.json({ message: "Settings saved" });
     } catch (err) {
       res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // Dispute-protection: Business Rules, terms acceptance, versioning, refunds,
+  // cancellations, dispute log, and the quick-reply template library.
+  // ════════════════════════════════════════════════════════════════════════
+
+  // Public: the current policy text/clauses + the safe numeric subset the
+  // customer quote page needs to render the summary and warning banner.
+  app.get("/api/business-rules", async (_req, res) => {
+    try {
+      const rules = await loadBusinessRules();
+      res.json({
+        clauses: getBusinessPolicyClauses(rules),
+        policyText: getBusinessPolicyText(rules),
+        depositPct: rules.depositPct,
+        fullPaymentThreshold: rules.fullPaymentThreshold,
+        depositRefundableDefault: rules.depositRefundableDefault,
+        cancellationWindowHours: rules.cancellationWindowHours,
+        cancellationAdminFee: rules.cancellationAdminFee,
+        rescheduleFee: rules.rescheduleFee,
+        refundProcessingDays: rules.refundProcessingDays,
+        workingHoursStart: rules.workingHoursStart,
+        workingHoursEnd: rules.workingHoursEnd,
+        afterOfficeCutoff: rules.afterOfficeCutoff,
+        afterOfficeSurchargePct: rules.afterOfficeSurchargePct,
+        additionalTripCharge: rules.additionalTripCharge,
+        drillingPerHoleRate: rules.drillingPerHoleRate,
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to load business rules" });
+    }
+  });
+
+  // Admin: read full rules + the field metadata that drives the edit screen.
+  app.get("/api/admin/business-rules", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const rules = await loadBusinessRules();
+      res.json({ rules, fields: BusinessRuleFields });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to load business rules" });
+    }
+  });
+
+  // Admin: save a partial set of rule overrides.
+  app.post("/api/admin/business-rules", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const partial = (req.body ?? {}) as Partial<BusinessRules>;
+      const rules = await saveBusinessRules(partial);
+      res.json({ rules });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to save business rules" });
+    }
+  });
+
+  // Public (ref-gated): record the customer's explicit acceptance of the
+  // current quote version before payment. Admins may also accept on behalf of
+  // a customer (e.g. confirmed over WhatsApp) using their session.
+  app.post("/api/quotes/:id/accept-terms", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { referenceNo } = z.object({ referenceNo: z.string().optional() }).parse(req.body ?? {});
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+
+      let actorIsAdmin = false;
+      if (req.session?.userId) {
+        const caller = await storage.getUserById(req.session.userId);
+        if (caller?.role === "admin") actorIsAdmin = true;
+      }
+      if (!actorIsAdmin) {
+        if (!referenceNo || referenceNo !== quote.referenceNo) {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+      }
+
+      const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null;
+      const updated = await storage.recordTermsAcceptance(id, {
+        ip,
+        amount: Number(quote.total || 0),
+        version: quote.version ?? 1,
+      });
+      res.json(updated);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Failed to record acceptance" });
+    }
+  });
+
+  // Admin: read the dispute-protection timeline for a quote.
+  app.get("/api/admin/quotes/:id/dispute-events", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      const events = await storage.listDisputeEvents(id);
+      res.json(events);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to load dispute events" });
+    }
+  });
+
+  // Admin: add a manual note to the dispute timeline.
+  app.post("/api/admin/quotes/:id/dispute-events", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      const { detail, eventType } = z.object({
+        detail: z.string().min(1).max(2000),
+        eventType: z.string().max(60).optional(),
+      }).parse(req.body);
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      const event = await storage.addDisputeEvent({
+        quoteId: id,
+        eventType: eventType || "admin_note",
+        detail,
+        actorType: "admin",
+        actorId: caller.id,
+      });
+      res.json(event);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Failed to add note" });
+    }
+  });
+
+  // Public (ref-gated): customer requests a cancellation.
+  app.post("/api/quotes/:id/request-cancellation", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { referenceNo, reason } = z.object({
+        referenceNo: z.string().optional(),
+        reason: z.string().max(1000).optional(),
+      }).parse(req.body ?? {});
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+
+      let actorIsAdmin = false;
+      if (req.session?.userId) {
+        const caller = await storage.getUserById(req.session.userId);
+        if (caller?.role === "admin") actorIsAdmin = true;
+      }
+      if (!actorIsAdmin && (!referenceNo || referenceNo !== quote.referenceNo)) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const updated = await storage.requestCancellation(id, reason ?? null);
+      res.json(updated);
+
+      (async () => {
+        try {
+          const email = updated?.customer?.email;
+          if (updated && email && !email.endsWith("@tmginstall.com") && email.includes("@")) {
+            const rules = await loadBusinessRules();
+            await sendEmail({
+              to: email,
+              subject: `[${updated.referenceNo}] Cancellation Request Received`,
+              html: cancellationEmail(updated, rules),
+            });
+          }
+        } catch (e) {
+          console.error("Cancellation acknowledgement email error:", e);
+        }
+      })();
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Failed to request cancellation" });
+    }
+  });
+
+  // Admin: record/approve a refund (or mark it completed).
+  app.post("/api/admin/quotes/:id/refund", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      const body = z.object({
+        refundApprovedAmount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").optional(),
+        refundReason: z.string().max(1000).optional(),
+        refundMethod: z.string().max(60).optional(),
+        refundDetailsReceivedAt: z.string().datetime().optional(),
+        refundDueByAt: z.string().datetime().optional(),
+        refundCompletedAt: z.string().datetime().optional(),
+        refundInternalNote: z.string().max(2000).optional(),
+      }).parse(req.body);
+      const quote = await storage.getQuote(id);
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      const updated = await storage.recordRefund(id, {
+        refundApprovedAmount: body.refundApprovedAmount ?? undefined,
+        refundReason: body.refundReason ?? undefined,
+        refundMethod: body.refundMethod ?? undefined,
+        refundDetailsReceivedAt: body.refundDetailsReceivedAt ? new Date(body.refundDetailsReceivedAt) : undefined,
+        refundDueByAt: body.refundDueByAt ? new Date(body.refundDueByAt) : undefined,
+        refundCompletedAt: body.refundCompletedAt ? new Date(body.refundCompletedAt) : undefined,
+        refundInternalNote: body.refundInternalNote ?? undefined,
+      });
+      res.json(updated);
+
+      (async () => {
+        try {
+          const email = updated?.customer?.email;
+          const stage: "approved" | "completed" = body.refundCompletedAt ? "completed" : "approved";
+          if (updated && email && !email.endsWith("@tmginstall.com") && email.includes("@")) {
+            const rules = await loadBusinessRules();
+            await sendEmail({
+              to: email,
+              subject: `[${updated.referenceNo}] ${stage === "completed" ? "Refund Completed" : "Refund Approved"} — TMG Install`,
+              html: refundEmail(updated, rules, { stage }),
+            });
+          }
+        } catch (e) {
+          console.error("Refund email error:", e);
+        }
+      })();
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Failed to record refund" });
+    }
+  });
+
+  // ── Quick-reply template library (admin) ──────────────────────────────────
+  app.get("/api/admin/quick-replies", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const rows = await storage.listQuickReplyTemplates();
+      res.json(rows);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to load templates" });
+    }
+  });
+
+  app.post("/api/admin/quick-replies", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const data = z.object({
+        slug: z.string().min(2).max(80),
+        title: z.string().min(2).max(160),
+        category: z.string().max(60).optional(),
+        body: z.string().min(1).max(4000),
+        active: z.boolean().optional(),
+        sortOrder: z.number().int().optional(),
+      }).parse(req.body);
+      const row = await storage.createQuickReplyTemplate(data);
+      res.json(row);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(400).json({ message: err?.message || "Failed to create template" });
+    }
+  });
+
+  app.patch("/api/admin/quick-replies/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      const data = z.object({
+        slug: z.string().min(2).max(80).optional(),
+        title: z.string().min(2).max(160).optional(),
+        category: z.string().max(60).optional(),
+        body: z.string().min(1).max(4000).optional(),
+        active: z.boolean().optional(),
+        sortOrder: z.number().int().optional(),
+      }).parse(req.body);
+      const row = await storage.updateQuickReplyTemplate(id, data);
+      if (!row) return res.status(404).json({ message: "Template not found" });
+      res.json(row);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(400).json({ message: err?.message || "Failed to update template" });
+    }
+  });
+
+  app.delete("/api/admin/quick-replies/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteQuickReplyTemplate(id);
+      res.json({ message: "Deleted" });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to delete template" });
     }
   });
 

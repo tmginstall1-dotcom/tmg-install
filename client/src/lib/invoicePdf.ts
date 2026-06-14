@@ -69,6 +69,26 @@ export type InvoicePdfData = {
   finalAmount: string;
   finalPaidAt: string | null;
   paidInFull: boolean;
+  // ── Dispute-protection: scope / timing / surcharge presentation ──
+  timingMode?: string | null;
+  dismantleAt?: string | null;
+  dismantleTimeWindow?: string | null;
+  reinstallAt?: string | null;
+  reinstallTimeWindow?: string | null;
+  afterOfficeInvolved?: boolean;
+  afterOfficeSurchargeApplied?: boolean;
+  afterOfficeSurchargeAmount?: string;
+  afterOfficeWaived?: boolean;
+  additionalTripCharge?: string;
+  specialRemarks?: string | null;
+  // Terms-acceptance record
+  termsAcceptedAt?: string | null;
+  termsAcceptedAmount?: string | null;
+  termsAcceptedVersion?: number | null;
+  version?: number | null;
+  // Business-rules policy clauses (fetched from /api/business-rules by the
+  // caller and passed in). Rendered as a "Terms & Policy" section.
+  policyClauses?: { title: string; body: string }[] | null;
 };
 
 const money = (v: any) =>
@@ -402,6 +422,20 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
     doc.text(money(data.secondDayFee), totalsRight, y, { align: "right" });
     y += 5;
   }
+  // Additional trip / manpower charge (e.g. split timing) — already inside total.
+  if (Number(data.additionalTripCharge || 0) > 0) {
+    doc.setTextColor(...bodyColor);
+    doc.text("Additional trip / manpower", totalsX, y);
+    doc.text(money(data.additionalTripCharge), totalsRight, y, { align: "right" });
+    y += 5;
+  }
+  // After-office surcharge — already inside total (omitted when waived).
+  if (!data.afterOfficeWaived && data.afterOfficeSurchargeApplied && Number(data.afterOfficeSurchargeAmount || 0) > 0) {
+    doc.setTextColor(...bodyColor);
+    doc.text("After-office surcharge", totalsX, y);
+    doc.text(money(data.afterOfficeSurchargeAmount), totalsRight, y, { align: "right" });
+    y += 5;
+  }
 
   // Grand total divider
   doc.setDrawColor(17, 17, 17);
@@ -490,6 +524,60 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
     y += 4;
   }
 
+  // ── Schedule, scope & acceptance notes ───────────────────────────
+  // Split-timing dismantle/reinstall schedule, after-office waiver note,
+  // special remarks, and the terms-acceptance record (when present).
+  {
+    const noteRows: Array<[string, string]> = [];
+
+    if (data.timingMode === "split") {
+      const dm = `${dt(data.dismantleAt)}${data.dismantleTimeWindow ? ` · ${data.dismantleTimeWindow}` : ""}`;
+      const ri = `${dt(data.reinstallAt)}${data.reinstallTimeWindow ? ` · ${data.reinstallTimeWindow}` : ""}`;
+      noteRows.push(["Split timing — Dismantle", dm]);
+      noteRows.push(["Split timing — Reinstall", ri]);
+    }
+    if (data.afterOfficeWaived && data.afterOfficeInvolved) {
+      noteRows.push(["After-office surcharge", "Waived"]);
+    }
+
+    if (noteRows.length || data.specialRemarks || data.termsAcceptedAt) {
+      y += 8;
+      if (y + 12 > pageH - 18) { doc.addPage(); y = 14; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7);
+      doc.setTextColor(...labelColor);
+      doc.text("SCHEDULE & SCOPE NOTES", marginX, y);
+      y += 4;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...bodyColor);
+      noteRows.forEach(([label, value]) => {
+        if (y + 5 > pageH - 18) { doc.addPage(); y = 14; }
+        doc.text(`${label}: ${value}`, marginX, y);
+        y += 4.5;
+      });
+
+      if (data.specialRemarks) {
+        const wrapped = doc.splitTextToSize(`Special remarks: ${data.specialRemarks}`, contentW);
+        if (y + wrapped.length * 4 > pageH - 18) { doc.addPage(); y = 14; }
+        doc.text(wrapped, marginX, y);
+        y += wrapped.length * 4 + 0.5;
+      }
+
+      if (data.termsAcceptedAt) {
+        const parts = [`Accepted ${dt(data.termsAcceptedAt, true)}`];
+        if (data.termsAcceptedVersion != null) parts.push(`quote v${data.termsAcceptedVersion}`);
+        if (data.termsAcceptedAmount != null) parts.push(`at ${money(data.termsAcceptedAmount)}`);
+        if (y + 5 > pageH - 18) { doc.addPage(); y = 14; }
+        doc.setTextColor(4, 120, 87);
+        doc.text(`Terms accepted: ${parts.join(" · ")}`, marginX, y);
+        y += 4.5;
+        doc.setTextColor(...bodyColor);
+      }
+    }
+  }
+
   // ── Standard Terms & Conditions ──────────────────────────────────
   {
     const isReloc = (data.items || []).some((it) => it.serviceType === "relocate");
@@ -539,6 +627,29 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
     doc.setTextColor(107, 114, 128);
     terms.forEach((t, i) => {
       const wrapped = doc.splitTextToSize(`${i + 1}. ${t.title}: ${t.body}`, contentW);
+      if (y + wrapped.length * 3.1 > pageH - 18) { doc.addPage(); y = 14; }
+      doc.text(wrapped, marginX, y);
+      y += wrapped.length * 3.1 + 1.4;
+    });
+  }
+
+  // ── Terms & Policy (dispute-protection clauses from Business Rules) ───
+  // Sourced from getBusinessPolicyClauses(rules) via /api/business-rules and
+  // passed in by the caller, so the wording matches the customer quote page,
+  // confirmation emails and admin screens exactly.
+  if (Array.isArray(data.policyClauses) && data.policyClauses.length > 0) {
+    y += 8;
+    if (y + 16 > pageH - 18) { doc.addPage(); y = 14; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(17, 17, 17);
+    doc.text("Terms & Policy", marginX, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(107, 114, 128);
+    data.policyClauses.forEach((c, i) => {
+      const wrapped = doc.splitTextToSize(`${i + 1}. ${c.title}: ${c.body}`, contentW);
       if (y + wrapped.length * 3.1 > pageH - 18) { doc.addPage(); y = 14; }
       doc.text(wrapped, marginX, y);
       y += wrapped.length * 3.1 + 1.4;

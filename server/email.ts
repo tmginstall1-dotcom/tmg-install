@@ -1,4 +1,5 @@
 import { PricingConfig, calcSecondDayContinuation, requiresFullUpfront, depositPaidFallback, isFullPaymentQuote as isFullPaymentTotal } from "@shared/pricing";
+import { getBusinessPolicyClauses, BusinessRulesDefaults, type BusinessRules } from "@shared/businessRules";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@tmginstall.com";
@@ -414,6 +415,31 @@ function greeting(name: string, body: string): string {
   <p style="${FONT}font-size:14px;color:#555555;margin:0 0 28px;line-height:1.75;">${body}</p>`;
 }
 
+// ─── Business-rules-driven terms wording ────────────────────────────────────
+// Every customer-facing email renders its scope/timing/after-office/deposit/
+// cancellation/refund wording from the single source of truth in
+// @shared/businessRules so the numbers and text can never drift from the quote
+// page, PDF, invoice and admin settings. Defaults match current behaviour when
+// no admin overrides are loaded.
+
+/** Look up a single policy clause body by its title (empty string if absent). */
+function clauseBody(rules: BusinessRules, title: string): string {
+  return getBusinessPolicyClauses(rules).find((c) => c.title === title)?.body || "";
+}
+
+/** Full "Terms & Policy" section listing every business-rule clause. */
+function policySection(rules: BusinessRules = BusinessRulesDefaults): string {
+  const rows = getBusinessPolicyClauses(rules).map((c) => `
+    <tr>
+      <td style="${FONT}padding:12px 0;border-bottom:1px solid #f2f2f2;">
+        <div style="font-size:13px;font-weight:700;color:#111111;margin-bottom:4px;">${escapeHtml(c.title)}</div>
+        <div style="font-size:12px;color:#666666;line-height:1.65;">${escapeHtml(c.body)}</div>
+      </td>
+    </tr>`).join('');
+  return `${section("Terms &amp; Policy", `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tbody>${rows}</tbody></table>`)}
+    <p style="${FONT}font-size:11px;color:#bbbbbb;margin:10px 0 0;line-height:1.6;">Full terms &amp; conditions: <a href="${TERMS_URL}" style="color:#999999;">${TERMS_URL}</a></p>`;
+}
+
 // ─── Customer-facing emails ─────────────────────────────────────────────────────
 
 // Quote-shaped wrapper over the shared settlement rule (single source of truth
@@ -433,7 +459,7 @@ function displayDeposit(quote: any): number {
   return depositPaidFallback(total, quote.depositAmount);
 }
 
-export function estimateSubmittedEmail(quote: any): string {
+export function estimateSubmittedEmail(quote: any, rules: BusinessRules = BusinessRulesDefaults): string {
   const c = quote.customer;
   return shell("Estimate Received", `
     ${greeting(c?.name, `Thank you for reaching out. We've received your estimate request and our team will review it shortly. You can expect to hear from us within 1 business day.`)}
@@ -459,6 +485,8 @@ export function estimateSubmittedEmail(quote: any): string {
 
     ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
 
+    ${policySection(rules)}
+
     ${divider()}
     ${contactStrip()}
 
@@ -469,7 +497,7 @@ export function estimateSubmittedEmail(quote: any): string {
   `);
 }
 
-export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl?: string): string {
+export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl?: string, rules: BusinessRules = BusinessRulesDefaults): string {
   const c = quote.customer;
   const { slotDate, timeWindow: slotTimeWindow } = quoteSlotForEmail(quote);
   const depositAmt = `$${displayDeposit(quote).toFixed(2)}`;
@@ -542,9 +570,9 @@ export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl
 
     ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
 
-    ${notice("warn", fullPay
-      ? `<strong>Cancellation Policy</strong><br>Cancellation more than 48 hours before your appointment: payment refunded minus a $30 admin fee.<br>Cancellation less than 48 hours before your appointment: payment is forfeited in full.<br>Please review the full policy at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`
-      : `<strong>Cancellation Policy</strong><br>Cancellation more than 48 hours before your appointment: deposit refunded minus a $30 admin fee.<br>Cancellation less than 48 hours before your appointment: deposit is forfeited in full.<br>Please review the full policy at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`)}
+    ${notice("warn", `<strong>Cancellation Policy</strong><br>${escapeHtml(clauseBody(rules, "Cancellation"))}`)}
+
+    ${policySection(rules)}
 
     ${contactStrip()}
 
@@ -554,7 +582,7 @@ export function depositRequestEmail(quote: any, paymentLink: string, payNowQrUrl
   `);
 }
 
-export function depositReceivedEmail(quote: any): string {
+export function depositReceivedEmail(quote: any, rules: BusinessRules = BusinessRulesDefaults): string {
   const c = quote.customer;
   const { slotDate, timeWindow: slotTimeWindow } = quoteSlotForEmail(quote);
 
@@ -596,11 +624,13 @@ export function depositReceivedEmail(quote: any): string {
 
     ${notice("info", `<strong>Next step:</strong> Our team will assign a technician and send you a formal appointment confirmation with the date, time, and technician details.`)}
 
+    ${policySection(rules)}
+
     ${contactStrip()}
 
     <p style="${FONT}font-size:11px;color:#bbbbbb;text-align:center;margin:0 0 28px;">
-      Need to reschedule? Please contact us at least 48 hours before your appointment.<br>
-      See our <a href="${TERMS_URL}" style="color:#888888;">Terms &amp; Conditions</a> for the rescheduling policy.
+      Need to reschedule? Please review the rescheduling and cancellation timing in the Terms &amp; Policy above.<br>
+      See our <a href="${TERMS_URL}" style="color:#888888;">Terms &amp; Conditions</a> for the full policy.
     </p>
   `);
 }
@@ -653,7 +683,7 @@ export function bookingRequestAdminEmail(quote: any): string {
   `);
 }
 
-export function bookingConfirmationEmail(quote: any): string {
+export function bookingConfirmationEmail(quote: any, rules: BusinessRules = BusinessRulesDefaults): string {
   const c = quote.customer;
   const scheduledDate = quote.scheduledAt ? fmtDateTime(quote.scheduledAt) : "TBD";
 
@@ -692,7 +722,9 @@ export function bookingConfirmationEmail(quote: any): string {
 
     ${isCarryOnlyRelocation(quote) ? relocationOvertimeNotice() : ''}
 
-    ${notice("warn", `<strong>Reschedule Policy:</strong> If you need to change your appointment, please contact us on WhatsApp at least <strong>48 hours</strong> before the scheduled time. Late changes may incur a rescheduling fee. Full details at <a href="${TERMS_URL}" style="color:#92400e;">${TERMS_URL}</a>.`)}
+    ${notice("warn", `<strong>Reschedule &amp; Cancellation Policy</strong><br>${escapeHtml(clauseBody(rules, "Cancellation"))}`)}
+
+    ${policySection(rules)}
 
     ${contactStrip()}
 
@@ -700,7 +732,7 @@ export function bookingConfirmationEmail(quote: any): string {
   `);
 }
 
-export function rescheduleConfirmationEmail(quote: any): string {
+export function rescheduleConfirmationEmail(quote: any, rules: BusinessRules = BusinessRulesDefaults): string {
   const c = quote.customer;
   const scheduledDate = quote.scheduledAt ? fmtDateTime(quote.scheduledAt) : "TBD";
 
@@ -715,6 +747,8 @@ export function rescheduleConfirmationEmail(quote: any): string {
 
     ${notice("warn", `<strong>Please note:</strong> Each booking is entitled to one complimentary reschedule, subject to availability. Any further reschedule requests, or changes made less than 48 hours before the appointment, may be subject to a rescheduling fee. See our <a href="${TERMS_URL}" style="color:#92400e;">Terms &amp; Conditions</a> for details.`)}
 
+    ${policySection(rules)}
+
     ${contactStrip()}
 
     <p style="${FONT}font-size:11px;color:#bbbbbb;text-align:center;margin:0 0 28px;">&nbsp;</p>
@@ -725,6 +759,7 @@ export function finalPaymentEmail(
   quote: any,
   paymentLink: string,
   opts?: { balanceDue?: number; paymentsReceived?: number },
+  rules: BusinessRules = BusinessRulesDefaults,
 ): string {
   const c = quote.customer;
 
@@ -813,6 +848,8 @@ export function finalPaymentEmail(
     `)}
 
     ${notice("info", `<strong>Not satisfied with the work?</strong> Please get in touch on WhatsApp before completing payment and we will address your concerns promptly. We stand behind the quality of our work.`)}
+
+    ${policySection(rules)}
 
     ${contactStrip()}
 
@@ -933,7 +970,7 @@ export function commercialInvoiceEmail(quote: any, viewUrl: string, dueDateStr: 
   `);
 }
 
-export function caseClosedEmail(quote: any, reviewUrl?: string): string {
+export function caseClosedEmail(quote: any, reviewUrl?: string, rules: BusinessRules = BusinessRulesDefaults): string {
   const c = quote.customer;
 
   return shell("All Done — Thank You", `
@@ -980,10 +1017,92 @@ export function caseClosedEmail(quote: any, reviewUrl?: string): string {
 
     ${notice("ok", `<strong>Need us again?</strong> Save our contact for your next furniture installation, assembly, or relocation job. We cover homes, offices, and commercial spaces across Singapore.`)}
 
+    ${policySection(rules)}
+
     ${contactStrip()}
 
     <p style="${FONT}font-size:11px;color:#bbbbbb;text-align:center;margin:0 0 28px;">
       If you have any concerns about the completed work, please contact us within 7 days of job closure.<br>
+      <a href="${TERMS_URL}" style="color:#888888;">Terms &amp; Conditions</a>
+    </p>
+  `);
+}
+
+export function cancellationEmail(quote: any, rules: BusinessRules = BusinessRulesDefaults): string {
+  const c = quote.customer;
+  const { slotDate, timeWindow: slotTimeWindow } = quoteSlotForEmail(quote);
+  const reason = quote.cancellationReason ? escapeHtml(String(quote.cancellationReason)) : "";
+
+  return shell("Cancellation Request Received", `
+    ${greeting(c?.name, `We've received your request to cancel this booking. Our team will review it against the cancellation policy below and follow up to confirm the outcome${rules.depositRefundableDefault ? " and any refund due" : ""}.`)}
+
+    ${refBlock(quote.referenceNo)}
+
+    ${slotDate ? section("Affected Appointment", dateBox(slotDate, slotTimeWindow)) : ''}
+
+    ${reason ? section("Your Reason", `<p style="${FONT}font-size:14px;color:#555555;font-style:italic;line-height:1.7;padding:4px 0;">&ldquo;${reason}&rdquo;</p>`) : ''}
+
+    ${notice("warn", `<strong>Cancellation Policy</strong><br>${escapeHtml(clauseBody(rules, "Cancellation"))}`)}
+
+    ${notice("info", `<strong>Refund timing</strong><br>${escapeHtml(clauseBody(rules, "Refund timing"))}`)}
+
+    ${policySection(rules)}
+
+    ${contactStrip()}
+
+    <p style="${FONT}font-size:11px;color:#bbbbbb;text-align:center;margin:0 0 28px;">
+      Questions about your cancellation? Message us on WhatsApp at ${WHATSAPP_NUMBER}.<br>
+      <a href="${TERMS_URL}" style="color:#888888;">Terms &amp; Conditions</a>
+    </p>
+  `);
+}
+
+export function refundEmail(
+  quote: any,
+  rules: BusinessRules = BusinessRulesDefaults,
+  opts?: { stage?: "approved" | "completed" },
+): string {
+  const c = quote.customer;
+  const completed = (opts?.stage ?? (quote.refundCompletedAt ? "completed" : "approved")) === "completed";
+  const amt = Number(quote.refundApprovedAmount || 0);
+  const amtStr = `$${amt.toFixed(2)}`;
+  const method = quote.refundMethod ? escapeHtml(String(quote.refundMethod)) : "the original payment method";
+  const reason = quote.refundReason ? escapeHtml(String(quote.refundReason)) : "";
+
+  const rows: [string, string][] = [
+    ["Refund amount", `<strong>${amtStr}</strong>`],
+    ["Method", method],
+    ...(reason ? [["Reason", reason] as [string, string]] : []),
+  ];
+
+  if (completed) {
+    if (quote.refundCompletedAt) rows.push(["Completed on", fmtDateTime(quote.refundCompletedAt)]);
+  } else {
+    rows.push(["Processing time", `Within ${rules.refundProcessingDays} business day${rules.refundProcessingDays === 1 ? "" : "s"} of receiving your refund details`]);
+    if (quote.refundDueByAt) rows.push(["Expected by", fmtDateTime(quote.refundDueByAt)]);
+  }
+
+  const title = completed ? "Refund Completed" : "Refund Approved";
+  const intro = completed
+    ? `Good news — your refund has been processed to ${method}. Please allow a short time for it to appear on your statement, depending on your bank or payment provider.`
+    : `Your refund has been approved. ${reason ? "" : ""}So we can process it quickly, please confirm your refund details with us if we haven't already received them.`;
+
+  return shell(title, `
+    ${greeting(c?.name, intro)}
+
+    ${refBlock(quote.referenceNo)}
+
+    ${section("Refund Summary", infoTable(rows))}
+
+    ${completed
+      ? notice("ok", `<strong>All settled.</strong> If you don't see the refund after a few business days, please contact us on WhatsApp at ${WHATSAPP_NUMBER} and we'll follow up with you.`)
+      : notice("info", `<strong>Refund timing</strong><br>${escapeHtml(clauseBody(rules, "Refund timing"))}`)}
+
+    ${policySection(rules)}
+
+    ${contactStrip()}
+
+    <p style="${FONT}font-size:11px;color:#bbbbbb;text-align:center;margin:0 0 28px;">
       <a href="${TERMS_URL}" style="color:#888888;">Terms &amp; Conditions</a>
     </p>
   `);

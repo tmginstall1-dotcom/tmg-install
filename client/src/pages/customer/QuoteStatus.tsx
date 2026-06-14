@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 import { format, differenceInHours } from "date-fns";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -20,6 +20,26 @@ import { groupStops, itemRouteLabel } from "@/lib/stops";
 import { requiresFullUpfront } from "@shared/pricing";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
+import { termsAcceptedForCurrentVersion } from "@shared/businessRules";
+import { api } from "@shared/routes";
+
+interface PublicBusinessRules {
+  clauses: { title: string; body: string }[];
+  policyText: string;
+  depositPct: number;
+  fullPaymentThreshold: number;
+  depositRefundableDefault: boolean;
+  cancellationWindowHours: number;
+  cancellationAdminFee: number;
+  rescheduleFee: number;
+  refundProcessingDays: number;
+  workingHoursStart: string;
+  workingHoursEnd: string;
+  afterOfficeCutoff: string;
+  afterOfficeSurchargePct: number;
+  additionalTripCharge: number;
+  drillingPerHoleRate: number;
+}
 
 const WHATSAPP_HREF = "https://wa.me/6580880757?text=hi";
 const WHATSAPP_DISPLAY = "+65 8088 0757";
@@ -112,10 +132,17 @@ export default function QuoteStatus() {
     queryFn: () => fetch("/api/slots/availability").then(r => r.json()),
   });
 
+  const { data: businessRules } = useQuery<PublicBusinessRules>({
+    queryKey: ["/api/business-rules"],
+    queryFn: () => fetch("/api/business-rules").then(r => r.json()),
+  });
+
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const acceptanceRef = useRef<HTMLDivElement>(null);
   const [verifying, setVerifying] = useState(false);
   const [paymentVerified, setPaymentVerified] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -165,10 +192,29 @@ export default function QuoteStatus() {
       const data = await res.json();
       if (data.url) window.location.href = data.url;
       else toast({ title: "Payment unavailable", description: "Could not create payment link. Please contact us.", variant: "destructive" });
-    } catch {
-      toast({ title: "Error", description: "Could not start payment. Please try again.", variant: "destructive" });
+    } catch (e: any) {
+      if (typeof e?.message === "string" && e.message.includes("TERMS_NOT_ACCEPTED")) {
+        toast({ title: "Please accept the terms first", description: "Tick the acceptance box below to continue to payment.", variant: "destructive" });
+        acceptanceRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        toast({ title: "Error", description: "Could not start payment. Please try again.", variant: "destructive" });
+      }
     } finally {
       setCheckoutLoading(false);
+    }
+  };
+
+  const handleAcceptTerms = async () => {
+    if (!quote) return;
+    setAccepting(true);
+    try {
+      await apiRequest("POST", `/api/quotes/${id}/accept-terms`, { referenceNo: quote.referenceNo });
+      await queryClient.invalidateQueries({ queryKey: [api.quotes.get.path, id] });
+      toast({ title: "Terms accepted", description: "Thank you. You can now proceed to payment." });
+    } catch (e: any) {
+      toast({ title: "Could not record acceptance", description: e?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setAccepting(false);
     }
   };
 
@@ -203,6 +249,7 @@ export default function QuoteStatus() {
   // amounts fall back to the total for legacy/manual full-pay rows that may have
   // stored depositAmount = 0.
   const isFullPay = requiresFullUpfront(Number(quote?.total || 0));
+  const termsAccepted = quote ? termsAcceptedForCurrentVersion(quote as any) : false;
   // Full-payment jobs always show/charge the full total — never a stale or legacy
   // stored split (the backend charges the total via depositPaidFallback).
   const depositDisplay = isFullPay
@@ -802,6 +849,53 @@ export default function QuoteStatus() {
           {/* ═══ RIGHT SIDEBAR ═══ */}
           <div className="space-y-4">
 
+            {/* Scope, Timing & Terms — plain-language policy summary */}
+            {businessRules && (
+              <motion.div {...fadeUp(0.12)} className="border border-black/12" data-testid="card-quote-terms">
+                <div className="px-5 py-4 border-b border-black/8 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold tracking-widest uppercase text-black/40" style={{ letterSpacing: "0.15em" }}>
+                    <span className="inline-flex items-center gap-2"><AccentSquare /> Scope, Timing & Terms</span>
+                  </p>
+                  {termsAccepted && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-emerald-600">
+                      <Check className="w-3.5 h-3.5" /> Accepted
+                    </span>
+                  )}
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                  {(quote as any).timingMode === "split" && (
+                    <div className="bg-black/[0.03] border border-black/10 px-3 py-2.5 text-[11px] text-black/70 leading-relaxed" data-testid="text-split-timing">
+                      <span className="font-semibold text-black">Split timing:</span> this job is scheduled across two separate visits.
+                      {(quote as any).dismantleAt && <> Dismantle on {format(new Date((quote as any).dismantleAt), "MMM d, yyyy")}{(quote as any).dismantleTimeWindow ? ` (${(quote as any).dismantleTimeWindow})` : ""}.</>}
+                      {(quote as any).reinstallAt && <> Reinstall on {format(new Date((quote as any).reinstallAt), "MMM d, yyyy")}{(quote as any).reinstallTimeWindow ? ` (${(quote as any).reinstallTimeWindow})` : ""}.</>}
+                    </div>
+                  )}
+                  {(quote as any).afterOfficeSurchargeApplied && !(quote as any).afterOfficeWaived && (
+                    <div className="bg-black/[0.03] border border-black/10 px-3 py-2.5 text-[11px] text-black/70 leading-relaxed" data-testid="text-after-office">
+                      <span className="font-semibold text-black">After-office work:</span> part of this job runs past {businessRules.afterOfficeCutoff}, so an after-office surcharge of {formatMoney((quote as any).afterOfficeSurchargeAmount)} applies (already included in your total).
+                    </div>
+                  )}
+                  {(quote as any).afterOfficeWaived && (
+                    <div className="bg-black/[0.03] border border-black/10 px-3 py-2.5 text-[11px] text-black/70 leading-relaxed">
+                      <span className="font-semibold text-black">After-office surcharge waived.</span>{(quote as any).afterOfficeWaiverReason ? ` ${(quote as any).afterOfficeWaiverReason}` : ""}
+                    </div>
+                  )}
+                  {(quote as any).specialRemarks && (
+                    <div className="bg-black/[0.03] border border-black/10 px-3 py-2.5 text-[11px] text-black/70 leading-relaxed" data-testid="text-special-remarks">
+                      <span className="font-semibold text-black">Special remarks:</span> {(quote as any).specialRemarks}
+                    </div>
+                  )}
+                  <ol className="space-y-2 list-decimal pl-4">
+                    {businessRules.clauses.map((c, i) => (
+                      <li key={i} className="text-[11px] text-black/55 leading-relaxed">
+                        <span className="font-semibold text-black/80">{c.title}.</span> {c.body}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </motion.div>
+            )}
+
             {/* Payment Summary — black card */}
             <motion.div {...fadeUp(0.15)} className="bg-black text-white shadow-[0_8px_40px_rgba(0,0,0,0.18)] overflow-hidden">
               <div className="px-6 py-5 border-b border-white/10">
@@ -831,6 +925,24 @@ export default function QuoteStatus() {
                   <div className="flex justify-between text-sm text-white/60">
                     <span>Transport</span>
                     <span className="tabular-nums">{formatMoney(quote.transportFee)}</span>
+                  </div>
+                )}
+                {Number((quote as any).additionalTripCharge || 0) > 0 && (
+                  <div className="flex justify-between text-sm text-white/60">
+                    <span>Additional Trip</span>
+                    <span className="tabular-nums">{formatMoney((quote as any).additionalTripCharge)}</span>
+                  </div>
+                )}
+                {Number((quote as any).afterOfficeSurchargeAmount || 0) > 0 && !(quote as any).afterOfficeWaived && (
+                  <div className="flex justify-between text-sm text-white/60">
+                    <span>After-Office Surcharge</span>
+                    <span className="tabular-nums">{formatMoney((quote as any).afterOfficeSurchargeAmount)}</span>
+                  </div>
+                )}
+                {(quote as any).afterOfficeWaived && Number((quote as any).afterOfficeSurchargeAmount || 0) > 0 && (
+                  <div className="flex justify-between text-sm text-emerald-400">
+                    <span>After-Office Surcharge (waived)</span>
+                    <span className="tabular-nums">{formatMoney(0)}</span>
                   </div>
                 )}
                 {Number(quote.promoDiscount || 0) > 0 && (
@@ -871,15 +983,52 @@ export default function QuoteStatus() {
               {/* Pay Deposit */}
               {quote.status === "deposit_requested" && (
                 <div className="px-6 pb-6 border-t border-white/10 pt-5 space-y-4">
+                  {/* Terms acceptance gate — required before payment */}
+                  <div ref={acceptanceRef} className="scroll-mt-24">
+                    {termsAccepted ? (
+                      <div className="flex items-start gap-2 bg-white/5 border border-white/10 px-3 py-2.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                        <p className="text-[11px] text-white/60 leading-relaxed" data-testid="text-terms-accepted">
+                          You accepted this quote and its terms{(quote as any).termsAcceptedAt ? ` on ${format(new Date((quote as any).termsAcceptedAt), "MMM d, yyyy 'at' h:mm a")}` : ""}.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-400/10 border border-amber-400/30 px-3 py-3 space-y-3">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                          <p className="text-[11px] text-white/80 leading-relaxed font-semibold">
+                            Please review and accept the scope, timing and terms before paying.
+                          </p>
+                        </div>
+                        <label className="flex items-start gap-2.5 cursor-pointer" data-testid="checkbox-accept-terms">
+                          <input
+                            type="checkbox"
+                            checked={termsAccepted}
+                            onChange={() => { if (!termsAccepted && !accepting) handleAcceptTerms(); }}
+                            disabled={accepting}
+                            className="mt-0.5 w-4 h-4 accent-[#2af56a] shrink-0"
+                          />
+                          <span className="text-[11px] text-white/70 leading-relaxed">
+                            I have read and accept this quote, its scope and timing, and the terms shown above
+                            (deposit, cancellation and refund policy).
+                          </span>
+                        </label>
+                        {accepting && <p className="text-[10px] text-white/40">Recording your acceptance…</p>}
+                      </div>
+                    )}
+                  </div>
                   <div>
                     <p className="text-xs text-white/50 mb-1">{isFullPay ? "Full Payment Required" : "Deposit Required"}</p>
                     <p className="text-2xl font-black mb-4 tabular-nums">{formatMoney(depositDisplay)}</p>
-                    <button onClick={() => handleStripeCheckout("deposit")} disabled={checkoutLoading} data-testid="button-pay-deposit"
+                    <button onClick={() => handleStripeCheckout("deposit")} disabled={checkoutLoading || !termsAccepted} data-testid="button-pay-deposit"
                       className="w-full bg-white text-black font-bold py-3.5 text-sm uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-60 hover:bg-white/90 transition-colors"
                       style={{ letterSpacing: "0.12em" }}>
                       {checkoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                       {checkoutLoading ? "Opening Checkout…" : (isFullPay ? "Pay In Full Now" : "Pay Deposit Now")}
                     </button>
+                    {!termsAccepted && (
+                      <p className="text-[10px] text-white/40 text-center mt-2">Accept the terms above to enable payment.</p>
+                    )}
                   </div>
                   {/* PayNow QR alternative */}
                   <div className="border-t border-white/10 pt-4">

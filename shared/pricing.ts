@@ -185,16 +185,22 @@ export function bulkWeightedQty(items: { name: string; quantity: number }[]): nu
 // the REAL production arithmetic and can never silently drift from it.
 //
 //   total = subtotal − promo − goodwill + transportFee + secondDayFee
+//           + additionalTripCharge + afterOfficeSurcharge
 //
 // where, for a multi-stop quote, subtotal = laborSubtotal and the transportFee
 // column holds the FULL logistics bucket (transport + volumetric + extra-stop
-// fee = logisticsSubtotal). The result is clamped at 0 and rounded to cents.
+// fee = logisticsSubtotal). additionalTripCharge (e.g. split dismantle/reinstall
+// timing) and afterOfficeSurcharge (work continuing past the office cutoff) are
+// flat per-job add-ons that flow through to balance/PayNow/Stripe like the
+// second-day fee. The result is clamped at 0 and rounded to cents.
 export interface QuoteTotalParts {
   subtotal: number;        // sum of non-discount line items (labour for multi-stop)
   transportFee?: number;   // transportFee column = logisticsSubtotal for multi-stop
   promoDiscount?: number;
   goodwillDiscount?: number;
   secondDayFee?: number;
+  additionalTripCharge?: number;
+  afterOfficeSurcharge?: number;
 }
 
 export function reconcileQuoteTotal(parts: QuoteTotalParts): number {
@@ -203,10 +209,13 @@ export function reconcileQuoteTotal(parts: QuoteTotalParts): number {
   const promoDiscount = Number(parts.promoDiscount) || 0;
   const goodwillDiscount = Number(parts.goodwillDiscount) || 0;
   const secondDayFee = Number(parts.secondDayFee) || 0;
+  const additionalTripCharge = Number(parts.additionalTripCharge) || 0;
+  const afterOfficeSurcharge = Number(parts.afterOfficeSurcharge) || 0;
   return round2(
     Math.max(
       0,
-      subtotal - promoDiscount - goodwillDiscount + transportFee + secondDayFee,
+      subtotal - promoDiscount - goodwillDiscount + transportFee + secondDayFee
+        + additionalTripCharge + afterOfficeSurcharge,
     ),
   );
 }

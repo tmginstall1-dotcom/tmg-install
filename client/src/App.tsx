@@ -32,6 +32,8 @@ const AdminExportPDF = lazy(() => import("@/pages/admin/ExportPDF"));
 const AdminStaffManagement = lazy(() => import("@/pages/admin/StaffManagement"));
 const AdminAnalytics = lazy(() => import("@/pages/admin/Analytics"));
 const AdminSettings = lazy(() => import("@/pages/admin/Settings"));
+const AdminBusinessRules = lazy(() => import("@/pages/admin/BusinessRules"));
+const AdminQuickReplies = lazy(() => import("@/pages/admin/QuickReplies"));
 const AdminConversations = lazy(() => import("@/pages/admin/Conversations"));
 const AdminReceipts = lazy(() => import("@/pages/admin/Receipts"));
 const AdminFaqManager = lazy(() => import("@/pages/admin/FaqManager"));
@@ -180,6 +182,12 @@ function Router() {
           </Route>
           <Route path="/admin/settings">
             {() => <AdminRoute component={AdminSettings} />}
+          </Route>
+          <Route path="/admin/business-rules">
+            {() => <AdminRoute component={AdminBusinessRules} />}
+          </Route>
+          <Route path="/admin/quick-replies">
+            {() => <AdminRoute component={AdminQuickReplies} />}
           </Route>
           <Route path="/admin/conversations">
             {() => <AdminRoute component={AdminConversations} />}

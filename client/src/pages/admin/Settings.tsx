@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw, Clock, Bot, Globe, Star, Bell, BadgePercent, BellRing, BellOff } from "lucide-react";
+import { AlertCircle, CheckCircle, MessageSquare, RefreshCw, Smartphone, Phone, XCircle, Zap, ExternalLink, ChevronDown, ChevronUp, GitBranch, Tag, ToggleLeft, ToggleRight, RotateCcw, Clock, Bot, Globe, Star, Bell, BadgePercent, BellRing, BellOff, Scale } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useAdminPush } from "@/hooks/use-admin-push";
 
@@ -244,6 +245,31 @@ export default function AdminSettings() {
  </div>
  </div>
  <div className="max-w-2xl mx-auto px-4 sm:px-6 pb-8 space-y-6">
+
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+ <Link
+ href="/admin/business-rules"
+ data-testid="link-business-rules"
+ className="bg-white border border-black/12 rounded-none p-5 hover-elevate active-elevate-2 block"
+ >
+ <div className="flex items-center gap-2 mb-1">
+ <Scale className="h-4 w-4 text-[#0A0A0A]" />
+ <h2 className="text-sm font-semibold text-[#0A0A0A]">Business Rules &amp; Terms</h2>
+ </div>
+ <p className="text-xs text-black/55">Deposits, surcharges, cancellation policy and all customer-facing terms.</p>
+ </Link>
+ <Link
+ href="/admin/quick-replies"
+ data-testid="link-quick-replies"
+ className="bg-white border border-black/12 rounded-none p-5 hover-elevate active-elevate-2 block"
+ >
+ <div className="flex items-center gap-2 mb-1">
+ <MessageSquare className="h-4 w-4 text-[#0A0A0A]" />
+ <h2 className="text-sm font-semibold text-[#0A0A0A]">Quick-reply Templates</h2>
+ </div>
+ <p className="text-xs text-black/55">Reusable message snippets for common dispute and booking scenarios.</p>
+ </Link>
+ </div>
 
  <div className="bg-white border border-black/12 rounded-none overflow-hidden">
  <div className="px-5 py-4 border-b border-black/8 flex items-center justify-between">

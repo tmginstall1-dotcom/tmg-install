@@ -21,6 +21,8 @@ import {
   type Subcontractor, type InsertSubcontractor,
   type JobSubcontract, type InsertJobSubcontract,
   partialLeads, type PartialLead,
+  quoteDisputeEvents, type QuoteDisputeEvent, type InsertQuoteDisputeEvent,
+  quickReplyTemplates, type QuickReplyTemplate, type InsertQuickReplyTemplate,
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 
@@ -223,6 +225,37 @@ export interface IStorage {
   getDuePartialLeads(olderThanMs: number): Promise<import("@shared/schema").PartialLead[]>;
   markPartialLeadEmailSent(token: string): Promise<void>;
   markPartialLeadWhatsappSent(token: string): Promise<void>;
+
+  // Dispute-protection: timeline / audit events
+  addDisputeEvent(data: InsertQuoteDisputeEvent): Promise<QuoteDisputeEvent>;
+  listDisputeEvents(quoteId: number): Promise<QuoteDisputeEvent[]>;
+
+  // Dispute-protection: terms acceptance + quote versioning
+  recordTermsAcceptance(quoteId: number, data: {
+    ip?: string | null;
+    amount?: number | null;
+    version?: number | null;
+    pdfRef?: string | null;
+  }): Promise<QuoteResponse | undefined>;
+  bumpQuoteVersion(quoteId: number): Promise<QuoteResponse | undefined>;
+
+  // Dispute-protection: cancellation + refund
+  requestCancellation(quoteId: number, reason?: string | null): Promise<QuoteResponse | undefined>;
+  recordRefund(quoteId: number, data: Partial<{
+    refundApprovedAmount: string | null;
+    refundReason: string | null;
+    refundMethod: string | null;
+    refundDetailsReceivedAt: Date | null;
+    refundDueByAt: Date | null;
+    refundCompletedAt: Date | null;
+    refundInternalNote: string | null;
+  }>): Promise<QuoteResponse | undefined>;
+
+  // Dispute-protection: quick-reply template library
+  listQuickReplyTemplates(opts?: { activeOnly?: boolean }): Promise<QuickReplyTemplate[]>;
+  createQuickReplyTemplate(data: InsertQuickReplyTemplate): Promise<QuickReplyTemplate>;
+  updateQuickReplyTemplate(id: number, data: Partial<InsertQuickReplyTemplate>): Promise<QuickReplyTemplate | undefined>;
+  deleteQuickReplyTemplate(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1134,7 +1167,10 @@ export class DatabaseStorage implements IStorage {
       data.quoteUpdates?.goodwillDiscount !== undefined ||
       data.quoteUpdates?.secondDayContinuation !== undefined ||
       data.quoteUpdates?.secondDayHours !== undefined ||
-      data.quoteUpdates?.secondDayCrewSize !== undefined;
+      data.quoteUpdates?.secondDayCrewSize !== undefined ||
+      data.quoteUpdates?.additionalTripCharge !== undefined ||
+      data.quoteUpdates?.afterOfficeSurchargeAmount !== undefined ||
+      data.quoteUpdates?.afterOfficeWaived !== undefined;
 
     if (pricingTouched) {
       // Re-fetch after the quoteUpdates write so we see the latest values.
@@ -1158,6 +1194,14 @@ export class DatabaseStorage implements IStorage {
         current?.secondDayHours ?? 0,
         current?.secondDayCrewSize ?? undefined,
       ).fee;
+      // Flat per-job add-ons (dispute-protection). additionalTripCharge covers
+      // split dismantle/reinstall timing; the after-office surcharge is dropped
+      // to $0 whenever an admin waives it so a waiver never silently keeps the
+      // money on the total.
+      const additionalTripCharge = Number(current?.additionalTripCharge || 0);
+      const afterOfficeSurcharge = current?.afterOfficeWaived
+        ? 0
+        : Number(current?.afterOfficeSurchargeAmount || 0);
 
       // Replace items only when caller explicitly provided them.
       if (data.items !== undefined) {
@@ -1185,7 +1229,7 @@ export class DatabaseStorage implements IStorage {
       const subtotal = itemRows
         .filter(r => r.serviceType !== 'discount')
         .reduce((sum, r) => sum + Number(r.subtotal || 0), 0);
-      const total = reconcileQuoteTotal({ subtotal, promoDiscount, goodwillDiscount, transportFee, secondDayFee });
+      const total = reconcileQuoteTotal({ subtotal, promoDiscount, goodwillDiscount, transportFee, secondDayFee, additionalTripCharge, afterOfficeSurcharge });
 
       // Protect already-collected money: if the deposit was paid at an
       // earlier amount, keep that amount and shift the difference onto the
@@ -2319,6 +2363,130 @@ export class DatabaseStorage implements IStorage {
 
   async markPartialLeadWhatsappSent(token: string): Promise<void> {
     await db.update(partialLeads).set({ whatsappSentAt: new Date() }).where(eq(partialLeads.resumeToken, token));
+  }
+
+  // ── Dispute-protection: timeline / audit events ──────────────────────────
+  async addDisputeEvent(data: InsertQuoteDisputeEvent): Promise<QuoteDisputeEvent> {
+    const [row] = await db.insert(quoteDisputeEvents).values(data).returning();
+    return row;
+  }
+
+  async listDisputeEvents(quoteId: number): Promise<QuoteDisputeEvent[]> {
+    return db
+      .select()
+      .from(quoteDisputeEvents)
+      .where(eq(quoteDisputeEvents.quoteId, quoteId))
+      .orderBy(desc(quoteDisputeEvents.createdAt));
+  }
+
+  // ── Dispute-protection: terms acceptance + quote versioning ──────────────
+  async recordTermsAcceptance(quoteId: number, data: {
+    ip?: string | null;
+    amount?: number | null;
+    version?: number | null;
+    pdfRef?: string | null;
+  }): Promise<QuoteResponse | undefined> {
+    const [current] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
+    if (!current) return undefined;
+    const acceptedVersion = data.version ?? current.version ?? 1;
+    const acceptedAmount = data.amount ?? Number(current.total || 0);
+    await db.update(quotes).set({
+      termsAcceptedAt: new Date(),
+      termsAcceptedIp: data.ip ?? null,
+      termsAcceptedAmount: acceptedAmount.toFixed(2),
+      termsAcceptedVersion: acceptedVersion,
+      termsAcceptedPdfRef: data.pdfRef ?? null,
+    }).where(eq(quotes.id, quoteId));
+    await this.addDisputeEvent({
+      quoteId,
+      eventType: 'terms_accepted',
+      detail: `Customer accepted v${acceptedVersion} at $${acceptedAmount.toFixed(2)}`,
+      actorType: 'customer',
+    });
+    return this.fetchQuoteDetails(quoteId);
+  }
+
+  async bumpQuoteVersion(quoteId: number): Promise<QuoteResponse | undefined> {
+    const [current] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
+    if (!current) return undefined;
+    const nextVersion = (current.version ?? 1) + 1;
+    // A new version invalidates any prior acceptance — the customer must
+    // re-accept the updated scope/price before paying.
+    await db.update(quotes).set({
+      version: nextVersion,
+      termsAcceptedAt: null,
+      termsAcceptedIp: null,
+      termsAcceptedAmount: null,
+      termsAcceptedVersion: null,
+      termsAcceptedPdfRef: null,
+    }).where(eq(quotes.id, quoteId));
+    await this.addDisputeEvent({
+      quoteId,
+      eventType: 'version_bumped',
+      detail: `Quote updated to v${nextVersion}; prior acceptance cleared`,
+      actorType: 'admin',
+    });
+    return this.fetchQuoteDetails(quoteId);
+  }
+
+  // ── Dispute-protection: cancellation + refund ────────────────────────────
+  async requestCancellation(quoteId: number, reason?: string | null): Promise<QuoteResponse | undefined> {
+    const [current] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
+    if (!current) return undefined;
+    await db.update(quotes).set({
+      cancellationRequestedAt: new Date(),
+      cancellationReason: reason ?? null,
+    }).where(eq(quotes.id, quoteId));
+    await this.addDisputeEvent({
+      quoteId,
+      eventType: 'cancellation_requested',
+      detail: reason ? `Reason: ${reason}` : 'Cancellation requested',
+      actorType: 'customer',
+    });
+    return this.fetchQuoteDetails(quoteId);
+  }
+
+  async recordRefund(quoteId: number, data: Partial<{
+    refundApprovedAmount: string | null;
+    refundReason: string | null;
+    refundMethod: string | null;
+    refundDetailsReceivedAt: Date | null;
+    refundDueByAt: Date | null;
+    refundCompletedAt: Date | null;
+    refundInternalNote: string | null;
+  }>): Promise<QuoteResponse | undefined> {
+    const [current] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
+    if (!current) return undefined;
+    await db.update(quotes).set(data).where(eq(quotes.id, quoteId));
+    const eventType = data.refundCompletedAt ? 'refund_completed' : 'refund_approved';
+    const detail = data.refundCompletedAt
+      ? `Refund completed${data.refundApprovedAmount ? ` ($${data.refundApprovedAmount})` : ''}`
+      : `Refund approved${data.refundApprovedAmount ? ` ($${data.refundApprovedAmount})` : ''}${data.refundReason ? ` — ${data.refundReason}` : ''}`;
+    await this.addDisputeEvent({ quoteId, eventType, detail, actorType: 'admin' });
+    return this.fetchQuoteDetails(quoteId);
+  }
+
+  // ── Dispute-protection: quick-reply template library ─────────────────────
+  async listQuickReplyTemplates(opts?: { activeOnly?: boolean }): Promise<QuickReplyTemplate[]> {
+    const rows = await db
+      .select()
+      .from(quickReplyTemplates)
+      .orderBy(quickReplyTemplates.sortOrder, quickReplyTemplates.title);
+    return opts?.activeOnly ? rows.filter((r) => r.active) : rows;
+  }
+
+  async createQuickReplyTemplate(data: InsertQuickReplyTemplate): Promise<QuickReplyTemplate> {
+    const [row] = await db.insert(quickReplyTemplates).values(data).returning();
+    return row;
+  }
+
+  async updateQuickReplyTemplate(id: number, data: Partial<InsertQuickReplyTemplate>): Promise<QuickReplyTemplate | undefined> {
+    const [row] = await db.update(quickReplyTemplates).set(data).where(eq(quickReplyTemplates.id, id)).returning();
+    return row;
+  }
+
+  async deleteQuickReplyTemplate(id: number): Promise<void> {
+    await db.delete(quickReplyTemplates).where(eq(quickReplyTemplates.id, id));
   }
 }
 

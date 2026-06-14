@@ -463,6 +463,57 @@ export const quotes = pgTable("quotes", {
   completionSignedName: text("completion_signed_name"),
   completionSignedAt: timestamp("completion_signed_at"),
 
+  // ── Dispute-protection: scheduling / scope flags ───────────────────────────
+  // Whether the job is ONE continuous on-site slot or SPLIT into separate visits
+  // (e.g. morning dismantle + evening reinstall). Split timing is treated as two
+  // trips and an additional trip / manpower charge applies (see additionalTripCharge).
+  timingMode: text("timing_mode").default("continuous"), // 'continuous' | 'split'
+  dismantleAt: timestamp("dismantle_at"),                 // split-timing: dismantle date/time
+  dismantleTimeWindow: text("dismantle_time_window"),
+  reinstallAt: timestamp("reinstall_at"),                 // split-timing: reinstall date/time
+  reinstallTimeWindow: text("reinstall_time_window"),
+
+  // After-office work (continuing past the configured cutoff, default 5.30pm)
+  afterOfficeInvolved: boolean("after_office_involved").default(false),
+  afterOfficeSurchargeApplied: boolean("after_office_surcharge_applied").default(false),
+  afterOfficeSurchargeAmount: numeric("after_office_surcharge_amount").default("0"),
+  afterOfficeWaived: boolean("after_office_waived").default(false),
+  afterOfficeWaiverReason: text("after_office_waiver_reason"),
+
+  // Flat additional trip / manpower charge (e.g. for split timing). Folded into
+  // the grand total by editQuote alongside goodwill / second-day.
+  additionalTripCharge: numeric("additional_trip_charge").default("0"),
+
+  specialRemarks: text("special_remarks"),               // admin-entered remarks shown on quote/invoice
+  ownMoverInvolved: boolean("own_mover_involved").default(false),
+
+  // Per-quote cancellation / refund policy (defaults pulled from Business Rules
+  // at creation time so legacy rows fall back to the global rule).
+  depositRefundable: boolean("deposit_refundable").default(false),
+  cancellationNoticeHours: integer("cancellation_notice_hours").default(48),
+
+  // ── Dispute-protection: terms-acceptance record ────────────────────────────
+  termsAcceptedAt: timestamp("terms_accepted_at"),
+  termsAcceptedIp: text("terms_accepted_ip"),
+  termsAcceptedAmount: numeric("terms_accepted_amount"),  // grand total at the moment of acceptance
+  termsAcceptedVersion: integer("terms_accepted_version"),// quote version that was accepted
+  termsAcceptedPdfRef: text("terms_accepted_pdf_ref"),    // snapshot reference (e.g. quotation PDF url/hash)
+
+  // ── Dispute-protection: quote versioning ───────────────────────────────────
+  version: integer("version").notNull().default(1),
+  superseded: boolean("superseded").notNull().default(false),
+
+  // ── Dispute-protection: refund / cancellation ──────────────────────────────
+  cancellationRequestedAt: timestamp("cancellation_requested_at"),
+  cancellationReason: text("cancellation_reason"),
+  refundApprovedAmount: numeric("refund_approved_amount"),
+  refundReason: text("refund_reason"),
+  refundMethod: text("refund_method"),                    // e.g. 'paynow' | 'card' | 'bank'
+  refundDetailsReceivedAt: timestamp("refund_details_received_at"),
+  refundDueByAt: timestamp("refund_due_by_at"),
+  refundCompletedAt: timestamp("refund_completed_at"),
+  refundInternalNote: text("refund_internal_note"),
+
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
   quotesStatusIdx: index("quotes_status_idx").on(t.status),
@@ -509,6 +560,38 @@ export const jobUpdates = pgTable("job_updates", {
 }, (t) => ({
   jobUpdatesQuoteIdx: index("job_updates_quote_id_idx").on(t.quoteId),
 }));
+
+// Dispute-protection timeline — an admin-only audit trail per quote recording
+// key lifecycle events (quote sent, terms accepted, deposit paid, slot reserved,
+// admin scope/price changes, cancellation requests, refund/goodwill approvals).
+export const quoteDisputeEvents = pgTable("quote_dispute_events", {
+  id: serial("id").primaryKey(),
+  quoteId: integer("quote_id").references(() => quotes.id).notNull(),
+  eventType: text("event_type").notNull(), // e.g. 'quote_sent','terms_accepted','deposit_paid','slot_reserved','admin_change','cancellation_requested','refund_approved'
+  detail: text("detail"),
+  actorType: text("actor_type").default("system"), // 'system' | 'admin' | 'staff' | 'customer'
+  actorId: integer("actor_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  disputeEventsQuoteIdx: index("quote_dispute_events_quote_id_idx").on(t.quoteId),
+}));
+export type QuoteDisputeEvent = typeof quoteDisputeEvents.$inferSelect;
+
+// Admin quick-reply template library — reusable WhatsApp / message snippets for
+// common dispute scenarios (deposit required, split timing, after-office,
+// cancellation, refund, etc.). Bodies may contain {{placeholders}} that are
+// filled from the Business Rules at render time.
+export const quickReplyTemplates = pgTable("quick_reply_templates", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  category: text("category").default("general"),
+  body: text("body").notNull(),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type QuickReplyTemplate = typeof quickReplyTemplates.$inferSelect;
 
 // Relations
 export const teamsRelations = relations(teams, ({ many }) => ({
@@ -747,6 +830,10 @@ export const insertCatalogItemSchema = createInsertSchema(catalogItems).omit({ i
 export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, createdAt: true });
 export const insertQuoteItemSchema = createInsertSchema(quoteItems).omit({ id: true });
 export const insertJobUpdateSchema = createInsertSchema(jobUpdates).omit({ id: true, createdAt: true });
+export const insertQuoteDisputeEventSchema = createInsertSchema(quoteDisputeEvents).omit({ id: true, createdAt: true });
+export const insertQuickReplyTemplateSchema = createInsertSchema(quickReplyTemplates).omit({ id: true, createdAt: true });
+export type InsertQuoteDisputeEvent = z.infer<typeof insertQuoteDisputeEventSchema>;
+export type InsertQuickReplyTemplate = z.infer<typeof insertQuickReplyTemplateSchema>;
 
 // Types
 export type User = typeof users.$inferSelect;
