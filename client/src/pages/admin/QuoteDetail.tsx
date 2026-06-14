@@ -151,7 +151,7 @@ function ScheduleEditor({
  }).then(r => r.json());
  },
  onSuccess: (_data, mode) => {
- queryClient.invalidateQueries({ queryKey: ['/api/quotes', String(quoteId)] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', String(quoteId)] });
  queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
  toast({ title: mode === "pending" ? "Marked as pending date confirmation" : "Schedule updated" });
  setEditing(false);
@@ -642,7 +642,7 @@ export default function AdminQuoteDetail() {
  mutationFn: ({ phase, done, note }: { phase: 'dismantle' | 'delivery' | 'install'; done: boolean; note?: string }) =>
  apiRequest("POST", `/api/admin/quotes/${id}/phase`, { phase, done, note }).then(r => r.json()),
  onSuccess: (_d, vars) => {
- queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', id] });
  queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
  toast({
  title: vars.done ? `✓ ${vars.phase[0].toUpperCase() + vars.phase.slice(1)} marked done` : "Phase reopened",
@@ -656,7 +656,7 @@ export default function AdminQuoteDetail() {
  mutationFn: (reason?: string) =>
  apiRequest("POST", `/api/admin/quotes/${id}/reopen`, { reason }).then(r => r.json()),
  onSuccess: () => {
- queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', id] });
  queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
  toast({ title: "✅ Job Reopened", description: "Job is now active and visible to assigned staff." });
  },
@@ -706,7 +706,8 @@ export default function AdminQuoteDetail() {
  mutationFn: (body: { additionalCharge: string; additionalChargeNote: string }) =>
  apiRequest("PATCH", `/api/quotes/${id}/additional-charges`, body),
  onSuccess: () => {
- queryClient.invalidateQueries({ queryKey: ["/api/quotes", id] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', id] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
  toast({ title: "Saved", description: "Additional charge updated." });
  },
  onError: (err: any) => {
@@ -719,7 +720,8 @@ export default function AdminQuoteDetail() {
  apiRequest("POST", `/api/admin/quotes/${id}/send-whatsapp-payment`, phone ? { phone } : undefined),
  onSuccess: async (res) => {
  setWaSentAt(new Date());
- queryClient.invalidateQueries({ queryKey: ["/api/quotes", parseInt(id)] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', id] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
  let data: any = {};
  try { data = await res.clone().json(); } catch {}
  const isFinal = data?.type === "final";
@@ -743,7 +745,8 @@ export default function AdminQuoteDetail() {
  return res.json();
  },
  onSuccess: () => {
- queryClient.invalidateQueries({ queryKey: ["/api/quotes", id] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', id] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
  toast({ title: "Deposit reset", description: "Status reset to deposit requested. You can now resend the payment link." });
  },
  onError: () => toast({ title: "Reset failed", variant: "destructive" }),
@@ -868,7 +871,8 @@ export default function AdminQuoteDetail() {
  return await res.json();
  },
  onSuccess: (data: any) => {
- queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', id] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
  setShowPayNowConfirm(false);
  setPayNowNote("");
  if (data?.synced) {
@@ -933,7 +937,8 @@ export default function AdminQuoteDetail() {
  mutationFn: () =>
  apiRequest("POST", `/api/admin/quotes/${id}/collect-final-payment`, { note: finalPayNote.trim() || undefined }),
  onSuccess: () => {
- queryClient.invalidateQueries({ queryKey: [`/api/quotes/${id}`] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes/:id', id] });
+ queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
  setShowFinalPayConfirm(false);
  setFinalPayNote("");
  toast({ title: "✅ Final Payment Confirmed", description: "Case closed. Invoice sent to customer via WhatsApp." });
