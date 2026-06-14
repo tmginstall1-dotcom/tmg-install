@@ -11,8 +11,10 @@
 //
 //   • GET /api/quotes/:id/checkout?type=deposit returns HTTP 409
 //     { code: "TERMS_NOT_ACCEPTED" } for a quote whose current version has not
-//     been accepted. (This branch returns BEFORE any Stripe call, so the test
-//     makes no external API calls.)
+//     been accepted. (This branch returns BEFORE any Stripe call.) After the
+//     customer accepts the current version, the SAME endpoint returns HTTP 200
+//     with a Stripe checkout URL. The Stripe SDK is stubbed (see below) so this
+//     happy path needs no live key and makes no external API calls.
 //   • POST /api/admin/quotes/:id/refund rejects unauthenticated callers (401)
 //     and, for an authenticated admin, persists the refund fields and appends a
 //     'refund_approved' dispute-log event (the data the QuoteDetail panel renders
@@ -31,8 +33,27 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import session from "express-session";
+import Stripe from "stripe";
 import { createServer, type Server } from "http";
 import type { AddressInfo } from "net";
+
+// ---------------------------------------------------------------------------
+// Stub Stripe so the deposit-checkout happy path returns a URL with no live key.
+//
+// server/routes.ts builds its Stripe client once, at import time, from
+// STRIPE_SECRET_KEY (`const stripe = key ? new Stripe(key) : null`). So we must
+// (a) guarantee a key is present BEFORE registerRoutes is imported — otherwise
+// `stripe` is null and checkout would 500 with "Stripe not configured" — and
+// (b) override checkout.sessions.create so NO real Stripe API call is ever made.
+// All Stripe resource instances share one prototype, so overriding it here also
+// affects the client routes.ts constructs later. The Node test runner isolates
+// each test FILE in its own process, so this patch never leaks into other test
+// files or production.
+// ---------------------------------------------------------------------------
+const STUB_STRIPE_URL = "https://checkout.stripe.test/c/pay/cs_test_stub";
+process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "sk_test_dummy_for_tests";
+Object.getPrototypeOf(new Stripe(process.env.STRIPE_SECRET_KEY).checkout.sessions).create =
+  async () => ({ url: STUB_STRIPE_URL });
 
 // registerRoutes starts long-lived background setInterval schedulers
 // (server/routes.ts ~11600-11856) that keep the event loop alive forever. The
@@ -111,9 +132,8 @@ test("HTTP: deposit checkout returns 409 TERMS_NOT_ACCEPTED before the terms are
     assert.equal(body.code, "TERMS_NOT_ACCEPTED", "409 must carry the TERMS_NOT_ACCEPTED code");
 
     // After the customer accepts the current version, the gate predicate flips so
-    // the route would proceed to Stripe. We assert the predicate via storage (the
-    // exact value the route reads) rather than re-calling checkout, to keep this
-    // HTTP test free of any external Stripe call.
+    // the route proceeds to Stripe. First confirm the predicate (the exact value
+    // the route reads) flipped...
     await storage.recordTermsAcceptance(quoteId!, { version: 1, amount: 300 });
     const reread = await storage.getQuote(quoteId!);
     const { termsAcceptedForCurrentVersion } = await import("../shared/businessRules.ts");
@@ -122,6 +142,16 @@ test("HTTP: deposit checkout returns 409 TERMS_NOT_ACCEPTED before the terms are
       true,
       "after acceptance the deposit gate must open (no longer 409)",
     );
+
+    // ...then drive the REAL endpoint again: it must now return HTTP 200 with a
+    // Stripe checkout URL. Stripe is stubbed (top of file) so this hits no live
+    // API. This catches a broken happy path — wrong status, swallowed URL, or a
+    // gate condition that keeps blocking an accepted quote — that the predicate
+    // check alone cannot see.
+    const ok = await fetch(`${app.base}/api/quotes/${quoteId}/checkout?type=deposit`);
+    assert.equal(ok.status, 200, "accepted deposit checkout must return 200");
+    const okBody = await ok.json();
+    assert.equal(okBody.url, STUB_STRIPE_URL, "successful checkout must return the Stripe URL");
   } catch (err: any) {
     const infra = isInfraError(err);
     if (infra) {
