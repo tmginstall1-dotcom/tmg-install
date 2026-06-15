@@ -28,6 +28,20 @@ same dead import, so it could never recover — users got stuck.
   clients, and drops stale caches.
 - Already-broken clients self-heal on one manual hard refresh once the fix is
   published (HTML is network-first).
+- The SW registration must add a one-shot `controllerchange` -> reload listener
+  (attached ONLY when `navigator.serviceWorker.controller` already exists, so a
+  first-time visitor's `clients.claim()` doesn't reload) plus `registration.update()`
+  on load. Without it, `skipWaiting()` + `clients.claim()` makes the new worker
+  take control but does NOT refresh the already-rendered stale page, so a
+  returning user stays stuck until they reload a SECOND time.
+
+**Why a plain reload does NOT rescue a stuck device:** the reload navigation is
+served by the OLD service worker that is still in control; only after the new
+worker activates does a subsequent navigation get fresh HTML. So the immediate
+manual rescue for an already-stuck device is a HARD reload (Ctrl/Cmd+Shift+R,
+which bypasses the SW) or clearing the site's data / reinstalling the PWA — a
+normal reload is not enough. The controllerchange handler only auto-rescues
+pages that already loaded the fixed index.html at least once.
 
 # Deploy-log migration warning is a FALSE ALARM here
 

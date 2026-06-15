@@ -288,8 +288,29 @@
       // crashes the app when the keyboard or IME interacts with the page.
       var isNativeApp = navigator.userAgent.indexOf('TMGStaffApp') !== -1;
       if ('serviceWorker' in navigator && !isNativeApp) {
+        // Stale-deploy auto-recovery: if a service worker is ALREADY controlling
+        // this page, then a future "controllerchange" means a freshly deployed
+        // worker has taken over. Reload once so the page stops running an old
+        // cached app shell that points at chunk files the new build removed
+        // (the cause of the "Something went wrong" / blank admin page). We only
+        // attach this for returning visitors (controller already present), so a
+        // brand-new visitor's first-load clients.claim() does NOT trigger an
+        // unnecessary reload. A one-shot flag guards against reload loops.
+        if (navigator.serviceWorker.controller) {
+          var swReloaded = false;
+          navigator.serviceWorker.addEventListener('controllerchange', function() {
+            if (swReloaded) return;
+            swReloaded = true;
+            window.location.reload();
+          });
+        }
         window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js');
+          navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            // Force an immediate check for a newer worker on every page load so
+            // updates are picked up promptly instead of on the browser's own
+            // (up-to-24h) schedule.
+            if (reg && reg.update) { try { reg.update(); } catch (e) {} }
+          }).catch(function() {});
         });
       }
     </script>
