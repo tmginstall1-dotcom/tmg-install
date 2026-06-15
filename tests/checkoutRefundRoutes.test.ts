@@ -63,6 +63,20 @@ Object.getPrototypeOf(new Stripe(process.env.STRIPE_SECRET_KEY).checkout.session
     return { url: STUB_STRIPE_URL };
   };
 
+// Stub checkout.sessions.retrieve too, so the return-from-Stripe verification
+// path (POST /api/quotes/:id/verify-payment) can be driven with no live key and
+// no external API call. Each test sets `nextStripeSession` to the exact Checkout
+// Session object the route should "see" when it retrieves the session id, which
+// lets us exercise the route's guards: payment_status must be "paid" and
+// metadata.quoteId must match the URL quote id. Override is on the shared
+// prototype (same reasoning as the create stub above).
+let nextStripeSession: any = null;
+Object.getPrototypeOf(new Stripe(process.env.STRIPE_SECRET_KEY).checkout.sessions).retrieve =
+  async (_sessionId: string) => {
+    if (!nextStripeSession) throw new Error("nextStripeSession not configured for this test");
+    return nextStripeSession;
+  };
+
 // Pull the SGD amount (dollars) out of the last captured Stripe params.
 function lastStripeAmountSGD(): number {
   const cents = lastStripeCreateParams?.line_items?.[0]?.price_data?.unit_amount;
@@ -557,6 +571,217 @@ test("HTTP: balance checkout returns 400 when nothing is owed (under-threshold +
         } catch {
           /* best-effort cleanup */
         }
+      }
+    }
+  }
+});
+
+// =============================================================================
+// Return-from-Stripe verification — POST /api/quotes/:id/verify-payment
+//
+// After Stripe redirects the customer back, the success page calls this route to
+// confirm the payment and flip the quote to paid (webhook-free fallback). The
+// route has three guards that are otherwise untested:
+//   1. Ownership — admin session OR a referenceNo in the body that matches the
+//      quote. A public caller with a wrong/absent referenceNo gets 403.
+//   2. Stripe truth — the retrieved session.payment_status must be "paid".
+//   3. Session binding — session.metadata.quoteId must equal the URL quote id,
+//      so one quote's paid Checkout Session can't settle a different quote.
+// A regression in any of these could spoof a payment or apply it to the wrong
+// job. Stripe's retrieve is stubbed (top of file) via `nextStripeSession`, so no
+// live key/API call is needed.
+// =============================================================================
+test("HTTP: verify-payment rejects a public caller whose referenceNo does not match (403)", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  const refNo = `TEST-HTTP-VP-AUTH-${Date.now()}`;
+  let quoteId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  try {
+    const created = await storage.createQuote(
+      { name: "HTTP VerifyAuth Customer", email: `${refNo.toLowerCase()}@example.test`, phone: "+6580000009" },
+      {
+        referenceNo: refNo,
+        serviceAddress: "7 Route Rd, Singapore",
+        status: "deposit_requested",
+        subtotal: "300",
+        total: "300",
+        depositAmount: "150",
+        finalAmount: "150",
+        version: 1,
+        paymentStatus: "unpaid",
+      } as any,
+      [],
+    );
+    quoteId = created.id;
+
+    app = await startApp();
+
+    // No admin session + a referenceNo that does not match the quote ⇒ 403. This
+    // guard returns BEFORE Stripe is ever retrieved, so the session stub is moot.
+    nextStripeSession = null;
+    const res = await fetch(`${app.base}/api/quotes/${quoteId}/verify-payment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: "cs_test_stub", referenceNo: "WRONG-REF" }),
+    });
+    assert.equal(res.status, 403, "a non-admin caller with a mismatched referenceNo must be forbidden");
+
+    // The quote must remain untouched — no payment should have been recorded.
+    const after = await storage.getQuote(quoteId!);
+    assert.equal(after?.paymentStatus, "unpaid", "a rejected verify must not change payment status");
+    assert.equal(after?.depositPaidAt ?? null, null, "a rejected verify must not stamp deposit_paid_at");
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for HTTP verify-auth test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    if (quoteId !== undefined) {
+      try {
+        const { storage } = await import("../server/storage.ts");
+        await storage.deleteQuote(quoteId);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  }
+});
+
+test("HTTP: verify-payment rejects a paid session whose metadata.quoteId points at another quote (403)", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  const refNo = `TEST-HTTP-VP-BIND-${Date.now()}`;
+  let quoteId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  try {
+    const created = await storage.createQuote(
+      { name: "HTTP VerifyBind Customer", email: `${refNo.toLowerCase()}@example.test`, phone: "+6580000010" },
+      {
+        referenceNo: refNo,
+        serviceAddress: "8 Route Rd, Singapore",
+        status: "deposit_requested",
+        subtotal: "300",
+        total: "300",
+        depositAmount: "150",
+        finalAmount: "150",
+        version: 1,
+        paymentStatus: "unpaid",
+      } as any,
+      [],
+    );
+    quoteId = created.id;
+
+    app = await startApp();
+
+    // Ownership passes (correct referenceNo) and Stripe says "paid", but the
+    // session is bound to a DIFFERENT quote id — the route must refuse to settle
+    // this quote with another quote's payment session.
+    nextStripeSession = {
+      payment_status: "paid",
+      amount_total: 15000,
+      metadata: { quoteId: String(quoteId! + 100000), type: "deposit" },
+    };
+    const res = await fetch(`${app.base}/api/quotes/${quoteId}/verify-payment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: "cs_test_stub", referenceNo: refNo }),
+    });
+    assert.equal(res.status, 403, "a paid session bound to another quote must not settle this quote");
+    const body = await res.json();
+    assert.match(body.message, /does not match/i, "403 must explain the session does not match the quote");
+
+    const after = await storage.getQuote(quoteId!);
+    assert.equal(after?.paymentStatus, "unpaid", "a mismatched session must not change payment status");
+    assert.equal(after?.depositPaidAt ?? null, null, "a mismatched session must not stamp deposit_paid_at");
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for HTTP verify-bind test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    if (quoteId !== undefined) {
+      try {
+        const { storage } = await import("../server/storage.ts");
+        await storage.deleteQuote(quoteId);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  }
+});
+
+test("HTTP: verify-payment flips the quote to deposit_paid for a valid, matching, paid session (200)", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  const refNo = `TEST-HTTP-VP-OK-${Date.now()}`;
+  let quoteId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  try {
+    // total > deposit and no preferred slot ⇒ the deposit payment settles to
+    // 'deposit_paid' (not paid_in_full, not auto-booked).
+    const created = await storage.createQuote(
+      { name: "HTTP VerifyOk Customer", email: `${refNo.toLowerCase()}@example.test`, phone: "+6580000011" },
+      {
+        referenceNo: refNo,
+        serviceAddress: "9 Route Rd, Singapore",
+        status: "deposit_requested",
+        subtotal: "300",
+        total: "300",
+        depositAmount: "150",
+        finalAmount: "150",
+        version: 1,
+        paymentStatus: "unpaid",
+      } as any,
+      [],
+    );
+    quoteId = created.id;
+
+    app = await startApp();
+
+    // Correct referenceNo, Stripe "paid", and metadata.quoteId bound to THIS
+    // quote ⇒ the route records the deposit and returns 200.
+    nextStripeSession = {
+      payment_status: "paid",
+      amount_total: 15000, // $150.00 deposit
+      metadata: { quoteId: String(quoteId), type: "deposit" },
+    };
+    const res = await fetch(`${app.base}/api/quotes/${quoteId}/verify-payment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: "cs_test_stub", referenceNo: refNo }),
+    });
+    assert.equal(res.status, 200, "a valid, matching, paid session must verify successfully");
+    const body = await res.json();
+    assert.equal(body.status, "ok");
+
+    // The crux: the quote must now be flagged as deposit paid, both in the
+    // returned payload and when re-read from storage.
+    assert.equal(body.quote?.paymentStatus, "deposit_paid", "the returned quote must be deposit_paid");
+    const after = await storage.getQuote(quoteId!);
+    assert.equal(after?.paymentStatus, "deposit_paid", "the persisted quote must be deposit_paid");
+    assert.ok(after?.depositPaidAt, "deposit_paid_at must be stamped after a verified deposit");
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for HTTP verify-ok test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    if (quoteId !== undefined) {
+      try {
+        const { storage } = await import("../server/storage.ts");
+        await storage.deleteQuote(quoteId);
+      } catch {
+        /* best-effort cleanup */
       }
     }
   }
