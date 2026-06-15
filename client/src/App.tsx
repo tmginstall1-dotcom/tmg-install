@@ -43,6 +43,31 @@ function shouldReloadOnce(): boolean {
   return false;
 }
 
+// Bulletproof recovery: clear every Cache Storage entry and unregister all
+// service workers, THEN hard-reload. A plain reload can be re-served the same
+// stale app shell by a pinned service worker (common with installed iOS PWAs),
+// which keeps pointing at chunk files a newer deploy removed. Wiping caches +
+// workers first guarantees the reload comes straight from the network.
+async function hardReload(): Promise<void> {
+  try {
+    if (typeof caches !== "undefined") {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch {
+    // caches API unavailable — fall through to plain reload.
+  }
+  try {
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+  } catch {
+    // service worker API unavailable — fall through to plain reload.
+  }
+  window.location.reload();
+}
+
 function isChunkLoadError(err: unknown): boolean {
   const msg = String((err as any)?.message || err || "");
   return (
@@ -62,7 +87,7 @@ function lazyWithReload<T extends ComponentType<any>>(
       return await factory();
     } catch (err) {
       if (shouldReloadOnce()) {
-        window.location.reload();
+        void hardReload();
         // Keep the Suspense fallback up while the page reloads.
         return await new Promise<{ default: T }>(() => {});
       }
@@ -319,7 +344,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
     // A render-time chunk/dynamic-import failure means the deployed bundle moved
     // on. Force a guarded one-time reload to pick up the fresh app shell.
     if (isChunkLoadError(err) && shouldReloadOnce()) {
-      window.location.reload();
+      void hardReload();
     }
   }
   render() {
@@ -331,7 +356,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
           <p className="text-sm text-gray-500 mb-6">Please reload to get the latest version.</p>
           <button
             className="px-4 py-2 bg-black text-white rounded text-sm"
-            onClick={() => window.location.reload()}
+            onClick={() => void hardReload()}
           >
             Reload
           </button>

@@ -43,6 +43,38 @@ which bypasses the SW) or clearing the site's data / reinstalling the PWA — a
 normal reload is not enough. The controllerchange handler only auto-rescues
 pages that already loaded the fixed index.html at least once.
 
+# The HARD case: an installed iOS PWA pinned to an old service worker
+
+An installed iOS PWA (Add to Home Screen) is the worst case: it can stay pinned
+to an ancient service worker that serves the whole shell from cache and ignores
+in-page reloads entirely, so shipping new app code does nothing — the new bundle
+is never even fetched. In-page JS recovery (`hardReload()` etc.) can't help
+because that JS lives in a bundle the pinned SW won't serve.
+
+**The only reliable lever is the SW file itself.** The browser ALWAYS
+revalidates `sw.js` (bypassing the HTTP cache), and an installed PWA re-checks it
+on cold launch. So put the rescue IN the SW's `activate` handler: after purging
+old caches and `clients.claim()`, if this activation deleted caches from a prior
+version (an UPDATE, detect via `staleCacheKeys.length > 0`, NOT a first install),
+call `client.navigate(client.url)` on every window client. That forces each
+window onto a fresh navigation under the new (network-first-for-HTML) worker,
+pulling a fresh index.html + bundle — driven entirely by the SW, so it reaches
+pinned clients no page-level code could.
+
+**Why guard on "did we delete a prior-version cache":** without it, the first-
+ever install also fires `activate` and would needlessly navigate/reload a brand
+new visitor. Only navigate on a genuine version upgrade.
+
+**Confirm it's caching, not a real 404, before any of this:** `curl` the prod
+index.html, extract every `/assets/*.js` chunk the entry bundle references, and
+HEAD-check them — if they all return 200 (they did here: 140/140), the server is
+fine and the bug is 100% stale client state. Don't touch the server/schema.
+
+**Manual rescue for the user's pinned iOS PWA:** fully close the app (swipe it
+out of the app switcher) and relaunch — cold launch re-checks sw.js and the new
+activate handler self-heals. If still stuck, delete the home-screen icon and
+re-add it (nuclear, always works).
+
 # Deploy-log migration warning is a FALSE ALARM here
 
 Deploy logs print "the connected database is MISSING committed schema
