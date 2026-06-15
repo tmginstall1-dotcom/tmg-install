@@ -5994,7 +5994,8 @@ ALWAYS INCLUDE these furniture categories:
 - Storage furniture (bookshelf, display cabinet, shoe cabinet, shoe rack, tall shoe cabinet, drawer chest, filing cabinet, sideboard, buffet cabinet, china cabinet)
 - Gym equipment (treadmill, elliptical machine, rowing machine, exercise bike, spin bike, power rack, weight bench, dumbbell rack, multi-station gym)
 - Large kitchen appliances ONLY when they require moving (refrigerator, washing machine, dryer, dishwasher)
-- Kids furniture (bunk bed, loft bed with desk, kids wardrobe, baby crib, toy storage unit, kids study desk with hutch)
+- Kids furniture (bunk bed, bunk bed with trundle, bunk bed with storage drawers, loft bed, loft bed with desk, loft bed with storage, loft bed with desk & storage, kids wardrobe, baby crib, toy storage unit, kids study desk with hutch)
+  • Loft/bunk bed configuration matters for pricing — describe what is UNDER or attached to the high bed: a plain high bed with empty space below is a "Loft Bed (Single)"; with only a desk it is "Loft Bed with Desk"; with only a wardrobe/drawers (no desk) it is "Loft Bed with Storage"; with BOTH a desk and a wardrobe/drawers/shelving it is "Loft Bed with Desk & Storage"; a stacked two-tier bunk with built-in drawers or stair-storage is "Bunk Bed (with Storage Drawers)".
 - IKEA furniture — identify model if visible (PAX, KALLAX, BILLY, MALM, HEMNES, BESTA, MICKE, LACK, ALEX, POÄNG, KIVIK, IVAR, TROFAST, STUVA, VITTSJO, VADHOLMA kitchen island, STENSTORP kitchen island, RÅSKOG trolley, FÖRHÖJA trolley/cart, NORDEN, TORNVIKEN kitchen island)
 - Bathroom fixtures (mirror cabinet, mirror medicine cabinet, washroom mirror cabinet, bathroom vanity unit, over-toilet storage cabinet, bathroom shelving, towel rack — IKEA LILLÅNGEN, GODMORGON, HEMNES mirror cabinets)
 - Wall-mounted items (floating shelf, wall cabinet, curtain track/rod, full-length mirror, TV wall mounting bracket)

@@ -3472,6 +3472,96 @@ export async function seedDatabase() {
     console.log(`[startup] Round 38: Common loose move items — inserted ${inserted} new relocate SKU row(s).`);
   }
 
+  /* ─── Round 39: Loft / Bunk bed configuration variants ────────────────────
+     Real-world: kids' beds come in several configurations and a plain "Loft
+     Bed with Desk" entry under-describes (and under-prices) the bigger study
+     stations — a loft bed that ALSO carries a wardrobe/drawers is genuinely
+     more work to install, dismantle, relocate and dispose of. AI photo
+     detection was matching every high kids' bed to the single "Loft Bed with
+     Desk" SKU, so the catalog now covers the full family:
+
+        Loft Bed (Single)              — high bed, nothing underneath
+        Loft Bed with Desk             — (already in catalog)
+        Loft Bed with Storage          — loft + wardrobe/drawers, no desk
+        Loft Bed with Desk & Storage   — full study station (desk + storage)
+        Bunk Bed (Standard)            — (already in catalog)
+        Bunk Bed (with Trundle)        — (already in catalog)
+        Bunk Bed (with Storage Drawers)— bunk + built-in drawers / stair-storage
+
+     Each new variant is fully quotable across ALL service types so none falls
+     through to the generic fallback: install, dismantle, relocate (Carry Only
+     basePrice + the (install+dismantle)x0.6 D&R bundle the engine derives by
+     name), dispose, and dismantle_dispose. volumeM3 is set on every row so the
+     volumetric-handling line resolves whether the customer picks Carry Only or
+     D&R. Prices are sensible SG-market defaults (2 movers, on-site time) that
+     admins can fine-tune later in the catalog. Idempotent by SKU; the marker
+     keeps the whole round a one-time insert.
+
+     Resulting D&R bundles ((install+dismantle)x0.6):
+        Loft Bed (Single)               (160+110)x0.6 = $162
+        Loft Bed with Storage           (230+160)x0.6 = $234
+        Loft Bed with Desk & Storage    (280+200)x0.6 = $288
+        Bunk Bed (with Storage Drawers) (300+210)x0.6 = $306
+
+     Marker: BED-VARIANTS-R39-MARKER.
+  */
+  const r39 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "BED-VARIANTS-R39-MARKER")).limit(1);
+  if (r39.length === 0) {
+    type BedVariant = {
+      name: string;
+      prefix: string;
+      vol: string;
+      install: string;
+      dismantle: string;
+      relocate: string;        // Carry Only basePrice
+      dispose: string;
+      dismantleDispose: string;
+    };
+    const bedVariants: BedVariant[] = [
+      { name: "Loft Bed (Single)",               prefix: "LOFT-SINGLE",    vol: "0.55", install: "160.00", dismantle: "110.00", relocate: "230.00", dispose: "110.00", dismantleDispose: "180.00" },
+      { name: "Loft Bed with Storage",           prefix: "LOFT-STOR",      vol: "0.70", install: "230.00", dismantle: "160.00", relocate: "330.00", dispose: "140.00", dismantleDispose: "240.00" },
+      { name: "Loft Bed with Desk & Storage",    prefix: "LOFT-DESK-STOR", vol: "0.80", install: "280.00", dismantle: "200.00", relocate: "390.00", dispose: "160.00", dismantleDispose: "280.00" },
+      { name: "Bunk Bed (with Storage Drawers)", prefix: "BUNK-STOR",      vol: "0.70", install: "300.00", dismantle: "210.00", relocate: "300.00", dispose: "130.00", dismantleDispose: "200.00" },
+    ];
+
+    let inserted = 0;
+    for (const v of bedVariants) {
+      const rows = [
+        { sku: `${v.prefix}-INSTALL`,    serviceType: "install",            basePrice: v.install },
+        { sku: `${v.prefix}-DISMANTLE`,  serviceType: "dismantle",          basePrice: v.dismantle },
+        { sku: `${v.prefix}-RELOCATE`,   serviceType: "relocate",           basePrice: v.relocate },
+        { sku: `${v.prefix}-DISPOSE`,    serviceType: "dispose",            basePrice: v.dispose },
+        { sku: `${v.prefix}-DIS-DISP`,   serviceType: "dismantle_dispose",  basePrice: v.dismantleDispose },
+      ];
+      for (const r of rows) {
+        const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, r.sku)).limit(1);
+        if (exists.length === 0) {
+          await db.insert(catalogItems).values({
+            name: v.name,
+            sku: r.sku,
+            category: "Beds",
+            serviceType: r.serviceType,
+            basePrice: r.basePrice,
+            volumeM3: v.vol,
+            active: true,
+          } as any);
+          inserted++;
+        }
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__bed_variants_r39_marker__",
+      sku: "BED-VARIANTS-R39-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 39: Loft / Bunk bed configuration variants — inserted ${inserted} new SKU row(s) across all service types.`);
+  }
+
   // Quick-reply template library — seed the dispute-scenario templates idempotently
   // (by slug). Bodies keep {{placeholders}} so live business-rule values are
   // substituted at render time. Existing edited templates are never overwritten.
