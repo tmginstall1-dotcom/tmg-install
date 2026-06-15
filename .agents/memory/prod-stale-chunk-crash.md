@@ -107,6 +107,29 @@ tool; the native Capacitor staff app handles its own offline data separately.
 **Two PWA manifests exist:** `client/public/manifest.json` (start_url `/`) and
 `manifest-admin.json` (start_url `/admin`) — a device may be pinned to either.
 
+**iOS shares ONE service worker between Safari AND the home-screen PWA** for an
+origin. Proven the hard way: a clean external browser renders prod perfectly,
+but the user's iPhone crashed in BOTH the installed PWA and plain Safari — same
+stuck worker. So "just use Safari" is NOT a workaround, and you cannot assume a
+deploy reaches the device; Apple releases a pinned worker too unreliably.
+
+**The remote escape hatch: a `/reset` repair link.** Added `GET /reset` in
+`server/index.ts`, registered BEFORE the SPA/Vite catch-all so it loads even
+when the app bundle is broken. It returns a tiny self-contained HTML page (no
+app bundle / SW dependency) whose inline JS `getRegistrations().unregister()` +
+`caches.delete()` for all, then `location.replace('/?fresh='+Date.now())`.
+Works regardless of the old worker's fetch strategy because `/reset` is a
+brand-new path (cache miss → network → server). User instruction: open
+`tmginstall.com/reset` once and tap the button.
+
+**Security — the wipe MUST be gated behind a click, and the bare GET must send
+NO `Clear-Site-Data` header.** An auto-wiping `/reset` is a drive-by CSRF/DoS
+hole: any external site can top-level-navigate a victim there and nuke their
+storage / unregister their worker. Gating the clear behind a button tap on our
+own origin's page (and dropping the header) neutralizes it. Don't "optimize" it
+back to auto-run on load. Safari honors `Clear-Site-Data` inconsistently anyway,
+so the click-gated inline JS is the real mechanism — the header added nothing.
+
 # Deploy-log migration warning is a FALSE ALARM here
 
 Deploy logs print "the connected database is MISSING committed schema

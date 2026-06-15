@@ -44,6 +44,86 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// ── /reset — one-tap repair link for a stuck client ──────────────────────────
+// Registered as early as possible (before the SPA/Vite catch-all) so it loads a
+// tiny self-contained page that does NOT depend on the app bundle — it works
+// even when the app itself is crashing. It unregisters every service worker and
+// deletes every Cache Storage entry, then sends the user to a fresh copy.
+//
+// WHY THIS EXISTS: on iOS, Safari and an installed home-screen PWA share one
+// service worker registration for the origin, and Apple updates/releases a
+// pinned worker so unreliably that a user can be stranded on an old cached app
+// shell (referencing chunk files a later deploy removed) with no in-app way out.
+// Visiting /reset lets them clear that state without hunting through iOS Settings.
+//
+// SECURITY: the clearing is gated behind an explicit button tap on this page and
+// the bare GET sends NO destructive header — so a drive-by cross-site navigation
+// to /reset cannot wipe a victim's storage or unregister their worker. The
+// actual clear runs entirely in click-triggered inline JS (the reliable path on
+// Safari, which honors the Clear-Site-Data header inconsistently). Session
+// cookies are untouched by the JS clear, so the user stays logged in.
+app.get("/reset", (_req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Update TMG Install</title>
+<style>
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+       display:flex;align-items:center;justify-content:center;background:#ffffff;color:#111111}
+  .box{max-width:340px;padding:28px;text-align:center}
+  h1{font-size:18px;margin:0 0 8px}
+  p{font-size:14px;line-height:1.5;color:#555;margin:0 0 20px}
+  button{appearance:none;border:0;background:#111;color:#fff;cursor:pointer;
+         padding:13px 22px;border-radius:6px;font-size:15px;font-weight:600;width:100%}
+  button:disabled{opacity:.6;cursor:default}
+  .spin{display:none;width:30px;height:30px;margin:0 auto 18px;border:3px solid #e5e5e5;
+        border-top-color:#111;border-radius:50%;animation:r .8s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="spin" id="spin"></div>
+    <h1>Get the latest version</h1>
+    <p id="msg">Tap below to clear the old saved copy on this device and load the newest version of TMG Install.</p>
+    <button id="btn" type="button">Clear &amp; update now</button>
+  </div>
+  <script>
+    var btn = document.getElementById('btn');
+    var msg = document.getElementById('msg');
+    var spin = document.getElementById('spin');
+    btn.addEventListener('click', async function () {
+      btn.disabled = true;
+      spin.style.display = 'block';
+      msg.textContent = "Clearing the old copy… this takes a few seconds. Please don't close this tab.";
+      try {
+        if ('serviceWorker' in navigator) {
+          var regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(function (r) { return r.unregister(); }));
+        }
+      } catch (e) {}
+      try {
+        if (window.caches && caches.keys) {
+          var keys = await caches.keys();
+          await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+        }
+      } catch (e) {}
+      // Hand off to a fresh, uncontrolled load. The cache-buster query guards
+      // against the back/forward cache replaying a stale page.
+      setTimeout(function () {
+        window.location.replace('/?fresh=' + Date.now());
+      }, 700);
+    });
+  </script>
+</body>
+</html>`);
+});
+
 // Build the allowed-origin set from hard-coded defaults plus any extra origins
 // supplied at runtime (APP_URL, ALLOWED_ORIGINS_EXTRA) and the Replit-provided
 // preview/deployment domains (REPLIT_DOMAINS, REPLIT_DEV_DOMAIN). The logic
