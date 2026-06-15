@@ -20,6 +20,16 @@ behind the same acceptance check as the others.
 **Why:** dispute protection depends on the customer having accepted the current
 quote version before money moves — an ungated alternate path silently bypasses it.
 
+The "all payment paths" rule is NOT just the on-page buttons. Deposit/first
+payment can also be reached server-side: the short link `/pay/:ref` (which every
+deposit email/WhatsApp message points to) minted a direct Stripe session, and the
+deposit-request / resend-deposit emails + WhatsApp snippet helper embedded direct
+Stripe URLs. All of those must route the FIRST payment through the gate — gate the
+deposit branch of `/pay/:ref` with `termsAcceptedForCurrentVersion` (redirect to
+the quote page when unaccepted) and have every deposit message send the gated
+short link, never a pre-minted Stripe URL. Final/balance payments stay ungated
+(terms were accepted at deposit time).
+
 ## 2. Re-version on edits to SENT quotes, not only ACCEPTED ones
 `editQuote` bumps the quote version (invalidating acceptance, forcing re-accept)
 when scope/price/timing changes. Triggering only when a prior acceptance exists

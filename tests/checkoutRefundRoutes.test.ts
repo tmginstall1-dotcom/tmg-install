@@ -872,3 +872,160 @@ test("HTTP: verify-payment flips the quote to deposit_paid for a valid, matching
     }
   }
 });
+
+// =============================================================================
+// Short payment link  GET /pay/:ref  (deposit) — terms-acceptance bypass guard
+//
+// The short link is what every deposit email/WhatsApp message points to. Before
+// this guard it minted a fresh Stripe deposit session and 302'd straight to it,
+// letting a customer pay the first (deposit/full) payment WITHOUT accepting the
+// current quote terms — bypassing the dispute-protection gate that the on-page
+// Pay button and GET /api/quotes/:id/checkout already enforce.
+//
+// Now the deposit branch of /pay/:ref runs the SAME predicate
+// (termsAcceptedForCurrentVersion): if the current version isn't accepted it
+// redirects to the quote page (where acceptance is collected) instead of to
+// Stripe. Once accepted, it redirects to the (stubbed) Stripe URL as before.
+//
+// We use redirect: "manual" so we can read the Location header without actually
+// following it to the fake Stripe host.
+// =============================================================================
+test("HTTP: /pay/:ref deposit link redirects to the quote page until terms are accepted", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  const refNo = `TEST-PAYREF-GATE-${Date.now()}`;
+  let quoteId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  try {
+    const created = await storage.createQuote(
+      { name: "PayRef Gate Customer", email: `${refNo.toLowerCase()}@example.test`, phone: "+6580000010" },
+      {
+        referenceNo: refNo,
+        serviceAddress: "10 Route Rd, Singapore",
+        status: "deposit_requested",
+        subtotal: "300",
+        total: "300",
+        depositAmount: "150",
+        finalAmount: "150",
+        version: 1,
+        paymentStatus: "unpaid",
+      } as any,
+      [],
+    );
+    quoteId = created.id;
+
+    app = await startApp();
+
+    // Unaccepted → must NOT go to Stripe; must land on the quote page (where the
+    // customer accepts the current version before the gated checkout runs).
+    const blocked = await fetch(`${app.base}/pay/${refNo}`, { redirect: "manual" });
+    assert.ok(blocked.status >= 300 && blocked.status < 400, "/pay/:ref must redirect");
+    const blockedLoc = blocked.headers.get("location") || "";
+    assert.match(
+      blockedLoc,
+      new RegExp(`/quotes/${quoteId}\\b`),
+      "unaccepted deposit short link must redirect to the quote page, not Stripe",
+    );
+    assert.ok(
+      !blockedLoc.includes("checkout.stripe"),
+      "unaccepted deposit short link must NOT redirect to a Stripe checkout URL",
+    );
+
+    // Customer accepts the current version → the short link may now mint + 302 to
+    // the (stubbed) Stripe session, same as the on-page Pay button.
+    await storage.recordTermsAcceptance(quoteId!, { version: 1, amount: 300 });
+    const allowed = await fetch(`${app.base}/pay/${refNo}`, { redirect: "manual" });
+    assert.ok(allowed.status >= 300 && allowed.status < 400, "/pay/:ref must redirect after acceptance");
+    assert.equal(
+      allowed.headers.get("location"),
+      STUB_STRIPE_URL,
+      "after acceptance the deposit short link must redirect to the Stripe checkout URL",
+    );
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for /pay/:ref gate test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    if (quoteId !== undefined) {
+      try {
+        const { storage } = await import("../server/storage.ts");
+        await storage.deleteQuote(quoteId);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  }
+});
+
+// =============================================================================
+// Short payment link  GET /pay/:ref?type=final  — intentionally UNGATED
+//
+// The terms-acceptance gate only governs the FIRST (deposit/full) payment. By the
+// time a balance is owed the customer has already accepted + paid the deposit, so
+// the final/balance branch of /pay/:ref must NOT require (re)acceptance. This test
+// locks that intentional behavior in: a quote with an outstanding balance and NO
+// terms acceptance recorded must still redirect straight to the (stubbed) Stripe
+// balance checkout.
+// =============================================================================
+test("HTTP: /pay/:ref?type=final is ungated and redirects to Stripe even without terms acceptance", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  const { termsAcceptedForCurrentVersion } = await import("../shared/businessRules.ts");
+  const refNo = `TEST-PAYREF-FINAL-${Date.now()}`;
+  let quoteId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  try {
+    const created = await storage.createQuote(
+      { name: "PayRef Final Customer", email: `${refNo.toLowerCase()}@example.test`, phone: "+6580000012" },
+      {
+        referenceNo: refNo,
+        serviceAddress: "12 Route Rd, Singapore",
+        status: "deposit_paid",
+        subtotal: "300",
+        total: "300",
+        depositAmount: "150",
+        finalAmount: "150",
+        version: 1,
+        paymentStatus: "deposit_paid",
+        depositPaidAt: new Date(),
+      } as any,
+      [],
+    );
+    quoteId = created.id;
+
+    // Sanity: no terms acceptance on this quote — proving the final branch does
+    // not depend on the gate the deposit branch enforces.
+    const q = await storage.getQuote(quoteId!);
+    assert.equal(termsAcceptedForCurrentVersion(q as any), false, "fixture must have unaccepted terms");
+
+    app = await startApp();
+    const res = await fetch(`${app.base}/pay/${refNo}?type=final`, { redirect: "manual" });
+    assert.ok(res.status >= 300 && res.status < 400, "/pay/:ref?type=final must redirect");
+    assert.equal(
+      res.headers.get("location"),
+      STUB_STRIPE_URL,
+      "final/balance short link must redirect to Stripe regardless of terms acceptance",
+    );
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for /pay/:ref final test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    if (quoteId !== undefined) {
+      try {
+        const { storage } = await import("../server/storage.ts");
+        await storage.deleteQuote(quoteId);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  }
+});

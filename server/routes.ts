@@ -3574,6 +3574,13 @@ Category rules:
         amount = depositPaidFallback(parseFloat(quote.total || "0"), quote.depositAmount);
         description = `${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment" : "50% Deposit"} for ${quote.referenceNo} — TMG Install`;
         stripeType = "deposit";
+        // Dispute-protection: the first (deposit/full) payment must not bypass the
+        // terms-acceptance step. If the current quote version hasn't been accepted,
+        // send the customer to the quote page (which collects acceptance, then runs
+        // the gated checkout) instead of minting a direct Stripe link here.
+        if (!termsAcceptedForCurrentVersion(quote)) {
+          return res.redirect(quotePageUrl);
+        }
       }
 
       // Full-upfront / already-settled jobs have no final balance — don't mint a link.
@@ -4539,14 +4546,10 @@ ${systemPrompt}` });
       // Send deposit request when admin sets status to deposit_requested
       if (input.status === "deposit_requested" && quote.customer) {
         const depositAmt = depositPaidFallback(parseFloat(quote.total || "0"), quote.depositAmount);
-        const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
-        const stripeUrl = await createStripePaymentLink(
-          `${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment" : "Deposit"} for ${quote.referenceNo} — TMG Install`,
-          depositAmt,
-          { quoteId: String(quote.id), type: "deposit", referenceNo: quote.referenceNo },
-          quotePageUrl
-        );
-        const paymentLink = stripeUrl || quotePageUrl;
+        // Dispute-protection: never send a direct Stripe deposit link before the
+        // customer accepts the current quote terms. The gated short link routes
+        // through /pay/:ref → the quote page until acceptance is recorded.
+        const paymentLink = `${APP_URL}/pay/${quote.referenceNo}`;
 
         // Determine if the customer has a real email (WhatsApp customers get placeholder
         // emails like "65XXXXXXXX@tmginstall.com" — these can never receive emails)
@@ -8832,14 +8835,9 @@ Respond directly — no JSON, just the message text.`,
       if (!quote) return res.status(404).json({ message: "Quote not found" });
 
       const depositAmt = depositPaidFallback(parseFloat(quote.total || "0"), quote.depositAmount);
-      const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
-      const stripeUrl = await createStripePaymentLink(
-        `${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment" : "Deposit"} for ${quote.referenceNo} — TMG Install`,
-        depositAmt,
-        { quoteId: String(quote.id), type: "deposit", referenceNo: quote.referenceNo },
-        quotePageUrl
-      );
-      const paymentLink = stripeUrl || quotePageUrl;
+      // Dispute-protection: resend the gated short deposit link (not a direct
+      // Stripe URL) so the customer must accept the current terms before paying.
+      const paymentLink = `${APP_URL}/pay/${quote.referenceNo}`;
 
       const hasRealEmail = quote.customer?.email &&
         !quote.customer.email.endsWith("@tmginstall.com") &&
@@ -8955,17 +8953,23 @@ Respond directly — no JSON, just the message text.`,
       ? `${APP_URL}/pay/${quote.referenceNo}?type=final`
       : `${APP_URL}/pay/${quote.referenceNo}`;
 
-    // Generate fresh Stripe link so the snippet works even after old links expire.
+    // Final/balance payments may use a direct Stripe link (terms were accepted at
+    // deposit time). The first deposit/full payment must NOT — route it through the
+    // gated short link so the customer accepts the current terms first.
     const quotePageUrl = `${APP_URL}/quotes/${quote.id}?ref=${quote.referenceNo}`;
-    const stripeUrl = await createStripePaymentLink(
-      type === "final"
-        ? `Balance Payment for ${quote.referenceNo} — TMG Install`
-        : `${requiresFullUpfront(parseFloat(quote.total || "0")) ? "Full Payment" : "Deposit"} for ${quote.referenceNo} — TMG Install`,
-      amount,
-      { quoteId: String(quote.id), type, referenceNo: quote.referenceNo },
-      quotePageUrl,
-    );
-    const paymentLink = stripeUrl || quotePageUrl;
+    let paymentLink: string;
+    if (type === "final") {
+      // Generate fresh Stripe link so the snippet works even after old links expire.
+      const stripeUrl = await createStripePaymentLink(
+        `Balance Payment for ${quote.referenceNo} — TMG Install`,
+        amount,
+        { quoteId: String(quote.id), type, referenceNo: quote.referenceNo },
+        quotePageUrl,
+      );
+      paymentLink = stripeUrl || quotePageUrl;
+    } else {
+      paymentLink = shortPayUrl;
+    }
 
     const customerName = quote.customer?.name || "there";
     const slotLine = formatSlotLineForQuote(quote);
