@@ -1030,28 +1030,32 @@ export default function QuoteStatus() {
                       <p className="text-[10px] text-white/40 text-center mt-2">Accept the terms above to enable payment.</p>
                     )}
                   </div>
-                  {/* PayNow QR alternative */}
-                  <div className="border-t border-white/10 pt-4">
-                    <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-3" style={{ letterSpacing: "0.15em" }}>
-                      Or Pay via PayNow
-                    </p>
-                    <div className="flex flex-col items-center gap-3 bg-white/5 border border-white/10 p-4">
-                      <img
-                        src="/paynow-qr.png"
-                        alt="PayNow QR Code"
-                        data-testid="img-paynow-qr"
-                        className="w-36 h-36 object-contain bg-white p-2"
-                      />
-                      <div className="text-center">
-                        <p className="text-xs font-bold text-white/80">Scan with any banking app</p>
-                        <p className="text-[10px] text-white/40 mt-1">UEN: 202424156H · TMG Install by The Moving Guy Pte Ltd</p>
-                        <p className="text-[10px] text-white/40 mt-0.5">Add your ref no. <span className="font-semibold text-white/60">{quote.referenceNo}</span> in remarks</p>
+                  {/* PayNow QR alternative — also gated behind terms acceptance
+                      so NO payment path (Stripe or PayNow) is usable until the
+                      customer has accepted the current quote version. */}
+                  {termsAccepted && (
+                    <div className="border-t border-white/10 pt-4">
+                      <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-3" style={{ letterSpacing: "0.15em" }}>
+                        Or Pay via PayNow
+                      </p>
+                      <div className="flex flex-col items-center gap-3 bg-white/5 border border-white/10 p-4">
+                        <img
+                          src="/paynow-qr.png"
+                          alt="PayNow QR Code"
+                          data-testid="img-paynow-qr"
+                          className="w-36 h-36 object-contain bg-white p-2"
+                        />
+                        <div className="text-center">
+                          <p className="text-xs font-bold text-white/80">Scan with any banking app</p>
+                          <p className="text-[10px] text-white/40 mt-1">UEN: 202424156H · TMG Install by The Moving Guy Pte Ltd</p>
+                          <p className="text-[10px] text-white/40 mt-0.5">Add your ref no. <span className="font-semibold text-white/60">{quote.referenceNo}</span> in remarks</p>
+                        </div>
                       </div>
+                      <p className="text-[10px] text-white/30 text-center mt-2">
+                        After PayNow transfer, WhatsApp us at {WHATSAPP_DISPLAY} with your receipt.
+                      </p>
                     </div>
-                    <p className="text-[10px] text-white/30 text-center mt-2">
-                      After PayNow transfer, WhatsApp us at {WHATSAPP_DISPLAY} with your receipt.
-                    </p>
-                  </div>
+                  )}
                 </div>
               )}
 

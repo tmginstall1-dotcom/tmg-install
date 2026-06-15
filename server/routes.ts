@@ -5508,10 +5508,14 @@ ${systemPrompt}` });
       const updated = await storage.editQuote(id, { customerUpdates, quoteUpdates, items });
       if (!updated) return res.status(404).json({ message: "Quote not found" });
 
-      // Dispute-protection: if this quote was ALREADY accepted by the customer
-      // and the admin changed its scope/price/timing, invalidate the prior
-      // acceptance by bumping the version so the customer must re-accept the
-      // updated terms before paying. Status-only or note-only edits don't bump.
+      // Dispute-protection: when the admin changes a SENT quote's scope, price
+      // or timing, bump the version so the customer is always shown a coherent,
+      // numbered version of the terms. If a prior acceptance existed it is
+      // invalidated (the customer must re-accept the updated terms before
+      // paying); if the quote was sent but not yet accepted, the version still
+      // advances so an in-flight quote can't be paid against stale terms.
+      // Status-only or note-only edits don't bump, and quotes still being
+      // prepared (draft / submitted / under_review) don't bump either.
       const scopeOrPriceChanged =
         items !== undefined ||
         quoteUpdates?.transportFee !== undefined ||
@@ -5526,7 +5530,14 @@ ${systemPrompt}` });
         quoteUpdates?.timingMode !== undefined ||
         quoteUpdates?.scheduledAt !== undefined ||
         quoteUpdates?.timeWindow !== undefined;
-      if (existing.termsAcceptedAt && !existing.finalPaidAt && scopeOrPriceChanged) {
+      // "Sent to the customer" = either already accepted, or in a status where
+      // the customer is being shown the quote to accept/pay (approved /
+      // deposit_requested). Editing those re-versions; draft-stage edits don't.
+      const quoteWasSent =
+        !!existing.termsAcceptedAt ||
+        existing.status === "approved" ||
+        existing.status === "deposit_requested";
+      if (quoteWasSent && !existing.finalPaidAt && scopeOrPriceChanged) {
         const reVersioned = await storage.bumpQuoteVersion(id);
         return res.json(reVersioned ?? updated);
       }

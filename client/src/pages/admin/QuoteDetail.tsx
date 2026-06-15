@@ -606,6 +606,10 @@ export default function AdminQuoteDetail() {
  const [isEditing, setIsEditing] = useState(false);
  const [editCustomer, setEditCustomer] = useState<any>({});
  const [editQuoteData, setEditQuoteData] = useState<any>({});
+ // Dispute-protection: when split timing or after-office work is selected, the
+ // admin must explicitly confirm the surcharge was added to the quote or waived
+ // in writing before the edit can be saved. Tracked separately (not persisted).
+ const [surchargeAck, setSurchargeAck] = useState(false);
  const [editItems, setEditItems] = useState<any[]>([]);
  // Multi-stop relocation (additive) editing state.
  const [editStops, setEditStops] = useState<EditStop[]>([]);
@@ -1136,11 +1140,23 @@ export default function AdminQuoteDetail() {
  fromStopId: item.fromStopId || null,
  toStopId: item.toStopId || null,
  })));
+ setSurchargeAck(false);
  setIsEditing(true);
  };
 
  const handleSaveEdit = async () => {
  try {
+ // Dispute-protection: block the save until the admin confirms the after-office
+ // / split-timing surcharge was added to the quote or waived in writing.
+ const needsSurchargeAck = editQuoteData.timingMode === 'split' || !!editQuoteData.afterOfficeInvolved;
+ if (needsSurchargeAck && !surchargeAck) {
+ toast({
+ title: "Confirm the surcharge",
+ description: "Split timing or after-office work is selected. Confirm the surcharge was added to the quote, or waived in writing, before saving.",
+ variant: "destructive",
+ });
+ return;
+ }
  // Clean multi-stop data — only stops that carry an address are persisted.
  const cleanStops: QuoteStop[] = editStops
  .filter(s => s.address.trim())
@@ -3154,8 +3170,36 @@ export default function AdminQuoteDetail() {
  </div>
  </div>
 
+ {(editQuoteData.timingMode === 'split' || editQuoteData.afterOfficeInvolved) && (
+ <div className="mt-6 border border-amber-300 bg-amber-50 rounded-lg p-3" data-testid="banner-surcharge-ack">
+ <div className="flex items-start gap-2">
+ <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+ <div className="space-y-2">
+ <p className="text-xs font-semibold text-amber-900">
+ {editQuoteData.timingMode === 'split' && editQuoteData.afterOfficeInvolved
+ ? 'Split timing and after-office work are selected.'
+ : editQuoteData.timingMode === 'split'
+ ? 'Split timing (dismantle + reinstall on separate days) is selected.'
+ : 'After-office work is selected.'}{' '}
+ The resulting surcharge must be reflected on this quote, or waived in writing.
+ </p>
+ <label className="flex items-start gap-2.5 cursor-pointer select-none" data-testid="toggle-surcharge-ack">
+ <input type="checkbox" checked={surchargeAck}
+ onChange={e => setSurchargeAck(e.target.checked)}
+ className="mt-0.5 w-4 h-4 rounded border-amber-400 text-amber-700 focus:ring-amber-600" />
+ <span className="text-xs text-amber-900">
+ I confirm the after-office / split-timing surcharge has been added to this quote, or waived in writing (waiver reason recorded above).
+ </span>
+ </label>
+ </div>
+ </div>
+ </div>
+ )}
+
  <div className="mt-6 flex gap-3">
- <button onClick={handleSaveEdit} disabled={editQuote.isPending} data-testid="button-save-edit"
+ <button onClick={handleSaveEdit}
+ disabled={editQuote.isPending || ((editQuoteData.timingMode === 'split' || editQuoteData.afterOfficeInvolved) && !surchargeAck)}
+ data-testid="button-save-edit"
  className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#0A0A0A] hover:bg-black text-white text-sm font-medium transition-colors disabled:opacity-50">
  <Save className="w-4 h-4" /> {editQuote.isPending ? "Saving..." : "Save Changes"}
  </button>

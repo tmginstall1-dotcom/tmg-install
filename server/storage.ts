@@ -2445,13 +2445,15 @@ export class DatabaseStorage implements IStorage {
     const [current] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
     if (!current) return undefined;
     const nextVersion = (current.version ?? 1) + 1;
+    const hadAcceptance = !!current.termsAcceptedAt;
     // A new version invalidates any prior acceptance — the customer must
-    // re-accept the updated scope/price before paying.
+    // re-accept the updated scope/price before paying. "superseded" specifically
+    // means a previously ACCEPTED version was invalidated, so only set it when an
+    // acceptance actually existed; bumping an unaccepted (sent-but-pending) quote
+    // simply advances the version without flagging it as superseded.
     await db.update(quotes).set({
       version: nextVersion,
-      // Mark the prior accepted version as superseded; the customer must accept
-      // the new version before paying (recordTermsAcceptance clears this).
-      superseded: true,
+      superseded: hadAcceptance ? true : (current.superseded ?? false),
       termsAcceptedAt: null,
       termsAcceptedIp: null,
       termsAcceptedAmount: null,
@@ -2461,7 +2463,9 @@ export class DatabaseStorage implements IStorage {
     await this.addDisputeEvent({
       quoteId,
       eventType: 'version_bumped',
-      detail: `Quote updated to v${nextVersion}; prior acceptance cleared`,
+      detail: hadAcceptance
+        ? `Quote updated to v${nextVersion}; prior acceptance cleared`
+        : `Quote updated to v${nextVersion} before acceptance`,
       actorType: 'admin',
     });
     return this.fetchQuoteDetails(quoteId);
