@@ -1,6 +1,6 @@
 import { Switch, Route, useLocation } from "wouter";
 import { useEffect, lazy, Suspense, Component } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, ComponentType } from "react";
 import { Capacitor } from "@capacitor/core";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -14,43 +14,100 @@ import { AdminBottomNav } from "@/components/layout/AdminBottomNav";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 import Landing from "@/pages/customer/LandingCinematic";
-const LandingClassic = lazy(() => import("@/pages/customer/Landing"));
 
-const QuoteStatus = lazy(() => import("@/pages/customer/QuoteStatus"));
-const StatusRedirect = lazy(() => import("@/pages/customer/StatusRedirect"));
-const JobTracker = lazy(() => import("@/pages/customer/JobTracker"));
-const EstimateWizard = lazy(() => import("@/pages/customer/Estimate"));
-const PackageBooking = lazy(() => import("@/pages/customer/PackageBooking"));
-const Terms = lazy(() => import("@/pages/customer/Terms"));
-const Privacy = lazy(() => import("@/pages/customer/Privacy"));
-const Invoice = lazy(() => import("@/pages/Invoice"));
-const Login = lazy(() => import("@/pages/admin/Login"));
-const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
-const AdminQuoteDetail = lazy(() => import("@/pages/admin/QuoteDetail"));
-const AdminSchedule = lazy(() => import("@/pages/admin/Schedule"));
-const AdminExportPDF = lazy(() => import("@/pages/admin/ExportPDF"));
-const AdminStaffManagement = lazy(() => import("@/pages/admin/StaffManagement"));
-const AdminAnalytics = lazy(() => import("@/pages/admin/Analytics"));
-const AdminSettings = lazy(() => import("@/pages/admin/Settings"));
-const AdminBusinessRules = lazy(() => import("@/pages/admin/BusinessRules"));
-const AdminQuickReplies = lazy(() => import("@/pages/admin/QuickReplies"));
-const AdminConversations = lazy(() => import("@/pages/admin/Conversations"));
-const AdminReceipts = lazy(() => import("@/pages/admin/Receipts"));
-const AdminFaqManager = lazy(() => import("@/pages/admin/FaqManager"));
-const AdminSeoPanel = lazy(() => import("@/pages/admin/SeoPanel"));
-const AdminReviews = lazy(() => import("@/pages/admin/ReviewsManager"));
-const AdminGGVJobs = lazy(() => import("@/pages/admin/GGVJobs"));
-const AdminSubcontractors = lazy(() => import("@/pages/admin/Subcontractors"));
-const AdminAIHub = lazy(() => import("@/pages/admin/ai/AIHub"));
-const AdminAIAds = lazy(() => import("@/pages/admin/ai/AIAdsPanel"));
-const AdminAISite = lazy(() => import("@/pages/admin/ai/AISitePanel"));
-const AdminAIApprovals = lazy(() => import("@/pages/admin/ai/AIApprovalQueue"));
-const AdminAIAudit = lazy(() => import("@/pages/admin/ai/AIAuditLog"));
-const AdminAIConnectors = lazy(() => import("@/pages/admin/ai/AIConnectors"));
-const AdminAIWhatsApp = lazy(() => import("@/pages/admin/ai/AIWhatsApp"));
-const StaffDashboard = lazy(() => import("@/pages/staff/Dashboard"));
-const StaffJobDetail = lazy(() => import("@/pages/staff/JobDetail"));
-const StaffHR = lazy(() => import("@/pages/staff/HR"));
+// ── Stale-deploy recovery ───────────────────────────────────────────────────
+// Every route below is code-split into a content-hashed chunk (e.g.
+// /assets/Dashboard-ab12cd.js). When a new version is published the hashes
+// change and the old chunk filenames stop existing on the server. A browser
+// (or installed PWA) still running the previous app shell then tries to load a
+// chunk that 404s, the dynamic import() rejects, React throws, and the user is
+// stuck on the "Something went wrong" screen.
+//
+// `shouldReloadOnce()` allows ONE automatic hard reload per short window. A
+// reload fetches the fresh index.html (network-first in the service worker)
+// plus the new chunks, which fixes the problem. The time guard prevents an
+// infinite reload loop if the failure is a genuine code bug rather than a
+// stale chunk.
+function shouldReloadOnce(): boolean {
+  try {
+    const KEY = "tmg-chunk-reload-at";
+    const now = Date.now();
+    const last = Number(sessionStorage.getItem(KEY) || 0);
+    if (now - last > 10000) {
+      sessionStorage.setItem(KEY, String(now));
+      return true;
+    }
+  } catch {
+    // sessionStorage unavailable (private mode etc.) — fall through to no-reload.
+  }
+  return false;
+}
+
+function isChunkLoadError(err: unknown): boolean {
+  const msg = String((err as any)?.message || err || "");
+  return (
+    /Loading chunk|Loading CSS chunk|dynamically imported module|Importing a module script failed|Failed to fetch dynamically imported module|ChunkLoadError/i.test(
+      msg,
+    )
+  );
+}
+
+// Wrap React.lazy so a failed chunk import triggers a guarded one-time reload
+// instead of crashing straight into the error boundary.
+function lazyWithReload<T extends ComponentType<any>>(
+  factory: () => Promise<{ default: T }>,
+) {
+  return lazy(async () => {
+    try {
+      return await factory();
+    } catch (err) {
+      if (shouldReloadOnce()) {
+        window.location.reload();
+        // Keep the Suspense fallback up while the page reloads.
+        return await new Promise<{ default: T }>(() => {});
+      }
+      throw err;
+    }
+  });
+}
+
+const LandingClassic = lazyWithReload(() => import("@/pages/customer/Landing"));
+
+const QuoteStatus = lazyWithReload(() => import("@/pages/customer/QuoteStatus"));
+const StatusRedirect = lazyWithReload(() => import("@/pages/customer/StatusRedirect"));
+const JobTracker = lazyWithReload(() => import("@/pages/customer/JobTracker"));
+const EstimateWizard = lazyWithReload(() => import("@/pages/customer/Estimate"));
+const PackageBooking = lazyWithReload(() => import("@/pages/customer/PackageBooking"));
+const Terms = lazyWithReload(() => import("@/pages/customer/Terms"));
+const Privacy = lazyWithReload(() => import("@/pages/customer/Privacy"));
+const Invoice = lazyWithReload(() => import("@/pages/Invoice"));
+const Login = lazyWithReload(() => import("@/pages/admin/Login"));
+const AdminDashboard = lazyWithReload(() => import("@/pages/admin/Dashboard"));
+const AdminQuoteDetail = lazyWithReload(() => import("@/pages/admin/QuoteDetail"));
+const AdminSchedule = lazyWithReload(() => import("@/pages/admin/Schedule"));
+const AdminExportPDF = lazyWithReload(() => import("@/pages/admin/ExportPDF"));
+const AdminStaffManagement = lazyWithReload(() => import("@/pages/admin/StaffManagement"));
+const AdminAnalytics = lazyWithReload(() => import("@/pages/admin/Analytics"));
+const AdminSettings = lazyWithReload(() => import("@/pages/admin/Settings"));
+const AdminBusinessRules = lazyWithReload(() => import("@/pages/admin/BusinessRules"));
+const AdminQuickReplies = lazyWithReload(() => import("@/pages/admin/QuickReplies"));
+const AdminConversations = lazyWithReload(() => import("@/pages/admin/Conversations"));
+const AdminReceipts = lazyWithReload(() => import("@/pages/admin/Receipts"));
+const AdminFaqManager = lazyWithReload(() => import("@/pages/admin/FaqManager"));
+const AdminSeoPanel = lazyWithReload(() => import("@/pages/admin/SeoPanel"));
+const AdminReviews = lazyWithReload(() => import("@/pages/admin/ReviewsManager"));
+const AdminGGVJobs = lazyWithReload(() => import("@/pages/admin/GGVJobs"));
+const AdminSubcontractors = lazyWithReload(() => import("@/pages/admin/Subcontractors"));
+const AdminAIHub = lazyWithReload(() => import("@/pages/admin/ai/AIHub"));
+const AdminAIAds = lazyWithReload(() => import("@/pages/admin/ai/AIAdsPanel"));
+const AdminAISite = lazyWithReload(() => import("@/pages/admin/ai/AISitePanel"));
+const AdminAIApprovals = lazyWithReload(() => import("@/pages/admin/ai/AIApprovalQueue"));
+const AdminAIAudit = lazyWithReload(() => import("@/pages/admin/ai/AIAuditLog"));
+const AdminAIConnectors = lazyWithReload(() => import("@/pages/admin/ai/AIConnectors"));
+const AdminAIWhatsApp = lazyWithReload(() => import("@/pages/admin/ai/AIWhatsApp"));
+const StaffDashboard = lazyWithReload(() => import("@/pages/staff/Dashboard"));
+const StaffJobDetail = lazyWithReload(() => import("@/pages/staff/JobDetail"));
+const StaffHR = lazyWithReload(() => import("@/pages/staff/HR"));
 
 import { useAuth } from "@/hooks/use-auth";
 
@@ -258,18 +315,25 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
   static getDerivedStateFromError(err: unknown) {
     return { error: String(err) };
   }
+  componentDidCatch(err: unknown) {
+    // A render-time chunk/dynamic-import failure means the deployed bundle moved
+    // on. Force a guarded one-time reload to pick up the fresh app shell.
+    if (isChunkLoadError(err) && shouldReloadOnce()) {
+      window.location.reload();
+    }
+  }
   render() {
     if (this.state.error) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-white p-8 text-center">
           <div className="text-4xl mb-4">⚠️</div>
           <h1 className="text-lg font-bold mb-2">Something went wrong</h1>
-          <p className="text-sm text-gray-500 mb-6">Please close and reopen the app.</p>
+          <p className="text-sm text-gray-500 mb-6">Please reload to get the latest version.</p>
           <button
             className="px-4 py-2 bg-black text-white rounded text-sm"
-            onClick={() => this.setState({ error: null })}
+            onClick={() => window.location.reload()}
           >
-            Try again
+            Reload
           </button>
         </div>
       );

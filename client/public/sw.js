@@ -1,9 +1,14 @@
-// v6 — Smarter caching: cache-first for hashed bundles, network-first for pages.
+// v7 — Smarter caching: cache-first for hashed bundles, network-first for pages.
 // Service worker is disabled for the native Capacitor app (TMGStaffApp
 // user agent). It runs only in normal browsers for PWA offline support.
+//
+// Bumping the cache version forces this worker to activate (skipWaiting +
+// clients.claim) and drop every previous cache, so a returning visitor stops
+// serving a stale app shell that points at chunk filenames a new deploy
+// removed.
 
-const CACHE_STATIC  = 'tmg-static-v6';   // hashed JS/CSS/font bundles — cache-first
-const CACHE_DYNAMIC = 'tmg-dynamic-v6';  // pages & images — network-first
+const CACHE_STATIC  = 'tmg-static-v7';   // hashed JS/CSS/font bundles — cache-first
+const CACHE_DYNAMIC = 'tmg-dynamic-v7';  // pages & images — network-first
 
 const PRECACHE_PAGES = [
   '/',
